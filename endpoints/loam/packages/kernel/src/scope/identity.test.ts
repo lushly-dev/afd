@@ -36,7 +36,7 @@ import { AGENT_MEMBER_TABLE, PERSONA_TABLE } from '../late/tables.js';
 import { createFixedEnvironment } from '../session.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { replayKernel } from '../testing.js';
-import type { LoamKernelV3 } from '../types.js';
+import type { LoamKernelV5 } from '../types.js';
 import {
 	type AccessActorV1,
 	decideAccess,
@@ -76,7 +76,7 @@ const members = (entries: Record<string, 'owner' | 'admin' | 'member'>): Members
 });
 const ACME = members({ [BEA]: 'member', [OLU]: 'owner' });
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -98,7 +98,7 @@ async function providerWorkspace(
 	return workspace({ identity: PROVIDER, membership: ACME, store, empty: true, ...extra });
 }
 
-const signIn = (kernel: LoamKernelV3, who: string) =>
+const signIn = (kernel: LoamKernelV5, who: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email: who, password: 'x' });
 
 const journalOf = (made: ScopedWorkspace) => made.journal.read();
@@ -355,7 +355,7 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		// The signed-out commands run with no session.
 		expect((await kernel.call('scope-get', {})).success).toBe(true);
 		expect((await kernel.call('shell-info-get', {})).data).toMatchObject({
-			kernelInterface: 3,
+			kernelInterface: 5,
 			identity: { mode: 'provider', organization: 'acme' },
 		});
 		// Signed out, `workspace-get` names the workspace and no person: its `updatedBy` would (review I7).

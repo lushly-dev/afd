@@ -163,7 +163,7 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 
 **TypeScript (M overall):**
 - `MockServer` runs on the server engine (`createDirectRegistry`), so scenario tests get production semantics. (M)
-- D8: the engine enforces `CommandContext.timeout`. (S)
+- D8: the engine enforces `CommandContext.timeout`. (S) Implemented for #543 on `lush/fleet-543-context-timeout-parity`: positive finite per-command deadlines abort the signal and return `TIMEOUT`; delayed middleware cannot start cancelled work. MCP and HTTP execution are covered.
 - Complete the `ErrorCodes` catalog as part of 1.2. (S) Done.
 
 ### Wave 3: surfaces

@@ -19,7 +19,7 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | Term | Tools |
 | --- | --- |
-| Meta-tools | `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`. The tool router handles them itself, in every strategy. TypeScript's and Rust's definitions are [`meta-tools.json`](./meta-tools.json) |
+| Meta-tools | `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`. The tool router handles them itself, in every strategy. TypeScript's, Rust's and C++'s definitions are [`meta-tools.json`](./meta-tools.json) |
 | Context tools | `afd-context-list`, `afd-context-enter`, `afd-context-exit`. Registered as MCP-exposed commands (category `bootstrap`) when the server configures contexts |
 | Bootstrap tools | `afd-help`, `afd-docs`, `afd-schema`. MCP-exposed commands (category `bootstrap`) where the server registers them |
 | Command tool | The tool for one command, as the individual strategy lists it: `name`, `description`, `inputSchema` (with `confirm` where [Confirmations](./command-metadata.md#confirmations) adds it), `annotations`, the top-level `outputSchema` where the server advertises it, and `_meta` ([MCP tool fields](./command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) |
@@ -30,17 +30,16 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
-| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | None: one command tool per command ([#1451](https://github.com/lushly-dev/afd/issues/1451)) |
-| Default | `grouped` | `individual` | `Grouped` | — |
-| Group name | `groupByFn` | `group_by` | `with_group_by` | — |
+| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | `StdioServerOptions::tool_strategy`: `ToolStrategy::individual \| grouped \| lazy` |
+| Default | `grouped` | `individual` | `Grouped` | `grouped` |
+| Group name | `groupByFn` | `group_by` | `with_group_by` | `StdioServerOptions::group_by` |
 | Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
-| Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | — |
+| Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
-C++'s `afd::mcp_stdio` lists one command tool per command, the context tools among them when it
-serves contexts; the meta-tools, bootstrap tools and strategies are
-[#1451](https://github.com/lushly-dev/afd/issues/1451).
+C++'s `afd::mcp_stdio` lists TypeScript's tools for the individual, grouped and lazy strategies;
+the hybrid strategy is [#1202](https://github.com/lushly-dev/afd/issues/1202).
 
 ## Tool lists
 
@@ -52,19 +51,19 @@ tools are exposed commands, so they appear among the commands wherever the serve
 
 | Language | `tools/list` |
 | --- | --- |
-| TypeScript, Rust | `afd-batch`, `afd-pipe`, `afd-call`; then one command tool per command |
+| TypeScript, Rust, C++ | `afd-batch`, `afd-pipe`, `afd-call`; then one command tool per command |
 | Python | `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`; then one command tool per command |
 
 ### `grouped`
 
 | Language | `tools/list` |
 | --- | --- |
-| TypeScript, Rust | `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`; then one grouped tool per group, in the order of each group's first command. By default, context and bootstrap tools fall in the `bootstrap` group |
+| TypeScript, Rust, C++ | `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`; then one grouped tool per group, in the order of each group's first command. By default, context and bootstrap tools fall in the `bootstrap` group |
 | Python | `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`; then the bootstrap-category commands as command tools; then one grouped tool per remaining group, sorted by group name |
 
 A command's group is `groupByFn`'s answer, else its `category`, else the first kebab-case segment of
 its name, else `general`. Its action is its name without the first segment (`todo-create-batch` →
-`create-batch`). In TypeScript and Rust a grouped tool's `_meta.actions` carries, for each action,
+`create-batch`). In TypeScript, Rust and C++ a grouped tool's `_meta.actions` carries, for each action,
 the command name, its input schema and the per-command `_meta` fields
 ([Reporting rules](./command-metadata.md#reporting-rules)); when the serialized per-action schemas
 fit in 8,192 characters and contain no `$ref`, `params` also carries them as `anyOf` branches.
@@ -75,7 +74,7 @@ Python's grouped tool lists its actions sorted, with a generic `params` object a
 
 | Language | `tools/list` |
 | --- | --- |
-| TypeScript, Rust | `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`, and nothing else: no context or bootstrap tools, and not filtered by context |
+| TypeScript, Rust, C++ | `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`, and nothing else: no context or bootstrap tools, and not filtered by context |
 | Python | `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`; then the bootstrap-category commands (the bootstrap tools and, with contexts, the context tools) in the active context |
 
 ### `hybrid`
@@ -127,7 +126,7 @@ A command cannot take a name the server provides itself.
 | TypeScript | The meta-tool names always; the bootstrap names with `bootstrap: true`; the context names with `contexts`. Duplicates are refused too (`command-names.ts`) |
 | Python | The meta-tool names. A command named like a bootstrap tool shadows it ([language parity](../docs/language-parity.md#command-definition)) |
 | Rust | The bootstrap and context names, by `register_bootstrap_commands` and `with_contexts` when a command already has one. A command named like a meta-tool is not refused, but the router handles the meta-tool first, so the command is unreachable |
-| C++ | The meta-tool names, by `register_command`; the context names by `register_context_commands` when a command already has one. C++ has no bootstrap tools ([#1451](https://github.com/lushly-dev/afd/issues/1451)) |
+| C++ | The meta-tool names, by `register_command`; the bootstrap and context names by `register_bootstrap_commands` and `register_context_commands` when a command already has one |
 
 ## Cache hints and `listChanged`
 
@@ -154,8 +153,8 @@ Unless the server sets its own `instructions`, they are these sentences, joined 
    - `individual`: "Each command is its own tool; afd-call also runs any command by name."
    - `hybrid`: see [H8](#h8-what-afd-help-serverdiscover-and-afd-detail-report).
 3. "Use afd-batch for several independent commands and afd-pipe to chain them."
-4. With bootstrap tools (TypeScript with `bootstrap: true`; Rust when all three are registered and
-   exposed; Python never adds it): "afd-help, afd-docs and afd-schema describe this server."
+4. With bootstrap tools (TypeScript with `bootstrap: true`; Rust and C++ when all three are
+   registered and exposed; Python never adds it): "afd-help, afd-docs and afd-schema describe this server."
 5. With contexts: "Commands are scoped by context (afd-context-list lists them). Send
    `_meta["dev.afd/context"]` with a context name on tools/list and tools/call to work in that
    context."
@@ -164,9 +163,9 @@ Unless the server sets its own `instructions`, they are these sentences, joined 
 
 TypeScript and Python differ in which tools the individual, grouped and lazy strategies list. Both
 are conforming until [#533](https://github.com/lushly-dev/afd/issues/533) decides the alignment;
-Rust follows TypeScript.
+Rust and C++ follow TypeScript.
 
-| Difference | TypeScript, Rust | Python |
+| Difference | TypeScript, Rust, C++ | Python |
 | --- | --- | --- |
 | Meta-tools listed by `individual` | `afd-batch`, `afd-pipe`, `afd-call` | All five, `afd-discover` and `afd-detail` first |
 | Meta-tools listed by `grouped` | `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail` | All five, `afd-discover` and `afd-detail` first |
@@ -363,11 +362,11 @@ name, which every strategy serves, so it does not change.
 
 | Strategy | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `individual` | Yes | Yes (the default) | Yes | Partial: command tools without the meta-tools (#1451) |
-| `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | No (#1451) |
-| `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | No (#1451) |
+| `individual` | Yes | Yes (the default) | Yes | Yes |
+| `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | Yes (the default) |
+| `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | Yes |
 | `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
-| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | Planned |
+| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | `toolStrategy` only; the hybrid fields with #1202 |
 | Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |
 
 Progress is recorded in the [hybrid tool strategy status](../docs/features/complete/hybrid-tool-strategy/STATUS.md).

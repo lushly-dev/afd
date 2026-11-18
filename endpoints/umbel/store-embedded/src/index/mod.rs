@@ -3,6 +3,8 @@
 //! and the access set as a mandatory clause of every query. A search scores with BM25 statistics
 //! over the chunks its reader may read (phase 5 section 9.1).
 
+#[cfg(windows)]
+mod directory;
 mod query;
 mod schema;
 mod stats;
@@ -48,10 +50,11 @@ const META_GUARD_FILE: &str = ".umbel-meta.lock";
 /// Keeps reading an index's metadata apart from replacing it, on Windows, across threads,
 /// handles and processes: an open file can make replacement fail with "access denied". Reads
 /// share a lock on a file in the index directory; a commit holds it alone from preparing until
-/// its merges are done, since both replace `meta.json` and `.managed.json`. A wait lasts as long
-/// as the holder, as the in-process lock it replaces did: reads hold it briefly, and a commit
-/// already holds the writer lock. Elsewhere this does nothing: replacement never conflicts with
-/// an open file there.
+/// its merges are done, since the commit and the merges replace `meta.json`. (`.managed.json`, which tantivy also
+/// replaces while documents are added, has a lock of its own: see `directory`.) A wait lasts as
+/// long as the holder, as the in-process lock it replaces did: reads hold it briefly, and a
+/// commit already holds the writer lock. Elsewhere this does nothing: replacement never conflicts
+/// with an open file there.
 #[derive(Clone)]
 pub(crate) struct MetaGuard {
     #[cfg(windows)]
@@ -86,20 +89,9 @@ impl MetaGuard {
 
     #[cfg(windows)]
     fn hold(&self, exclusive: bool) -> Result<MetaHold, StoreError> {
-        let io = |e: std::io::Error| StoreError::Io(format!("{}: {e}", self.path.display()));
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&*self.path)
-            .map_err(io)?;
-        if exclusive {
-            file.lock().map_err(io)?;
-        } else {
-            file.lock_shared().map_err(io)?;
-        }
-        Ok(MetaHold(file))
+        lock_file(&self.path, exclusive)
+            .map(MetaHold)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", self.path.display())))
     }
 
     #[cfg(not(windows))]
@@ -107,6 +99,36 @@ impl MetaGuard {
         Ok(MetaHold())
     }
 }
+
+/// A lock on the file at `path`, created if missing, held until the file is closed: alone when
+/// `exclusive`, otherwise shared. It waits as long as the holders do.
+#[cfg(windows)]
+fn lock_file(path: &Path, exclusive: bool) -> std::io::Result<std::fs::File> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)?;
+    if exclusive {
+        file.lock()?;
+    } else {
+        file.lock_shared()?;
+    }
+    Ok(file)
+}
+
+/// The directory tantivy is given: on Windows with `.managed.json` coordinated across handles
+/// (see `directory`), elsewhere as it is.
+#[cfg_attr(not(windows), allow(unused_variables))]
+fn guarded(mmap: &MmapDirectory, dir: &Path) -> Box<dyn Directory> {
+    #[cfg(windows)]
+    let given = directory::GuardedDirectory::new(mmap.clone(), dir);
+    #[cfg(not(windows))]
+    let given = mmap.clone();
+    Box::new(given)
+}
+
 /// A snippet's length, in characters (the concise form of section 8.2).
 const SNIPPET_CHARS: usize = 240;
 /// Scores are rounded to this many decimal places (section 8.2).
@@ -215,7 +237,7 @@ impl TantivyIndex {
             IndexBuilder::new()
                 .schema(tantivy_schema.clone())
                 .settings(schema::settings())
-                .open_or_create(directory.clone())
+                .open_or_create(guarded(&directory, &dir))
                 .map_err(|e| map_tantivy(&e))
         };
         // An index that exists is opened without the writer lock, so a reader never waits for an

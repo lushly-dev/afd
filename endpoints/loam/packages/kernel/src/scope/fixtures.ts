@@ -281,6 +281,8 @@ export interface ScopedWorkspaceOptions {
 	identity?: IdentityV1;
 	/** Stage A's membership, as the probe gives it (4.2). */
 	membership?: MembershipV1;
+	/** The copilot's providers and runner (phase 5 specification, 3.2). */
+	copilot?: import('../copilot/types.js').CopilotOptionsV1;
 }
 
 /**
@@ -311,6 +313,7 @@ export async function createScopedWorkspace(
 			...(options.initialScope ? { initialScope: options.initialScope } : {}),
 			...(options.identity ? { identity: options.identity } : {}),
 			...(options.membership ? { membership: options.membership } : {}),
+			...(options.copilot ? { copilot: options.copilot } : {}),
 		},
 		options.internals
 	);

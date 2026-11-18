@@ -33,6 +33,11 @@ const ALLOWED: ReadonlyArray<{ file: string; line: string }> = [
 		file: 'chrome/src/sections/documents-sidebar.ts',
 		line: "/** A type's title in the plural, as the tree names its branch: `Notes`, `Checklists`. */",
 	},
+	{
+		// A test provider's script: what a model asks for, as phase 5's job 1 has it, never what the shell knows.
+		file: 'kernel/scenarios/model-scripts.ts',
+		line: "		{ tools: [{ name: 'document-create', input: { type: 'notes', title: 'Seed order' } }] },",
+	},
 ];
 
 function sources(directory: string): string[] {

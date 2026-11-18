@@ -363,7 +363,7 @@ export const SUITES = [
 		workflow: 'conformance.yml',
 		tools: ['uv', 'cargo', 'cmake'],
 		remote:
-			"every backend's MCP 2026-07-28 runs (--mode modern), the TypeScript and Python confirmation suites, the Rust backend's fmt and clippy, and the C++ backend unit tests",
+			"every backend's MCP 2026-07-28 runs (--mode modern), the TypeScript and Python confirmation suites, the Rust backend's fmt and clippy, the C++ backend unit tests, and the C++ backend's MSVC build on Windows",
 		steps: [
 			{ gate: 'todo', tools: [], run: 'pnpm build' },
 			{

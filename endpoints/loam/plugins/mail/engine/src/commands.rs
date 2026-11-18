@@ -411,6 +411,9 @@ fn mailbox_state(row: &MailboxRow, status: &MailboxStatus) -> &'static str {
     }
 }
 
+/// How many of the newest proposals `mail-status` names.
+const PROPOSALS_SHOWN: u32 = 20;
+
 struct Status {
     engine: Arc<Engine>,
 }
@@ -470,10 +473,33 @@ impl CommandHandler for Status {
                     "mailboxes": mailboxes,
                 }));
             }
-            Ok((result, stale, screening))
+            store.expire_proposals(now)?;
+            let states = store.operation_states()?;
+            // What awaits the person: the newest proposals, with their
+            // command, counts and proposer (9.4).
+            let tokens = store.tokens()?;
+            let mut waiting = Vec::new();
+            for row in store.proposals(None, PROPOSALS_SHOWN)? {
+                let counts = store.operation_counts(row.id)?;
+                let shown = crate::operate::operation_json(&row, &counts, &tokens);
+                waiting.push(json!({
+                    "operation": row.id,
+                    "command": row.command,
+                    "messages": row.messages,
+                    "waiting": counts.waiting,
+                    "proposal": shown["proposal"],
+                }));
+            }
+            let operations = json!({
+                "running": states.running,
+                "stopped": states.stopped,
+                "proposed": states.proposed,
+                "proposals": waiting,
+            });
+            Ok((result, stale, screening, operations))
         });
         match read {
-            Ok((accounts, stale, screening)) => success(json!({
+            Ok((accounts, stale, screening, operations)) => success(json!({
                 "accounts": accounts,
                 // Messages an older derivation read, waiting to be read again.
                 "stale": stale,
@@ -482,6 +508,10 @@ impl CommandHandler for Status {
                 "screening": screening,
                 // What a running server carries on; null without one.
                 "work": self.engine.work().status(),
+                // Changes to mail at the provider that run now, that stopped
+                // before their end and can be resumed (9.1), and that wait
+                // for the person's approval (9.4).
+                "operations": operations,
             })),
             Err(error) => failure(store_failure(&error)),
         }
@@ -544,6 +574,7 @@ pub fn approval_summary(
     engine: &Engine,
     command: &str,
     input: &serde_json::Value,
+    now: i64,
 ) -> Option<String> {
     match command {
         "mail-account-add" => {
@@ -567,6 +598,7 @@ pub fn approval_summary(
         }
         crate::screening::ACCEPT => crate::screening::approval_summary(engine, input),
         crate::policy::SET => crate::policy::approval_summary(engine, input),
+        crate::operations::APPROVE => crate::operations::approval_summary(engine, input, now),
         _ => crate::tokens::approval_summary(command, input),
     }
 }

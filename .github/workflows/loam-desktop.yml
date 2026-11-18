@@ -1,8 +1,8 @@
 name: Loam desktop
 
 # Loam's desktop lane (phase 6 specification, 10.7): the web shell in Tauri 2's webview, its Rust host and the
-# WebDriver suite, P6-D1 to P6-D4, under `tauri-driver` with WebKitGTK's driver. Step 11 runs the Linux job;
-# step 12 adds Windows, macOS and the installers.
+# WebDriver suite, P6-D1 to P6-D4 and phase 5's P5-A2 (the copilot's frame), under `tauri-driver` with WebKitGTK's
+# driver. Step 11 runs the Linux job; step 12 adds Windows, macOS and the installers.
 on:
   push:
     branches: [main]
@@ -116,6 +116,7 @@ jobs:
       - name: Install tauri-driver
         working-directory: endpoints/loam/packages/desktop/src-tauri
         run: cargo install tauri-driver --version 2.1.0 --locked
+      # `web`'s build copies `@lushly-dev/loam-copilot`'s frame into `dist/sandbox/copilot/`, which P5-A2 serves.
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-desktop..." build
       - name: Build the bundled empty shell

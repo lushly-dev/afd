@@ -696,6 +696,152 @@ pub(super) const MIGRATIONS: &[&str] = &[
     INSERT INTO policy (id, change_per_call, trash_per_call, trash_per_day, ask_above)
         VALUES (1, 500, 50, 200, 200);
     ",
+    // 13: operations (sections 9.1 to 9.3): each change to mail at a provider, the messages it
+    // acts on, and what it did to each, so that a stop is resumed and a change undone. Not
+    // derived: a rebuild keeps them.
+    "
+    -- One change. `command` is the command that made it; `action` what it does to each message:
+    -- move or copy it to another mailbox, remove a copy an undo takes back, or set flags.
+    -- `kind` is the policy's limit it counts against. `query` is the selection's, as its
+    -- caller wrote it, when it came from one. `messages` is the count it was made with.
+    CREATE TABLE operation (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        command TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (action IN ('move', 'copy', 'remove', 'flags')),
+        kind TEXT NOT NULL CHECK (kind IN ('change', 'trash')),
+        -- What the caller asked, as JSON: ids and booleans only.
+        asked TEXT NOT NULL,
+        undo_of INTEGER REFERENCES operation (id),
+        selection_id INTEGER,
+        query TEXT,
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT,
+        state TEXT NOT NULL CHECK (state IN ('running', 'stopped', 'done')),
+        -- Someone asked it to stop after the batch in hand.
+        stop_asked INTEGER NOT NULL DEFAULT 0 CHECK (stop_asked IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        -- Why it stopped, in the engine's words.
+        error TEXT
+    ) STRICT;
+    CREATE INDEX operation_creator ON operation (creator_kind, creator_id, created_at);
+    CREATE INDEX operation_undo ON operation (undo_of) WHERE undo_of IS NOT NULL;
+
+    -- What an operation acts on: a message in a mailbox, as the provider named it there when the
+    -- operation was made, and each step it reached. `to_*` is where it went, or for a copy an
+    -- undo removes, the message the copy was made from, which must still be there.
+    -- `to_mark` is the destination's next id before a copy, so that a copy whose answer was
+    -- lost is found rather than made twice. `flags_before` is what the provider showed when the
+    -- step ran; `flags_wanted` what a change of flags sets, as JSON.
+    CREATE TABLE operation_item (
+        operation_id INTEGER NOT NULL REFERENCES operation (id) ON DELETE CASCADE,
+        mailbox_id INTEGER NOT NULL REFERENCES mailbox (id),
+        validity TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        message_id INTEGER REFERENCES message (id),
+        to_mailbox_id INTEGER REFERENCES mailbox (id),
+        to_validity TEXT,
+        to_provider_id TEXT,
+        to_mark TEXT,
+        flags_before TEXT,
+        flags_wanted TEXT,
+        step TEXT NOT NULL CHECK (step IN ('waiting', 'copying', 'copied', 'flagged', 'done',
+                                           'unchanged', 'missing', 'ignored')),
+        PRIMARY KEY (operation_id, mailbox_id, validity, provider_id)
+    ) STRICT, WITHOUT ROWID;
+    -- The items still to do, which each batch reads.
+    CREATE INDEX operation_item_open ON operation_item (operation_id, mailbox_id, to_mailbox_id)
+        WHERE step IN ('waiting', 'copying', 'copied', 'flagged');
+    ",
+    // 14: proposals (section 9.4, M28): a change an agent or a script may not make alone waits as
+    // an operation in the state `proposed` until the person approves or dismisses it. SQLite
+    // cannot widen a CHECK, so `operation` is made again with its rows, ids and next id kept, and
+    // `operation_item`, which refers to it, is set aside and put back around it.
+    "
+    CREATE TABLE operation_item_kept AS SELECT * FROM operation_item;
+    DROP TABLE operation_item;
+
+    -- `started_at` is when it first ran: null for a proposal not yet approved, which changed
+    -- nothing. `charged` is whether it counts against its creator's day of trash: a proposal does
+    -- not, approved or not. `proposer_*`, `proposed_at` and `expires_at` name the proposal open
+    -- now, or the last one: a change proposed, or a stopped operation proposed to be carried on.
+    -- `approved_at` is when the person last approved one.
+    CREATE TABLE operation_next (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        command TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (action IN ('move', 'copy', 'remove', 'flags')),
+        kind TEXT NOT NULL CHECK (kind IN ('change', 'trash')),
+        asked TEXT NOT NULL,
+        undo_of INTEGER REFERENCES operation_next (id),
+        selection_id INTEGER,
+        query TEXT,
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT,
+        state TEXT NOT NULL CHECK (state IN ('proposed', 'running', 'stopped', 'done',
+                                             'dismissed', 'expired')),
+        stop_asked INTEGER NOT NULL DEFAULT 0 CHECK (stop_asked IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        error TEXT,
+        started_at INTEGER,
+        charged INTEGER NOT NULL DEFAULT 1 CHECK (charged IN (0, 1)),
+        proposer_kind TEXT,
+        proposer_id TEXT,
+        proposed_at INTEGER,
+        expires_at INTEGER,
+        approved_at INTEGER,
+        CHECK (state <> 'proposed' OR (proposer_kind IS NOT NULL AND expires_at IS NOT NULL))
+    ) STRICT;
+    INSERT INTO operation_next (id, command, action, kind, asked, undo_of, selection_id, query,
+                                creator_kind, creator_id, state, stop_asked, created_at, ended_at,
+                                messages, error, started_at)
+        SELECT id, command, action, kind, asked, undo_of, selection_id, query, creator_kind,
+               creator_id, state, stop_asked, created_at, ended_at, messages, error, created_at
+        FROM operation ORDER BY id;
+    -- The next id carries on from the old table's, so an id is never given twice.
+    INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'operation_next', seq FROM sqlite_sequence WHERE name = 'operation'
+          AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'operation_next');
+    UPDATE sqlite_sequence
+        SET seq = (SELECT max(seq) FROM sqlite_sequence
+                   WHERE name IN ('operation', 'operation_next'))
+        WHERE name = 'operation_next';
+    DROP TABLE operation;
+    ALTER TABLE operation_next RENAME TO operation;
+    CREATE INDEX operation_creator ON operation (creator_kind, creator_id, created_at);
+    CREATE INDEX operation_undo ON operation (undo_of) WHERE undo_of IS NOT NULL;
+    -- The proposals waiting, which each caller may have five of.
+    CREATE INDEX operation_proposed ON operation (proposer_kind, proposer_id)
+        WHERE state = 'proposed';
+
+    CREATE TABLE operation_item (
+        operation_id INTEGER NOT NULL REFERENCES operation (id) ON DELETE CASCADE,
+        mailbox_id INTEGER NOT NULL REFERENCES mailbox (id),
+        validity TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        message_id INTEGER REFERENCES message (id),
+        to_mailbox_id INTEGER REFERENCES mailbox (id),
+        to_validity TEXT,
+        to_provider_id TEXT,
+        to_mark TEXT,
+        flags_before TEXT,
+        flags_wanted TEXT,
+        step TEXT NOT NULL CHECK (step IN ('waiting', 'copying', 'copied', 'flagged', 'done',
+                                           'unchanged', 'missing', 'ignored')),
+        PRIMARY KEY (operation_id, mailbox_id, validity, provider_id)
+    ) STRICT, WITHOUT ROWID;
+    INSERT INTO operation_item (operation_id, mailbox_id, validity, provider_id, message_id,
+                                to_mailbox_id, to_validity, to_provider_id, to_mark, flags_before,
+                                flags_wanted, step)
+        SELECT operation_id, mailbox_id, validity, provider_id, message_id, to_mailbox_id,
+               to_validity, to_provider_id, to_mark, flags_before, flags_wanted, step
+        FROM operation_item_kept;
+    DROP TABLE operation_item_kept;
+    CREATE INDEX operation_item_open ON operation_item (operation_id, mailbox_id, to_mailbox_id)
+        WHERE step IN ('waiting', 'copying', 'copied', 'flagged');
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

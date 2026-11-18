@@ -18,11 +18,11 @@ import {
 	type ScopedWorkspaceOptions,
 } from '../scope/fixtures.js';
 import type { PersonaV1 } from '../scope/records.js';
-import type { KernelEventV3, LoamKernelV3 } from '../types.js';
+import type { KernelEventV3, LoamKernelV5 } from '../types.js';
 import { createPersona, DEFAULT_PERSONA, PERSONA_LIMIT } from './persona.js';
 import { PERSONA_TABLE } from './tables.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -50,7 +50,7 @@ async function workspace(options: ScopedWorkspaceOptions = {}): Promise<ScopedWo
 	return made;
 }
 
-const signIn = (kernel: LoamKernelV3, email: string) =>
+const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 
 const REVIEWER = {
@@ -60,7 +60,7 @@ const REVIEWER = {
 	emphasis: { apps: ['tasks'], sections: ['projects'] },
 };
 
-async function create(kernel: LoamKernelV3, fields: object = REVIEWER): Promise<PersonaV1> {
+async function create(kernel: LoamKernelV5, fields: object = REVIEWER): Promise<PersonaV1> {
 	const made = await kernel.call<PersonaV1>('persona-create', fields);
 	expect(made.success, JSON.stringify(made.error)).toBe(true);
 	return made.data as PersonaV1;

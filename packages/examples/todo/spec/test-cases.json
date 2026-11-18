@@ -803,6 +803,294 @@
 				"data.entries.0.at": { "exists": true },
 				"data.entries.0.undoCommand": "todo-delete"
 			}
+		},
+		{
+			"name": "list_alternatives_filtered",
+			"description": "A filtered list offers the unfiltered list and the opposite completion state as alternatives",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Pending one"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Done one"
+					},
+					"capture": "done"
+				},
+				{
+					"command": "todo-toggle",
+					"input": {
+						"id": "$done.id"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {
+				"completed": true
+			},
+			"expect": {
+				"success": true,
+				"data.total": 1,
+				"alternatives.length": 2,
+				"alternatives.0.reason": "View all 2 todos without filters",
+				"alternatives.0.data.total": 2,
+				"alternatives.0.confidence": 1,
+				"alternatives.1.reason": "View pending todos instead (1)",
+				"alternatives.1.data.total": 1,
+				"alternatives.1.data.todos.0.title": "Pending one"
+			}
+		},
+		{
+			"name": "list_alternatives_no_opposite",
+			"description": "A filtered list offers no opposite state when it would be empty",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Pending one"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {
+				"completed": false
+			},
+			"expect": {
+				"success": true,
+				"alternatives.length": 1,
+				"alternatives.0.reason": "View all 1 todos without filters"
+			}
+		},
+		{
+			"name": "list_no_alternatives_unfiltered",
+			"description": "An unfiltered list offers no alternatives",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Only one"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"alternatives": {
+					"exists": false
+				}
+			}
+		},
+		{
+			"name": "list_priority_ties_ascending",
+			"description": "Equal priorities keep insertion order, sorting ascending",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "First",
+						"priority": "high"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Second",
+						"priority": "low"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Third",
+						"priority": "high"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Fourth",
+						"priority": "low"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {
+				"sortBy": "priority",
+				"sortOrder": "asc"
+			},
+			"expect": {
+				"success": true,
+				"data.todos.0.title": "Second",
+				"data.todos.1.title": "Fourth",
+				"data.todos.2.title": "First",
+				"data.todos.3.title": "Third"
+			}
+		},
+		{
+			"name": "list_priority_ties_descending",
+			"description": "Equal priorities keep insertion order, sorting descending",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "First",
+						"priority": "high"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Second",
+						"priority": "low"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Third",
+						"priority": "high"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Fourth",
+						"priority": "low"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {
+				"sortBy": "priority",
+				"sortOrder": "desc"
+			},
+			"expect": {
+				"success": true,
+				"data.todos.0.title": "First",
+				"data.todos.1.title": "Third",
+				"data.todos.2.title": "Second",
+				"data.todos.3.title": "Fourth"
+			}
+		},
+		{
+			"name": "list_title_ties_descending",
+			"description": "Equal titles keep insertion order, sorting by title descending",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Same",
+						"priority": "low"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Same",
+						"priority": "medium"
+					}
+				},
+				{
+					"command": "todo-create",
+					"input": {
+						"title": "Same",
+						"priority": "high"
+					}
+				}
+			],
+			"command": "todo-list",
+			"input": {
+				"sortBy": "title",
+				"sortOrder": "desc"
+			},
+			"expect": {
+				"success": true,
+				"data.todos.0.priority": "low",
+				"data.todos.1.priority": "medium",
+				"data.todos.2.priority": "high"
+			}
+		},
+		{
+			"name": "detail_destructive_hints",
+			"description": "afd-detail reports the deletes and the clear as destructive, and a create as not",
+			"setup": [],
+			"command": "afd-detail",
+			"input": {
+				"command": ["todo-delete", "todo-clear", "todo-delete-batch", "todo-create"]
+			},
+			"expect": {
+				"success": true,
+				"data.0.destructive": true,
+				"data.1.destructive": true,
+				"data.2.destructive": true,
+				"data.3.found": true,
+				"data.3.destructive": { "exists": false }
+			}
+		},
+		{
+			"name": "tool_list_destructive_hints",
+			"description": "The tool list reports exactly the deletes and the clear as destructive, in each backend's own tool list",
+			"notOn": ["umbel", "umbel-mounted"],
+			"setup": [],
+			"command": "tools/list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.commands.todo-create.destructive": false,
+				"data.commands.todo-list.destructive": false,
+				"data.commands.todo-get.destructive": false,
+				"data.commands.todo-update.destructive": false,
+				"data.commands.todo-toggle.destructive": false,
+				"data.commands.todo-delete.destructive": true,
+				"data.commands.todo-clear.destructive": true,
+				"data.commands.todo-stats.destructive": false,
+				"data.commands.todo-create-batch.destructive": false,
+				"data.commands.todo-delete-batch.destructive": true,
+				"data.commands.todo-toggle-batch.destructive": false,
+				"data.commands.todo-restore.destructive": false,
+				"data.commands.todo-history.destructive": false
+			}
+		},
+		{
+			"name": "tool_list_grouped",
+			"description": "The default tool list is TypeScript's grouped one: the meta-tools, then the todo and bootstrap groups",
+			"implementedBy": ["typescript", "rust", "cpp"],
+			"notOn": ["umbel", "umbel-mounted"],
+			"setup": [],
+			"command": "tools/list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.names": ["afd-batch", "afd-pipe", "afd-call", "afd-detail", "todo", "bootstrap"],
+				"data.actions.todo": [
+					"create",
+					"list",
+					"get",
+					"update",
+					"toggle",
+					"delete",
+					"clear",
+					"stats",
+					"create-batch",
+					"delete-batch",
+					"toggle-batch",
+					"restore",
+					"history"
+				],
+				"data.actions.bootstrap": [
+					"context-list",
+					"context-enter",
+					"context-exit",
+					"help",
+					"docs",
+					"schema"
+				]
+			}
 		}
 	]
 }

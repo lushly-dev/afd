@@ -117,6 +117,21 @@ shared_paths = [
     "**/Cargo.lock",
     ".cargo/**",
 ]
+# Past lane.maxBaseReruns, a move of main that merges cleanly lets the PR's ci-ok stand in for a
+# new local validation, since ci-ok runs on the merge ref with main's own workflows and gates;
+# main changing one of these still means validating again: lockfiles, dependency manifests and
+# toolchain pins, whose effect only the full local install and verify show.
+revalidate_paths = [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "package.json",
+    ".npmrc",
+    ".nvmrc",
+    "**/Cargo.lock",
+    "**/uv.lock",
+    "**/rust-toolchain.toml",
+    "**/.cargo/**",
+]
 # ci-ok runs on pull requests only: after a merge that was not validated again, main is red when a
 # check run on its merge commit fails, apart from publishing and deploying.
 main_checks = [

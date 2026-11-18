@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use crate::commands::{BoxFuture, CommandContext};
 
+pub(crate) mod approver;
 #[cfg(feature = "approval")]
 mod middleware;
 pub(crate) mod relay;

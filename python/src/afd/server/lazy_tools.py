@@ -157,15 +157,15 @@ def execute_detail(
             "title": command.title,
             "description": command.description,
             "category": command.category,
-            "tags": list(command.tags or []),
+            # Empty lists are omitted (spec/command-metadata.md, "Reporting rules").
+            "tags": list(command.tags) if command.tags else None,
             "mutation": command.mutation,
             "executionTime": command.execution_time,
-            "errors": list(command.errors or []),
+            "errors": list(command.errors) if command.errors else None,
             "inputSchema": tool["inputSchema"],
             "outputSchema": command.returns,
             "version": command.version,
             "callable": command.name in exposed_command_names,
-            # Empty lists are omitted, as in `_meta` and the other languages.
             "requires": list(command.requires) if command.requires else None,
             "contexts": list(command.contexts) if command.contexts else None,
             "examples": (

@@ -19,10 +19,11 @@ when main moves about as often as a validation takes it would be validated again
 (lushly-dev/afd#1369). So after ``lane.maxBaseReruns`` main-moved reruns of one attempt (each of a
 validation that passed), the next move needs no new local validation when the validated head
 still merges onto the new base without a conflict and main's changes touch none of the adapter's
-``gate_paths``: the branch advances (``base-advanced`` with ``reason`` ``rerun-limit``) and the
-PR's ``required_check``, which runs on the pull request's merge ref (the branch merged onto
-main), stands in for the local validation. A conflict, a gate path or changes that cannot be read
-are validated again as before.
+``revalidate_paths`` (lockfiles, dependency manifests, toolchain pins; ``gate_paths`` when it
+names none): the branch advances (``base-advanced`` with ``reason`` ``rerun-limit``) and the PR's
+``required_check``, which runs on the pull request's merge ref (the branch merged onto main, with
+main's own workflows and gates), stands in for the local validation. A conflict, one of those
+paths or changes that cannot be read are validated again as before.
 
 The check runs on a main no older than the one at the push (``checkBase``). Past the limit, a
 move of main after the push, while the check runs or after it passed, does not trigger it again:
@@ -90,7 +91,13 @@ class Advancing(StepBase):
     def check_stands_in(self, entry: dict, old: str, new: str) -> bool:
         """Whether the PR's required check stands in for validating again on ``new``: the attempt
         reached ``lane.maxBaseReruns``, the validated head merges onto ``new`` cleanly, and main's
-        changes touch no gate path (whose merge the lane already treats specially)."""
+        changes touch none of the paths the check cannot stand in for.
+
+        Those are the adapter's ``revalidate_paths`` (lockfiles, dependency manifests, toolchain
+        pins such as ``.nvmrc``). Workflows and CI gate files may change: the check runs on the
+        pull request's merge ref, so it runs main's new workflows and gates on the merged code.
+        Without ``revalidate_paths``, every ``gate_paths`` change validates again, as before.
+        """
         if int(entry.get("baseReruns", 0)) < self.dial("lane.maxBaseReruns"):
             return False
         try:
@@ -98,7 +105,10 @@ class Advancing(StepBase):
             merged = self.world.git.merges_cleanly(entry["validatedHead"], new)
         except WorldError:
             return False
-        if any(matches(path, self.config.gate_paths) for path in changed):
+        refused = self.config.revalidate_paths
+        if refused is None:
+            refused = self.config.gate_paths
+        if any(matches(path, refused) for path in changed):
             return False
         return merged.clean
 

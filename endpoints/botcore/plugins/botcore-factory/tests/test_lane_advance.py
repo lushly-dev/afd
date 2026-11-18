@@ -411,3 +411,57 @@ def test_past_the_limit_an_unrelated_move_is_an_ordinary_advance(starving):
     assert "advanced feat/export-csv to main-3" in actions
     [advanced] = [r for r in starving.store.read_records() if r["kind"] == "base-advanced"]
     assert "reason" not in advanced and "checkStandsIn" not in entry_of(starving, BRANCH)
+
+
+# The adapter names what the required check cannot stand in for: lockfiles, dependency
+# manifests and toolchain pins. Workflows and CI gate files are not among them.
+REVALIDATE = {
+    **GUARDED,
+    "gate_paths": ["lefthook.yml", ".github/workflows/**", "scripts/check-*.mjs"],
+    "revalidate_paths": ["pnpm-lock.yaml", "package.json", ".nvmrc", "**/Cargo.lock", "**/uv.lock"],
+}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [[".github/workflows/ci.yml"], ["lefthook.yml", "scripts/check-size.mjs", "packages/b/y.ts"]],
+    ids=["workflow", "ci-gates"],
+)
+def test_past_the_limit_a_move_touching_workflows_or_ci_gates_lets_the_check_stand_in(
+    starving, changes
+):
+    """The check runs on the merge ref, so it runs main's new workflows and gates."""
+    starving.change_world(
+        main={
+            "head": "main-3",
+            "changes": {"main-3": changes, validated_on("main-2"): ["pnpm-lock.yaml"]},
+        }
+    )
+    actions = run_steps(starving, **REVALIDATE)
+    assert "advanced feat/export-csv to main-3 (2 reruns; its required check stands in)" in actions
+    [advanced] = [r for r in starving.store.read_records() if r["kind"] == "base-advanced"]
+    assert advanced["reason"] == "rerun-limit"
+    assert advanced["detail"].startswith("main changed a shared input")
+    starving.change_world(outcomes={"checks": {BRANCH: "success"}})
+    assert "merged feat/export-csv (PR 600)" in run_steps(starving, **REVALIDATE)
+    # The post-merge net is kept: main's checks on the merge commit are watched.
+    assert [item["pr"] for item in starving.state()["lane"]["uncheckedMerges"]] == [600]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["pnpm-lock.yaml", "package.json", ".nvmrc", "endpoints/umbel/Cargo.lock", "python/uv.lock"],
+)
+def test_past_the_limit_a_move_touching_a_lockfile_or_toolchain_pin_validates_again(starving, path):
+    starving.change_world(
+        main={
+            "head": "main-3",
+            "changes": {
+                "main-3": [".github/workflows/ci.yml", path],
+                validated_on("main-2"): ["pnpm-lock.yaml"],
+            },
+        }
+    )
+    assert "rerun feat/export-csv (main-moved)" in run_steps(starving, **REVALIDATE)
+    assert "base-advanced" not in kinds(starving)
+    assert entry_of(starving, BRANCH)["baseReruns"] == 3

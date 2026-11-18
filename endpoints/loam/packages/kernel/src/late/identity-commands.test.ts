@@ -18,7 +18,7 @@ import {
 	scopedPorts,
 } from '../scope/fixtures.js';
 import { documentsDeployment, documentsPorts, replayKernel } from '../testing.js';
-import type { LoamKernelV3 } from '../types.js';
+import type { LoamKernelV5 } from '../types.js';
 import { SIGNED_OUT_COMMANDS } from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createIdentityCommands, HUMAN_COMMANDS, PROVIDER_COMMANDS } from './identity-commands.js';
@@ -45,7 +45,7 @@ const user = (id: string): User => {
 	return { id, email, name: email.split('@')[0] as string };
 };
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 	vi.restoreAllMocks();
@@ -59,7 +59,7 @@ async function workspace(options: ScopedWorkspaceOptions = {}): Promise<ScopedWo
 const provider = (options: ScopedWorkspaceOptions = {}) =>
 	workspace({ identity: PROVIDER, membership: ACME, ...options });
 
-const signIn = (kernel: LoamKernelV3, email: string) =>
+const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 const journalOf = (made: { journal: MemoryJournalSink }) =>
 	made.journal.read() as Promise<JournalEntry[]>;

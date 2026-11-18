@@ -121,6 +121,7 @@ pub const SKILLS_EXTENSION_ID: &str = rmcp::model::SKILLS_EXTENSION_ID;
 /// Default freshness hint of `tools/list` results (5 minutes).
 pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
+pub mod approver;
 #[cfg(feature = "server-auth")]
 #[cfg_attr(docsrs, doc(cfg(feature = "server-auth")))]
 pub mod auth;
@@ -138,6 +139,7 @@ mod skills;
 pub mod strategy;
 mod structured;
 pub mod tasks;
+pub use approver::{ApproverPredicate, AFD_APPROVAL_META_KEY};
 use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
@@ -194,6 +196,8 @@ struct Inner {
     confirmations: Arc<Gate>,
     /// The host's relay for host-verified commands.
     human_relay: Option<Arc<dyn HumanRelay>>,
+    /// Which callers are approvers ("Approval evidence from an approver client").
+    approver: Option<ApproverPredicate>,
     context_hook: Option<ContextHook>,
     advertise_output_schema: bool,
     resources: Option<Arc<dyn ResourceProvider>>,
@@ -251,6 +255,7 @@ impl McpServer {
                         .expect("the OS random source is available"),
                 ),
                 human_relay: None,
+                approver: None,
                 context_hook: None,
                 advertise_output_schema: true,
                 resources: None,
@@ -280,6 +285,7 @@ impl McpServer {
             context_defaults: shared.context_defaults.clone(),
             confirmations: Arc::clone(&shared.confirmations),
             human_relay: shared.human_relay.clone(),
+            approver: shared.approver.clone(),
             context_hook: shared.context_hook.clone(),
             advertise_output_schema: shared.advertise_output_schema,
             resources: shared.resources.clone(),
@@ -461,6 +467,36 @@ impl McpServer {
     pub fn with_human_relay(self, relay: impl HumanRelay + 'static) -> Self {
         let relay: Arc<dyn HumanRelay> = Arc::new(relay);
         self.with(|inner| inner.human_relay = Some(relay))
+    }
+
+    /// Name the approvers (`spec/command-metadata.md`, "Approval evidence from an approver
+    /// client"): MCP clients trusted to show a person a held action and carry the person's
+    /// decision back, such as an application shell that mounts this server. `approver` is called
+    /// once per `tools/call` with the call's context after the context hook (its verified
+    /// [`credentials`](crate::CommandContext::credentials) and its actor); only `true` makes an
+    /// approver. Read only what was verified. A panic fails the call as an internal error, and
+    /// credentials that cannot be bound (M8) fail an approver's call the same way. None by
+    /// default.
+    ///
+    /// For an approver, an `APPROVAL_REQUIRED` result carries `details.approvalToken` whatever
+    /// [`ApprovalMiddlewareOptions::with_include_token`](crate::ApprovalMiddlewareOptions::with_include_token)
+    /// says and is never turned into a form elicitation, and a retry of one command on an MCP
+    /// 2026-07-28 request carries the token in `_meta["dev.afd/approval"]`
+    /// ([`AFD_APPROVAL_META_KEY`]); on `afd-batch`, `afd-pipe` or a 2025-era request the key fails
+    /// the call with `APPROVAL_REQUIRED` before anything runs. Its tokens bind its principal
+    /// binding, so only the same principal can redeem them. Without credentials that is the actor
+    /// alone, so over HTTP name only callers with verified credentials. From any other caller the
+    /// key is ignored. The key in tool arguments is refused from every caller.
+    ///
+    /// An approver promises what the server cannot check: it never gives the token to an agent
+    /// or a model, and presents it only on a retry a person approved after seeing the action,
+    /// shown by the display rules ([`approval_display`](crate::approval_display)).
+    pub fn with_approver<F>(self, approver: F) -> Self
+    where
+        F: Fn(&CommandContext) -> bool + Send + Sync + 'static,
+    {
+        let approver: ApproverPredicate = Arc::new(approver);
+        self.with(|inner| inner.approver = Some(approver))
     }
 
     /// Keep tasks in `store` instead of the default [`InMemoryTaskStore`] (see [`tasks`]): a host

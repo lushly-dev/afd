@@ -8,7 +8,7 @@
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
-import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 
 const template = html<LoamAccountMenu>`
@@ -117,7 +117,7 @@ export class LoamAccountMenu extends FASTElement {
 	}
 	declare name: string;
 	declare email: string;
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** The person's personas, `default` first, and the active one's id (6.3). */
 	personas: { id: string; title: string }[] = [];
 	active = 'default';

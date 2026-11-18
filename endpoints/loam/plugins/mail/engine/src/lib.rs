@@ -7,11 +7,13 @@
 //! (fields, threads, the search index), the provider interface and its IMAP
 //! implementation, sync, the keychain, the read commands, senders, screening
 //! (classes, the person's decisions and agents' suggestions), stream stories,
-//! bursts, selections and the person's policy, the tokens and the journal,
+//! bursts, selections and the person's policy, the changes at the provider
+//! with their operations, undo and proposals, the tokens and the journal,
 //! and the server: `serve` over HTTP, `mcp` over stdio, and the command
 //! line's forwarding to a running server. The other commands arrive with the
 //! steps that follow.
 
+pub mod changes;
 pub mod cli;
 pub mod commands;
 pub mod derive;
@@ -23,6 +25,8 @@ pub mod html;
 pub mod index;
 pub mod journal;
 pub mod log;
+pub mod operate;
+pub mod operations;
 pub mod parts;
 pub mod policy;
 pub mod provider;
@@ -93,6 +97,17 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(selections::create(Arc::clone(engine)))?;
     registry.register(policy::show(Arc::clone(engine)))?;
     registry.register(policy::set(Arc::clone(engine)))?;
+    registry.register(changes::archive(Arc::clone(engine)))?;
+    registry.register(changes::label(Arc::clone(engine)))?;
+    registry.register(changes::mark(Arc::clone(engine)))?;
+    registry.register(changes::trash(Arc::clone(engine)))?;
+    registry.register(operations::list(Arc::clone(engine)))?;
+    registry.register(operations::show(Arc::clone(engine)))?;
+    registry.register(operations::resume(Arc::clone(engine)))?;
+    registry.register(operations::cancel(Arc::clone(engine)))?;
+    registry.register(operations::undo(Arc::clone(engine)))?;
+    registry.register(operations::approve(Arc::clone(engine)))?;
+    registry.register(operations::dismiss(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));
@@ -111,7 +126,9 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
             .with_ttl_ms(APPROVAL_TTL_MS)
             .with_summarize({
                 let engine = Arc::clone(engine);
-                move |command, input, _context| commands::approval_summary(&engine, command, input)
+                move |command, input, context| {
+                    commands::approval_summary(&engine, command, input, context.clock().now())
+                }
             }),
     )?;
     registry.add_middleware(gate);

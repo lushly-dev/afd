@@ -1,9 +1,31 @@
-import { defineConfig } from 'vite';
+import { cpSync, existsSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, type Plugin } from 'vite';
 import { narrowZodFromJsonSchema, zodJitlessByDefault } from './scripts/narrow-zod.mjs';
+
+/**
+ * The copilot's runtime frame (phase 5 specification, 3.2): `@lushly-dev/loam-copilot`'s `dist/frame/`, copied to
+ * `sandbox/copilot/`, which every host serves on its sandbox origin with the frame's own policy. Not part of the
+ * shell's graph: nothing in first paint imports it.
+ */
+function copilotFrame(): Plugin {
+	const from = fileURLToPath(new URL('../copilot/dist/frame/', import.meta.url));
+	return {
+		name: 'loam-copilot-frame',
+		apply: 'build',
+		closeBundle() {
+			if (!existsSync(from))
+				throw new Error(`Build @lushly-dev/loam-copilot first: ${from} is missing`);
+			const to = fileURLToPath(new URL('./dist/sandbox/copilot/', import.meta.url));
+			rmSync(to, { recursive: true, force: true });
+			cpSync(from, to, { recursive: true, filter: (path) => !path.endsWith('sizes.json') });
+		},
+	};
+}
 
 export default defineConfig({
 	base: './',
-	plugins: [zodJitlessByDefault(), narrowZodFromJsonSchema()],
+	plugins: [zodJitlessByDefault(), narrowZodFromJsonSchema(), copilotFrame()],
 	build: {
 		target: 'es2022',
 		outDir: 'dist',
@@ -21,6 +43,12 @@ export default defineConfig({
 						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle)\.js$/.exec(
 							chunk.facadeModuleId ?? ''
 						)?.[1];
+					// The copilot's panel, which the shell loads when its panel part first opens (phase 5 specification, 16).
+					if (/chrome[\\/]dist[\\/]copilot[\\/]index\.js$/.test(chunk.facadeModuleId ?? ''))
+						return 'assets/copilot-panel-[hash].js';
+					// The copilot's records and commands, which `late` loads in stage B (phase 5 specification, 2).
+					if (/kernel[/]dist[/]copilot[/]commands\.js$/.test(chunk.facadeModuleId ?? ''))
+						return 'assets/late-copilot-[hash].js';
 					return late === 'documents'
 						? 'assets/late-documents-[hash].js'
 						: late === 'session-settle'

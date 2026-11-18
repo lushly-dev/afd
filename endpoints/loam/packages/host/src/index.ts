@@ -19,10 +19,13 @@ export { PUBLIC_DIRECTORY, SITE_DIRECTORY } from './data.js';
 export { BACKUP_FILES, type DataFile, type DoctorReport, doctorReport } from './doctor.js';
 export { HostError, type HostErrorCode, type HostFinding } from './errors.js';
 export {
+	COPILOT_FRAME_PATH,
 	commonHeaders,
+	copilotFramePolicy,
 	FORM_ACTION_SELF,
 	FRAME_ANCESTORS_NONE,
 	INERT_POLICY,
+	isCopilotFramePath,
 	isFormPage,
 	isScriptOrStyle,
 	type MetaPolicy,

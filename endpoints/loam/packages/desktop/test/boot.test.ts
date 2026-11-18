@@ -203,6 +203,9 @@ describe('P6-D1: the same build on the desktop', () => {
 			s2: { writes: number; totalMs: number };
 			userAgent: string;
 		};
+		// S2 is 1,000 separate commits, so it measures the disk's flushes: on GitHub's hosted Linux
+		// runner it ran 550 to 7,555 ms on unrelated changes (#1408), so there it is recorded only.
+		const s2Enforced = !(process.platform === 'linux' && process.env.CI === 'true');
 		mkdirSync(RESULTS, { recursive: true });
 		const record = { platform: process.platform, coldStartMs: desktop.coldStartMs, ...result };
 		writeFileSync(
@@ -210,14 +213,15 @@ describe('P6-D1: the same build on the desktop', () => {
 			`${JSON.stringify(record, null, '\t')}\n`
 		);
 		process.stderr.write(
-			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000); cold start ${desktop.coldStartMs.toFixed(0)} ms (ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
+			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000, ${s2Enforced ? 'enforced' : 'recorded only'}); cold start ${desktop.coldStartMs.toFixed(0)} ms (ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
 		);
 		expect(result).toMatchObject({ documents: 2_000, links: 20_000 });
 		expect(result.s1.listed).toBe(result.s1.expected);
 		// S1's ceiling is enforced on Windows alone until a real Linux desktop measures it (the
-		// coordinator, 2026-11-17); S2's holds everywhere.
+		// coordinator, 2026-11-17). S2's holds everywhere but a hosted Linux runner (#1408), until
+		// #1125 sets ceilings from about 20 main runs; a real Linux desktop still enforces it.
 		if (process.platform === 'win32') expect(result.s1.p95Ms).toBeLessThanOrEqual(50);
-		expect(result.s2.totalMs).toBeLessThanOrEqual(2_000);
+		if (s2Enforced) expect(result.s2.totalMs).toBeLessThanOrEqual(2_000);
 		// Section 14's cold-start row is enforced on Windows alone until step 12 measures
 		// each platform (the coordinator, 2026-11-16); elsewhere the line above records it.
 		if (process.platform === 'win32') expect(desktop.coldStartMs).toBeLessThanOrEqual(2_500);

@@ -348,6 +348,47 @@ fn independent_handles_search_while_another_commits() {
 }
 
 #[test]
+fn independent_handles_open_while_another_indexes() {
+    // Each new segment is recorded in `.managed.json` as documents are added, before the commit,
+    // and opening an index reads that file. On Windows the replacement of `.managed.json` can
+    // fail ("access denied") while another handle reads it, unless the two are coordinated
+    // across handles and processes (#1463).
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let writer_side = open_index(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let done = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let opening = scope.spawn(|| {
+            let mut opens = 0_u32;
+            loop {
+                let opened = open_index(dir.path(), "main", StoreOptions::default()).expect("open");
+                opened.applied().expect("applied");
+                opens += 1;
+                if done.load(std::sync::atomic::Ordering::Relaxed) {
+                    break opens;
+                }
+            }
+        });
+        let committed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            for applied in 1..=40 {
+                let doc = format!("a/{applied}");
+                commit(
+                    &*writer_side,
+                    vec![chunk(&doc, "One", "a note", &["space"])],
+                    applied,
+                );
+            }
+        }));
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        let opens = opening.join().expect("the opener never failed");
+        if let Err(panic) = committed {
+            std::panic::resume_unwind(panic);
+        }
+        assert!(opens > 0);
+    });
+    assert_eq!(writer_side.applied().expect("applied"), 40);
+}
+
+#[test]
 fn the_writer_wait_is_bounded_by_the_lock_timeout() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     let index = open_index(

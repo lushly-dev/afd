@@ -6,12 +6,12 @@
  * change is a command; a destructive or accountable one is confirmed in a native modal dialog with its consequence.
  */
 
-import type { AgentMemberRowV1, LoamKernelV3, MemberV1 } from '@lushly-dev/loam-kernel';
+import type { AgentMemberRowV1, LoamKernelV5, MemberV1 } from '@lushly-dev/loam-kernel';
 import { type Answer, button, confirmIn, el } from './account-parts.js';
 
 /** What the members tab gives this part. */
 export interface AgentMembersView {
-	kernel: LoamKernelV3;
+	kernel: LoamKernelV5;
 	root: ShadowRoot;
 	agents: AgentMemberRowV1[];
 	people: MemberV1[];

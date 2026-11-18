@@ -16,10 +16,10 @@ import {
 	type ScopedWorkspace,
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
-import type { LoamKernelV3 } from '../types.js';
+import type { LoamKernelV5 } from '../types.js';
 import { createDocumentIndex, LINK_TABLE, LINK_UNDO_MAX } from './links.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

@@ -14,6 +14,26 @@ the linked tracking issues. This audit did not rerun the four language suites.
 | 3. Surfaces | Partial | TypeScript/Python dual-era MCP and clients landed in #391 to #393. Rust's optional server landed in #394 and its strategies, meta-tools and contexts in #526. C++'s opt-in `afd::mcp_stdio` target and command-to-tool helpers landed for [#341](https://github.com/lushly-dev/afd/issues/341) (stdio, individual tools); Python CLI batch/stream [#548](https://github.com/lushly-dev/afd/issues/548) and defaults [#542](https://github.com/lushly-dev/afd/issues/542) remain |
 | 4. Remaining decisions | Partial | Intended differences are recorded in the matrix; Python application auth remains [#549](https://github.com/lushly-dev/afd/issues/549) |
 
+## TypeScript D8 candidate (#543)
+
+Implemented on `lush/fleet-543-context-timeout-parity`: the standalone server's engine middleware
+bounds middleware and handler execution by each command's positive finite `context.timeout`, aborts its signal and
+returns `TIMEOUT` with a recovery suggestion. Cancelled or timed-out work cannot start after
+middleware resumes, including gated and ungated steps awaiting the batch approval relay (#1417).
+Focused tests cover the engine, both MCP eras and HTTP `/rpc`; full validation belongs to the lane.
+
+Attempt 1 placed deadlines in the shared engine, adding 808 minified bytes to `/direct` and
+failing Loam's kernel budget at 116,441 of 115,500 bytes. The repair moves the deadline boundary
+and final cancellation guard into `createMcpServer`/`createMcpHandler`'s middleware assembly,
+including `server.execute()`. The shared engine and in-process registry stay on their original
+path; DirectClient continues to enforce its own deadline. A module-graph assertion keeps server
+timers out of `/direct`.
+
+After rebasing onto `eeea8be1`, the kernel measures 115,401 of 115,500 bytes (1,040 fewer than the
+ejected candidate). With esbuild 0.28.2, the registry host returns from 39,879 to 39,071 and the
+tool-surface host from 74,118 to 73,310; their ceilings return to 39,100 and 74,000. No Loam
+ceiling changes. `pnpm -F @lushly-dev/loam-web budget` and server entry-point tests pass.
+
 ## Historical checkpoints
 
 The plan's 2026-10-10 stabilization candidate is now merged (#367), and its first releases are
