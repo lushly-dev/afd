@@ -8,9 +8,8 @@ server tells the agent about the strategy. Which strategies each language serves
 
 Every strategy's list is normative, so an agent sees the same tools whichever language serves
 them: the owner decided the individual, grouped and lazy lists in
-[#533](https://github.com/lushly-dev/afd/issues/533) on 2026-11-17, and the
-[hybrid strategy](#hybrid) was specified first. Languages that still serve the earlier lists are
-in [Alignment](#alignment-533). **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
+[#533](https://github.com/lushly-dev/afd/issues/533) on 2026-11-17 (see
+[Alignment](#alignment-533)), and the [hybrid strategy](#hybrid) was specified first. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
 RFC 2119.
 
 The [hybrid tool strategy proposal](../docs/features/complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md)
@@ -32,7 +31,7 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
 | Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | `StdioServerOptions::tool_strategy`: `ToolStrategy::individual \| grouped \| lazy` |
-| Default | `grouped` | `individual` (`grouped` once Python aligns, [#533](https://github.com/lushly-dev/afd/issues/533)) | `Grouped` | `grouped` |
+| Default | `grouped` | `grouped` | `Grouped` | `grouped` |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | `StdioServerOptions::group_by` |
 | Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
 | Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
@@ -134,8 +133,7 @@ A command cannot take a name the server provides itself.
 | `cacheScope` | `public`; `private` on `tools/list` when the server filters tools by scope ([authorization, M6](./authorization.md#listing)) | The same |
 | `capabilities.tools.listChanged` | `false` | `false` ([H6](#h6-cache-hints-and-listchanged)) |
 
-Before #533, `lazy` took the 0 default under contexts too; a language still serving the earlier
-lists keeps it ([Alignment](#alignment-533)). No AFD server sends
+Before #533, `lazy` took the 0 default under contexts too. No AFD server sends
 `notifications/tools/list_changed`.
 
 ## `server/discover` instructions
@@ -160,22 +158,13 @@ Unless the server sets its own `instructions`, they are these sentences, joined 
 
 ## Alignment (#533)
 
-Before [#533](https://github.com/lushly-dev/afd/issues/533), TypeScript, Rust and C++ listed
-`afd-batch`, `afd-pipe`, `afd-call` (and `afd-detail` under `grouped`) and no context tools under
-`lazy`, while Python listed all five meta-tools in another order, the bootstrap commands under
-`lazy` and `grouped`, and sorted grouped tools without `_meta.actions`. Each language moves to the
-lists above in its own step; until then, its earlier list stays conforming.
-
-| | TypeScript | Python | Rust | C++ |
-| --- | --- | --- | --- | --- |
-| The five meta-tools first, in the hybrid order, in every strategy | Yes | Planned | Yes | Yes |
-| `lazy`: the meta-tools and the context tools | Yes | Planned | Yes | Yes |
-| `grouped`: groups in order of first command, `_meta.actions` | Yes | Planned | Yes | Yes |
-| Meta-tool definitions equal [`meta-tools.json`](./meta-tools.json) | Yes | Planned | Yes | Yes |
-| Default strategy `grouped` | Yes | Planned (`individual` today) | Yes | Yes |
-| `lazy` keeps the default `ttlMs` under contexts | Yes | Planned | Yes | Yes |
-
-The hybrid strategy was already the same in every language.
+Before [#533](https://github.com/lushly-dev/afd/issues/533), decided on 2026-11-17, TypeScript, Rust
+and C++ listed `afd-batch`, `afd-pipe`, `afd-call` (and `afd-detail` under `grouped`) and no
+context tools under `lazy`, while Python listed all five meta-tools in another order, the bootstrap
+commands under `lazy` and `grouped`, and sorted grouped tools without `_meta.actions`, and defaulted
+to `individual`. Every language now serves the lists above, with the meta-tools of
+[`meta-tools.json`](./meta-tools.json) and `grouped` as its default; the hybrid strategy was
+already the same everywhere.
 
 ## Hybrid
 
@@ -320,8 +309,8 @@ strategy, and a call through a meta-tool exactly as under the lazy strategy.
 
 [`tool-strategies.json`](./tool-strategies.json) pins the hybrid strategy. It is written by hand
 from this page, before any implementation served the strategy; each language's hybrid step adds
-its loader. It covers only the hybrid strategy; the other strategies' lists join it once every
-language serves them ([Alignment](#alignment-533)).
+its loader. It covers only the hybrid strategy; the todo conformance case `tool_list_grouped`
+checks the default grouped list against every backend.
 
 It sits beside [`meta-tools.json`](./meta-tools.json) rather than in [`vectors/`](./vectors/README.md)
 because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It
@@ -362,9 +351,9 @@ name, which every strategy serves, so it does not change.
 
 | Strategy | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `individual` | Yes | Yes (the default), the earlier list ([Alignment](#alignment-533)) | Yes | Yes |
-| `grouped` | Yes (the default) | Yes, the earlier list ([Alignment](#alignment-533)) | Yes (the default) | Yes (the default) |
-| `lazy` | Yes | Yes, the earlier list ([Alignment](#alignment-533)) | Yes | Yes |
+| `individual` | Yes | Yes | Yes | Yes |
+| `grouped` | Yes (the default) | Yes (the default) | Yes (the default) | Yes (the default) |
+| `lazy` | Yes | Yes | Yes | Yes |
 | `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
 | `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | `toolStrategy` only; the hybrid fields with #1202 |
 | Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |

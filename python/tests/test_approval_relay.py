@@ -169,8 +169,12 @@ async def test_every_single_command_route_asks(mode):
         grouped, mode, prompts, "accept", tool="todo", arguments={"action": "clear", "params": {}}
     )
     assert via_group["success"] is True
-    assert calls == ["clear:all", "clear:all"]
-    assert len(prompts) == 2
+    # A command the grouped list does not show, called by its own name (spec/tool-strategies.md,
+    # "Routing"), is asked as its own tool is.
+    by_name = await _call(_server(calls, tool_strategy="grouped"), mode, prompts, "accept")
+    assert by_name["success"] is True
+    assert calls == ["clear:all", "clear:all", "clear:all"]
+    assert len(prompts) == 3
 
 
 async def test_a_client_without_elicitation_gets_no_token():

@@ -40,13 +40,34 @@ def spec_commands() -> dict[str, Any]:
 # ─── The contract ──────────────────────────────────────────────────────────────
 
 
+def _listed_commands(server) -> set[str]:
+    """The commands the tool list shows: each grouped tool's actions, and each command tool."""
+    names: set[str] = set()
+    for tool in server.get_tool_definitions():
+        actions = (tool.get("_meta") or {}).get("actions")
+        if actions:
+            names.update(action["command"] for action in actions)
+        else:
+            names.add(tool["name"])
+    return names
+
+
 def test_registers_exactly_the_spec_commands():
     spec = set(spec_commands())
     server = create_app(MemoryStore(), {})
 
     assert {command.name for command in server.list_commands()} == spec
-    tools = {tool["name"] for tool in server.get_tool_definitions()}
-    assert spec <= tools
+    assert spec <= _listed_commands(server)
+    # The default grouped list, the same as TypeScript's (spec/tool-strategies.md, #533).
+    assert [tool["name"] for tool in server.get_tool_definitions()] == [
+        "afd-discover",
+        "afd-detail",
+        "afd-call",
+        "afd-batch",
+        "afd-pipe",
+        "todo",
+        "bootstrap",
+    ]
     for command in server.list_commands():
         assert command.expose is not None and command.expose.mcp, command.name
 
@@ -114,7 +135,7 @@ def test_history_description_states_the_limit():
 
 
 def test_registers_the_todo_contexts():
-    tools = {tool["name"] for tool in create_app(MemoryStore(), {}).get_tool_definitions()}
+    tools = _listed_commands(create_app(MemoryStore(), {}))
     assert {"afd-context-list", "afd-context-enter", "afd-context-exit"} <= tools
 
 
