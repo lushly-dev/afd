@@ -172,7 +172,7 @@ Json list(StdioServer& server, Json meta = modern_meta()) {
 
 Json tool_named(const Json& tools, std::string_view name) {
     for (const auto& tool : tools) {
-        if (tool["name"] == name) {
+        if (tool["name"] == std::string(name)) {
             return tool;
         }
     }

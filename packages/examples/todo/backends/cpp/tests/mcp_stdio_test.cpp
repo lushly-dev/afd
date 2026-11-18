@@ -58,7 +58,7 @@ TEST_CASE("tools/list is TypeScript's grouped list: the todo and bootstrap group
     const auto actions = [](const afd::Json& tools, std::string_view group) {
         std::vector<std::string> out;
         for (const auto& tool : tools) {
-            if (tool["name"] == group) {
+            if (tool["name"] == std::string(group)) {
                 out = tool["inputSchema"]["properties"]["action"]["enum"]
                           .get<std::vector<std::string>>();
             }

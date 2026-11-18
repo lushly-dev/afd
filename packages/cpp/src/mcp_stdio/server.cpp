@@ -905,7 +905,7 @@ struct StdioServer::State {
         auto parsed = surface::parse_meta_args(
             "afd-call", arguments, "Provide { command: \"command-name\", input: {...} }");
         if (!parsed) {
-            return tool_result(failure(std::move(parsed.error())));
+            return tool_result(failure(parsed.error()));
         }
         const std::string name = (*parsed)["command"].get<std::string>();
         const Json input = parsed->contains("input") && !(*parsed)["input"].is_null()
@@ -982,7 +982,7 @@ struct StdioServer::State {
             "afd-discover", arguments,
             "Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }");
         if (!parsed) {
-            return tool_result(failure(std::move(parsed.error())));
+            return tool_result(failure(parsed.error()));
         }
         const auto commands = callable(info.active_context);
         std::vector<const CommandDefinition*> definitions;
@@ -998,7 +998,7 @@ struct StdioServer::State {
             "Provide { command: \"command-name\" } or { command: [\"name-1\", \"name-2\"] } (max "
             "10)");
         if (!parsed) {
-            return tool_result(failure(std::move(parsed.error())));
+            return tool_result(failure(parsed.error()));
         }
         const auto commands = callable(info.active_context);
         const auto entries = listed(commands);
