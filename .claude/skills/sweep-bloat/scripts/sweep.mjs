@@ -155,15 +155,21 @@ export function readSettings(text, { pyproject = false } = {}) {
 
 /**
  * A file-name pattern as a regular expression: `*` is any run of characters but `/`, `?`
- * one of them. It matches the whole name, or the whole path when the pattern has a `/`.
+ * one of them, and `**` any directories (`**` + `/` none or several). It matches the whole
+ * name, or the whole path when the pattern has a `/`.
  */
-function namePattern(glob) {
-	const body = glob
-		.split('')
-		.map((char) =>
-			char === '*' ? '[^/]*' : char === '?' ? '[^/]' : char.replace(/[\\^$.|+()[\]{}]/u, '\\$&')
-		)
-		.join('');
+export function namePattern(glob) {
+	let body = '';
+	for (let i = 0; i < glob.length; i += 1) {
+		const char = glob[i];
+		if (char === '*' && glob[i + 1] === '*') {
+			const slash = glob[i + 2] === '/';
+			body += slash ? '(?:[^/]*/)*' : '.*';
+			i += slash ? 2 : 1;
+		} else if (char === '*') body += '[^/]*';
+		else if (char === '?') body += '[^/]';
+		else body += char.replace(/[\\^$.|+()[\]{}]/u, '\\$&');
+	}
 	return new RegExp(`${glob.includes('/') ? '^' : '(?:^|/)'}${body}$`, 'u');
 }
 
@@ -197,15 +203,20 @@ export function isSeededSkill(contents) {
 			.trim()
 			.replace(/^(["'])(.*)\1$/u, '$2') === 'botcore';
 	let inMetadata = false;
+	let childIndent;
 	for (const line of frontmatter.split(/\r?\n/u)) {
 		const topLevel = /^([A-Za-z0-9_-]+):(.*)$/u.exec(line);
 		if (topLevel) {
 			inMetadata = topLevel[1] === 'metadata';
+			childIndent = undefined;
 			if (topLevel[1] === 'source' && isBotcore(topLevel[2])) return true;
 			continue;
 		}
-		const nested = /^\s+source:(.*)$/u.exec(line);
-		if (inMetadata && nested && isBotcore(nested[1])) return true;
+		const nested = /^(\s+)([A-Za-z0-9_-]+):(.*)$/u.exec(line);
+		if (!inMetadata || !nested) continue;
+		// Only metadata's own keys: the first nested line sets their indent.
+		childIndent ??= nested[1];
+		if (nested[1] === childIndent && nested[2] === 'source' && isBotcore(nested[3])) return true;
 	}
 	return false;
 }
@@ -221,8 +232,9 @@ export function seededSkillPrefixes(paths, skillsDir, read) {
 		.replaceAll('\\', '/')
 		.replace(/^(?:\.\/)+/u, '')
 		.replace(/\/+$/u, '');
+	const prefix = dir === '' || dir === '.' ? '' : `${dir}/`;
 	return paths
-		.filter((path) => path.startsWith(`${dir}/`) && path.endsWith('/SKILL.md'))
+		.filter((path) => path.startsWith(prefix) && path.endsWith('/SKILL.md'))
 		.filter((path) => isSeededSkill(read(path) ?? ''))
 		.map((path) => path.slice(0, -'SKILL.md'.length));
 }
@@ -788,8 +800,15 @@ export function main(
 	if (command === 'trend' && rest.length === 0) {
 		const issue = requireTrendIssue(configured);
 		const { author, history } = readHistory(root, issue);
-		const { labels } = repositoryMeasures(root, configured);
-		return formatTrend(history, issue, { labels, author });
+		let labels = {};
+		let note = '';
+		try {
+			({ labels } = repositoryMeasures(root, configured));
+		} catch (error) {
+			const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
+			note = `\n\nThe [sweep] measures command failed (${reason}), so only the core measures are shown.`;
+		}
+		return formatTrend(history, issue, { labels, author }) + note;
 	}
 	if (command !== 'area' && command !== 'bloat') throw new Error(USAGE);
 	const paths = trackedFiles(root);
@@ -798,7 +817,6 @@ export function main(
 		if (rest.length > 0) throw new Error(USAGE);
 		return formatArea(measuredAreas(paths, settings), new Date());
 	}
-	if (command !== 'bloat') throw new Error(USAGE);
 	const { values } = parseArgs({
 		args: rest,
 		options: { area: { type: 'string' }, top: { type: 'string' }, record: { type: 'boolean' } },

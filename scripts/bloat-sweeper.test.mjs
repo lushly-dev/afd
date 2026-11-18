@@ -218,6 +218,28 @@ test('[sweep] include_names opts skipped names back in, on top of the defaults',
 	assert.equal(isMeasured('src/a.stories.ts', readSettings('')), false);
 });
 
+test('include_names takes ** as any directories, and * stays within a name', () => {
+	const settings = readSettings('[sweep]\ninclude_names = ["**/*.stories.*"]\n');
+	for (const path of ['a.stories.ts', 'src/a.stories.ts', 'src/x/y/a.stories.ts'])
+		assert.equal(isMeasured(path, settings), true, path);
+	const shallow = readSettings('[sweep]\ninclude_names = ["src/*.stories.*"]\n');
+	assert.equal(isMeasured('src/a.stories.ts', shallow), true);
+	assert.equal(isMeasured('src/x/a.stories.ts', shallow), false);
+});
+
+test('a source key nested deeper than metadata does not mark a seeded skill', () => {
+	const deep = ['---', 'name: mine', 'metadata:', '  upstream:', '    source: botcore', '---'];
+	assert.equal(isSeededSkill(deep.join('\n')), false);
+	const sibling = ['---', 'name: x', 'metadata:', '  version: 1', '  source: botcore', '---'];
+	assert.equal(isSeededSkill(sibling.join('\n')), true);
+	const seeded = ['---', 'metadata:', '  source: botcore', '---'].join('\n');
+	// source_dir at the repository root still finds seeded skills.
+	assert.deepEqual(
+		seededSkillPrefixes(['tool/SKILL.md', 'tool/x.mjs'], '.', () => seeded),
+		['tool/']
+	);
+});
+
 test('the report header gives each repository measure as label: value', () => {
 	const report = {
 		metrics: {

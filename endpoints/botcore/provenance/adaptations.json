@@ -2631,10 +2631,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9b83572bec92b164a8bf87add64800637fb0eeb783a95ac3906d884f25c620b1",
+      "current_import_sha256": "28cfc017991133a669a385be941676de6fb7bd2fef0e3aac9ddd12931186d1ee",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/skills/bloat-sweeper/scripts/sweep.mjs",
@@ -2642,10 +2642,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f565866951afbc65893ed028f7ac23d7c54f54ca0a3f86acf60ad63faf462e05",
+      "current_import_sha256": "36372ba75fb10408469e27473eaeee15724414f7fc6510ba507fbfb7b3bdc286",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/skills/botcore-config/SKILL.md",

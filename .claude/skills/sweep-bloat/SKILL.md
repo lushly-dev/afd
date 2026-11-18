@@ -57,13 +57,16 @@ never tests, stories, declarations, or anything under a `test`, `tests`, `build`
 `dist`, `vendor`, `coverage` or `generated` directory, so a hand-written package with
 one of those names is not measured. Nor does it measure the skills Botcore seeded
 under `[skills] source_dir` (`metadata.source: botcore`): `skill-seed --update`
-replaces them, so a cut there would not last.
+replaces them, so a cut there would not last. A copy you keep and edit yourself (one
+named in `[skills] skip`) should drop `source: botcore` from its metadata, or the
+sweep will not measure it.
 
 Settings are under `[sweep]` in `botcore.toml` (`[tool.botcore.sweep]` in
 `pyproject.toml`): `trend_issue` (an open issue, needed for `--record` and `trend`),
 `cohesive` (default `sweep-cohesive.json`), `exclude` (path prefixes),
 `include_names` (file-name patterns measured although skipped by default, such as
-`"*.stories.*"` where a size limit counts stories), `churn_days` (90), `extensions`,
+`"*.stories.*"` where a size limit counts stories; `*` and `?` stay within a name,
+`**/` spans directories), `churn_days` (90), `extensions`,
 and `measures`: a command printing the repository's own measures, such as bundle
 chunk sizes, as `{"measures": [{"key", "label", "value"}], "lines": [...]}`, with
 only JSON on stdout. Those join the report's header and the trend, which reads a
