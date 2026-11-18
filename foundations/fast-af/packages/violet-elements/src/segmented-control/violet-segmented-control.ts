@@ -11,6 +11,8 @@ const styles = css`
 
     :host {
         display: grid;
+        /* The track is a well: a wash of the text colour, with the chosen segment raised out of it. */
+        --_well: color-mix(in srgb, var(--color-text-primary, #181b1a) 7%, transparent);
     }
 
     .field {
@@ -23,7 +25,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-2xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .group {
@@ -31,20 +33,18 @@ const styles = css`
         align-items: stretch;
         gap: 2px;
         padding: 2px;
-        border: 1px solid var(--_border-subtle);
-        border-radius: var(--_radius-lg);
-        background: var(--_surface-subtle);
-        box-shadow: var(--_shadow-control);
+        border-radius: var(--_radius-md);
+        background: var(--_well);
         min-inline-size: 0;
     }
 
     :host([disabled]) .group,
     :host(:disabled) .group {
-        opacity: 0.7;
+        opacity: 0.5;
     }
 
     :host([invalid]) .group {
-        border-color: var(--_danger-border);
+        box-shadow: inset 0 0 0 1px var(--_danger-border);
     }
 
     .supporting,
@@ -60,14 +60,14 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         margin-block-start: var(--_space-stack-2xs);
     }
 
     @media (forced-colors: active) {
         .group {
             forced-color-adjust: none;
-            border-color: ButtonText;
+            border: 1px solid ButtonText;
             background: Canvas;
             color: ButtonText;
             box-shadow: none;

@@ -103,7 +103,13 @@
 			}
 		],
 		"commands": [],
-		"cssProperties": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 7%, transparent)",
+				"name": "--_well"
+			}
+		],
 		"events": [
 			{
 				"basis": "declared",

@@ -45,9 +45,12 @@ const styles = css`
         line-height: var(--_msg-body-line);
     }
 
+    /* The agent's turn is the page itself: no box around its parts. */
     :host([message-role="assistant"]) .surface {
-        background: var(--_surface-card);
-        border: var(--_msg-border-width) solid var(--_border-subtle);
+        flex: 1 1 auto;
+        max-inline-size: 100%;
+        padding: 0;
+        border: var(--_msg-border-width) solid transparent;
     }
 
     :host([message-role="user"]) .surface {
@@ -57,19 +60,24 @@ const styles = css`
 
     :host([message-role="system"]) .surface {
         background: transparent;
-        border: var(--_msg-border-width) solid var(--_border-subtle);
+        border: var(--_msg-border-width) solid transparent;
         max-inline-size: 100%;
         text-align: center;
         font-size: var(--_msg-system-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-muted);
     }
 
+    /* A toned message is a filled box, whoever sent it. */
     :host([tone="error"]) .surface {
-        border-color: var(--_danger-border, rgba(220, 38, 38, 0.34));
+        padding: var(--_space-sm) var(--_space-md);
+        border-color: var(--_danger-border);
+        background: var(--color-state-danger-background, #f7e4df);
     }
 
     :host([tone="success"]) .surface {
-        border-color: var(--_success-border, rgba(22, 163, 74, 0.34));
+        padding: var(--_space-sm) var(--_space-md);
+        border-color: var(--_success-border);
+        background: var(--color-state-success-background, #dfeae3);
     }
 
     :host([tone="muted"]) .surface {
@@ -81,7 +89,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         font-size: var(--_msg-meta-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .meta[hidden] {
@@ -91,7 +99,7 @@ const styles = css`
     .body {
         display: flex;
         flex-direction: column;
-        gap: var(--_space-sm);
+        gap: var(--_space-md);
         min-inline-size: 0;
     }
 

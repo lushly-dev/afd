@@ -746,8 +746,12 @@ export class LoamShell extends FASTElement {
 		}
 		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
 		else if (event.actorChanged || event.command.startsWith('auth-')) {
-			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2).
-			if (event.actorChanged)
+			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2), and in
+			// a `local` deployment a sign-in or a sign-out is a change of person too (phase 5's step 2).
+			if (
+				event.actorChanged ||
+				(event.success && (event.command === 'auth-sign-in' || event.command === 'auth-sign-out'))
+			)
 				(
 					this.shadowRoot?.querySelector('loam-copilot-panel') as { reset?(): void } | null
 				)?.reset?.();

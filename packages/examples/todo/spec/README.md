@@ -1,6 +1,6 @@
 # Todo Example Specification
 
-This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
+This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with both frontends (FAST-AF and React).
 
 ## Files
 
@@ -12,7 +12,7 @@ This directory contains the shared API contract for the Todo example. All four b
   implements all 13 commands. A command with `implementedBy`, or an input property with
   `x-implementedBy`, would exist only in the languages it names, and every backend's tests honour
   both; none has either now (the
-  [to-do reference plan](../../../../docs/features/active/todo-reference/todo-reference.proposal.md)
+  [to-do reference plan](../../../../docs/features/complete/todo-reference/todo-reference.proposal.md)
   used them while `todo-restore`, `todo-history` and `deleted` reached each language).
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
@@ -29,7 +29,7 @@ store and runs every case in `test-cases.json`:
 |---------|--------|-----------|
 | TypeScript | `pnpm test:conformance:ts` | MCP over stdio |
 | Python | `pnpm test:conformance:py` | MCP over stdio |
-| Rust | `pnpm test:conformance:rs` | MCP over stdio (`cargo run -- stdio`) |
+| Rust | `pnpm test:conformance:rs` | MCP over stdio (the built binary, `todo-backend-rust stdio`) |
 | C++ | `pnpm test:conformance:cpp` | MCP over stdio |
 
 The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). The C++
@@ -43,14 +43,14 @@ unfiltered one and the opposite state), ties keeping insertion order in both sor
 the `destructive` hints, and the tool list.
 
 A case with `implementedBy` runs only against backends in those languages, and one with `notOn`
-skips the backends it names. Two cases use them:
+skips the backends it names. Two cases skip the Umbel modes:
 
 | Case | Runs against | Why not the others |
 | --- | --- | --- |
-| `tool_list_grouped` | TypeScript | The list [#533](https://github.com/lushly-dev/afd/issues/533) decided; Rust, C++ and Python serve it in their own steps, and Umbel lists its own hybrid tools |
+| `tool_list_grouped` | Every backend but the Umbel modes | Umbel lists its own hybrid tools |
 | `tool_list_destructive_hints` | Every backend but the Umbel modes | Umbel's hybrid list does not list the todo commands; `detail_destructive_hints` checks their hints there through `afd-detail` |
 
-So TypeScript runs all 50, Python, Rust and C++ 49, and each Umbel mode, which serves the Rust
+So TypeScript, Python, Rust and C++ run all 50, and each Umbel mode, which serves the Rust
 backend, 48.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays

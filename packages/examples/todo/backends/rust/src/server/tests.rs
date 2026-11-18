@@ -228,10 +228,11 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
     assert_eq!(
         names,
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
-            "afd-detail",
             "todo",
             "bootstrap"
         ]
@@ -246,7 +247,7 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
     };
     // The context commands, then the bootstrap commands, as TypeScript orders them.
     assert_eq!(
-        commands_of(&tools[5]),
+        commands_of(&tools[6]),
         [
             "afd-context-list",
             "afd-context-enter",
@@ -256,7 +257,7 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
             "afd-schema",
         ]
     );
-    let actions = tools[4]["_meta"]["actions"].as_array().expect("actions");
+    let actions = tools[5]["_meta"]["actions"].as_array().expect("actions");
     let commands: Vec<&str> = actions
         .iter()
         .filter_map(|action| action["command"].as_str())
@@ -413,12 +414,16 @@ async fn answers_preflights_only_for_allowed_origins() {
             .body(Body::empty())
             .expect("request builds")
     };
-    let allowed = send(app(), preflight("http://localhost:3000")).await;
+    let allowed = send(app(), preflight("http://localhost:5173")).await;
     assert_eq!(allowed.status, StatusCode::OK);
     assert!(allowed.headers.get("access-control-allow-origin").is_some());
 
     let denied = send(app(), preflight("https://evil.example")).await;
     assert_eq!(denied.status, StatusCode::FORBIDDEN);
+
+    // No dev frontend serves on 3000 any more, so it is not allowed by default.
+    let retired = send(app(), preflight("http://localhost:3000")).await;
+    assert_eq!(retired.status, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -468,7 +473,7 @@ fn binds_loopback_by_default() {
     assert!(config
         .policy
         .allowed_origins
-        .contains(&"http://127.0.0.1:3000".to_string()));
+        .contains(&"http://127.0.0.1:5174".to_string()));
 }
 
 #[test]

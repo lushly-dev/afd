@@ -19,12 +19,14 @@ const styles = css`
         inline-size: min(var(--violet-snackbar-inline-size, 32rem), calc(100vw - (var(--_space-lg) * 2)));
         max-inline-size: calc(100vw - (var(--_space-lg) * 2));
         color: var(--_text-primary);
+        /* The surface block has no target sizes; a message with no action is still one control tall. */
+        --_target-size-natural: var(--size-target-natural, 32px);
         --_snackbar-padding-inline: var(--violet-snackbar-padding-inline, var(--_space-md));
         --_snackbar-padding-block: var(--violet-snackbar-padding-block, var(--_space-sm));
         --_snackbar-gap: var(--violet-snackbar-gap, var(--_space-sm));
-        --_snackbar-radius: var(--violet-snackbar-radius, calc(var(--_radius-lg) * 1.33));
+        --_snackbar-radius: var(--violet-snackbar-radius, var(--_radius-lg));
         --_snackbar-surface: var(--violet-snackbar-surface, var(--_surface-floating));
-        --_snackbar-border: var(--violet-snackbar-border, var(--_border-subtle));
+        --_snackbar-border: var(--violet-snackbar-border, transparent);
         --_snackbar-shadow: var(--violet-snackbar-shadow, var(--_shadow-floating));
         --_snackbar-emphasis: var(--violet-snackbar-emphasis, var(--_text-primary));
         --_snackbar-action: var(--violet-snackbar-action, var(--_text-primary));
@@ -38,28 +40,27 @@ const styles = css`
 
     :host([tone="info"]) {
         --_snackbar-surface: var(--_surface-card);
-        --_snackbar-border: color-mix(in srgb, var(--_border-subtle) 70%, var(--_focus-ring));
     }
 
     :host([tone="success"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-success-background, #E3F1E7) 78%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
-        --_snackbar-emphasis: var(--color-state-success-text, #166534);
-        --_snackbar-action: var(--color-state-success-text, #166534);
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-success-background, #dfeae3) 78%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-success-border, transparent);
+        --_snackbar-emphasis: var(--color-state-success-text, #2c5e4b);
+        --_snackbar-action: var(--color-state-success-text, #2c5e4b);
     }
 
     :host([tone="warning"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-warning-background, #FDEBCC) 82%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-warning-background, #f3e8d2) 82%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-warning-border, transparent);
         --_snackbar-emphasis: var(--color-state-warning-text, #92400E);
         --_snackbar-action: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-danger-background, #FBE2E2) 82%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_snackbar-emphasis: var(--color-state-danger-text, #B42318);
-        --_snackbar-action: var(--color-state-danger-text, #B42318);
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-danger-background, #f7e4df) 82%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-danger-border, transparent);
+        --_snackbar-emphasis: var(--color-state-danger-text, #c42a1a);
+        --_snackbar-action: var(--color-state-danger-text, #c42a1a);
     }
 
     .frame {

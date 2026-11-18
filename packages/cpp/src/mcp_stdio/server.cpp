@@ -361,7 +361,11 @@ struct StdioServer::State {
     }
 
     [[nodiscard]] std::int64_t ttl_ms() const {
-        return options.tools_list_ttl_ms.value_or(options.contexts.empty() ? tools_list_ttl_ms : 0);
+        // With contexts the individual and grouped lists vary by context, which clients leave out
+        // of their cache key; the lazy list does not (#533).
+        const bool varies =
+            !options.contexts.empty() && options.tool_strategy != ToolStrategy::lazy;
+        return options.tools_list_ttl_ms.value_or(varies ? 0 : tools_list_ttl_ms);
     }
 
     [[nodiscard]] std::string default_instructions() const {
@@ -530,16 +534,23 @@ struct StdioServer::State {
     }
 
     [[nodiscard]] Json tools(const std::optional<std::string>& active = std::nullopt) const {
+        // Every strategy lists the five meta-tools first, in the hybrid order (#533).
         Json tools = Json::array();
+        for (const auto* name :
+             {"afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe"}) {
+            tools.push_back(surface::meta_tool(name));
+        }
+        // Lazy: then the context tools when contexts are configured, in every context.
         if (options.tool_strategy == ToolStrategy::lazy) {
-            for (const auto* name :
-                 {"afd-discover", "afd-detail", "afd-batch", "afd-pipe", "afd-call"}) {
-                tools.push_back(surface::meta_tool(name));
+            if (!options.contexts.empty()) {
+                for (const auto name : afd_context_command_names) {
+                    if (const auto command = registry.get(name);
+                        command && is_exposed_to(command->definition.expose, Interface::mcp)) {
+                        tools.push_back(command_tool(command->definition));
+                    }
+                }
             }
             return tools;
-        }
-        for (const auto* name : {"afd-batch", "afd-pipe", "afd-call"}) {
-            tools.push_back(surface::meta_tool(name));
         }
         const auto commands = callable(active);
         const auto entries = listed(commands);
@@ -549,7 +560,6 @@ struct StdioServer::State {
             }
             return tools;
         }
-        tools.push_back(surface::meta_tool("afd-detail"));
         std::vector<std::pair<std::string, std::vector<const surface::Listed*>>> groups;
         for (const auto& entry : entries) {
             const std::string group = group_of(*entry.command);

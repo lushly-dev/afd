@@ -22,15 +22,19 @@ const styles = css`
     .root {
         display: flex;
         flex-direction: column;
-        border: var(--_card-border-width, 1px) solid var(--_border-subtle);
+        /* Raised, so it reads as the place to write without a drawn box. The edge shows only in forced colours. */
+        border: var(--_card-border-width, 1px) solid transparent;
         border-radius: var(--_radius-lg);
         background: var(--_surface-card);
+        box-shadow: var(--_shadow-card);
         overflow: hidden;
-        transition: border-color 0.15s ease;
+        transition: box-shadow 0.15s ease;
     }
 
     .root:focus-within {
-        border-color: var(--_focus-ring);
+        box-shadow:
+            var(--_shadow-card),
+            0 0 0 2px var(--_focus-ring);
     }
 
     .input-row {
@@ -56,7 +60,6 @@ const styles = css`
         border: 0;
         background: transparent;
         box-shadow: none;
-        transform: none;
     }
 
     .input-field::part(label) {
@@ -94,9 +97,9 @@ const styles = css`
 
     .footer {
         padding: var(--_space-xs, 4px) var(--_space-md);
-        border-block-start: var(--_card-border-width, 1px) solid var(--_border-subtle);
-        font-size: calc(var(--_composer-font-size) * 0.85);
-        color: var(--_text-secondary, #414651);
+        border-block-start: var(--_card-border-width, 1px) solid transparent;
+        font-size: var(--_caption-size);
+        color: var(--_text-muted);
     }
 
     .footer[hidden] {
@@ -108,6 +111,11 @@ const styles = css`
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
+            box-shadow: none;
+        }
+
+        .root:focus-within {
+            box-shadow: 0 0 0 2px Highlight;
         }
     }
 `;

@@ -80,7 +80,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-snackbar-border, var(--_border-subtle))",
+				"default": "var(--violet-snackbar-border, transparent)",
 				"name": "--_snackbar-border"
 			},
 			{
@@ -105,7 +105,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-snackbar-radius, calc(var(--_radius-lg) * 1.33))",
+				"default": "var(--violet-snackbar-radius, var(--_radius-lg))",
 				"name": "--_snackbar-radius"
 			},
 			{
@@ -117,6 +117,11 @@
 				"basis": "declared",
 				"default": "var(--violet-snackbar-surface, var(--_surface-floating))",
 				"name": "--_snackbar-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-natural, 32px)",
+				"name": "--_target-size-natural"
 			},
 			{
 				"basis": "declared",

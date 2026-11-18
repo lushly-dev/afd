@@ -1,10 +1,13 @@
 //! Loam's desktop host (phase 6 specification, section 10): the same `web` build in Tauri 2's webview, as a
 //! personal shell. The Rust side serves the site over two custom protocols, keeps one window, builds the
-//! menus, and carries mounted instances' messages over three commands, the only IPC the webview is granted.
+//! menus, and carries mounted instances' messages over three commands and the copilot's model requests over two
+//! more (phase 5 specification, 4.2), the only IPC the webview is granted.
+pub mod models;
 pub mod mounts;
 pub mod notify;
 pub mod site;
 
+use models::{Emit, Models};
 use mounts::{Mounts, Notify};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -80,9 +83,25 @@ fn notifier<R: Runtime>(app: AppHandle<R>) -> Notify {
     )
 }
 
-/// The three commands, and no other (10.4): what the app registers, and what P6-D4's IPC test drives.
+/// Where a model stream's events go: one fixed statement per event in the main webview (`models::event_script`).
+fn emitter<R: Runtime>(app: AppHandle<R>) -> Emit {
+    Arc::new(move |detail: Value| {
+        if let Some(window) = app.get_webview_window(MAIN) {
+            let _ = window.eval(models::event_script(&detail));
+        }
+    })
+}
+
+/// The five commands, and no other (10.4, and phase 5's 4.2): what the app registers, and what P6-D4's IPC test
+/// drives.
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![mount_open, mount_send, mount_close]
+    tauri::generate_handler![
+        mount_open,
+        mount_send,
+        mount_close,
+        model_send,
+        model_cancel
+    ]
 }
 
 #[tauri::command]
@@ -125,6 +144,39 @@ async fn mount_close<R: Runtime>(
 ) -> Result<(), String> {
     from_shell(&webview, &request)?;
     mounts.close(handle).await.map_err(String::from)
+}
+
+/// `model_send` (phase 5 specification, 4.2): a provider id from `models.json`, a body the kind's allow-list
+/// admits, and the stream id the page listens on; the Rust host builds the request, and the answer arrives as
+/// `loam:model` events. The id back at once.
+#[tauri::command]
+async fn model_send<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
+    models: State<'_, Arc<Models>>,
+    provider: String,
+    body: Value,
+    stream: u64,
+) -> Result<u64, String> {
+    from_shell(&webview, &request)?;
+    models
+        .send(&provider, body, stream, emitter(app))
+        .await
+        .map_err(String::from)
+}
+
+/// `model_cancel`: the stream's request is dropped.
+#[tauri::command]
+async fn model_cancel<R: Runtime>(
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
+    models: State<'_, Arc<Models>>,
+    stream: u64,
+) -> Result<(), String> {
+    from_shell(&webview, &request)?;
+    models.cancel(stream).await;
+    Ok(())
 }
 
 /// "Command palette" answers as Mod+K does: a key event the shell's keyboard handler turns into
@@ -213,11 +265,7 @@ pub fn run() {
             let state = context.app_handle().state::<SiteState>();
             site::serve(&state.0, true, &request)
         })
-        .invoke_handler(tauri::generate_handler![
-            mount_open,
-            mount_send,
-            mount_close
-        ])
+        .invoke_handler(handler())
         .setup(|app| {
             let handle = app.handle().clone();
             let data = data_directory(&handle);
@@ -239,6 +287,14 @@ pub fn run() {
                 eprintln!("loam-desktop: mounts.json refused ({code}); no instance is mounted");
             }
             app.manage(Arc::new(Mounts::new(entries)));
+            // The copilot's providers (phase 5 specification, 4.2): read once, beside `mounts.json`, under its rule.
+            let providers = models::read(&data.join("models.json"));
+            if let Err(code) = &providers {
+                eprintln!(
+                    "loam-desktop: models.json refused ({code}); no model provider is configured"
+                );
+            }
+            app.manage(Arc::new(Models::new(providers)));
             app.set_menu(menu(&handle)?)?;
             app.on_menu_event(|app, event| {
                 let Some(window) = app.get_webview_window(MAIN) else {
@@ -265,6 +321,15 @@ pub fn run() {
                 // IndexedDB and the rest of the webview's profile live beside the site, per data directory.
                 .data_directory(data.join("webview"))
                 .on_navigation(may_navigate)
+                // A reload or a navigation leaves the page that asked for each model stream: none outlives it (phase 5's
+                // 4.2), so no late event of one reaches the next page.
+                .on_page_load(|window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Started {
+                        let models = window.state::<Arc<Models>>().inner().clone();
+                        models.leave_page();
+                        tauri::async_runtime::spawn(async move { models.cancel_all().await });
+                    }
+                })
                 .build()?;
             Ok(())
         })
@@ -273,7 +338,11 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             let mounts = app.state::<Arc<Mounts>>().inner().clone();
-            tauri::async_runtime::block_on(mounts.close_all());
+            let models = app.state::<Arc<Models>>().inner().clone();
+            tauri::async_runtime::block_on(async {
+                models.cancel_all().await;
+                mounts.close_all().await;
+            });
         }
     });
 }
@@ -307,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn the_capability_file_grants_the_three_commands_to_the_main_webview_only() {
+    fn the_capability_file_grants_the_five_commands_to_the_main_webview_only() {
         let file: Value = serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
         assert_eq!(file["local"], true);
         assert_eq!(file["webviews"], serde_json::json!([MAIN]));
@@ -318,7 +387,13 @@ mod tests {
         );
         assert_eq!(
             file["permissions"],
-            serde_json::json!(["allow-mount-open", "allow-mount-send", "allow-mount-close"])
+            serde_json::json!([
+                "allow-mount-open",
+                "allow-mount-send",
+                "allow-mount-close",
+                "allow-model-send",
+                "allow-model-cancel"
+            ])
         );
     }
 }

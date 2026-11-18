@@ -119,6 +119,8 @@ const styles = css`
 		box-sizing: border-box;
 		block-size: 100%;
 		padding: var(--space-layout-md);
+		/* The text keeps a floor (below); when the picker and the embeds need more than the height, the editor scrolls. */
+		overflow-y: auto;
 	}
 	[hidden] {
 		display: none;
@@ -199,7 +201,8 @@ const styles = css`
 	}
 	.text {
 		flex: 1 1 auto;
-		min-block-size: 0;
+		/* About three lines and the frame: squashed below that, its frame spills over the tools under it. */
+		min-block-size: calc(var(--size-target-natural) * 3);
 	}
 	.text::part(field),
 	.text::part(control-frame) {

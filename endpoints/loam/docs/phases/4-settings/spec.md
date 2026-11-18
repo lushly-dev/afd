@@ -1,5 +1,7 @@
 # Phase 4 specification: settings, experiments, notifications, overlays
 
+Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for this area as its sub-issue.
+
 | Field | Value |
 | --- | --- |
 | Phase | 4, settings, experiments, notifications, overlays ([architecture section 9](../../architecture.md#9-phases)) |

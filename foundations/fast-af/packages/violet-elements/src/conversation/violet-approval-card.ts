@@ -16,32 +16,38 @@ const styles = css`
         --_approval-font-size: var(--violet-approval-font-size, var(--_body-size, 14px));
         --_approval-line-height: var(--violet-approval-line-height, var(--_body-line, 20px));
         --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size, 12px));
-        --_approval-border-color: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
-        --_warning-bg-subtle: var(--color-state-warning-background, #fdebcc);
+        --_warning-bg-subtle: var(--color-state-warning-background, #f3e8d2);
         --_warning-text: var(--color-state-warning-text, #92400e);
-        --_success-bg-subtle: var(--color-state-success-background, #e3f1e7);
-        --_success-text: var(--color-state-success-text, #166534);
-        --_danger-bg-subtle: var(--color-state-danger-background, #fbe2e2);
-        --_danger-text: var(--color-state-danger-text, #b42318);
+        --_success-bg-subtle: var(--color-state-success-background, #dfeae3);
+        --_success-text: var(--color-state-success-text, #2c5e4b);
+        --_danger-bg-subtle: var(--color-state-danger-background, #f7e4df);
+        --_danger-text: var(--color-state-danger-text, #c42a1a);
     }
 
+    /* The one raised card in a thread: a toned band, the request, and the actions on a band. */
     .frame {
         display: block;
-        --violet-card-border-color: var(--_approval-border-color);
+        --violet-card-border-color: transparent;
         --violet-card-background: var(--_surface-card);
-        --violet-card-shadow: none;
+        --violet-card-shadow: var(--_shadow-card);
     }
 
     .frame::part(root) {
         overflow: hidden;
     }
 
-    :host([state="approved"]) .frame {
-        --violet-card-border-color: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
+    /* The toned band is the card's header, edge to edge and straight on to the request. */
+    .frame::part(header) {
+        padding: 0;
     }
 
-    :host([state="denied"]) .frame {
-        --violet-card-border-color: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+    .frame::part(body) {
+        border-block-start-color: transparent;
+    }
+
+    /* Once it is answered there are no actions to hold. */
+    :host(:not([state="pending"])) .frame::part(footer) {
+        display: none;
     }
 
     .header {
@@ -51,8 +57,9 @@ const styles = css`
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
         background: var(--_warning-bg-subtle);
-        font-size: var(--_approval-caption-size);
-        font-weight: 600;
+        font-size: var(--type-label-sm-size, 13px);
+        line-height: var(--_approval-line-height);
+        font-weight: 500;
         color: var(--_warning-text);
     }
 
@@ -78,11 +85,7 @@ const styles = css`
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        inline-size: calc(var(--_approval-line-height) + var(--_space-sm));
-        block-size: calc(var(--_approval-line-height) + var(--_space-sm));
-        border-radius: var(--_radius-round);
-        background: color-mix(in srgb, currentColor 12%, transparent);
-        --violet-icon-size: var(--_approval-line-height);
+        --violet-icon-size: 1rem;
     }
 
     .header-title {
@@ -95,13 +98,22 @@ const styles = css`
     .status-chip {
         flex-shrink: 0;
         margin-inline-start: auto;
-        padding: 2px var(--_space-sm);
-        border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
-        border-radius: var(--_radius-round);
-        background: color-mix(in srgb, currentColor 10%, transparent);
+        padding: var(--_space-stack-2xs) var(--_space-sm);
+        /* The edge is clear; it shows only in forced colours. */
+        border: 1px solid transparent;
+        border-radius: calc(var(--_radius-md) - 2px);
+        background: color-mix(in srgb, currentColor 12%, transparent);
         font-size: var(--_approval-caption-size);
-        line-height: var(--_approval-line-height);
+        font-weight: 500;
+        line-height: var(--_caption-line);
         color: inherit;
+    }
+
+    /* On the danger band any tint takes the label under 4.5:1 in the default theme (the band is
+       already the danger background), so the denied chip is drawn by a faint edge instead. */
+    :host([state="denied"]) .status-chip {
+        background: transparent;
+        border-color: color-mix(in srgb, currentColor 40%, transparent);
     }
 
     .summary {
@@ -109,16 +121,16 @@ const styles = css`
         gap: var(--_space-stack-2xs);
         font-size: var(--_approval-font-size);
         line-height: var(--_approval-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
     }
 
     .detail {
         display: grid;
         gap: var(--_space-stack-2xs);
-        margin-block-start: var(--_space-sm);
+        margin-block-start: var(--_space-stack-xs);
         font-size: var(--_approval-caption-size);
-        line-height: var(--_approval-line-height);
-        color: var(--_text-secondary, #414651);
+        line-height: var(--_caption-line);
+        color: var(--_text-muted);
     }
 
     slot[name="summary"]::slotted(*),
@@ -146,6 +158,30 @@ const styles = css`
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
+        }
+
+        .status-chip {
+            border-color: currentColor;
+        }
+
+        .frame::part(body) {
+            border-block-start-color: ButtonText;
+        }
+
+        /* Inside the opted-out root the theme's text colours stay, so the text takes the system's. */
+        .header,
+        :host([state]) .header,
+        .summary,
+        .detail {
+            background: Canvas;
+            color: CanvasText;
+        }
+        /* Nested controls and icons take the system's colours again. */
+        violet-button,
+        violet-icon,
+        ::slotted(violet-button),
+        ::slotted(violet-icon) {
+            forced-color-adjust: auto;
         }
     }
 `;

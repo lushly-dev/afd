@@ -24,17 +24,17 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_rating-filled);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
 
-        --_surface-page: var(--color-surface-page, #fffefa);
-        --_surface-subtle: var(--color-surface-subtle, #f0efe6);
-        --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #616775);
-        --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
+        --_surface-page: var(--color-surface-page, #f4f0ea);
+        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
+        --_text-secondary: var(--color-text-secondary, #48534b);
+        --_text-muted: var(--color-text-muted, #5e6460);
+        --_focus-ring: var(--color-focus-ring, #146ba0);
         --_rating-filled: var(--color-state-warning-text, #92400E);
         --_rating-empty: color-mix(in srgb, var(--_text-muted) 36%, transparent);
         --_rating-hover: color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page));
-        --_radius-md: var(--radius-md, 4px);
+        --_radius-md: var(--radius-md, 8px);
         --_size-font-sm: var(--size-font-sm, 12px);
     }
 

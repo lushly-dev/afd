@@ -5,7 +5,7 @@ This is the backlog of guidance and evidence the pack does not have yet. `pnpm t
 fails when it is not the report the records give.
 
 - **Components:** 77, 46 with a guide.
-- **Statements:** 226 in component guides, 2 verified by a claim's check.
+- **Statements:** 227 in component guides, 2 verified by a claim's check.
 
 | Gap | Components |
 | --- | --- |

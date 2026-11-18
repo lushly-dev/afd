@@ -51,12 +51,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-reasoning-bg, var(--_surface-subtle, rgba(28, 26, 13, 0.04)))",
+				"default": "var(--violet-reasoning-bg, transparent)",
 				"name": "--_reasoning-bg"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-reasoning-border, var(--_border-subtle))",
+				"default": "var(--violet-reasoning-border, transparent)",
 				"name": "--_reasoning-border"
 			},
 			{
@@ -76,7 +76,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_reasoning-toggle-size)",
+				"default": "var(--_reasoning-line-height)",
 				"name": "--violet-icon-size"
 			}
 		],

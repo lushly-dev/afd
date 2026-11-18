@@ -63,12 +63,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-accordion-item-background, var(--_surface-page))",
+				"default": "var(--violet-accordion-item-background, transparent)",
 				"name": "--_accordion-item-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-accordion-item-background-expanded, var(--_surface-card))",
+				"default": "var(--violet-accordion-item-background-expanded, transparent)",
 				"name": "--_accordion-item-background-expanded"
 			},
 			{
@@ -93,13 +93,23 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-accordion-item-padding-block, var(--_space-sm))",
+				"default": "var( --violet-accordion-item-padding-block, calc((var(--_target-size) + var(--_space-sm) - var(--_body-line)) / 2) )",
 				"name": "--_accordion-item-padding-block"
 			},
 			{
 				"basis": "declared",
 				"default": "var(--violet-accordion-item-padding-inline, var(--_space-md))",
 				"name": "--_accordion-item-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-control-body-size, var(--_body-size))",
+				"name": "--_control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-target-size, var(--size-target-natural, 32px))",
+				"name": "--_target-size"
 			}
 		],
 		"events": [

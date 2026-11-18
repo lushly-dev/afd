@@ -9,10 +9,11 @@ const styles = css`
         display: grid;
         gap: var(--_space-stack-xs);
         color: var(--_text-secondary);
-        --_progress-track-size: 8px;
-        --_progress-radius: var(--_radius-md);
-        --_progress-fill: var(--color-control-selected-foreground, #244635);
-        --_progress-track: color-mix(in srgb, var(--_surface-subtle) 84%, transparent);
+        --_progress-track-size: 6px;
+        --_progress-radius: var(--radius-round, 9999px);
+        --_progress-fill: var(--color-control-selected-foreground, #2c5e4b);
+        /* The track is a well, filled to the value. */
+        --_progress-track: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
     }
 
     .header {
@@ -36,6 +37,8 @@ const styles = css`
 
     .value-label {
         color: var(--_text-muted);
+        font-size: var(--_control-caption-size);
+        font-variant-numeric: tabular-nums;
     }
 
     .progress {

@@ -94,12 +94,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tree-row-background-selected, color-mix(in srgb, var(--_surface-subtle) 76%, white))",
+				"default": "var( --violet-tree-row-background-selected, var(--color-surface-selected, var(--_surface-subtle)) )",
 				"name": "--_tree-row-background-selected"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tree-row-border-selected, var(--_border-subtle))",
+				"default": "var(--violet-tree-row-border-selected, transparent)",
 				"name": "--_tree-row-border-selected"
 			},
 			{

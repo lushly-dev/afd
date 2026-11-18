@@ -1,5 +1,7 @@
 # Umbel status
 
+Epic: [#1546](https://github.com/lushly-dev/afd/issues/1546). File new work for this area as its sub-issue.
+
 Read this before anything else in the area, and update it before you end a
 session that changed Umbel. It is the source of truth for progress: an agent
 should never have to scan the codebase to learn what is current.

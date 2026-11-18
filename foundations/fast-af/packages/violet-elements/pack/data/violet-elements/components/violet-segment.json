@@ -62,12 +62,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-segment-selected-background, var(--_surface-page))",
+				"default": "var( --violet-segment-selected-background, var(--color-surface-highlight, var(--_surface-card)) )",
 				"name": "--_segment-selected-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-segment-selected-border, var(--_border-subtle))",
+				"default": "var(--violet-segment-selected-border, transparent)",
 				"name": "--_segment-selected-border"
 			},
 			{

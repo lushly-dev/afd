@@ -8,7 +8,7 @@ const styles = css`
 
     :host {
         display: block;
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
         font-family: inherit;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);

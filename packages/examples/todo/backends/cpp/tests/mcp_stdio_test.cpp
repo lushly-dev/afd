@@ -70,8 +70,8 @@ TEST_CASE("tools/list is TypeScript's grouped list: the todo and bootstrap group
     for (const auto& tool : tools) {
         names.push_back(tool["name"].get<std::string>());
     }
-    CHECK(names == std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call", "afd-detail",
-                                            "todo", "bootstrap"});
+    CHECK(names == std::vector<std::string>{"afd-discover", "afd-detail", "afd-call", "afd-batch",
+                                            "afd-pipe", "todo", "bootstrap"});
     CHECK(actions(tools, "todo").size() == 13);
     CHECK(actions(tools, "bootstrap") == std::vector<std::string>{"context-list", "context-enter",
                                                                   "context-exit", "help", "docs",
@@ -86,13 +86,14 @@ TEST_CASE("each todo command's own tool carries its title, annotations and _meta
     auto server = make_server(fixture, afd::mcp::ToolStrategy::individual);
     const auto tools =
         reply(*server, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
-    // afd-batch, afd-pipe and afd-call; the thirteen todo commands; then the three context tools
-    // and the three bootstrap tools.
-    CHECK(tools.size() == 22);
+    // The five meta-tools; the thirteen todo commands; then the three context tools and the three
+    // bootstrap tools.
+    CHECK(tools.size() == 24);
     for (const auto& tool : tools) {
         CAPTURE(tool["name"].get<std::string>());
         const auto name = tool["name"].get<std::string>();
-        if (name == "afd-batch" || name == "afd-pipe" || name == "afd-call") {
+        if (name == "afd-discover" || name == "afd-detail" || name == "afd-call" ||
+            name == "afd-batch" || name == "afd-pipe") {
             CHECK_FALSE(tool.contains("_meta"));
             continue;
         }

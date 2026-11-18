@@ -15,7 +15,7 @@
     },
     {
       "id": "icon-button.content",
-      "text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary.",
+      "text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary. Transparent renders exactly as quiet (an icon until the pointer is on it) and is kept for existing markup; write quiet.",
       "members": [
         "appearance"
       ]

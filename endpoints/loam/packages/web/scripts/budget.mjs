@@ -293,10 +293,23 @@ export const CEILINGS = Object.freeze({
 	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
 	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
 	// `switcher` (+100) and `tooltip` (+5) are within their rows.
-	jsMinified: 304_000,
-	jsGzip: 95_500,
-	cssMinified: 8_496,
-	kernelMinified: 116_800,
+	// Raised again under D115 by phase 5's step 2 (model access on the desktop), measured at its final head with
+	// `main` at `e96c2f00` merged in: first paint 305,658 of 304,000 and 95,533 of 95,500 gzip (stage A's strict
+	// reader of the projection's `copilot`, the lazy copilot handed to the kernel and the panel, the panel part's
+	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
+	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
+	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
+	jsMinified: 308_000,
+	jsGzip: 96_500,
+	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
+	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
+	// stylesheet `index.html` links; measured 10,251, plus a margin.
+	cssMinified: 10_500,
+	// AFD's typefaces (D159): six latin woff2 files, Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono
+	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
+	fontsBytes: 116_000,
+	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
+	kernelMinified: 118_000,
 	lateMinified: 80_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
@@ -310,11 +323,16 @@ export const CEILINGS = Object.freeze({
 	accountMenuMinified: 5_400,
 	accountMinified: 28_000,
 	urlMinified: 5_700,
-	appsMinified: 395_700,
+	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
+	appsMinified: 397_000,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
-	viewMinified: 25_900,
+	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
+	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
+	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
+	// comments, plus a margin.
+	viewMinified: 26_100,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
@@ -619,6 +637,10 @@ async function measurePage() {
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const gzipOf = (code) => gzipSync(code, { level: 9 }).length;
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
+	// The typefaces the linked stylesheet names (D159): every font file the build emits.
+	const fontAssets = output.filter(
+		(item) => item.type === 'asset' && /\.(woff2?|ttf|otf)$/.test(item.fileName)
+	);
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
 	let inlineCss = 0;
 	for (const chunk of initialChunks)
@@ -660,6 +682,7 @@ async function measurePage() {
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
 			cssAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0) + inlineCss,
+		fontsBytes: fontAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0),
 		packages: breakdown(initialChunks),
 	};
 }
@@ -722,6 +745,7 @@ const ROWS = [
 	['jsMinified', 'JavaScript, minified'],
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
+	['fontsBytes', "The theme's typefaces, woff2"],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],

@@ -33,10 +33,11 @@ const styles = css`
         block-size: var(--_citation-badge-size);
         padding-inline: var(--_space-xs, 4px);
         border-radius: var(--_radius-sm);
-        background: var(--_surface-subtle, rgba(28, 26, 13, 0.04));
-        font-size: calc(var(--_citation-font-size) * 0.85);
-        font-weight: 600;
-        color: var(--_text-secondary, #414651);
+        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
+        font-size: var(--_citation-font-size);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        color: var(--_text-secondary, #48534b);
     }
 
     .badge[hidden] {
@@ -44,7 +45,7 @@ const styles = css`
     }
 
     .link {
-        color: var(--_text-link, #2563eb);
+        color: var(--_text-link, #146ba0);
         text-decoration: none;
         max-inline-size: var(--_citation-max-width);
         overflow: hidden;
@@ -63,7 +64,7 @@ const styles = css`
     }
 
     .title {
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         max-inline-size: var(--_citation-max-width);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -72,7 +73,7 @@ const styles = css`
 
     .doc-icon {
         display: inline-flex;
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
         --violet-icon-size: var(--_citation-line-height);
     }
 

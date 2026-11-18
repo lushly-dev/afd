@@ -76,18 +76,8 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--_target-size-compact, 24px)",
+				"default": "24px",
 				"name": "--_spinner-size"
-			},
-			{
-				"basis": "declared",
-				"default": "2px",
-				"name": "--_spinner-stroke"
-			},
-			{
-				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_border-subtle) 65%, transparent)",
-				"name": "--_spinner-track"
 			}
 		],
 		"events": [],
@@ -133,7 +123,7 @@
 		{
 			"basis": "authored",
 			"id": "spinner.motion",
-			"text": "Under prefers-reduced-motion the rotation slows to 1.6 seconds per turn rather than stopping."
+			"text": "The mark is a run that travels the edge of a rounded square, one lap a second. Under prefers-reduced-motion the lap slows to 3 seconds rather than stopping."
 		}
 	]
 }

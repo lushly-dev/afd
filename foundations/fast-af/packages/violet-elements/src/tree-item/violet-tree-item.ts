@@ -25,10 +25,13 @@ const styles = css`
         --_tree-row-gap: var(--violet-tree-row-gap, var(--_space-inline-md));
         --_tree-row-padding-inline: var(--violet-tree-row-padding-inline, var(--_space-inline-md));
         --_tree-row-padding-block: var(--violet-tree-row-padding-block, var(--_space-stack-2xs));
-        --_tree-row-background-selected:
-            var(--violet-tree-row-background-selected, color-mix(in srgb, var(--_surface-subtle) 76%, white));
+        /* A chosen row is the selected surface, with no ring. */
+        --_tree-row-background-selected: var(
+            --violet-tree-row-background-selected,
+            var(--color-surface-selected, var(--_surface-subtle))
+        );
         --_tree-row-background-hover: var(--violet-tree-row-background-hover, var(--_surface-subtle));
-        --_tree-row-border-selected: var(--violet-tree-row-border-selected, var(--_border-subtle));
+        --_tree-row-border-selected: var(--violet-tree-row-border-selected, transparent);
         --_tree-toggle-size: var(--violet-tree-toggle-size, 0.875rem);
     }
 
@@ -45,7 +48,7 @@ const styles = css`
             var(--_tree-row-padding-inline) + (var(--_tree-level, 1) - 1) * var(--_tree-indent-step)
         );
         border-radius: var(--_tree-row-radius);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         cursor: pointer;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
@@ -77,7 +80,7 @@ const styles = css`
     :host([disabled]) .row {
         color: var(--_text-muted);
         cursor: not-allowed;
-        opacity: 0.75;
+        opacity: 0.5;
     }
 
     .toggle {

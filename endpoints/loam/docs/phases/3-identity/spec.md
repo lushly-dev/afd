@@ -1,5 +1,7 @@
 # Phase 3 specification: identity
 
+Epic: [#1542](https://github.com/lushly-dev/afd/issues/1542). File new work for this area as its sub-issue.
+
 | Field | Value |
 | --- | --- |
 | Phase | 3, identity ([architecture section 9](../../architecture.md#9-phases)) |

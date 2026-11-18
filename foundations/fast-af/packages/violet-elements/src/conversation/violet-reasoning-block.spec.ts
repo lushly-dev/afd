@@ -137,6 +137,22 @@ describe("violet-reasoning-block", () => {
         expect(assigned.map(node => node.textContent).join("")).toBe("Because of X");
     });
 
+    it("draws no box by default, and the fill and edge a host sets", async () => {
+        const block = await renderBlock();
+        const root = block.shadowRoot?.querySelector<HTMLElement>(".root") as HTMLElement;
+        const transparent = "rgba(0, 0, 0, 0)";
+
+        expect(getComputedStyle(root).backgroundColor).toBe(transparent);
+        expect(getComputedStyle(root).boxShadow).toBe(`${transparent} 0px 0px 0px 1px`);
+        expect(getComputedStyle(root).borderTopWidth).toBe("0px");
+
+        block.style.setProperty("--violet-reasoning-bg", "rgb(240, 239, 230)");
+        block.style.setProperty("--violet-reasoning-border", "rgb(28, 26, 13)");
+
+        expect(getComputedStyle(root).backgroundColor).toBe("rgb(240, 239, 230)");
+        expect(getComputedStyle(root).boxShadow).toBe("rgb(28, 26, 13) 0px 0px 0px 1px");
+    });
+
     it("renders the chevron icon as decorative", async () => {
         const block = await renderBlock();
         const icon = block.shadowRoot?.querySelector("violet-icon");

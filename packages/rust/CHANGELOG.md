@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Tool lists (`server` feature; `spec/tool-strategies.md`, #533):** every strategy lists the five meta-tools first, in the hybrid order `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`, so `individual` gains `afd-discover` and `afd-detail` and `grouped` gains `afd-discover`. `ToolStrategy::Lazy` is the hybrid list with no first-class tools: the meta-tools, then the context tools when contexts are configured, the same in every context, so with contexts it keeps the default `ttlMs` of 300,000 instead of 0.
+
 ### Added
 
 - **Approval evidence from an approver client (`server` and `approval` features; `spec/command-metadata.md`; Loam phase 5 step 0c):** `McpServer::with_approver(|context| bool)` names trusted MCP clients. An approver's held results carry `details.approvalToken` whatever `with_include_token` says and are never answered with a form; its retry of one command on MCP 2026-07-28 carries the token in `_meta["dev.afd/approval"]` (`afd::server::AFD_APPROVAL_META_KEY`), taken once by the command the call routes to; on `afd-batch`, `afd-pipe` or a 2025 request the key fails with `APPROVAL_REQUIRED` before anything runs. A token issued on an approver's call binds `principal\0` and the call's principal binding in `a`, so another credential gets `credentials-mismatch`. Any other caller's key is ignored, and the key anywhere in tool arguments is refused with `VALIDATION_ERROR`. A panicking predicate, or an approver's credentials that cannot be bound, fail the call as an internal error.

@@ -29,7 +29,7 @@ const styles = css`
     .content {
         display: flex;
         flex-direction: column;
-        gap: var(--_space-sm);
+        gap: var(--_space-md);
         padding: var(--_space-sm);
     }
 
@@ -40,7 +40,7 @@ const styles = css`
         justify-content: center;
         flex: 1;
         padding: var(--_space-lg);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
         text-align: center;
     }
 

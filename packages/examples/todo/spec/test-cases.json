@@ -1059,7 +1059,6 @@
 		{
 			"name": "tool_list_grouped",
 			"description": "The default tool list: the five meta-tools in the hybrid order, then the todo and bootstrap groups (#533)",
-			"implementedBy": ["typescript"],
 			"notOn": ["umbel", "umbel-mounted"],
 			"setup": [],
 			"command": "tools/list",

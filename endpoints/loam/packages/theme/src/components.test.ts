@@ -56,7 +56,7 @@ describe('the component token export (2.4)', () => {
 
 	it('maps each custom property to its light value', () => {
 		expect(lightValues.size).toBe(COMPONENT_TOKENS.length);
-		expect(lightValues.get('--color-text-muted')).toBe('#616775');
+		expect(lightValues.get('--color-text-muted')).toBe('#5e6460');
 		expect(lightValues.has('--shell-size-titlebar')).toBe(false);
 	});
 
@@ -129,15 +129,11 @@ describe('the fallback scan (2.4)', () => {
 		expect(
 			mismatches.map(({ path, line, property, expected }) => [path, line, property, expected])
 		).toEqual([
-			['a.ts', 2, '--color-text-muted', '#616775'],
-			['a.ts', 3, '--radius-md', '4px'],
+			['a.ts', 1, '--color-text-primary', '#181b1a'],
+			['a.ts', 2, '--color-text-muted', '#5e6460'],
 		]);
 		const fixed = fixFallbacks(text, lightValues);
-		expect(fixed).toBe(
-			text
-				.replace('#6b7280', '#616775')
-				.replace('var(--radius-md,  8px )', 'var(--radius-md,  4px )')
-		);
+		expect(fixed).toBe(text.replace('#18181B', '#181b1a').replace('#6b7280', '#5e6460'));
 		expect(scanFallbacks([{ path: 'a.ts', text: fixed }], lightValues)).toEqual([]);
 	});
 });
@@ -196,7 +192,7 @@ describe('theme:check with the component paths', () => {
 	};
 
 	it('passes when the export matches and every fallback is the light value', async () => {
-		const components = await fixture('var(--color-text-muted, #616775)');
+		const components = await fixture('var(--color-text-muted, #5e6460)');
 		expect((await sourceFiles(components.sourceDirectory)).map((file) => file.path)).toEqual([
 			'button/button.ts',
 		]);
@@ -210,14 +206,14 @@ describe('theme:check with the component paths', () => {
 		const { errors } = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
 		expect(errors.some((error) => /contractVersion undefined/.test(error))).toBe(true);
 		expect(errors).toContain(
-			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #616775'
+			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #5e6460'
 		);
 		expect(errors.at(-1)).toMatch(/^1 fallbacks differ from the light theme/);
 	});
 
 	it('fails when the tree does not supply an interface id', async () => {
 		const components = await fixture(
-			'var(--color-text-muted, #616775)',
+			'var(--color-text-muted, #5e6460)',
 			outputs.componentExportJson,
 			JSON.stringify({
 				contractVersion: 1,

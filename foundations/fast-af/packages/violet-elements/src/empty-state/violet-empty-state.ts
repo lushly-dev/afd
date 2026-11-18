@@ -24,9 +24,10 @@ const styles = css`
         --_empty-border: transparent;
     }
 
+    /* An empty slot is marked with a dashed edge: the one outline left on a surface. */
     :host([appearance="outline"]) {
         --_empty-background: transparent;
-        --_empty-border: var(--_border-subtle);
+        --_empty-border: color-mix(in srgb, var(--color-border-strong, #6b7d6e) 60%, transparent);
     }
 
     :host([orientation="horizontal"]) {
@@ -44,6 +45,10 @@ const styles = css`
         background: var(--_empty-background);
         box-shadow: var(--_empty-shadow);
         text-align: var(--_empty-align);
+    }
+
+    :host([appearance="outline"]) .root {
+        border-style: dashed;
     }
 
     :host([orientation="horizontal"]) .root {
@@ -64,7 +69,7 @@ const styles = css`
 
     .body {
         display: grid;
-        gap: var(--_space-stack-sm);
+        gap: var(--_space-stack-xs);
         min-inline-size: 0;
     }
 
@@ -88,6 +93,7 @@ const styles = css`
         flex-wrap: wrap;
         gap: var(--_space-sm);
         justify-content: inherit;
+        margin-block-start: var(--_space-stack-sm);
     }
 
     @media (forced-colors: active) {

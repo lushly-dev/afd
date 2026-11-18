@@ -39,7 +39,8 @@ const styles = css`
     :host([orientation="vertical"]) .group {
         flex-direction: column;
         align-items: stretch;
-        gap: var(--_space-stack-xs);
+        /* Each row carries its own inset, so rows stack without a gap. */
+        gap: 0;
     }
 
     .supporting {
@@ -52,7 +53,7 @@ const styles = css`
 
     .error {
         margin: 0;
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
         margin-block-start: var(--_space-stack-xs);

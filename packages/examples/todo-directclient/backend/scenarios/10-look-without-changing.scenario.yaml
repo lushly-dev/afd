@@ -1,4 +1,4 @@
-# Built in the to-do reference plan's phase 4 (docs/features/active/todo-reference).
+# Built in the to-do reference plan's phase 4 (docs/features/complete/todo-reference).
 # Runs through the copilot's DirectClient in look mode: src/scenarios.test.ts gives each step to
 # Copilot.client('look'), whose allow permits only the commands that declare mutation: false.
 # Unlike job 5's context, which only narrows what an agent is offered, allow refuses the rest

@@ -71,7 +71,7 @@ const styles = css`
     .file-name {
         font-size: var(--_media-font-size);
         line-height: var(--_media-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -79,7 +79,7 @@ const styles = css`
 
     .file-type {
         font-size: calc(var(--_media-font-size) * 0.85);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     @media (forced-colors: active) {

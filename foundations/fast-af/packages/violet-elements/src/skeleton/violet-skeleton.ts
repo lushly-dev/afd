@@ -10,9 +10,9 @@ const styles = css`
 
     :host {
         display: block;
-        --_skeleton-surface: color-mix(in srgb, var(--_surface-subtle) 72%, var(--_surface-card));
-        --_skeleton-highlight: color-mix(in srgb, white 68%, var(--_surface-card));
-        --_skeleton-radius: var(--_radius-md);
+        --_skeleton-surface: color-mix(in srgb, var(--_text-primary) 8%, transparent);
+        --_skeleton-highlight: color-mix(in srgb, var(--color-surface-highlight, #ffffff) 68%, var(--_surface-card));
+        --_skeleton-radius: var(--_radius-sm);
         --_skeleton-block-size: 0.875rem;
         --_skeleton-circle-size: 2rem;
     }

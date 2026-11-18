@@ -185,3 +185,15 @@ The values above landed, for the theme and the components together:
 - **2026-11-12. Brief before writing markup (Component Briefs, step C5).** Call `components-brief` from the
   repository's `umbel` MCP server before writing Loam markup with `violet-*` components; `design.md` wins
   where the brief and Loam's rules differ.
+- **2026-11-17. AFD's theme, Refined (D159, #1430).** The theme's values were the palette the
+  components were first drawn in, Lushly's (oat, tomato, sage, Montserrat). They become AFD's own, Refined,
+  from the AFD site's design system, approved by the owner on the site's review pages: ink on paper, mint for
+  what is chosen, blue focus, fields toward the base with an inner cut, a soft mint on a selected checkbox,
+  switch or radio, greyed tints behind messages, rounding on buttons and fields (4, 8, 12px), and Inter,
+  Space Grotesk for headings and IBM Plex Mono, which Loam ships. D28 and D50 stand: one component set, many
+  design systems, and the built-in default is AFD's, shared with Loam. Lushly carries its look as its own
+  theme set (lushly#2468); the old values are at `599be245`. Dark `color.border.strong` is an added
+  stone-450, lighter than Refined drew, to keep 3:1 with margin on the subtle surface. A read-only field draws its line in
+  `color.border.strong` and its placeholder in `color.text.secondary`, measured over every surface a field
+  sits on. High contrast's pressed surface and state icons, and dark's success icon, which had kept Lushly's
+  values, take their own.

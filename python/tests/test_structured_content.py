@@ -53,7 +53,8 @@ class Note(BaseModel):
 
 
 def _server(**options):
-    server = create_server("surface", **options)
+    # Each command as its own tool, which these tests read by name.
+    server = create_server("surface", **{"tool_strategy": "individual", **options})
 
     @server.command(
         name="todo-get",

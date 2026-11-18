@@ -11,8 +11,20 @@ const styles = css`
         display: block;
     }
 
+    /* One raised panel, ruled between its sections. */
     .root {
         display: block;
+        border-radius: var(--_radius-lg);
+        background: var(--_surface-card);
+        box-shadow: var(--_shadow-control);
+        overflow: clip;
+    }
+
+    @media (forced-colors: active) {
+        .root {
+            outline: 1px solid ButtonText;
+            outline-offset: -1px;
+        }
     }
 `;
 
