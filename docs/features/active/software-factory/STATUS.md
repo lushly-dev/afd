@@ -5,6 +5,15 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## A cell can take a package of related issues, 2026-11-18
+
+`cell-register` takes more than one issue when the foreman names the package: up to
+`cells.issuesMax` dispatchable issues, with `related_because` saying what they share. The cell and
+its `cell-registered` record keep that reason as `relatedBecause`, and `lane-status` shows it. A
+claim write that fails partway now puts back the claims it wrote. Before this, any second issue
+was refused as unrelated whatever the dial said, because `issue-check` never computes `related`;
+it still does not, and suggesting packages from it is later work (lushly-dev/afd#1431).
+
 ## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
 
 The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by

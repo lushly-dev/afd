@@ -12,7 +12,9 @@ branch's first enqueue, counting up with each re-enqueue), so a reader folds the
 ======================  ==================================================  =====================
 kind                    required fields                                     written by
 ======================  ==================================================  =====================
-``cell-registered``     branch, issues, plan, route, profile                cell-register
+``cell-registered``     branch, issues, plan, route, profile; optional      cell-register
+                        relatedBecause (why a package of issues shares
+                        the cell)
 ``enqueued``            branch, attempt, head, issues, plan, route,         lane-enqueue
                         profile, state (queued | held), firstEnqueuedAt
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
