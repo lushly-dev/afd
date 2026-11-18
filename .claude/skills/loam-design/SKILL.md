@@ -70,15 +70,21 @@ is `--` and the id with `.` replaced by `-` (`--color-surface-page`).
 
 | Step | Size / line / weight | Use |
 |------|----------------------|-----|
-| `type.caption.xs` | 11 / 14 / 500 | Status items, counts, palette key hints |
-| `type.label.sm` | 12 / 16 / 500 | Bar and tab labels, field labels |
+| `type.caption.xs` | 12 / 16 / 400 | Status items, counts, palette key hints |
+| `type.label.sm` | 13 / 16 / 500 | Bar and tab labels, field labels |
 | `type.body.md` | 14 / 20 / 400 | Running text, rows, palette results, empty states |
 | `type.title.sm` | 18 / 24 / 600 | Part headers, the palette's search text |
 | `type.title.md` | 24 / 32 / 600 | Main's empty landing heading only |
 
 Read a step's three ids together (`type.body.md.size`, `.line`, `.weight`),
-never mix two steps, never `weight.light` in the chrome. Density does not change type. Family: `loam-shell` declares
-`"Montserrat", "Segoe UI", sans-serif` once (no contract id yet).
+never mix two steps, never `weight.light` in the chrome. Density does not change type. Family:
+`font.family.body` (Inter) for the interface, `font.family.heading` (Space
+Grotesk) for title steps, `font.family.mono` (IBM Plex Mono) for code; read
+the ids, never a literal stack. Loam ships the faces (`loam-fonts.css`).
+
+The theme is AFD's, Refined (D154), from the AFD site's design system: ink on
+paper, mint for what is chosen, blue focus, rounded buttons and fields. The
+palette the components were first drawn in is Lushly's and lives in Lushly.
 
 ## Color and contrast
 
@@ -92,7 +98,9 @@ never mix two steps, never `weight.light` in the chrome. Density does not change
 - **The resting field border meets 3:1** (decided 2026-11-01, landed in
   #645): it is the field's only boundary. The shared field components draw
   it from `color.field.border`; values in
-  [references/history.md](references/history.md).
+  [references/history.md](references/history.md). Refined (D154) draws it as
+  the field's top inner line, stone-500, 3:1 on the white field; on the light
+  read-only fill it is 2.64, the one pair light does not hold.
 - Forced colors: system colors only inside `@media (forced-colors: active)`;
   `CanvasText`/`Canvas`, `ButtonText`/`ButtonFace`, `Highlight`/`HighlightText`
   for focus and selection, `GrayText` for disabled. Forced colors removes

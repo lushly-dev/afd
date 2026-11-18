@@ -75,8 +75,8 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 
 | Step | Size | Line | Weight | Use |
 | --- | --- | --- | --- | --- |
-| `type.caption.xs` | 11px (`size.font.xs`) | 14px (`size.line.xs`) | 500 (`weight.medium`) | Status bar items, counts, keyboard hints in the palette |
-| `type.label.sm` | 12px (`size.font.sm`) | 16px (`size.line.sm`) | 500 (`weight.medium`) | Bar labels, tab bar labels, part headers' secondary text, field labels |
+| `type.caption.xs` | 12px (`size.font.sm`) | 16px (`size.line.sm`) | 400 (`weight.regular`) | Status bar items, counts, keyboard hints in the palette |
+| `type.label.sm` | 13px | 16px (`size.line.sm`) | 500 (`weight.medium`) | Bar labels, tab bar labels, part headers' secondary text, field labels |
 | `type.body.md` | 14px (`size.font.md`) | 20px (`size.line.md`) | 400 (`weight.regular`) | Running text, list rows, palette results, empty-state sentences |
 | `type.title.sm` | 18px (`size.font.lg`) | 24px (`size.line.lg`) | 600 (`weight.semibold`) | A part's header, the palette's search text |
 | `type.title.md` | 24px (`size.font.xl`) | 32px (`size.line.xl`) | 600 (`weight.semibold`) | The one heading of main's empty landing ("No apps yet") |
@@ -87,11 +87,16 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
   components' registry; no component reads it, and the chrome does not use
   it.
 - Density does not change type.
-- **Family.** `font.family.body` is the shared components' typeface,
-  `"Montserrat", "Segoe UI", sans-serif`, read through `violet-elements`'
-  token interface. `loam-shell` still declares the same stack as a literal,
-  and no other Loam element sets a family. `font.family.mono` is reserved for
-  monospace text.
+- **Family.** `font.family.body` is the interface's typeface,
+  `"Inter", system-ui, sans-serif`; `font.family.heading`, Space Grotesk, is
+  the title steps' (the dialog's title, the text component's title variants);
+  `font.family.mono`, IBM Plex Mono, is for code, a command's name and the
+  console's output. Every Loam element reads the ids, never a literal stack.
+  Loam ships the faces (D154): `@lushly-dev/loam-theme`'s `fonts/`, latin
+  woff2 under the SIL Open Font License 1.1, Inter 400, 500 and 600, Space
+  Grotesk 600 and IBM Plex Mono 400 and 500, which `loam-web` links through
+  `loam-fonts.css`; nothing loads from another origin, and an app's frame,
+  which does not get them, falls back to the system face.
 - **Color.** `color.text.primary` for content, `color.text.secondary` for
   supporting text, `color.text.muted` for metadata and placeholders.
 
@@ -110,26 +115,43 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 | States | `color.state.{success,warning,danger}.{background,text,border}` | Messages and badges |
 | Fields | `color.field.{background,background.readonly,text,placeholder}`, `color.field.border` and its `.hover`, `.focus`, `.invalid` | Text inputs and the controls built on them |
 | Handles | `shell.color.handle.{rest,hover,active}` | The resize handles between parts; aliases of `color.border.subtle`, `color.border.strong` and `color.focus.ring` |
-| Elevation | `shadow.control`, `shadow.card`, `shadow.floating` | Raised controls, cards, floating layers |
+| Elevation | `shadow.control`, `shadow.card`, `shadow.floating`, `shadow.well` | Raised controls, cards, floating layers; a field's inner cut |
 
-Values, light / dark / high contrast:
+Values, light / dark / high contrast. They are AFD's theme, Refined (D154),
+from the AFD site's design system: the primitives are the site's colors under
+its names, with the tints Refined added marked in `src/tree/primitives.ts`.
 
 | Id | Light | Dark | High contrast |
 | --- | --- | --- | --- |
-| `color.surface.page` | `#FFFEFA` | `#161713` | `#FFFFFF` |
-| `color.surface.card` | `#FAF9F5` | `#1D1F1B` | `#FFFFFF` |
-| `color.surface.subtle` | `#F0EFE6` | `#272A24` | `#F2F2F2` |
-| `color.surface.floating` | `#F0EFE6` | `#20231D` | `#FFFFFF` |
-| `color.surface.selected` | `#DDEADF` | `#22352C` | `#E0E0E0` |
-| `color.text.primary` | `#18181b` | `#F5EFE3` | `#000000` |
-| `color.text.secondary` | `#414651` | `#D3CCBF` | `#1F1F1F` |
-| `color.text.muted` | `#616775` | `#A39B8D` | `#3D3D3D` |
-| `color.border.subtle` | `rgba(28, 26, 13, 0.10)` | `rgba(255, 248, 235, 0.12)` | `#595959` |
-| `color.border.strong` | `rgba(28, 26, 13, 0.48)` | `rgba(255, 248, 235, 0.37)` | `#000000` |
-| `color.focus.ring` | `rgba(24, 24, 27, 0.5)` | `rgba(245, 239, 227, 0.5)` | `#000000` |
-| `color.action.primary.background` | `#C84F3B` | `#C84F3B` | `#000000` |
-| `color.action.danger.background` | `#B42318` | `#B42318` | `#A30000` |
-| `color.control.selected.foreground` | `#244635` | `#D9EFE0` | `#000000` |
+| `color.surface.page` | `#f4f0ea` | `#181b1a` | `#ffffff` |
+| `color.surface.card` | `#f8f9f3` | `#222824` | `#ffffff` |
+| `color.surface.subtle` | `#e9e5de` | `#2e3a33` | `#F2F2F2` |
+| `color.surface.floating` | `#ffffff` | `#252e29` | `#ffffff` |
+| `color.surface.selected` | `#dfeae3` | `#20352c` | `#E0E0E0` |
+| `color.surface.highlight` | `#ffffff` | `#4d5b50` | `#ffffff` |
+| `color.surface.pressed` | `#d8dcd6` | `rgba(244, 240, 234, 0.14)` | `#E7E4D8` |
+| `color.text.primary` | `#181b1a` | `#f4f0ea` | `#000000` |
+| `color.text.secondary` | `#48534b` | `#bdcfc1` | `#1F1F1F` |
+| `color.text.muted` | `#5e6460` | `#adb6ab` | `#3D3D3D` |
+| `color.border.subtle` | `rgba(24, 27, 26, 0.10)` | `rgba(244, 240, 234, 0.10)` | `#595959` |
+| `color.border.strong` | `#6b7d6e` | `#869089` | `#000000` |
+| `color.focus.ring` | `#146ba0` | `#a3ebcd` | `#000000` |
+| `color.control.selected.background` | `#badecf` | `#20352c` | `#E0E0E0` |
+| `color.control.selected.foreground` | `#2c5e4b` | `#a3ebcd` | `#000000` |
+| `color.control.selected.border` | `rgba(44, 94, 75, 0.5)` | `rgba(163, 235, 205, 0.45)` | `#000000` |
+| `color.action.primary.background` / `.hover` / `.pressed` | `#181b1a` / `#2e3a33` / `#252e29` | `#f4f0ea` / `#d8dcd6` / `#bec6bd` | `#000000` / `#333333` / `#4D4D4D` |
+| `color.action.primary.text` | `#f4f0ea` | `#181b1a` | `#ffffff` |
+| `color.action.secondary.background` / `.hover` / `.pressed` | `rgba(24, 27, 26, 0.07)` / `rgba(24, 27, 26, 0.11)` / `rgba(24, 27, 26, 0.15)` | `rgba(244, 240, 234, 0.09)` / `rgba(244, 240, 234, 0.13)` / `rgba(244, 240, 234, 0.17)` | `#ffffff` / `#E6E6E6` / `#CCCCCC` |
+| `color.action.secondary.text` | `#181b1a` | `#f4f0ea` | `#000000` |
+| `color.action.secondary.border` | `transparent` | `transparent` | `#000000` |
+| `color.action.danger.background` / `.hover` / `.pressed` | `#c42a1a` / `#ad2416` / `#96200f` | as light | `#A30000` / `#8A0000` / `#700000` |
+| `color.action.danger.text` | `#ffffff` | `#ffffff` | `#ffffff` |
+| `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#20352c` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
+| `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
+| `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |
+| `color.state.success.foreground`, `color.state.danger.foreground` | `#2c5e4b` / `#c42a1a` | `#2c5e4b` / `#ff897a` | `#245C36` / `#B42318` |
+| `color.field.background` / `.readonly` | `#ffffff` / `rgba(24, 27, 26, 0.05)` | `rgba(0, 0, 0, 0.26)` / `rgba(244, 240, 234, 0.06)` | `#ffffff` / `#F2F2F2` |
+| `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#146ba0` / `#c42a1a` | `#6b7d6e` / `#adb6ab` / `#a3ebcd` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
 
 The full set per theme is `dist/loam-theme.json` after `theme:build`.
 
@@ -138,7 +160,7 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
 | Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` and `color.field.placeholder` on both field backgrounds; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
-| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
+| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (not `color.field.border` on the read-only fill in light, D154); `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
 | Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
 `pairs.ts` is the list; a component that relies on a pair it does not hold
@@ -155,6 +177,10 @@ drawn over its background, which is drawn over `color.surface.page`.
   [history](#history) on 2026-11-01: it identifies the field, so it meets
   3:1 in every theme, and so does the invalid border. The theme and the
   eight field components changed together in [#645](https://github.com/lushly-dev/afd/pull/645).
+  Refined (D154) draws it as the field's top inner line in stone-500, 3:1 on
+  the white field and on dark's fields. On the light read-only fill, a wash
+  of ink that cannot be typed in, it is 2.64:1, and that one pair is not held
+  in light; the hover and invalid borders still are.
 - **High contrast** is a light scheme on neutral colors: white surfaces with
   `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
   `#595959` subtle borders, a black focus ring, a black primary action, and
@@ -262,9 +288,9 @@ equal are at their floors, and are shown so the scale reads whole:
 - **Parts are flat.** Inline parts take no shadow and no radius. Only what
   floats over them (drawers, the sheet, the palette, popovers) takes
   `shadow.floating`.
-- **Shape.** `radius.md` (4px) for controls and items (buttons, rail and
-  list items, field frames); `radius.lg` (6px) for floating layers (the
-  palette, popovers); `radius.sm` (2px) for small marks; `radius.round` for
+- **Shape.** `radius.md` (8px) for controls and items (buttons, rail and
+  list items, field frames); `radius.lg` (12px) for floating layers (the
+  palette, popovers); `radius.sm` (4px) for small marks; `radius.round` for
   pills and avatars. Parts are square.
 
 ### Gutters
@@ -759,3 +785,16 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   with `violet-*` components calls `components-brief` first, from the repository's Umbel server
   ([Briefs on the shared components](#briefs-on-the-shared-components)); this document wins where the brief
   and Loam's rules differ.
+
+- **2026-11-17. AFD's theme, Refined (D154, [#1430](https://github.com/lushly-dev/afd/issues/1430)).** The
+  theme's values were the palette the components were first drawn in, Lushly's (oat, tomato, sage,
+  Montserrat). They become AFD's own, Refined, from the AFD site's design system, approved by the owner on
+  the site's review pages: ink on paper, mint for what is chosen, blue focus, fields toward the base with an
+  inner cut, a soft mint on a selected checkbox, switch or radio, greyed tints behind messages, rounding on
+  buttons and fields (4, 8 and 12px), and Inter, Space Grotesk for headings and IBM Plex Mono, which Loam
+  ships. The structure of D28 and D50 stands: one component set, many design systems, the built-in default
+  AFD's and shared with Loam. Lushly carries its look as its own theme set
+  ([lushly#2468](https://github.com/lushly-dev/lushly/issues/2468)); the old values are in this
+  repository's history at `599be245`. Two departures from the approved set, for the floors: dark
+  `color.border.strong` is stone-500, not sage-500 (2.70:1 on the subtle surface), and the resting field
+  border on the light read-only fill (2.64:1) is the one pair light no longer holds.
