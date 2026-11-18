@@ -407,7 +407,12 @@ evaluates each step's policy on it:
    of the validation made when it runs, so the input a gated step runs on is the one the human
    was shown (#1414). The step is still validated as sent when it runs, and a step that no longer
    validates (its schema checks state an earlier step changed) fails with `VALIDATION_ERROR`, as
-   it does on its own; a step of a command without an approval policy runs on its own validation.
+   it does on its own; a step of a command without an approval policy runs on its own validation
+   (TypeScript and Python count `not-required` as no policy here; Rust counts any declared
+   policy, which changes nothing since its validation gives one result). Steps sent alike (the
+   same command and input) take their approved inputs in the order they run, so where one is
+   skipped by a `when` condition or they run in parallel, a step may run on the input shown for
+   its twin: every input that runs was shown and approved, once.
    Each gated step runs on one unused approval of its own binding, once; a gated step without one
    (a policy that changed its mind) fails with `APPROVAL_REQUIRED` and runs nothing, though
    earlier steps may have run. A step whose batch or pipeline already timed out or was cancelled
