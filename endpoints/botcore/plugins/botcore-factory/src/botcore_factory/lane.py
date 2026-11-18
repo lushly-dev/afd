@@ -30,6 +30,7 @@ ejects a branch is in ``lane_base``. The lane never edits code.
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from botcore_factory import job
@@ -173,14 +174,16 @@ class Step(Merging, Coverage):
         """Give a validated entry's slot to the front of the queue, keeping its validation
         (lushly-dev/afd#1452).
 
-        Its checkout moves aside to the lane checkout ``kept-<branch>`` with the git directory
-        that holds the validation's record, so the validated head is still pushed from where it
-        passed; the entry keeps state ``validated`` and its base, and the base checks at the
-        front decide whether it runs again. When the checkout cannot move, the validation is
+        Its checkout moves aside to the lane checkout ``kept-<branch>-<hash>`` with the git
+        directory that holds the validation's record, so the validated head is still pushed from
+        where it passed; the entry keeps state ``validated`` and its base, and the base checks at
+        the front decide whether it runs again. When the checkout cannot move, the validation is
         given up as before (``rerun``, ``slot-needed``).
         """
         slot, branch = entry["slot"], entry["branch"]
-        name = "kept-" + re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-")
+        # A short hash of the branch keeps a/b and a-b apart.
+        digest = hashlib.sha256(branch.encode("utf-8")).hexdigest()[:8]
+        name = f"kept-{re.sub(r'[^A-Za-z0-9._-]+', '-', branch).strip('-')}-{digest}"
         try:
             path = self.world.git.park_slot(slot, name)
         except WorldError as exc:

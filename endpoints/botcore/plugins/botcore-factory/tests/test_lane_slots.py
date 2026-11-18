@@ -8,7 +8,8 @@ import pytest
 from test_lane import entry_of, kinds, prs, run_steps
 
 FRONT, BEHIND = "feat/export-csv", "fix/retry-backoff"
-KEPT = "slots/kept-fix-retry-backoff"
+# A short hash of the branch keeps a/b and a-b apart.
+KEPT = "slots/kept-fix-retry-backoff-192b6b0b"
 UNITS_CONFIG = {"units": ["units"]}
 
 
@@ -34,7 +35,7 @@ def test_the_branch_behind_keeps_its_validation_and_its_checkout(released):
         KEPT,
     )
     checkouts = released.world_data()["checkouts"]
-    assert checkouts["kept-fix-retry-backoff"]["head"] == "c3d4e5f+main-0"
+    assert checkouts[KEPT.removeprefix("slots/")]["head"] == "c3d4e5f+main-0"
     assert checkouts["1"]["branch"] == FRONT  # The slot went to the front.
     [record] = [r for r in released.store.read_records() if r["kind"] == "slot-released"]
     assert (record["branch"], record["slot"], record["path"]) == (BEHIND, "1", KEPT)

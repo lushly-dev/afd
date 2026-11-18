@@ -582,18 +582,17 @@ class CliGit:
         return target
 
     def remove_checkout(self, path: str) -> None:
-        """Forget a lane checkout: renamed aside at once (so the step never waits on deleting
-        a checkout's dependencies), ``git worktree prune``, then deleted in a detached
-        process."""
+        """Forget one lane checkout: ``git worktree move`` renames it aside at once, keeping
+        git's record of it in step, then a detached process runs ``git worktree remove --force``
+        on it, so the step never waits on deleting a checkout's dependencies. Only this checkout
+        is unregistered: never ``git worktree prune``, which would drop every worktree of the
+        repository whose directory is missing, other sessions' among them. Absent is done."""
         place = Path(path)
-        if place.exists():
-            trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
-            try:
-                place.rename(trash)
-            except OSError as exc:
-                raise WorldError(f"Cannot move {path} aside to remove it: {exc}") from exc
-            _delete_detached(trash)
-        self.run(["git", "worktree", "prune"])
+        if not place.exists():
+            return
+        trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
+        self.run(["git", "worktree", "move", str(place), str(trash)])
+        _remove_detached(self.target, trash)
 
     _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
 
@@ -677,25 +676,31 @@ class CliGit:
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
 
 
-def _delete_detached(path: Path) -> None:
-    """Delete ``path`` in a process of its own that outlives the lane step (best effort: a
-    leftover ``.removing-*`` directory holds no lane state)."""
+def _remove_detached(repository: str, path: Path) -> None:
+    """``git worktree remove --force`` the checkout at ``path`` in a process of its own that
+    outlives the lane step, then delete whatever is left (best effort: a leftover
+    ``.removing-*`` directory holds no lane state)."""
     options: dict = (
         {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
         if sys.platform == "win32"
         else {"start_new_session": True}
     )
-    code = "import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)"
+    code = (
+        "import shutil, subprocess, sys\n"
+        "subprocess.run(['git', '-C', sys.argv[1], 'worktree', 'remove', '--force', sys.argv[2]],"
+        " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
+        "shutil.rmtree(sys.argv[2], ignore_errors=True)\n"
+    )
     try:
         subprocess.Popen(  # noqa: S603 - an argument list, no shell
-            [sys.executable, "-c", code, str(path)],
+            [sys.executable, "-c", code, repository, str(path)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             **options,
         )
     except OSError as exc:
-        raise WorldError(f"Cannot start deleting {path}: {exc}") from exc
+        raise WorldError(f"Cannot start removing {path}: {exc}") from exc
 
 
 def real_world(target: Path, *, caches: Path | None = None) -> World:

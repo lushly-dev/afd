@@ -55,7 +55,7 @@ PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
 queues held branches when there is room, validates in `lane.slots` slots (reserved until pushed;
 `slots.busy` includes those waiting to push, except that a validated branch behind the front
 gives its slot to a front branch that needs one and keeps its validation, its checkout moved
-aside to `kept-<branch>` with its record, a `slot-released` record; each merges the
+aside to `kept-<branch>-<hash>` with its record, a `slot-released` record; each merges the
 base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
 `validate` in the background), merges serially in queue order (the base is read again before
 the push and just before the merge; when it moved, the branch advances to it without a new
@@ -130,9 +130,10 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   repair. Refuses `NOT_FOUND`.
 - `lane_drop(branch, reason)` -> `dropped`, `released[]`: dequeues the branch, puts each issue
   back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND`.
-- `plan_list()` -> `plans[] {id, provider, used, elapsed, room, pace, daysToReset, aboveCeiling,
-  resetsAt}`, `ceiling`, `next` (the plan `cell_register` assigns: the highest `pace`, the room
-  below `plans.ceiling` over the days to its reset, so each plan is spent by its own reset).
+- `plan_list()` -> `plans[] {id, provider, used, elapsed, room, left, pace, daysToReset,
+  aboveCeiling, resetsAt}`, `ceiling`, `next` (the plan `cell_register` assigns: the highest
+  `pace`, `left`, the room below `plans.ceiling`, over the days to its reset, so each plan is
+  spent by its own reset).
   Refuses `PLANS_UNREADABLE`.
 - `ejection_excuse(branch, reason, session?)` -> `branch`, `attempt`, `cause`, `ejections`,
   `excused`, `counted`, `limit`, `answered[]`: the cell's latest ejection was not its branch's

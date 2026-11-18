@@ -130,7 +130,7 @@ revalidate_paths = [
     "**/Cargo.lock",
     "**/uv.lock",
     "**/rust-toolchain.toml",
-    ".cargo/**",
+    "**/.cargo/**",
 ]
 # ci-ok runs on pull requests only: after a merge that was not validated again, main is red when a
 # check run on its merge commit fails, apart from publishing and deploying.

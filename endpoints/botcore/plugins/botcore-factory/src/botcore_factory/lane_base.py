@@ -1,10 +1,13 @@
 """What every phase of a lane step uses: records, events, ejection, the lane's own trouble, the
 base branch's head, and where a branch that must be validated again goes in the queue.
 
-A failure ejects a branch only when it is the branch's own: a conflict, a validation that
-failed, a real check failure, a push refused after the lease, a head that changed under a merge,
-a PR GitHub refuses or that was closed. Anything else that failed outside (the network,
-GitHub, a registry, a timeout) is the lane's trouble: it pauses and ejects nothing.
+A failure ejects a branch only when the branch must change to get past it: a conflict, a
+validation that failed, a real check failure, a push refused after the lease, a head that changed
+under a merge, a PR GitHub refuses or that was closed. Anything else that failed outside (the
+network, GitHub, a registry, a timeout) is the lane's trouble: it pauses and ejects nothing. Of
+the ejections, only the branch's own failures count toward ``cells.maxEjections``: a conflict
+with a moved main and the push, PR and merge plumbing (``EXCUSED_CAUSES``) do not, nor one the
+foreman excused (``ejection-excuse``).
 """
 
 from __future__ import annotations

@@ -468,12 +468,21 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
     git.push_head(kept, "fix/a", head, None)
     assert run(["git", "--git-dir", str(remote), "rev-parse", "refs/heads/fix/a"]).strip() == head
 
+    # Another session's worktree whose directory is missing (moved, or on a drive not mounted)
+    # stays registered: removing the lane's checkout unregisters only that checkout.
+    other = tmp_path / "other"
+    run(["git", "worktree", "add", "--detach", str(other), base])
+    other.rename(tmp_path / "other-elsewhere")
     git.remove_checkout(kept)
     assert not Path(kept).exists()
-    assert kept not in run(["git", "worktree", "list", "--porcelain"])
+    listed = run(["git", "worktree", "list", "--porcelain"])
+    assert str(other) in listed
     slots = Path(slot).parent
     deadline = time.monotonic() + 30
     while any(slots.glob(".removing-*")) and time.monotonic() < deadline:
         time.sleep(0.1)
     assert not any(slots.glob(".removing-*"))
+    listed = run(["git", "worktree", "list", "--porcelain"])
+    assert "kept-fix-a" not in listed and ".removing-" not in listed
+    assert str(other) in listed
     git.remove_checkout(kept)  # Already gone: nothing to do.

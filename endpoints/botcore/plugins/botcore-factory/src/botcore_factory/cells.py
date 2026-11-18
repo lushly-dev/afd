@@ -83,6 +83,8 @@ def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict:
         "used": plan.used,
         "elapsed": plan.elapsed,
         "room": plan.room,
+        # The room pace spends: percent of the window left below plans.ceiling.
+        "left": round(max(0.0, ceiling - plan.used), 2),
         # Percent of the window to spend a day to reach the ceiling at the reset; highest first.
         "pace": round(pace(plan, ceiling, now), 2),
         "daysToReset": round(days_to_reset(plan, now), 2),

@@ -29,16 +29,17 @@ that would merge them. None is yet seen in a fleet run.
 - **Plan pacing (the owner's rule).** The lane assigned the plan with the most room (elapsed minus
   used). It now assigns the highest pace: room below `plans.ceiling` over the days to the plan's
   reset (a plan without `resetsAt` reads it from its share elapsed of a seven-day window), so
-  every plan tracks to its ceiling around its own reset. `plan-list` shows `pace`, `daysToReset`
+  every plan tracks to its ceiling around its own reset. `plan-list` shows `left` (room below the ceiling), `pace`, `daysToReset`
   and `next`; `lane-status`'s `plan` carries its `pace`. The ceiling and its refusals stand.
 - **[#1452](https://github.com/lushly-dev/afd/issues/1452): a finished validation is kept when
   its slot goes to the front.** #503's passed validation was discarded (`rerun`, `slot-needed`)
   so #506 could validate. The validated branch now keeps state `validated` and its base; its
-  checkout moves aside (`git worktree move` to `<checkout>.factory-slots/kept-<branch>`), keeping
+  checkout moves aside (`git worktree move` to `<checkout>.factory-slots/kept-<branch>-<hash>`), keeping
   the git directory where `pnpm verify`'s record lives, so the real pre-push decision still
   accepts its push (tested against `scripts/pre-push.mjs`). The base checks at the front decide
   whether it runs again. A `slot-released` record names it; the kept checkout is removed once no
-  validated entry needs it, renamed aside at once and deleted in a detached process. The slot
+  validated entry needs it: renamed aside at once and removed by `git worktree remove --force` in
+  a detached process, which unregisters only that checkout (never `git worktree prune`). The slot
   checks out afresh, so the front branch's validation installs from nothing. A checkout that
   cannot move falls back to the old `slot-needed` rerun.
 
