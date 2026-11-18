@@ -24,7 +24,14 @@ let base: Promise<string> | undefined;
 function fixtureRoot(): Promise<string> {
 	base ??= (async () => {
 		const directory = await realpath(await mkdtemp(join(tmpdir(), 'loam-host-')));
-		if (process.platform === 'win32') restrictAcls([directory]);
+		if (process.platform === 'win32') {
+			try {
+				restrictAcls([directory]);
+			} catch (cause) {
+				await rm(directory, { recursive: true, force: true });
+				throw cause;
+			}
+		}
 		return directory;
 	})();
 	return base;
@@ -84,7 +91,9 @@ afterEach(async () => {
 afterAll(async () => {
 	const root = base;
 	base = undefined;
-	if (root !== undefined) await rm(await root, { recursive: true, force: true });
+	// A root that failed to be made private was removed then, and its error already failed the tests.
+	const directory = await root?.catch(() => undefined);
+	if (directory !== undefined) await rm(directory, { recursive: true, force: true });
 });
 
 /**

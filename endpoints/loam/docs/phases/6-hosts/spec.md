@@ -510,6 +510,7 @@ export function startDevHost(options: {
 export function scanSecrets(host: DevHost, pages: Page[], known: string[]): Promise<{ found: string[] }>;
 ```
 
+- **Windows ACL helpers for fixtures.** The entry also exports `readAcls` and `exposedTo` (#1318), which read a path's ACL as the secrets check does, and `restrictAcls`, which gives a test's directory the private ACL `data.ts` gives a data directory, so a grant on the machine's temporary directory never reaches a fixture.
 - **The host runs in a child process**, as `startTestAuthHost` does, so a test can `kill` it, with `NODE_EXTRA_CA_CERTS` set to its own certificate so its provider can fetch its own origin.
 - **Seeding is phase 3's.** People are seeded through the same function `startTestAuthHost` uses, from `@lushly-dev/loam-identity/testing`, against the dev host's provider.
 - **P3-H3's client metadata document** is served by a same-origin `HostModule` fixture, `clientMetadataFixture`, at `<base>api/test-client/metadata.json`, so its `client_id` is an `https` URL the provider can fetch with the dev certificate trusted.

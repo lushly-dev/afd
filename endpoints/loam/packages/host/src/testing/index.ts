@@ -1,7 +1,7 @@
 /**
  * @fileoverview `@lushly-dev/loam-host/testing` (phase 6 specification, 5.2): `startDevHost`, the development
- * profile in a child process a test can restart and kill, and `scanSecrets`. The `loam-host` bin never
- * imports it.
+ * profile in a child process a test can restart and kill, `scanSecrets`, and the Windows ACL helpers a
+ * fixture needs (`readAcls`, `exposedTo`, `restrictAcls`). The `loam-host` bin never imports it.
  */
 
 import { childLauncher } from './child-launcher.js';
