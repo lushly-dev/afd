@@ -979,6 +979,11 @@ impl Redactor {
             keep -= 1;
         }
         self.held = clean[keep..].to_owned();
+        // Nothing new to emit (an empty chunk, such as HTTP/2's closing frame, or half a character): the piece held
+        // stays held, so the stream still ends on it joined to the tail.
+        if keep == 0 {
+            return String::new();
+        }
         std::mem::replace(&mut self.ready, clean[..keep].to_owned())
     }
 
@@ -1741,6 +1746,23 @@ mod tests {
             Some(STREAM_LIMIT)
         );
         assert!(models.streams.lock().await.contains_key(&5));
+    }
+
+    #[test]
+    fn p5_a3_an_empty_last_chunk_keeps_the_stream_from_ending_on_the_tail_alone() {
+        // HTTP/2 commonly closes a stream with an empty DATA frame: \`run\` then takes "" before it finishes.
+        let key = "sk-ant-api03-abcdefghijklmnop";
+        let mut redactor = Redactor::new(Some(key));
+        let mut chunks = vec![
+            redactor.take("data: {\"text\":\"a long enough answer, well past the key\"}\n\n"),
+            redactor.take(""),
+        ];
+        chunks.push(redactor.finish(""));
+        assert_eq!(
+            chunks.concat(),
+            "data: {\"text\":\"a long enough answer, well past the key\"}\n\n"
+        );
+        assert_ne!(chunks.last().map(String::len), Some(key.len() - 1));
     }
 
     #[tokio::test]
