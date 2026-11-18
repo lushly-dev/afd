@@ -140,6 +140,8 @@ class MergeOutcome:
     clean: bool
     head: str = ""
     conflicts: tuple[str, ...] = ()
+    #: The conflicts are left for the lane to regenerate: the merge is still in progress.
+    open: bool = False
 
 
 @dataclass(frozen=True)
@@ -286,9 +288,22 @@ class Git(Protocol):
         """
         ...
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
+    def merge_main(
+        self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
+    ) -> MergeOutcome:
         """Merge ``main`` into the slot's head. A conflict is aborted and reported, never
-        resolved; a merge that failed otherwise raises WorldError (never reported clean)."""
+        resolved, unless ``keep_open`` accepts its paths: then the merge stays in progress
+        (``open``) for ``finish_merge`` or ``abort_merge``. A merge that failed otherwise raises
+        WorldError (never reported clean)."""
+        ...
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        """Commit the open merge once nothing is unmerged; with paths still unmerged, abort it
+        and report them."""
+        ...
+
+    def abort_merge(self, path: str) -> None:
+        """Abort the open merge, if any."""
         ...
 
     def tree(self, path: str) -> str: ...

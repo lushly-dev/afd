@@ -90,13 +90,6 @@ const styles = css`
 	[hidden] {
 		display: none;
 	}
-	/*
-	 * violet-option reads --color-surface-highlight for its active row, which is not a contract id, so its
-	 * white fallback fails contrast in dark: the palette maps it the same way.
-	 */
-	violet-option {
-		--color-surface-highlight: var(--color-surface-subtle);
-	}
 	violet-listbox::part(control):focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
 		outline-offset: var(--size-space-xs);

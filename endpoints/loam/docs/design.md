@@ -689,11 +689,9 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
     and the selected-control colors with a `size.space.xs` start-edge mark
     when pressed. `pairs.ts` now holds primary and secondary text on the
     hover and pressed colors, and danger text on the floating surface.
-  - **The palette's active row.** `violet-option` reads
-    `--color-surface-highlight` for its active row, which is not a contract
-    id, so its white fallback failed contrast in dark; the palette maps it to
-    `color.surface.card` until the component reads a contract id (a
-    follow-up in the specification). Under forced colors the palette marks
+  - **The palette's active row.** `violet-option` reads the contract
+    `color.surface.subtle` token directly (#659); the palette no longer
+    maps the old non-contract property. Under forced colors the palette marks
     the active option and colors its text `HighlightText`, because the
     option turns forced-color adjustment off.
   - **A maximized panel** collapses main's track to zero and makes main

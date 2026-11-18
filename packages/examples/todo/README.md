@@ -296,17 +296,10 @@ of its own, keeps the history too. The latest 1,000 are kept.
 
 `todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
 to approve it (`createApprovalMiddleware`, `create_approval_middleware` in Python, Rust and C++).
-Against the TypeScript, Rust and C++ backends, an MCP client that declares form elicitation asks
-its person; any other
+Against every backend, an MCP client that declares form elicitation asks its person; any other
 caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP every caller
 counts as an agent, so the page's "clear completed" is held too: the page shows the approval and
 answers with the person's choice, in both frontends.
-
-The Python backend cannot ask over MCP yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)),
-and no MCP call can carry an approval, so over the Python server's MCP a held clear cannot be
-approved at all: it always answers `APPROVAL_REQUIRED`. Until #1312, clear through the TypeScript
-server, run the Python server with `APPROVALS=off`, or call the command in process, where trusted
-code retries with the token once a person approves.
 
 The Rust and C++ command lines (`cargo run -- todo-clear '{}'` and the shell,
 `todo-server-cpp todo-clear '{}'`) run as the person at the terminal, so a clear there is not

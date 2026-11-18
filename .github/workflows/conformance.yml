@@ -195,8 +195,8 @@ jobs:
       - name: Confirmations (Python backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:py --suite confirmations --mode modern
 
-      # The held clear and the delete that is not held. The approve and decline cases need the
-      # Python library to ask the person over MCP (#1312), so they stay TypeScript's.
+      # The held clear, the delete that is not held, and the clear the person approves or
+      # declines when the server asks them over MCP.
       - name: Approvals (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py --suite approvals
 

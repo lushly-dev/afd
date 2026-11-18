@@ -77,11 +77,12 @@ def answer(state: dict, action: str, at: str, *, branch: str | None = None) -> l
     return closed
 
 
-def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status) -> dict:
+def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None) -> dict:
     """The events ``consumer`` has not been given, each with a compact status, or a timeout.
 
     ``status`` computes the compact status; it is called once, after delivery is recorded, so a
-    failed GitHub read never loses an event.
+    failed GitHub read never loses an event. ``keep``, when given, runs on each poll while waiting
+    (a foreman's lease is renewed so).
     """
     if not consumer.strip():
         raise Refusal("VALIDATION_ERROR", "consumer is empty", "Name the consumer, e.g. foreman")
@@ -110,6 +111,8 @@ def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status) -
         remaining = None if deadline is None else deadline - time.monotonic()
         if remaining is not None and remaining <= 0:
             return {"events": [], "timedOut": True}
+        if keep is not None:
+            keep()
         time.sleep(POLL_SECONDS if remaining is None else min(POLL_SECONDS, remaining))
 
 

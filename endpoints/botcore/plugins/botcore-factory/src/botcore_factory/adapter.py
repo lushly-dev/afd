@@ -3,10 +3,12 @@
 Botcore validates ``[tool.botcore.plugins.factory]`` in ``pyproject.toml`` or
 ``[plugins.factory]`` in ``botcore.toml`` against ``FactoryConfig`` and hands the result to the
 plugin. Commands are argument lists, never shell strings. Intake reads ``labels``; enqueue reads
-``prequeue`` (named stages), ``review_evidence`` (``{head}`` stands for the head being enqueued)
-and ``gate_paths``. When the base moves under a validated branch, the lane reads ``units``,
-``shared_paths`` and ``gate_paths`` to decide whether it may advance the branch without validating
-it again, and ``main_checks`` to watch main after such a merge. The other keys are parsed and
+``prequeue`` (named stages), ``review_evidence`` (``{head}`` stands for the head being enqueued,
+``{worktree}`` for the cell's worktree; the lane runs it again from its ``review`` slot at the
+base before each validation, and that run binds) and ``gate_paths``. When the base moves under a
+validated branch, the lane reads ``units``, ``shared_paths`` and ``gate_paths`` to decide whether
+it may advance the branch without validating it again, and ``main_checks`` to watch main after
+such a merge. The other keys are parsed and
 validated now so the lane's later commands find them checked.
 """
 
@@ -49,6 +51,31 @@ class Stage(BaseModel):
     @classmethod
     def _run(cls, value: list[str]) -> list[str]:
         return _argv(value, "run")
+
+
+class Regenerate(BaseModel):
+    """Files the lane writes again, rather than eject, when they are a merge's only conflicts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", description="Named in the records")
+    paths: list[str] = Field(min_length=1, description="Globs of the generated files")
+    run: Argv = Field(
+        description=(
+            "Run in the validation checkout while the merge of the base is open: it writes the"
+            " conflicting files and stages them, or exits non-zero"
+        )
+    )
+
+    @field_validator("run")
+    @classmethod
+    def _run(cls, value: list[str]) -> list[str]:
+        return _argv(value, "run")
+
+    @field_validator("paths")
+    @classmethod
+    def _paths(cls, value: list[str]) -> list[str]:
+        return [_relative(glob, "paths") for glob in value]
 
 
 @lru_cache(maxsize=256)
@@ -102,6 +129,13 @@ class FactoryConfig(BaseModel):
         description="The branch the lane merges into, validates against and runs coverage on",
     )
     gate_paths: list[str] = Field(default_factory=list, description="Globs of gate files")
+    regenerate: list[Regenerate] = Field(
+        default_factory=list,
+        description=(
+            "Generated files, such as provenance records, the lane writes again when a merge's"
+            " only conflicts are in them (lushly-dev/afd#1410)"
+        ),
+    )
     units: Argv | None = Field(
         default=None,
         description=(

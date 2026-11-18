@@ -160,14 +160,6 @@ const styles = css`
 		overflow: auto;
 		padding: var(--size-space-sm);
 	}
-	/*
-	 * violet-option reads --color-surface-highlight for its active row, which is not a contract id,
-	 * so its white fallback shows in every theme and fails contrast in dark. Map it to a contract
-	 * surface until the component reads one (a follow-up in the phase 0 specification).
-	 */
-	violet-option {
-		--color-surface-highlight: var(--color-surface-subtle);
-	}
 	/* The active result is where Enter goes while focus stays in the field: show the focus indicator. */
 	violet-option[data-active]::part(control) {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);

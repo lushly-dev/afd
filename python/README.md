@@ -495,6 +495,17 @@ client = DirectClient(registry, DirectClientOptions(on_approval_needed=ask_human
 # ask_human(request) returns True only after approval; request never contains a token.
 ```
 
+## Approvals over MCP
+
+`create_approval_middleware(..., relay="mcp-elicitation")` asks the person behind an MCP client
+that declares form elicitation, instead of returning a token: on MCP 2026-07-28 with an
+`input_required` result, on a 2025 stdio or stateful HTTP connection with a server-sent
+elicitation. The question shows the summary, the command and its validated input, and the call
+runs once the person approves; a decline fails it with `APPROVAL_REQUIRED` and
+`details.reason: "declined"`. An `afd-batch` or `afd-pipe` is asked about once, before any step
+runs. The relay trusts the client application to show the question to a person, so leave it off
+where the agent's own code is the MCP client.
+
 ## CLI
 
 ```bash

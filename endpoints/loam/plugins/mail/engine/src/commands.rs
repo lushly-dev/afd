@@ -566,6 +566,7 @@ pub fn approval_summary(
             ))
         }
         crate::screening::ACCEPT => crate::screening::approval_summary(engine, input),
+        crate::policy::SET => crate::policy::approval_summary(engine, input),
         _ => crate::tokens::approval_summary(command, input),
     }
 }

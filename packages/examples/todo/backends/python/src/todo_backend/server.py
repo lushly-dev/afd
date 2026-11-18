@@ -103,6 +103,9 @@ def create_todo_middleware(
             create_approval_middleware(
                 secret=resolve_approval_secret(env),
                 commands=commands,
+                # An MCP client that declares form elicitation asks its person; any other caller
+                # gets APPROVAL_REQUIRED with a suggestion to ask the person.
+                relay="mcp-elicitation",
                 summarize=lambda command, input, context: (
                     summarize_clear(store, input) if command == "todo-clear" else None
                 ),

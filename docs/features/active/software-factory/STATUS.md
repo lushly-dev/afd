@@ -5,6 +5,23 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Provenance conflicts, one foreman, and the lane's own review check, 2026-11-17
+
+[#1410](https://github.com/lushly-dev/afd/issues/1410): three of round 2's ejections were merge
+conflicts in provenance records alone. When a merge of `main` conflicts only in files the
+adapter's new `regenerate` entries name, the lane now runs the entry's command in the slot while
+the merge is open and commits it. AFD's runs `scripts/provenance-merge.mjs`, which merges each
+unit's records three ways and recomputes the manifest hashes; a value both sides changed
+differently still ejects as `conflict`.
+[#1432](https://github.com/lushly-dev/afd/issues/1432): a second foreman took a seat on the same
+lane. The foreman now names its session on `cell-register`, `lane-wait` and `dial-set`, which
+takes a lease (`foreman.leaseMinutes`, 30); another session is refused `FOREMAN_BUSY`, and
+`foreman-handoff` frees the lane.
+[#1308](https://github.com/lushly-dev/afd/issues/1308) (#1444): the lane checks each review
+itself with `main`'s verifier before validating, ejecting as `review-unverified`. Fixed by hand,
+not by a cell, since the changes are to the lane that would merge them. Not yet seen in a fleet
+run.
+
 ## Repairs, ejection details and the units checkout, 2026-11-17
 
 Three faults the second fleet (run-3) found. [#1374](https://github.com/lushly-dev/afd/issues/1374):

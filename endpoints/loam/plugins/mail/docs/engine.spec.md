@@ -1509,6 +1509,38 @@ from a query and then frozen:
   that arrived or matched after the selection was made is untouched.
 - **A list of ids** may hold at most 200. Anything larger goes through a selection.
 
+**As step D1 built it** (migration 12):
+
+- **What is frozen** is each message in each mailbox that shows it, as the provider names it
+  there: the mailbox, its generation and the message's id in it. A message two mailboxes show is
+  one message and two items, and so are two copies of it in one mailbox. A query that names a
+  mailbox holds that mailbox's items. One that names none holds the items outside junk and
+  trash, as the lists by class do ([7.2](#72-the-screening-class)), so that a change meant for a
+  sender's mail does not pull its copies out of the trash; naming junk or trash selects there.
+  An unreturned message is an item with no message.
+- **The query's fields** narrow it together, and at least one is named: an account, a mailbox (of
+  that account, or the call is refused with `MAILBOX_NOT_FOUND`), a sender by its id, a story by
+  its id (the messages its list shows: a burst's unknown and bulk first contacts, never a known
+  sender's; a story holds mail a mailbox outside junk and trash shows, so with junk or trash named
+  it selects only those messages' copies there), a class, `after` and `before` (the date a message is listed under, in
+  milliseconds), `unread` (per mailbox, by its flags) and `text`. Every word of `text` must
+  match the subject or the text held: mail of a header-only mailbox matches by its subject until
+  someone opens it ([5.3](#53-order-and-fairness)). It selects every match, not a search's
+  first 1 000, and a text that cannot be read in full is refused with `INVALID_INPUT` rather
+  than searched for less.
+- **The counts.** `count` is the messages and the unreturned ones together; a change states it as
+  `expectedCount`. The result also gives the threads, when it expires and a sample of the five
+  newest messages, labelled as content ([12.1](#121-content-labels)). The journal keeps the
+  query and the counts, not the sample ([13.1](#131-the-journal)).
+- **It waits for the derivation.** While messages wait to be derived again, or a rebuild is under
+  way, a selection fails with `SCREENING_NOT_READY`, which can be retried: classes, stories and
+  threads could count only some of the mail the query names.
+- **Each caller may hold ten** that have not expired; an eleventh fails with `POLICY_LIMIT`, so
+  that mail that steers an agent cannot fill the disk with them. Expired ones are removed when
+  the next is made.
+- **Not derived.** A rebuild keeps selections. Removing an account drops every selection that
+  holds its mail, which no longer counts what it counted.
+
 **How a change runs.** Each change is an `operation`: the command, the frozen set, and for each
 message its place and state before, and its outcome.
 
@@ -1569,6 +1601,16 @@ only by a person. The default:
 
 The engine applies the policy itself, to every caller, because Loam's autonomy policy reaches
 only Loam's copilot. The limits are what an agent may do with nobody present.
+
+**As step D1 built it** (migration 12): the policy is one row. `mail-policy-show` gives it, its
+default and how many selections a caller may hold. `mail-policy-set` changes any of its four
+numbers: what an agent or a script may archive, label and mark in a call, what it may trash in a
+call and in any 24 hours, and the count above which the command line asks the person. It is held for
+the person's approval, whose summary gives the policy as it would be, in numbers alone (input no
+policy could take is refused without asking), and it returns the numbers before, which setting again
+undoes. A limit a call is at most 1 000 messages, what a call can finish within its 60 seconds; a
+day's trash at most 10 000, and not below a call's; 0 means an agent or a script makes no such
+change alone.
 
 **Over a limit: a proposal (M28).** A change command from an agent or a script that is over a
 limit changes nothing at the provider. It stores the operation in the state `proposed`, with its
@@ -1693,7 +1735,7 @@ says otherwise.
 | `mail-sender-dismiss` | C | Local | cli, mcp | The person's or the proposer's |
 | `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number |
-| `mail-selection-create` | D | Local | cli, mcp | |
+| `mail-selection-create` | D | Local | cli, mcp | Step D1 ([9.1](#91-selections)): the query's fields, the items it freezes, its counts and a labelled sample; ten a caller |
 | `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)) |
 | `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28) |
 | `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's |
@@ -1705,8 +1747,8 @@ says otherwise.
 | `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send |
 | `mail-draft-send` | D | Remote, destructive; a person | cli | |
 | `mail-unsubscribe` | D | Remote, destructive; a person | cli | |
-| `mail-policy-show` | D | Read | cli, mcp | |
-| `mail-policy-set` | D | Local; a person | cli | |
+| `mail-policy-show` | D | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)) |
+| `mail-policy-set` | D | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before |
 | `mail-record-list` | E | Read | cli, mcp | |
 | `mail-record-propose`, `mail-record-withdraw` | E | Local | cli, mcp | |
 | `mail-story-propose`, `mail-story-dismiss` | E | Local | cli, mcp | Dismissing is the person's or the proposer's |
@@ -1879,9 +1921,9 @@ file.
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
 | C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods. Then rule 3 (migration 11): a junk or trash mailbox's history starts no later than when the engine first listed it |
-| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
+| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches, `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss`. The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
 | D2 | The four remote commands on iCloud and Gmail |
-| D3 | Drafts, send and unsubscribe at the terminal |
+| D3 | Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze` |
 | E1 to E3 | Records; proposed stories; reply sets |
 
 ## 16. For the owner

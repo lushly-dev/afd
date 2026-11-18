@@ -647,6 +647,55 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- would anyway.
     DELETE FROM engine_state WHERE key = 'burst-rule';
     ",
+    // 12: selections and the person's policy (sections 9.1 and 9.4). Neither is derived: both
+    // survive a rebuild. (A test that winds a store back past a migration drops what the later
+    // ones made: `bursts_tests`.)
+    "
+    -- A query resolved once and frozen. `query` is the caller's, as JSON; its search text is the
+    -- caller's words, which mail may have steered. Its counts are those of the frozen set. It
+    -- can be acted on until `expires_at`.
+    CREATE TABLE selection (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL,
+        -- Who made it: the kind of caller, and the agent's token id when it had one.
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        threads INTEGER NOT NULL CHECK (threads >= 0),
+        unreturned INTEGER NOT NULL CHECK (unreturned >= 0)
+    ) STRICT;
+    CREATE INDEX selection_expires ON selection (expires_at);
+    CREATE INDEX selection_creator ON selection (creator_kind, creator_id, expires_at);
+
+    -- What a selection froze, each as the provider names it: a message in a mailbox, by the id
+    -- the mailbox gives it in its generation, so that two copies of one message in a mailbox
+    -- are two items. `message_id` is null for a message the mailbox lists and the provider
+    -- never returned (section 5.4), held by a selection of that whole mailbox and changed by
+    -- its provider id like any other.
+    CREATE TABLE selection_item (
+        selection_id INTEGER NOT NULL REFERENCES selection (id) ON DELETE CASCADE,
+        mailbox_id INTEGER NOT NULL REFERENCES mailbox (id),
+        validity TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        message_id INTEGER REFERENCES message (id),
+        PRIMARY KEY (selection_id, mailbox_id, validity, provider_id)
+    ) STRICT, WITHOUT ROWID;
+
+    -- What an agent or a script may change with nobody present. One row, changed only by the
+    -- person; `set_at` is null until they first change it.
+    CREATE TABLE policy (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        change_per_call INTEGER NOT NULL CHECK (change_per_call >= 0),
+        trash_per_call INTEGER NOT NULL CHECK (trash_per_call >= 0),
+        trash_per_day INTEGER NOT NULL CHECK (trash_per_day >= trash_per_call),
+        ask_above INTEGER NOT NULL CHECK (ask_above >= 0),
+        set_at INTEGER
+    ) STRICT;
+    INSERT INTO policy (id, change_per_call, trash_per_call, trash_per_day, ask_above)
+        VALUES (1, 500, 50, 200, 200);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

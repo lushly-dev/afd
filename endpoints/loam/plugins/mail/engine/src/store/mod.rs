@@ -12,10 +12,12 @@ mod classes;
 mod decisions;
 mod derived;
 mod parts;
+mod policy;
 mod read;
 mod remove;
 mod schema;
 mod screening;
+mod selections;
 mod senders;
 mod stories;
 mod sync;
@@ -30,9 +32,13 @@ pub use decisions::{
     Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use remove::{RemovalPreview, Removed};
 pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
+pub use selections::{
+    MOST_SELECTIONS, SELECTION_LIFETIME, Selected, SelectionItem, SelectionQuery, SelectionRow,
+};
 pub use senders::{SenderPlace, SenderQuery, SenderRow, domain_of, sender_id};
 pub use stories::{
     KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryCursor, StoryMessage, StoryMessages,
@@ -1206,6 +1212,8 @@ mod bursts_tests;
 mod classes_tests;
 #[cfg(test)]
 mod derived_tests;
+#[cfg(test)]
+mod selections_tests;
 #[cfg(test)]
 mod senders_tests;
 #[cfg(test)]
