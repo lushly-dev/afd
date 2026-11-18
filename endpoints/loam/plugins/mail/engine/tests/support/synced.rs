@@ -10,6 +10,7 @@ use afd::{Actor, ActorKind, CommandContext, CommandInterface, CommandRegistry};
 use loam_mail::cli::{Caller, Person, run};
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
+use loam_mail::operate::ChangeOptions;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
 use loam_mail::secrets::InMemory;
 use loam_mail::store::AccountRow;
@@ -39,6 +40,11 @@ pub struct Fixture {
 impl Fixture {
     /// The engine after one sync of the mailboxes `world` makes.
     pub fn new(world: impl FnOnce(&mut World)) -> Self {
+        Self::with_changes(world, ChangeOptions::default())
+    }
+
+    /// [`Fixture::new`], with operations sized by `change`.
+    pub fn with_changes(world: impl FnOnce(&mut World), change: ChangeOptions) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let server = Server::start(true, true);
         world(&mut server.world());
@@ -59,7 +65,8 @@ impl Fixture {
                 .with_sync_options(Options {
                     backoff: std::time::Duration::ZERO,
                     ..Options::default()
-                }),
+                })
+                .with_change_options(change),
         );
         let account: AccountRow = engine
             .with_store(|store| {

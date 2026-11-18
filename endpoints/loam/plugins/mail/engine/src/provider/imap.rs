@@ -1,12 +1,19 @@
-//! The provider interface over IMAP (the specification's section 5.2).
+//! The provider interface over IMAP (the specification's sections 5.2 and
+//! 9.2).
 //!
 //! `async-imap` frames the connection and `imap-proto` parses each response;
 //! the engine writes its own commands and reads every response itself, so
-//! that nothing the server says is set aside unread. Only these commands are
-//! sent: `CAPABILITY`, `LOGIN`, `ENABLE`, `LIST`, `EXAMINE`, `UID SEARCH`,
+//! that nothing the server says is set aside unread. Reading sends only
+//! `CAPABILITY`, `LOGIN`, `ENABLE`, `LIST`, `EXAMINE`, `UID SEARCH`,
 //! `UID FETCH` with `BODY.PEEK` or `BODYSTRUCTURE`, and `LOGOUT`. None of them can change a
-//! mailbox: a mailbox is opened with `EXAMINE`, never `SELECT`, and a message
-//! is read with `BODY.PEEK`, which leaves `\Seen` as it was.
+//! mailbox: a mailbox is opened with `EXAMINE`, and a message is read with
+//! `BODY.PEEK`, which leaves `\Seen` as it was.
+//!
+//! Changing mail, which only an operation does, adds `SELECT`, `STATUS`,
+//! `UID STORE`, `UID COPY`, `UID MOVE` where the server offers `MOVE`, and
+//! `UID EXPUNGE` of the very messages copied, never a bare `EXPUNGE`, which
+//! would remove what another client had flagged. It needs `UIDPLUS`: the
+//! ids a copy gets, which an undo needs, and `UID EXPUNGE`.
 
 use std::collections::HashSet;
 use std::fmt;
@@ -15,10 +22,11 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use async_imap::imap_proto::rfc4315::UidSetMember;
 use async_imap::imap_proto::{
     AttributeValue, BodyContentCommon, BodyContentSinglePart, BodyStructure, Capability,
     ContentEncoding, MailboxDatum, MessageSection, NameAttribute, Response, ResponseCode,
-    SectionPath, Status,
+    SectionPath, Status, StatusAttribute,
 };
 use async_imap::{Client, Session};
 use async_trait::async_trait;
@@ -26,8 +34,8 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 
 use super::{
-    Changes, Connector, Fetched, FlagsSeen, Gone, Listing, Opened, PartFetched, Provider,
-    ProviderError, RemoteMailbox, Since,
+    Changes, Connector, Copied, Fetched, FlagsSeen, Gone, Listing, NextId, Opened, OpenedToChange,
+    PartFetched, Provider, ProviderError, RemoteMailbox, Since,
 };
 use crate::parts::{self, Leaf, Limit, Node, Structure};
 use crate::store::{AccountRow, HeaderSeen, Role};
@@ -99,8 +107,14 @@ pub struct Imap {
     too_deep: Arc<std::sync::atomic::AtomicBool>,
     condstore: bool,
     qresync: bool,
+    /// `UIDPLUS`, without which nothing is changed.
+    uidplus: bool,
+    /// `MOVE`.
+    moves: bool,
     names: &'static [(&'static str, Role)],
     open: Option<Examined>,
+    /// Whether the open mailbox was opened with `SELECT`, to change it.
+    changing: bool,
 }
 
 impl fmt::Debug for Imap {
@@ -180,16 +194,21 @@ impl Imap {
             too_deep,
             condstore: false,
             qresync: false,
+            uidplus: false,
+            moves: false,
             names,
             open: None,
+            changing: false,
         };
-        let (mut condstore, mut qresync) = (false, false);
+        let (mut condstore, mut qresync, mut uidplus, mut moves) = (false, false, false, false);
         imap.command("CAPABILITY", "listing its capabilities", |response| {
             if let Response::Capabilities(list) = response {
                 for capability in list {
                     if let Capability::Atom(atom) = capability {
                         condstore |= atom.eq_ignore_ascii_case("CONDSTORE");
                         qresync |= atom.eq_ignore_ascii_case("QRESYNC");
+                        uidplus |= atom.eq_ignore_ascii_case("UIDPLUS");
+                        moves |= atom.eq_ignore_ascii_case("MOVE");
                     }
                 }
             }
@@ -198,6 +217,8 @@ impl Imap {
         // QRESYNC implies CONDSTORE (RFC 7162, section 3.2.3).
         imap.condstore = condstore || qresync;
         imap.qresync = qresync;
+        imap.uidplus = uidplus;
+        imap.moves = moves;
         if qresync {
             imap.command("ENABLE QRESYNC", "turning on QRESYNC", |_| {})
                 .await?;
@@ -217,7 +238,19 @@ impl Imap {
         &mut self,
         command: &str,
         what: &'static str,
+        each: impl FnMut(&Response<'_>) + Send,
+    ) -> Result<(), ProviderError> {
+        self.command_done(command, what, each, |_| {}).await
+    }
+
+    /// [`Imap::command`], handing the tagged completion's code, when it
+    /// succeeds, to `done`.
+    async fn command_done(
+        &mut self,
+        command: &str,
+        what: &'static str,
         mut each: impl FnMut(&Response<'_>) + Send,
+        mut done: impl FnMut(&ResponseCode<'_>) + Send,
     ) -> Result<(), ProviderError> {
         let tag = within(SILENCE, self.session.run_command(command))
             .await
@@ -241,10 +274,17 @@ impl Imap {
             };
             match response.parsed() {
                 Response::Done {
-                    tag: done, status, ..
-                } if *done == tag => {
+                    tag: finished,
+                    status,
+                    outcome,
+                } if *finished == tag => {
                     return match status {
-                        Status::Ok => Ok(()),
+                        Status::Ok => {
+                            if let Some(code) = &outcome.code {
+                                done(code);
+                            }
+                            Ok(())
+                        }
                         Status::No => Err(ProviderError::Refused(what)),
                         _ => Err(ProviderError::Protocol(what)),
                     };
@@ -263,6 +303,91 @@ impl Imap {
         self.open
             .clone()
             .ok_or(ProviderError::Protocol("no mailbox is open"))
+    }
+
+    /// Fails unless a mailbox is open to change it, and the server can
+    /// change mail as the engine does.
+    fn changing(&self) -> Result<(), ProviderError> {
+        if !self.uidplus {
+            return Err(ProviderError::Refused(
+                "the server does not offer UIDPLUS, which changing mail needs",
+            ));
+        }
+        if self.changing && self.open.is_some() {
+            Ok(())
+        } else {
+            Err(ProviderError::Protocol("no mailbox is open to change"))
+        }
+    }
+
+    /// `UID COPY` or `UID MOVE` of `ids` into `to`, and where each went, by
+    /// the `COPYUID` the server answers with (RFC 4315, section 3).
+    async fn copy_or_move(
+        &mut self,
+        verb: &str,
+        ids: &[String],
+        to: &str,
+    ) -> Result<Copied, ProviderError> {
+        self.changing()?;
+        let mut uids = uids_of(ids)?;
+        if uids.is_empty() {
+            return Ok(Copied {
+                validity: String::new(),
+                ids: Vec::new(),
+            });
+        }
+        let command = format!("UID {verb} {} {}", uid_set(&mut uids), quoted(to)?);
+        let mut found: Option<(u32, Vec<UidSetMember>, Vec<UidSetMember>)> = None;
+        let mut keep = |code: &ResponseCode<'_>| {
+            if let ResponseCode::CopyUid(validity, from, into) = code {
+                found = Some((*validity, from.clone(), into.clone()));
+            }
+        };
+        // A move answers in an untagged OK before its expunges; a copy, in
+        // its tagged completion.
+        let mut untagged = None;
+        self.command_done(
+            &command,
+            "copying or moving messages",
+            |response| {
+                if let Response::Data {
+                    status: Status::Ok,
+                    outcome,
+                } = response
+                    && let Some(ResponseCode::CopyUid(validity, from, into)) = &outcome.code
+                {
+                    untagged = Some((*validity, from.clone(), into.clone()));
+                }
+            },
+            &mut keep,
+        )
+        .await?;
+        // A server with UIDPLUS names what it copied; when it names
+        // nothing, it copied nothing (RFC 4315, section 3).
+        let Some((validity, from, into)) = found.or(untagged) else {
+            return Ok(Copied {
+                validity: String::new(),
+                ids: Vec::new(),
+            });
+        };
+        let (mut sources, mut targets) = (Vec::new(), Vec::new());
+        spell_members(&from, &mut sources)?;
+        spell_members(&into, &mut targets)?;
+        if sources.len() != targets.len() {
+            return Err(ProviderError::Protocol(
+                "the server named a different number of messages copied and their copies",
+            ));
+        }
+        let asked: HashSet<u32> = uids.iter().copied().collect();
+        Ok(Copied {
+            validity: validity.to_string(),
+            ids: sources
+                .into_iter()
+                .zip(targets)
+                .filter(|(from, _)| asked.contains(from))
+                .map(|(from, to)| (from.to_string(), to.to_string()))
+                .collect(),
+        })
     }
 
     /// The changes since a cursor whose next UID was `next`, given what left
@@ -304,6 +429,8 @@ impl Imap {
 
     /// `EXAMINE` with `parameters` after the name, and what the server said.
     async fn examine(&mut self, key: &str, parameters: &str) -> Result<Reply, ProviderError> {
+        // Whatever was open is closed by opening another, read-only.
+        self.changing = false;
         let command = format!("EXAMINE {}{parameters}", quoted(key)?);
         let mut reply = Reply::default();
         self.command(&command, "opening a mailbox", |response| {
@@ -425,6 +552,7 @@ impl Provider for Imap {
 
     async fn open(&mut self, mailbox: &str) -> Result<Opened, ProviderError> {
         self.open = None;
+        self.changing = false;
         // With QRESYNC turned on, the server reports mod-sequences on any
         // EXAMINE; with CONDSTORE alone, the parameter asks for them.
         let parameters = if self.condstore && !self.qresync {
@@ -753,6 +881,170 @@ impl Provider for Imap {
         Ok(fetched)
     }
 
+    async fn open_to_change(&mut self, mailbox: &str) -> Result<OpenedToChange, ProviderError> {
+        self.open = None;
+        self.changing = false;
+        let command = format!("SELECT {}", quoted(mailbox)?);
+        let mut reply = Reply::default();
+        let mut read_only = false;
+        self.command_done(
+            &command,
+            "opening a mailbox to change it",
+            |response| reply.read(response),
+            |code| read_only |= matches!(code, ResponseCode::ReadOnly),
+        )
+        .await?;
+        if read_only {
+            return Err(ProviderError::Refused(
+                "the server opened the mailbox read-only",
+            ));
+        }
+        let examined = reply.examined(mailbox)?;
+        let validity = examined.validity.to_string();
+        self.open = Some(examined);
+        self.changing = true;
+        Ok(OpenedToChange { validity })
+    }
+
+    async fn next_id(&mut self, mailbox: &str) -> Result<NextId, ProviderError> {
+        let command = format!("STATUS {} (UIDNEXT UIDVALIDITY)", quoted(mailbox)?);
+        let (mut next, mut validity) = (None, None);
+        self.command(&command, "reading a mailbox's next id", |response| {
+            if let Response::MailboxData(MailboxDatum::Status { status, .. }) = response {
+                for attribute in status {
+                    match attribute {
+                        StatusAttribute::UidNext(value) => next = Some(*value),
+                        StatusAttribute::UidValidity(value) => validity = Some(*value),
+                        _ => {}
+                    }
+                }
+            }
+        })
+        .await?;
+        match (validity, next) {
+            (Some(validity), Some(next)) => Ok(NextId {
+                validity: validity.to_string(),
+                next: next.to_string(),
+            }),
+            _ => Err(ProviderError::Protocol(
+                "the server did not give a mailbox's next id",
+            )),
+        }
+    }
+
+    async fn present(&mut self, ids: &[String]) -> Result<Vec<String>, ProviderError> {
+        self.examined()?;
+        let mut uids = uids_of(ids)?;
+        if uids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let asked: HashSet<u32> = uids.iter().copied().collect();
+        let mut found = self.search(&format!("UID {}", uid_set(&mut uids))).await?;
+        found.sort_unstable();
+        found.dedup();
+        Ok(found
+            .into_iter()
+            .filter(|uid| asked.contains(uid))
+            .map(|uid| uid.to_string())
+            .collect())
+    }
+
+    async fn ids_from(&mut self, from: &str) -> Result<Vec<String>, ProviderError> {
+        self.examined()?;
+        let from = from
+            .parse::<u32>()
+            .map_err(|_| ProviderError::Protocol("an id is not a UID"))?;
+        // `n:*` names the highest UID even when it is below `n`.
+        let mut found: Vec<u32> = self
+            .search(&format!("UID {from}:*"))
+            .await?
+            .into_iter()
+            .filter(|uid| *uid >= from)
+            .collect();
+        found.sort_unstable();
+        found.dedup();
+        Ok(found.iter().map(u32::to_string).collect())
+    }
+
+    async fn flags_of(&mut self, ids: &[String]) -> Result<Vec<FlagsSeen>, ProviderError> {
+        self.examined()?;
+        let mut seen = HashSet::new();
+        let mut flags = Vec::new();
+        self.fetch(ids, "(UID FLAGS)", "reading flags", |wanted, attributes| {
+            let mut uid = None;
+            let mut found = None;
+            for attribute in attributes {
+                match attribute {
+                    AttributeValue::Uid(value) => uid = Some(*value),
+                    AttributeValue::Flags(values) => found = Some(normal_flags(values)),
+                    _ => {}
+                }
+            }
+            if let (Some(uid), Some(found)) = (uid, found)
+                && wanted.contains(&uid)
+                && seen.insert(uid)
+            {
+                flags.push(FlagsSeen {
+                    provider_id: uid.to_string(),
+                    flags: found,
+                });
+            }
+        })
+        .await?;
+        Ok(flags)
+    }
+
+    async fn copy(&mut self, ids: &[String], to: &str) -> Result<Copied, ProviderError> {
+        self.copy_or_move("COPY", ids, to).await
+    }
+
+    fn moves(&self) -> bool {
+        self.moves
+    }
+
+    async fn move_to(&mut self, ids: &[String], to: &str) -> Result<Copied, ProviderError> {
+        if !self.moves {
+            return Err(ProviderError::Refused("the server does not offer MOVE"));
+        }
+        self.copy_or_move("MOVE", ids, to).await
+    }
+
+    async fn set_flags(
+        &mut self,
+        ids: &[String],
+        flags: &[&str],
+        on: bool,
+    ) -> Result<(), ProviderError> {
+        self.changing()?;
+        let mut uids = uids_of(ids)?;
+        if uids.is_empty() || flags.is_empty() {
+            return Ok(());
+        }
+        for flag in flags {
+            if !SYSTEM_FLAGS.contains(flag) {
+                return Err(ProviderError::Protocol("a flag the engine does not set"));
+            }
+        }
+        let command = format!(
+            "UID STORE {} {}FLAGS.SILENT ({})",
+            uid_set(&mut uids),
+            if on { '+' } else { '-' },
+            flags.join(" ")
+        );
+        self.command(&command, "setting flags", |_| {}).await
+    }
+
+    async fn remove(&mut self, ids: &[String]) -> Result<(), ProviderError> {
+        self.changing()?;
+        let mut uids = uids_of(ids)?;
+        if uids.is_empty() {
+            return Ok(());
+        }
+        let command = format!("UID EXPUNGE {}", uid_set(&mut uids));
+        self.command(&command, "removing messages copied", |_| {})
+            .await
+    }
+
     async fn close(&mut self) {
         let _ = within(
             Duration::from_secs(5),
@@ -760,6 +1052,36 @@ impl Provider for Imap {
         )
         .await;
     }
+}
+
+/// The flags the engine sets or clears: read, flagged, and the delete flag a
+/// move without `MOVE` sets on exactly what it copied.
+const SYSTEM_FLAGS: &[&str] = &["\\Seen", "\\Flagged", "\\Deleted"];
+
+/// `ids` as UIDs.
+fn uids_of(ids: &[String]) -> Result<Vec<u32>, ProviderError> {
+    ids.iter()
+        .map(|id| {
+            id.parse::<u32>()
+                .map_err(|_| ProviderError::Protocol("an id is not a UID"))
+        })
+        .collect()
+}
+
+/// The UIDs a `COPYUID` set names, in its order.
+fn spell_members(members: &[UidSetMember], into: &mut Vec<u32>) -> Result<(), ProviderError> {
+    for member in members {
+        match member {
+            UidSetMember::Uid(uid) => into.push(*uid),
+            UidSetMember::UidRange(range) => {
+                if range.end().saturating_sub(*range.start()) as usize >= MOST_IDS {
+                    return Err(ProviderError::Protocol("a reply names too many ids"));
+                }
+                into.extend(range.clone());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// A message's structure from the server's `BODYSTRUCTURE`, kept up to the

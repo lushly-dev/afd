@@ -1,8 +1,8 @@
 //! The person's policy (the specification's 9.4): `mail-policy-show` reads
 //! it, and `mail-policy-set`, a person's command held for their approval,
 //! changes it. The engine applies it to every caller itself, because Loam's
-//! autonomy policy reaches only Loam's copilot; the change commands that
-//! read it arrive with the rest of step D1.
+//! autonomy policy reaches only Loam's copilot: the change commands read it
+//! ([`crate::changes`]).
 
 use std::sync::Arc;
 
