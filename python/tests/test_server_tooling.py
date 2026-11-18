@@ -550,3 +550,44 @@ def test_the_meta_tools_are_spec_meta_tools_json_field_for_field():
     ]
     for tool in META_TOOLS:
         assert tool == by_name[tool["name"]], tool["name"]
+
+
+def test_grouped_confirm_is_beside_action_never_in_params():
+    """TypeScript's shape: a confirm-gated group takes `confirm` at its top level, and neither
+    `_meta.actions` nor the `params.anyOf` branches carry it (#533)."""
+    server = create_server("test-app", confirmations="enforce")
+
+    @server.command(
+        name="todo-clear",
+        description="Clear todos",
+        confirm_prompt="Clear every todo?",
+        expose=ExposeOptions(mcp=True),
+    )
+    async def todo_clear(input):
+        return success({"cleared": 0})
+
+    todo = next(tool for tool in server.get_tool_definitions() if tool["name"] == "todo")
+    properties = todo["inputSchema"]["properties"]
+    assert "confirm" in properties
+    entry = todo["_meta"]["actions"][0]
+    assert "confirm" not in (entry["inputSchema"].get("properties") or {})
+    for branch in properties["params"]["anyOf"]:
+        assert "confirm" not in (branch.get("properties") or {})
+
+
+def test_the_bootstrap_group_lists_the_context_tools_first():
+    server = create_server(
+        "test-app",
+        contexts=[ContextConfig(name="reading"), ContextConfig(name="editing")],
+    )
+    bootstrap = next(
+        tool for tool in server.get_tool_definitions() if tool["name"] == "bootstrap"
+    )
+    assert bootstrap["inputSchema"]["properties"]["action"]["enum"] == [
+        "context-list",
+        "context-enter",
+        "context-exit",
+        "help",
+        "docs",
+        "schema",
+    ]

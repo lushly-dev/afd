@@ -334,7 +334,6 @@ def _grouped_tool(
     group_name: str,
     members: Sequence[CommandDefinition],
     confirmations: str,
-    output_schema: bool,
 ) -> dict[str, Any]:
     """One grouped tool, as TypeScript's: ``{ action, params }``, every action's schema and
     metadata in ``_meta.actions``, and the schemas inlined as ``params.anyOf`` when they fit in
@@ -346,7 +345,9 @@ def _grouped_tool(
         action = get_command_action(command)
         if action not in actions:
             actions.append(action)
-        tool = _individual_tool(command, confirmations, output_schema)
+        # The command's own schema: a grouped tool takes `confirm` beside `action`, never in
+        # `params`, as TypeScript's does.
+        tool = command_to_mcp_tool(command)
         entries.append(
             {
                 "action": action,
@@ -365,6 +366,8 @@ def _grouped_tool(
                 "description": f"Parameters for action '{action}' ({command.name})",
             }
         )
+    # As JSON.stringify writes it for strings and integers; a float such as 1.0 or a lone
+    # surrogate may count differently from TypeScript at the very edge of the budget.
     serialized = json.dumps(branches, separators=(",", ":"), ensure_ascii=False)
     inline = (
         len(serialized.encode("utf-16-le")) // 2 <= GROUPED_PARAMS_SCHEMA_BUDGET
@@ -440,7 +443,7 @@ def get_tools_list(
     return [
         *META_TOOLS,
         *(
-            _grouped_tool(group_name, members, confirmations, output_schema)
+            _grouped_tool(group_name, members, confirmations)
             for group_name, members in groups.items()
         ),
     ]
