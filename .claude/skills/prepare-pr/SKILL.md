@@ -81,11 +81,11 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    gh pr view <n> --json commits --jq '.commits[]
        | select(.messageHeadline | test("^Merge (remote-tracking )?(branch|commit) ") | not)
        | .messageHeadline + "\n\n" + .messageBody + "\n"' \
-     | grep -vi '^co-authored-by:' > "$body"
+     | grep -viE '^[[:space:]]*co-authored-by[[:space:]]*:' > "$body"
    gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8> --body-file "$body"
    ```
 
-   Without `--body-file`, GitHub writes its default squash message, which adds a `Co-authored-by:` line for every commit author whose address isn't the merging account's. That credits a retired address or an agent as a co-author on `main`, and no gate sees it, because `commit-credit.mjs` checks only the branch's commits. The body keeps each commit's own `Assisted-by:` trailers.
+   Without `--body-file`, GitHub writes its default squash message, which adds a `Co-authored-by:` line for every commit author whose address isn't the merging account's. That credits a retired address or an agent as a co-author on `main`. `ci-ok` can't see it, because it checks only the branch's commits. `main-credit.yml` flags it after the merge, when `main` can no longer be changed. The body keeps each commit's own `Assisted-by:` trailers.
 
    A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 
