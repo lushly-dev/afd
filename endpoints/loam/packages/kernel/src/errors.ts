@@ -133,7 +133,14 @@ export type LoamKernelErrorCode =
 	| 'AGENT_MEMBER_NOT_FOUND'
 	| 'AGENT_SPONSOR_INVALID'
 	| 'AGENT_MEMBER_SPONSOR_ONLY'
-	| 'AGENT_MEMBER_NOT_PENDING';
+	| 'AGENT_MEMBER_NOT_PENDING'
+	// Phase 5's copilot (its section 14).
+	| 'COPILOT_PROVIDER_MISSING'
+	| 'COPILOT_PROVIDER_UNKNOWN'
+	| 'COPILOT_SESSION_NOT_FOUND'
+	| 'COPILOT_TURN_RUNNING'
+	| 'COPILOT_PORT_REFUSED'
+	| 'AUTONOMY_UNAVAILABLE';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

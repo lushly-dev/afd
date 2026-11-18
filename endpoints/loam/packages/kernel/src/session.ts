@@ -11,7 +11,7 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
-import type { KernelEnvironmentV0, KernelOptionsV3, KernelPortsV1, LoamKernelV3 } from './types.js';
+import type { KernelEnvironmentV0, KernelOptionsV5, KernelPortsV1, LoamKernelV5 } from './types.js';
 
 // ─── Environment ────────────────────────────────────────────────────────────────
 
@@ -61,16 +61,16 @@ export interface TestKernelOptions {
 	deployment?: ProjectionV4;
 	ports?: KernelPortsV1;
 	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
-	boot?: KernelOptionsV3['boot'];
-	appsLoader?: KernelOptionsV3['appsLoader'];
+	boot?: KernelOptionsV5['boot'];
+	appsLoader?: KernelOptionsV5['appsLoader'];
 	/** Default: a new `MemoryAdapter`. Share one to stand for a reload, which keeps the store. */
-	store?: KernelOptionsV3['store'];
+	store?: KernelOptionsV5['store'];
 	/** Default: a new `MockAuthAdapter` on `clock`, the kernel's (phase 3 specification, 4.4). */
-	auth?: KernelOptionsV3['auth'];
+	auth?: KernelOptionsV5['auth'];
 }
 
 export interface TestKernel {
-	kernel: LoamKernelV3;
+	kernel: LoamKernelV5;
 	journal: MemoryJournalSink;
 }
 
@@ -131,7 +131,7 @@ export async function recordSession(
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
 	const clock = createSteppingClock(options.start);
-	const kernelOptions: KernelOptionsV3 = {
+	const kernelOptions: KernelOptionsV5 = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
@@ -164,7 +164,7 @@ export async function recordSession(
 
 /** Run `calls` in order on `kernel`, each on its interface. */
 export async function runSession(
-	kernel: LoamKernelV3,
+	kernel: LoamKernelV5,
 	calls: readonly SessionCall[]
 ): Promise<void> {
 	for (const call of calls) {

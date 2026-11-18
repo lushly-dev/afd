@@ -8,7 +8,7 @@
  */
 
 import { Observable, Updates } from '@lushly-dev/fast-element';
-import type { KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
 	DocumentRefV1,
@@ -32,7 +32,7 @@ const held = new WeakMap<LoamShell, Held>();
 const heard = new WeakSet<LoamShell>();
 
 /** The active group's active tab's document, from `editor-get`, or undefined with none. */
-async function activeDocument(kernel: LoamKernelV3): Promise<string | undefined> {
+async function activeDocument(kernel: LoamKernelV5): Promise<string | undefined> {
 	const read = await kernel.call<{
 		activeGroup: string;
 		groups: Array<{
@@ -71,7 +71,7 @@ export async function syncInspector(
 	shows: boolean,
 	resync: () => void
 ): Promise<boolean> {
-	const kernel = shell.kernel as LoamKernelV3;
+	const kernel = shell.kernel as LoamKernelV5;
 	const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
 	if (!heard.has(shell)) {
 		heard.add(shell);
@@ -183,7 +183,7 @@ function watchDrawer(shell: LoamShell): void {
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
 	const open = opened;
 	opened = false;
-	const kernel = shell.kernel as LoamKernelV3;
+	const kernel = shell.kernel as LoamKernelV5;
 	requestAnimationFrame(async () => {
 		// With no inspector to take it, the part is about to hide: focus goes to the active editor, else main (S2).
 		const read =

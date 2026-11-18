@@ -29,6 +29,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'session-settle',
 	'membership-settle',
 	'agent-member-settle',
+	// The kernel's record of how a copilot turn ended (phase 5 specification, 3.4).
+	'copilot-turn-settle',
 ]);
 
 /**
@@ -41,6 +43,8 @@ export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-nested-refuse',
 	'app-scope-refuse',
 	'app-embed-refuse',
+	// The copilot's agent port refusing a message (phase 5 specification, 3.2).
+	'copilot-port-refuse',
 	...BOOT_ONLY,
 ]);
 

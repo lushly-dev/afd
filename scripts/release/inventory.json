@@ -766,6 +766,27 @@
 			]
 		},
 		{
+			"id": "loam-copilot",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "31bae12e3a2e703edda54017b339e47bad08e18c",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-copilot",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/copilot/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "loam-console",
 			"family": "loam",
 			"protocol": "npm-changesets",

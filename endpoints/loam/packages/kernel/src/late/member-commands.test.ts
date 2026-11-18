@@ -18,7 +18,7 @@ import {
 	scopedPorts,
 } from '../scope/fixtures.js';
 import { replayKernel } from '../testing.js';
-import type { LoamKernelV3 } from '../types.js';
+import type { LoamKernelV5 } from '../types.js';
 import {
 	type AccountV1,
 	type LoamAccountAccessV1,
@@ -54,7 +54,7 @@ const LISTED = () => {
 	};
 };
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 	vi.restoreAllMocks();
@@ -178,7 +178,7 @@ async function local(): Promise<ScopedWorkspace> {
 	return made;
 }
 
-const signIn = (kernel: LoamKernelV3, email: string) =>
+const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 const journalOf = (made: { journal: MemoryJournalSink }) =>
 	made.journal.read() as Promise<JournalEntry[]>;

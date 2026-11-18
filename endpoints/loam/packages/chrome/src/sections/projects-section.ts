@@ -13,7 +13,7 @@
 import { FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
 import type {
 	KernelEventV3,
-	LoamKernelV3,
+	LoamKernelV5,
 	ProjectSummaryResultV1,
 	ProjectSummaryRowV1,
 	ProjectV1,
@@ -235,7 +235,7 @@ const template = html<LoamProjectsSection>`
 type Status = 'project-archive' | 'project-restore';
 
 export class LoamProjectsSection extends FASTElement {
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** The deployment's root, absolute, for the URLs the scheme formats (6.2). */
 	base = '';
 	declare workspace: string;
@@ -456,7 +456,7 @@ export class LoamProjectsSection extends FASTElement {
 	 * `document-list` at the project (documents specification, 8.3); none when no type is registered.
 	 */
 	async #readDocuments(
-		kernel: LoamKernelV3,
+		kernel: LoamKernelV5,
 		project: ProjectV1
 	): Promise<DocumentsCardView | null> {
 		const scope = { workspace: this.workspace, project: project.id };
