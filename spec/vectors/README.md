@@ -10,6 +10,7 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
 | `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | `generate-approval-tokens.mjs` |
+| `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | `generate-approver-client.mjs` |
 | `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | `generate-journal-context-cap.mjs` |
 
 ## Contract
@@ -20,14 +21,20 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` | `journal-context-cap.json` |
-  | --- | --- | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
+- **A documented gap.** A file may name, in its top-level `gaps`, the languages that load it but
+  do not implement its behavior yet, each with its tracking issue. Such a language's suite loads
+  the file, checks that it is still listed, and skips every case with that issue as the reason, so
+  its run shows the gap instead of failing. Implementing the behavior means running the cases and
+  removing the language from `gaps`. Only `approver-client.json` has one (Python and C++,
+  [#1466](https://github.com/lushly-dev/afd/issues/1466)).
 - A vector file joins this directory once all four languages load it, because `alfred parity`
   fails on any file here that a language does not load. Until then it sits in `spec/` next to the
   page it pins: [`tool-strategies.json`](../tool-strategies.json), for the hybrid tool strategy
@@ -129,6 +136,37 @@ result. The cases cover single use and reuse within the TTL, the expiry boundary
 and the order they are checked in, key rotation, changed payloads and MACs, a MAC respelled with
 nonzero padding bits, and malformed tokens.
 
+### `approver-client.json`
+
+[Approval evidence from an approver client](../command-metadata.md#approval-evidence-from-an-approver-client)
+and the [approval display rules](../command-metadata.md#approval-display), from Loam phase 5's
+step 0c. Python and C++ are a [documented gap](#contract) until
+[#1466](https://github.com/lushly-dev/afd/issues/1466).
+
+- **`display`.** Each case gives an `input` and its verdict: `shown`, or the refusal
+  (`too-long`, `too-many-values`, `too-deep`, `string-too-long`, `key-too-long` or
+  `hidden-characters`). A language runs its display function on the input and compares. Every
+  limit is tested at and one past its value, lengths in UTF-16 code units (a `🍅` is two), keys in
+  canonical order (`"10"` before `"9"`), and every hidden range at its first and last code point
+  with neighbours that stay visible. Unpaired surrogates and `not-json` are left to each
+  language's own tests: JSON text cannot carry them to every reader.
+- **`carrier`.** One MCP server per case, with `todo-delete` (approval required, input
+  `{ id: number }`) and `todo-list` (no approval, no input), the approval middleware with
+  `secret`, `ttlMs`, the relay set to MCP elicitation, tokens off MCP for other callers, and a clock
+  fixed at `now`. `callers` gives each caller's verified credentials, the actor the server maps
+  from them (M4's default), its principal binding (M8) and whether the server names it an
+  approver. Each step is one MCP 2026-07-28 `tools/call` of `tool` with `arguments`, from
+  `caller`, declaring form elicitation when `elicit` is true, and carrying `approval` in
+  `_meta["dev.afd/approval"]` when given: a string as it is, or `{ "token": n }` for the
+  `details.approvalToken` that step `n` of the case returned. `expected` is `{ "success": true }`,
+  or the error's `code` with, when given, whether a token came back (`token`) and
+  `details.reason` (absent when the vector has none). A step that returns a token gives its
+  decoded `payload` but for the random `n`, which decodes to 16 bytes. `runs` counts the handler
+  runs of the case so far.
+
+  TypeScript tells callers apart with `createContext`; Rust verifies each caller's own bearer
+  token (`server-auth`), with claims for its `issuer`, `subject` and `clientId`.
+
 ### `journal-context-cap.json`
 
 `json` is a context field's value as JSON text, spelled as a caller might send it: `1.0`, `1e21`,
@@ -163,6 +201,7 @@ node spec/vectors/generate-batch-controls.mjs
 node spec/vectors/generate-validation.mjs
 node spec/vectors/generate-approval-tokens.mjs
 node spec/vectors/generate-journal-context-cap.mjs
+node spec/vectors/generate-approver-client.mjs
 npx biome format --write spec/vectors
 ```
 

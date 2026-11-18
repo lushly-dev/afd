@@ -409,7 +409,11 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   from a host's `HumanRelay` (below) once, and `with_relay(ApprovalRelay::McpElicitation)` asks
   the human behind an MCP client with a form elicitation instead of failing a call to one command,
   and once, up front, for every gated step of an `afd-batch` or `afd-pipe`
-  (`spec/command-metadata.md`, "Asking the human over MCP"); neither issues a token.
+  (`spec/command-metadata.md`, "Asking the human over MCP"); neither issues a token. A client the
+  server names with `McpServer::with_approver` gets the token instead, and carries it back in
+  `_meta["dev.afd/approval"]` on a one-command 2026-07-28 retry, bound to its principal binding
+  ("Approval evidence from an approver client"); `afd::approval_display` (no feature) says whether
+  a person can be shown a held call's input in full.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection

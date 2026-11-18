@@ -974,6 +974,27 @@ An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front,
 
 Only the command the tool call routes to can use the relay, once: a command that a handler runs cannot elicit. An accepted approval that has expired or was already used is asked again, and the question says so. `onApprovalRequired` is not called on the relay path, since no token exists.
 
+#### An approver client
+
+A trusted MCP client that shows a person the held action itself, such as an application shell that mounts this server, can carry the person's decision back (`spec/command-metadata.md`, "Approval evidence from an approver client"). Name it with `approver`, a predicate over the call's context after `createContext`:
+
+```typescript
+createMcpServer({
+	name: 'mail',
+	version: '1.0.0',
+	commands,
+	createContext: (_req, { credentials }) => ({ credentials }),
+	approver: (context) => context.credentials?.clientId === 'loam-shell',
+	middleware: [createApprovalMiddleware({ secret, commands })],
+});
+```
+
+- **An approver gets the token:** its `APPROVAL_REQUIRED` results carry `details.approvalToken` whatever `includeToken` says, and the relay never answers it with a form.
+- **It retries one command on MCP 2026-07-28** with the token in `_meta["dev.afd/approval"]` (`AFD_APPROVAL_META_KEY`) and the same input. On `afd-batch`, `afd-pipe` or a 2025-era request the key fails the call with `APPROVAL_REQUIRED` before anything runs.
+- **Its tokens bind its principal binding** (the actor and the credentials' issuer, subject and client), so another client, even of the same person, gets `credentials-mismatch`.
+- **Anyone else's key is ignored,** and the key in tool arguments (or the HTTP routes' input) is refused with `VALIDATION_ERROR`, from every caller.
+- **The approver promises** never to give the token to an agent or a model, and to present it only on a retry a person approved after seeing the action, shown by `approvalDisplay` from `@lushly-dev/afd-core`, which refuses input too large, too deep or hiding characters.
+
 The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. Servers with several instances must share `confirmationKey` and `nonceStore`.
 
 `spec/command-metadata.md` ("Approvals") is the cross-language contract.
