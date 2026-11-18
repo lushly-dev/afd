@@ -175,6 +175,10 @@ pub struct CommandContext {
     /// The up-front approval of an `afd-batch` or `afd-pipe` (#459): only the MCP server sets
     /// it, on every step's context, and it is removed before the handler runs.
     pub(crate) up_front_approval: Option<Arc<crate::approval::relay::UpFrontApproval>>,
+    /// An approver client's call (`spec/command-metadata.md`, "Approval evidence from an approver
+    /// client"): only the MCP server sets it, for a caller its `with_approver` predicate names. It
+    /// holds the evidence of `_meta["dev.afd/approval"]` until the first approval check takes it.
+    pub(crate) approver: Option<Arc<crate::approval::approver::ApproverCall>>,
     /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
     /// "Tasks"): only the server sets it. Read it with [`CommandContext::cancellation`].
     pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
@@ -211,6 +215,7 @@ impl fmt::Debug for CommandContext {
             )
             .field("approval_relay", &self.approval_relay)
             .field("up_front_approval", &self.up_front_approval)
+            .field("approver", &self.approver)
             .field("cancellation", &self.cancellation)
             .field("task_progress", &self.task_progress)
             .finish()
