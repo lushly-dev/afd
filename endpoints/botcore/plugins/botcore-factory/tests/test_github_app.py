@@ -28,6 +28,17 @@ from botcore_factory.gateway.uploads import ensure_mirror, mirror_path
 REPO = "example-org/example-repo"
 BOT = "example-factory[bot]"
 OWNER = "owner@example.com"
+#: A branch's commits as GitHub lists them: its own, then a base merge by the factory.
+COMMITS = [
+    {
+        "parents": [{"sha": "p1"}],
+        "commit": {
+            "message": "fix: a\n\nWhy.\n\nCo-authored-by: X <x@example.com>\nAssisted-by: Codex"
+        },
+    },
+    {"parents": [{"sha": "p2"}, {"sha": "p3"}], "commit": {"message": "Merge origin/main"}},
+]
+SQUASH_BODY = "fix: a\n\nWhy.\n\nAssisted-by: Codex"
 
 
 @pytest.fixture(scope="module")
@@ -317,20 +328,30 @@ def test_a_stale_head_a_disallowed_method_and_a_clean_merge(github):
     with pytest.raises(GitHubRefused):
         app.merge_pull(REPO, 46, "a" * 40, "merge")
     mock.routes[url] = lambda request: httpx.Response(200, json={"merged": True})
+    mock.routes[("GET", f"/repos/{REPO}/pulls/46/commits")] = httpx.Response(200, json=COMMITS)
     mock.graphql.append(
         {"data": {"repository": {"pullRequest": _pull(46, mergedAt="2030-02-03T10:00:00Z")}}}
     )
     assert app.merge_pull(REPO, 46, "a" * 40, "squash") == "2030-02-03T10:00:00Z"
-    assert json.loads(mock.requests[-2].content) == {"sha": "a" * 40, "merge_method": "squash"}
+    assert json.loads(mock.requests[-2].content) == {
+        "sha": "a" * 40,
+        "merge_method": "squash",
+        "commit_message": SQUASH_BODY,
+    }
 
 
 def test_auto_merge_is_bound_to_the_head_and_method(github):
     app, mock, _ = github
     mock.routes[("GET", f"/repos/{REPO}/pulls/46")] = httpx.Response(200, json={"node_id": "PR_1"})
+    mock.routes[("GET", f"/repos/{REPO}/pulls/46/commits")] = httpx.Response(200, json=COMMITS)
     mock.graphql.append({"data": {"enablePullRequestAutoMerge": {"clientMutationId": None}}})
     app.enable_auto_merge(REPO, 46, "a" * 40, "squash")
     sent = json.loads(mock.requests[-1].content)["variables"]
-    assert sent == {"id": "PR_1", "method": "SQUASH", "head": "a" * 40}
+    assert sent == {"id": "PR_1", "method": "SQUASH", "head": "a" * 40, "body": SQUASH_BODY}
+    mock.graphql.append({"data": {"enablePullRequestAutoMerge": {"clientMutationId": None}}})
+    app.enable_auto_merge(REPO, 46, "a" * 40, "merge")
+    sent = json.loads(mock.requests[-1].content)["variables"]
+    assert sent == {"id": "PR_1", "method": "MERGE", "head": "a" * 40}
     mock.graphql.append(
         {"data": None, "errors": [{"message": "Merge method squash merging is not allowed"}]}
     )
