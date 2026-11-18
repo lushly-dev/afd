@@ -130,7 +130,9 @@ export function modelEventOf(detail: unknown): ModelEvent | undefined {
 /** A stream id the page names: a random safe integer, so no two of a run, or of two page loads, meet. */
 function streamId(): number {
 	const [high, low] = crypto.getRandomValues(new Uint32Array(2)) as unknown as [number, number];
-	return (high & 0x1f_ffff) * 2 ** 32 + low + 1;
+	const id = (high & 0x1f_ffff) * 2 ** 32 + low;
+	// At most 2 ** 53 - 1, the largest safe integer and the host's bound; never 0, which the host refuses.
+	return id === 0 ? 1 : id;
 }
 
 /**
@@ -198,7 +200,14 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 						: ((cause as { code?: string })?.code ?? 'MODEL_UNREACHABLE');
 				throw modelFailure(code);
 			}
-			if (stopped) throw modelFailure('MODEL_UNREACHABLE');
+			if (stopped) {
+				// Stopped while `model_send` answered: its first cancel may have reached the host before the stream's slot
+				// did, so it is sent again now the stream is known to be there. A second cancel is harmless.
+				void Promise.resolve()
+					.then(() => internals().invoke('model_cancel', { stream }))
+					.catch(() => undefined);
+				throw modelFailure('MODEL_UNREACHABLE');
+			}
 			const next = async (): Promise<ModelEvent | undefined> => {
 				while (waiting.length === 0 && !stopped)
 					await new Promise<void>((resolve) => (wake = resolve));

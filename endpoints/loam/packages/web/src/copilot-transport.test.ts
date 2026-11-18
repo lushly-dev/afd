@@ -79,7 +79,8 @@ describe('the desktop model transport (4.2)', () => {
 		fake.answer();
 		await expect(sent).rejects.toMatchObject({ code: 'MODEL_UNREACHABLE' });
 		await tick();
-		expect(cancels(fake.calls)).toEqual([fake.stream()]);
+		// Once at the stop, and again once the host answered, in case the first came before its slot.
+		expect(cancels(fake.calls)).toEqual([fake.stream(), fake.stream()]);
 	});
 
 	it('cancels a stream left before its end', async () => {

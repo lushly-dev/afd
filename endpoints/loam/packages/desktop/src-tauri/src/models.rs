@@ -922,34 +922,66 @@ pub const KEY_REMOVED: &str = "[key removed]";
 
 /// A stream's text with the key removed: text is held back until no key can be split across what is emitted and
 /// what comes next.
-struct Redactor<'a> {
-    key: Option<&'a str>,
+///
+/// Each clean piece is emitted one step late, joined to the tail at the end, so no chunk's size says how long the key
+/// is. The key is matched as written and as JSON may escape it (`\/`, and `<`, `>` and `&` as `\u` sequences),
+/// which a key's allowed characters can need.
+struct Redactor {
+    forms: Vec<String>,
     held: String,
+    ready: String,
 }
 
-impl Redactor<'_> {
-    /// What may be emitted now of `text` added to what was held.
+impl Redactor {
+    fn new(key: Option<&str>) -> Self {
+        let mut forms = Vec::new();
+        if let Some(key) = key {
+            let slashed = key.replace('/', "\\/");
+            let unicode = |text: &str| {
+                text.replace('<', "\\u003c")
+                    .replace('>', "\\u003e")
+                    .replace('&', "\\u0026")
+            };
+            for form in [key.to_owned(), unicode(key), unicode(&slashed), slashed] {
+                if !forms.contains(&form) {
+                    forms.push(form);
+                }
+            }
+            // The longest first, so a shorter form inside a longer one is not cut first.
+            forms.sort_by_key(|form| std::cmp::Reverse(form.len()));
+        }
+        Self {
+            forms,
+            held: String::new(),
+            ready: String::new(),
+        }
+    }
+
+    fn clean(&self, text: &str) -> String {
+        self.forms.iter().fold(text.to_owned(), |text, form| {
+            text.replace(form.as_str(), KEY_REMOVED)
+        })
+    }
+
+    /// What may be emitted now: the clean piece before this one, while `text` waits to be matched against what follows.
     fn take(&mut self, text: &str) -> String {
         self.held.push_str(text);
-        let Some(key) = self.key else {
-            return std::mem::take(&mut self.held);
-        };
-        let clean = self.held.replace(key, KEY_REMOVED);
-        // Keep the last `key.len() - 1` bytes: the start of a key the next text may complete.
-        let mut keep = clean.len().saturating_sub(key.len().saturating_sub(1));
+        let longest = self.forms.first().map_or(0, String::len);
+        let clean = self.clean(&self.held);
+        // Keep the last `longest - 1` bytes: the start of a key the next text may complete.
+        let mut keep = clean.len().saturating_sub(longest.saturating_sub(1));
         while !clean.is_char_boundary(keep) {
             keep -= 1;
         }
         self.held = clean[keep..].to_owned();
-        clean[..keep].to_owned()
+        std::mem::replace(&mut self.ready, clean[..keep].to_owned())
     }
 
+    /// The rest: the last clean piece and the tail, as one.
     fn finish(&mut self) -> String {
         let held = std::mem::take(&mut self.held);
-        match self.key {
-            Some(key) => held.replace(key, KEY_REMOVED),
-            None => held,
-        }
+        let tail = self.clean(&held);
+        std::mem::take(&mut self.ready) + &tail
     }
 }
 
@@ -982,10 +1014,7 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit, key: Op
         let mut body = response.bytes_stream();
         let mut total = 0usize;
         let mut pending = Vec::new();
-        let mut redactor = Redactor {
-            key,
-            held: String::new(),
-        };
+        let mut redactor = Redactor::new(key);
         while let Some(chunk) = body.next().await {
             let Ok(chunk) = chunk else {
                 return (status, Some(UNREACHABLE));
@@ -997,8 +1026,9 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit, key: Op
             pending.extend_from_slice(&chunk);
             emit_text(stream, &redactor.take(&take_text(&mut pending)), emit);
         }
-        let rest = redactor.take(&String::from_utf8_lossy(&pending)) + &redactor.finish();
+        let rest = redactor.take(&String::from_utf8_lossy(&pending));
         emit_text(stream, &rest, emit);
+        emit_text(stream, &redactor.finish(), emit);
         (status, None)
     })
     .await;
@@ -1564,10 +1594,7 @@ mod tests {
     #[test]
     fn p5_a3_a_key_quoted_in_an_accepted_stream_is_removed_across_chunks() {
         let key = "sk-test-0123456789abcdef";
-        let mut redactor = Redactor {
-            key: Some(key),
-            held: String::new(),
-        };
+        let mut redactor = Redactor::new(Some(key));
         let mut out = String::new();
         // The key split across three chunks, and quoted twice.
         for part in [
@@ -1582,11 +1609,31 @@ mod tests {
         assert!(!out.contains("0123456789"), "{out}");
         assert_eq!(out.matches(KEY_REMOVED).count(), 2);
         assert!(out.ends_with(" é"));
-        let mut plain = Redactor {
-            key: None,
-            held: String::new(),
-        };
-        assert_eq!(plain.take("as is"), "as is");
+        let mut plain = Redactor::new(None);
+        let mut both = plain.take("as ");
+        both.push_str(&plain.take("is"));
+        both.push_str(&plain.finish());
+        assert_eq!(both, "as is");
+    }
+
+    #[test]
+    fn p5_a3_a_key_is_removed_as_json_may_escape_it_and_no_chunk_measures_it() {
+        let key = "sk/test&0123456789<x>";
+        let mut redactor = Redactor::new(Some(key));
+        let mut chunks = Vec::new();
+        for part in [
+            "quoted sk\\/test\\u00260123456789\\u003cx\\u003e and ",
+            "sk/test&0123456789<x>",
+            " and sk\\/test&0123456789<x> done, with more text after it",
+        ] {
+            chunks.push(redactor.take(part));
+        }
+        chunks.push(redactor.finish());
+        let out = chunks.concat();
+        assert!(!out.contains("0123456789"), "{out}");
+        assert_eq!(out.matches(KEY_REMOVED).count(), 3);
+        // The last chunk is the last clean piece and the tail together, not a tail the key's length long.
+        assert_ne!(chunks.last().map(String::len), Some(key.len() - 1));
     }
 
     #[tokio::test]

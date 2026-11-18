@@ -137,7 +137,8 @@ pub fn read_owner_only(path: &Path, max: usize) -> Result<Vec<u8>, Unread> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
+        // A link is refused at the open; a FIFO opens at once, and its metadata then refuses it, rather than block.
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
     #[cfg(windows)]
     {
