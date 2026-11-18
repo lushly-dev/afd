@@ -7,7 +7,7 @@
  * a held result carries `details.approvalToken` and never becomes a form elicitation, and a
  * `tools/call` carrying `_meta["dev.afd/approval"]` has it set as the call's approval evidence;
  * the token binds the approver's principal binding (M8). From any other caller the key is
- * removed and ignored. In tool arguments the key is refused from every caller.
+ * ignored. In tool arguments the key is refused from every caller.
  *
  * The lane that received a request decides who is an approver and binds the result to the
  * `CommandContext` under a private symbol, as the approval relay is bound, so `createContext`

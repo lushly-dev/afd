@@ -500,7 +500,7 @@ the reasons.
      reaches takes it, so a server with two takes the evidence in the outer one only, and the
      retry is held again (it fails closed).
 
-   **From any other caller, the key is removed and ignored,** silently, and no token is included
+   **From any other caller, the key is ignored,** silently, and no token is included
    (rule 6 of [Approvals](#approvals) holds).
 3. **One command, modern era,** as [host-verified confirmation](#host-verified-confirmation)'s
    step 1: an approver's `afd-batch`, `afd-pipe` or 2025-era request carrying the key fails with
@@ -561,7 +561,8 @@ Truncating is not showing.
 The first failure is the refusal. An absent input (TypeScript `undefined`) is `{}`.
 
 Text **hides characters** when it holds a hidden code point, or a run of six or more combining
-marks (Unicode general category M), which draw over the lines around them. The hidden code points
+marks (Unicode general category M, by the language's own Unicode tables, so a mark newer than
+one language's tables may be judged differently), which draw over the lines around them. The hidden code points
 are U+0000 to U+001F but tab (U+0009) and line feed (U+000A); U+007F to U+009F; U+00AD; U+034F;
 U+061C; U+115F; U+1160; U+17B4; U+17B5; U+180B to U+180F; U+200B to U+200F; U+2028; U+2029;
 U+202A to U+202E; U+2060 to U+206F; U+2800; U+3164; U+D800 to U+DFFF (an unpaired surrogate);

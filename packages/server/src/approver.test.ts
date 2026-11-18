@@ -168,6 +168,24 @@ describe('the approver carrier', () => {
 			}),
 		});
 		expect(((await batch.json()) as CommandResult).error?.code).toBe('VALIDATION_ERROR');
+		const stream = await fetch(`${base}/stream/todo-list`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nested: [{ [AFD_APPROVAL_META_KEY]: 'x' }] }),
+		});
+		expect(await stream.text()).toContain('VALIDATION_ERROR');
+		const message = await fetch(`${base}/message`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: { name: 'todo-delete', arguments: { id: 7, [AFD_APPROVAL_META_KEY]: 'x' } },
+			}),
+		});
+		const answered = (await message.json()) as { result: unknown };
+		expect(result(answered.result).error?.code).toBe('VALIDATION_ERROR');
 		expect(runs).toEqual([]);
 	});
 

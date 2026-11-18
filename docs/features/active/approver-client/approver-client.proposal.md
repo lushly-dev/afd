@@ -42,7 +42,7 @@ brings it to AFD.
 | # | Job | Done when |
 | --- | --- | --- |
 | J1 | **A shell releases a person's send.** A trusted client calls a held command for a person, shows the person the action, and on their confirm retries once with the server's token | The approver's first call returns `APPROVAL_REQUIRED` with `details.approvalToken`; its retry with `_meta["dev.afd/approval"]` runs the command once |
-| J2 | **An agent cannot approve its own call.** An agent, a model or any other caller tries to present a token, or to obtain one | From a caller the server has not made an approver, the key is removed and ignored and no token is issued; in any tool argument the key is refused |
+| J2 | **An agent cannot approve its own call.** An agent, a model or any other caller tries to present a token, or to obtain one | From a caller the server has not made an approver, the key is ignored and no token is issued; in any tool argument the key is refused |
 | J3 | **A token works only where it was given.** A token issued to one approver is copied to another client, or used for another input, or twice | It is refused: `credentials-mismatch`, `input-mismatch`, `already-used` |
 | J4 | **A retry cannot run more than the person saw.** A token is carried into a batch, a pipeline or a 2025-era request | Nothing runs: `APPROVAL_REQUIRED` |
 | J5 | **The person reads what runs.** An approver is handed an action to show | It shows the action in full, or refuses to show it at all when it is too large, too deep or hides characters |
@@ -79,7 +79,7 @@ approver: the call fails as an internal error, as M8 refuses them elsewhere.
 
 ### Everyone else
 
-- **The key is removed and ignored,** without saying so: the call runs as if it was never sent,
+- **The key is ignored,** without saying so: the call runs as if it was never sent,
   and no held result carries a token (rule 6 holds).
 - **The key is never input.** A `tools/call` whose arguments hold an object key `dev.afd/approval`
   at any depth, including in a meta-tool's `meta` argument, fails with `VALIDATION_ERROR` before
@@ -180,8 +180,9 @@ TypeScript reference and the token payloads built from the documented format:
   approvers, and the calls of 7.2's rules 2 to 5 with what each must return, including each
   token's payload and its `a` digest.
 
-Each language's own tests cover what the shared cases cannot: a 2025-era request, an expired
-token, a failing predicate and unbindable credentials.
+Each language's own tests cover what the shared cases cannot: a 2025-era request, a failing
+predicate and unbindable credentials. An expired token is the existing verification's, which the
+approval token vectors already cover.
 
 Python and C++ load the file, and each skips its cases as the documented gap, naming the parity
 issue, until it implements them.
