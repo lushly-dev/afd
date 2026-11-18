@@ -9,6 +9,7 @@
 // APPROVALS (agents or off) and TODO_APPROVAL_SECRET (at least 32 bytes).
 //
 // Exit codes: 0 success, 1 the command failed, 2 usage or configuration error.
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -23,10 +24,38 @@
 
 namespace {
 
+/// The environment variable's value, or nothing when it is unset. MSVC's runtime deprecates
+/// `std::getenv` (C4996, an error under `AFD_WARNINGS_AS_ERRORS`), so there it is read with
+/// `_dupenv_s`, which returns a copy the caller frees. A failed read counts as unset, which leaves
+/// each setting at its default.
+std::optional<std::string> environment(const char* name) {
+#if defined(_MSC_VER)
+    char* buffer = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&buffer, &length, name) != 0 || buffer == nullptr) {
+        std::free(buffer);
+        return std::nullopt;
+    }
+    std::string value(buffer);
+    std::free(buffer);
+    return value;
+#else
+    const char* value = std::getenv(name);
+    if (value == nullptr) {
+        return std::nullopt;
+    }
+    return std::string(value);
+#endif
+}
+
+/// The value as the settings readers take it: null when unset.
+const char* or_null(const std::optional<std::string>& value) {
+    return value ? value->c_str() : nullptr;
+}
+
 /// `CONFIRMATIONS`: `off` (the default), `enforce` or `require-human`.
 std::optional<afd::mcp::ConfirmationMode> confirmations_from_environment() {
-    const char* value = std::getenv("CONFIRMATIONS");
-    const std::string mode = value != nullptr ? value : "off";
+    const std::string mode = environment("CONFIRMATIONS").value_or("off");
     if (mode == "off") {
         return afd::mcp::ConfirmationMode::off;
     }
@@ -44,7 +73,8 @@ std::optional<afd::mcp::ConfirmationMode> confirmations_from_environment() {
 } // namespace
 
 int main(int argc, char** argv) {
-    const auto approvals = todo::approvals_from(std::getenv("APPROVALS"));
+    const auto approvals_setting = environment("APPROVALS");
+    const auto approvals = todo::approvals_from(or_null(approvals_setting));
     if (!approvals) {
         std::fprintf(stderr, "%s\n", approvals.error().c_str());
         return 2;
@@ -52,7 +82,8 @@ int main(int argc, char** argv) {
     // The key is read only when clears are held, as TypeScript reads it.
     std::string secret;
     if (*approvals == todo::Approvals::agents) {
-        auto read = todo::approval_secret(std::getenv("TODO_APPROVAL_SECRET"));
+        const auto secret_setting = environment("TODO_APPROVAL_SECRET");
+        auto read = todo::approval_secret(or_null(secret_setting));
         if (!read) {
             std::fprintf(stderr, "%s\n", read.error().c_str());
             return 2;

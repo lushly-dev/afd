@@ -1,11 +1,13 @@
 //! What the engine's commands share: the data directory, and the store once
 //! a command needs it.
 
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use crate::home::{Home, HomeError};
+use crate::operate::ChangeOptions;
 use crate::provider::Connector;
 use crate::secrets::{InMemory, Secrets};
 use crate::store::{Store, StoreError, TokenRow};
@@ -41,6 +43,13 @@ pub struct Engine {
     /// What a server carries on in the background.
     work: crate::work::Work,
     limits: Limits,
+    /// How operations size their work.
+    change: ChangeOptions,
+    /// The operations this process is running now.
+    operating: Mutex<HashSet<i64>>,
+    /// Whether an operation run at the terminal stops after the batch in
+    /// hand when the person presses Ctrl-C: the program's, not a test's.
+    interrupts: bool,
 }
 
 /// What a call to a running server may take: the limits Loam sets on a
@@ -88,7 +97,65 @@ impl Engine {
             agent_tokens: RwLock::new(Vec::new()),
             work: crate::work::Work::default(),
             limits: Limits::default(),
+            change: ChangeOptions::default(),
+            operating: Mutex::new(HashSet::new()),
+            interrupts: false,
         }
+    }
+
+    /// The same engine, sizing operations by `options`.
+    #[must_use]
+    pub fn with_change_options(mut self, options: ChangeOptions) -> Self {
+        self.change = options;
+        self
+    }
+
+    /// How operations size their work.
+    #[must_use]
+    pub fn change_options(&self) -> &ChangeOptions {
+        &self.change
+    }
+
+    /// The same engine, stopping an operation that runs at the terminal
+    /// after the batch in hand when the person presses Ctrl-C.
+    #[must_use]
+    pub fn with_interrupts(mut self) -> Self {
+        self.interrupts = true;
+        self
+    }
+
+    /// Whether an operation at the terminal listens for Ctrl-C.
+    #[must_use]
+    pub fn interrupts(&self) -> bool {
+        self.interrupts
+    }
+
+    /// Marks operation `id` as running in this process; `false` when it
+    /// already is.
+    pub(crate) fn begin_operating(&self, id: i64) -> bool {
+        self.operating
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id)
+    }
+
+    /// Marks operation `id` as no longer running in this process.
+    pub(crate) fn end_operating(&self, id: i64) {
+        self.operating
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&id);
+    }
+
+    /// Whether operation `id` runs in this process now, or waits for the
+    /// server's work.
+    #[must_use]
+    pub fn operation_busy(&self, id: i64) -> bool {
+        self.operating
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&id)
+            || self.work.operation_waits(id)
     }
 
     /// The same engine, keeping sign-ins in `secrets`: the keychain, in the

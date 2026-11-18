@@ -25,6 +25,7 @@ EVENT_FIELDS = (
     "lines",
     "logPath",
     "suspects",
+    "excused",
     "needsOwner",
     "at",
     "open",
@@ -32,7 +33,7 @@ EVENT_FIELDS = (
 #: Which action answers which event type (event-resolve answers any of them).
 ANSWERED_BY = {
     "ejected": ("lane-enqueue", "lane-drop"),
-    "ejection-limit": ("lane-enqueue", "lane-drop"),
+    "ejection-limit": ("lane-enqueue", "lane-drop", "ejection-excuse"),
     "lane-error": ("lane-resume",),
     "queue-room": ("cell-register",),
 }

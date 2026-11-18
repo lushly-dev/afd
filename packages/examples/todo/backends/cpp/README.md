@@ -76,9 +76,10 @@ active context fails with `COMMAND_NOT_IN_CONTEXT`.
 
 - **Title sort order** compares case-insensitively and then by code unit. TypeScript's `localeCompare` is locale-aware. The two agree for ASCII titles that differ in more than case.
 - **`todo-list` search** lowercases ASCII only.
-- **The tool list** has one tool per command, the context tools among them. The library's
-  `afd::mcp_stdio` has no meta-tools (`afd-call`, `afd-batch`, `afd-pipe`), bootstrap commands
-  or grouped tool strategy yet ([#1451](https://github.com/lushly-dev/afd/issues/1451)).
+- **The tool list** has one tool per command, the context and bootstrap tools (`afd-help`,
+  `afd-docs`, `afd-schema`) among them. The library's `afd::mcp_stdio` has no meta-tools
+  (`afd-call`, `afd-batch`, `afd-pipe`) or grouped tool strategy yet
+  ([#1451](https://github.com/lushly-dev/afd/issues/1451)).
 - **Validation messages** come from the library's validator, not TypeScript's custom zod texts
   (`"Too small: expected string to have >=1 characters"` where TypeScript says `"Todo ID is
   required"`), and `expectedFields` is in alphabetical order. An `offset` beyond 2^53 - 1 is

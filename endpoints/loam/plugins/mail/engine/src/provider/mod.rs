@@ -2,8 +2,10 @@
 //! of an account's provider, in words that name no protocol. iCloud
 //! implements it over IMAP ([`imap`]); Gmail will implement it over its API.
 //!
-//! Reading never changes the mailbox. The interface has no operation that
-//! writes; those arrive with phase D.
+//! Reading never changes the mailbox: a mailbox is opened for reading with
+//! [`Provider::open`]. Changing it (the specification's section 9) opens it
+//! with [`Provider::open_to_change`], and only an operation does
+//! ([`crate::operate`]).
 
 pub mod imap;
 
@@ -152,6 +154,34 @@ pub struct PartFetched {
     pub bytes: Vec<u8>,
 }
 
+/// A mailbox opened to change it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenedToChange {
+    /// The generation its ids belong to.
+    pub validity: String,
+}
+
+/// Where a mailbox will put the next message it is given: its generation,
+/// and the id the next message will get. A copy whose answer was lost is
+/// found among the ids from there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NextId {
+    /// The generation.
+    pub validity: String,
+    /// The next id.
+    pub next: String,
+}
+
+/// Where messages went when they were copied or moved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Copied {
+    /// The generation of the mailbox they went to.
+    pub validity: String,
+    /// Each message's id before and its id in the mailbox it went to. A
+    /// message the provider left out was not copied.
+    pub ids: Vec<(String, String)>,
+}
+
 /// One connection to an account's provider. A mailbox is opened, and the
 /// operations after it act on that mailbox.
 #[async_trait]
@@ -209,6 +239,70 @@ pub trait Provider: Send {
         id: &str,
         places: &[String],
     ) -> Result<Vec<PartFetched>, ProviderError>;
+
+    /// Opens a mailbox to change it. Nothing else opens one that way.
+    async fn open_to_change(&mut self, _mailbox: &str) -> Result<OpenedToChange, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Where the mailbox `mailbox` will put the next message it is given,
+    /// read without opening it.
+    async fn next_id(&mut self, _mailbox: &str) -> Result<NextId, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Which of `ids` the open mailbox holds now.
+    async fn present(&mut self, _ids: &[String]) -> Result<Vec<String>, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Every id the open mailbox holds from `from` on: what arrived since a
+    /// [`NextId`].
+    async fn ids_from(&mut self, _from: &str) -> Result<Vec<String>, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// The flags or labels of the messages `ids` names in the open mailbox.
+    /// A message the provider does not return is left out.
+    async fn flags_of(&mut self, _ids: &[String]) -> Result<Vec<FlagsSeen>, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Copies the messages `ids` names from the mailbox opened to change it
+    /// into `to`, and says where each went.
+    async fn copy(&mut self, _ids: &[String], _to: &str) -> Result<Copied, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Whether [`Provider::move_to`] moves in one step. Without it, a move
+    /// is a copy, a flag and a removal of exactly what was copied.
+    fn moves(&self) -> bool {
+        false
+    }
+
+    /// Moves the messages `ids` names from the mailbox opened to change it
+    /// into `to` in one step, and says where each went.
+    async fn move_to(&mut self, _ids: &[String], _to: &str) -> Result<Copied, ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Sets (`on`) or clears the flags `flags` on the messages `ids` names in
+    /// the mailbox opened to change it.
+    async fn set_flags(
+        &mut self,
+        _ids: &[String],
+        _flags: &[&str],
+        _on: bool,
+    ) -> Result<(), ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Removes from the mailbox opened to change it exactly the messages
+    /// `ids` names, which carry the delete flag: never another message that
+    /// carries it.
+    async fn remove(&mut self, _ids: &[String]) -> Result<(), ProviderError> {
+        Err(ProviderError::Refused("changing mail"))
+    }
 
     /// Ends the connection politely. Failing to is not an error.
     async fn close(&mut self);

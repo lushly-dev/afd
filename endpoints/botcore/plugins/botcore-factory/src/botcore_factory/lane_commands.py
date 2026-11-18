@@ -10,7 +10,7 @@ from collections.abc import Callable
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
 
-from botcore_factory import foreman, lane_process, machines, report
+from botcore_factory import cells, foreman, lane_process, machines, report
 from botcore_factory.commands import GIT, executor
 from botcore_factory.runtime import Factory
 
@@ -27,6 +27,8 @@ LANE_POLICIES: dict[str, CommandPolicy] = {
     "lane_report": CommandPolicy(("inspect",)),
     # Frees the lane's foreman lease (lushly-dev/afd#1432).
     "foreman_handoff": CommandPolicy(("history-write",)),
+    # Stops counting an ejection that was not the branch's fault.
+    "ejection_excuse": CommandPolicy(("history-write",)),
 }
 
 
@@ -88,6 +90,25 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await execute(lambda: success(foreman.handoff(get(), session)))
 
+    async def ejection_excuse(
+        branch: str, reason: str, session: str | None = None
+    ) -> CommandResult:
+        """Record that a cell's latest ejection was not its branch's fault (a known flake), so it
+        no longer counts toward cells.maxEjections.
+
+        Args:
+            branch: The ejected cell's branch.
+            reason: Why it was not the branch's fault, e.g. the flake's issue.
+            session: The foreman's session (its T3 Code thread id); the owner names none.
+        """
+
+        def body() -> CommandResult:
+            factory = get()
+            foreman.hold(factory, session, "ejection-excuse", owner_may=True)
+            return success(cells.ejection_excuse(factory, branch, reason))
+
+        return await execute(body)
+
     return [
         lane_start,
         lane_stop,
@@ -97,4 +118,5 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         lane_host_set,
         lane_report,
         foreman_handoff,
+        ejection_excuse,
     ]

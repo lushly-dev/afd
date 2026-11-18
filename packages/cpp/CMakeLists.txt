@@ -56,6 +56,7 @@ add_library(
     src/approval.cpp
     src/batch.cpp
     src/batch_execution.cpp
+    src/bootstrap.cpp
     src/command.cpp
     src/context_fields.cpp
     src/contexts.cpp
