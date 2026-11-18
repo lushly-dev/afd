@@ -15,8 +15,9 @@ use std::sync::Arc;
 
 use afd::server::{McpServer, ToolStrategy};
 use afd::{
-    failure, success, CommandContext, CommandDefinition, CommandError, CommandHandler,
-    CommandRegistry, CommandResult, ContextConfig, JsonSchema, JsonSchemaType,
+    command_result_output_schema, failure, success, CommandContext, CommandDefinition,
+    CommandError, CommandHandler, CommandRegistry, CommandResult, ContextConfig, JsonSchema,
+    JsonSchemaType,
 };
 use async_trait::async_trait;
 use common::{modern_post, Stdio};
@@ -413,4 +414,73 @@ async fn every_route_carries_the_whole_result_as_structured_content() {
     )
     .await;
     assert_eq!(batch["results"][0]["result"]["data"]["id"], "item-1");
+}
+
+/// Sends tagged data, or fails when asked to.
+struct Tagged;
+
+#[async_trait]
+impl CommandHandler for Tagged {
+    async fn execute(&self, input: Value, _context: CommandContext) -> CommandResult<Value> {
+        if input["fail"] == true {
+            return failure(
+                CommandError::new("NOT_FOUND", "No tags").with_suggestion("List items first"),
+            );
+        }
+        success(json!({ "id": "item-1", "tags": [{ "name": "home" }], "owner": { "name": "Ana" } }))
+    }
+}
+
+/// A schema generated with nested types (schemars, for one) keeps them in `$defs` or
+/// `definitions`; their references resolve against the envelope, so both move there.
+#[tokio::test]
+async fn nested_definitions_move_to_the_envelope_and_real_results_validate() {
+    let named = json!({
+        "type": "object",
+        "properties": { "name": { "type": "string" } },
+        "required": ["name"],
+        "additionalProperties": false,
+    });
+    let data_schema = json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" } },
+            "owner": { "$ref": "#/definitions/Owner" },
+        },
+        "required": ["id", "tags", "owner"],
+        "$defs": { "Tag": named },
+        "definitions": { "Owner": named },
+    });
+    let schema = command_result_output_schema(&data_schema);
+    assert_eq!(schema["$defs"]["Tag"], named);
+    assert_eq!(schema["definitions"]["Owner"], named);
+    let data = schema["properties"]["data"].as_object().unwrap();
+    for key in ["$schema", "$defs", "definitions"] {
+        assert!(!data.contains_key(key), "{key} left in data");
+    }
+
+    // A real success and a real failure, read as a client reads them, validate.
+    let registry = CommandRegistry::new();
+    let mut command = CommandDefinition::new("item-tagged", "Tagged", vec![], Tagged);
+    command.expose.mcp = true;
+    registry
+        .register_with_schema(command, json!({ "type": "object" }))
+        .unwrap();
+    let server = McpServer::new(Arc::new(registry), "structured", "1.0.0")
+        .with_tool_strategy(ToolStrategy::Individual);
+    for (fail, ok) in [(false, true), (true, false)] {
+        let (structured, is_error) =
+            structured(&server, "item-tagged", json!({ "fail": fail })).await;
+        assert_eq!(structured["success"], ok);
+        assert_eq!(is_error, !ok);
+        assert!(validates(&schema, &structured).await, "{structured}");
+    }
+    // Data that breaks the nested type fails.
+    let wrong = json!({
+        "success": true,
+        "data": { "id": "item-1", "tags": [{ "name": 1 }], "owner": { "name": "Ana" } },
+    });
+    assert!(!validates(&schema, &wrong).await);
 }

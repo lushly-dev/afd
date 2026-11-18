@@ -9,7 +9,7 @@ import { failure, success } from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { defineCommand } from './schema.js';
+import { defineCommand, defineCommandWithSchema } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
 
@@ -19,6 +19,12 @@ afterEach(async () => {
 });
 
 const Todo = z.object({ id: z.string(), title: z.string() });
+const Task = z.object({
+	title: z.string(),
+	get subtasks() {
+		return z.array(Task);
+	},
+});
 const commands = [
 	defineCommand({
 		name: 'todo-get',
@@ -31,6 +37,50 @@ const commands = [
 			id === 'missing'
 				? failure({ code: 'NOT_FOUND', message: 'No such todo', suggestion: 'List todos first' })
 				: success({ id, title: 'Milk' }),
+	}),
+	// Zod emits a recursive type into `definitions`, referenced as `#/definitions/...`.
+	defineCommand({
+		name: 'todo-tree',
+		description: 'Get a todo with its subtasks',
+		mutation: false,
+		expose: { mcp: true },
+		input: z.object({ fail: z.boolean() }),
+		output: z.object({ root: Task }),
+		handler: async ({ fail }) =>
+			fail
+				? failure({ code: 'NOT_FOUND', message: 'No tree', suggestion: 'List todos first' })
+				: success({ root: { title: 'Shop', subtasks: [{ title: 'Milk', subtasks: [] }] } }),
+	}),
+	// A schema written by hand keeps a nested type in `$defs`.
+	defineCommandWithSchema({
+		name: 'todo-tagged',
+		description: 'Get a tagged todo',
+		mutation: false,
+		expose: { mcp: true },
+		input: z.object({ fail: z.boolean() }),
+		jsonSchema: {
+			type: 'object',
+			properties: { fail: { type: 'boolean' } },
+			required: ['fail'],
+		},
+		outputJsonSchema: {
+			$schema: 'https://json-schema.org/draft/2020-12/schema',
+			type: 'object',
+			properties: { tags: { type: 'array', items: { $ref: '#/$defs/Tag' } } },
+			required: ['tags'],
+			$defs: {
+				Tag: {
+					type: 'object',
+					properties: { name: { type: 'string' } },
+					required: ['name'],
+					additionalProperties: false,
+				},
+			},
+		} as never,
+		handler: async ({ fail }) =>
+			fail
+				? failure({ code: 'NOT_FOUND', message: 'No tags', suggestion: 'List todos first' })
+				: success({ tags: [{ name: 'home' }] }),
 	}),
 	defineCommand({
 		name: 'todo-purge',
@@ -115,6 +165,35 @@ describe('MCP tool fields', () => {
 			success: false,
 			error: { code: 'NOT_FOUND' },
 		});
+	});
+
+	it('moves $defs and definitions to the envelope, where the client resolves them', async () => {
+		const client = await connect();
+		const tools = Object.fromEntries(
+			(await client.listTools()).tools.map((tool) => [tool.name, tool])
+		);
+		for (const [name, key] of [
+			['todo-tree', 'definitions'],
+			['todo-tagged', '$defs'],
+		] as const) {
+			const schema = tools[name]?.outputSchema as Record<string, unknown> & {
+				properties: { data: Record<string, unknown> };
+			};
+			expect(schema[key]).toBeDefined();
+			expect(schema.properties.data[key]).toBeUndefined();
+			expect(schema.properties.data.$schema).toBeUndefined();
+
+			// The client validates structuredContent against outputSchema, for success and failure.
+			const found = await client.callTool({ name, arguments: { fail: false } });
+			expect(found.isError).toBeFalsy();
+			expect(found.structuredContent).toMatchObject({ success: true });
+			const failed = await client.callTool({ name, arguments: { fail: true } });
+			expect(failed.isError).toBe(true);
+			expect(failed.structuredContent).toMatchObject({
+				success: false,
+				error: { code: 'NOT_FOUND' },
+			});
+		}
 	});
 
 	it('sends structuredContent from tools without an outputSchema too', async () => {
