@@ -45,7 +45,7 @@ with the tints and shades Refined added marked in `src/tree/primitives.ts`.
 | `color.text.secondary` | `#48534b` | `#bdcfc1` | `#1F1F1F` |
 | `color.text.muted` | `#5e6460` | `#adb6ab` | `#3D3D3D` |
 | `color.border.subtle` | `rgba(24, 27, 26, 0.10)` | `rgba(244, 240, 234, 0.10)` | `#595959` |
-| `color.border.strong` | `#6b7d6e` | `#869089` | `#000000` |
+| `color.border.strong` | `#6b7d6e` | `#939c95` | `#000000` |
 | `color.focus.ring` | `#146ba0` | `#a3ebcd` | `#000000` |
 | `color.control.selected.background` | `#badecf` | `#20352c` | `#E0E0E0` |
 | `color.control.selected.foreground` | `#2c5e4b` | `#a3ebcd` | `#000000` |
@@ -106,7 +106,8 @@ each of page, card, subtle and floating. A read-only field's line is
 
 Loam ships the three faces (`packages/theme/fonts/`, latin woff2, SIL OFL 1.1):
 Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono 400 and 500. Bold
-uses the 600 files; italics are synthesized.
+uses each family's heaviest file (600, or 500 for Plex Mono); italics are
+synthesized.
 `packages/web` links `loam-fonts.css`; nothing loads from another origin. An
 app's frame does not get them and falls back to the system face.
 

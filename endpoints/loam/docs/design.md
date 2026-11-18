@@ -95,7 +95,8 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
   Loam ships the faces (D154): `@lushly-dev/loam-theme`'s `fonts/`, latin
   woff2 under the SIL Open Font License 1.1, Inter 400, 500 and 600, Space
   Grotesk 600 and IBM Plex Mono 400 and 500, which `loam-web` links through
-  `loam-fonts.css`. Bold (700) uses the 600 files, and the browser synthesizes
+  `loam-fonts.css`. Bold (700) uses the heaviest file of each family (Inter's
+  and Space Grotesk's 600, IBM Plex Mono's 500), and the browser synthesizes
   italics, since no italic file ships; nothing loads from another origin, and an app's frame,
   which does not get them, falls back to the system face.
 - **Color.** `color.text.primary` for content, `color.text.secondary` for
@@ -135,7 +136,7 @@ its names, with the tints Refined added marked in `src/tree/primitives.ts`.
 | `color.text.secondary` | `#48534b` | `#bdcfc1` | `#1F1F1F` |
 | `color.text.muted` | `#5e6460` | `#adb6ab` | `#3D3D3D` |
 | `color.border.subtle` | `rgba(24, 27, 26, 0.10)` | `rgba(244, 240, 234, 0.10)` | `#595959` |
-| `color.border.strong` | `#6b7d6e` | `#869089` | `#000000` |
+| `color.border.strong` | `#6b7d6e` | `#939c95` | `#000000` |
 | `color.focus.ring` | `#146ba0` | `#a3ebcd` | `#000000` |
 | `color.control.selected.background` | `#badecf` | `#20352c` | `#E0E0E0` |
 | `color.control.selected.foreground` | `#2c5e4b` | `#a3ebcd` | `#000000` |
@@ -160,8 +161,8 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
-| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` and `color.field.placeholder` on both field backgrounds; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
-| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (on the read-only fill, `color.border.strong` in place of `color.field.border`, and `color.text.secondary` in place of the placeholder; field pairs over page, card, subtle and floating; D154); `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
+| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` on both field backgrounds; `color.field.placeholder` on the editable fill and `color.text.secondary` (a read-only field's placeholder) on the read-only fill, each over page, card, subtle and floating; `color.state.danger.foreground`, error text in several components, on page, card, subtle and floating; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
+| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (on the read-only fill, `color.border.strong` in place of `color.field.border`; field pairs over page, card, subtle and floating; D154); `color.state.success.foreground` and `color.state.danger.foreground`, a message's icon, on their state background and on page; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
 | Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
 `pairs.ts` is the list; a component that relies on a pair it does not hold
@@ -801,7 +802,8 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   AFD's and shared with Loam. Lushly carries its look as its own theme set
   ([lushly#2468](https://github.com/lushly-dev/lushly/issues/2468)); the old values are in this
   repository's history at `599be245`. One departure from the approved set, for the floors: dark
-  `color.border.strong` is stone-500, not sage-500 (2.70:1 on the subtle surface). A read-only field draws
+  `color.border.strong` is stone-450 (`#939c95`, added between stone-400 and stone-500), not sage-500
+  (2.70:1 on the subtle surface), so a read-only field's line keeps 3.54:1 there. A read-only field draws
   its line in `color.border.strong` and its placeholder in `color.text.secondary`, in the components. Four
   values the approved set had carried over from Lushly's palette are corrected: high contrast's
   `color.surface.pressed` (`#E7E4D8` to grey `#E6E6E6`), `color.state.danger.foreground` (`#B42318` to
