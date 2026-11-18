@@ -21,10 +21,10 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from '../testing.js';
-import type { KernelEventV3, LoamKernelV3 } from '../types.js';
+import type { KernelEventV3, LoamKernelV5 } from '../types.js';
 import { appInput, filled, NOT_CALLED, SHELL_INPUTS } from './call-inputs.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

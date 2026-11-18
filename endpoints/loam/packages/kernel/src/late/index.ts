@@ -12,6 +12,8 @@ import { ICONS_V1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
+import type { CopilotParts } from '../copilot/commands.js';
+import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
 import { type AccessActorV1, decideAccess, personKey } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
@@ -25,7 +27,7 @@ import type {
 	AppsLoadV2,
 	KernelEventV3,
 	KernelMcpOptions,
-	KernelOptionsV3,
+	KernelOptionsV5,
 	KernelPortsV1,
 } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
@@ -98,9 +100,20 @@ export type LateCommandDeps = ShellCommandDeps &
 		stageA?: [AccessActorV1] | undefined;
 		/** The kernel's map of each person's active persona when not `default` (phase 3 specification, 6.1). */
 		personas?: Map<string, string>;
+		/** The deployment's copilot providers and the host's runner (phase 5 specification, 3.2, 4.1). */
+		copilot?: CopilotOptionsV1 | undefined;
+		/** The kernel's minted call as `copilot`, with the turn's trace: the only path that sets it (3.2). */
+		callAsCopilot?(
+			name: string,
+			input: unknown,
+			trace: CopilotTraceV1,
+			scope: ScopeV1 | 'workspace'
+		): Promise<CommandResult>;
+		/** The agent registry's commands, with their input schemas (4.5). */
+		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
-	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts'>;
+	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts'>;
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -118,6 +131,21 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 
 /** The signed-out commands as a set, the palette's filter on a signed-out `provider` page (2.1). */
 const SIGNED_OUT_SET: ReadonlySet<string> = new Set(SIGNED_OUT_COMMANDS);
+
+/** JSON with object keys sorted at every level, as AFD's journal digests it: a turn's call's `inputDigest` (phase 5's 3.4). */
+const canonical = (value: unknown): string => {
+	const sort = (item: unknown): unknown =>
+		Array.isArray(item)
+			? item.map(sort)
+			: item && typeof item === 'object'
+				? Object.fromEntries(
+						Object.keys(item)
+							.sort()
+							.map((key) => [key, sort((item as Record<string, unknown>)[key])])
+					)
+				: item;
+	return JSON.stringify(sort(value)) ?? 'null';
+};
 
 /** Report a failure of stage B's own work, which fails alone (2.2). */
 const reportLate = (cause: unknown): void =>
@@ -175,6 +203,11 @@ export interface LateParts {
 	authGate(held: readonly ZodCommandDefinition[]): CommandMiddleware;
 	/** The agent interface's actor for `options.agent`, or its refusal (phase 3 specification, 3.1). */
 	agentActor: typeof agentActor;
+	/**
+	 * The copilot's gate, last in the kernel's chain; its context fields, declared on both registries from stage B; and
+	 * its stop of every running turn (phase 5 specification, 3.2, 6.1).
+	 */
+	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
@@ -262,6 +295,37 @@ export async function createLateParts(
 		import('./editor-commands.js'),
 		import('./session-settle.js'),
 	]);
+	// The copilot's records and commands, `late-copilot`, beside them (phase 5 specification, 2 and 3.5).
+	const { createCopilotParts } = await import('../copilot/commands.js');
+	const copilot: CopilotParts = createCopilotParts({
+		store: deps.store,
+		workspace: deps.scope.workspace.id,
+		options: deps.copilot,
+		kit: DOCUMENT_KIT,
+		isMutation: deps.isMutation,
+		isMounted: (name) => deps.apps().owners.get(name)?.recorded === true,
+		instanceOf: (name) => deps.apps().owners.get(name)?.instance,
+		agentCommands: () => deps.agentCommands?.() ?? [],
+		// A kernel always gives it; a test of `late/` alone has no copilot, so its calls fail closed.
+		callAsCopilot: (name, input, trace, scope) =>
+			deps.callAsCopilot?.(name, input, trace, scope) ??
+			Promise.resolve(
+				DOCUMENT_KIT.kernelFailure(
+					'COPILOT_PORT_REFUSED',
+					'This kernel has no copilot',
+					'None: only the runtime uses the port'
+				)
+			),
+		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
+		humanOnly: (name) => HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name),
+		internal: (name) => INTERNAL_COMMANDS.includes(name),
+		digest: async (value) => {
+			const bytes = new TextEncoder().encode(canonical(value));
+			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+			return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+		},
+		now: () => deps.clock?.now() ?? Date.now(),
+	});
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
@@ -458,6 +522,8 @@ export async function createLateParts(
 			...memberCommands.commands,
 			...persona.commands,
 			...agentMembers.commands,
+			...copilot.commands,
+			...copilot.bootOnly,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -527,7 +593,8 @@ export async function createLateParts(
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
-		internal: createPortRefusals(),
+		internal: [...createPortRefusals(), ...copilot.internal],
+		copilot,
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
@@ -555,7 +622,9 @@ export async function createLateParts(
 					!INTERNAL_COMMANDS.includes(command.name) &&
 					!PERSON_SESSION.includes(command.name) &&
 					!HUMAN_COMMANDS.includes(command.name) &&
-					!OWNER_COMMANDS.includes(command.name)
+					!OWNER_COMMANDS.includes(command.name) &&
+					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
+					command.category !== 'copilot'
 			),
 			middleware: [
 				async (command, _input, context, next) => {

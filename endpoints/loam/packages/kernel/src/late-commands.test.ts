@@ -15,9 +15,9 @@ const EMPTY_BOOT = {
 	apps: [],
 };
 
-import type { KernelEventV1, KernelOptionsV3 } from './types.js';
+import type { KernelEventV1, KernelOptionsV5 } from './types.js';
 
-function options(overrides: Partial<KernelOptionsV3> = {}): KernelOptionsV3 {
+function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',

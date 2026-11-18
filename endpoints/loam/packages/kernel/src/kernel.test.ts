@@ -14,15 +14,15 @@ import {
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
 import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
-import type { KernelEventV1, KernelOptionsV3, LoamKernelV3 } from './types.js';
+import type { KernelEventV1, KernelOptionsV5, LoamKernelV5 } from './types.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
 
-function options(overrides: Partial<KernelOptionsV3> = {}): KernelOptionsV3 {
+function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -35,7 +35,7 @@ function options(overrides: Partial<KernelOptionsV3> = {}): KernelOptionsV3 {
 	};
 }
 
-async function kernel(overrides: Partial<KernelOptionsV3> = {}) {
+async function kernel(overrides: Partial<KernelOptionsV5> = {}) {
 	const opts = options(overrides);
 	const created = await createKernel(opts);
 	kernels.push(created);
@@ -144,7 +144,7 @@ describe('registries and exposure', () => {
 		const { kernel: k } = await kernel({ host: 'browser', storeKind: 'indexeddb' });
 		// Kernel interface version 3 (phase 3 specification, 12): the identity, `local` with no `[identity]`.
 		expect((await k.call('shell-info-get')).data).toEqual({
-			kernelInterface: 3,
+			kernelInterface: 5,
 			layoutState: 0,
 			storeInterface: 1,
 			tokenContract: 1,
@@ -157,7 +157,7 @@ describe('registries and exposure', () => {
 			store: 'indexeddb',
 			identity: { mode: 'local', organization: null },
 		});
-		expect(k.version).toBe(3);
+		expect(k.version).toBe(5);
 	});
 });
 

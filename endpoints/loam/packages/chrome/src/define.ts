@@ -5,7 +5,7 @@
  */
 
 import type { FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import {
 	appEntryDefinition,
 	LoamAppEntry,
@@ -90,7 +90,7 @@ export function defineChrome(): Promise<void> {
 }
 
 export interface MountShellOptions {
-	kernel: LoamKernelV3;
+	kernel: LoamKernelV5;
 	/** The text of `@lushly-dev/loam-theme/loam-theme.css`, adopted on the document. */
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
