@@ -188,7 +188,9 @@ should never have to scan the codebase to learn what is current.
     latin woff2, 115,268 bytes, SIL OFL 1.1), linked by `loam-web`. Budget (2026-11-17, under D115):
     `cssMinified` 8,496 to 10,500 (measured 10,251: `loam-theme.css` 8,217 to 8,431, the fonts'
     `@font-face` rules 1,820); a new row, `fontsBytes`, 115,268 of 116,000; first paint 302,919 and
-    94,392 gzip, within its ceilings. Lushly's palette is in history at `599be245` and in Lushly
+    94,392 gzip, within its ceilings. After the base merged `main` (2026-11-18): first paint 304,186
+    against the base's 303,794 at `c8a5f7b6` (+392), so `jsMinified` 304,000 to 304,700 under D115; gzip
+    94,807, CSS 10,292. Lushly's palette is in history at `599be245` and in Lushly
     ([lushly#2468](https://github.com/lushly-dev/lushly/issues/2468)).
 
 ### 1. App contract

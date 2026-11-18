@@ -293,7 +293,11 @@ export const CEILINGS = Object.freeze({
 	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
 	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
 	// `switcher` (+100) and `tooltip` (+5) are within their rows.
-	jsMinified: 304_000,
+	// Raised from 304,000 to 304,700 by AFD's theme, Refined (D159, D115): measured against
+	// `lush/violet-elements-refined` at `c8a5f7b6` on the same machine, 303,794 to 304,186 (+392): the entry's
+	// import of the typefaces' stylesheet and the chrome reading the font tokens; gzip 94,907 to 94,807, within its
+	// ceiling. Set to the measurement plus a margin.
+	jsMinified: 304_700,
 	jsGzip: 95_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
