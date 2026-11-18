@@ -62,10 +62,13 @@ until it is resolved.
 
 ## Plans
 
-`cell-register` assigns the plan whose room below `plans.ceiling` most needs spending before its
+`cell-register` assigns a Claude plan while `cells.claudeOnly` is on (the default: cells implement
+on Opus), and among those the plan whose room below `plans.ceiling` most needs spending before its
 reset: the highest `pace`, room over the days to the reset, so each plan is spent by its own reset
 (10% left with four days to go, 2.5 a day, waits behind 100% left with five, 20 a day).
-`plan-list` shows each plan's use, `pace` and `next`. When every plan is at its ceiling, start nothing and report the next reset: a cell
+`plan-list` shows each plan's use, `pace` and `next`. With no Claude plan, `lane-status` says so
+and `cell-register` refuses `NO_CLAUDE_PLAN`: ask the owner to sign in to Claude on the lane host.
+When every Claude plan is at its ceiling, start nothing and report the next reset: a cell
 that hits a usage limit stalls while holding its claim. Dials (`dial-get`, `dial-set`),
 `lane-pause` and choosing the lane host are the owner's.
 

@@ -526,3 +526,94 @@ async def test_plan_list_shows_each_plan_s_room_and_ceiling(make_run):
     assert all(plan["aboveCeiling"] for plan in above)
     unreadable = await make_run(plansUnreadable=True).call("plan_list")
     assert unreadable.error.code == "PLANS_UNREADABLE"
+
+
+#: A ChatGPT plan with far more room than the Claude plan, as an owner who spends GPT on review
+#: would see it.
+GPT_ROOMIER = [
+    {
+        "id": "codex:primary",
+        "provider": "codex",
+        "used": 5,
+        "elapsed": 90,
+        "resetsAt": "2030-01-02T00:00:00Z",
+    },
+    {
+        "id": "claudeAgent:seven_day",
+        "provider": "claudeAgent",
+        "used": 40,
+        "elapsed": 60,
+        "resetsAt": "2030-01-10T00:00:00Z",
+    },
+]
+
+
+async def test_cells_start_only_on_a_claude_plan(make_run):
+    """Cells implement on Opus (model routing, 2026-11-17), so a roomier ChatGPT plan is passed
+    over: lane-status, cell-register and plan-list's next all name the Claude plan."""
+    run = make_run("backlog", plans=GPT_ROOMIER)
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is True and status["plan"]["id"] == "claudeAgent:seven_day"
+    listed = (await run.call("plan_list")).data
+    assert [p["id"] for p in listed["plans"]] == ["codex:primary", "claudeAgent:seven_day"]
+    assert listed["next"] == "claudeAgent:seven_day"
+    result = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert result.success, result.error
+    assert result.data["cell"]["plan"] == "claudeAgent:seven_day"
+
+
+async def test_the_dial_lets_cells_take_any_plan(make_run):
+    run = make_run("backlog", plans=GPT_ROOMIER, dials={"cells.claudeOnly": False})
+    assert (await run.call("plan_list")).data["next"] == "codex:primary"
+    assert (await run.call("lane_status")).data["plan"]["id"] == "codex:primary"
+    result = await run.call("cell_register", branch="fix/server-timeout", issues=[206], route="x/y")
+    assert result.success, result.error
+    assert result.data["cell"]["plan"] == "codex:primary"
+
+
+async def test_no_claude_plan_says_so_rather_than_blaming_the_ceiling(make_run):
+    run = make_run("backlog", plans=GPT_ROOMIER[:1])
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is False and "No Claude plan" in status["reason"]
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert refused.error.code == "NO_CLAUDE_PLAN"
+    assert "cells.claudeOnly" in refused.error.suggestion
+    assert (await run.call("plan_list")).data["next"] is None
+
+
+async def test_a_full_claude_plan_is_named_in_the_ceiling_refusal(make_run):
+    full = [{**GPT_ROOMIER[0]}, {**GPT_ROOMIER[1], "used": 90}]
+    run = make_run("backlog", plans=full)
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is False and "Every Claude plan" in status["reason"]
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert refused.error.code == "PLAN_ABOVE_CEILING"
+    assert "Every Claude plan" in refused.error.message
+
+
+async def test_with_the_dial_off_a_full_week_names_every_plan(make_run):
+    full = [{**GPT_ROOMIER[0], "used": 95}, {**GPT_ROOMIER[1], "used": 90}]
+    run = make_run("backlog", plans=full, dials={"cells.claudeOnly": False})
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="x/y"
+    )
+    assert refused.error.code == "PLAN_ABOVE_CEILING"
+    assert refused.error.message.startswith("Every plan is at or above")
+
+
+@pytest.mark.parametrize("claude_only", [True, False])
+async def test_no_plan_windows_are_unreadable_whatever_the_dial(make_run, claude_only):
+    run = make_run("backlog", plans=[], dials={"cells.claudeOnly": claude_only})
+    refused = await run.call(
+        "cell_register", branch="fix/server-timeout", issues=[206], route="opus/medium"
+    )
+    assert refused.error.code == "PLANS_UNREADABLE"
+    assert (await run.call("plan_list")).error.code == "PLANS_UNREADABLE"
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is False and "plans" in status["reason"]

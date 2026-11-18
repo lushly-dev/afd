@@ -5,6 +5,18 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Cells start only on a Claude plan, 2026-11-18
+
+AFD's model routing of 2026-11-17 puts every cell on Opus 5.5 `medium` and spends the ChatGPT
+allowance on review, but the lane chose among every plan, so a roomier ChatGPT plan won and the
+fleet could not start cells ([#1498](https://github.com/lushly-dev/afd/issues/1498)). The
+`cells.claudeOnly` dial, on by default, limits `cell-register`, `lane-status` and `plan-list`'s
+`next` to Claude's plans. With none signed in, `cell-register` refuses `NO_CLAUDE_PLAN`,
+`lane-status` gives `canStartCell: false` with that reason, and `plan-list` lists the plans with
+`next: null`. An empty plan list is `PLANS_UNREADABLE` from every reader. Claude's
+`seven_day_fable` window is no longer read as a plan, since only Fable draws on it. The scenario
+fixtures' two plans are now both Claude's, one per Mac. Not yet seen in a fleet run.
+
 ## A cell can take a package of related issues, 2026-11-18
 
 `cell-register` takes more than one issue when the foreman names the package: up to
