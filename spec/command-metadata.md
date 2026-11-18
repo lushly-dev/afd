@@ -740,7 +740,8 @@ TypeScript's in-process registry for app calls is `createAppCallRegistry(command
 `callGrant`, serves no tool surface (an app calls commands one by one), and answers `hasCommand`
 with `true` for every name, so a `DirectClient` over it sends every call to the check rather than
 answering `UNKNOWN_TOOL` with names. `createDirectRegistry` has no grant check, so under the `apps`
-interface it exposes nothing.
+interface it exposes nothing and answers as any registry with nothing exposed: it is not a registry
+for app calls.
 
 A journaled app call replays with the `apps` interface, so the replaying registry runs the check
 again and needs the same `callGrant` ([journal replay](./journal.md#replay)). A refusal is returned before

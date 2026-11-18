@@ -9,7 +9,7 @@
 
 ## Done
 
-- **Spec, TypeScript and Rust,** in step 0b's pull request: the `expose` row and "App-to-app calls" in `spec/command-metadata.md`; `CALL_NOT_GRANTED` in the shared catalog (49 codes) and D4's `apps` row; core version 2 of the plugin manifest, which `scripts/plugin-manifest.test.mjs` holds to version 1 plus `expose.apps`; `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-core` and `@lushly-dev/afd-server` (its own module, so `/direct` grows 19 bytes and Loam's first paint the same); `ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant` in the `afd` crate.
+- **Spec, TypeScript and Rust,** in step 0b's pull request: the `expose` row and "App-to-app calls" in `spec/command-metadata.md`; `CALL_NOT_GRANTED` in the shared catalog (49 codes) and D4's `apps` row; core version 2 of the plugin manifest, which `scripts/plugin-manifest.test.mjs` holds to version 1 plus `expose.apps`; `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-core` and `@lushly-dev/afd-server` (its own module, so `/direct` grows 41 bytes, its budget raised from 39,100 to 39,200, and Loam's first paint 41 and kernel 47, within their limits); `ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant` in the `afd` crate.
 - **Vectors:** [`spec/vectors/app-calls.json`](../../../../spec/vectors/app-calls.json), 6 exposure, 17 call and 2 batch cases. TypeScript runs them on the core registry and on `createAppCallRegistry`, Rust on `CommandRegistry`; Python and C++ load the file and skip every case as the documented gap.
 - **The `CALL_NOT_GRANTED` constant** in all four languages.
 

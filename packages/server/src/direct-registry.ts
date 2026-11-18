@@ -48,6 +48,12 @@ import type { McpToolDefinition } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ContextConfig, ToolStrategy } from './server-types.js';
 
+/**
+ * The options key only `createAppCallRegistry` sets, which checks every call first. Neither entry
+ * exports it, so no other code can serve the `apps` interface without the grant check.
+ */
+export const APP_CALLS = Symbol();
+
 /** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`, `apps`). */
 export type ExposeInterface = keyof ExposeOptions;
 
@@ -340,9 +346,7 @@ function unknownContext(name: unknown, contexts: readonly ContextConfig[]) {
  */
 export function createDirectRegistry(
 	commands: ZodCommandDefinition[],
-	options: DirectRegistryOptions = {},
-	/** @internal Set only by `createAppCallRegistry`, which checks every call first. */
-	appCalls?: true
+	options: DirectRegistryOptions = {}
 ): DirectCommandRegistry {
 	const iface = (options.interface ?? 'agent') as ExposeInterface;
 	const contexts = [...(options.contexts ?? [])];
@@ -378,7 +382,9 @@ export function createDirectRegistry(
 	// exposes nothing (fail closed, and a few bytes in every host's bundle).
 	const exposed = new Map(
 		[...registered].filter(
-			([, command]) => (appCalls || iface !== 'apps') && isExposedTo(command, iface)
+			([, command]) =>
+				((options as Record<symbol, unknown>)[APP_CALLS] || iface !== 'apps') &&
+				isExposedTo(command, iface)
 		)
 	);
 

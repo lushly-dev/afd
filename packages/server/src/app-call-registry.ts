@@ -11,6 +11,7 @@ import {
 	callNotGranted,
 } from '@lushly-dev/afd-core/internal/app-calls';
 import {
+	APP_CALLS,
 	createDirectRegistry,
 	type DirectCommandRegistry,
 	type DirectRegistryOptions,
@@ -55,11 +56,11 @@ export function createAppCallRegistry(
 	}
 	// Neither `interface` nor `tools` reaches it, even from a caller outside the type checker.
 	const { interface: _interface, tools: _tools, ...direct } = rest as DirectRegistryOptions;
-	const registry = createDirectRegistry(
-		commands,
-		{ ...direct, interface: 'apps' as 'agent' },
-		true
-	);
+	const registry = createDirectRegistry(commands, {
+		...direct,
+		interface: 'apps' as 'agent',
+		[APP_CALLS]: true,
+	} as DirectRegistryOptions);
 	const byName = new Map(commands.map((command) => [command.name, command]));
 	return {
 		interface: registry.interface,

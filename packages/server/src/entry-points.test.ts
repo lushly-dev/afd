@@ -225,6 +225,11 @@ const HOST_IMPORTS =
  *   coordinator 2026-11-10): measured 38,997 bytes on `main` and 39,071 after, with esbuild
  *   0.28.2; `defineCommand` carrying a command's `scopes` adds 31, and the engine's two optional
  *   hooks that look a hidden command up as a missing one add 43. No authorization code is in it.
+ *   Raised to 39,200 by app-to-app calls (Loam phase 5 step 0b, under D115's rule that a step
+ *   raises the limit it exceeds): measured 39,071 bytes on `main` and 39,112 after. The check
+ *   itself is in `createAppCallRegistry`'s own module, which this host does not bundle (asserted
+ *   below); `createDirectRegistry` only refuses to expose anything to `apps` unless that registry
+ *   built it, through a module-private symbol, which adds 41. Putting the check here cost 772.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -235,7 +240,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_100,
+		bytes: 39_200,
 	},
 	{
 		what: 'the same host with the approval middleware',

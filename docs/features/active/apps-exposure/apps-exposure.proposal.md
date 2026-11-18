@@ -96,7 +96,8 @@ callGrant, ...options })` wraps one, runs the check before anything else, serves
 and answers `hasCommand` with `true` for every name, so a `DirectClient` over it cannot answer
 `UNKNOWN_TOOL` with the names it holds. A host that never imports it bundles none of it.
 `createDirectRegistry` itself has no grant check, so under the `apps` interface it exposes nothing
-(fail closed, 19 bytes).
+unless `createAppCallRegistry` built it, through an options key that is a module-private symbol
+(fail closed, 41 bytes; `/direct`'s smallest budget rises from 39,100 to 39,200 under D115).
 
 ### The manifest
 
@@ -120,7 +121,7 @@ D30 fixed the rule. These details were left to this proposal:
 | X5 | The flag defaults to `false` in every profile, unlike C5's other flags | Exposure to other apps widens what an install can reach; the callee must opt in |
 | X6 | No predicate means no app call | Fail closed |
 | X7 | Core version 2 is version 1 plus `expose.apps` | The versioning rule: a new core version only adds |
-| X8 | TypeScript's app calls get their own registry, `createAppCallRegistry` | The check in `createDirectRegistry` cost 772 bytes on every host's first paint, past `/direct`'s budget and Loam's; this way it costs 19 |
+| X8 | TypeScript's app calls get their own registry, `createAppCallRegistry` | The check in `createDirectRegistry` cost 772 bytes on every host's first paint, past `/direct`'s budget and Loam's; this way it costs 41 on `/direct` and 47 on Loam's kernel |
 
 ## Conformance
 
