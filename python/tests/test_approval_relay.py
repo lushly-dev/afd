@@ -169,8 +169,12 @@ async def test_every_single_command_route_asks(mode):
         grouped, mode, prompts, "accept", tool="todo", arguments={"action": "clear", "params": {}}
     )
     assert via_group["success"] is True
-    assert calls == ["clear:all", "clear:all"]
-    assert len(prompts) == 2
+    # A command the grouped list does not show, called by its own name (spec/tool-strategies.md,
+    # "Routing"), is asked as its own tool is.
+    by_name = await _call(_server(calls, tool_strategy="grouped"), mode, prompts, "accept")
+    assert by_name["success"] is True
+    assert calls == ["clear:all", "clear:all", "clear:all"]
+    assert len(prompts) == 3
 
 
 async def test_a_client_without_elicitation_gets_no_token():
@@ -210,6 +214,12 @@ async def test_a_confirmation_then_an_approval_are_asked_in_turn(mode):
     assert prompts[0] == "Delete every todo?"
     assert prompts[1].startswith("Clear all\n")
     assert len(prompts) == 2
+    # The same under grouped, where todo-clear is not listed and is called by its own name.
+    grouped = _server(calls, confirmations="require-human", tool_strategy="grouped")
+    by_name = await _call(grouped, mode, prompts, "accept")
+    assert by_name["success"] is True
+    assert prompts[2] == "Delete every todo?"
+    assert prompts[3].startswith("Clear all\n")
 
 
 async def test_a_command_run_inside_another_cannot_ask():

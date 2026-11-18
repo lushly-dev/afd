@@ -26,11 +26,9 @@ def get_bootstrap_commands(
     first_class_tools = options.get("first_class_tools")
     context_fields = options.get("context_fields")
 
-    commands = [
-        create_afd_help_command(get_commands, tool_strategy, first_class_tools, context_fields),
-        create_afd_docs_command(get_commands),
-        create_afd_schema_command(get_commands, get_json_schema),
-    ]
+    # The context commands first, then the discovery commands, as TypeScript's server registers
+    # them, so grouped and individual lists order them alike (spec/tool-strategies.md, #533).
+    commands = []
     if get_contexts and context_state:
         commands.extend(
             [
@@ -39,4 +37,11 @@ def get_bootstrap_commands(
                 create_afd_context_exit_command(context_state),
             ]
         )
+    commands.extend(
+        [
+            create_afd_help_command(get_commands, tool_strategy, first_class_tools, context_fields),
+            create_afd_docs_command(get_commands),
+            create_afd_schema_command(get_commands, get_json_schema),
+        ]
+    )
     return commands

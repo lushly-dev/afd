@@ -306,6 +306,8 @@ def test_sweep_config_defaults_and_overrides() -> None:
     assert config.sweep.trend_issue == 12
     assert config.sweep.exclude == ["vendor/"]
     assert config.sweep.churn_days == 30
+    assert SweepConfig().include_names == []
+    assert SweepConfig(include_names=["*.stories.*"]).include_names == ["*.stories.*"]
 
 
 def test_sweep_config_refuses_unknown_keys_and_bad_values() -> None:

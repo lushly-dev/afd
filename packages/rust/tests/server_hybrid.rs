@@ -560,19 +560,55 @@ async fn discover_carries_the_hints_and_the_hybrid_instructions_over_both_transp
 async fn list_changed_is_false_on_every_strategy_and_era() {
     let cases = cases();
     let runs = Arc::new(AtomicUsize::new(0));
-    for name in ["individual", "grouped", "lazy"] {
+    for (name, ttl) in [("individual", 0), ("grouped", 0), ("lazy", 300_000)] {
         let config = json!({ "toolStrategy": name, "contexts": true, "bootstrap": true });
         let server = build(&cases, &config, &runs);
+        if name == "lazy" {
+            // The hybrid list with no first-class tools: the meta-tools and the context tools,
+            // without the bootstrap tools it registers (#533).
+            let listed: Vec<String> = server
+                .tools()
+                .iter()
+                .map(|tool| tool["name"].as_str().unwrap().to_owned())
+                .collect();
+            assert_eq!(
+                listed,
+                [
+                    "afd-discover",
+                    "afd-detail",
+                    "afd-call",
+                    "afd-batch",
+                    "afd-pipe",
+                    "afd-context-list",
+                    "afd-context-enter",
+                    "afd-context-exit"
+                ]
+            );
+        }
         let capabilities = server.get_info().capabilities;
         assert_eq!(
             capabilities.tools.unwrap().list_changed,
             Some(false),
             "{name}"
         );
-        // Contexts make the default `ttlMs` 0 for these strategies; discover says so too.
+        // Contexts make the default `ttlMs` 0 for the lists that vary by context, not for lazy,
+        // which does not (#533); discover says so too.
         let mut client = Client::connect(server, Lane::HttpModern).await;
+        if name == "lazy" {
+            // Over the wire too, naming a context changes nothing.
+            let none = client.raw("tools/list", json!({}), None).await;
+            for context in cases["contexts"].as_array().unwrap() {
+                let named = client
+                    .raw("tools/list", json!({}), context["name"].as_str())
+                    .await;
+                assert_eq!(
+                    named["result"]["tools"], none["result"]["tools"],
+                    "{context}"
+                );
+            }
+        }
         let discovered = client.raw("server/discover", json!({}), None).await;
-        assert_eq!(discovered["result"]["ttlMs"], 0, "{name}");
+        assert_eq!(discovered["result"]["ttlMs"], ttl, "{name}");
         assert_eq!(discovered["result"]["cacheScope"], "public", "{name}");
     }
 }

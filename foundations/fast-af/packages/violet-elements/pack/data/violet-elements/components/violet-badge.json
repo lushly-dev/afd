@@ -136,13 +136,8 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--_surface-subtle)",
+				"default": "color-mix(in srgb, var(--_text-primary) 8%, transparent)",
 				"name": "--_badge-bg"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--_border-subtle)",
-				"name": "--_badge-border"
 			},
 			{
 				"basis": "declared",

@@ -34,8 +34,9 @@ const styles = css`
         padding-inline: var(--_space-xs, 4px);
         border-radius: var(--_radius-sm);
         background: var(--_surface-subtle, rgba(28, 26, 13, 0.04));
-        font-size: calc(var(--_citation-font-size) * 0.85);
-        font-weight: 600;
+        font-size: var(--_citation-font-size);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
         color: var(--_text-secondary, #414651);
     }
 

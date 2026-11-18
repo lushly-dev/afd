@@ -38,12 +38,68 @@ export type IdentityV1 =
 	| { mode: 'local'; organization?: undefined }
 	| { mode: 'provider'; organization: string; path: string; methods: IdentityMethodV1[] };
 
+/** A copilot provider as the projection names it: never a key or an endpoint (phase 5 specification, 4.1). */
+export interface CopilotProjectionProviderV1 {
+	id: string;
+	kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test';
+	model: string;
+}
+
+/** Version 4's `copilot`: the providers and the one a new session takes (phase 5 specification, 4.1). */
+export interface CopilotProjectionV1 {
+	default: string;
+	providers: CopilotProjectionProviderV1[];
+}
+
 export interface BootProjectionV2 {
 	generation: string;
 	workspace: { id: string; name: string };
 	apps: BootAppV2[];
 	/** Version 3's `identity`; `readBoot` always sets it, `local` for a version 2 projection or none (2.2). */
 	identity?: IdentityV1;
+	/**
+	 * Version 4's `copilot`, when it is exactly what `projection.v4.json` admits, and the sandbox origin its frame
+	 * loads from (phase 5 specification, 3.2 and 4.1). Anything else reads as no copilot: the panel stays off.
+	 */
+	copilot?: { projection: CopilotProjectionV1; sandboxOrigin: string };
+}
+
+const PROVIDER_ID = /^[a-z][a-z0-9-]{0,31}$/;
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,127}$/;
+const PROVIDER_KINDS: ReadonlyArray<string> = ['anthropic', 'openai', 'openai-compatible', 'test'];
+/** A sandbox origin, as the projection's pattern has it, or the desktop's scheme (phase 6 specification, 10.2). */
+const SANDBOX_ORIGIN = /^(https?:\/\/[^/?#\s]+|loam-sandbox:\/\/localhost)$/;
+
+/**
+ * `value` when it is a copilot `projection.v4.json` admits, with its default naming one of its providers and no id
+ * repeated; otherwise undefined. Both stages read it with this, so a copilot stage A starts is one stage B accepts.
+ */
+export function copilotOf(value: unknown): CopilotProjectionV1 | undefined {
+	const table = recordOf(value);
+	if (!table) return undefined;
+	const { default: chosen, providers, ...rest } = table;
+	if (Object.keys(rest).length > 0 || !Array.isArray(providers)) return undefined;
+	if (providers.length === 0 || providers.length > 16) return undefined;
+	const read: CopilotProjectionProviderV1[] = [];
+	for (const entry of providers) {
+		const provider = recordOf(entry);
+		if (!provider) return undefined;
+		const { id, kind, model, ...extra } = provider;
+		if (
+			Object.keys(extra).length > 0 ||
+			typeof id !== 'string' ||
+			!PROVIDER_ID.test(id) ||
+			typeof kind !== 'string' ||
+			!PROVIDER_KINDS.includes(kind) ||
+			typeof model !== 'string' ||
+			!MODEL_ID.test(model) ||
+			read.some((seen) => seen.id === id)
+		)
+			return undefined;
+		read.push({ id, kind: kind as CopilotProjectionProviderV1['kind'], model });
+	}
+	if (typeof chosen !== 'string' || !read.some(({ id }) => id === chosen)) return undefined;
+	return { default: chosen, providers: read };
 }
 
 /** An instance id or app id, as the projection's schema has it. */
@@ -130,7 +186,7 @@ const bootIdentity = (value: unknown): IdentityV1 =>
 
 /**
  * Undefined when `raw` is not a version 2, 3 or 4 projection at all. A version 4 projection's `host` is stage B's
- * (phase 6 specification, 14), so nothing here reads it. Each field is checked as it is read, as
+ * (phase 6 specification, 14), so nothing here reads it; its `copilot` is read whole or not at all (`copilotOf`). Each field is checked as it is read, as
  * `unavailableApps` did: a display field out of shape takes its default, after the entry's own `title`
  * and `order` where it has them, and the entry stays listed,
  * since stage B will refuse it with its reason. An entry whose `instance` or `app` fails its pattern,
@@ -162,10 +218,15 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 		seen.add(app.instance);
 		apps.push(app);
 	}
+	const copilot = version === 4 ? copilotOf(projection.copilot) : undefined;
+	const sandboxOrigin = projection.sandbox_origin;
 	return {
 		generation: typeof projection.generation === 'string' ? projection.generation : '',
 		workspace: { id, name: text(workspace?.name, 80) ?? id },
 		apps,
 		identity,
+		...(copilot && typeof sandboxOrigin === 'string' && SANDBOX_ORIGIN.test(sandboxOrigin)
+			? { copilot: { projection: copilot, sandboxOrigin } }
+			: {}),
 	};
 }

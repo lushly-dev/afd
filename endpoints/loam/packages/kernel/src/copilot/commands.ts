@@ -171,6 +171,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const running = new Map<string, Running>();
 	/** Sessions whose turn is being created: the second message of a pair is `COPILOT_TURN_RUNNING`. */
 	const starting = new Set<string>();
+	/** Moved by every change of person: a turn whose start began before one never launches (step 2's trust review). */
+	let epoch = 0;
 
 	const fail = (
 		code: Parameters<CopilotDeps['kit']['kernelFailure']>[0],
@@ -451,6 +453,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			}
 			// Held from here until the turn is running, so a second message cannot start one beside it.
 			starting.add(session.id);
+			const startedAt = epoch;
 			let previous: CopilotTurnV1[];
 			try {
 				previous = await turnsOf(session.id);
@@ -487,6 +490,11 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				resolve,
 			};
 			running.set(session.id, live);
+			// The person changed while the turn's record was written: it ends as the change of person, unlaunched.
+			if (epoch !== startedAt || deps.person() !== session.person) {
+				await finish(session.id, seq, { state: 'stopped', stoppedBy: 'session-changed' });
+				return kit.success({ turn: copy(live.turn) });
+			}
 			// 4.4's seconds: a turn that runs past them stops with `stoppedBy: 'limit'`.
 			live.timer = setTimeout(
 				() => void finish(session.id, seq, { state: 'stopped', stoppedBy: 'limit' }),
@@ -856,6 +864,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		contextFields,
 		gate,
 		async stopAll(stoppedBy) {
+			if (stoppedBy === 'session-changed') epoch += 1;
 			await Promise.all(
 				[...running.values()].map((live) =>
 					finish(live.session.id, live.turn.seq, { state: 'stopped', stoppedBy })

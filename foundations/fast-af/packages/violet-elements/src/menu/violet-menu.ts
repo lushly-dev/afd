@@ -18,12 +18,15 @@ const styles = css`
         --_panel-min-inline: var(--violet-menu-min-inline-size, 180px);
         --_panel-max-inline: var(--violet-menu-max-inline-size, 320px);
         --_panel-max-block: var(--violet-menu-max-height, 360px);
-        --_panel-padding: var(--violet-menu-padding, var(--_space-sm));
-        --_panel-radius: var(--violet-menu-radius, calc(var(--_radius-md) * 2));
-        --_panel-gap: var(--violet-menu-gap, var(--_space-sm));
-        --_panel-background: var(--violet-menu-background, var(--_surface-card));
+        --_panel-padding: var(--violet-menu-padding, var(--_space-inline-sm));
+        --_panel-radius: var(--violet-menu-radius, var(--radius-lg, 6px));
+        --_panel-gap: var(--violet-menu-gap, var(--_space-inline-sm));
+        --_panel-background: var(--violet-menu-background, var(--color-surface-floating, #f0efe6));
+        /* The action block has no floating shadow: a menu is the one action component with a panel. */
+        --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         --_panel-shadow: var(--violet-menu-shadow, var(--_shadow-floating));
-        --_panel-border-color: var(--violet-menu-border-color, var(--_border-subtle));
+        /* The panel floats on its surface and shadow. The edge is kept, clear, for forced colours. */
+        --_panel-border-color: var(--violet-menu-border-color, transparent);
     }
 
     .panel {
@@ -44,7 +47,7 @@ const styles = css`
         color: inherit;
         font-family: inherit;
         font-size: var(--_control-type-size);
-        line-height: var(--_type-body-line, 20px);
+        line-height: var(--_type-body-line);
         z-index: var(--_layer-popover);
     }
 
@@ -55,9 +58,8 @@ const styles = css`
     /* Separator styling for slotted <hr> elements */
     ::slotted(hr) {
         border: none;
-        block-size: thin;
-        margin-block: var(--_space-sm);
-        margin-inline: calc(var(--_space-sm) * 2);
+        block-size: 1px;
+        margin: var(--_space-inline-sm);
         background: var(--_border-subtle);
     }
 

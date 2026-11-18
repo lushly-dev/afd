@@ -40,6 +40,8 @@ from typing import (
 )
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+from afd.core.handoff import _DEFAULT_RECONNECT_POLICY
+
 logger = logging.getLogger("afd.handoff")
 
 DEFAULT_OPEN_TIMEOUT_S = 10.0
@@ -305,8 +307,8 @@ class ReconnectionOptions:
     reconnect_command: str | None = None
     reconnect_args: dict[str, Any] | None = None
     session_id: str | None = None
-    max_attempts: int = 5
-    backoff_ms: int = 1000
+    max_attempts: int | None = None
+    backoff_ms: int | None = None
     max_backoff_ms: int = 30000
     on_connect: Callable[[Any], None] | None = None
     on_message: Callable[[Any], None] | None = None
@@ -355,19 +357,23 @@ class ReconnectingHandoffConnection:
 
         # Resolve reconnection defaults from handoff metadata (TS parity)
         metadata_reconnect = _field(handoff.get("metadata"), "reconnect", "reconnect") or {}
+        metadata_attempts = _field(metadata_reconnect, "maxAttempts", "max_attempts")
+        metadata_backoff = _field(metadata_reconnect, "backoffMs", "backoff_ms")
         resolved = ReconnectionOptions(
             reconnect_command=options.reconnect_command,
             reconnect_args=options.reconnect_args,
             session_id=options.session_id,
             max_attempts=(
                 options.max_attempts
-                if options.max_attempts != 5
-                else _field(metadata_reconnect, "maxAttempts", "max_attempts", 5)
+                if options.max_attempts is not None
+                else metadata_attempts if metadata_attempts is not None
+                else _DEFAULT_RECONNECT_POLICY["maxAttempts"]
             ),
             backoff_ms=(
                 options.backoff_ms
-                if options.backoff_ms != 1000
-                else _field(metadata_reconnect, "backoffMs", "backoff_ms", 1000)
+                if options.backoff_ms is not None
+                else metadata_backoff if metadata_backoff is not None
+                else _DEFAULT_RECONNECT_POLICY["backoffMs"]
             ),
             max_backoff_ms=options.max_backoff_ms,
             on_connect=options.on_connect,

@@ -1,5 +1,5 @@
 {
-	"contractVersion": 1,
+	"contractVersion": 2,
 	"package": "@lushly-dev/violet-elements",
 	"description": "Every custom property the violet-elements components read, by token id, with its type. A product theme set supplies a value for each, in its default preset; reserved ids are part of the interface that no component reads yet. contractVersion changes whenever an id is added, removed, renamed or retyped.",
 	"tokens": {
@@ -75,8 +75,20 @@
 			"property": "--color-control-selected-foreground",
 			"type": "color"
 		},
+		"color.field.background": {
+			"property": "--color-field-background",
+			"type": "color"
+		},
+		"color.field.background.readonly": {
+			"property": "--color-field-background-readonly",
+			"type": "color"
+		},
 		"color.field.border": {
 			"property": "--color-field-border",
+			"type": "color"
+		},
+		"color.field.border.focus": {
+			"property": "--color-field-border-focus",
 			"type": "color"
 		},
 		"color.field.border.hover": {
@@ -85,6 +97,14 @@
 		},
 		"color.field.border.invalid": {
 			"property": "--color-field-border-invalid",
+			"type": "color"
+		},
+		"color.field.placeholder": {
+			"property": "--color-field-placeholder",
+			"type": "color"
+		},
+		"color.field.text": {
+			"property": "--color-field-text",
 			"type": "color"
 		},
 		"color.focus.ring": {
@@ -191,10 +211,13 @@
 			"property": "--font-family-body",
 			"type": "fontFamily"
 		},
+		"font.family.heading": {
+			"property": "--font-family-heading",
+			"type": "fontFamily"
+		},
 		"font.family.mono": {
 			"property": "--font-family-mono",
-			"type": "fontFamily",
-			"reserved": true
+			"type": "fontFamily"
 		},
 		"radius.lg": {
 			"property": "--radius-lg",
@@ -222,6 +245,10 @@
 		},
 		"shadow.floating": {
 			"property": "--shadow-floating",
+			"type": "shadow"
+		},
+		"shadow.well": {
+			"property": "--shadow-well",
 			"type": "shadow"
 		},
 		"size.focus-ring.width": {

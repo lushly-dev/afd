@@ -1,4 +1,5 @@
-//! Declares Loam's three commands, the only ones the capability file can grant (phase 6 specification, 10.2).
+//! Declares Loam's five commands, the only ones the capability file can grant (phase 6 specification, 10.2, as
+//! phase 5's step 2 amends it with `model_send` and `model_cancel`).
 //! The bundled empty shell is `../dist`, written by `pnpm build:site`; without it, a page that says so stands
 //! in, so `cargo test` and `cargo clippy` need no web build.
 use std::path::Path;
@@ -25,7 +26,13 @@ fn main() {
         );
     }
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
-        tauri_build::AppManifest::new().commands(&["mount_open", "mount_send", "mount_close"]),
+        tauri_build::AppManifest::new().commands(&[
+            "mount_open",
+            "mount_send",
+            "mount_close",
+            "model_send",
+            "model_cancel",
+        ]),
     ))
     .expect("desktop build metadata");
 }

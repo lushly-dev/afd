@@ -70,16 +70,18 @@ enum class ConfirmationMode {
     require_human
 };
 
-/// How `tools/list` presents the commands (spec/tool-strategies.md, "Tool lists"), as in
-/// TypeScript and Rust. Every strategy routes every meta-tool and every exposed command by its own
+/// How `tools/list` presents the commands (spec/tool-strategies.md, "Tool lists"). Every strategy
+/// lists the five meta-tools first: `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`,
+/// `afd-pipe` (#533). Every strategy routes every meta-tool and every exposed command by its own
 /// name, so a call never depends on which tools were listed.
 enum class ToolStrategy {
-    /// `afd-batch`, `afd-pipe`, `afd-call`, then one tool per command.
+    /// Then one tool per command.
     individual,
-    /// `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`, then one tool per group of commands,
-    /// taking `{ action, params }`, in the order of each group's first command (the default).
+    /// Then one tool per group of commands, taking `{ action, params }`, in the order of each
+    /// group's first command (the default).
     grouped,
-    /// Only the meta-tools: `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`.
+    /// Then the context tools when contexts are configured, and nothing else; the same in every
+    /// context.
     lazy
 };
 
@@ -126,8 +128,8 @@ struct StdioServerOptions {
     /// missing. Empty (the default): no contexts.
     std::vector<ContextConfig> contexts;
     /// The `ttlMs` of `tools/list` and `server/discover` on 2026-07-28. Default: 300000, or 0
-    /// with contexts, since the list varies by `_meta["dev.afd/context"]`, which clients leave
-    /// out of their cache key.
+    /// with contexts under `individual` or `grouped`, whose list varies by
+    /// `_meta["dev.afd/context"]`, which clients leave out of their cache key.
     std::optional<std::int64_t> tools_list_ttl_ms;
     /// Advertise the CommandResult envelope (`command_result_output_schema`) as the top-level
     /// `outputSchema` of each tool whose command has an `output_schema`. Clients validate

@@ -5,6 +5,29 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Cells start only on a Claude plan, 2026-11-18
+
+AFD's model routing of 2026-11-17 puts every cell on Opus 5.5 `medium` and spends the ChatGPT
+allowance on review, but the lane chose among every plan, so a roomier ChatGPT plan won and the
+fleet could not start cells ([#1498](https://github.com/lushly-dev/afd/issues/1498)). The
+`cells.claudeOnly` dial, on by default, limits `cell-register`, `lane-status` and `plan-list`'s
+`next` to Claude's plans. With none signed in, `cell-register` refuses `NO_CLAUDE_PLAN`,
+`lane-status` gives `canStartCell: false` with that reason, and `plan-list` lists the plans with
+`next: null`. An empty plan list is `PLANS_UNREADABLE` from every reader. Claude's
+`seven_day_fable` window is no longer read as a plan, since only Fable draws on it. The scenario
+fixtures' two plans are now both Claude's, one per Mac. Not yet seen in a fleet run.
+
+## Squash merges credit no co-author, 2026-11-18
+
+[#1515](https://github.com/lushly-dev/afd/issues/1515): about half of the recent squashes on `main`
+carried a `Co-authored-by:` line, many for `botcore-factory`, the identity a cell's base merges are
+committed under. GitHub's default squash message adds one for every commit author whose address
+isn't the merging account's. Every squash the plugin makes now passes the branch's own messages as
+the body: the lane's `gh pr merge`, and the gateway's merge and pinned auto-merge. Merge commits and
+`Co-authored-by:` lines are left out, and each commit keeps its `Assisted-by:` trailer
+(`botcore_factory/squash.py`). Fixed by hand, since it changes how the lane merges. It hasn't been
+seen in a fleet run yet. A session's own merges follow `prepare-pr` step 9 (#1517).
+
 ## A cell can take a package of related issues, 2026-11-18
 
 `cell-register` takes more than one issue when the foreman names the package: up to
@@ -13,6 +36,24 @@ its `cell-registered` record keep that reason as `relatedBecause`, and `lane-sta
 claim write that fails partway now puts back the claims it wrote. Before this, any second issue
 was refused as unrelated whatever the dial said, because `issue-check` never computes `related`;
 it still does not, and suggesting packages from it is later work (lushly-dev/afd#1431).
+
+## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
+
+The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by
+[#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions, in
+[#1502](https://github.com/lushly-dev/afd/pull/1502). Not yet seen in a fleet run.
+
+- **`lane-start` checks the Node validation uses.** `TOOLCHAIN_MISMATCH` read `engines.node` and
+  `pnpm` from the host's default `PATH`. It now resolves the `.nvmrc` Node as validation does and
+  reads both with that Node's bin directory first on `PATH`, so `pnpm` is the one beside that Node
+  when there is one, else the host's. `lane-host-probe` names a missing `.nvmrc` Node in `missing`.
+- **nvm-windows is searched** (`NVM_HOME`, the directory `NVM_SYMLINK` points into, and
+  `%APPDATA%\nvm`, each version in `v<version>\`), after the fnm and nvm roots.
+- **A branch's own `.nvmrc` bump ejects only that branch.** When the merged slot's `.nvmrc` names a
+  Node the host lacks (or an alias) and the branch changed `.nvmrc` against the base, it is ejected
+  as `node-missing` (counted; its detail starts `NODE_MISSING`: keep the base's `.nvmrc`, or have the
+  owner install that Node on the lane host). The base's own `.nvmrc` missing its Node still pauses
+  the lane, as do coverage runs. The run-fleet runbook says how the foreman answers it.
 
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 

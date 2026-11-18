@@ -21,7 +21,7 @@
     },
     {
       "id": "text-area.error",
-      "text": "There is no error-text attribute and no error message is rendered: invalid only turns the border red and sets aria-invalid. Put the error wording in supporting-text while invalid.",
+      "text": "There is no error-text attribute and no error message is rendered: invalid sets aria-invalid and turns the border and the supporting text the danger colour. Put the error wording in supporting-text while invalid.",
       "members": [
         "invalid",
         "supporting-text"

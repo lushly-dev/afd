@@ -19,14 +19,14 @@ A hand-rolled registry that calls `command.handler(input)` skips all of that: `{
 
 Flags a command leaves out fall back to `defaultExpose` (`palette` and `agent` on), so `expose: { mcp: true }` stays callable by in-app agents. Use `expose: { agent: false }` for commands the AI must not run.
 
-`@lushly-dev/afd-client` has no browser entry for `DirectClient` yet ([#655](https://github.com/lushly-dev/afd/issues/655)); its root also loads `McpClient`, the deprecated transports and `eventsource`.
+Import `DirectClient` and its helpers and types from `@lushly-dev/afd-client/direct` in a browser, worker or webview. This entry loads no MCP client, `eventsource` or Node built-in.
 
 ## Calling
 
 ```typescript
 import { isSuccess } from '@lushly-dev/afd-core';
-import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
-import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client/direct';
+import { createDirectRegistry } from '@lushly-dev/afd-server/direct';
 
 const registry = createDirectRegistry(commands, { middleware });
 const client = createDirectClient(registry, {

@@ -39,7 +39,7 @@ Run `triage-issues` first, then take work in `issue-check`'s `dispatchable` orde
 2. `delegate_task` on that plan with `isolation: "worktree"` and [the cell brief](references/runbook.md#the-cell-brief).
 3. `cell-attach {"branch": "<branch>", "thread": "<childThreadId>"}`.
 
-Take the route from [model routing](../../../docs/operations/model-routing.md). A cell runs wholly on its plan's provider; only you cross providers.
+Take the route from [model routing](../../../docs/operations/model-routing.md): a cell implements on Opus 5.5 `medium`, so it runs only on a Claude plan. The lane assigns only Claude plans while `cells.claudeOnly` is on, as it is by default. A cell runs wholly on its plan's provider, except that its first review adds a second reviewer on the other provider as `prepare-pr` says.
 
 ## Wake only for judgment
 

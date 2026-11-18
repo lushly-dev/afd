@@ -9,6 +9,7 @@ import {
 	appCheckCommand,
 	appNewCommand,
 	appPackCommand,
+	copilotKeySetCommand,
 	deploymentCheckCommand,
 	deploymentWriteCommand,
 } from './commands.js';
@@ -54,15 +55,23 @@ const SUBCOMMANDS: Record<string, Subcommand> = {
 	'deployment write': {
 		command: deploymentWriteCommand,
 		usage:
-			'loam deployment write --config <file> --dist <dir> --out <dir> [--mounts-out <path>] [--host static|hosted|desktop]',
+			'loam deployment write --config <file> --dist <dir> --out <dir> [--mounts-out <path>] [--models-out <path>] [--host static|hosted|desktop]',
 		options: {
 			config: 'config',
 			dist: 'dist',
 			out: 'out',
 			'mounts-out': 'mountsOut',
+			'models-out': 'modelsOut',
 			host: 'host',
 		},
 		positionals: [],
+	},
+	// Phase 5 specification, 4.2: at a terminal, the development path for a model's key.
+	'copilot key set': {
+		command: copilotKeySetCommand,
+		usage: 'loam copilot key set <provider> [--config <loam.deployment.toml>]',
+		options: { config: 'config' },
+		positionals: ['provider'],
 	},
 };
 
@@ -104,8 +113,11 @@ function inputOf(subcommand: Subcommand, args: string[]): Record<string, string>
 }
 
 async function run(args: string[]): Promise<CommandResult<unknown>> {
-	const [domain, action, ...rest] = args;
-	const subcommand = SUBCOMMANDS[`${domain} ${action}`];
+	const [domain, action, ...after] = args;
+	// A three-word command, such as `copilot key set`, before a two-word one.
+	const three = SUBCOMMANDS[`${domain} ${action} ${after[0]}`];
+	const subcommand = three ?? SUBCOMMANDS[`${domain} ${action}`];
+	const rest = three ? after.slice(1) : after;
 	if (!subcommand)
 		return usageFailure(`Unknown command: ${[domain, action].filter(Boolean).join(' ')}`);
 	const input = inputOf(subcommand, rest);

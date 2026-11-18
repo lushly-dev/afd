@@ -71,6 +71,13 @@ const styles = css`
         letter-spacing: normal;
     }
 
+    /* Headings keep the display face. */
+    :host([variant="title-sm"]) .root,
+    :host([variant="title-md"]) .root {
+        font-family: var(--font-family-heading, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        letter-spacing: -0.01em;
+    }
+
     .root.truncate {
         display: block;
         overflow: hidden;

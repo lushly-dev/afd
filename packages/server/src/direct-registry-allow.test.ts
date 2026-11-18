@@ -359,29 +359,31 @@ describe('createDirectRegistry execute with the allow option', () => {
 		const names = (tools: McpTool[]) => tools.map((tool) => tool.name);
 
 		expect(names(registry.listTools())).toEqual([
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
 			'afd-batch',
 			'afd-pipe',
-			'afd-call',
 			'note-list',
 			'note-delete',
 			'note-purge',
 		]);
 		expect(names(registry.listTools({ allow }))).toEqual([
+			'afd-call',
 			'afd-batch',
 			'afd-pipe',
-			'afd-call',
 			'note-list',
 		]);
 		const grouped = registry.listTools({
 			strategy: 'grouped',
 			allow: allowing([...ALLOW, 'note']),
 		});
-		expect(names(grouped)).toEqual(['afd-batch', 'afd-pipe', 'afd-call', 'note']);
+		expect(names(grouped)).toEqual(['afd-call', 'afd-batch', 'afd-pipe', 'note']);
 		expect(JSON.stringify(grouped)).not.toContain('note-delete');
 		expect(names(registry.listTools({ strategy: 'grouped', allow }))).toEqual([
+			'afd-call',
 			'afd-batch',
 			'afd-pipe',
-			'afd-call',
 		]);
 	});
 

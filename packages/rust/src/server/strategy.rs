@@ -1,18 +1,18 @@
 //! Tool strategies: how `tools/list` presents the MCP-exposed commands.
 //!
-//! As in TypeScript (`toolStrategy`):
+//! As in TypeScript (`toolStrategy`), every strategy lists the five meta-tools first
+//! (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`; `spec/tool-strategies.md`,
+//! #533), then:
 //!
 //! - [`ToolStrategy::Grouped`] (the default): one tool per group (the command's `category`, or
-//!   the first segment of its name) taking `{ action, params }`, plus `afd-batch`, `afd-pipe`,
-//!   `afd-call` and `afd-detail`. Each grouped tool's `_meta.actions` lists every action's
-//!   command name, input schema and metadata; small groups also inline the schemas as `anyOf`
-//!   branches of `params`.
-//! - [`ToolStrategy::Individual`]: one tool per command, plus `afd-batch`, `afd-pipe` and
-//!   `afd-call`.
-//! - [`ToolStrategy::Lazy`]: only the meta-tools (`afd-discover`, `afd-detail`, `afd-batch`,
-//!   `afd-pipe`, `afd-call`); agents discover commands and run them through `afd-call`.
-//! - [`ToolStrategy::Hybrid`]: the lazy list, then the context tools when contexts are
-//!   configured, then up to [`MAX_FIRST_CLASS_TOOLS`] command tools named with
+//!   the first segment of its name) taking `{ action, params }`. Each grouped tool's
+//!   `_meta.actions` lists every action's command name, input schema and metadata; small groups
+//!   also inline the schemas as `anyOf` branches of `params`.
+//! - [`ToolStrategy::Individual`]: one tool per command.
+//! - [`ToolStrategy::Lazy`]: the context tools when contexts are configured, and nothing else;
+//!   agents discover commands and run them through `afd-call`. The list never varies by context.
+//! - [`ToolStrategy::Hybrid`]: the context tools when contexts are configured, then up to
+//!   [`MAX_FIRST_CLASS_TOOLS`] command tools named with
 //!   [`McpServer::with_first_class_tools`](super::McpServer::with_first_class_tools)
 //!   (`spec/tool-strategies.md`, H1 to H8). The list never varies by context.
 //!
@@ -337,11 +337,14 @@ pub(crate) fn grouped_tools(listed: &[Listed], group_by: Option<&GroupBy>) -> Ve
         .collect()
 }
 
-/// `afd-batch`, `afd-pipe` and `afd-call`: listed by every strategy.
+/// The five meta-tools, in the order every strategy lists them first (`spec/tool-strategies.md`,
+/// #533): `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`.
 pub(crate) fn built_in_tools() -> Vec<Value> {
     vec![
+        meta_tools::discover_tool(),
+        meta_tools::detail_tool(),
+        meta_tools::call_tool(),
         meta_tools::batch_tool(),
         meta_tools::pipe_tool(),
-        meta_tools::call_tool(),
     ]
 }

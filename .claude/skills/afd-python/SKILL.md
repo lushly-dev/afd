@@ -52,7 +52,7 @@ async def create_doc(input: DraftInput) -> CommandResult[DraftOutput]:
 - **`examples`** are validated against the input schema at decoration time.
 - **`requires`** is planning metadata, never enforced. **`category`** names the grouped tool; without it the group is the name's first kebab segment.
 - **Names.** A name that isn't `domain-action` kebab-case still registers, with a `UserWarning` (as in TypeScript). `register` raises `ValueError` for `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail`. A command named `afd-help`, `afd-docs` or `afd-schema` silently shadows the bootstrap tool.
-- **`@server.command` has no `handoff` or `handoff_protocol`.** For a handoff command, decorate with `define_command(...)` from `afd.server` and call `server.register(fn)`. Neither decorator takes `errors` or `execution_time`.
+- **Planning metadata.** Both decorators accept `errors` and `execution_time` (`instant`, `fast`, `slow`, `long-running`), plus `handoff` and `handoff_protocol`; handoff tags are added automatically.
 - **The handler gets `context`** when it declares a parameter named `context` or takes two or more parameters. Calling the decorated function directly validates its input but runs no middleware, exposure check or metadata stamping.
 
 ## Context: actor, clock, random, journal
@@ -86,11 +86,10 @@ Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 
 ## Tool strategies
 
-`tool_strategy` is `"individual"` (Python's default; TypeScript and Rust default to `grouped`), `"grouped"`, `"lazy"` or `"hybrid"` ([spec/tool-strategies.md](../../../spec/tool-strategies.md)). Python's lists differ from TypeScript's:
+`tool_strategy` is `"grouped"` (the default, as in every language), `"individual"`, `"lazy"` or `"hybrid"` ([spec/tool-strategies.md](../../../spec/tool-strategies.md)). The lists are TypeScript's:
 
-- **Individual, grouped and lazy** list all five meta-tools first (`afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`), plus `afd-help`, `afd-docs` and `afd-schema` as tools.
-- **With `contexts`,** they also list `afd-context-list`, `afd-context-enter` and `afd-context-exit`. Lazy filters these bootstrap-category tools by the active context.
-- **Grouped** sorts groups and actions by name and has no `_meta.actions`.
+- **Every strategy** lists the five meta-tools first (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), as every language does (#533). `grouped` is the default: one tool per group with `_meta.actions`, the bootstrap and context commands in the `bootstrap` group; `lazy` adds only the context tools. A command any strategy leaves unlisted is still callable by its own name, with its confirmation and approval rounds.
+- **With `contexts`,** the context tools are registered before `afd-help`, `afd-docs` and `afd-schema`, so the `bootstrap` group lists them first; lazy and hybrid list them in every context.
 - **Out-of-context calls.** A context-scoped command is hidden from discovery outside its context and returns `COMMAND_NOT_IN_CONTEXT` when called.
 
 Hybrid lists a few hot-path commands as their own tools and runs everything else through `afd-call`:
@@ -145,6 +144,7 @@ Two vector suites hold Python to these rules: `tests/test_pipeline_vectors.py` a
 `DirectClient(registry)` runs commands in process with `call`, `list_commands`, `has_command` and `pipe(steps, input=...)`. `pipe` uses the same variables as `afd-pipe`.
 
 - **For agent-facing calls,** build the registry with `create_direct_registry(commands, middleware=[...])`. It is exposure-checked on the `agent` interface and validates through the server engine.
+- **Client policy.** `DirectClientOptions(allow=..., middleware=[...])` (also keywords on `create_direct_client`) filters discovery and calls; only explicit `True` permits a name. The opaque policy follows nested calls that forward their context and cannot be widened by another registry call. Client middleware wraps each attempt outside registry middleware, within the deadline; approval retries get a fresh actor and observers see no approval tokens.
 - **Approvals.** Approve through trusted `DirectClientOptions(on_approval_needed=...)`. Only an explicit `True` permits one private retry, and a caller's `approval` on `DirectCallContext` is ignored. Held results, observers and journals stay token-free.
 - **Deadlines.** `DirectCallContext(timeout=ms)` sets one deadline that includes the decision wait.
 - **`server.execute`** remains the trusted host API for out-of-band tokens.
@@ -153,6 +153,7 @@ Two vector suites hold Python to these rules: `tests/test_pipeline_vectors.py` a
 
 - **Built-in handlers.** Call `register_builtin_handlers()` for WebSocket and SSE, then `connect_handoff(result.data, HandoffConnectionOptions(...))`. Guard with `afd.core.handoff.is_handoff`.
 - **Credentials** go in an `Authorization: Bearer` header, never in the URL. `create_handoff()` returns camelCase keys (`sessionId`, `expiresAt`, `maxAttempts`, `backoffMs`).
+- **Reconnect defaults.** `create_handoff()` includes allowed/3 attempts/1000 ms when no policy is supplied. The client inherits metadata or that shared fallback; explicit `ReconnectionOptions.max_attempts` and `backoff_ms` win, including zero. `None` means inherit.
 - **Reconnects.** A reconnect (`create_reconnecting_handoff`, `ReconnectionOptions`) calls `reconnect_command` with `reconnect_args` plus `sessionId`. Declare the reconnect command's parameter as `sessionId`, as in TypeScript.
 - **Install** with `pip install afd[client]`.
 

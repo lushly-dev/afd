@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from botcore_factory.claims import parse_time
-from botcore_factory.real_run import Run, make_runner, resolve_program, run_process
+from botcore_factory.real_run import Run, make_runner, path_env, resolve_program, run_process
 from botcore_factory.world import Completed, Plan, WorldError, nvmrc_version
 
 GIB = 1024**3
@@ -69,11 +69,18 @@ class LocalMachine:
                 return False
         return True
 
-    def tool_version(self, tool: str) -> str | None:
-        if not self.has_program(tool):
+    def tool_version(self, tool: str, path: Sequence[str] = ()) -> str | None:
+        env = path_env(path)
+        if shutil.which(tool, path=env["PATH"] if env else None) is None:
             return None
         try:
-            out = self.run([tool, "--version"]).strip()
+            if env is None:
+                out = self.run([tool, "--version"]).strip()
+            else:  # Found and run on the PATH a job step gets, ``path`` first.
+                done = run_process([tool, "--version"], env=env)
+                if done.returncode != 0:
+                    return None
+                out = done.stdout.strip()
         except WorldError:
             return None
         match = _VERSION.search(out)
@@ -99,7 +106,8 @@ class LocalMachine:
 
 
 def node_roots(environ, home: Path) -> list[Path]:
-    """Where fnm and nvm keep the Node versions they installed, most specific first."""
+    """Where fnm, nvm and nvm-windows keep the Node versions they installed, most specific
+    first."""
     roots = []
     if environ.get("FNM_DIR"):
         roots.append(Path(environ["FNM_DIR"]) / "node-versions")
@@ -115,7 +123,23 @@ def node_roots(environ, home: Path) -> list[Path]:
     if environ.get("NVM_DIR"):
         roots.append(Path(environ["NVM_DIR"]) / "versions" / "node")
     roots.append(home / ".nvm" / "versions" / "node")
-    return roots
+    return roots + _nvm_windows_roots(environ)
+
+
+def _nvm_windows_roots(environ) -> list[Path]:
+    """nvm-windows keeps each version as ``<root>/v<version>``: ``NVM_HOME``, the directory
+    holding the version its ``NVM_SYMLINK`` points at, and its default under ``APPDATA``."""
+    roots = []
+    if environ.get("NVM_HOME"):
+        roots.append(Path(environ["NVM_HOME"]))
+    if environ.get("NVM_SYMLINK"):
+        with contextlib.suppress(OSError, RuntimeError):
+            link = Path(environ["NVM_SYMLINK"])
+            os.readlink(link)  # A symlink or a junction; anything else raises OSError.
+            roots.append(link.resolve().parent)
+    if environ.get("APPDATA"):
+        roots.append(Path(environ["APPDATA"]) / "nvm")
+    return list(dict.fromkeys(roots))  # The symlink usually points into NVM_HOME: once each.
 
 
 def find_node_bin(spec: str, roots: Sequence[Path]) -> str | None:
@@ -136,11 +160,13 @@ def find_node_bin(spec: str, roots: Sequence[Path]) -> str | None:
                 version = tuple(int(part) for part in match.groups())
                 if version[: len(prefix)] != prefix:
                     continue
-                # fnm: <version>/installation/bin (Windows: installation/); nvm: <version>/bin.
+                # fnm: <version>/installation/bin (Windows: installation/); nvm: <version>/bin;
+                # nvm-windows: <version>/ itself.
                 for candidate in (
                     entry / "installation" / "bin",
                     entry / "installation",
                     entry / "bin",
+                    entry,
                 ):
                     if (candidate / executable).is_file():
                         found.append((version, -rank, str(candidate)))
@@ -208,6 +234,10 @@ class T3Plans:
                 continue  # One unreadable provider cache does not hide the others.
             for window in usage.get("windows") or []:
                 if window.get("kind") != "weekly" or not window.get("resetsAt"):
+                    continue
+                # Claude's Fable window is a limit only Fable draws on, inside the plan's main
+                # weekly window; it is not a plan a cell starts on.
+                if str(window.get("id", "")).endswith("_fable"):
                     continue
                 length = float(window.get("windowDurationMins") or 10080) * 60
                 left = (parse_time(window["resetsAt"]) - now).total_seconds()

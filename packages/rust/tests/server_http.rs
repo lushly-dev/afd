@@ -147,10 +147,11 @@ async fn tools_list_shows_exposed_commands_with_cache_hints() {
     assert_eq!(
         names,
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
-            "afd-detail",
             "item",
             "context"
         ]

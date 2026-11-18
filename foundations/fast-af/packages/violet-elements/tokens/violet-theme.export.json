@@ -220,6 +220,10 @@
 				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
 			},
 			{
+				"id": "font.family.heading",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
 				"id": "font.family.mono",
 				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
 			},
@@ -250,6 +254,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08)"
+			},
+			{
+				"id": "shadow.well",
+				"value": "inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)"
 			},
 			{
 				"id": "size.focus-ring.width",
@@ -682,6 +690,10 @@
 				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
 			},
 			{
+				"id": "font.family.heading",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
 				"id": "font.family.mono",
 				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
 			},
@@ -712,6 +724,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 8px 18px rgba(0, 0, 0, 0.34), 0 24px 48px rgba(0, 0, 0, 0.28)"
+			},
+			{
+				"id": "shadow.well",
+				"value": "inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)"
 			},
 			{
 				"id": "size.focus-ring.width",
@@ -1144,6 +1160,10 @@
 				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
 			},
 			{
+				"id": "font.family.heading",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
 				"id": "font.family.mono",
 				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
 			},
@@ -1174,6 +1194,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 0 0 2px #000000"
+			},
+			{
+				"id": "shadow.well",
+				"value": "inset 0 0 0 0 #000000"
 			},
 			{
 				"id": "size.focus-ring.width",

@@ -12,9 +12,9 @@ const styles = css`
 
     :host {
         display: inline-flex;
-        --_badge-bg: var(--_surface-subtle);
+        /* The tone is the fill and the words. A neutral badge is a wash of the text colour. */
+        --_badge-bg: color-mix(in srgb, var(--_text-primary) 8%, transparent);
         --_badge-text: var(--_text-secondary);
-        --_badge-border: var(--_border-subtle);
         --_badge-padding-inline: var(--_space-md);
         --_badge-min-block: 1.25rem;
         --_badge-font-size: var(--_caption-size);
@@ -41,25 +41,21 @@ const styles = css`
     :host([color="accent"]) {
         --_badge-bg: var(--color-control-selected-background, #DDEADF);
         --_badge-text: var(--color-control-selected-foreground, #244635);
-        --_badge-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
     }
 
     :host([color="success"]) {
         --_badge-bg: var(--color-state-success-background, #E3F1E7);
         --_badge-text: var(--color-state-success-text, #166534);
-        --_badge-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
     }
 
     :host([color="warning"]) {
         --_badge-bg: var(--color-state-warning-background, #FDEBCC);
         --_badge-text: var(--color-state-warning-text, #92400E);
-        --_badge-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
     }
 
     :host([color="danger"]) {
         --_badge-bg: var(--color-state-danger-background, #FBE2E2);
         --_badge-text: var(--color-state-danger-text, #B42318);
-        --_badge-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
     }
 
     .badge {
@@ -71,8 +67,8 @@ const styles = css`
         min-block-size: var(--_badge-min-block);
         min-inline-size: var(--_badge-min-block);
         padding-inline: var(--_badge-padding-inline);
-        border: 1px solid var(--_badge-border);
-        border-radius: var(--_radius-round);
+        border: 1px solid transparent;
+        border-radius: calc(var(--_radius-md) - 2px);
         background: var(--_badge-bg);
         color: var(--_badge-text);
         font-size: var(--_badge-font-size);
@@ -81,13 +77,14 @@ const styles = css`
         white-space: nowrap;
     }
 
+    /* An outline badge is the one place the outline is the point. */
     :host([appearance="outline"]) .badge {
-        background: var(--_surface-page);
+        background: transparent;
+        border-color: color-mix(in srgb, currentColor 45%, transparent);
     }
 
     :host([appearance="subtle"]) .badge {
-        background: color-mix(in srgb, var(--_badge-bg) 45%, var(--_surface-page));
-        border-color: color-mix(in srgb, var(--_badge-border) 70%, transparent);
+        background: color-mix(in srgb, var(--_badge-bg) 65%, transparent);
     }
 
     .content {

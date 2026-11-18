@@ -132,6 +132,11 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--size-font-sm, 12px)",
+				"name": "--_size-font-sm"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--color-surface-card, #faf9f5)",
 				"name": "--_surface-card"
 			},

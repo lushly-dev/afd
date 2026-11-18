@@ -117,7 +117,7 @@ export interface ModernMcpDeps {
 	contextFields?: readonly ContextField[];
 	/**
 	 * Freshness hint for `tools/list` and `server/discover` (default: 5 minutes; 0 with contexts,
-	 * except for the hybrid strategy, whose list does not vary by context).
+	 * except for the hybrid and lazy strategies, whose lists do not vary by context).
 	 */
 	toolsListTtlMs?: number;
 	/** The tool strategy; `hybrid` keeps the default hint under contexts. */
@@ -276,9 +276,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	const report = reporter(deps.onError);
 	const contextNames = new Set((deps.contexts ?? []).map((context) => context.name));
 	// With contexts, tools/list varies by `_meta["dev.afd/context"]`, which SDK clients leave
-	// out of their cache key, so the default is "always stale" there. The hybrid list does not
-	// vary by context (spec/tool-strategies.md, H6).
-	const listVariesByContext = Boolean(deps.contexts?.length) && deps.toolStrategy !== 'hybrid';
+	// out of their cache key, so the default is "always stale" there. The hybrid and lazy lists
+	// do not vary by context (spec/tool-strategies.md, H6 and "lazy").
+	const listVariesByContext =
+		Boolean(deps.contexts?.length) &&
+		deps.toolStrategy !== 'hybrid' &&
+		deps.toolStrategy !== 'lazy';
 	const ttlMs = deps.toolsListTtlMs ?? (listVariesByContext ? 0 : DEFAULT_TOOLS_LIST_TTL_MS);
 	if (!Number.isSafeInteger(ttlMs) || ttlMs < 0) {
 		throw new Error('toolsListTtlMs must be a non-negative integer');

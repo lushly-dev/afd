@@ -536,6 +536,7 @@ def test_a_node_the_host_lacks_pauses_the_lane_and_validates_nothing(lane):
     assert queue(lane)[0] == ("feat/export-csv", "queued")
     detail = lane.state()["lane"]["pauseReason"]
     assert "Node 26" in detail and "fnm install 26" in detail
+    assert not events(lane, "ejected")  # The base's own .nvmrc: no branch is to blame.
 
 
 def test_an_nvmrc_alias_pauses_the_lane_with_the_way_forward(lane):
@@ -543,6 +544,54 @@ def test_an_nvmrc_alias_pauses_the_lane_with_the_way_forward(lane):
     run_steps(lane)
     assert "validation-started" not in kinds(lane)
     assert "pin a version number" in lane.state()["lane"]["pauseReason"]
+
+
+# #1352: a branch that bumps .nvmrc to a Node the host lacks is ejected; the lane goes on.
+
+NODE_26 = "/fnm/v26.13.0/bin"
+
+
+def _bumps_nvmrc(lane, spec: str) -> None:
+    lane.change_world(
+        slotFiles={".nvmrc": "26\n"},
+        nodes={"26": NODE_26},
+        branchSlotFiles={"feat/export-csv": {".nvmrc": spec + "\n"}},
+        outcomes={"changed": {"feat/export-csv": [".nvmrc", "src/export.ts"]}},
+    )
+
+
+def test_a_branch_that_bumps_nvmrc_to_a_node_the_host_lacks_is_ejected(lane):
+    _bumps_nvmrc(lane, "27")
+    actions = run_steps(lane, **INSTALL)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    assert "validating fix/retry-backoff in slot 1" in actions  # The next branch takes the slot.
+    assert not lane.state()["lane"].get("paused")
+    ejected = events(lane, "ejected")[0]
+    assert ejected["reason"] == "node-missing" and not ejected.get("excused")
+    assert ejected["detail"].startswith("NODE_MISSING: the branch's .nvmrc names Node 27")
+    assert "keep the base's .nvmrc" in ejected["detail"] and "fnm install 27" in ejected["detail"]
+    [record] = [r for r in lane.store.read_records() if r["kind"] == "ejected"]
+    assert record["cause"] == "node-missing" and record["counted"] is True
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert [s["path"] for s in job["steps"]] == [[NODE_26]] * 2  # Main's Node for the next.
+    cell = next(c for c in lane.state()["cells"] if c["branch"] == "feat/export-csv")
+    assert cell["state"] == "ejected" and cell["lastEjection"]["cause"] == "node-missing"
+
+
+def test_a_branch_that_sets_an_nvmrc_alias_is_ejected_with_the_way_forward(lane):
+    _bumps_nvmrc(lane, "lts/*")
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    assert "pin a version number" in events(lane, "ejected")[0]["detail"]
+    assert not lane.state()["lane"].get("paused")
+
+
+def test_a_branch_whose_nvmrc_node_is_installed_validates_on_it(lane):
+    _bumps_nvmrc(lane, "27")
+    lane.change_world(nodes={"27": "/fnm/v27.0.0/bin"})
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert job["steps"][0]["path"] == ["/fnm/v27.0.0/bin"]
 
 
 # S6, S7, S8: never validated against a base it lacks, never merged unguarded or as a non-host.

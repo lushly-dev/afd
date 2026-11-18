@@ -39,7 +39,8 @@ const styles = css`
     :host([orientation="vertical"]) .group {
         flex-direction: column;
         align-items: stretch;
-        gap: var(--_space-stack-xs);
+        /* Each row carries its own inset, so rows stack without a gap. */
+        gap: 0;
     }
 
     .supporting {

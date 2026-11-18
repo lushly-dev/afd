@@ -96,13 +96,8 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--radius-round, 9999px)",
-				"name": "--_radius-full"
+				"default": "var(--radius-sm, 2px)",
+				"name": "--_radius-sm"
 			},
 			{
 				"basis": "declared",
@@ -146,27 +141,27 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-muted, #616775)",
-				"name": "--_thumb-resting"
-			},
-			{
-				"basis": "declared",
-				"default": "clamp(16px, calc(var(--_track-block-size) - 4px), 20px)",
+				"default": "calc(var(--_track-block-size) - (var(--_track-padding) * 2))",
 				"name": "--_thumb-size"
 			},
 			{
 				"basis": "declared",
-				"default": "clamp(20px, calc(var(--_target-size) - 10px), 24px)",
+				"default": "var(--_type-body-line)",
 				"name": "--_track-block-size"
 			},
 			{
 				"basis": "declared",
-				"default": "1px",
+				"default": "0px",
 				"name": "--_track-border-width"
 			},
 			{
 				"basis": "declared",
-				"default": "calc(var(--_track-block-size) * 2)",
+				"default": "0 0 0 0 transparent",
+				"name": "--_track-edge"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_track-block-size) * 1.8)",
 				"name": "--_track-inline-size"
 			},
 			{

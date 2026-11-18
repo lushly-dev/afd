@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "acfe09546c7678a3c09df2946630413eb7d95297198f22af70db2c43fea48ac1",
+      "current_import_sha256": "ef8be4e96306a206716f357cbab7363aa7561e69d385c50b8c8dd28b00891d0d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452); cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452); cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
     },
     {
       "path": "LICENSE",
@@ -747,11 +747,11 @@
       "path": "docs/operations/model-routing.md",
       "upstream_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
       "staged_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
-      "current_import_sha256": "97a9f197a0768fb403d89037d18a79f2277b410fa7eb21f83480e8dbb3da79fb",
+      "current_import_sha256": "dde935a5c2668caa13614f54b8f69a5b502d2cfedb1e36595ff8923c44f44665",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial"
+      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial; Model routing: Opus 5.5 default and two-model first review with GPT-6.2 Astra"
     },
     {
       "path": "packages/botcore-agents/LICENSE",
@@ -1302,10 +1302,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "60ac7e9aa63610f91d10b2d71292c58495875279ca5631d7193c5efe7e58bf80",
+      "current_import_sha256": "c646886756d122ad306669d6b933484aacfc314c60a1b235a5f4dbb535268944",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/commands.py",
@@ -1313,10 +1313,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6148ad24ccaf5b72fef579fb4b4853a9f6c33b916a79750d18347f2555c2d7ba",
+      "current_import_sha256": "8bdf806b042751f754941adfdf7a30cdf8553b13d271e3f2685e2cd20f5c1981",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/dials.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "6cdaa3be095893a2042d4afc0a9d3f6e197d26caa9629e22f9c492f0acc1f0cf",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/docs.py",
@@ -1324,10 +1335,43 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "76b27d611c472cf3f83d9ec0fe2d2790977742b5c2eb33d7cf55f70ddf2e2bc5",
+      "current_import_sha256": "684b6dbc3b1009274ae0ca3ff60a10d32129ce7d199c002bb2962e4c9cfc37d8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/fixture_parts.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "663017538244983bfd4ec2a63becc5b6c6ce96a0872cf52a8509df5c1436b7d8",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/fixture_world.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "966453f84f063ebd486adfc504050dc5ee8ac081335e4198cec7977c5b02d587",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/gateway/github_app.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "d96be08549fe94bf8e49a1dd10837c9ff3633bab28759233d19c50d0d2b69177",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/intake.py",
@@ -1341,15 +1385,103 @@
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/job.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "fd59d3b664bc401b0d0fb1df12648db80f4f170534cc2d15e80a3fc402252660",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/lane.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "21b02949c63fe7d1b1a0eaa18902468da3cc99ee7c5409a604696141fc0fd58b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/lane_coverage.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "07e5163cecb7579eeeaa43ffab4f50c05b5a0524bb68b20293058605958ebc47",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/lane_process.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "fb6b5db88b042a50bb47b3591550fd6431034491b44216c7e8dccfbacc979d3c",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/real_run.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "060aa582f316c16976b6cc6cdf8b015563ee987f16b6483cb1caf8727ff13d57",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/real_system.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "96403e2c6b3264e9b1e5d25df9446df4982a54275b94a6c170fed12f474debeb",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/real_world.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a22833acd8539c1568b4adbdcef76c9bf46b25df7ba10a56cd7493ecc4c91b9a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/records.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2378b5333360414d42158c01c7ec264c553e150ae4444d92a087bd91e8d14206",
+      "current_import_sha256": "b11dddc9f825ce425e90e588cafce44a92215e32f81682044403981268f93837",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/squash.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f0495a8695dac01fddaf9cd4ea358e33d49e4b98a5ecf83d431e559ce3aed399",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/status.py",
@@ -1357,10 +1489,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4d1b02d87b52f2046609a9eb6a0fa06737ae08bea0fa97abeade52e1a4d8484f",
+      "current_import_sha256": "d5cd637e4dca984807cacd54eda3736d8f748474f8c9ecb8d2289f7b35840664",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/world.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "c0c9ca6b94b948aa078cfb2d8e9df9d94d6b043764d9b1e55e8e4675e85193e7",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_commands.py",
@@ -1368,10 +1511,32 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e505c4b257a2402051129306ceaec18f8a2b6add245b2e5ddc4a333fc093565b",
+      "current_import_sha256": "9bdde4cebd2bab413b63ffaf1f4acdca44702e7e24c10a7ad70510ff92cf8ce1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_github_app.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8f53bed1a1a798cf8a156049ca04ac647653324007fc088090b2e2a9ab6fc2c9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_lane.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "e73120d99ce3ca646be58af1ee58486217f81c449ae8d9f29a7c4e064be489b5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_git.py",
@@ -1379,10 +1544,43 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "556cce2ebf9f0bde6a83ccce28041c7b46342e99ea3e8e6e7f48ea17919b6ad5",
+      "current_import_sha256": "deb3717c3cbd9dc3306673074f0761c332d38451238e1f6e80b8a772d8428837",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows"
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_lane_process.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "44260e58a040b91b98d7ce14484dd65cdc1ab1b604841603c5e80f4dbfc671ca",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_real_world.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f8801ca76734363b2bd25581d8c4743cbc710476956babc27c6f966b9f26c075",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_squash.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ce5b1c8bf6a7358e51dd49179ab9e209c0437996029f7c32f220d9d0b63ac912",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -2065,11 +2263,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "9116f37d856f743a9c52bf3dcc25a11d66fc0941534605e456d0f631e1f05a8e",
+      "current_import_sha256": "0e16a5891c3675c836cd0a535ddbe5f9859d6fb90ec07dd736b6d062f1c98598",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/context.py",
@@ -2703,14 +2901,36 @@
       "import_reason": "Explicitly excluded during reviewed import"
     },
     {
+      "path": "src/botcore/skills/bloat-sweeper/SKILL.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "28cfc017991133a669a385be941676de6fb7bd2fef0e3aac9ddd12931186d1ee",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+    },
+    {
+      "path": "src/botcore/skills/bloat-sweeper/scripts/sweep.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "36372ba75fb10408469e27473eaeee15724414f7fc6510ba507fbfb7b3bdc286",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+    },
+    {
       "path": "src/botcore/skills/botcore-config/SKILL.md",
       "upstream_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
       "staged_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
-      "current_import_sha256": "7a29bc65f91a4f657d384e15568177cfb14ef599b757a384ec48c8487f3ab163",
+      "current_import_sha256": "444bae78689fe48264a0e35005c59dbc98ddd219011fb7418dd4cf317996e494",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "State only wired settings; add the [skills] section and retired skills; add the [sweep] section"
+      "import_reason": "State only wired settings; add the [skills] section and retired skills; add the [sweep] section; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/config-reference.md",
@@ -5390,11 +5610,11 @@
       "path": "tests/test_config.py",
       "upstream_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
       "staged_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
-      "current_import_sha256": "47c4d49b469eff5048451ffb0c444bbf557f63a649a130ee541ffb84588a911e",
+      "current_import_sha256": "45cb94371f7a589e14373905ca2e21a118dac97ec210c53a42c6b2785da4b543",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget; test the [sweep] section"
+      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget; test the [sweep] section; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "tests/test_coverage_gaps.py",

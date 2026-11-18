@@ -33,11 +33,14 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 ## Events
 
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
-`pr-closed`, `ci-failed`, `merge-failed`; with `detail`, `lines` and `logPath`, and `excused`
-when it does not count; answered by a re-enqueue or `lane_drop`), `ejection-limit` (the
-branch's own failures reached `cells.maxEjections`: `conflict`, `push-failed`, `pr-failed` and
-`merge-failed` never count, nor one `ejection_excuse` excused; answered as `ejected` is, or by
-the excuse that brings it under the limit), `lane-error`
+`pr-closed`, `ci-failed`, `merge-failed`, `review-unverified`, `node-missing` (the branch's own
+`.nvmrc` names a Node the lane host lacks, or an alias; `detail` starts `NODE_MISSING`: keep
+the base's `.nvmrc`, or the owner installs that Node on the lane host); with `detail`, `lines`
+and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
+`lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`:
+`conflict`, `push-failed`, `pr-failed` and `merge-failed` never count, nor one
+`ejection_excuse` excused; answered as `ejected` is, or by the excuse that brings it under the
+limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
@@ -94,8 +97,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `TOO_MANY_ISSUES` (over `cells.issuesMax`, or a package without `related_because`),
   `ALREADY_EXISTS` (the branch has a cell), `ALREADY_CLAIMED` (names the holding branch),
   `NOT_DISPATCHABLE` (triage has not planned it, or a rule holds it), `CELLS_FULL`
-  (`cells.max`), `PLAN_ABOVE_CEILING` (every plan at or above `plans.ceiling`; names the next
-  reset), `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`),
+  (`cells.max`), `PLAN_ABOVE_CEILING` (every plan a cell may take at or above `plans.ceiling`;
+  names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while `cells.claudeOnly` is on),
+  `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`),
   `WRITE_FAILED` (a claim write failed; the claims it wrote are put back, and it names any it
   could not). A refusal writes nothing.
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
@@ -135,10 +139,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `lane_drop(branch, reason)` -> `dropped`, `released[]`: dequeues the branch, puts each issue
   back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND`.
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, left, pace, daysToReset,
-  aboveCeiling, resetsAt}`, `ceiling`, `next` (the plan `cell_register` assigns: the highest
-  `pace`, `left`, the room below `plans.ceiling`, over the days to its reset, so each plan is
-  spent by its own reset).
-  Refuses `PLANS_UNREADABLE`.
+  aboveCeiling, resetsAt}`, every weekly window but Claude's Fable window, which only Fable
+  draws on; `ceiling`; `next` (the plan `cell_register` assigns: among Claude's plans while
+  `cells.claudeOnly` is on, since cells implement on Opus, the highest `pace`, `left`, the room
+  below `plans.ceiling`, over the days to its reset, so each plan is spent by its own reset;
+  null when no plan can take a cell). Refuses `PLANS_UNREADABLE`.
 - `ejection_excuse(branch, reason, session?)` -> `branch`, `attempt`, `cause`, `ejections`,
   `excused`, `counted`, `limit`, `answered[]`: the cell's latest ejection was not its branch's
   fault (a known flake), so it stops counting toward `cells.maxEjections`; under the limit again,
@@ -146,9 +151,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
-  `.nvmrc` names is not installed under fnm or POSIX nvm; validation and coverage run on it),
-  `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
-  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least).
+  `.nvmrc` names is not installed under fnm, nvm or nvm-windows; validation and coverage run
+  on it), `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
+  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least, read on the
+  `.nvmrc` Node with its bin directory first on `PATH`, as validation runs them). Once
+  running, a branch whose own `.nvmrc` names a Node the host lacks is ejected as
+  `node-missing`; main's own pauses the lane.
 - `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
   goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
   only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be
@@ -177,10 +185,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 ## Dials
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
-`lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `lane.coverageEvery` 5,
-`lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but turns the guard off),
-`claims.leaseHours` 24, `foreman.leaseMinutes` 30, `cells.maxEjections` 3, `experience.hold`
-false, `lane.autostart` true, `logs.keepDays` 30, and the owner's `review.*` dials.
+`lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `cells.claudeOnly` true,
+`lane.coverageEvery` 5, `lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but
+turns the guard off), `claims.leaseHours` 24, `foreman.leaseMinutes` 30, `cells.maxEjections` 3,
+`experience.hold` false, `lane.autostart` true, `logs.keepDays` 30, and the owner's
+`review.*` dials.
 
 ## State and claims
 

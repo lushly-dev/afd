@@ -22,7 +22,6 @@ const styles = css`
         --_panel-border: color-mix(in srgb, var(--_border-subtle) 92%, transparent);
         --_panel-shadow: var(--_shadow-control);
         --_panel-padding: var(--_space-lg, 24px);
-        --_tablist-divider: color-mix(in srgb, var(--_border-subtle) 92%, transparent);
     }
 
     :host([appearance="closed"]),
@@ -36,9 +35,13 @@ const styles = css`
         gap: var(--_space-md, 12px);
     }
 
+    /*
+     * No rule under an open row: the tab you are on is a filled key. The edge keeps its
+     * space, clear, and shows again in forced colours.
+     */
     .tablist-shell {
         min-inline-size: 0;
-        border-block-end: 1px solid var(--_tablist-divider);
+        border-block-end: 1px solid transparent;
     }
 
     :host([appearance="closed"]) .tablist-shell,
@@ -52,6 +55,10 @@ const styles = css`
         align-items: flex-end;
         gap: var(--_space-inline-sm);
         min-inline-size: 0;
+    }
+
+    :host([appearance="open"]) .tablist {
+        align-items: center;
     }
 
     :host([appearance="closed"]) .tablist {
@@ -73,7 +80,7 @@ const styles = css`
     }
 
     :host([appearance="open"]) .panel-region {
-        padding-block-start: var(--_space-stack-xs);
+        padding-block-start: var(--_space-stack-sm);
     }
 
     :host([appearance="closed"]) .panel-region,
