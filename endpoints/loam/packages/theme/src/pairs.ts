@@ -7,8 +7,8 @@
  * decorative borders (`color.border.subtle`, and the secondary-action, selected-control and state
  * borders beside text or a fill), and button fills, which their labels identify. High contrast
  * holds both to 3:1. The resting and invalid field borders are a field's only boundary, so every
- * theme holds them to 3:1 (the design document, 2026-11-01), except the resting border on a
- * read-only field in light (D154, below).
+ * theme holds them to 3:1 (the design document, 2026-11-01), on every surface a field sits on; a
+ * read-only field draws its line in `color.border.strong`, held the same way.
  */
 import type { ThemeName } from './tree/index.js';
 
@@ -20,6 +20,12 @@ export interface ContrastPair {
 	kind: PairKind;
 	/** Only checked in these themes; every theme when absent. */
 	themes?: readonly ThemeName[];
+	/**
+	 * The surfaces a translucent background is drawn over when measured; `color.surface.page` when
+	 * absent. A field's fill is translucent in some themes, so its pairs are measured over each
+	 * surface a field sits on.
+	 */
+	backdrops?: readonly string[];
 }
 
 export const CONTRAST_FLOORS: Record<ThemeName, Record<PairKind, number>> = {
@@ -53,7 +59,16 @@ const action = (name: string) => [
 const STATES = ['success', 'warning', 'danger'] as const;
 const FIELD_BACKGROUNDS = ['color.field.background', 'color.field.background.readonly'];
 const HIGH_CONTRAST = ['high-contrast'] as const;
-const NOT_LIGHT = ['dark', 'high-contrast'] as const;
+
+/** The surfaces a field sits on: its pairs are measured over each. */
+export const FIELD_SURFACES: readonly string[] = [
+	'color.surface.page',
+	'color.surface.card',
+	'color.surface.subtle',
+	'color.surface.floating',
+];
+const overSurfaces = (pairs: ContrastPair[]): ContrastPair[] =>
+	pairs.map((pair) => ({ ...pair, backdrops: FIELD_SURFACES }));
 
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	// An app's entry and a selected row: the ring inside a selected or a hovered item (phase 1, step 4).
@@ -88,24 +103,36 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		'text'
 	),
 	...on(['color.state.danger.text'], [FLOATING], 'text'),
-	...on(['color.field.text', 'color.field.placeholder'], FIELD_BACKGROUNDS, 'text'),
+	// A message's icon, on its own background and on the page (D154).
+	...(['success', 'danger'] as const).flatMap((state) =>
+		on([`color.state.${state}.foreground`], [`color.state.${state}.background`, PAGE], 'non-text')
+	),
+	...overSurfaces(
+		on(['color.field.text', 'color.field.placeholder'], ['color.field.background'], 'text')
+	),
+	// On the read-only fill over the subtle surface the placeholder is 4.38 in light, so a read-only
+	// field sets its placeholder in `color.text.secondary` (violet-text-field, violet-text-area; D154).
+	...overSurfaces(
+		on(['color.field.text', 'color.text.secondary'], ['color.field.background.readonly'], 'text')
+	),
 	// Boundaries a control needs to be seen.
 	...on(['color.border.strong'], OPEN_SURFACES, 'non-text'),
-	...on(
-		['color.field.border', 'color.field.border.hover', 'color.field.border.invalid'],
-		['color.field.background'],
-		'non-text'
+	...overSurfaces(
+		on(
+			['color.field.border', 'color.field.border.hover', 'color.field.border.invalid'],
+			['color.field.background'],
+			'non-text'
+		)
 	),
-	// A read-only field's fill is a wash of the text color. Its hover and invalid borders meet 3:1 on
-	// it everywhere; its resting border, Refined's stone-500 top line (D154), meets 3:1 on the white
-	// field and is 2.64 on the light read-only fill, which cannot be typed in, so light does not hold
-	// that one pair.
-	...on(
-		['color.field.border.hover', 'color.field.border.invalid'],
-		['color.field.background.readonly'],
-		'non-text'
+	// A read-only field's fill is a wash of the text color, too light behind the resting border, so
+	// its top line is `color.border.strong` (violet-text-field, violet-text-area; D154).
+	...overSurfaces(
+		on(
+			['color.border.strong', 'color.field.border.hover', 'color.field.border.invalid'],
+			['color.field.background.readonly'],
+			'non-text'
+		)
 	),
-	...on(['color.field.border'], ['color.field.background.readonly'], 'non-text', NOT_LIGHT),
 	...on(
 		['shell.color.handle.hover', 'shell.color.handle.active'],
 		[PAGE, CARD, SUBTLE],
@@ -113,7 +140,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	),
 	// The focus ring on every surface.
 	...on(['color.focus.ring'], SURFACES, 'non-text'),
-	...on(['color.field.border.focus'], FIELD_BACKGROUNDS, 'non-text'),
+	...overSurfaces(on(['color.field.border.focus'], FIELD_BACKGROUNDS, 'non-text')),
 	// High contrast: every border, and the fills of buttons, which elsewhere their labels identify.
 	...on(
 		['color.action.primary.background', 'color.action.danger.background'],

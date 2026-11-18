@@ -68,7 +68,7 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string }
     },
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
-        why: "the citation's link colour: always #2563eb; the interface has no link colour",
+        why: "the citation's link colour: always #146ba0, AFD's blue ink; the interface has no link colour",
     },
 };
 

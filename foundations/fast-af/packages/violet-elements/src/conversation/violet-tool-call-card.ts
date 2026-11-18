@@ -59,7 +59,7 @@ const styles = css`
         font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         min-inline-size: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -78,8 +78,8 @@ const styles = css`
 
     :host([state="pending"]) .badge,
     :host([state="executing"]) .badge {
-        background: var(--_surface-subtle, rgba(28, 26, 13, 0.04));
-        color: var(--_text-secondary, #414651);
+        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
+        color: var(--_text-secondary, #48534b);
     }
 
     :host([state="approval-requested"]) .badge {
@@ -98,8 +98,8 @@ const styles = css`
     }
 
     :host([state="cancelled"]) .badge {
-        background: var(--_surface-subtle, rgba(28, 26, 13, 0.04));
-        color: var(--_text-secondary, #414651);
+        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
+        color: var(--_text-secondary, #48534b);
     }
 
     .body {
@@ -108,7 +108,7 @@ const styles = css`
         padding: var(--_space-sm) var(--_space-md);
         font-size: var(--_tool-font-size);
         line-height: var(--_tool-line-height);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .body:empty,
@@ -151,9 +151,9 @@ const styles = css`
         block-size: var(--_tool-line-height);
         border-radius: var(--_radius-sm);
         background: linear-gradient(90deg,
-            var(--_surface-subtle, rgba(28, 26, 13, 0.04)) 25%,
-            var(--_surface-hover, rgba(28, 26, 13, 0.06)) 50%,
-            var(--_surface-subtle, rgba(28, 26, 13, 0.04)) 75%);
+            var(--_surface-subtle, rgba(24, 27, 26, 0.04)) 25%,
+            var(--_surface-hover, rgba(24, 27, 26, 0.06)) 50%,
+            var(--_surface-subtle, rgba(24, 27, 26, 0.04)) 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s ease-in-out infinite;
     }
@@ -167,7 +167,7 @@ const styles = css`
         inline-size: var(--_tool-line-height);
         block-size: var(--_tool-line-height);
         border: calc(var(--_tool-line-height) * 0.125) solid var(--_border-subtle);
-        border-block-start-color: var(--_text-secondary, #414651);
+        border-block-start-color: var(--_text-secondary, #48534b);
         border-radius: var(--_radius-round, 9999px);
         animation: spin 0.8s linear infinite;
     }

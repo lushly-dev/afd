@@ -169,18 +169,21 @@ describe('contrast', () => {
 		const nodeId = themeNode(theme);
 		const pairs = CONTRAST_PAIRS.filter((pair) => !pair.themes || pair.themes.includes(theme));
 		it(`meets the floors in ${theme} (${pairs.length} pairs)`, () => {
-			const backdrop = value(nodeId, 'color.surface.page');
-			const failures = pairs.flatMap((pair) => {
-				const ratio = contrastRatio(
-					value(nodeId, pair.foreground),
-					value(nodeId, pair.background),
-					backdrop
-				);
-				const floor = CONTRAST_FLOORS[theme][pair.kind];
-				return ratio >= floor
-					? []
-					: [`${pair.foreground} on ${pair.background}: ${ratio.toFixed(2)} < ${floor}`];
-			});
+			const failures = pairs.flatMap((pair) =>
+				(pair.backdrops ?? ['color.surface.page']).flatMap((backdrop) => {
+					const ratio = contrastRatio(
+						value(nodeId, pair.foreground),
+						value(nodeId, pair.background),
+						value(nodeId, backdrop)
+					);
+					const floor = CONTRAST_FLOORS[theme][pair.kind];
+					return ratio >= floor
+						? []
+						: [
+								`${pair.foreground} on ${pair.background} over ${backdrop}: ${ratio.toFixed(2)} < ${floor}`,
+							];
+				})
+			);
 			expect(failures).toEqual([]);
 		});
 	}

@@ -607,7 +607,7 @@
 			},
 			{
 				"id": "color.state.success.foreground",
-				"value": "#2c5e4b"
+				"value": "#a3ebcd"
 			},
 			{
 				"id": "color.state.success.text",
@@ -1061,7 +1061,7 @@
 			},
 			{
 				"id": "color.state.danger.foreground",
-				"value": "#B42318"
+				"value": "#A30000"
 			},
 			{
 				"id": "color.state.danger.text",
@@ -1077,7 +1077,7 @@
 			},
 			{
 				"id": "color.state.success.foreground",
-				"value": "#245C36"
+				"value": "#0B5A1E"
 			},
 			{
 				"id": "color.state.success.text",
@@ -1113,7 +1113,7 @@
 			},
 			{
 				"id": "color.surface.pressed",
-				"value": "#E7E4D8"
+				"value": "#E6E6E6"
 			},
 			{
 				"id": "color.surface.selected",

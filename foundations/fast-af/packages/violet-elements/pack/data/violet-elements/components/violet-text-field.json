@@ -242,7 +242,18 @@
 			}
 		],
 		"commands": [],
-		"cssProperties": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_field-border-readonly)",
+				"name": "--_field-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_text-secondary)",
+				"name": "--_field-placeholder"
+			}
+		],
 		"events": [
 			{
 				"basis": "declared",

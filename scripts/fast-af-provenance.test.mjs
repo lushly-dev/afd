@@ -142,7 +142,9 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// not fast-af's: 481. violet-select's late options (#499) adapted its spec: 480. The Refined
 	// design (#1430) restyled 23 components that still matched upstream, and its private-alias
 	// fixes (#1436) the carousel and the reasoning block's spec: 455. AFD's theme as the built-in
-	// default (D154, #1430) rewrote the literal fallbacks of three more: 452. A removed file's record
-	// is kept but not counted.
-	assert(checked > 451, `only ${checked} unchanged upstream files`);
+	// default (D154, #1430) rewrote the literal fallbacks of the gantt's styles and the tab panel,
+	// gave the message status its danger colour, took the message media's fallbacks to AFD's values
+	// and added a read-only spec to the text area: 450. A removed file's record is kept but not
+	// counted.
+	assert(checked > 449, `only ${checked} unchanged upstream files`);
 });

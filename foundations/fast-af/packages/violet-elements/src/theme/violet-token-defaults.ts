@@ -72,6 +72,8 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_text-muted: var(--color-text-muted, #5e6460);
         --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         --_field-border: var(--color-field-border, #869089);
+        /* A read-only field's line: its fill is too light behind the resting border for 3:1. */
+        --_field-border-readonly: var(--color-border-strong, #6b7d6e);
         --_field-border-hover: var(--color-field-border-hover, #48534b);
         --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring));
         --_field-background: var(--color-field-background, var(--_surface-page));

@@ -121,7 +121,7 @@ const styles = css`
         gap: var(--_space-stack-2xs);
         font-size: var(--_approval-font-size);
         line-height: var(--_approval-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
     }
 
     .detail {

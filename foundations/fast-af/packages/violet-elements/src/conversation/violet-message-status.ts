@@ -23,7 +23,7 @@ const styles = css`
         padding: var(--_space-sm) 0;
         font-size: var(--_status-font-size);
         line-height: var(--_status-line-height);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .indicator {

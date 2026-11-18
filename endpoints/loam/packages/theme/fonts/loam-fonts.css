@@ -5,6 +5,11 @@
  * only, woff2 only; other scripts fall back to the system faces in each token's stack. Each family
  * is under the SIL Open Font License 1.1 (OFL-*.txt beside this file); the files are Fontsource's
  * 5.3.0 builds. Not a token: `font.family.*` name these families, and this file makes them local.
+ *
+ * The weights that ship: Inter 400, 500 and 600; Space Grotesk 600; IBM Plex Mono 400 and 500.
+ * Bold (700) maps to the 600 file (Space Grotesk's covers 500 to 700, Plex Mono's 500 covers 500
+ * to 700), so the browser does not embolden it. No italic ships: the browser synthesizes italics
+ * by slanting the upright.
  */
 @font-face {
 	font-family: "Inter";

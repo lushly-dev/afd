@@ -41,6 +41,8 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.action.secondary.pressed', value: 'rgba(244, 240, 234, 0.17)' },
 	{ id: 'color.state.success.background', value: c('green.900') },
 	{ id: 'color.state.success.text', value: c('mint') },
+	// Mint, as the success text: light's mint ink does not show on the dark surfaces (D154).
+	{ id: 'color.state.success.foreground', value: c('mint') },
 	{ id: 'color.state.warning.background', value: c('amber.950') },
 	{ id: 'color.state.warning.text', value: c('amber.200') },
 	{ id: 'color.state.danger.background', value: c('red.950') },
@@ -107,11 +109,11 @@ export const HIGH_CONTRAST_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.state.danger.background', value: c('white') },
 	{ id: 'color.state.danger.text', value: c('contrast.red') },
 	{ id: 'color.state.danger.border', value: c('contrast.red') },
-	// The three ids of #659 keep the values high contrast has had since it first exported them, as
-	// the approved Refined set does; better high-contrast values are Loam's call.
-	{ id: 'color.state.danger.foreground', value: '#B42318' },
-	{ id: 'color.state.success.foreground', value: '#245C36' },
-	{ id: 'color.surface.pressed', value: '#E7E4D8' },
+	// The three ids of #659 carried Lushly's light values into high contrast; they take its own
+	// neutral grey and 7:1 red and green (D154).
+	{ id: 'color.state.danger.foreground', value: c('contrast.red') },
+	{ id: 'color.state.success.foreground', value: c('contrast.green') },
+	{ id: 'color.surface.pressed', value: c('grey.100') },
 	{ id: 'color.field.background.readonly', value: ref('color.surface.subtle') },
 	{ id: 'color.field.border', value: ref('color.border.subtle') },
 	{ id: 'color.field.border.hover', value: ref('color.border.strong') },

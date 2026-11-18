@@ -89,7 +89,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         font-size: var(--_msg-meta-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .meta[hidden] {

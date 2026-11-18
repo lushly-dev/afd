@@ -208,6 +208,17 @@ describe("violet-text-field", () => {
             expect(customDetails(events)).toEqual([{ value: "go" }]);
         });
 
+        it("draws a read-only field's line in the strong border and its placeholder in secondary text", async () => {
+            const field = await renderTextField({ readonly: "" });
+            const style = getComputedStyle(field);
+            // With no theme installed these are the light theme's values (Loam's D154).
+            expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
+            expect(style.getPropertyValue("--_field-placeholder").trim().toLowerCase()).toBe("#48534b");
+            field.removeAttribute("readonly");
+            await nextFrame();
+            expect(getComputedStyle(field).getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#869089");
+        });
+
         it("ignores typing while readonly", async () => {
             const { field } = await renderField({
                 configure: el => {

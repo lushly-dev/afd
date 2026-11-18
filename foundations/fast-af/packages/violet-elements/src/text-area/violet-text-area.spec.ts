@@ -257,6 +257,17 @@ describe("violet-text-area", () => {
             expect(textarea(area).hasAttribute("maxlength")).toBe(false);
         });
 
+        it("draws a read-only field's line in the strong border and its placeholder in secondary text", async () => {
+            const area = await renderTextArea({ readonly: "" });
+            const style = getComputedStyle(area);
+            // With no theme installed these are the light theme's values (Loam's D154).
+            expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
+            expect(style.getPropertyValue("--_field-placeholder").trim().toLowerCase()).toBe("#48534b");
+            area.removeAttribute("readonly");
+            await nextFrame();
+            expect(getComputedStyle(area).getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#869089");
+        });
+
         it("ignores typing while readonly", async () => {
             const { area } = await renderArea({
                 configure: el => {
