@@ -34,7 +34,8 @@ struct Fixture {
         registry = std::move(*made);
     }
 
-    /// The todo commands: every registered command but the context commands (`bootstrap`).
+    /// The todo commands: every registered command but the context and bootstrap commands
+    /// (category `bootstrap`).
     [[nodiscard]] std::vector<std::shared_ptr<const afd::RegisteredCommand>> todo_commands() const {
         std::vector<std::shared_ptr<const afd::RegisteredCommand>> commands;
         for (const auto& command : registry->list()) {

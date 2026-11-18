@@ -1186,3 +1186,37 @@ TEST_CASE("server/discover never reads a context; without contexts nothing chang
           "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
           "data, error: { code, message, suggestion } }; follow error.suggestion to recover.");
 }
+
+TEST_CASE("server/discover says the bootstrap tools describe the server, once all three serve") {
+    Notes notes;
+    REQUIRE_FALSE(afd::register_bootstrap_commands(*notes.registry));
+    auto server = make_server(*notes.registry, {.name = "notes"});
+    const auto discover = send(*server, request(1, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["instructions"] ==
+          "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
+          "data, error: { code, message, suggestion } }; follow error.suggestion to recover. "
+          "afd-help, afd-docs and afd-schema describe this server.");
+    const auto listed = send(*server, request(2, "tools/list"))["result"]["tools"];
+    CHECK(listed.size() == 7);
+    CHECK(listed[4]["name"] == "afd-help");
+
+    // An unknown command now points to afd-help, which the caller can call.
+    const auto unknown =
+        body(send(*server, request(3, "tools/call", {{"name", "note-craete"}}))["result"]);
+    CHECK(unknown["error"]["suggestion"] == "Did you mean 'note-create'? Other close matches: "
+                                            "'note-clear', 'note-list'. Use afd-help to list all "
+                                            "commands.");
+
+    // Two of three is not the bootstrap tools.
+    afd::CommandRegistry partial;
+    for (auto& command : afd::bootstrap_commands(partial)) {
+        if (command.name != "afd-schema") {
+            REQUIRE_FALSE(partial.register_command(std::move(command)));
+        }
+    }
+    auto without = make_server(partial, {.name = "notes"});
+    const auto partial_discover =
+        send(*without, request(4, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(partial_discover["result"]["instructions"].get<std::string>().find("afd-help") ==
+          std::string::npos);
+}
