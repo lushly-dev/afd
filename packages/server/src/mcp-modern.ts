@@ -46,6 +46,12 @@ import {
 } from './approval-relay.js';
 import { createUpFrontApproval } from './approval-up-front.js';
 import {
+	type ApproverPredicate,
+	approvalKeyInInput,
+	bindApprover,
+	decideApprover,
+} from './approver.js';
+import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
 	createContextState,
@@ -126,6 +132,11 @@ export interface ModernMcpDeps {
 	 * binding of its `requestState` names the actor the commands run with.
 	 */
 	actor?: Actor;
+	/**
+	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver
+	 * client"): the server's `approver` option.
+	 */
+	approver?: ApproverPredicate;
 	/**
 	 * Resources, skills and the Skills extension (`spec/mcp-resources.md`), when the server was
 	 * given a `resources` provider or a `skills` catalog.
@@ -218,6 +229,46 @@ export function defaultInstructions(options: {
 }
 
 /**
+ * Refuse a `tools/call` whose arguments hold `dev.afd/approval` as the transport delivers it,
+ * before the SDK validates the request ("Approval evidence from an approver client", rule 5).
+ * The SDK's validation rebuilds `arguments` and drops a member named `__proto__`, so a key
+ * beneath one would never reach the router's own check: it would vanish instead of being refused.
+ */
+function refuseApprovalKeyBeforeParsing(
+	server: Server,
+	modern: boolean,
+	report: (error: unknown) => void
+): void {
+	const connect = server.connect.bind(server);
+	server.connect = async (transport: Transport) => {
+		await connect(transport);
+		const deliver = transport.onmessage;
+		transport.onmessage = (message, extra) => {
+			const request = message as {
+				id?: unknown;
+				method?: unknown;
+				params?: { arguments?: unknown };
+			};
+			const refusal =
+				request.method === 'tools/call' && request.id !== undefined
+					? approvalKeyInInput(request.params?.arguments)
+					: undefined;
+			if (!refusal) return deliver?.(message, extra as never);
+			transport
+				.send({
+					jsonrpc: '2.0',
+					id: request.id as string | number,
+					result: {
+						...resultContent(failure(refusal), true),
+						...(modern && { resultType: 'complete' }),
+					} as never,
+				})
+				.catch(report);
+		};
+	};
+}
+
+/**
  * Create the server factory both entries share. It runs once per HTTP request, and once per
  * stdio connection (plus a discarded `server/discover` probe instance).
  */
@@ -225,9 +276,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	const report = reporter(deps.onError);
 	const contextNames = new Set((deps.contexts ?? []).map((context) => context.name));
 	// With contexts, tools/list varies by `_meta["dev.afd/context"]`, which SDK clients leave
-	// out of their cache key, so the default is "always stale" there. The hybrid list does not
-	// vary by context (spec/tool-strategies.md, H6).
-	const listVariesByContext = Boolean(deps.contexts?.length) && deps.toolStrategy !== 'hybrid';
+	// out of their cache key, so the default is "always stale" there. The hybrid and lazy lists
+	// do not vary by context (spec/tool-strategies.md, H6 and "lazy").
+	const listVariesByContext =
+		Boolean(deps.contexts?.length) &&
+		deps.toolStrategy !== 'hybrid' &&
+		deps.toolStrategy !== 'lazy';
 	const ttlMs = deps.toolsListTtlMs ?? (listVariesByContext ? 0 : DEFAULT_TOOLS_LIST_TTL_MS);
 	if (!Number.isSafeInteger(ttlMs) || ttlMs < 0) {
 		throw new Error('toolsListTtlMs must be a non-negative integer');
@@ -471,6 +525,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			}
 		);
 		deps.resources?.install(server, { modern: era === 'modern', internalError });
+		refuseApprovalKeyBeforeParsing(server, era === 'modern', report);
 
 		if (deps.contextFields?.length) {
 			// The SDK's serving layer installs its own `server/discover` handler, which calls
@@ -505,6 +560,9 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 
 		server.setRequestHandler('tools/call', async (request, ctx) => {
 			const { name } = request.params;
+			// Approval evidence is never input, from any caller: refused before anything else.
+			const keyed = approvalKeyInInput(request.params.arguments);
+			if (keyed) return resultContent(failure(keyed), true) as never;
 			// A meta-tool's `meta` argument counts as `_meta` from here on.
 			const lifted = liftMetaArgument(name, request.params.arguments, ctx.mcpReq._meta, metaKeys);
 			if (!lifted.ok) return resultContent(failure(lifted.error), true) as never;
@@ -535,7 +593,28 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				);
 				return principal;
 			});
-			const relay = canElicit ? approvalRelayFor(round) : undefined;
+			// An approver's call carries its token in `_meta`, and is never asked with a form.
+			let carrier: ReturnType<typeof decideApprover>;
+			try {
+				carrier = decideApprover({
+					approver: deps.approver,
+					context: {
+						...callValues,
+						actor: actorAtStart as Actor | undefined,
+						interface: 'mcp',
+					},
+					actor: actorAtStart as Actor | undefined,
+					credentials: credentialsAtStart,
+					meta: ctx.mcpReq._meta,
+					tool: name,
+					modern: era === 'modern',
+				});
+			} catch (error) {
+				throw internalError(error);
+			}
+			if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true) as never;
+			const approver = carrier.approver;
+			const relay = canElicit && !approver ? approvalRelayFor(round) : undefined;
 			let context = bindConfirmationChannel(
 				bindScopeView(
 					scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
@@ -544,6 +623,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
+			if (approver) context = bindApprover(context, approver);
 			try {
 				const result = await deps.routeToolCall(
 					name,

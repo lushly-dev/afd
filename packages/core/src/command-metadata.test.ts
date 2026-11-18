@@ -75,4 +75,27 @@ describe('commandResultOutputSchema', () => {
 			required: ['success'],
 		});
 	});
+
+	it('moves $defs and definitions to the envelope, where their references resolve', () => {
+		const tag = { type: 'object', properties: { name: { type: 'string' } } };
+		const data = {
+			$schema: 'https://json-schema.org/draft/2020-12/schema',
+			type: 'object',
+			properties: {
+				tags: { type: 'array', items: { $ref: '#/$defs/Tag' } },
+				owner: { $ref: '#/definitions/Owner' },
+			},
+			$defs: { Tag: tag },
+			definitions: { Owner: tag },
+		};
+		const schema = commandResultOutputSchema(data as never) as unknown as Record<string, unknown>;
+		expect(schema.$defs).toEqual({ Tag: tag });
+		expect(schema.definitions).toEqual({ Owner: tag });
+		expect((schema.properties as Record<string, unknown>).data).toEqual({
+			type: 'object',
+			properties: data.properties,
+		});
+		// The caller's schema is not changed.
+		expect(data.$defs).toEqual({ Tag: tag });
+	});
 });

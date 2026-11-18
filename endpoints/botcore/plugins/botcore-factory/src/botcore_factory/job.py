@@ -15,11 +15,10 @@ and the job exits with the step's code (124 when it timed out; its process tree 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 
-from botcore_factory.real_run import resolve_program
+from botcore_factory.real_run import path_env, resolve_program
 from botcore_factory.real_system import kill_tree, new_group
 from botcore_factory.world import WorldError
 
@@ -30,10 +29,7 @@ NOT_FOUND = 127
 
 def run_step(step: dict) -> tuple[int, bool]:
     """Run one step; its exit code and whether it timed out."""
-    env = None
-    if step.get("path"):
-        env = dict(os.environ)
-        env["PATH"] = os.pathsep.join([*step["path"], env.get("PATH", "")])
+    env = path_env(step.get("path") or ())
     try:
         program = resolve_program(step["args"][0], env["PATH"] if env else None)
     except WorldError as exc:

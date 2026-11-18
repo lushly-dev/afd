@@ -36,6 +36,7 @@ import {
 import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
+import type { CopilotTraceV1 } from './copilot/types.js';
 import { LoamKernelError } from './errors.js';
 import {
 	createKeybindings,
@@ -53,12 +54,13 @@ import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtim
 import { registerShellState } from './shell-state.js';
 import type {
 	AppSummaryV2,
-	CallOptionsV3,
+	CallOptionsV5,
 	CommandSummaryV1,
+	ContextFieldV2,
 	KernelEventV3,
 	KernelMcpOptions,
-	KernelOptionsV3,
-	LoamKernelV3,
+	KernelOptionsV5,
+	LoamKernelV5,
 } from './types.js';
 
 /** The kernel's two interfaces, one registry each. */
@@ -176,7 +178,7 @@ function reportKernelError(error: unknown): void {
 
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
 export interface KernelParts {
-	kernel: LoamKernelV3;
+	kernel: LoamKernelV5;
 	/**
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
 	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
@@ -238,7 +240,7 @@ export const QUEUED = Symbol();
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
 export async function createKernelParts(
-	options: KernelOptionsV3,
+	options: KernelOptionsV5,
 	internals: KernelPartsInternals = {}
 ): Promise<KernelParts> {
 	const { environment, boot } = options;
@@ -343,8 +345,14 @@ export async function createKernelParts(
 	// Name refusal comes first: a bad name never reaches a registry.
 	checkNames([...bootCommands, ...extra]);
 
+	// A shell command is the shell's exposure, but one that keeps itself from agents keeps that: the copilot's queries
+	// are the palette's alone (phase 5 specification, 3.5).
 	const shellExposed = (commands: readonly ZodCommandDefinition[]): ZodCommandDefinition[] =>
-		commands.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } }));
+		commands.map((command) => ({
+			...command,
+			expose:
+				command.expose?.agent === false ? { ...SHELL_EXPOSE, agent: false } : { ...SHELL_EXPOSE },
+		}));
 	// A host's own commands join with `late/` in `provider` mode, so its auth gate and line 0 decide them:
 	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
 	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
@@ -361,6 +369,15 @@ export async function createKernelParts(
 	let bootOnly: ZodCommandDefinition[] = [];
 	let current: { commands: ZodCommandDefinition[]; middleware: CommandMiddleware[] };
 	const scopeMiddleware = createScopeMiddleware({ scope, late: () => lateScope });
+	/** The declared context fields: the kernel's own, and from stage B the copilot's `copilotSession`, `turn` and `trace`. */
+	let contextFields: readonly ContextFieldV2[] = KERNEL_CONTEXT_FIELDS;
+	/**
+	 * The options objects the kernel made for the copilot's agent port (phase 5 specification, 3.2): the only ones whose
+	 * `trace` it reads, and whose call runs as the reserved agent `copilot`. A caller's own options never are.
+	 */
+	const minted = new WeakSet<object>();
+	/** By trace ID, the copilot's trace of a call while it runs, which every call nested in it carries (3.2, 5.3). */
+	const traces = new Map<string, CopilotTraceV1>();
 	/**
 	 * The kernel's chain over `held`. The auth middleware closes over its `exclude` list, so it is a new
 	 * instance each time: once `late/` has loaded, its auth gate, which in `provider` mode excludes only the
@@ -372,6 +389,8 @@ export async function createKernelParts(
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
 		scopeMiddleware,
+		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
+		...(lateParts ? [lateParts.copilot.gate] : []),
 	];
 	const build = (
 		iface: KernelInterfaceV0,
@@ -381,7 +400,7 @@ export async function createKernelParts(
 		createDirectRegistry([...held], {
 			interface: iface,
 			middleware,
-			contextFields: KERNEL_CONTEXT_FIELDS,
+			contextFields,
 			...(clock ? { clock } : {}),
 			...(random ? { random } : {}),
 		});
@@ -442,8 +461,15 @@ export async function createKernelParts(
 				personal,
 				pending,
 				personas,
+				callAsCopilot(name, input, trace, asScope) {
+					const made: CallOptionsV5 = { agent: 'copilot', scope: asScope, trace };
+					minted.add(made);
+					return run('agent', name, input, made);
+				},
+				agentCommands: () => registries.agent.listCommands(),
 			});
 			lateParts = parts;
+			contextFields = [...KERNEL_CONTEXT_FIELDS, ...parts.copilot.contextFields];
 			shell = [...parts.shell, ...parts.internal];
 			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
 			bootOnly = parts.bootOnly;
@@ -615,7 +641,7 @@ export async function createKernelParts(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV3 = {},
+		callOptions: CallOptionsV5 = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
@@ -645,7 +671,7 @@ export async function createKernelParts(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV3,
+		callOptions: CallOptionsV5,
 		fields: KernelCallFields
 	): Promise<CommandResult<T>> {
 		if (disposed) {
@@ -665,13 +691,25 @@ export async function createKernelParts(
 		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
 		// nested call as its outer call's actor, copied.
 		let { actor } = fields;
+		// The copilot's trace (phase 5 specification, 3.2): from the agent port's minted options alone, else the outer
+		// call's, which a nested call carries. A caller's own `trace` is never read.
+		const mine = minted.has(callOptions);
+		const trace: CopilotTraceV1 | undefined =
+			iface === 'agent' && mine
+				? callOptions.trace
+				: fields.parent !== undefined
+					? traces.get(fields.parent)
+					: undefined;
 		if (iface === 'agent' && !actor) {
-			const named =
-				lateParts?.agentActor(callOptions.agent) ?? failure(lateFailure ?? lateUnavailable());
+			// `copilot` is reserved: only the kernel's own options name it (3.2).
+			const named = mine
+				? ({ kind: 'agent', id: 'copilot' } as Actor)
+				: (lateParts?.agentActor(callOptions.agent) ?? failure(lateFailure ?? lateUnavailable()));
 			if ('success' in named) return named;
 			actor = named;
 		}
 		const traceId = `${traceBase}-${++calls}`;
+		if (trace) traces.set(traceId, trace);
 		const owned = apps.contextOf(name, input);
 		// The call's person's persona, for the journal alone: no decision reads it (6.2). The person is the one the
 		// chain will decide for: a copied actor's, else the session's, since the agent interface's actor gains its
@@ -695,6 +733,7 @@ export async function createKernelParts(
 			...owned,
 			...fields,
 			...(persona ? { persona } : {}),
+			...(trace ? { copilotSession: trace.session, turn: trace.turn, trace } : {}),
 			actor,
 			scope:
 				fields.scope ??
@@ -705,7 +744,12 @@ export async function createKernelParts(
 		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
 		// fields reach no other command.
 		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
-		const result = await registry.execute<T>(name, input ?? {}, context);
+		let result: CommandResult<T>;
+		try {
+			result = await registry.execute<T>(name, input ?? {}, context);
+		} finally {
+			traces.delete(traceId);
+		}
 		const seq = seqs.get(traceId);
 		seqs.delete(traceId);
 		const seen = scope.seen.get(traceId);
@@ -732,6 +776,8 @@ export async function createKernelParts(
 				reportKernelError(error);
 			}
 		}
+		// A change of person stops every copilot turn and removes its runtimes (phase 5 specification, 3.2).
+		if (event.actorChanged) void lateParts?.copilot.stopAll('session-changed');
 		// After journaling, and never in the journal's copy. A person's or agent's call only: a seq counts
 		// every app's calls, which a view must not see, and a handler may return a nested result as its own.
 		return seq === undefined || fields.caller !== undefined
@@ -796,8 +842,8 @@ export async function createKernelParts(
 		takesProject(() => apps)
 	);
 
-	const kernel: LoamKernelV3 = {
-		version: 3,
+	const kernel: LoamKernelV5 = {
+		version: 5,
 		call: (name, input, callOptions) => run('palette', name, input, callOptions),
 		listCommands: () => summarize(registries.palette),
 		subscribe(listener) {
@@ -864,6 +910,6 @@ export async function createKernelParts(
  * @throws LoamKernelError `COMMAND_NAME_INVALID` for a name that is not domain-action kebab-case,
  *   `COMMAND_NAME_DUPLICATE` for a name given twice
  */
-export async function createKernel(options: KernelOptionsV3): Promise<LoamKernelV3> {
+export async function createKernel(options: KernelOptionsV5): Promise<LoamKernelV5> {
 	return (await createKernelParts(options)).kernel;
 }

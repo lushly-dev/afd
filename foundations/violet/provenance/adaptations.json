@@ -28,9 +28,9 @@
       "path": "endpoints/violet-cli/CHANGELOG.md",
       "upstream_path": "packages/cli/CHANGELOG.md",
       "upstream_sha256": "af96cf9123f8695870483c98e7ab1e73e52c57151173fa8533c6f21b62169d2f",
-      "current_import_sha256": "3c78ec55e410b3702964e89ea4bdf798d2ee027ee59742b29cf5b3574cc0aa61",
-      "classification": "adapted",
-      "reason": "Upstream bytes; #497: daily persistent SQLite snapshot workflow, file-driven persistence refusal, focused coverage and indefinite retention decision",
+      "current_import_sha256": "af96cf9123f8695870483c98e7ab1e73e52c57151173fa8533c6f21b62169d2f",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
       "candidate": {
         "path": null,
         "sha256": null,

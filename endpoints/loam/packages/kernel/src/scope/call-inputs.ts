@@ -122,6 +122,14 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'agent-member-remove': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	'agent-member-confirm': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	'agent-member-decline': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	// Phase 5's step 1: the copilot's commands, with a session no one holds.
+	'copilot-session-start': {},
+	'copilot-message-send': { session: 'cps_0000000000000000', text: 'Hello' },
+	'copilot-turn-stop': { session: 'cps_0000000000000000', turn: 1 },
+	'copilot-session-list': {},
+	'copilot-session-get': { session: 'cps_0000000000000000' },
+	'copilot-provider-list': {},
+	'approval-health-get': {},
 };
 
 /**
@@ -139,6 +147,8 @@ export const NOT_CALLED: Readonly<Record<string, string>> = {
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
 	'app-embed-refuse':
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
+	'copilot-port-refuse':
+		"Internal: only the copilot's agent port runs it, to journal its own refusal (INTERNAL_COMMANDS)",
 };
 
 /** An app's command, called with what its schema requires: an app's own commands take lines 2 to 6. */

@@ -44,12 +44,12 @@ struct RegistryOptions {
     std::shared_ptr<afd::RandomSource> random;
 };
 
-/// The todo commands over `store`, the context commands for `todo_contexts()` and, with
-/// `Approvals::agents`, the approval middleware signing
-/// with `options.secret`. A held todo-clear asks the person behind an MCP client that declares
-/// form elicitation (`ApprovalRelay::mcp_elicitation`), with a summary of what would go; any
-/// other caller gets `APPROVAL_REQUIRED`. The middleware runs before each handler, so a held call
-/// never reaches the change history.
+/// The todo commands over `store`, the context commands for `todo_contexts()`, the bootstrap
+/// commands (`afd-help`, `afd-docs`, `afd-schema`) and, with `Approvals::agents`, the approval
+/// middleware signing with `options.secret`. A held todo-clear asks the person behind an MCP client
+/// that declares form elicitation (`ApprovalRelay::mcp_elicitation`), with a summary of what would
+/// go; any other caller gets `APPROVAL_REQUIRED`. The middleware runs before each handler, so a
+/// held call never reaches the change history.
 afd::Expected<std::unique_ptr<afd::CommandRegistry>>
 make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options);
 

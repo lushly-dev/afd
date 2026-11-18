@@ -10,12 +10,35 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
-import { afterEach, expect } from 'vitest';
+import { afterAll, afterEach, expect } from 'vitest';
+import { restrictAcls } from './acl.js';
 
 const made: string[] = [];
+let base: Promise<string> | undefined;
+
+/**
+ * One directory per test file that the suites' directories are made in. On Windows it gets an ACL of its
+ * own, as `restrictAcls` gives a data directory, so a grant on the system's temporary directory (a
+ * sandbox's group, say) never reaches a fixture: the secrets check would count it as exposure.
+ */
+function fixtureRoot(): Promise<string> {
+	base ??= (async () => {
+		const directory = await realpath(await mkdtemp(join(tmpdir(), 'loam-host-')));
+		if (process.platform === 'win32') {
+			try {
+				restrictAcls([directory]);
+			} catch (cause) {
+				await rm(directory, { recursive: true, force: true });
+				throw cause;
+			}
+		}
+		return directory;
+	})();
+	return base;
+}
 
 export async function temporaryDirectory(): Promise<string> {
-	const directory = await realpath(await mkdtemp(join(tmpdir(), 'loam-host-')));
+	const directory = await mkdtemp(join(await fixtureRoot(), 'case-'));
 	made.push(directory);
 	return directory;
 }
@@ -63,6 +86,14 @@ export function expectMode(path: string, mode: number, label?: string): void {
 
 afterEach(async () => {
 	await Promise.all(made.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+afterAll(async () => {
+	const root = base;
+	base = undefined;
+	// A root that failed to be made private was removed then, and its error already failed the tests.
+	const directory = await root?.catch(() => undefined);
+	if (directory !== undefined) await rm(directory, { recursive: true, force: true });
 });
 
 /**

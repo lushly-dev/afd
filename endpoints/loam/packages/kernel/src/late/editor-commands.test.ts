@@ -19,12 +19,12 @@ import {
 	type ScopedWorkspace,
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
-import type { KernelEventV3, LoamKernelV3 } from '../types.js';
+import type { KernelEventV3, LoamKernelV5 } from '../types.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createEditorParts } from './editor-commands.js';
 import { type EditorStateV1, emptyEditorState } from './editor-state.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

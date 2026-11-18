@@ -15,7 +15,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
-import { type DevHost, scanSecrets, startDevHost } from '@lushly-dev/loam-host/testing';
+import {
+	type DevHost,
+	restrictAcls,
+	scanSecrets,
+	startDevHost,
+} from '@lushly-dev/loam-host/testing';
 import { TEST_RATE_LIMIT } from '@lushly-dev/loam-identity/testing';
 import { hashPassword } from 'better-auth/crypto';
 import type { Browser, Page } from 'playwright';
@@ -132,9 +137,14 @@ async function accountWithoutMembership(email: string): Promise<void> {
 	}
 }
 
-/** A fresh data directory and its `loam.server.toml`, with the profile's certificate and secret copied in, 0600. */
+/**
+ * A fresh data directory and its `loam.server.toml`, with the profile's certificate and secret copied in,
+ * 0600. Windows keeps no mode bits, so there the directory gets an ACL of its own instead: a grant on the
+ * system's temporary directory would otherwise reach the copies, and `start` refuse them.
+ */
 async function freshServer(): Promise<{ root: string; server: string }> {
 	const root = await mkdtemp(join(tmpdir(), 'loam-p6-h3-'));
+	if (process.platform === 'win32') restrictAcls([root]);
 	const files = join(root, 'files');
 	await mkdir(files, { mode: 0o700 });
 	for (const [from, to] of [

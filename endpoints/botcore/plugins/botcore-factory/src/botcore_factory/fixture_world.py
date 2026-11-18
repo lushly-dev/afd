@@ -50,7 +50,9 @@ WORLD_KEYS = frozenset(
         "plansUnreadable",
         "toolchains",
         "nodes",  # Installed Node bin directories by .nvmrc version.
+        "nodeToolchains",  # Tool versions found in a Node bin directory, by that directory.
         "slotFiles",  # Files every lane slot checkout holds (.nvmrc).
+        "branchSlotFiles",  # A branch's own slot files, over slotFiles, by branch.
         "requiredChecks",
         "outcomes",
         "main",

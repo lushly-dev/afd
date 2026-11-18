@@ -18,6 +18,10 @@
 			"types": "./dist/testing.d.ts",
 			"import": "./dist/testing.js"
 		},
+		"./copilot": {
+			"types": "./dist/copilot/index.d.ts",
+			"import": "./dist/copilot/index.js"
+		},
 		"./palette": {
 			"types": "./dist/palette-index.d.ts",
 			"import": "./dist/palette-index.js"
@@ -46,7 +50,9 @@
 		"fake-indexeddb": "^6.2.7",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.0"
+		"vitest": "^5.1.0",
+		"@lushly-dev/loam-copilot": "workspace:*",
+		"@lushly-dev/afd-testing": "workspace:*"
 	},
 	"repository": {
 		"type": "git",

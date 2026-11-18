@@ -5696,12 +5696,12 @@
       "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
-      "current_import_sha256": "adf2798f695688312aa8eb8167a9ec7d19f02e378d5d973a973ca569c1c12554",
-      "manifest_shape_sha256": "e2444f15de7015ed4c9ce7a3cd269dfaeeae25cc62b0259dc9d2bcc659cd15b8",
+      "current_import_sha256": "6138a2f824a1bd73bf3874da9b3f7d5dfc1d60f26a62fa8a4fa1e2fdd5fe3e9f",
+      "manifest_shape_sha256": "f792c88a8859dc46fe693ac979d480e4e86155a625d204a5ef39038c345f786a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14; #806: typescript moves from upstream ^5.9.3 to the workspace's ^7.0.2; devDependency @typescript/typescript6 (the workspace's ^6.0.2) supplies the compiler API that scripts/verify-package-exports.mjs uses; Versioned for release by pnpm version-packages (fast-element, specimen); Dependabot moved @tanstack/virtual-core to 3.19.11 (#983), a change to a dependency range alone, recorded with the next change to the family; Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); The Refined design (#1430): build removes the CSS comments from the built styles (scripts/strip-style-comments.mjs, after tsc), about 11.5 KB; the comments stay in src"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14; #806: typescript moves from upstream ^5.9.3 to the workspace's ^7.0.2; devDependency @typescript/typescript6 (the workspace's ^6.0.2) supplies the compiler API that scripts/verify-package-exports.mjs uses; Versioned for release by pnpm version-packages (fast-element, specimen); Dependabot moved @tanstack/virtual-core to 3.19.11 (#983), a change to a dependency range alone, recorded with the next change to the family; Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); The Refined design (#1430): build removes the CSS comments from the built styles (scripts/strip-style-comments.mjs, after tsc), about 11.5 KB; the comments stay in src; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5769,11 +5769,11 @@
       "upstream_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
       "staged_path": "packages/violet-elements/scripts/verify-package-exports.mjs",
       "staged_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
-      "current_import_sha256": "5ad5f310c539aca410d4c0b3edbce7d5ed806ecbb3ef619f37d925046a2ddbae",
+      "current_import_sha256": "42883bee0e1ca61ea8cf85dd091b8685e29846449bf4fd8829723bae3511fb09",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Added upstream after the import; Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "#806: TypeScript 7 exports no compiler API; ts.resolveModuleName comes from @typescript/typescript6, which resolves with the same Bundler rules; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font"
+      "import_reason": "#806: TypeScript 7 exports no compiler API; ts.resolveModuleName comes from @typescript/typescript6, which resolves with the same Bundler rules; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen.config.json",
@@ -8877,11 +8877,11 @@
       "upstream_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.spec.ts",
       "staged_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
-      "current_import_sha256": "551f145716a93244925e143ee9b1d7f16d101c324fc9f9b0a2863ab5fbafd25f",
+      "current_import_sha256": "f010dd74f37f39132614fef6aa63a76eee1c48c2bccd3b8ed78f1034cd873e71",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.stories.ts",
@@ -11397,11 +11397,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9b459e71bc62e00aaacbc21810189a2ba62123b92fbe0e86099f8dd33489bbed",
+      "current_import_sha256": "045b2d21dbdd70af715dea4bbe4fff4a04c19710926b13e1d75e6041cd002cae",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/tokens/interface.json",
@@ -11481,11 +11481,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "307f613667b8a0f5826c7afd608bdc8d7ee800088443eeb8dc3cab45f7c9ceac",
+      "current_import_sha256": "93bbed33fe0950052e51e071ed358fb5e53f49d7f5ee593c8cae81279fc85afc",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata"
+      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",
@@ -11805,11 +11805,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5d01b9e96006e89baec45357d9c2ea6818496100cb0590e2cfbf96be7719c98a",
+      "current_import_sha256": "ec6c1885fcbe52fd239cade7c51bc9efcb10644f3a8b0688294c1a7c03ed2b8a",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Merged main: the private-properties spec takes import.meta.glob's type from the spec type-check's Vite types (#1521)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-fill-pointer.spec.ts",
@@ -11846,6 +11846,18 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "The Refined design (#1430): build removes the CSS comments from the built styles (scripts/strip-style-comments.mjs, after tsc), about 11.5 KB; the comments stay in src; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/tsconfig.spec.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "ca661bc0a2f999b95bb590a060dc57cfaebe322859f2507c4f85ac11128eb1a8",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456)"
     }
   ]
 }

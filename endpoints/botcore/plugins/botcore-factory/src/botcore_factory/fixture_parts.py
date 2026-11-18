@@ -256,8 +256,11 @@ class FixtureGit:
         return "origin" not in self.store.this_machine().get("missing", [])
 
     def read_file(self, worktree: str, path: str) -> str | None:
-        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``.
-            return self.store.data.get("slotFiles", {}).get(path)
+        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``; a
+            # branch's own (``branchSlotFiles.<branch>``) take their place in its slot.
+            branch = self._slots().get(worktree.removeprefix("slots/"), {}).get("branch")
+            own = self.store.data.get("branchSlotFiles", {}).get(branch, {})
+            return own.get(path, self.store.data.get("slotFiles", {}).get(path))
         return self._worktree(worktree).get("files", {}).get(path)
 
     def fetch_base(self, base: str) -> str:
@@ -275,6 +278,20 @@ class FixtureGit:
 
     def _slot(self, path: str) -> dict:
         return self._slots()[path.removeprefix("slots/")]
+
+    def park_slot(self, slot: str, name: str) -> str:
+        """``outcomes.park``: ``fail: ...`` refuses the move."""
+        _fail(self.store, "park", self._slots().get(slot, {}).get("branch"))
+        self._slots()[name] = self._slots().pop(slot)
+        self.store.save()
+        return f"slots/{name}"
+
+    def remove_checkout(self, path: str) -> None:
+        """Removed checkouts are listed in ``removedCheckouts``; ``outcomes.remove`` fails it."""
+        _fail(self.store, "remove")
+        self._slots().pop(path.removeprefix("slots/"), None)
+        self.store.data.setdefault("removedCheckouts", []).append(path)
+        self.store.save()
 
     def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
@@ -390,7 +407,13 @@ class FixtureMachine:
     def symlinks(self) -> bool:
         return "symlinks" not in self.store.this_machine().get("missing", [])
 
-    def tool_version(self, tool: str) -> str | None:
+    def tool_version(self, tool: str, path: Sequence[str] = ()) -> str | None:
+        """``nodeToolchains.<bin>.<tool>`` for the first directory of ``path`` that has the
+        tool, else ``toolchains.<tool>`` (the host's PATH)."""
+        on_path = self.store.data.get("nodeToolchains", {})
+        for directory in path:
+            if tool in on_path.get(directory, {}):
+                return on_path[directory][tool]
         return self.store.data.get("toolchains", {}).get(tool)
 
     def node_bin(self, spec: str) -> str | None:

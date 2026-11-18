@@ -16,7 +16,10 @@ use serde_json::{Value, json};
 use crate::commands::{command_line_only, store_failure};
 use crate::engine::Engine;
 use crate::read::{integer, parameter, read_exposure};
-use crate::store::{MOST_PER_DAY, MOST_SELECTIONS, Policy, PolicyRow, SELECTION_LIFETIME};
+use crate::store::{
+    MOST_PER_DAY, MOST_PROPOSALS, MOST_SELECTIONS, PROPOSAL_LIFETIME, Policy, PolicyRow,
+    SELECTION_LIFETIME,
+};
 
 /// The name of the command that changes the policy.
 pub const SET: &str = "mail-policy-set";
@@ -130,6 +133,12 @@ impl CommandHandler for Show {
                 "selections": {
                     "perCaller": MOST_SELECTIONS,
                     "lifetime": SELECTION_LIFETIME,
+                },
+                // Over a limit, a change is a proposal that waits for the
+                // person: this many a caller, for this long (M28).
+                "proposals": {
+                    "perCaller": MOST_PROPOSALS,
+                    "lifetime": PROPOSAL_LIFETIME,
                 },
             })),
             Err(error) => failure(store_failure(&error)),

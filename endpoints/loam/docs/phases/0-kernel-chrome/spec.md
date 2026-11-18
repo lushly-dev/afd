@@ -1603,7 +1603,7 @@ returned 18 findings. Each is addressed in the text above:
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-01 | Phase 0 specification | A browser-safe `DirectClient` entry in `@lushly-dev/afd-client`, needed by the copilot in phase 5. There is no subpath today, and the root loads the MCP client and `eventsource` | Open; [#655](https://github.com/lushly-dev/afd/issues/655) |
+| 2026-11-01 | Phase 0 specification | A browser-safe `DirectClient` entry in `@lushly-dev/afd-client`, needed by the copilot in phase 5. The `/direct` entry exports the client without MCP, `eventsource` or Node built-ins, with an entry-point size budget | Implemented on `lush/fleet-655-browser-direct-client`; lane landing pending; [#655](https://github.com/lushly-dev/afd/issues/655) |
 | 2026-11-01 | Phase 0 specification | Specimen running axe itself, so the chrome's checks need no second harness | Open; not needed for phase 0 |
 | 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open; [#656](https://github.com/lushly-dev/afd/issues/656) |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |

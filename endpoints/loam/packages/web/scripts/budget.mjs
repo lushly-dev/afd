@@ -275,6 +275,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * for the caller). `accountMinified` 22,500 to 28,000 (25,727, from 21,046: the members tab's agent table, the
  * sponsor's confirm and decline and an owner's add form). `late` 77,579 (+464: line 4 on every command of an agent
  * member and the sponsor's read before the handler) and the kernel alone 115,379 (+180) are within their rows.
+ * Phase 5's step 1 (the copilot core) added four rows and raised two under D115, measured on this branch against
+ * those figures. First paint 302,781 and 94,604 gzip (+117 and +25: the shell's hook that loads the panel when its
+ * part opens, and clears it on a change of person); the copilot itself is never in it. `kernelMinified`
+ * 115,500 to 116,800 (116,395, +1,016): kernel interface 5's minted options for the agent port, the trace a nested
+ * call inherits, the context fields `late/` adds and the gate in the chain. `lateMinified` 78,500 to 80,500 (79,691,
+ * +2,112): the copilot's deps, its input digest and its load beside the other late chunks. New rows, each at its
+ * measurement plus a margin: `lateCopilotMinified` 13,900 (12,630 plus 10%, 13,128 after the trust review's fixes: the copilot's seven commands, its
+ * records, the agent port's half and the gate); `copilotPanelGzip` 72,800 (58,244 plus 25%, 58,576 after the fixes, as the phase 5
+ * specification's 16 sets its rows from a measurement; under its 113 KB, which counted FAST and the spike's
+ * harness); and the runtime frame's two chunks, read from `@lushly-dev/loam-copilot`'s `dist/frame/sizes.json`, at
+ * 16's 120,000 gzip (95,308 for `anthropic` and `test`, 95,178 for the OpenAI kinds).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -285,11 +296,15 @@ export const CEILINGS = Object.freeze({
 	jsMinified: 304_000,
 	jsGzip: 95_500,
 	cssMinified: 8_496,
-	kernelMinified: 115_500,
-	lateMinified: 78_500,
+	kernelMinified: 116_800,
+	lateMinified: 80_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
+	lateCopilotMinified: 13_900,
+	copilotPanelGzip: 72_800,
+	copilotRuntimeAnthropicGzip: 120_000,
+	copilotRuntimeOpenaiGzip: 120_000,
 	authMinified: 72_000,
 	signInMinified: 10_500,
 	accountMenuMinified: 5_400,
@@ -471,7 +486,8 @@ async function measurePage() {
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
 	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07), and phase 3's
 	// `late-identity` (phase 3 specification, 13).
-	const late = closure(/^assets\/late-(?!documents-|editor-|identity-)/, initial);
+	// Phase 5's `late-copilot` too, the copilot's records and commands (phase 5 specification, 2 and 16).
+	const late = closure(/^assets\/late-(?!documents-|editor-|identity-|copilot-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
@@ -494,12 +510,21 @@ async function measurePage() {
 	if (lateIdentity.size === 0) {
 		throw new Error('budget: the build has no `late-identity` chunk to measure');
 	}
+	// Phase 5's (its 2): awaited after them in `createLateParts`, so charged last of the late chunks.
+	const lateCopilot = closure(
+		/^assets\/late-copilot-/,
+		new Set([...initial, ...late, ...lateDocuments, ...lateEditor, ...lateIdentity])
+	);
+	if (lateCopilot.size === 0) {
+		throw new Error('budget: the build has no `late-copilot` chunk to measure');
+	}
 	const afterLate = new Set([
 		...initial,
 		...late,
 		...lateDocuments,
 		...lateEditor,
 		...lateIdentity,
+		...lateCopilot,
 	]);
 	// Phase 3's `auth` (13): Better Auth's client, `BetterAuthAdapter` and `SessionSync`, which stage B loads in
 	// `provider` mode only, after `late-identity` and before `apps`. A `local` shell never loads it, so it is charged
@@ -585,6 +610,16 @@ async function measurePage() {
 	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
+	// The copilot's panel (phase 5 specification, 16), loaded when the panel part first opens, after the surfaces:
+	// a gzip row, as 16 sets it from the spike's measurement.
+	const copilotPanel = closure(/^assets\/copilot-panel-/, afterSurfaces);
+	if (copilotPanel.size === 0)
+		throw new Error('budget: the build has no `copilot-panel` chunk to measure');
+	const gzipOfFiles = (files) =>
+		[...files].reduce(
+			(sum, name) => sum + gzipSync(Buffer.from(chunks.get(name).code), { level: 9 }).length,
+			0
+		);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const gzipOf = (code) => gzipSync(code, { level: 9 }).length;
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
@@ -604,6 +639,8 @@ async function measurePage() {
 		lateDocumentsMinified: sizeOf(lateDocuments),
 		lateEditorMinified: sizeOf(lateEditor),
 		lateIdentityMinified: sizeOf(lateIdentity),
+		lateCopilotMinified: sizeOf(lateCopilot),
+		copilotPanelGzip: gzipOfFiles(copilotPanel),
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
 		accountMenuMinified: sizeOf(accountMenu),
@@ -694,6 +731,10 @@ const ROWS = [
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
+	['lateCopilotMinified', "The kernel's `late-copilot` chunk and its imports, minified"],
+	['copilotPanelGzip', 'The `copilot-panel` chunk and its imports, gzip'],
+	['copilotRuntimeAnthropicGzip', 'The copilot runtime for `anthropic` and `test`, gzip'],
+	['copilotRuntimeOpenaiGzip', 'The copilot runtime for the OpenAI kinds, gzip'],
 	['authMinified', "The `auth` chunk, Better Auth's client and `SessionSync`, minified"],
 	['signInMinified', 'The `sign-in` chunk, `loam-sign-in-dialog`, minified'],
 	['accountMenuMinified', 'The `account-menu` chunk, `loam-account-menu`, minified'],
@@ -724,7 +765,14 @@ const ROWS = [
 export async function measure() {
 	const page = await measurePage();
 	const kernel = await measureKernel();
-	const values = { ...page, kernelMinified: kernel.kernelMinified };
+	// The runtime frame's chunks, built by `@lushly-dev/loam-copilot` and copied to `sandbox/copilot/` (16).
+	const frame = JSON.parse(readFileSync(resolve(ROOT, '../copilot/dist/frame/sizes.json'), 'utf8'));
+	const values = {
+		...page,
+		kernelMinified: kernel.kernelMinified,
+		copilotRuntimeAnthropicGzip: frame['runtime-anthropic.js'].gzipBytes,
+		copilotRuntimeOpenaiGzip: frame['runtime-openai.js'].gzipBytes,
+	};
 	const rows = ROWS.map(([key, label]) => ({
 		key,
 		label,

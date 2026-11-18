@@ -11,7 +11,13 @@ import {
 	type Transport,
 } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { ConformanceRunner, selectCases, wireProblems } from './conformance.js';
+import {
+	ConformanceRunner,
+	selectCases,
+	TOOL_LIST,
+	toolListView,
+	wireProblems,
+} from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKENDS = ['ts', 'py', 'rs', 'cpp', 'umbel', 'umbel-mounted'] as const;
@@ -358,6 +364,14 @@ async function connect(
 /** Call a tool, parse its CommandResult and check the wire format. */
 function toolCaller(client: Client) {
 	return async (name: string, args: unknown) => {
+		if (name === TOOL_LIST) {
+			console.log('Listing tools');
+			const listed = await client.listTools();
+			return {
+				success: true,
+				data: toolListView(listed.tools as Parameters<typeof toolListView>[0]),
+			};
+		}
 		console.log(`Calling tool: ${name}`, args);
 		const result = (await client.callTool({
 			name,
@@ -423,7 +437,7 @@ async function run() {
 			results.push(
 				...(await new ConformanceRunner(toolCaller(session.client)).run(
 					path.join(__dirname, '../spec/test-cases.json'),
-					{ language: LANGUAGE[target] }
+					{ language: LANGUAGE[target], backend: target }
 				))
 			);
 		} finally {
@@ -440,7 +454,7 @@ async function run() {
 		for (const kind of CONFIRMATION_CLIENTS) {
 			// A client kind whose cases this language does not implement yet is skipped, and said
 			// so; the suite still fails when it leaves the language no case at all.
-			const filter = { client: kind, language: LANGUAGE[target] };
+			const filter = { client: kind, language: LANGUAGE[target], backend: target };
 			if ((await selectCases(specPath, filter)).length === 0) {
 				console.log(
 					`Skipping the ${kind} client: no case in ${suite} is for ${filter.language} yet`

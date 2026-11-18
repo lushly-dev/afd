@@ -14,10 +14,22 @@ from botcore_factory.cells import choose_plan, describe_plan, read_plans, seated
 from botcore_factory.events import open_events, view
 from botcore_factory.intake import dispatchable, read_backlog
 from botcore_factory.labels import NEEDS_OWNER
+from botcore_factory.lane_base import counted_ejections
 from botcore_factory.runtime import Factory, Refusal, paginate
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
-CELL_FIELDS = ("branch", "issues", "state", "plan", "route", "ejections", "thread")
+CELL_FIELDS = (
+    "branch",
+    "issues",
+    "relatedBecause",
+    "state",
+    "plan",
+    "route",
+    "ejections",
+    "excused",
+    "lastEjection",
+    "thread",
+)
 
 
 def _cell_view(cell: dict) -> dict:
@@ -25,6 +37,9 @@ def _cell_view(cell: dict) -> dict:
     issues = cell.get("issues") or []
     view["issue"] = issues[0] if issues else None
     view.setdefault("ejections", 0)
+    view.setdefault("excused", 0)
+    # What counts toward cells.maxEjections: the branch's own failures only.
+    view["countedEjections"] = counted_ejections(cell)
     return view
 
 
@@ -37,7 +52,9 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
     if len(seated(state)) >= most:
         return {"canStartCell": False, "reason": f"Every seat is taken (cells.max is {most})"}
     try:
-        choice = choose_plan(read_plans(factory), dials.value(overrides, "plans.ceiling"))
+        choice = choose_plan(
+            read_plans(factory), dials.value(overrides, "plans.ceiling"), factory.world.clock.now()
+        )
     except Refusal as refusal:
         return {"canStartCell": False, "reason": refusal.message}
     if choice.plan is None:
@@ -57,7 +74,7 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
         return {"canStartCell": False, "reason": "Nothing is dispatchable: run triage-issues"}
     return {
         "canStartCell": True,
-        "plan": describe_plan(choice.plan, choice.ceiling),
+        "plan": describe_plan(choice.plan, choice.ceiling, choice.now),
         "nextIssue": ready[0],
     }
 
@@ -99,8 +116,11 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "draining": bool(lane.get("draining")),
         "slots": {
             "total": dials.value(state["dials"], "lane.slots"),
+            # A validated branch that gave its slot up keeps its validation but no slot.
             "busy": sum(
-                1 for entry in state["queue"] if entry.get("state") in ("validating", "validated")
+                1
+                for entry in state["queue"]
+                if entry.get("state") in ("validating", "validated") and entry.get("slot")
             ),
         },
         **paginate(lists, limit, cursor),
@@ -128,8 +148,10 @@ def compact_status(factory: Factory) -> dict:
 
 def plan_list(factory: Factory) -> dict:
     ceiling = dials.value(factory.store.read()["dials"], "plans.ceiling")
-    plans = read_plans(factory)
-    return {"plans": [describe_plan(plan, ceiling) for plan in plans], "ceiling": ceiling}
+    plans, now = read_plans(factory), factory.world.clock.now()
+    described = [describe_plan(plan, ceiling, now) for plan in plans]
+    chosen = choose_plan(plans, ceiling, now).plan
+    return {"plans": described, "ceiling": ceiling, "next": chosen.id if chosen else None}
 
 
 def find_dial(key: str) -> dials.Dial:

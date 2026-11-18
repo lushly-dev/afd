@@ -13,7 +13,8 @@
 			"plan": "plan-a",
 			"route": "sol/high",
 			"state": "ejected",
-			"ejections": 1
+			"ejections": 1,
+			"lastEjection": { "attempt": 1, "cause": "final-failed", "at": "2030-01-01T00:00:00Z" }
 		},
 		{
 			"branch": "feat/export-csv",

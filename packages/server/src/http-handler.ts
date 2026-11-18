@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
+	Actor,
 	BatchRequest,
 	BatchResult,
 	CommandContext,
@@ -18,6 +19,12 @@ import {
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import {
+	type ApproverPredicate,
+	approvalKeyInInput,
+	bindApprover,
+	decideApprover,
+} from './approver.js';
 import type { ContextState } from './bootstrap/afd-context.js';
 import { createHttpConfirmationCheck } from './confirmation-gate.js';
 import type { ConfirmationGate } from './confirmations.js';
@@ -98,6 +105,14 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	 * token, and every command context carries the request's credentials.
 	 */
 	auth?: AuthLayer;
+	/**
+	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver
+	 * client"). The 2025-era `/message` lane never carries an approver's token back: an approver's
+	 * `_meta["dev.afd/approval"]` there is refused, and its held results carry the token.
+	 */
+	approver?: ApproverPredicate;
+	/** The actor of a call whose context has none (the server's `actor` option). */
+	actor?: Actor;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -285,6 +300,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 						'Send params as { "name": "<tool>", "arguments": { ... } }'
 					);
 				}
+				// Approval evidence is never input, from any caller.
+				const keyed = approvalKeyInInput(params.arguments);
+				if (keyed) return resultContent(failure(keyed), true);
 				const lifted = liftMetaArgument(params.name, params.arguments, params._meta, metaKeys);
 				if (!lifted.ok) return resultContent(failure(lifted.error), true);
 				const args = lifted.args ?? {};
@@ -295,10 +313,23 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 						'Send the tool arguments as a JSON object'
 					);
 				}
+				const context = await commandContext(req, res, state, undefined, lifted.meta);
+				// A 2025-era request: an approver gets its token but cannot carry it back here.
+				const actor = (context.actor ?? deps.actor) as Actor | undefined;
+				const carrier = decideApprover({
+					approver: deps.approver,
+					context: { ...context, actor },
+					actor,
+					credentials: context.credentials,
+					meta: params._meta,
+					tool: params.name,
+					modern: false,
+				});
+				if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true);
 				return routeToolCall(
 					params.name,
 					args,
-					await commandContext(req, res, state, undefined, lifted.meta)
+					carrier.approver ? bindApprover(context, carrier.approver) : context
 				);
 			}
 			default:
@@ -337,6 +368,8 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const state = sessionState(req);
 		const body = await answer(message, async () => {
 			const { input, meta } = splitMeta(message.params ?? {});
+			const keyed = approvalKeyInInput(input);
+			if (keyed) return { success: false, error: keyed };
 			const steps = [{ command: message.method, input }];
 			const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
 			if (refused) return { success: false, error: refused };
@@ -398,7 +431,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const split = splitMeta(input);
 		input = split.input;
 		const steps = [{ command: commandName, input }];
-		const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
+		const refused =
+			approvalKeyInInput(input) ??
+			scopeRefusal(req, steps) ??
+			(await unconfirmed(req, existing(req, steps)));
 		if (refused) {
 			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
 			res.end(`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, false))}\n\n`);
@@ -521,7 +557,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				input: item.input ?? {},
 			}));
 			// A batch fails as a whole before its first step (M6), as a confirmation does.
-			const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
+			const refused =
+				approvalKeyInInput(steps.map((step) => step.input)) ??
+				scopeRefusal(req, steps) ??
+				(await unconfirmed(req, existing(req, steps)));
 			if (refused) {
 				json(res, 200, createFailedBatchResult(refused, {}));
 				return;

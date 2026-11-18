@@ -3,7 +3,10 @@ import { withBasePath, withFrameSrc } from '@lushly-dev/loam-cli/deployment';
 import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import {
+	COPILOT_FRAME_PATH,
 	commonHeaders,
+	copilotFramePolicy,
+	isCopilotFramePath,
 	isFormPage,
 	metaPolicy,
 	SHELL_PERMISSIONS_POLICY,
@@ -132,6 +135,29 @@ describe('P6-E2: the headers (3.5)', () => {
 
 	it("P6-E2: the sandbox's pages may be framed by the shell's origin only", () => {
 		expect(sandboxPolicy('https://localhost:8443')).toBe('frame-ancestors https://localhost:8443');
+	});
+
+	it("P5-A2: the copilot frame's policy names its path on the sandbox origin, never 'self', and is framed only by the shell (phase 5's 3.2)", () => {
+		expect(COPILOT_FRAME_PATH).toBe('/sandbox/copilot/');
+		expect(copilotFramePolicy('https://127.0.0.1:8444', 'https://localhost:8443')).toBe(
+			"default-src 'none'; script-src https://127.0.0.1:8444/sandbox/copilot/; worker-src blob:; connect-src 'none'; frame-ancestors https://localhost:8443"
+		);
+		// The desktop's scheme, whose origin a URL reads as opaque, still gives its path.
+		expect(copilotFramePolicy('loam-sandbox://localhost', 'loam://localhost')).toBe(
+			"default-src 'none'; script-src loam-sandbox://localhost/sandbox/copilot/; worker-src blob:; connect-src 'none'; frame-ancestors loam://localhost"
+		);
+		expect(
+			copilotFramePolicy('https://sandbox.example.net', 'https://loam.example.com')
+		).not.toContain("'self'");
+		for (const path of ['/sandbox/copilot/index.html', '/sandbox/copilot/runtime-anthropic.js'])
+			expect(isCopilotFramePath(path), path).toBe(true);
+		for (const path of [
+			'/sandbox/proxy.html',
+			'/sandbox/copilot',
+			'/sandbox/copilot-other.html',
+			'/copilot/',
+		])
+			expect(isCopilotFramePath(path), path).toBe(false);
 	});
 
 	it('P6-E2: caches hashed assets for a year, and revalidates the pages and the projection', () => {

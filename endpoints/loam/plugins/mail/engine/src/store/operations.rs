@@ -16,7 +16,15 @@
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::derived::{Touched, rebuild_cursor, settle, touch_place};
-use super::{Kept, Proposer, SelectionItem, Store, StoreError, count, flags_json, note_change};
+use super::{
+    Kept, Proposer, Role, SelectionItem, Store, StoreError, count, flags_json, note_change,
+};
+
+/// How long a proposal waits for the person, in milliseconds (9.4).
+pub const PROPOSAL_LIFETIME: i64 = 7 * 24 * 60 * 60 * 1000;
+
+/// How many proposals one caller may have waiting (9.4).
+pub const MOST_PROPOSALS: u32 = 5;
 
 /// What an operation does to each message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +85,8 @@ impl Kind {
 /// Where an operation stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationState {
+    /// It waits for the person's approval, and changes nothing until then.
+    Proposed,
     /// It runs, or was running when its process stopped.
     Running,
     /// It stopped before its end: asked to, or on a failure. It can be
@@ -84,6 +94,10 @@ pub enum OperationState {
     Stopped,
     /// Every item reached its end.
     Done,
+    /// A proposal the person or its proposer dismissed before it ran.
+    Dismissed,
+    /// A proposal that waited seven days and never ran.
+    Expired,
 }
 
 impl OperationState {
@@ -91,16 +105,22 @@ impl OperationState {
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Proposed => "proposed",
             Self::Running => "running",
             Self::Stopped => "stopped",
             Self::Done => "done",
+            Self::Dismissed => "dismissed",
+            Self::Expired => "expired",
         }
     }
 
     fn parse(text: &str) -> Self {
         match text {
+            "proposed" => Self::Proposed,
             "running" => Self::Running,
             "done" => Self::Done,
+            "dismissed" => Self::Dismissed,
+            "expired" => Self::Expired,
             _ => Self::Stopped,
         }
     }
@@ -201,6 +221,26 @@ pub struct OperationRow {
     pub messages: u64,
     /// Why it stopped, in the engine's words.
     pub error: Option<String>,
+    /// When it first ran; `None` for a proposal not yet approved.
+    pub started_at: Option<i64>,
+    /// Whether it counts against its creator's day of trash: a proposal
+    /// does not, approved or not.
+    pub charged: bool,
+    /// The proposal open now, or the last one.
+    pub proposal: Option<Proposal>,
+}
+
+/// A proposal of an operation (9.4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Proposal {
+    /// Who proposed it.
+    pub proposer: Proposer,
+    /// When.
+    pub proposed_at: i64,
+    /// When it goes, if the person has not approved it.
+    pub expires_at: i64,
+    /// When the person approved it, if they have.
+    pub approved_at: Option<i64>,
 }
 
 /// How many of an operation's items reached each end.
@@ -276,6 +316,9 @@ pub struct NewOperation {
     pub messages: u64,
     /// What it acts on.
     pub items: Vec<NewItem>,
+    /// Whether it is made as a proposal of its creator's, which waits for
+    /// the person's approval.
+    pub proposed: bool,
 }
 
 /// An item as the store keeps it.
@@ -337,10 +380,13 @@ impl ItemStep {
     }
 }
 
+/// An undo that ran, or runs: a proposed one has undone nothing.
 const OPERATION_COLUMNS: &str = "id, command, action, kind, asked, undo_of,
-    (SELECT max(undo.id) FROM operation AS undo WHERE undo.undo_of = operation.id),
+    (SELECT max(undo.id) FROM operation AS undo
+     WHERE undo.undo_of = operation.id AND undo.started_at IS NOT NULL),
     selection_id, query, creator_kind, creator_id, state, stop_asked, created_at, ended_at,
-    messages, error";
+    messages, error, started_at, charged, proposer_kind, proposer_id, proposed_at, expires_at,
+    approved_at";
 
 fn operation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationRow> {
     Ok(OperationRow {
@@ -367,6 +413,24 @@ fn operation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationRow> {
         ended_at: row.get(14)?,
         messages: count(row.get(15)?),
         error: row.get(16)?,
+        started_at: row.get(17)?,
+        charged: row.get(18)?,
+        proposal: match (
+            row.get::<_, Option<String>>(19)?,
+            row.get(21)?,
+            row.get(22)?,
+        ) {
+            (Some(kind), Some(proposed_at), Some(expires_at)) => Some(Proposal {
+                proposer: Proposer {
+                    kind,
+                    id: row.get(20)?,
+                },
+                proposed_at,
+                expires_at,
+                approved_at: row.get(23)?,
+            }),
+            _ => None,
+        },
     })
 }
 
@@ -425,10 +489,19 @@ impl Store {
         now: i64,
     ) -> Result<OperationRow, StoreError> {
         let transaction = self.connection.transaction()?;
+        let proposed = operation.proposed;
+        let (state, started_at) = if proposed {
+            (OperationState::Proposed, None)
+        } else {
+            (OperationState::Running, Some(now))
+        };
         transaction.execute(
             "INSERT INTO operation (command, action, kind, asked, undo_of, selection_id, query,
-                                    creator_kind, creator_id, state, created_at, messages)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'running', ?10, ?11)",
+                                    creator_kind, creator_id, state, created_at, messages,
+                                    started_at, charged, proposer_kind, proposer_id, proposed_at,
+                                    expires_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                     ?18)",
             params![
                 operation.command,
                 operation.action.as_str(),
@@ -439,8 +512,19 @@ impl Store {
                 operation.query,
                 operation.creator.kind,
                 operation.creator.id,
+                state.as_str(),
                 now,
                 i64::try_from(operation.messages).unwrap_or(i64::MAX),
+                started_at,
+                !proposed,
+                proposed.then_some(&operation.creator.kind),
+                if proposed {
+                    operation.creator.id.as_deref()
+                } else {
+                    None
+                },
+                proposed.then_some(now),
+                proposed.then_some(now + PROPOSAL_LIFETIME),
             ],
         )?;
         let id = transaction.last_insert_rowid();
@@ -506,6 +590,28 @@ impl Store {
         ))?;
         let rows =
             statement.query_map(params![before.unwrap_or(i64::MAX), limit], operation_row)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The proposals waiting, the most recently proposed first, after the
+    /// one proposed at `before` (its time and id), at most `limit`. A resume
+    /// proposed keeps its operation's older id, so they are ordered by when
+    /// they were proposed.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn proposals(
+        &self,
+        before: Option<(i64, i64)>,
+        limit: u32,
+    ) -> Result<Vec<OperationRow>, StoreError> {
+        let (at, id) = before.unwrap_or((i64::MAX, i64::MAX));
+        let mut statement = self.connection.prepare_cached(&format!(
+            "SELECT {OPERATION_COLUMNS} FROM operation
+             WHERE state = 'proposed' AND (proposed_at, id) < (?1, ?2)
+             ORDER BY proposed_at DESC, id DESC LIMIT ?3"
+        ))?;
+        let rows = statement.query_map(params![at, id, limit], operation_row)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
@@ -575,7 +681,8 @@ impl Store {
     }
 
     /// How many messages `creator` set out to move to the trash since
-    /// `since`, in operations it made.
+    /// `since`, in operations it made: not in its proposals, approved or not
+    /// (9.4).
     ///
     /// # Errors
     /// When the database refuses.
@@ -583,7 +690,7 @@ impl Store {
         Ok(count(self.connection.query_row(
             "SELECT coalesce(sum(messages), 0) FROM operation
              WHERE kind = 'trash' AND creator_kind = ?1 AND creator_id IS ?2
-               AND created_at > ?3",
+               AND created_at > ?3 AND charged = 1",
             params![creator.kind, creator.id, since],
             |row| row.get(0),
         )?))
@@ -770,20 +877,307 @@ impl Store {
         Ok(items)
     }
 
-    /// How many operations are running, and how many stopped before their
-    /// end.
+    /// How many operations are running, stopped before their end, and
+    /// proposed and waiting for the person.
     ///
     /// # Errors
     /// When the database refuses.
-    pub fn operation_states(&self) -> Result<(u64, u64), StoreError> {
+    pub fn operation_states(&self) -> Result<OperationStates, StoreError> {
         Ok(self.connection.query_row(
             "SELECT count(*) FILTER (WHERE state = 'running'),
-                    count(*) FILTER (WHERE state = 'stopped')
+                    count(*) FILTER (WHERE state = 'stopped'),
+                    count(*) FILTER (WHERE state = 'proposed')
              FROM operation",
             [],
-            |row| Ok((count(row.get(0)?), count(row.get(1)?))),
+            |row| {
+                Ok(OperationStates {
+                    running: count(row.get(0)?),
+                    stopped: count(row.get(1)?),
+                    proposed: count(row.get(2)?),
+                })
+            },
         )?)
     }
+
+    /// How many proposals `proposer` has waiting.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn proposals_waiting(&self, proposer: &Proposer) -> Result<u64, StoreError> {
+        Ok(count(self.connection.query_row(
+            "SELECT count(*) FROM operation
+             WHERE state = 'proposed' AND proposer_kind = ?1 AND proposer_id IS ?2",
+            params![proposer.kind, proposer.id],
+            |row| row.get(0),
+        )?))
+    }
+
+    /// Proposes that stopped operation `id` be carried on, by `proposer`.
+    /// Returns whether it was stopped.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn propose_resume(
+        &mut self,
+        id: i64,
+        proposer: &Proposer,
+        now: i64,
+    ) -> Result<bool, StoreError> {
+        Ok(self.connection.execute(
+            "UPDATE operation SET state = 'proposed', proposer_kind = ?2, proposer_id = ?3,
+                                  proposed_at = ?4, expires_at = ?5, approved_at = NULL
+             WHERE id = ?1 AND state = 'stopped'",
+            params![id, proposer.kind, proposer.id, now, now + PROPOSAL_LIFETIME],
+        )? > 0)
+    }
+
+    /// Approves proposal `id`: it runs from now, as the person's. Returns
+    /// whether it was open.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn approve_proposal(&mut self, id: i64, now: i64) -> Result<bool, StoreError> {
+        Ok(self.connection.execute(
+            "UPDATE operation SET state = 'running', started_at = coalesce(started_at, ?2),
+                                  approved_at = ?2, stop_asked = 0, error = NULL
+             WHERE id = ?1 AND state = 'proposed' AND expires_at > ?2",
+            params![id, now],
+        )? > 0)
+    }
+
+    /// Dismisses proposal `id`. A change that never ran is `dismissed` and
+    /// its items dropped; a stopped operation proposed to be carried on is
+    /// stopped again. Returns its state after, or `None` when it was not
+    /// open.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn dismiss_proposal(
+        &mut self,
+        id: i64,
+        now: i64,
+    ) -> Result<Option<OperationState>, StoreError> {
+        let transaction = self.connection.transaction()?;
+        let state: Option<String> = transaction
+            .query_row(
+                "UPDATE operation
+                 SET state = CASE WHEN started_at IS NULL THEN 'dismissed' ELSE 'stopped' END,
+                     -- A stopped operation keeps when its run stopped.
+                     ended_at = CASE WHEN started_at IS NULL THEN ?2 ELSE ended_at END
+                 WHERE id = ?1 AND state = 'proposed'
+                 RETURNING state",
+                params![id, now],
+                |row| row.get(0),
+            )
+            .optional()?;
+        transaction.execute(
+            "DELETE FROM operation_item WHERE operation_id = ?1
+               AND (SELECT state FROM operation WHERE id = ?1) = 'dismissed'",
+            [id],
+        )?;
+        transaction.commit()?;
+        Ok(state.as_deref().map(OperationState::parse))
+    }
+
+    /// Ends the proposals that waited past their seven days: a change that
+    /// never ran is `expired` and its items dropped; a stopped operation
+    /// proposed to be carried on is stopped again. Returns how many ended.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn expire_proposals(&mut self, now: i64) -> Result<u64, StoreError> {
+        let transaction = self.connection.transaction()?;
+        let ended = expire_proposals(&transaction, now)?;
+        transaction.commit()?;
+        Ok(ended)
+    }
+
+    /// [`Store::expire_proposals`] on `connection`, for the store's opening.
+    pub(super) fn expire_proposals_on(
+        connection: &rusqlite::Connection,
+        now: i64,
+    ) -> Result<(), StoreError> {
+        expire_proposals(connection, now).map(|_| ())
+    }
+
+    /// The undo of operation `id` that waits for the person, if one does.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn undo_proposed(&self, id: i64) -> Result<Option<i64>, StoreError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT max(id) FROM operation WHERE undo_of = ?1 AND state = 'proposed'",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
+    /// What the person reads before approving proposal `id`: where the
+    /// messages it would act on are, and their classes, counting the items
+    /// it has not finished.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn proposal_preview(&self, id: i64) -> Result<ProposalPreview, StoreError> {
+        let mut preview = ProposalPreview::default();
+        {
+            let mut statement = self.connection.prepare_cached(&format!(
+                "SELECT mailbox.id, mailbox.account_id, account.provider, mailbox.role,
+                        mailbox.name, count(*)
+                 FROM operation_item
+                 JOIN mailbox ON mailbox.id = operation_item.mailbox_id
+                 JOIN account ON account.id = mailbox.account_id
+                 WHERE operation_item.operation_id = ?1 AND operation_item.step IN {OPEN_STEPS}
+                 GROUP BY mailbox.id ORDER BY 6 DESC, 1"
+            ))?;
+            let rows = statement.query_map([id], |row| {
+                Ok(PlacesIn {
+                    mailbox: row.get(0)?,
+                    account: row.get(1)?,
+                    provider: row.get(2)?,
+                    role: Role::parse(&row.get::<_, String>(3)?).unwrap_or(Role::None),
+                    name: row.get(4)?,
+                    places: count(row.get(5)?),
+                })
+            })?;
+            for row in rows {
+                preview.mailboxes.push(row?);
+            }
+        }
+        {
+            let mut statement = self.connection.prepare_cached(&format!(
+                "SELECT mailbox.id, mailbox.account_id, account.provider, mailbox.role,
+                        mailbox.name, count(*)
+                 FROM operation_item
+                 JOIN mailbox ON mailbox.id = operation_item.to_mailbox_id
+                 JOIN account ON account.id = mailbox.account_id
+                 JOIN operation ON operation.id = operation_item.operation_id
+                 WHERE operation_item.operation_id = ?1 AND operation_item.step IN {OPEN_STEPS}
+                   AND operation.action IN ('move', 'copy')
+                 GROUP BY mailbox.id ORDER BY 6 DESC, 1"
+            ))?;
+            let rows = statement.query_map([id], |row| {
+                Ok(PlacesIn {
+                    mailbox: row.get(0)?,
+                    account: row.get(1)?,
+                    provider: row.get(2)?,
+                    role: Role::parse(&row.get::<_, String>(3)?).unwrap_or(Role::None),
+                    name: row.get(4)?,
+                    places: count(row.get(5)?),
+                })
+            })?;
+            for row in rows {
+                preview.destinations.push(row?);
+            }
+        }
+        // Each message once, however many places it has. One that is not
+        // inbound, from one of the person's own addresses, has no class.
+        let messages = format!(
+            "(SELECT DISTINCT message_id FROM operation_item
+              WHERE operation_id = ?1 AND step IN {OPEN_STEPS} AND message_id IS NOT NULL)
+             AS named"
+        );
+        {
+            let mut statement = self.connection.prepare_cached(&format!(
+                "SELECT coalesce(screening.class, 'own'), count(*) FROM {messages}
+                 LEFT JOIN screening ON screening.message_id = named.message_id
+                 GROUP BY 1 ORDER BY 1"
+            ))?;
+            let rows = statement.query_map([id], |row| {
+                Ok((row.get::<_, String>(0)?, count(row.get(1)?)))
+            })?;
+            for row in rows {
+                preview.classes.push(row?);
+            }
+        }
+        (preview.known_messages, preview.known_senders) = self.connection.query_row(
+            &format!(
+                "SELECT count(*), count(DISTINCT screening.sender_address) FROM {messages}
+                 JOIN screening ON screening.message_id = named.message_id
+                 WHERE screening.class = 'known'"
+            ),
+            [id],
+            |row| Ok((count(row.get(0)?), count(row.get(1)?))),
+        )?;
+        preview.unreturned = count(self.connection.query_row(
+            &format!(
+                "SELECT count(*) FROM operation_item
+                 WHERE operation_id = ?1 AND step IN {OPEN_STEPS} AND message_id IS NULL"
+            ),
+            [id],
+            |row| row.get(0),
+        )?);
+        Ok(preview)
+    }
+}
+
+/// [`Store::expire_proposals`], inside a transaction or at the opening.
+fn expire_proposals(connection: &rusqlite::Connection, now: i64) -> Result<u64, StoreError> {
+    let ended = connection.execute(
+        "UPDATE operation
+         SET state = CASE WHEN started_at IS NULL THEN 'expired' ELSE 'stopped' END,
+             ended_at = CASE WHEN started_at IS NULL THEN expires_at ELSE ended_at END
+         WHERE state = 'proposed' AND expires_at <= ?1",
+        [now],
+    )?;
+    if ended > 0 {
+        connection.execute(
+            "DELETE FROM operation_item WHERE operation_id IN
+                 (SELECT id FROM operation WHERE state = 'expired')",
+            [],
+        )?;
+    }
+    Ok(ended as u64)
+}
+
+/// How many operations are in each state that waits for something.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OperationStates {
+    /// Running now.
+    pub running: u64,
+    /// Stopped before their end, and resumable.
+    pub stopped: u64,
+    /// Proposed, and waiting for the person.
+    pub proposed: u64,
+}
+
+/// A mailbox and how many of a proposal's places are in it, or go to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacesIn {
+    /// The mailbox.
+    pub mailbox: i64,
+    /// Its account.
+    pub account: i64,
+    /// The account's provider.
+    pub provider: String,
+    /// Its role.
+    pub role: Role,
+    /// Its name, as the provider writes it: content (12.1).
+    pub name: String,
+    /// How many places.
+    pub places: u64,
+}
+
+/// What the person reads before approving a proposal (9.4).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProposalPreview {
+    /// The mailboxes its places are in, the most first.
+    pub mailboxes: Vec<PlacesIn>,
+    /// The mailboxes a move or a copy puts them in.
+    pub destinations: Vec<PlacesIn>,
+    /// How many of its messages are in each screening class, by name;
+    /// `own` for the person's own mail, which has none.
+    pub classes: Vec<(String, u64)>,
+    /// How many of its messages come from senders the person knows.
+    pub known_messages: u64,
+    /// How many such senders.
+    pub known_senders: u64,
+    /// How many of its places are messages the provider never returned.
+    pub unreturned: u64,
 }
 
 /// Changes what the store shows for an item that is done, as the next pass

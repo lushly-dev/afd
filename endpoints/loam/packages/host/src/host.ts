@@ -28,7 +28,9 @@ import { HostError, type HostFinding } from './errors.js';
 import { authorityOf, gate, type NodeListener } from './gate.js';
 import {
 	commonHeaders,
+	copilotFramePolicy,
 	INERT_POLICY,
+	isCopilotFramePath,
 	isScriptOrStyle,
 	metaPolicy,
 	SHELL_PERMISSIONS_POLICY,
@@ -211,9 +213,15 @@ function shellApp(options: {
 	return app;
 }
 
-function sandboxApp(options: { site: string; origin: string }): Hono<Env> {
+/**
+ * `sandbox/` on the sandbox origin: its pages framed only by the shell (D62), and every file under the copilot's path,
+ * its scripts included, with the copilot frame's own policy (phase 5 specification, 3.2), decided on the path once
+ * decoded so no spelling of it escapes that policy.
+ */
+function sandboxApp(options: { site: string; origin: string; sandboxOrigin: string }): Hono<Env> {
 	const site = serveSite(join(options.site, 'sandbox'));
 	const policy = sandboxPolicy(options.origin);
+	const copilot = copilotFramePolicy(options.sandboxOrigin, options.origin);
 	const app = new Hono<Env>();
 	app.all('*', async (c) => {
 		const path = rawPath(c.env.incoming);
@@ -224,11 +232,14 @@ function sandboxApp(options: { site: string; origin: string }): Hono<Env> {
 			accept: c.req.header('accept'),
 		});
 		if (answer.status !== 200) return notFound();
+		const own = isCopilotFramePath(`/sandbox/${answer.path}`)
+			? copilot
+			: extname(answer.file).toLowerCase() === '.html'
+				? policy
+				: undefined;
 		return fileResponse(answer, c.req.method, {
 			'cache-control': 'no-cache',
-			...(extname(answer.file).toLowerCase() === '.html'
-				? { 'content-security-policy': policy }
-				: {}),
+			...(own ? { 'content-security-policy': own } : {}),
 		});
 	});
 	return app;
@@ -371,7 +382,7 @@ async function construct(
 			},
 		];
 		if (sandboxOrigin) {
-			const sandbox = sandboxApp({ site, origin });
+			const sandbox = sandboxApp({ site, origin, sandboxOrigin });
 			const own = server.sandbox?.listen;
 			if (own === undefined) listeners[0]?.apps.set(authorityOf(sandboxOrigin), sandbox);
 			else listeners.push({ listen: own, apps: new Map([[authorityOf(sandboxOrigin), sandbox]]) });

@@ -60,7 +60,7 @@ import type {
 	CommandSummaryV1,
 	KernelEnvironmentV0,
 	KernelOptionsV0,
-	ShellInfoV3,
+	ShellInfoV5,
 } from '../types.js';
 import { NEW_RECENT_ID, newRecentId } from './new-list.js';
 import type { DocumentRows } from './palette-documents.js';
@@ -492,7 +492,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV3>({
+	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV5>({
 		name: 'shell-info-get',
 		description: 'Get the shell interface versions, the host and the store backend',
 		category: 'shell',
@@ -502,7 +502,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
 			return success({
-				kernelInterface: 3 as const,
+				kernelInterface: 5 as const,
 				layoutState: 0 as const,
 				storeInterface: 1 as const,
 				tokenContract: 1 as const,
