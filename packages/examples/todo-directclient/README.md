@@ -44,11 +44,13 @@ Then:
 
 ```bash
 cd packages/examples/todo-directclient/backend
-cp .env.example .env   # then set GOOGLE_API_KEY
+cp .env.example .env   # then uncomment and set GOOGLE_API_KEY
 pnpm dev               # http://localhost:3201
 ```
 
-Open http://localhost:3201, or connect an MCP client:
+Open http://localhost:3201, or connect an MCP client such as the `afd` CLI (build it once from the
+repository root with `pnpm -F "@lushly-dev/afd-cli..." build`; `afd` below stands for
+`node packages/cli/dist/bin.js`):
 
 ```bash
 afd connect http://localhost:3201/mcp

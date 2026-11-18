@@ -56,8 +56,8 @@ naming the file instead of being treated as empty.
 ### Browser access
 
 Browsers may call the server from the dev frontends in the
-[todo README](../../README.md): `pnpm dev:web` (`http://localhost:3000`) and the
-Vite dev servers (`http://localhost:5173`, and `5174` when both frontends run),
+[todo README](../../README.md): the Vite dev servers of the FAST-AF page (`pnpm dev:web`,
+`http://localhost:5173`) and the React page (`pnpm dev:react`, `http://localhost:5174`),
 on `localhost` or `127.0.0.1`. Any other page gets `403 Origin is not allowed`;
 add its exact origin to `ALLOWED_ORIGINS`. The list is built in
 `src/server-options.ts` and tested in `src/server-options.test.ts`.
@@ -97,7 +97,7 @@ TODO_STORE_PATH=/path/to/todos.db pnpm start
 | `todo-history`     | query    | Recent changes: who, when, and each change's undo |
 
 Each change's result names its undo in `undoCommand` and `undoArgs`; the example README's
-[Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript-and-python) explains them.
+[Undo, history and approvals](../../README.md#undo-history-and-approvals) explains them.
 
 ### SQLite storage
 
@@ -129,12 +129,12 @@ past it), and reports, per call, whether the result is the same:
 ```bash
 pnpm -F "@lushly-dev/afd-cli..." build    # once, from the repository root: the afd CLI
 pnpm build
-TODO_JOURNAL=session.jsonl TODO_STORE_TYPE=memory TRANSPORT=http pnpm start
+TODO_JOURNAL=../../data/session.jsonl TODO_STORE_TYPE=memory TRANSPORT=http pnpm start
 # in another terminal, make some calls, then stop the server:
 node ../../../../cli/dist/bin.js connect http://localhost:3100/mcp
 node ../../../../cli/dist/bin.js call todo-create '{"title":"Recorded"}'
 # replay:
-node ../../../../cli/dist/bin.js replay session.jsonl --module dist/registry.js
+node ../../../../cli/dist/bin.js replay ../../data/session.jsonl --module dist/registry.js
 ```
 
 Replay starts from an empty store, so record from an empty one (`TODO_STORE_TYPE=memory`): a
@@ -149,7 +149,7 @@ warning), the approval hold, the journal, then the change history (`src/server-o
 ## Jobs
 
 `scenarios/` holds the jobs built so far, one scenario file each, from the
-[to-do reference plan](../../../../../docs/features/active/todo-reference/todo-reference.proposal.md#phase-2-jobs).
+[to-do reference plan](../../../../../docs/features/complete/todo-reference/todo-reference.proposal.md#phase-2-jobs).
 `src/scenarios.test.ts` runs them in-process through the server's own middleware, with a fixed
 clock and seeded random, as part of `pnpm test`. `src/surface.test.ts` runs AFD's strict surface
 validation over the commands and checks each declares a title, an output, an example and, when it

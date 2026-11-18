@@ -1,4 +1,4 @@
-# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference).
+# Built in the to-do reference plan's phase 2 (docs/features/complete/todo-reference).
 # src/replay.test.ts runs it in-process with a fixed clock and seeded random through the server's
 # journal middleware, then replays the journal against src/registry.ts, the module
 # `afd replay <journal> --module dist/registry.js` loads, and expects every result to match.

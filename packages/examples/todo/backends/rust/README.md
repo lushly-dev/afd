@@ -3,14 +3,14 @@
 Rust implementation of the AFD todo backend, built on the `afd` crate. It implements the
 thirteen commands of [`spec/commands.schema.json`](../../spec/commands.schema.json) with the
 TypeScript backend's metadata, inputs, error codes, suggestions, result shapes and undo, and
-passes every conformance suite: the 41 todo cases, the 5 confirmation cases and the 4 approval
+passes every conformance suite: the 50 todo cases, the 5 confirmation cases and the 4 approval
 cases, in both MCP eras (`pnpm test:conformance:rs`).
 
 ## What it is
 
 - **MCP over stdio** (`cargo run -- stdio`): the `afd` crate's server, MCP 2026-07-28 and 2025
-  `initialize` clients on one connection. MCP clients and the conformance runner spawn it this
-  way.
+  `initialize` clients on one connection. MCP clients spawn it this way; the conformance
+  runner builds the binary and spawns `todo-backend-rust stdio`.
 - **MCP over HTTP** (`cargo run -- server`): `POST /mcp` (and `POST /message`) is the crate's
   Streamable HTTP endpoint, MCP 2026-07-28 statelessly (per-request `_meta`, `server/discover`)
   and 2025 clients that send `initialize`. `GET /mcp` answers 405. Umbel's mounted mode reaches
@@ -129,7 +129,7 @@ the todo plugin drops it and the clear is gated by its confirmation prompt alone
 |---------|---------|----------|
 | Bind address | `127.0.0.1` | `HOST` |
 | Port | `3100` | `PORT` |
-| Browser origins | the README's dev frontends: `localhost` and `127.0.0.1` on ports 3000, 5173 and 5174 | `ALLOWED_ORIGINS` adds exact origins; `*` and `null` are refused |
+| Browser origins | the README's dev frontends: `localhost` and `127.0.0.1` on ports 5173 and 5174 | `ALLOWED_ORIGINS` adds exact origins; `*` and `null` are refused |
 | `Host` names | `localhost`, `127.0.0.1`, `[::1]` and `HOST` | `ALLOWED_HOSTS` adds names |
 | Request body | 1 MiB | `MAX_BODY_BYTES` |
 | Confirmations | `off` | `CONFIRMATIONS`: `enforce` or `require-human` gate `todo-clear` with its prompt |
@@ -196,11 +196,12 @@ curl -X POST http://127.0.0.1:3100/mcp \
 
 ```
 src/
+├── lib.rs           # The library root: the commands and the registry, for a host to embed
 ├── main.rs          # CLI: server, stdio, shell, list-commands, single commands
 ├── app.rs           # The registry the binary serves: commands, approval hold; contexts
 ├── server.rs        # The MCP server (contexts, then bootstrap); HTTP: the afd endpoint, Host/Origin checks, CORS, body limit
 ├── server/tests.rs  # HTTP tests
 ├── store.rs         # In-memory store: live and deleted todos, the change history
 ├── types.rs         # Todo, stats and sort types
-└── commands/        # One file per command; mod.rs defines them and records the history
+└── commands/        # One file per command; mod.rs defines them and records the history; tests.rs tests them
 ```

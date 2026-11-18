@@ -123,7 +123,7 @@ result shapes are defined in [`spec/commands.schema.json`](../../spec/commands.s
 Each change's result names its undo in `undoCommand` and `undoArgs`, and the history
 middleware (`src/todo_backend/history.py`) records each change with its actor's kind and id;
 the example README's
-[Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript-and-python)
+[Undo, history and approvals](../../README.md#undo-history-and-approvals)
 explains them.
 
 ### Approvals
