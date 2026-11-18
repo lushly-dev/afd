@@ -286,6 +286,9 @@ pub enum CommandInterface {
     Agent,
     /// Terminal/CLI (opt-in).
     Cli,
+    /// Another app, through a host (opt-in; each call needs the registry's call grant, see
+    /// [`CommandRegistry::set_call_grant`]).
+    Apps,
 }
 
 impl CommandInterface {
@@ -296,6 +299,7 @@ impl CommandInterface {
             Self::Mcp => "mcp",
             Self::Agent => "agent",
             Self::Cli => "cli",
+            Self::Apps => "apps",
         }
     }
 }
@@ -309,8 +313,8 @@ impl fmt::Display for CommandInterface {
 /// Controls which interfaces a command is exposed to.
 ///
 /// A flag that is left out takes its own default, as in TypeScript's
-/// `isExposedTo`: `palette` and `agent` default to `true`, `mcp` and `cli` to
-/// `false`. So `{"mcp": true}` deserializes to palette, agent and MCP
+/// `isExposedTo`: `palette` and `agent` default to `true`, `mcp`, `cli` and
+/// `apps` to `false`. So `{"mcp": true}` deserializes to palette, agent and MCP
 /// exposure, the same as `ExposeOptions::new().with_mcp(true)`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -327,6 +331,12 @@ pub struct ExposeOptions {
     /// Terminal/CLI (default `false`: opt in).
     #[serde(default = "default_false")]
     pub cli: bool,
+    /// Other apps, each under a host's grant (default `false`: opt in). The callee's
+    /// declaration that another app may call the command; a call with
+    /// [`CommandInterface::Apps`] also needs [`CommandRegistry::set_call_grant`]'s grant
+    /// (`spec/command-metadata.md`, "App-to-app calls").
+    #[serde(default = "default_false")]
+    pub apps: bool,
 }
 
 impl ExposeOptions {
@@ -359,6 +369,12 @@ impl ExposeOptions {
         self
     }
 
+    /// Set exposure to other apps (see [`ExposeOptions::apps`]).
+    pub fn with_apps(mut self, exposed: bool) -> Self {
+        self.apps = exposed;
+        self
+    }
+
     /// Whether these options expose a command to `interface`.
     pub fn is_exposed_to(&self, interface: CommandInterface) -> bool {
         match interface {
@@ -366,6 +382,7 @@ impl ExposeOptions {
             CommandInterface::Mcp => self.mcp,
             CommandInterface::Agent => self.agent,
             CommandInterface::Cli => self.cli,
+            CommandInterface::Apps => self.apps,
         }
     }
 }
@@ -385,6 +402,7 @@ impl Default for ExposeOptions {
             mcp: false,
             agent: true,
             cli: false,
+            apps: false,
         }
     }
 }
@@ -960,6 +978,24 @@ pub struct CommandRegistry {
     middleware: RwLock<Vec<CommandMiddleware>>,
     journal: RwLock<Option<Arc<JournalRecorder>>>,
     context_fields: RwLock<Arc<Vec<ContextField>>>,
+    call_grant: RwLock<Option<CallGrant>>,
+}
+
+/// A host's grant check for app-to-app calls ([`CommandRegistry::set_call_grant`]): whether the
+/// caller in the context holds a grant naming the command.
+pub type CallGrant = Arc<dyn Fn(&str, &CommandContext) -> bool + Send + Sync>;
+
+/// The one `CALL_NOT_GRANTED` refusal (`spec/command-metadata.md`, "App-to-app calls"): fixed
+/// bytes that name neither the command nor the reason.
+fn call_not_granted() -> CommandError {
+    CommandError::new(
+        error_codes::CALL_NOT_GRANTED,
+        "This app may not call that command",
+    )
+    .with_suggestion(
+        "Ask the deployer for a calls grant that names the command; the command must also set expose.apps",
+    )
+    .with_retryable(false)
 }
 
 /// Commands by name, plus their registration order.
@@ -1214,6 +1250,39 @@ impl CommandRegistry {
         Ok(())
     }
 
+    /// Set the host's grant check for app-to-app calls (`spec/command-metadata.md`, "App-to-app
+    /// calls"): whether the caller in `context` holds a grant naming `command`. AFD does not
+    /// define a grant's shape or who the caller is; a host reads its own declared context field,
+    /// such as Loam's `caller`, from [`CommandContext::extra`].
+    ///
+    /// A call with [`CommandInterface::Apps`] runs only when the command exists for the caller,
+    /// sets [`ExposeOptions::apps`] and this returns `true`. Otherwise, and without a grant
+    /// check, it returns `CALL_NOT_GRANTED` before any other check ([`Self::execute`]). A grant
+    /// check that panics refuses (where the target can unwind). It replaces any earlier one.
+    pub fn set_call_grant(
+        &self,
+        grant: impl Fn(&str, &CommandContext) -> bool + Send + Sync + 'static,
+    ) {
+        *write_lock(&self.call_grant) = Some(Arc::new(grant));
+    }
+
+    /// Whether an app's call to `name` may run (see [`Self::set_call_grant`]).
+    fn app_call_granted(&self, name: &str, context: &CommandContext) -> bool {
+        let Some(grant) = read_lock(&self.call_grant).clone() else {
+            return false;
+        };
+        let exposed = self.get(name).is_some_and(|command| {
+            command.expose.apps
+                && context
+                    .known
+                    .as_ref()
+                    .is_none_or(|known| known.allows(&command))
+        });
+        exposed
+            && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| grant(name, context)))
+                .unwrap_or(false)
+    }
+
     /// The context fields declared with [`Self::set_context_fields`], in declaration order.
     pub fn context_fields(&self) -> Vec<ContextField> {
         read_lock(&self.context_fields).as_ref().clone()
@@ -1262,6 +1331,11 @@ impl CommandRegistry {
     ///
     /// In order:
     ///
+    /// 0. A call with [`CommandInterface::Apps`], an app's call, returns
+    ///    `CALL_NOT_GRANTED` unless the command exists for the caller, sets
+    ///    [`ExposeOptions::apps`] and [`Self::set_call_grant`]'s check grants it.
+    ///    The answer is the same in every case, before lookup or validation, so an
+    ///    app learns nothing about commands it may not call.
     /// 1. An unknown name returns `COMMAND_NOT_FOUND`. Its suggestion names up
     ///    to three close matches, as in TypeScript, chosen among the commands
     ///    exposed to `context.interface` (all commands when it is unset) and
@@ -1332,6 +1406,11 @@ impl CommandRegistry {
         context: Option<CommandContext>,
     ) -> CommandResult<serde_json::Value> {
         let context = with_context_defaults(context.unwrap_or_default(), &ContextDefaults::new());
+        if context.interface == Some(CommandInterface::Apps)
+            && !self.app_call_granted(name, &context)
+        {
+            return failure(call_not_granted());
+        }
         let active_context = context.active_context();
         let visible = |candidate: &CommandDefinition| {
             context

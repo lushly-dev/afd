@@ -34,6 +34,7 @@ const standalone = requireAjv('ajv/dist/standalone').default;
 const read = (path) => readFileSync(join(root, path), 'utf8');
 const json = (path) => JSON.parse(read(path));
 const core = json('spec/plugin-manifest.core.v1.json');
+const core2 = json('spec/plugin-manifest.core.v2.json');
 const spec = json('spec/plugin-manifest.json');
 
 function ajvWith(options = {}) {
@@ -80,6 +81,49 @@ test('the core is definitions only, with every object left open', () => {
 					Object.values(node).some(closes)
 				: false;
 	assert.equal(closes(core.$defs), false);
+});
+
+test('core version 2 is version 1 with expose.apps defined, and nothing else', () => {
+	const ajv = ajvWith();
+	ajv.addSchema(core2);
+	assert.equal(ajv.validateSchema(core2), true);
+	assert.equal(core2.$id, 'https://afd.dev/spec/plugin-manifest.core.v2.json');
+	assert.deepEqual(Object.keys(core2).sort(), Object.keys(core).sort());
+	// Only the key version 1 reserved, and the descriptions that say so, may differ.
+	const { apps, ...flags } = core2.$defs.expose.properties;
+	assert.deepEqual(apps, {
+		description: apps.description,
+		type: 'boolean',
+		default: false,
+	});
+	const { apps: reserved, ...flags1 } = core.$defs.expose.properties;
+	assert.equal(reserved, false);
+	assert.deepEqual(flags, flags1);
+	const rest = (defs) => {
+		const { expose, ...others } = defs;
+		const { description, properties, ...shape } = expose;
+		return { others, shape };
+	};
+	assert.deepEqual(rest(core2.$defs), rest(core.$defs));
+
+	const expose2 = ajv.getSchema(`${core2.$id}#/$defs/expose`);
+	assert.equal(expose2({ apps: true, mcp: false }), true);
+	assert.equal(expose2({ apps: false }), true);
+	assert.equal(expose2({ apps: 'true' }), false);
+	assert.deepEqual(expose2.errors.map(refusedKey), ['/apps']);
+	const command2 = ajv.getSchema(`${core2.$id}#/$defs/command`);
+	const command = {
+		name: 'tally-get',
+		description: 'Read the count',
+		effects: ['inspect'],
+		input_schema: { type: 'object' },
+		expose: { apps: true },
+	};
+	assert.equal(command2(command), true);
+	// Version 1 still refuses it, so a profile on version 1 does.
+	const command1 = ajv.getSchema(`${core.$id}#/$defs/command`);
+	assert.equal(command1(command), false);
+	assert.deepEqual(command1.errors.map(refusedKey), ['/expose/apps']);
 });
 
 test('every schema compiles under Ajv strict mode', () => {

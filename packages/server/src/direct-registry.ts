@@ -34,6 +34,11 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import { failure, isExposedTo as isCoreExposedTo, truncateName } from '@lushly-dev/afd-core';
+import {
+	appCallGranted,
+	type CallGrant,
+	callNotGranted,
+} from '@lushly-dev/afd-core/internal/app-calls';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import {
 	createDirectApprovalExchange,
@@ -48,7 +53,7 @@ import type { McpToolDefinition } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ContextConfig, ToolStrategy } from './server-types.js';
 
-/** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`). */
+/** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`, `apps`). */
 export type ExposeInterface = keyof ExposeOptions;
 
 /**
@@ -58,8 +63,19 @@ export interface DirectRegistryOptions {
 	/**
 	 * The interface this registry serves. Only commands exposed to it are
 	 * listed and executable. Default: `'agent'`, the in-app AI assistant.
+	 *
+	 * `'apps'` serves app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"): it needs
+	 * `callGrant` and refuses `tools`, and a call runs only when the command sets `expose.apps` and
+	 * `callGrant` grants it; anything else is `CALL_NOT_GRANTED`, before lookup and validation.
 	 */
 	interface?: ExposeInterface;
+
+	/**
+	 * The host's grant check for an `'apps'` registry: whether the caller in `context` (a host's
+	 * declared context field, such as Loam's `caller`) holds a grant naming `command`. Only an
+	 * explicit `true` grants; a throw refuses. Ignored by the other interfaces.
+	 */
+	callGrant?: CallGrant;
 
 	/** Middleware applied to every command, in onion order (same as `createMcpServer`). */
 	middleware?: CommandMiddleware[];
@@ -238,7 +254,9 @@ export interface DirectCommandRegistry {
 
 	/**
 	 * Validate the input with the command's Zod schema, then run the command
-	 * through the middleware. Returns `COMMAND_NOT_FOUND` for unknown names,
+	 * through the middleware. An `'apps'` registry first returns `CALL_NOT_GRANTED` for a call
+	 * `callGrant` does not grant, or to a command missing or not exposed to apps, all alike.
+	 * Otherwise it returns `COMMAND_NOT_FOUND` for unknown names,
 	 * `COMMAND_NOT_EXPOSED` for commands not exposed to this interface,
 	 * `CONTEXT_NOT_FOUND` for an unknown `activeContext`, `COMMAND_NOT_IN_CONTEXT` for a
 	 * command outside it, `COMMAND_NOT_ALLOWED` for a name the `allow` option rejects, and
@@ -339,6 +357,19 @@ export function createDirectRegistry(
 	options: DirectRegistryOptions = {}
 ): DirectCommandRegistry {
 	const iface = options.interface ?? 'agent';
+	if (iface === 'apps') {
+		if (typeof options.callGrant !== 'function') {
+			throw new TypeError(
+				"createDirectRegistry({ interface: 'apps' }) needs callGrant: the host's check of the caller's grants"
+			);
+		}
+		if (options.tools !== undefined) {
+			throw new TypeError(
+				"createDirectRegistry({ interface: 'apps' }) serves no tool surface: an app calls commands one by one. Remove tools"
+			);
+		}
+	}
+	const { callGrant } = options;
 	const contexts = [...(options.contexts ?? [])];
 	const contextNames = new Set(contexts.map((context) => context.name));
 	const contextFields = checkContextFields(options.contextFields);
@@ -404,6 +435,11 @@ export function createDirectRegistry(
 			context: CommandContext = {},
 			callOptions: DirectExecuteOptions = {}
 		): Promise<CommandResult<T>> {
+			// An app's call is checked first, with one answer for a missing, unexposed or ungranted
+			// command, so an app learns nothing about commands it may not call.
+			if (iface === 'apps' && !appCallGranted(registered.get(name), name, context, callGrant)) {
+				return failure(callNotGranted());
+			}
 			const { allow } = callOptions;
 			let { activeContext } = callOptions;
 			if (tools && !exposed.has(name) && tools.routes(name)) {

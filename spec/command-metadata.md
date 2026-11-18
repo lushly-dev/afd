@@ -32,7 +32,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `executionTime` | `instant`, `fast`, `slow` or `long-running` | None | afd-detail |
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
-| `expose` | `palette`, `agent`, `mcp`, `cli` booleans | `palette` and `agent` true, `mcp` and `cli` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable` |
+| `expose` | `palette`, `agent`, `mcp`, `cli`, `apps` booleans | `palette` and `agent` true, `mcp`, `cli` and `apps` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable`. `apps` lets another app call the command under a host's grant ([App-to-app calls](#app-to-app-calls)) |
 | `examples` | `{ title, input }[]` | None | `_meta`, afd-detail, afd-help (full). Each `input` must pass the input schema when the command is defined |
 | `contexts` | string[] | None: the command is visible in every context | `_meta`, afd-detail. Calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
 | `toolMeta` | object: `_meta` key to JSON value | None | Merged into the command tool's `_meta`, a grouped action entry and afd-detail (`toolMeta`). Keys follow the [key rule](./mcp-resources.md#t2-the-key-rule): reverse-DNS prefixed keys outside `dev.afd/`, or the MCP Apps key `ui`; anything else is refused at registration ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
@@ -688,6 +688,61 @@ every call instead, from the command, its input and the credentials, and may ans
 the registry answer. A missing scope is an HTTP 403 before dispatch wherever HTTP can carry it, and
 `INSUFFICIENT_SCOPE` otherwise, never a handler call ([M6](./authorization.md#m6-scopes)). stdio,
 the CLI, `DirectClient` and in-process registries ignore `scopes`.
+
+## App-to-app calls
+
+A host that runs several apps, such as Loam, lets one app call another's command only when both
+sides agree: the callee's command sets `expose.apps`, and the host has given the caller a grant
+naming it ([proposal](../docs/features/active/apps-exposure/apps-exposure.proposal.md)).
+
+- **The flag.** `expose.apps` is the callee's declaration that another app may call the command.
+  It defaults to `false`, no other flag implies it, and a host or manifest profile MUST NOT default
+  it to `true`.
+- **The interface.** `apps` is an interface a call can name, beside `palette`, `agent`, `mcp` and
+  `cli`. Only a host's trusted code names it, for a call it received from an app it has identified.
+  Who called is the host's to record, in a [declared context field](./context-fields.md) such as
+  Loam's `caller`; AFD reserves no context name for it.
+- **The grant.** The registry takes a host predicate, `callGrant(command, context)`, that answers
+  whether the caller in `context` holds a grant naming `command`. AFD does not define a grant's
+  shape. The predicate is synchronous and reads only what trusted code put on the context. A
+  registry without one refuses every app call.
+
+A call whose interface is `apps` runs only when the command exists for the caller, sets
+`expose.apps`, and `callGrant` returns `true`; a value other than `true`, a throw or a panic is a
+refusal. Otherwise the call returns this failure, the same bytes in every case:
+
+```json
+{
+  "code": "CALL_NOT_GRANTED",
+  "message": "This app may not call that command",
+  "suggestion": "Ask the deployer for a calls grant that names the command; the command must also set expose.apps",
+  "retryable": false
+}
+```
+
+The check comes first: before lookup and its suggestions, the active context, input validation,
+declared context fields, middleware and the handler. So a command that does not exist, one not
+exposed to apps, one the caller is not granted, and any of these called with invalid input all
+answer alike, so the caller learns nothing about commands it may not call. This
+is the `apps` interface's form of [D4](./error-codes.md#unknown-and-unexposed-commands-d4): an app
+is an untrusted caller. A granted call then runs as any other, with `apps` as its interface. A batch
+or pipeline checks each command it runs; a refused one fails as that item or step.
+
+Listings by exposure (TypeScript `listByExposure('apps')`, `createDirectRegistry({ interface:
+'apps' })`'s `listCommands`) hold the commands exposed to apps, whatever any caller is granted. A
+host never shows an app another app's commands from them; it builds a list from its grants.
+`createDirectRegistry` with `interface: 'apps'` throws at creation without `callGrant`, or with a
+tool surface, since an app calls commands one by one.
+
+The shared plugin manifest carries the flag from [core version 2](./plugin-manifest.md#k5-exposure).
+
+| Implementation | Status |
+| --- | --- |
+| TypeScript | `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createDirectRegistry({ interface: 'apps', callGrant })` |
+| Rust | `ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant` |
+| Python, C++ | Not yet ([#1513](https://github.com/lushly-dev/afd/issues/1513)). `apps` names no surface there, so a call naming it is `COMMAND_NOT_EXPOSED` ([D4](./error-codes.md#unknown-and-unexposed-commands-d4), rule 3) |
+
+The cases are in [`vectors/app-calls.json`](./vectors/app-calls.json).
 
 ## Decisions on the tool surface (#466)
 

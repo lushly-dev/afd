@@ -336,6 +336,10 @@ pub mod error_codes {
     /// new token. Retryable unless the command is a mutation whose handler started, which may
     /// have made its change.
     pub const TASK_TOKEN_EXPIRED: &str = "TASK_TOKEN_EXPIRED";
+    /// An app's call (the `apps` interface) to a command it may not call: the command does not
+    /// exist, does not set `expose.apps`, or the registry's call grant does not grant it
+    /// (`spec/command-metadata.md`, "App-to-app calls"). One answer for every case.
+    pub const CALL_NOT_GRANTED: &str = "CALL_NOT_GRANTED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

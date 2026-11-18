@@ -54,6 +54,7 @@ should be told why a call is refused. The answer depends on who is calling.
 | **Remote MCP:** tools/call, `afd-call`, `afd-batch`, `afd-pipe`, grouped tools, the HTTP routes | `COMMAND_NOT_FOUND` | `COMMAND_NOT_FOUND`, identical to an unknown command |
 | **In-process registry called with an interface** (TypeScript `context.interface`, Python `context.extra["interface"]`, Rust `context.interface`, C++ `context.surface`) | `COMMAND_NOT_FOUND` | `COMMAND_NOT_EXPOSED`, `retryable: false` |
 | **In-process registry called with no interface** | `COMMAND_NOT_FOUND` | Runs: a trusted in-process caller is not checked |
+| **In-process registry called with the `apps` interface** (an app's call, made by a host) | `CALL_NOT_GRANTED` | `CALL_NOT_GRANTED`, identical, and so is an exposed command the caller is not granted ([App-to-app calls](./command-metadata.md#app-to-app-calls)) |
 | **DirectClient** | `UNKNOWN_TOOL`, `retryable: false`, always with a `suggestion` | `UNKNOWN_TOOL`, the same answer |
 
 Rules:
@@ -64,11 +65,14 @@ Rules:
    authorized server's resolver hides from the caller
    ([hidden commands](./authorization.md#hidden-commands)): on every route it gets an unknown
    name's answer, byte for byte, whatever its input.
-2. **Lookup comes first.** An unknown command is `COMMAND_NOT_FOUND` whatever the interface. A
+2. **Lookup comes first.** An unknown command is `COMMAND_NOT_FOUND` whatever the interface but
+   `apps`, whose one refusal comes before lookup. A
    command hidden from an authorized caller is unknown at lookup. The exposure check, then the
    context check, then input validation follow.
 3. **An empty interface is no interface.** An interface that names no surface (anything other than
-   `palette`, `mcp`, `agent` or `cli`) exposes nothing, so the command is `COMMAND_NOT_EXPOSED`.
+   `palette`, `mcp`, `agent`, `cli` or `apps`) exposes nothing, so the command is
+   `COMMAND_NOT_EXPOSED`. Python and C++ do not implement `apps` yet
+   ([#1513](https://github.com/lushly-dev/afd/issues/1513)), so there it names no surface either.
    Python's former `INVALID_INTERFACE` code is gone.
 4. **Close matches never include a hidden command.** `COMMAND_NOT_FOUND` and `UNKNOWN_TOOL`
    suggestions offer at most three close matches from the names the caller can call, and never echo
@@ -109,9 +113,9 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-48 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+49 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
 engines emitted without a constant; then the 2 confirmation codes, the approval code, the output
-budget code, the authorization code and the task code.
+budget code, the authorization code, the task code and the app call code.
 
 ### Validation
 
@@ -256,6 +260,15 @@ with this failure (`completed`, with `isError: true`).
 | --- | --- | --- | --- |
 | `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired (`credentials.expiresAt`), so it was stopped; it completes with this failure. A token that expired before the task could start stops it the same way, before its handler runs, and so does a handler that returned after `expiresAt` (its result is not delivered). Start it again with a new token. Retryable unless the command is a `mutation` whose handler started: it may have made its change, in part or in full, and the suggestion says to check its effect first | Varies | Server engine (the task runner) |
 
+### App calls
+
+Emitted by a registry for a call with the `apps` interface; see
+[App-to-app calls](./command-metadata.md#app-to-app-calls). No handler ran.
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `CALL_NOT_GRANTED` | An app's call to a command it may not call: the command does not exist, does not set `expose.apps`, or the host's `callGrant` does not grant it to the caller. One fixed message and suggestion for every case, before lookup and validation, so the caller cannot tell them apart | No | Core executors (registry), server engine (`createDirectRegistry`) |
+
 ## Specified, not yet in the catalog
 
 Engine codes a `spec/` page defines before any language emits them. Each joins
@@ -263,7 +276,8 @@ Engine codes a `spec/` page defines before any language emits them. Each joins
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
 in Umbel phase 2 step 0b, `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b and `TASK_TOKEN_EXPIRED` in
-Umbel phase 5 step 0e, and the catalog stands at 48 codes. None is waiting.
+Umbel phase 5 step 0e, and the catalog stands at 49 codes, `CALL_NOT_GRANTED` the latest (Loam
+phase 5 step 0b). None is waiting.
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing
 `UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged

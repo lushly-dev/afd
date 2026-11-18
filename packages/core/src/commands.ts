@@ -43,6 +43,7 @@ export function validateCommandName(name: string): { valid: boolean; reason?: st
 	return { valid: true };
 }
 
+import { appCallGranted, type CallGrant, callNotGranted } from './app-calls.js';
 import {
 	executeBatch as executeCoreBatch,
 	executeStream as executeCoreStream,
@@ -64,6 +65,12 @@ export interface ExposeOptions {
 	agent?: boolean;
 	/** Terminal/CLI (default: false) */
 	cli?: boolean;
+	/**
+	 * Other apps, each under a host's grant (default: false). The callee's declaration that another
+	 * app may call the command; a call with the `apps` interface also needs the registry's
+	 * `callGrant` to grant it (`spec/command-metadata.md`, "App-to-app calls").
+	 */
+	apps?: boolean;
 }
 
 /** Frozen to prevent accidental mutation */
@@ -72,6 +79,7 @@ export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
 	agent: true, // In-app AI: on by default
 	mcp: false, // External agents: opt-in (security)
 	cli: false, // Automation: opt-in
+	apps: false, // Other apps: opt-in, and each call needs a grant
 });
 
 /**
@@ -358,7 +366,10 @@ export interface CommandContext {
 	/** Signal for cancellation */
 	signal?: AbortSignal;
 
-	/** The interface invoking this command (for exposure checks) */
+	/**
+	 * The interface invoking this command (for exposure checks). `apps` is an app's call, which only
+	 * a host's trusted code names, and which runs only when the registry's `callGrant` grants it.
+	 */
 	interface?: keyof ExposeOptions;
 
 	/**
@@ -449,7 +460,8 @@ export interface CommandRegistry {
 
 	/**
 	 * Get commands exposed to a specific interface.
-	 * @param interfaceType - The interface to filter by (mcp, cli, palette, agent)
+	 * @param interfaceType - The interface to filter by (mcp, cli, palette, agent, apps). For `apps`,
+	 *   the commands exposed to apps, whatever any caller is granted
 	 * @returns Commands exposed to the specified interface
 	 */
 	listByExposure(interfaceType: keyof ExposeOptions): CommandDefinition[];
@@ -520,6 +532,14 @@ export interface CommandRegistryOptions {
 	 * results. Default `false`, matching `devMode` in `createMcpServer()`.
 	 */
 	devMode?: boolean;
+	/**
+	 * The host's grant check for app-to-app calls: whether the caller in `context` (a host's
+	 * declared context field, such as Loam's `caller`) holds a grant naming `command`. A call with
+	 * the `apps` interface runs only when the command sets `expose.apps` and this returns `true`;
+	 * anything else, including no `callGrant`, is `CALL_NOT_GRANTED`
+	 * (`spec/command-metadata.md`, "App-to-app calls").
+	 */
+	callGrant?: CallGrant;
 }
 
 /**
@@ -585,6 +605,13 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			context?: CommandContext
 		): Promise<CommandResult<TOutput>> {
 			const command = commands.get(name);
+			// An app's call is checked first, with one answer for a missing, unexposed or ungranted
+			// command, so an app learns nothing about commands it may not call.
+			if (context?.interface === 'apps') {
+				if (!appCallGranted(command, name, context, options.callGrant)) {
+					return { success: false, error: callNotGranted() };
+				}
+			}
 			if (!command) {
 				return {
 					success: false,
