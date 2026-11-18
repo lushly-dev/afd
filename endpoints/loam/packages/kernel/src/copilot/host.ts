@@ -574,6 +574,8 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			}
 			sessions.clear();
 			expected.clear();
+			// The panel's subscriptions were the previous person's: none hears anything more.
+			listeners.clear();
 			options.launcher.reset();
 		},
 	};

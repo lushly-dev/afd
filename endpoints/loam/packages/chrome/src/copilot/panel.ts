@@ -16,34 +16,22 @@
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
-import type { CopilotProviderV1, PanelEventV1 } from '@lushly-dev/loam-kernel/copilot';
 import '@lushly-dev/violet-elements/dist/conversation/violet-conversation-thread.js';
 import '@lushly-dev/violet-elements/dist/conversation/violet-message.js';
 import '@lushly-dev/violet-elements/dist/conversation/violet-message-text.js';
 import '@lushly-dev/violet-elements/dist/conversation/violet-chat-composer.js';
-import { ChatClient, type SubscribeConnectionAdapter, type UIMessage } from '@tanstack/ai-client';
+import type { UIMessage } from '@tanstack/ai-client';
+import {
+	CopilotConversation,
+	type CopilotPanelHostV1,
+	type CopilotPanelKernelV1,
+} from './conversation.js';
 
-/** What the panel calls: the kernel's palette interface, the person's. */
-export interface CopilotPanelKernelV1 {
-	call<T = unknown>(
-		name: string,
-		input?: unknown
-	): Promise<{
-		success: boolean;
-		data?: T;
-		error?: { code: string; message: string; suggestion?: string };
-	}>;
-}
-
-/** The host's side the panel hears: a session's filtered events, and the run id its client chose. */
-export interface CopilotPanelHostV1 {
-	subscribe(session: string, listener: (event: PanelEventV1) => void): () => void;
-	expectRun(session: string, runId: string): void;
-}
-
-/** The notice when no model is configured (4.1): what is missing and where to set it. */
-export const NO_MODEL_NOTICE =
-	'No model is set up for the copilot. Add a provider under [copilot] in loam.deployment.toml, then run deployment write.';
+export {
+	type CopilotPanelHostV1,
+	type CopilotPanelKernelV1,
+	NO_MODEL_NOTICE,
+} from './conversation.js';
 
 type Part = {
 	type: string;
@@ -118,7 +106,7 @@ const styles = css`
 	}
 `;
 
-/** The panel: one session at a time, started on the first message. */
+/** The panel: one session at a time, started on the first message, over a {@link CopilotConversation}. */
 export class LoamCopilotPanel extends FASTElement {
 	declare notice: string;
 	declare status: 'ready' | 'streaming';
@@ -126,10 +114,7 @@ export class LoamCopilotPanel extends FASTElement {
 	declare unavailable: boolean;
 	kernel: CopilotPanelKernelV1 | null = null;
 	host: CopilotPanelHostV1 | null = null;
-	/** The session's id, once the first message started one. */
-	session: string | null = null;
-	#client: ChatClient | null = null;
-	#turn = 0;
+	#conversation: CopilotConversation | null = null;
 
 	constructor() {
 		super();
@@ -139,135 +124,44 @@ export class LoamCopilotPanel extends FASTElement {
 		this.unavailable = false;
 	}
 
-	override connectedCallback(): void {
-		super.connectedCallback();
-		void this.checkProviders();
+	/** The session's id, once the first message started one. */
+	get session(): string | null {
+		return this.#conversation?.session ?? null;
 	}
 
-	/** Says so when no model is configured (4.1, job 8). */
-	async checkProviders(): Promise<void> {
-		const listed = await this.kernel?.call<{ providers: CopilotProviderV1[] }>(
-			'copilot-provider-list',
-			{}
-		);
-		if (listed?.success && (listed.data?.providers.length ?? 0) === 0) {
-			this.notice = NO_MODEL_NOTICE;
-			this.unavailable = true;
-		}
+	#ensure(): CopilotConversation | null {
+		if (!this.#conversation && this.kernel)
+			this.#conversation = new CopilotConversation(this.kernel, this.host, {
+				messages: (messages) => this.render(messages),
+				status: (status) => {
+					this.status = status;
+				},
+				notice: (text, unavailable) => {
+					this.notice = text;
+					if (unavailable !== undefined) this.unavailable = unavailable;
+				},
+			});
+		return this.#conversation;
+	}
+
+	override connectedCallback(): void {
+		super.connectedCallback();
+		void this.#ensure()?.checkProviders();
 	}
 
 	async submit(text: string): Promise<void> {
-		if (!this.kernel || text.trim() === '') return;
-		if (!this.session) {
-			const started = await this.kernel.call<{ session: { id: string } }>(
-				'copilot-session-start',
-				{}
-			);
-			if (!started.success || !started.data) return this.fail(started.error);
-			this.session = started.data.session.id;
-			this.#client = this.#clientFor(this.session);
-		}
-		this.notice = '';
-		try {
-			await this.#client?.sendMessage(text);
-		} catch {
-			// The notice already says why.
-		}
+		await this.#ensure()?.submit(text);
 	}
 
 	stop(): void {
-		void this.#client?.stop();
+		this.#conversation?.stop();
 	}
 
 	/** Forget the session and its thread, as a change of person does: the next person never sees it (3.2). */
 	reset(): void {
-		this.#client = null;
-		this.session = null;
-		this.#turn = 0;
-		this.notice = '';
+		this.#conversation?.reset();
 		this.unavailable = false;
-		this.status = 'ready';
-		this.render([]);
-		void this.checkProviders();
-	}
-
-	fail(error?: { message: string; suggestion?: string }): void {
-		this.status = 'ready';
-		this.notice = error
-			? `${error.message}. ${error.suggestion ?? ''}`.trim()
-			: 'The copilot did not answer.';
-	}
-
-	#clientFor(session: string): ChatClient {
-		const kernel = this.kernel as CopilotPanelKernelV1;
-		const host = this.host;
-		const turn = (seq?: number) => {
-			if (seq !== undefined) this.#turn = seq;
-			return this.#turn;
-		};
-		const connection: SubscribeConnectionAdapter = {
-			subscribe(signal) {
-				const queue: unknown[] = [];
-				let wake: (() => void) | undefined;
-				const unsubscribe = host?.subscribe(session, ({ event }) => {
-					queue.push(event);
-					wake?.();
-				});
-				return (async function* () {
-					try {
-						while (!signal?.aborted) {
-							if (queue.length > 0) {
-								yield queue.shift() as never;
-								continue;
-							}
-							await new Promise<void>((resolve) => {
-								wake = resolve;
-								signal?.addEventListener('abort', () => resolve(), { once: true });
-							});
-							wake = undefined;
-						}
-					} finally {
-						unsubscribe?.();
-					}
-				})();
-			},
-			send: async (messages, _data, _signal, run) => {
-				// Only the person's new text crosses, through the human command (3.2).
-				const last = [...(messages as UIMessage[])]
-					.reverse()
-					.find((message) => message.role === 'user');
-				const text = (last?.parts ?? [])
-					.map((part) => ((part as Part).type === 'text' ? ((part as Part).content ?? '') : ''))
-					.join('');
-				host?.expectRun(session, run.runId);
-				this.status = 'streaming';
-				const sent = await kernel.call<{ turn: { seq: number } }>('copilot-message-send', {
-					session,
-					text,
-					wait: false,
-				});
-				if (!sent.success || !sent.data) {
-					this.fail(sent.error);
-					throw new Error(sent.error?.message ?? 'The copilot did not answer');
-				}
-				turn(sent.data.turn.seq);
-			},
-			cancelRun: async () => {
-				if (turn() > 0) await kernel.call('copilot-turn-stop', { session, turn: turn() });
-				this.status = 'ready';
-			},
-		};
-		return new ChatClient({
-			connection,
-			threadId: session,
-			onMessagesChange: (messages: UIMessage[]) => this.render(messages),
-			onFinish: () => {
-				this.status = 'ready';
-			},
-			onError: () => {
-				this.status = 'ready';
-			},
-		} as never);
+		void this.#conversation?.checkProviders();
 	}
 
 	/** Rebuilds the thread from the client's messages, by the DOM API, every value as text. */

@@ -11,6 +11,7 @@ import {
 	LoamCopilotPanel,
 } from './panel.js';
 
+export { type ConversationViewV1, CopilotConversation } from './conversation.js';
 export {
 	type CopilotPanelHostV1,
 	type CopilotPanelKernelV1,
