@@ -8,8 +8,8 @@ plugin's tests.
 ## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
 
 The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by
-[#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions. Not yet seen in a fleet
-run.
+[#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions, in
+[#1502](https://github.com/lushly-dev/afd/pull/1502). Not yet seen in a fleet run.
 
 - **`lane-start` checks the Node validation uses.** `TOOLCHAIN_MISMATCH` read `engines.node` and
   `pnpm` from the host's default `PATH`. It now resolves the `.nvmrc` Node as validation does and
