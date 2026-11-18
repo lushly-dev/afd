@@ -128,21 +128,21 @@ def _validate(issues: list[int], branch: str, route: str) -> None:
         )
 
 
-def _check_issue_count(issues: list[int], overrides: dict) -> None:
+def _check_issue_count(issues: list[int], overrides: dict, related_because: str | None) -> None:
     most = dials.value(overrides, "cells.issuesMax")
     if len(issues) > most:
         raise Refusal(
             "TOO_MANY_ISSUES",
             f"{len(issues)} issues for one cell; cells.issuesMax is {most}",
-            "Register one cell per issue; raise cells.issuesMax with dial-set only for issues "
-            "issue-check lists as related",
+            "Register one cell per issue, or raise cells.issuesMax with dial-set for a package "
+            "of issues that share files and pass related_because",
         )
-    if len(issues) > 1:
+    if len(issues) > 1 and not (related_because or "").strip():
         raise Refusal(
             "TOO_MANY_ISSUES",
-            f"Issues {', '.join(f'#{n}' for n in issues)} are not related",
-            "Only issues issue-check lists together in related may share a cell (cells.issuesMax "
-            "allows the count); register one cell per issue",
+            f"Issues {', '.join(f'#{n}' for n in issues)} share a cell without a reason",
+            "Pass related_because, saying what the issues share (the files or the change), or "
+            "register one cell per issue",
         )
 
 
@@ -212,11 +212,22 @@ def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
     return choice
 
 
-def register(factory: Factory, issues: list[int], branch: str, route: str, thread: str | None):
-    """Claim ``issues`` for a new cell on ``branch`` and record it; the cell is returned."""
+def register(
+    factory: Factory,
+    issues: list[int],
+    branch: str,
+    route: str,
+    thread: str | None,
+    related_because: str | None = None,
+):
+    """Claim ``issues`` for a new cell on ``branch`` and record it; the cell is returned.
+
+    More than one issue is a package the foreman names: ``related_because`` says why they share
+    a cell, and ``cells.issuesMax`` caps the count.
+    """
     _validate(issues, branch, route)
     with factory.store.update(f"cell-register {branch}") as state:
-        _check_issue_count(issues, state["dials"])
+        _check_issue_count(issues, state["dials"], related_because)
         if any(cell["branch"] == branch for cell in state["cells"]):
             raise Refusal(
                 "ALREADY_EXISTS",
@@ -243,6 +254,8 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
             "leaseUntil": claim.lease_until,
             "machine": claim.machine,
         }
+        package = {"relatedBecause": (related_because or "").strip()} if len(issues) > 1 else {}
+        cell.update(package)
         state["cells"].append(cell)
         answer(state, "cell-register", format_time(now))
         profiles = [
@@ -261,6 +274,7 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
                 plan=choice.plan.id,
                 route=route,
                 profile=profiles[0] if profiles else "unknown",
+                **package,
             )
         )
     return cell
@@ -427,24 +441,54 @@ def _release(factory: Factory, cell: dict, reason: str) -> list[int]:
 
 
 def _claim(factory: Factory, issues: list[int], claim: Claim) -> None:
-    """Label each issue and post its claim comment; a failed write names what was done."""
-    done: list[str] = []
+    """Label each issue and post its claim comment.
+
+    A failed write puts back what this call wrote, so a package that failed on its second issue
+    leaves no live claim on the first; the refusal names anything it could not put back.
+    """
+    github = factory.world.github
+    labelled: list[int] = []
+    commented: list[int] = []
     for number in issues:
         try:
             # A dispatchable issue carries status:planned and no other status label.
-            factory.world.github.edit_labels(number, add=[IN_PROGRESS], remove=[PLANNED])
-            done.append(f"#{number} labelled {IN_PROGRESS}")
-            factory.world.github.add_comment(number, claim_body(claim))
-            done.append(f"#{number} claim comment")
+            github.edit_labels(number, add=[IN_PROGRESS], remove=[PLANNED])
+            labelled.append(number)
+            github.add_comment(number, claim_body(claim))
+            commented.append(number)
         except WorldError as exc:
+            left = _unclaim(factory, labelled, commented, claim.branch)
             raise Refusal(
                 "WRITE_FAILED",
-                f"Claiming #{number} for {claim.branch} failed: {exc}. Written before it: "
-                f"{', '.join(done) or 'nothing'}",
-                "No cell was recorded. issue-check lists a claimed issue without a live claim "
-                "in staleClaims; release it, then register again",
-                written=done,
+                f"Claiming #{number} for {claim.branch} failed: {exc}. "
+                + (
+                    f"Could not put back: {', '.join(left)}"
+                    if left
+                    else "Every claim it wrote was put back"
+                ),
+                "No cell was recorded. Check `gh auth status`, then register again"
+                + (
+                    "; issue-check lists what was left claimed in staleClaims once its lease "
+                    "runs out, or release it by hand"
+                    if left
+                    else ""
+                ),
+                left=left,
             ) from exc
+
+
+def _unclaim(factory: Factory, labelled: list[int], commented: list[int], branch: str) -> list[str]:
+    """Undo a failed registration's claims; what could not be undone is returned."""
+    github = factory.world.github
+    left: list[str] = []
+    for number in labelled:
+        try:
+            if number in commented:
+                github.add_comment(number, release_body(branch, "registration failed"))
+            github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
+        except WorldError:
+            left.append(f"#{number}")
+    return left
 
 
 def _percent(value: float) -> str:

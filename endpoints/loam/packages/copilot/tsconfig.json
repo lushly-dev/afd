@@ -1,0 +1,12 @@
+{
+	"extends": "../../../../tsconfig.json",
+	"compilerOptions": {
+		// Worker and frame code: no Node globals or `node:` modules (#811).
+		"types": [],
+		"lib": ["ES2024", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+		"outDir": "./dist",
+		"rootDir": "./src"
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

@@ -76,6 +76,12 @@ export const EXTRA_INPUTS = [
 	{ prefix: 'endpoints/loam/packages/web/src/', packages: ['@lushly-dev/loam-identity'] },
 	{ prefix: 'endpoints/loam/packages/chrome/src/', packages: ['@lushly-dev/loam-identity'] },
 	{ prefix: 'endpoints/loam/packages/kernel/src/', packages: ['@lushly-dev/loam-identity'] },
+	// Loam's scenario runner runs phase 5's jobs from the specification's folder (phase 5 specification, Jobs and
+	// scenarios), so a change to one runs the kernel's tests.
+	{
+		prefix: 'endpoints/loam/docs/phases/5-copilot/scenarios/',
+		packages: ['@lushly-dev/loam-kernel'],
+	},
 	// The web host's units scan every file of the kernel and the chrome, tests included, for the name
 	// of an app or a document type (phase 2 specification, section 1 and D2).
 	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },

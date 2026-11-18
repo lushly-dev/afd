@@ -1,12 +1,12 @@
-//! The todo registry the binary serves: the commands, the bootstrap commands (`afd-help`,
-//! `afd-docs`, `afd-schema`) and, unless `APPROVALS=off`, the approval hold on `todo-clear`, as
-//! the TypeScript backend's `src/server-options.ts` assembles its server.
+//! The todo registry the binary serves: the commands and, unless `APPROVALS=off`, the approval
+//! hold on `todo-clear`, as the TypeScript backend's `src/server-options.ts` assembles its server.
+//! The MCP server adds the context and bootstrap commands (`server::mcp_server`).
 
 use std::sync::Arc;
 
 use afd::{
-    create_approval_middleware, register_bootstrap_commands, ApprovalMiddlewareOptions,
-    ApprovalRelay, CommandRegistry, ContextConfig,
+    create_approval_middleware, ApprovalMiddlewareOptions, ApprovalRelay, CommandRegistry,
+    ContextConfig,
 };
 
 use crate::commands::{register_commands, summarize_clear};
@@ -60,7 +60,7 @@ pub fn contexts() -> Vec<ContextConfig> {
     ]
 }
 
-/// The todo commands over `store`, the bootstrap commands and, with [`Approvals::Agents`], the
+/// The todo commands over `store` and, with [`Approvals::Agents`], the
 /// approval middleware signing with `secret` (unused with [`Approvals::Off`]).
 ///
 /// A held `todo-clear` asks the person behind an MCP client that declares form elicitation
@@ -74,7 +74,6 @@ pub fn registry(
 ) -> Result<Arc<CommandRegistry>, String> {
     let registry = Arc::new(CommandRegistry::new());
     register_commands(&registry, &store)?;
-    register_bootstrap_commands(&registry)?;
     if approvals == Approvals::Agents {
         // Built after the commands are registered: `registry.list()` is a snapshot.
         let options = ApprovalMiddlewareOptions::new(secret, registry.list())

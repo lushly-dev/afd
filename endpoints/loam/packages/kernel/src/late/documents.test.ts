@@ -37,7 +37,7 @@ import {
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { KernelEventV3, LoamKernelV3 } from '../types.js';
+import type { KernelEventV3, LoamKernelV5 } from '../types.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import {
 	buildDocumentTypes,
@@ -48,7 +48,7 @@ import {
 import { createDocumentCommands } from './documents.js';
 import { createLateParts, createOverlayStore } from './index.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
