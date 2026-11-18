@@ -47,10 +47,10 @@ skips the backends it names. Two cases use them:
 
 | Case | Runs against | Why not the others |
 | --- | --- | --- |
-| `tool_list_grouped` | TypeScript, Rust, C++ | Python's grouped strategy lists other tools, and its backend lists one tool per command, until [#533](https://github.com/lushly-dev/afd/issues/533) decides the alignment; Umbel lists its own hybrid tools |
+| `tool_list_grouped` | TypeScript | The list [#533](https://github.com/lushly-dev/afd/issues/533) decided; Rust, C++ and Python serve it in their own steps, and Umbel lists its own hybrid tools |
 | `tool_list_destructive_hints` | Every backend but the Umbel modes | Umbel's hybrid list does not list the todo commands; `detail_destructive_hints` checks their hints there through `afd-detail` |
 
-So TypeScript, Rust and C++ run all 50, Python 49, and each Umbel mode, which serves the Rust
+So TypeScript runs all 50, Python, Rust and C++ 49, and each Umbel mode, which serves the Rust
 backend, 48.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays

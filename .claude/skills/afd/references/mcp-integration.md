@@ -15,16 +15,19 @@ Only commands with `expose: { mcp: true }` are listed or callable over MCP, on e
 
 ## Tool strategies
 
-| Strategy | TypeScript and Rust `tools/list` |
-|----------|----------------------------------|
-| `grouped` | `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`, then one tool per group (`category`, else the first name segment) |
-| `individual` | `afd-batch`, `afd-pipe`, `afd-call`, then one tool per command |
-| `lazy` | The five meta-tools only; agents run `afd-discover` → `afd-detail` → `afd-call` |
-| `hybrid` | The five meta-tools, the context tools when contexts are set, then 1 to 8 `firstClassTools`; the list never varies by context |
+Every strategy lists the five meta-tools first: `afd-discover`, `afd-detail`, `afd-call`,
+`afd-batch`, `afd-pipe` (#533). Then:
 
-The default is `grouped` in TypeScript and Rust and `individual` in Python, and Python also lists
-`afd-discover` and `afd-detail` under `individual` and `grouped`. Every strategy routes all five
-meta-tools, and any exposed command by its own name, whether or not it is listed.
+| Strategy | `tools/list` after the meta-tools |
+|----------|----------------------------------|
+| `grouped` (default) | One tool per group (`category`, else the first name segment) |
+| `individual` | One tool per command |
+| `lazy` | The context tools when contexts are set; agents run `afd-discover` → `afd-detail` → `afd-call` |
+| `hybrid` | The context tools when contexts are set, then 1 to 8 `firstClassTools`; the list never varies by context |
+
+TypeScript serves these lists; Python, Rust and C++ still serve the earlier ones until their #533
+step lands (`spec/tool-strategies.md`, "Alignment"). Every strategy routes all five meta-tools, and
+any exposed command by its own name, whether or not it is listed.
 
 A grouped tool takes `{ action, params }` (`todo-create` is group `todo`, action `create`). Its
 `_meta.actions` carries each action's command name, description, input schema and per-command
