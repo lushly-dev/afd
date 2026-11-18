@@ -144,7 +144,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// fixes (#1436) the carousel and the reasoning block's spec: 455. AFD's theme as the built-in
 	// default (D159, #1430) rewrote the literal fallbacks of the gantt's styles and the tab panel,
 	// gave the message status its danger colour, took the message media's fallbacks to AFD's values
-	// and added a read-only spec to the text area: 450. A removed file's record is kept but not
-	// counted.
-	assert(checked > 449, `only ${checked} unchanged upstream files`);
+	// and added a read-only spec to the text area: 450. The form control hosts (#1385) adapted the
+	// grid's keyboard resize spec: 449. A removed file's record is kept but not counted.
+	assert(checked > 448, `only ${checked} unchanged upstream files`);
 });
