@@ -89,8 +89,8 @@ describe("Loam's Violet tree", () => {
 		expect(value(light, 'font.family.body')).toBe('"Inter", system-ui, sans-serif');
 		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#181b1a');
 		expect(value(themeNode('dark'), 'color.action.primary.background')).toBe('#f4f0ea');
-		// One step lighter than Refined's sage-500, to meet 3:1 on the subtle surface.
-		expect(value(themeNode('dark'), 'color.border.strong')).toBe('#869089');
+		// Lighter than Refined's sage-500, to meet 3:1 with margin on the subtle surface.
+		expect(value(themeNode('dark'), 'color.border.strong')).toBe('#939c95');
 	});
 
 	it('gives the field borders the values the design document decided', () => {

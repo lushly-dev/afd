@@ -25,6 +25,8 @@ const COLORS: Record<string, string> = {
 	'stone.300': '#bec6bd',
 	'stone.400': '#adb6ab',
 	'stone.500': '#869089',
+	// Added: between stone-400 and stone-500, dark's strong border (D154).
+	'stone.450': '#939c95',
 	'stone.600': '#5e6460',
 	'stone.700': '#4d5b50',
 	'sage.500': '#6b7d6e',

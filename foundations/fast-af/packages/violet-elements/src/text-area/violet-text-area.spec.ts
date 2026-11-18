@@ -263,9 +263,15 @@ describe("violet-text-area", () => {
             // With no theme installed these are the light theme's values (Loam's D154).
             expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
             expect(style.getPropertyValue("--_field-placeholder").trim().toLowerCase()).toBe("#48534b");
+            // The painted line: the frame's inset top rule is the strong border.
+            const frame = () => area.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+            expect(getComputedStyle(frame()).boxShadow).toContain("rgb(107, 125, 110)");
             area.removeAttribute("readonly");
             await nextFrame();
             expect(getComputedStyle(area).getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#869089");
+            // The frame eases its shadow; read it once the transition ends.
+            await Promise.all(frame().getAnimations().map(animation => animation.finished));
+            expect(getComputedStyle(frame()).boxShadow).toContain("rgb(134, 144, 137)");
         });
 
         it("ignores typing while readonly", async () => {

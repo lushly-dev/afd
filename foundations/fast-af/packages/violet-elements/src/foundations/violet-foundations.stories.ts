@@ -6076,8 +6076,10 @@ function renderFormInputLab(): HTMLElement {
         box-shadow: 0 0 0 2px var(--color-field-border-focus);
       }
 
+      /* A read-only field's line is the strong border: the resting one is under 3:1 on this fill. */
       .field-readonly .field-control {
         background: var(--color-field-background-readonly);
+        border-color: var(--color-border-strong);
       }
 
       .field-invalid .field-control {

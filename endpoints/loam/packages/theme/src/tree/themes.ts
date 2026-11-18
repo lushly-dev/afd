@@ -23,9 +23,10 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.text.secondary', value: c('green.200') },
 	{ id: 'color.text.muted', value: c('stone.400') },
 	{ id: 'color.border.subtle', value: 'rgba(244, 240, 234, 0.10)' },
-	// Stone-500, one step lighter than the sage-500 Refined drew with, so a control's edge and a resize
-	// handle meet 3:1 on the subtle surface too (sage-500 is 2.70 there).
-	{ id: 'color.border.strong', value: c('stone.500') },
+	// Stone-450, lighter than the sage-500 Refined drew with (2.70 on the subtle surface), so a control's
+	// edge, a resize handle and a read-only field's line meet 3:1 with margin on every surface (the line
+	// on the read-only fill over subtle is 3.54).
+	{ id: 'color.border.strong', value: c('stone.450') },
 	{ id: 'color.focus.ring', value: c('mint') },
 	{ id: 'color.control.selected.background', value: c('green.900') },
 	{ id: 'color.control.selected.foreground', value: c('mint') },

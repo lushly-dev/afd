@@ -103,6 +103,9 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		'text'
 	),
 	...on(['color.state.danger.text'], [FLOATING], 'text'),
+	// The danger foreground is error text in many components (a time picker's or a tree's error, a
+	// field's message), so it is held as text wherever a field sits.
+	...on(['color.state.danger.foreground'], FIELD_SURFACES, 'text'),
 	// A message's icon, on its own background and on the page (D154).
 	...(['success', 'danger'] as const).flatMap((state) =>
 		on([`color.state.${state}.foreground`], [`color.state.${state}.background`, PAGE], 'non-text')

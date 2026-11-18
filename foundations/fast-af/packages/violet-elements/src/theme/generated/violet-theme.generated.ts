@@ -142,7 +142,7 @@ export const violetThemeBuiltInSet = {
       { id: "color.action.secondary.hover", value: "rgba(244, 240, 234, 0.13)" },
       { id: "color.action.secondary.pressed", value: "rgba(244, 240, 234, 0.17)" },
       { id: "color.action.secondary.text", value: "#f4f0ea" },
-      { id: "color.border.strong", value: "#869089" },
+      { id: "color.border.strong", value: "#939c95" },
       { id: "color.border.subtle", value: "rgba(244, 240, 234, 0.10)" },
       { id: "color.control.selected.background", value: "#20352c" },
       { id: "color.control.selected.border", value: "rgba(163, 235, 205, 0.45)" },
