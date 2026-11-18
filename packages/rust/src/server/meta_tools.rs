@@ -561,13 +561,28 @@ fn detail_entry(
         "category",
         command.category.as_ref().map(|value| json!(value)),
     );
-    optional("tags", command.tags.as_ref().map(|value| json!(value)));
+    // Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1420).
+    optional(
+        "tags",
+        command
+            .tags
+            .as_ref()
+            .filter(|value| !value.is_empty())
+            .map(|value| json!(value)),
+    );
     optional("mutation", Some(json!(command.mutation)));
     optional(
         "executionTime",
         command.execution_time.as_ref().map(|value| json!(value)),
     );
-    optional("errors", command.errors.as_ref().map(|value| json!(value)));
+    optional(
+        "errors",
+        command
+            .errors
+            .as_ref()
+            .filter(|value| !value.is_empty())
+            .map(|value| json!(value)),
+    );
     optional("inputSchema", Some(object_schema(tool)));
     optional(
         "outputSchema",
