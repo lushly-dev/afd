@@ -110,8 +110,8 @@ impl IndexWriterSession for Session {
             serde_json::json!({ "applied": applied, "schema": schema::SCHEMA_VERSION }).to_string();
         let meta = self.meta.clone();
         let writer = self.open()?;
-        // Preparing flushes segments (replacing `.managed.json`), and the commit and the merges
-        // waited for below replace `meta.json`.
+        // Preparing flushes the last segment (recorded in `.managed.json` under its own lock, in
+        // `directory`), and the commit and the merges waited for below replace `meta.json`.
         let _meta = meta.writing()?;
         let mut prepared = writer.prepare_commit().map_err(|e| map_tantivy(&e))?;
         prepared.set_payload(&payload);
