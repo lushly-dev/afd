@@ -160,6 +160,28 @@ const styles = css`
             border-color: ButtonText;
             background: Canvas;
         }
+
+        /* The card's root opts out of forced colours, so its clear rules are drawn here. */
+        .body,
+        .footer {
+            border-block-start-color: ButtonText;
+        }
+
+        /* Inside the opted-out root the theme's text colours stay, so the text takes the system's. */
+        .summary,
+        .summary:hover,
+        .status-icon,
+        .body,
+        .footer {
+            color: CanvasText;
+        }
+        /* Nested controls and icons take the system's colours again. */
+        violet-button,
+        violet-icon,
+        ::slotted(violet-button),
+        ::slotted(violet-icon) {
+            forced-color-adjust: auto;
+        }
     }
 `;
 

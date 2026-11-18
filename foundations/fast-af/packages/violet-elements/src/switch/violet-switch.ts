@@ -251,6 +251,13 @@ const styles = css`
             background: HighlightText;
         }
 
+        /* The track opts out of forced colours, so its focus ring is set to the system's here. */
+        .input:focus-visible + .track {
+            box-shadow:
+                0 0 0 2px Canvas,
+                0 0 0 4px Highlight;
+        }
+
         :host([disabled]) .track,
         :host(:disabled) .track {
             border-color: GrayText;

@@ -202,6 +202,26 @@ const styles = css`
             border: var(--_card-border-width, 1px) solid currentColor;
             background: Canvas;
         }
+
+        /* The card's root opts out of forced colours, so its clear rules are drawn here. */
+        .header {
+            border-block-end-color: ButtonText;
+        }
+
+        /* Inside the opted-out root the theme's text colours stay, so the text takes the system's. */
+        .name,
+        .badge,
+        .body,
+        .approval-tool-name {
+            color: CanvasText;
+        }
+        /* Nested controls and icons take the system's colours again. */
+        violet-button,
+        violet-icon,
+        ::slotted(violet-button),
+        ::slotted(violet-icon) {
+            forced-color-adjust: auto;
+        }
     }
 `;
 

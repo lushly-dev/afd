@@ -121,12 +121,14 @@ const styles = css`
         border-color: var(--_tab-key-border);
     }
 
-    /* The fill marks the open tab; its line is placed here but shown only in forced colours. */
+    /* The fill alone is too faint to mark the open tab (WCAG 1.4.11), so the key also carries
+       the selection line, inside its foot. */
     :host([data-appearance="open"][aria-selected="true"]) .indicator {
-        inset-inline: 0;
-        inset-block-end: calc(var(--_space-inline-sm) * -1);
+        inset-inline: var(--_space-inline-md);
+        inset-block-end: 3px;
         inline-size: auto;
         block-size: var(--_tab-indicator-thickness);
+        opacity: 1;
         transform: scaleX(1);
     }
 
@@ -189,9 +191,9 @@ const styles = css`
     }
 
     :host([data-orientation="vertical"][data-appearance="open"][aria-selected="true"]) .indicator {
-        inset-inline-start: calc(var(--_space-inline-md) * -0.5);
+        inset-inline-start: 3px;
         inset-inline-end: auto;
-        inset-block: 0;
+        inset-block: var(--_space-inline-sm);
         inline-size: var(--_tab-indicator-thickness);
         block-size: auto;
         transform: scaleY(1);
@@ -230,7 +232,6 @@ const styles = css`
     @media (forced-colors: active) {
         :host([data-appearance="open"][aria-selected="true"]) .indicator {
             background: Highlight;
-            opacity: 1;
         }
     }
 `;

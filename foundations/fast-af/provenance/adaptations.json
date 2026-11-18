@@ -6345,11 +6345,11 @@
       "upstream_sha256": "41b15b4686783694503731ce92dc7890f322db178afcdf0a3f0a700bc58c42e3",
       "staged_path": "packages/violet-elements/src/conversation/violet-approval-card.ts",
       "staged_sha256": "41b15b4686783694503731ce92dc7890f322db178afcdf0a3f0a700bc58c42e3",
-      "current_import_sha256": "585349e95e21e8f823097802ddce71d88556a4b93316429f9e182ac549d2cd8e",
+      "current_import_sha256": "34e2e31b1e0bae3186af46a66fe7d76d853bac5b7c38e28b73d9c2032f3f8560",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-composer.spec.ts",
@@ -6633,11 +6633,11 @@
       "upstream_sha256": "bd614104312e51a8d756d31b9502a1e2d124c82862357bcaee2f964234319b13",
       "staged_path": "packages/violet-elements/src/conversation/violet-reasoning-block.ts",
       "staged_sha256": "bd614104312e51a8d756d31b9502a1e2d124c82862357bcaee2f964234319b13",
-      "current_import_sha256": "415586ef44b8f8cf149137c54b5ada0d5db0521146d79a4e95733df3f16969a6",
+      "current_import_sha256": "db8ebd29061c8d9ba4626fd8506079f3470d3fb75323c54e026cb39007873c3a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-source-citation.spec.ts",
@@ -6705,11 +6705,11 @@
       "upstream_sha256": "d2a69dbe06937af0eb2d3a04c3e4a5ebd91f3070b1c7c52f149e71650f6c7b79",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-call-card.ts",
       "staged_sha256": "d2a69dbe06937af0eb2d3a04c3e4a5ebd91f3070b1c7c52f149e71650f6c7b79",
-      "current_import_sha256": "8952d68f5ffb81b2a22199b8f34e0939094f4c5f2f538f8c11b12945582f259c",
+      "current_import_sha256": "64359a53705648ea9c1cf878308795cb48a8e0db9194c565694ef56c327b6074",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-result-card.spec.ts",
@@ -6741,11 +6741,11 @@
       "upstream_sha256": "3b2ee7b65dbe2073fbe96f3275b568932a46ad646de49f63341f0804169ff022",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-result-card.ts",
       "staged_sha256": "3b2ee7b65dbe2073fbe96f3275b568932a46ad646de49f63341f0804169ff022",
-      "current_import_sha256": "1b122ee462f881d6f0e9b5a9ab45334fe0a61c0d5f57083cdd2872284175f6d3",
+      "current_import_sha256": "45afdbab8f11fb4f738b3742979aa57f4edda18cb6fa321c37dddd45ede71102",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell-values.ts",
@@ -9141,11 +9141,11 @@
       "upstream_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.ts",
       "staged_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
-      "current_import_sha256": "353295b09cfc6dddd73fa8dd7b75f7cdd2ce5f5be5722a0b0cbf547da5101da4",
+      "current_import_sha256": "3b9f68018b15492745a026c7e1c402f099523347c4e498a224441cb90abc1d05",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501); violet-switch: the native input fills the control shell and receives pointer events, so role-based clicks toggle it; real-browser hit-area specs (#501); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501); violet-switch: the native input fills the control shell and receives pointer events, so role-based clicks toggle it; real-browser hit-area specs (#501); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.spec.ts",
@@ -9213,11 +9213,11 @@
       "upstream_sha256": "65974b68f7504b1c1f9a148c5b8ab4bba1d3c50cd76abfb24f0e8464a2457b42",
       "staged_path": "packages/violet-elements/src/tab/violet-tab.ts",
       "staged_sha256": "65974b68f7504b1c1f9a148c5b8ab4bba1d3c50cd76abfb24f0e8464a2457b42",
-      "current_import_sha256": "8de1d81eb3195821df48c56dc8e7eec4d69054477b7800a81e692e3d51d107f0",
+      "current_import_sha256": "03a3af3fdffc99380462349391a71be9373639ef7d507fe0a7af6d36020a6dea",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D154, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tabs/violet-tabs.spec.ts",
@@ -11841,11 +11841,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "76de97cefe73ab8c387b115378272fd84ed13edefe5d3cb2a7a942e933a0b5e9",
+      "current_import_sha256": "ad97d208b2b6da63429f3e3836234675dc1867a4b0520c9d819772a36075ca9a",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "The Refined design (#1430): build removes the CSS comments from the built styles (scripts/strip-style-comments.mjs, after tsc), about 11.5 KB; the comments stay in src"
+      "import_reason": "The Refined design (#1430): build removes the CSS comments from the built styles (scripts/strip-style-comments.mjs, after tsc), about 11.5 KB; the comments stay in src; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line"
     }
   ]
 }
