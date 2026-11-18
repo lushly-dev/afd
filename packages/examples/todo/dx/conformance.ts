@@ -19,8 +19,8 @@ import fs from 'node:fs/promises';
  * names, for what a backend does not serve by design.
  *
  * The command `tools/list` is not a tool: the runner lists the server's tools and answers with
- * `toolListView` of them, so a case can check the tool list and each command's hints whatever
- * the tool strategy.
+ * `toolListView` of them, so a case can check the tool list and each command's hints in the
+ * lists the backends serve.
  */
 
 interface TestCase {
@@ -73,7 +73,10 @@ interface ListedTool {
 }
 
 /**
- * A tool list as a case reads it, the same for every tool strategy:
+ * A tool list as a case reads it, the same for the lists the backends serve: one tool per command
+ * (`individual`, `hybrid`'s first-class tools) and TypeScript's grouped tools with
+ * `_meta.actions`. Python's grouped tools, which carry no `_meta.actions`, would read as commands,
+ * and a lazy list shows none; no backend serves either by default.
  *
  * - `names`: the tool names, in order;
  * - `actions`: each grouped tool's `action` values, in order;

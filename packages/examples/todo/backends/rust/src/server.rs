@@ -252,8 +252,8 @@ pub struct AppState {
 /// strategy.
 ///
 /// # Errors
-/// When the context commands cannot be registered, for example on a registry that already has
-/// them: build one server per registry.
+/// When the context or bootstrap commands cannot be registered, for example on a registry that
+/// already has them: build one server per registry.
 pub fn mcp_server(
     registry: Arc<CommandRegistry>,
     config: &ServerConfig,

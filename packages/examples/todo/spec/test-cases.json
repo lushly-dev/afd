@@ -1017,7 +1017,7 @@
 		},
 		{
 			"name": "detail_destructive_hints",
-			"description": "afd-detail reports the deletes and the clear as destructive",
+			"description": "afd-detail reports the deletes and the clear as destructive, and a create as not",
 			"setup": [],
 			"command": "afd-detail",
 			"input": {
@@ -1028,12 +1028,13 @@
 				"data.0.destructive": true,
 				"data.1.destructive": true,
 				"data.2.destructive": true,
-				"data.3.found": true
+				"data.3.found": true,
+				"data.3.destructive": { "exists": false }
 			}
 		},
 		{
 			"name": "tool_list_destructive_hints",
-			"description": "The tool list reports exactly the deletes and the clear as destructive, whatever the tool strategy",
+			"description": "The tool list reports exactly the deletes and the clear as destructive, in each backend's own tool list",
 			"notOn": ["umbel", "umbel-mounted"],
 			"setup": [],
 			"command": "tools/list",

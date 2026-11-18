@@ -59,7 +59,8 @@ expected (an array is compared whole), or `{ "exists": true }` / `{ "exists": fa
 that a field is present (not `null` or missing) without fixing its value.
 
 The command `tools/list` is not a tool: the runner lists the server's tools and answers with a
-view that is the same for every tool strategy (`toolListView` in `dx/conformance.ts`):
+view that reads one tool per command and TypeScript's grouped tools alike (`toolListView` in
+`dx/conformance.ts`):
 `data.names` (the tool names in order), `data.actions.<group>` (a grouped tool's actions in
 order) and `data.commands.<command>` (the `tool` that runs it and whether it is reported
 `destructive`).

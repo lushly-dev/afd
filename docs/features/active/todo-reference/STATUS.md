@@ -616,7 +616,8 @@ nothing. Every backend now approves batches and pipelines up front.
 ### The wider suite
 
 On branch `t3/todo-wider-suite`, from `main` at `8d11828e`: phase 5's last item. `spec/test-cases.json`
-grows from 41 to 50 cases, which every backend passes in both eras:
+grows from 41 to 50 cases. TypeScript, Python, Rust, C++ and `umbel` pass them in both eras and
+`umbel-mounted` in the 2025 era (its modern run is CI's, in `umbel.yml`):
 
 - **Alternatives:** a filtered `todo-list` offers the unfiltered list and the opposite state, and
   an unfiltered one offers none.
