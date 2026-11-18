@@ -301,14 +301,22 @@ export function pruneLibraries(override, keep) {
 export const overrideDirectory = (workspace) =>
 	join(workspace, 'spaces', SPACE, 'packs', 'components', 'library');
 
+/** The binary's file name on `platform`: cargo adds `.exe` on Windows. */
+export const binaryName = (platform = process.platform) =>
+	platform === 'win32' ? `${BINARY}.exe` : BINARY;
+
 /** The binaries to try, most preferred first: an explicit one, then release before debug. */
-export function binaryCandidates(environment = process.env, root = REPO_ROOT) {
+export function binaryCandidates(
+	environment = process.env,
+	root = REPO_ROOT,
+	platform = process.platform
+) {
 	if (environment.UMBEL_FIRST_PARTY) return [resolve(environment.UMBEL_FIRST_PARTY)];
 	const targets = [environment.CARGO_TARGET_DIR, join(root, 'endpoints/umbel/target')].filter(
 		Boolean
 	);
 	return ['release', 'debug'].flatMap((profile) =>
-		targets.map((target) => join(resolve(target), profile, BINARY))
+		targets.map((target) => join(resolve(target), profile, binaryName(platform)))
 	);
 }
 
@@ -321,7 +329,8 @@ export function findBinary(
 		.map((path) => ({ path, stats: stat(path) }))
 		.filter(({ stats }) => stats?.isFile());
 	if (found.length === 0) return null;
-	const profileOf = (path) => (path.includes('/release/') ? 'release' : 'debug');
+	// Either separator: `join` writes Windows paths with backslashes.
+	const profileOf = (path) => (/[\\/]release[\\/]/.test(path) ? 'release' : 'debug');
 	const best = profileOf(found[0].path);
 	return found
 		.filter(({ path }) => profileOf(path) === best)
