@@ -613,3 +613,6 @@ starts.
 - #659: implemented on `lush/fleet-659-violet-option-token`; active options use
   `color.surface.subtle` and the console workaround is removed. Browser option
   spec verifies light, dark and high-contrast text at 4.5:1 (2026-11-17); lane landing pending.
+
+- #655: implemented on `lush/fleet-655-browser-direct-client`; AFD client
+  `/direct` is browser-safe, with a 42,000-byte entry budget. Lane landing pending.

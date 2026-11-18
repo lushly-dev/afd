@@ -11,6 +11,10 @@
 		"./streamable-http": {
 			"types": "./dist/streamable-http.d.ts",
 			"import": "./dist/streamable-http.js"
+		},
+		"./direct": {
+			"types": "./dist/direct.d.ts",
+			"import": "./dist/direct.js"
 		}
 	},
 	"main": "./dist/index.js",
