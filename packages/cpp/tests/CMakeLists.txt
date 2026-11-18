@@ -36,7 +36,7 @@ if(AFD_JOURNAL_FILE)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 if(AFD_BUILD_MCP_STDIO)
-    target_sources(afd_tests PRIVATE mcp_stdio_test.cpp)
+    target_sources(afd_tests PRIVATE mcp_stdio_test.cpp mcp_tools_test.cpp)
     target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
 endif()
 # approval_test.cpp checks the private HMAC and base64url helpers (header-only) directly.
@@ -55,6 +55,9 @@ target_compile_definitions(afd_tests PRIVATE AFD_VECTORS_DIR="${afd_vectors_dir}
 # The AFD contract version that afd::contract_version must match.
 cmake_path(SET afd_spec_version_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/VERSION")
 target_compile_definitions(afd_tests PRIVATE AFD_SPEC_VERSION_FILE="${afd_spec_version_file}")
+# The meta-tool definitions the MCP server lists, field for field.
+cmake_path(SET afd_meta_tools_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/meta-tools.json")
+target_compile_definitions(afd_tests PRIVATE AFD_META_TOOLS_FILE="${afd_meta_tools_file}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")

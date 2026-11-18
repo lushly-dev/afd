@@ -155,6 +155,9 @@ CommandResult afd_help(const CommandRegistry& registry, const Json& input,
                 {"total", total},
                 {"filtered", filtered},
                 {"groupedByCategory", std::move(grouped)}};
+    if (context.tool_strategy) {
+        output["toolStrategy"] = *context.tool_strategy;
+    }
     if (!registry.context_fields().empty()) {
         Json fields = Json::array();
         for (const auto& field : registry.context_fields()) {

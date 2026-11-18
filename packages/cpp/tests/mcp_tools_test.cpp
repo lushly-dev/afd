@@ -1,0 +1,748 @@
+// The tool surface of the MCP stdio server (spec/tool-strategies.md, spec/meta-tools.json): the
+// strategies' tool lists, routing, the meta-tools, and the confirmation gate of afd-batch and
+// afd-pipe. The confirmation and relay rounds of one command are in mcp_stdio_test.cpp.
+#include "afd/afd.hpp"
+#include "afd/mcp_stdio.hpp"
+
+#include <atomic>
+#include <fstream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <doctest.h>
+
+using afd::Json;
+using afd::mcp::ConfirmationMode;
+using afd::mcp::StdioServer;
+using afd::mcp::ToolStrategy;
+
+// Named, not anonymous: unity builds put this file in one unit with mcp_stdio_test.cpp.
+namespace tools_test {
+
+/// Notes and tags: a create, a list, a confirm-gated delete, an unexposed purge, an
+/// approval-gated tag removal and a tag list, with the context and bootstrap commands.
+struct Fixture {
+    std::shared_ptr<afd::CommandRegistry> registry;
+    std::shared_ptr<std::atomic<int>> deletes = std::make_shared<std::atomic<int>>(0);
+    std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
+
+    explicit Fixture(bool with_contexts = false) {
+        auto deleted = deletes;
+        std::vector<afd::CommandDefinition> commands{
+            {.name = "note-create",
+             .description = "Create a note. Titles are trimmed.",
+             .category = "notes",
+             .input_schema = Json{{"type", "object"},
+                                  {"properties", {{"title", {{"type", "string"}}}}},
+                                  {"required", {"title"}}},
+             .handler =
+                 [](const Json& input, afd::CommandContext&) {
+                     return afd::success(Json{{"title", input["title"]}});
+                 },
+             .tags = {"write"},
+             .contexts = {"editing"},
+             .mutation = true,
+             .expose = {.mcp = true}},
+            {.name = "note-list",
+             .description = "List notes",
+             .category = "notes",
+             .handler = [](const Json&,
+                           afd::CommandContext&) { return afd::success(Json::array()); },
+             .tags = {"read"},
+             .expose = {.mcp = true}},
+            {.name = "note-delete",
+             .description = "Delete a note",
+             .category = "notes",
+             .input_schema = Json{{"type", "object"},
+                                  {"properties", {{"id", {{"type", "string"}}}}},
+                                  {"required", {"id"}}},
+             .handler =
+                 [deleted](const Json& input, afd::CommandContext&) {
+                     ++*deleted;
+                     return afd::success(Json{{"deleted", input["id"]}});
+                 },
+             .tags = {"write"},
+             .contexts = {"editing"},
+             .mutation = true,
+             .destructive = true,
+             .confirm_prompt = "Delete this note?",
+             .expose = {.mcp = true}},
+            {.name = "note-purge",
+             .description = "Purge every note",
+             .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+             .mutation = true},
+            {.name = "tag-remove",
+             .description = "Remove a tag",
+             .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+             .mutation = true,
+             .expose = {.mcp = true},
+             .approval = afd::ApprovalDecision::required},
+            {.name = "tag-list",
+             .description = "List tags",
+             .handler = [](const Json&,
+                           afd::CommandContext&) { return afd::success(Json::array()); },
+             .expose = {.mcp = true}},
+        };
+        auto approval =
+            afd::create_approval_middleware({.secrets = {std::string(32, 's')},
+                                             .commands = {commands.begin(), commands.end()},
+                                             .relay = afd::ApprovalRelay::mcp_elicitation});
+        REQUIRE(approval);
+        registry = std::make_shared<afd::CommandRegistry>(
+            afd::CommandRegistryOptions{.middleware = {*approval}});
+        for (const auto& command : commands) {
+            REQUIRE_FALSE(registry->register_command(command));
+        }
+        if (with_contexts) {
+            REQUIRE_FALSE(afd::register_context_commands(*registry, contexts));
+        }
+        REQUIRE_FALSE(afd::register_bootstrap_commands(*registry));
+    }
+};
+
+std::unique_ptr<StdioServer> make_server(const afd::CommandRegistry& registry,
+                                         afd::mcp::StdioServerOptions options = {}) {
+    auto server = StdioServer::create(registry, std::move(options));
+    REQUIRE(server);
+    return std::move(*server);
+}
+
+Json request(const Json& id, std::string method, Json params = Json::object()) {
+    return Json{{"jsonrpc", "2.0"}, {"id", id}, {"method", std::move(method)}, {"params", params}};
+}
+
+Json send(StdioServer& server, const Json& message, const afd::mcp::ClientRequester& ask = {}) {
+    const auto out = server.handle_message(afd::wire::serialize(message), ask);
+    REQUIRE(out.has_value());
+    return Json::parse(*out);
+}
+
+Json modern_meta(Json capabilities = Json::object()) {
+    if (capabilities.is_null()) {
+        capabilities = Json::object();
+    }
+    return Json{{"io.modelcontextprotocol/protocolVersion", "2026-07-28"},
+                {"io.modelcontextprotocol/clientCapabilities", std::move(capabilities)}};
+}
+
+const Json form_elicitation{{"elicitation", {{"form", Json::object()}}}};
+
+/// A 2025-era `tools/call`; its result.
+Json call(StdioServer& server, std::string name, Json arguments = Json::object(),
+          const afd::mcp::ClientRequester& ask = {}) {
+    return send(server,
+                request(1, "tools/call", {{"name", std::move(name)}, {"arguments", arguments}}),
+                ask)["result"];
+}
+
+/// A 2026-07-28 `tools/call`, with any retry fields in `extra` and `_meta` entries in
+/// `meta_extra`; its result.
+Json modern_call(StdioServer& server, std::string name, Json arguments,
+                 Json capabilities = Json::object(), Json extra = Json::object(),
+                 Json meta_extra = Json::object()) {
+    Json meta = modern_meta(std::move(capabilities));
+    if (meta_extra.is_object()) {
+        meta.update(meta_extra);
+    }
+    Json params{{"name", std::move(name)}, {"arguments", std::move(arguments)}, {"_meta", meta}};
+    if (extra.is_object()) {
+        params.update(extra);
+    }
+    return send(server, request(1, "tools/call", std::move(params)))["result"];
+}
+
+Json body(const Json& result) {
+    return Json::parse(result["content"][0]["text"].get<std::string>());
+}
+
+std::vector<std::string> names(const Json& tools) {
+    std::vector<std::string> out;
+    for (const auto& tool : tools) {
+        out.push_back(tool["name"].get<std::string>());
+    }
+    return out;
+}
+
+Json list(StdioServer& server, Json meta = modern_meta()) {
+    return send(server, request(1, "tools/list", {{"_meta", std::move(meta)}}))["result"]["tools"];
+}
+
+Json tool_named(const Json& tools, std::string_view name) {
+    for (const auto& tool : tools) {
+        if (tool["name"] == name) {
+            return tool;
+        }
+    }
+    FAIL("no tool named " << name);
+    return nullptr;
+}
+
+
+TEST_CASE("the meta-tools are spec/meta-tools.json, field for field") {
+    std::ifstream in(AFD_META_TOOLS_FILE, std::ios::binary);
+    REQUIRE(in);
+    std::stringstream text;
+    text << in.rdbuf();
+    const auto spec = afd::parse_bounded(text.str());
+    REQUIRE(spec);
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.tool_strategy = ToolStrategy::lazy});
+    const Json tools = list(*server);
+    REQUIRE(tools.size() == 5);
+    for (const auto& expected : *spec) {
+        CAPTURE(expected["name"].get<std::string>());
+        CHECK(tool_named(tools, expected["name"].get<std::string>()) == expected);
+    }
+}
+
+TEST_CASE("each strategy lists TypeScript's tools in TypeScript's order") {
+    Fixture fixture;
+    auto individual = make_server(*fixture.registry, {.tool_strategy = ToolStrategy::individual});
+    CHECK(names(list(*individual)) ==
+          std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call", "note-create", "note-list",
+                                   "note-delete", "tag-remove", "tag-list", "afd-help", "afd-docs",
+                                   "afd-schema"});
+    auto lazy = make_server(*fixture.registry, {.tool_strategy = ToolStrategy::lazy});
+    CHECK(names(list(*lazy)) == std::vector<std::string>{"afd-discover", "afd-detail", "afd-batch",
+                                                         "afd-pipe", "afd-call"});
+    // The default: one tool per group, in the order of each group's first command.
+    auto grouped = make_server(*fixture.registry);
+    const Json tools = list(*grouped);
+    CHECK(names(tools) == std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call",
+                                                   "afd-detail", "notes", "tag", "bootstrap"});
+    CHECK(send(*grouped, request(1, "tools/list"))["result"]["tools"] == tools);
+    CHECK(grouped->tools() == tools);
+
+    // group_by decides the group; an empty name is `general`.
+    auto by = make_server(
+        *fixture.registry,
+        {.group_by = [](const afd::CommandDefinition& command) -> std::optional<std::string> {
+            if (command.name.rfind("afd-", 0) == 0) {
+                return std::nullopt;
+            }
+            return std::string("app");
+        }});
+    CHECK(names(list(*by)) == std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call",
+                                                       "afd-detail", "app", "general"});
+}
+
+TEST_CASE("a grouped tool takes { action, params } and describes every action") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json notes = tool_named(list(*server), "notes");
+    CHECK(notes["description"] == "notes operations: create, list, delete");
+    const Json& schema = notes["inputSchema"];
+    CHECK(schema["required"] == Json::array({"action"}));
+    CHECK(schema["properties"]["action"] ==
+          Json{{"type", "string"},
+               {"enum", Json::array({"create", "list", "delete"})},
+               {"description", "Action to perform: create | list | delete"}});
+    // note-delete is confirm-gated under enforce, so the group takes `confirm`.
+    CHECK(schema["properties"]["confirm"]["type"] == "boolean");
+    // Small groups inline each action's schema as a titled anyOf branch.
+    const Json& branches = schema["properties"]["params"]["anyOf"];
+    REQUIRE(branches.size() == 3);
+    CHECK(branches[0]["title"] == "create");
+    CHECK(branches[0]["description"] == "Parameters for action 'create' (note-create)");
+    CHECK(branches[0]["required"] == Json::array({"title"}));
+    const Json& actions = notes["_meta"]["actions"];
+    REQUIRE(actions.size() == 3);
+    CHECK(actions[2]["action"] == "delete");
+    CHECK(actions[2]["command"] == "note-delete");
+    CHECK(actions[2]["destructive"] == true);
+    CHECK(actions[2]["contexts"] == Json::array({"editing"}));
+    CHECK(actions[2]["inputSchema"]["properties"].contains("confirm"));
+    CHECK_FALSE(notes.contains("annotations"));
+    CHECK_FALSE(tool_named(list(*server), "tag")["inputSchema"]["properties"].contains("confirm"));
+
+    // A group whose schemas are too large lists them only in _meta.actions.
+    afd::CommandRegistry big;
+    Json properties = Json::object();
+    for (int i = 0; i < 300; ++i) {
+        properties["field" + std::to_string(i)] = Json{{"type", "string"}};
+    }
+    REQUIRE_FALSE(big.register_command(
+        {.name = "big-run",
+         .description = "Run big",
+         .input_schema = Json{{"type", "object"}, {"properties", properties}},
+         .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+         .expose = {.mcp = true}}));
+    auto large = make_server(big);
+    const Json params = tool_named(list(*large), "big")["inputSchema"]["properties"]["params"];
+    CHECK_FALSE(params.contains("anyOf"));
+    CHECK(params["description"].get<std::string>().find("_meta.actions") != std::string::npos);
+}
+
+TEST_CASE("a grouped call runs the action's command, with every check of its own tool") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json created =
+        call(*server, "notes", {{"action", "create"}, {"params", {{"title", "A"}}}});
+    CHECK(created["isError"] == false);
+    CHECK(body(created)["data"] == Json{{"title", "A"}});
+    CHECK(body(call(*server, "notes", {{"action", "list"}}))["success"] == true);
+
+    const Json missing = body(call(*server, "notes", {{"params", Json::object()}}));
+    CHECK(missing["error"]["code"] == "INVALID_GROUPED_CALL");
+    CHECK(missing["error"]["suggestion"] ==
+          "Provide { action: \"<action>\", params: {...} }. Available actions: create, list, "
+          "delete");
+    CHECK(body(call(*server, "notes", {{"action", "rename"}}))["error"]["code"] ==
+          "COMMAND_NOT_FOUND");
+    // The input is validated as the command's own.
+    CHECK(body(call(*server, "notes",
+                    {{"action", "create"}, {"params", {{"title", 3}}}}))["error"]["code"] ==
+          "VALIDATION_ERROR");
+
+    // The confirmation gate, acknowledged by the group's `confirm`.
+    const Json refused =
+        body(call(*server, "notes", {{"action", "delete"}, {"params", {{"id", "n"}}}}));
+    CHECK(refused["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(refused["error"]["suggestion"] ==
+          "Make sure the user intends this, then repeat the notes call with confirm: true.");
+    CHECK(*fixture.deletes == 0);
+    const Json confirmed = body(call(
+        *server, "notes", {{"action", "delete"}, {"params", {{"id", "n"}}}, {"confirm", true}}));
+    CHECK(confirmed["success"] == true);
+    CHECK(*fixture.deletes == 1);
+
+    // Two commands with one action in a group.
+    afd::CommandRegistry twins;
+    for (const auto* name : {"box-open", "crate-open"}) {
+        REQUIRE_FALSE(twins.register_command(
+            {.name = name,
+             .description = "Open",
+             .category = "storage",
+             .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+             .expose = {.mcp = true}}));
+    }
+    auto ambiguous = make_server(twins);
+    CHECK(body(call(*ambiguous, "storage", {{"action", "open"}}))["error"]["code"] ==
+          "AMBIGUOUS_ACTION");
+    // A command is still callable by its own name in every strategy.
+    CHECK(body(call(*ambiguous, "box-open"))["success"] == true);
+}
+
+TEST_CASE("an unexposed command is answered exactly as an unknown one, on every route (D4)") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const auto answer = [](const Json& result) {
+        Json error = body(result)["error"];
+        return error;
+    };
+    const Json unknown = answer(call(*server, "note-prune"));
+    const Json hidden = answer(call(*server, "note-purge"));
+    CHECK(hidden["code"] == "COMMAND_NOT_FOUND");
+    CHECK(hidden["message"] == "Command 'note-purge' not found");
+    CHECK(unknown["code"] == "COMMAND_NOT_FOUND");
+    // Neither suggestion names the unexposed command, and both point to afd-discover.
+    for (const auto& error : {unknown, hidden}) {
+        const auto suggestion = error["suggestion"].get<std::string>();
+        CHECK(suggestion.find("note-purge") == std::string::npos);
+        CHECK(suggestion.find("Use afd-discover to list all commands.") != std::string::npos);
+    }
+    CHECK(answer(call(*server, "afd-call", {{"command", "note-purge"}})) == hidden);
+    const Json batch =
+        body(call(*server, "afd-batch", {{"commands", {{{"command", "note-purge"}}}}}));
+    CHECK(batch["results"][0]["result"]["error"] == hidden);
+    const Json pipe = body(call(*server, "afd-pipe", {{"steps", {{{"command", "note-purge"}}}}}));
+    CHECK(pipe["steps"][0]["error"] == hidden);
+    const Json detail = body(call(*server, "afd-detail", {{"command", "note-purge"}}));
+    CHECK(detail["data"][0]["found"] == false);
+    CHECK(body(call(*server, "afd-discover"))["data"]["total"] == 8);
+}
+
+TEST_CASE("afd-call runs any exposed command, through the same checks as its own tool") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json created =
+        body(call(*server, "afd-call", {{"command", "note-create"}, {"input", {{"title", "B"}}}}));
+    CHECK(created["data"] == Json{{"title", "B"}});
+    // Missing or null input is an empty one; nulls count as omitted.
+    CHECK(body(call(*server, "afd-call",
+                    {{"command", "note-list"}, {"input", nullptr}}))["success"] == true);
+
+    const Json invalid = body(call(*server, "afd-call", {{"command", ""}}));
+    CHECK(invalid["error"]["code"] == "VALIDATION_ERROR");
+    CHECK(invalid["error"]["message"] == "Invalid afd-call arguments");
+    CHECK(invalid["error"]["suggestion"].get<std::string>().find(
+              "Provide { command: \"command-name\", input: {...} }") != std::string::npos);
+
+    const Json refused =
+        body(call(*server, "afd-call", {{"command", "note-delete"}, {"input", {{"id", "n"}}}}));
+    CHECK(refused["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(refused["error"]["suggestion"] ==
+          "Make sure the user intends this, then repeat the afd-call with confirm: true.");
+    CHECK(body(call(*server, "afd-call",
+                    {{"command", "note-delete"},
+                     {"input", {{"id", "n"}}},
+                     {"confirm", true}}))["success"] == true);
+    CHECK(*fixture.deletes == 1);
+
+    // A held command over a client that cannot elicit: APPROVAL_REQUIRED, no token.
+    const Json held = body(call(*server, "afd-call", {{"command", "tag-remove"}}));
+    CHECK(held["error"]["code"] == "APPROVAL_REQUIRED");
+    CHECK_FALSE(held["error"]["details"].contains("approvalToken"));
+}
+
+TEST_CASE("2026-07-28: afd-call asks for a confirmation as the command's own tool does") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json arguments{{"command", "note-delete"}, {"input", {{"id", "n"}}}};
+    const Json asked = modern_call(*server, "afd-call", arguments, form_elicitation);
+    REQUIRE(asked["resultType"] == "input_required");
+    CHECK(asked["inputRequests"]["confirm"]["params"]["message"] == "Delete this note?");
+    const Json done =
+        modern_call(*server, "afd-call", arguments, form_elicitation,
+                    {{"requestState", asked["requestState"]},
+                     {"inputResponses",
+                      {{"confirm", {{"action", "accept"}, {"content", {{"confirm", true}}}}}}}});
+    CHECK(done["isError"] == false);
+    CHECK(*fixture.deletes == 1);
+}
+
+TEST_CASE("afd-discover filters, pages and summarizes the exposed commands") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const Json all = body(call(*server, "afd-discover"));
+    CHECK(all["data"]["total"] == 8);
+    CHECK(all["data"]["availableCategories"] == Json::array({"bootstrap", "notes", "tag"}));
+    CHECK(all["data"]["availableTags"] == Json::array({"bootstrap", "read", "safe", "write"}));
+    CHECK(all["data"]["commands"][0] ==
+          Json{{"name", "note-create"}, {"description", "Create a note"}, {"category", "notes"}});
+    CHECK(all["reasoning"] == "Returned 8 of 8 matching commands (8 total)");
+    CHECK(all["metadata"].contains("executionTimeMs"));
+
+    const Json writes =
+        body(call(*server, "afd-discover", {{"tag", "write"}, {"includeMutation", true}}));
+    CHECK(writes["data"]["filtered"] == 2);
+    CHECK(writes["data"]["commands"][0]["mutation"] == true);
+    CHECK(body(call(*server, "afd-discover",
+                    {{"tag", {"read", "write"}}, {"tagMode", "all"}}))["data"]["filtered"] == 0);
+    CHECK(body(call(*server, "afd-discover", {{"category", "tag"}}))["reasoning"] ==
+          "Returned 2 of 2 matching commands (8 total) in category 'tag'");
+    CHECK(body(call(*server, "afd-discover", {{"search", "LIST note"}}))["data"]["filtered"] == 1);
+    const Json page = body(call(*server, "afd-discover", {{"limit", 3}, {"offset", 2}}));
+    CHECK(page["data"]["returned"] == 3);
+    CHECK(page["data"]["hasMore"] == true);
+    CHECK(page["data"]["commands"][0]["name"] == "note-delete");
+    CHECK(page["reasoning"] ==
+          "Returned 3 of 8 matching commands (8 total). Use offset: 5 to see more.");
+    CHECK(body(call(*server, "afd-discover", {{"tagMode", "some"}}))["error"]["code"] ==
+          "VALIDATION_ERROR");
+}
+
+TEST_CASE("afd-detail describes up to ten commands, with their tools' schemas") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json detail =
+        body(call(*server, "afd-detail", {{"command", {"note-delete", "note-dlete"}}}));
+    CHECK(detail["reasoning"] == "Resolved 1 of 2 requested commands");
+    const Json& found = detail["data"][0];
+    CHECK(found["found"] == true);
+    CHECK(found["callable"] == true);
+    CHECK(found["confirmPrompt"] == "Delete this note?");
+    CHECK(found["destructive"] == true);
+    CHECK(found["mutation"] == true);
+    // The tool's schema: the confirm acknowledgement the server adds under enforce included.
+    CHECK(found["inputSchema"]["properties"].contains("confirm"));
+    const Json& missing = detail["data"][1];
+    CHECK(missing["found"] == false);
+    CHECK(missing["error"]["code"] == "COMMAND_NOT_FOUND");
+    CHECK(missing["error"]["suggestion"] ==
+          "Did you mean 'note-delete'? Other close matches: 'note-create', 'note-list'. Use "
+          "afd-discover to list all commands.");
+
+    Json many = Json::array();
+    for (int i = 0; i < 12; ++i) {
+        many.push_back("note-list");
+    }
+    CHECK(body(call(*server, "afd-detail", {{"command", many}}))["data"].size() == 10);
+    CHECK(body(call(*server, "afd-detail"))["error"]["code"] == "VALIDATION_ERROR");
+}
+
+TEST_CASE("contexts scope afd-discover, afd-detail and every route") {
+    Fixture fixture(true);
+    auto server = make_server(*fixture.registry, {.contexts = fixture.contexts});
+    const Json reading{{"dev.afd/context", "reading"}};
+    const Json discovered =
+        body(modern_call(*server, "afd-discover", Json::object(), {}, {}, reading));
+    // note-create and note-delete belong to `editing`.
+    CHECK(discovered["data"]["total"] == 9);
+    const Json detail =
+        body(modern_call(*server, "afd-detail", {{"command", "note-create"}}, {}, {}, reading));
+    CHECK(detail["data"][0]["found"] == false);
+    for (const auto& [tool, arguments] : std::vector<std::pair<std::string, Json>>{
+             {"note-create", {{"title", "x"}}},
+             {"afd-call", {{"command", "note-create"}, {"input", {{"title", "x"}}}}},
+             {"notes", {{"action", "create"}, {"params", {{"title", "x"}}}}}}) {
+        CAPTURE(tool);
+        const Json refused = body(modern_call(*server, tool, arguments, {}, {}, reading));
+        CHECK(refused["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+        CHECK(refused["error"]["suggestion"] ==
+              "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+    }
+    // The grouped list holds only the commands of the context.
+    const Json notes = tool_named(list(*server,
+                                       [] {
+                                           Json meta = modern_meta();
+                                           meta["dev.afd/context"] = "reading";
+                                           return meta;
+                                       }()),
+                                  "notes");
+    CHECK(notes["inputSchema"]["properties"]["action"]["enum"] == Json::array({"list"}));
+}
+
+TEST_CASE("a meta-tool's meta argument names the context for clients that cannot set _meta") {
+    Fixture fixture(true);
+    auto server = make_server(*fixture.registry, {.contexts = fixture.contexts});
+    const Json lifted = body(modern_call(*server, "afd-call",
+                                         {{"command", "note-create"},
+                                          {"input", {{"title", "x"}}},
+                                          {"meta", {{"dev.afd/context", "reading"}}}}));
+    CHECK(lifted["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+    // Agreeing with _meta is fine; disagreeing is not.
+    CHECK(body(modern_call(*server, "afd-discover", {{"meta", {{"dev.afd/context", "reading"}}}},
+                           {}, {}, {{"dev.afd/context", "reading"}}))["success"] == true);
+    const Json disagree =
+        body(modern_call(*server, "afd-discover", {{"meta", {{"dev.afd/context", "editing"}}}}, {},
+                         {}, {{"dev.afd/context", "reading"}}));
+    CHECK(disagree["error"]["code"] == "VALIDATION_ERROR");
+    CHECK(disagree["error"]["message"] ==
+          "_meta[\"dev.afd/context\"] and the meta argument of afd-discover disagree");
+    const Json not_object =
+        body(modern_call(*server, "afd-detail", {{"command", "note-list"}, {"meta", 3}}));
+    CHECK(not_object["error"]["message"] == "The meta argument of afd-detail must be an object");
+    // An unknown context in the argument is an unknown context in _meta.
+    const Json unknown =
+        send(*server, request(1, "tools/call",
+                              {{"name", "afd-discover"},
+                               {"arguments", {{"meta", {{"dev.afd/context", "nowhere"}}}}},
+                               {"_meta", modern_meta()}}));
+    CHECK(unknown["error"]["code"] == -32602);
+    // On a command's own tool, `meta` is input like any other.
+    CHECK(body(modern_call(*server, "note-list",
+                           {{"meta", {{"dev.afd/context", "reading"}}}}))["success"] == true);
+}
+
+TEST_CASE("afd-batch runs its commands and answers a bad envelope with INVALID_BATCH_REQUEST") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const Json ran = call(*server, "afd-batch",
+                          {{"commands",
+                            {{{"id", "a"}, {"command", "note-create"}, {"input", {{"title", "x"}}}},
+                             {{"command", "tag-list"}}}}});
+    CHECK(ran["isError"] == false);
+    const Json result = body(ran);
+    CHECK(result["summary"]["successCount"] == 2);
+    CHECK(result["results"][0]["id"] == "a");
+    CHECK(result["results"][0]["result"]["data"] == Json{{"title", "x"}});
+
+    for (const auto& arguments :
+         {Json{{"commands", Json::array()}}, Json{{"commands", "x"}},
+          Json{{"commands", {{{"command", "tag-list"}}}}, {"confirm", "tag-list"}}}) {
+        CAPTURE(arguments.dump());
+        const Json refused = call(*server, "afd-batch", arguments);
+        CHECK(refused["isError"] == true);
+        const Json error = body(refused)["error"];
+        CHECK(error["code"] == "INVALID_BATCH_REQUEST");
+        CHECK(error["suggestion"] == "Provide { commands: [...] } with command objects");
+    }
+}
+
+TEST_CASE("afd-pipe chains its steps and answers a bad envelope with INVALID_PIPELINE_REQUEST") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const Json ran = call(*server, "afd-pipe",
+                          {{"input", {{"title", "piped"}}},
+                           {"steps",
+                            {{{"command", "note-create"}, {"input", {{"title", "$input.title"}}}},
+                             {{"command", "tag-list"}}}}});
+    CHECK(ran["isError"] == false);
+    CHECK(body(ran)["steps"][0]["data"] == Json{{"title", "piped"}});
+
+    const Json failed = call(*server, "afd-pipe", {{"steps", {{{"command", "note-create"}}}}});
+    CHECK(failed["isError"] == true);
+
+    const Json refused = body(call(*server, "afd-pipe", {{"steps", {{{"command", ""}}}}}));
+    REQUIRE(refused["steps"].size() == 1);
+    CHECK(refused["steps"][0]["index"] == -1);
+    CHECK(refused["steps"][0]["error"]["code"] == "INVALID_PIPELINE_REQUEST");
+}
+
+TEST_CASE("afd-batch and afd-pipe confirm every gated step before any runs") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce});
+    const Json batch{{"commands",
+                      {{{"command", "note-delete"}, {"input", {{"id", "1"}}}},
+                       {{"command", "note-create"}, {"input", {{"title", "y"}}}}}}};
+    const Json refused = call(*server, "afd-batch", batch);
+    CHECK(refused["isError"] == true);
+    const Json error = body(refused)["error"];
+    CHECK(error["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(error["message"] == "'note-delete' needs confirmation: Delete this note?");
+    CHECK(error["suggestion"] == "Make sure the user intends this, then repeat the afd-batch with "
+                                 "confirm: [the command names].");
+    CHECK(error["details"]["commands"] == Json::array({"note-delete"}));
+    CHECK(body(refused)["results"].empty());
+    CHECK(*fixture.deletes == 0);
+
+    // Naming another command is no acknowledgement; naming it is.
+    Json other = batch;
+    other["confirm"] = Json::array({"note-create"});
+    CHECK(body(call(*server, "afd-batch", other))["error"]["code"] == "CONFIRMATION_REQUIRED");
+    Json named = batch;
+    named["confirm"] = Json::array({"note-delete"});
+    CHECK(body(call(*server, "afd-batch", named))["summary"]["successCount"] == 2);
+    CHECK(*fixture.deletes == 1);
+
+    const Json pipe{{"steps",
+                     {{{"command", "note-delete"}, {"input", {{"id", "2"}}}},
+                      {{"command", "note-delete"}, {"input", {{"id", "3"}}}}}}};
+    const Json held = body(call(*server, "afd-pipe", pipe));
+    CHECK(held["steps"][0]["index"] == -1);
+    CHECK(held["steps"][0]["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(*fixture.deletes == 1);
+    // _meta["dev.afd/confirm"] acknowledges every step.
+    const Json acknowledged =
+        body(modern_call(*server, "afd-pipe", pipe, {}, {}, {{"dev.afd/confirm", true}}));
+    CHECK(acknowledged["steps"].size() == 2);
+    CHECK(*fixture.deletes == 3);
+}
+
+TEST_CASE("2026-07-28: one question covers a batch's gated steps, bound to the request") {
+    Fixture fixture;
+    auto server =
+        make_server(*fixture.registry, {.confirmations = ConfirmationMode::require_human});
+    afd::CommandRegistry& registry = *fixture.registry;
+    REQUIRE_FALSE(registry.register_command(
+        {.name = "tag-purge",
+         .description = "Purge tags",
+         .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+         .mutation = true,
+         .confirm_prompt = "Purge every tag?",
+         .expose = {.mcp = true}}));
+    const Json batch{
+        {"commands",
+         {{{"command", "note-delete"}, {"input", {{"id", "1"}}}}, {{"command", "tag-purge"}}}}};
+    const Json asked = modern_call(*server, "afd-batch", batch, form_elicitation);
+    REQUIRE(asked["resultType"] == "input_required");
+    CHECK(asked["inputRequests"]["confirm"]["params"]["message"] ==
+          "This request runs commands that need confirmation:\n- note-delete: Delete this "
+          "note?\n- tag-purge: Purge every tag?");
+    const Json accept{{"confirm", {{"action", "accept"}, {"content", {{"confirm", true}}}}}};
+
+    // The state answers only this request: another batch is asked again.
+    Json changed = batch;
+    changed["commands"][0]["input"]["id"] = "2";
+    const Json again =
+        modern_call(*server, "afd-batch", changed, form_elicitation,
+                    {{"requestState", asked["requestState"]}, {"inputResponses", accept}});
+    CHECK(again["resultType"] == "input_required");
+    CHECK(*fixture.deletes == 0);
+
+    const Json done =
+        modern_call(*server, "afd-batch", batch, form_elicitation,
+                    {{"requestState", asked["requestState"]}, {"inputResponses", accept}});
+    CHECK(done["isError"] == false);
+    CHECK(body(done)["summary"]["successCount"] == 2);
+    CHECK(*fixture.deletes == 1);
+
+    const Json declined = modern_call(*server, "afd-batch", batch, form_elicitation,
+                                      {{"requestState", asked["requestState"]},
+                                       {"inputResponses", {{"confirm", {{"action", "decline"}}}}}});
+    const Json error = body(declined)["error"];
+    CHECK(error["code"] == "CONFIRMATION_DECLINED");
+    CHECK(error["message"] == "The user did not confirm 'note-delete', 'tag-purge'");
+    CHECK(*fixture.deletes == 1);
+
+    // Without elicitation, require-human refuses.
+    CHECK(body(modern_call(*server, "afd-batch", batch))["error"]["suggestion"] ==
+          "This server accepts only a confirmation from the user: use an MCP client that "
+          "supports elicitation.");
+}
+
+TEST_CASE("2025: a pipeline's confirmation is asked in band, once") {
+    Fixture fixture;
+    auto server =
+        make_server(*fixture.registry, {.confirmations = ConfirmationMode::require_human});
+    send(*server, request(0, "initialize",
+                          {{"protocolVersion", "2025-06-18"}, {"capabilities", form_elicitation}}));
+    const Json pipe{{"steps", {{{"command", "note-delete"}, {"input", {{"id", "1"}}}}}}};
+    int asked = 0;
+    const afd::mcp::ClientRequester accept = [&](const Json& sent) -> std::optional<Json> {
+        ++asked;
+        CHECK(sent["method"] == "elicitation/create");
+        CHECK(sent["params"]["message"] == "Delete this note?");
+        // 2025-06-18 predates the elicitation `mode`.
+        CHECK_FALSE(sent["params"].contains("mode"));
+        return Json{{"action", "accept"}, {"content", {{"confirm", true}}}};
+    };
+    CHECK(call(*server, "afd-pipe", pipe, accept)["isError"] == false);
+    CHECK(asked == 1);
+    CHECK(*fixture.deletes == 1);
+
+    const afd::mcp::ClientRequester decline = [](const Json&) -> std::optional<Json> {
+        return Json{{"action", "decline"}};
+    };
+    const Json declined = body(call(*server, "afd-pipe", pipe, decline));
+    CHECK(declined["steps"][0]["error"]["code"] == "CONFIRMATION_DECLINED");
+    const afd::mcp::ClientRequester silent = [](const Json&) -> std::optional<Json> {
+        return std::nullopt;
+    };
+    CHECK(body(call(*server, "afd-pipe", pipe, silent))["steps"][0]["error"]["code"] ==
+          "CONFIRMATION_REQUIRED");
+    CHECK(*fixture.deletes == 1);
+}
+
+TEST_CASE("a batch step that needs approval is not asked about: it says to call it alone") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    int asked = 0;
+    send(*server, request(0, "initialize",
+                          {{"protocolVersion", "2025-11-25"}, {"capabilities", form_elicitation}}));
+    const afd::mcp::ClientRequester ask = [&](const Json&) -> std::optional<Json> {
+        ++asked;
+        return Json{{"action", "accept"}, {"content", {{"approve", true}}}};
+    };
+    const Json batch =
+        body(call(*server, "afd-batch", {{"commands", {{{"command", "tag-remove"}}}}}, ask));
+    const Json error = batch["results"][0]["result"]["error"];
+    CHECK(error["code"] == "APPROVAL_REQUIRED");
+    CHECK(error["suggestion"].get<std::string>().find("Call tag-remove on its own") !=
+          std::string::npos);
+    CHECK_FALSE(error["details"].contains("approvalToken"));
+    CHECK(asked == 0);
+    // The same command on its own is asked.
+    CHECK(call(*server, "tag-remove", Json::object(), ask)["isError"] == false);
+    CHECK(asked == 1);
+}
+
+TEST_CASE("server/discover and afd-help describe the strategy") {
+    Fixture fixture;
+    for (const auto& [strategy, sentence] : std::vector<std::pair<ToolStrategy, std::string>>{
+             {ToolStrategy::lazy, " Call afd-discover to find commands, afd-detail for a command "
+                                  "schema, and afd-call to run one."},
+             {ToolStrategy::individual,
+              " Each command is its own tool; afd-call also runs any command by name."}}) {
+        auto server = make_server(*fixture.registry, {.name = "notes", .tool_strategy = strategy});
+        const auto instructions =
+            send(*server, request(1, "server/discover",
+                                  {{"_meta", modern_meta()}}))["result"]["instructions"]
+                .get<std::string>();
+        CHECK(instructions.find(sentence + " Use afd-batch for several independent commands and "
+                                           "afd-pipe to chain them.") != std::string::npos);
+        CHECK(body(call(*server, "afd-help"))["data"]["toolStrategy"] ==
+              std::string(afd::mcp::tool_strategy_name(strategy)));
+    }
+    auto grouped = make_server(*fixture.registry);
+    CHECK(body(call(*grouped, "bootstrap", {{"action", "help"}}))["data"]["toolStrategy"] ==
+          "grouped");
+    // In process there is no strategy to report.
+    CHECK_FALSE(Json(fixture.registry->execute("afd-help"))["data"].contains("toolStrategy"));
+}
+
+} // namespace tools_test
