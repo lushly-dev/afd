@@ -159,7 +159,7 @@ if (!server) { /* server.error() says why */ }
 - **Confirmations** ([spec](../../spec/command-metadata.md#confirmations)).
   - With `confirmations` set to `enforce` or `require_human`, a command with `confirm_prompt` runs only after the person accepts a form elicitation, or, under `enforce` only, after an acknowledgement (`confirm: true` or `_meta["dev.afd/confirm"]`).
   - A 2025 connection is asked in band. A 2026-07-28 request gets `input_required` with a signed `requestState`, bound to the command, its input and the actor.
-  - `afd-call` and grouped tools take a `confirm` boolean. `afd-batch` and `afd-pipe` take a `confirm` array of command names, and ask once, before any step runs, listing every gated step; that question's state is bound to the whole request.
+  - `afd-call` and grouped tools take a `confirm` boolean. A confirmation is bound to the command and its validated input, not the tool, so one the person gave for a call covers the same call through another route while it counts. `afd-batch` and `afd-pipe` take a `confirm` array of command names, and ask once, before any step runs, listing every gated step (every exposed command with a `confirm_prompt`, whatever the active context, since an earlier step can change it); that question's state is bound to the whole request and the caller.
 - **Approvals over MCP** ([spec](../../spec/command-metadata.md#asking-the-human-over-mcp)).
   - Create the approval middleware with `.relay = afd::ApprovalRelay::mcp_elicitation`, and a held call is asked of the person in the same way. No token reaches the agent.
   - A call that needs both questions asks them in turn, and one state carries both answers.

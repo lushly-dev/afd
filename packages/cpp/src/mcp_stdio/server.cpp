@@ -935,10 +935,13 @@ struct StdioServer::State {
         }
         const Json action = member(arguments, "action");
         if (!action.is_string() || action.get_ref<const std::string&>().empty()) {
+            // The actions the caller is shown: those of the active context.
             std::string actions;
             for (const auto& command : members) {
-                actions +=
-                    (actions.empty() ? "" : ", ") + surface::command_action(command->definition);
+                if (in_context(command->definition, info.active_context)) {
+                    actions += (actions.empty() ? "" : ", ") +
+                               surface::command_action(command->definition);
+                }
             }
             return tool_result(failure(create_error(
                 error_codes::INVALID_GROUPED_CALL,
@@ -1018,8 +1021,8 @@ struct StdioServer::State {
     };
 
     /// The confirmation gate of a batch or pipeline (`tool`, sent as `request`): it asks once,
-    /// before any step runs, for every gated step (an exposed command in the active context with
-    /// a `confirm_prompt`), listing them all. `acknowledged` holds the `confirm` names.
+    /// before any step runs, for every gated step (an exposed command with a `confirm_prompt`),
+    /// listing them all. `acknowledged` holds the `confirm` names.
     StepsDecision confirm_steps(std::string_view tool, const Json& request,
                                 const std::vector<std::pair<std::string, Json>>& steps,
                                 const std::set<std::string>& acknowledged, std::string_view how,
@@ -1032,8 +1035,11 @@ struct StdioServer::State {
         std::vector<std::pair<const std::pair<std::string, Json>*, std::string>> gated;
         std::vector<std::string> names;
         for (const auto& step : steps) {
-            const auto command = routable(step.first, info);
-            if (command && command->definition.confirm_prompt) {
+            // Every exposed command, whatever the active context: an earlier step can change a
+            // 2025 connection's context (afd-context-enter) before a later one runs.
+            const auto command = registry.get(step.first);
+            if (command && is_exposed_to(command->definition.expose, Interface::mcp) &&
+                command->definition.confirm_prompt) {
                 gated.emplace_back(&step, *command->definition.confirm_prompt);
                 if (std::find(names.begin(), names.end(), step.first) == names.end()) {
                     names.push_back(step.first);
@@ -1103,6 +1109,12 @@ struct StdioServer::State {
                 }
                 return {.kind = Kind::refuse, .error = declined_error(names), .response = {}};
             }
+            // Cancelled, or the client went away, timed out or answered with an error: nobody
+            // declined, so do not say so.
+            return {.kind = Kind::refuse,
+                    .error =
+                        *unanswered(confirm_input_key, names.front(), gated.front().second).error,
+                    .response = {}};
         }
         std::string message;
         if (gated.size() == 1 || names.size() == 1) {
@@ -1311,8 +1323,8 @@ struct StdioServer::State {
             return failure(create_error(
                 error_codes::VALIDATION_ERROR,
                 "_meta[\"" + context_key + "\"] and the meta argument of " + tool + " disagree",
-                {.suggestion = "Send " + context_key + " in _meta or in the meta argument, or the same " +
-                               "value in both",
+                {.suggestion = "Send " + context_key +
+                               " in _meta or in the meta argument, or the same " + "value in both",
                  .details = Json{{"meta", context_key}}}));
         }
         info.meta[context_key] = *value;

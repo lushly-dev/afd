@@ -180,7 +180,6 @@ Json tool_named(const Json& tools, std::string_view name) {
     return nullptr;
 }
 
-
 TEST_CASE("the meta-tools are spec/meta-tools.json, field for field") {
     std::ifstream in(AFD_META_TOOLS_FILE, std::ios::binary);
     REQUIRE(in);
@@ -345,6 +344,19 @@ TEST_CASE("an unexposed command is answered exactly as an unknown one, on every 
         CHECK(suggestion.find("Use afd-discover to list all commands.") != std::string::npos);
     }
     CHECK(answer(call(*server, "afd-call", {{"command", "note-purge"}})) == hidden);
+    // A grouped tool: an unexposed command is no action of its group.
+    afd::CommandRegistry& registry = *fixture.registry;
+    REQUIRE_FALSE(registry.register_command(
+        {.name = "note-hide",
+         .description = "Hide a note",
+         .category = "notes",
+         .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); }}));
+    const Json grouped_hidden = answer(call(*server, "notes", {{"action", "hide"}}));
+    const Json grouped_unknown = answer(call(*server, "notes", {{"action", "hdie"}}));
+    CHECK(grouped_hidden["code"] == "COMMAND_NOT_FOUND");
+    CHECK(grouped_hidden["suggestion"] == grouped_unknown["suggestion"]);
+    CHECK(answer(call(*server, "notes"))["suggestion"].get<std::string>().find("hide") ==
+          std::string::npos);
     const Json batch =
         body(call(*server, "afd-batch", {{"commands", {{{"command", "note-purge"}}}}}));
     CHECK(batch["results"][0]["result"]["error"] == hidden);
@@ -485,6 +497,10 @@ TEST_CASE("contexts scope afd-discover, afd-detail and every route") {
         CHECK(refused["error"]["suggestion"] ==
               "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
     }
+    // A grouped call without an action offers only the context's actions.
+    CHECK(body(modern_call(*server, "notes", Json::object(), {}, {},
+                           reading))["error"]["suggestion"] ==
+          "Provide { action: \"<action>\", params: {...} }. Available actions: list");
     // The grouped list holds only the commands of the context.
     const Json notes = tool_named(list(*server,
                                        [] {
@@ -743,6 +759,77 @@ TEST_CASE("server/discover and afd-help describe the strategy") {
           "grouped");
     // In process there is no strategy to report.
     CHECK_FALSE(Json(fixture.registry->execute("afd-help"))["data"].contains("toolStrategy"));
+}
+
+TEST_CASE("2025: a batch cannot enter a context to run a gated step unconfirmed") {
+    Fixture fixture(true);
+    auto server = make_server(*fixture.registry, {.confirmations = ConfirmationMode::enforce,
+                                                  .contexts = fixture.contexts});
+    const Json steps =
+        Json::array({Json{{"command", "afd-context-enter"}, {"input", {{"context", "editing"}}}},
+                     Json{{"command", "note-delete"}, {"input", {{"id", "1"}}}}});
+    // The connection is in `reading`, where note-delete is not available; the batch's first step
+    // switches to `editing` before the second runs, so the gate must count note-delete anyway.
+    CHECK(body(call(*server, "afd-context-enter", {{"context", "reading"}}))["success"] == true);
+    const Json batch = body(call(*server, "afd-batch", {{"commands", steps}}));
+    CHECK(batch["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(batch["error"]["details"]["commands"] == Json::array({"note-delete"}));
+    CHECK(body(call(*server, "afd-context-exit"))["success"] == true);
+    CHECK(body(call(*server, "afd-context-enter", {{"context", "reading"}}))["success"] == true);
+    const Json pipe = body(call(*server, "afd-pipe", {{"steps", steps}}));
+    CHECK(pipe["steps"][0]["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(*fixture.deletes == 0);
+
+    // Confirmed, the step runs once the context allows it.
+    const Json confirmed =
+        body(call(*server, "afd-batch", {{"commands", steps}, {"confirm", {"note-delete"}}}));
+    CHECK(confirmed["summary"]["successCount"] == 2);
+    CHECK(*fixture.deletes == 1);
+}
+
+TEST_CASE("2025: a batch question nobody answers is no decline") {
+    Fixture fixture;
+    auto server =
+        make_server(*fixture.registry, {.confirmations = ConfirmationMode::require_human});
+    send(*server, request(0, "initialize",
+                          {{"protocolVersion", "2025-11-25"}, {"capabilities", form_elicitation}}));
+    const afd::mcp::ClientRequester silent = [](const Json&) -> std::optional<Json> {
+        return std::nullopt;
+    };
+    const Json refused = body(
+        call(*server, "afd-batch",
+             {{"commands", {{{"command", "note-delete"}, {"input", {{"id", "1"}}}}}}}, silent));
+    CHECK(refused["error"]["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(refused["error"]["suggestion"] ==
+          "The client did not answer the confirmation question. Ask the user, then call again.");
+}
+
+TEST_CASE("2026-07-28: a batch's confirmation answers only the caller it was asked of") {
+    Fixture fixture;
+    auto server = make_server(
+        *fixture.registry,
+        {.confirmations = ConfirmationMode::require_human,
+         .context_hook = [](afd::CommandContext& context, const afd::mcp::RequestInfo& info) {
+             if (info.meta.contains("dev.example/who") &&
+                 info.meta["dev.example/who"].is_string()) {
+                 context.actor->id = info.meta["dev.example/who"].get<std::string>();
+             }
+         }});
+    const Json batch{{"commands", {{{"command", "note-delete"}, {"input", {{"id", "1"}}}}}}};
+    const Json asked = modern_call(*server, "afd-batch", batch, form_elicitation, {},
+                                   {{"dev.example/who", "ada"}});
+    REQUIRE(asked["resultType"] == "input_required");
+    const Json answer{{"requestState", asked["requestState"]},
+                      {"inputResponses",
+                       {{"confirm", {{"action", "accept"}, {"content", {{"confirm", true}}}}}}}};
+    const Json other = modern_call(*server, "afd-batch", batch, form_elicitation, answer,
+                                   {{"dev.example/who", "bob"}});
+    CHECK(other["resultType"] == "input_required");
+    CHECK(*fixture.deletes == 0);
+    const Json same = modern_call(*server, "afd-batch", batch, form_elicitation, answer,
+                                  {{"dev.example/who", "ada"}});
+    CHECK(same["isError"] == false);
+    CHECK(*fixture.deletes == 1);
 }
 
 } // namespace tools_test
