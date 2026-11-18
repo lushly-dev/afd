@@ -166,6 +166,8 @@ export function createTestProvider(options: TestProviderOptionsV1): TestProvider
 		bodies,
 		async send(body, signal) {
 			bodies.push(structuredClone(body));
+			// The last 50 only: a page's transport keeps no unbounded copy of what the model was sent.
+			if (bodies.length > 50) bodies.splice(0, bodies.length - 50);
 			const { text, round } = position(body);
 			const name = /^script:([a-z0-9-]{1,64})/.exec(text)?.[1];
 			const script = name ? options.scripts[name] : undefined;

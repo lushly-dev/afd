@@ -179,6 +179,18 @@ export class LoamCopilotPanel extends FASTElement {
 		void this.#client?.stop();
 	}
 
+	/** Forget the session and its thread, as a change of person does: the next person never sees it (3.2). */
+	reset(): void {
+		this.#client = null;
+		this.session = null;
+		this.#turn = 0;
+		this.notice = '';
+		this.unavailable = false;
+		this.status = 'ready';
+		this.render([]);
+		void this.checkProviders();
+	}
+
 	fail(error?: { message: string; suggestion?: string }): void {
 		this.status = 'ready';
 		this.notice = error

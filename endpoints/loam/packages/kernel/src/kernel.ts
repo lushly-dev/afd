@@ -776,6 +776,8 @@ export async function createKernelParts(
 				reportKernelError(error);
 			}
 		}
+		// A change of person stops every copilot turn and removes its runtimes (phase 5 specification, 3.2).
+		if (event.actorChanged) void lateParts?.copilot.stopAll('session-changed');
 		// After journaling, and never in the journal's copy. A person's or agent's call only: a seq counts
 		// every app's calls, which a view must not see, and a handler may return a nested result as its own.
 		return seq === undefined || fields.caller !== undefined

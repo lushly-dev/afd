@@ -52,10 +52,13 @@ describe('the context builder (5.2)', () => {
 			nonce,
 			'mailfix'
 		);
-		expect(text).toContain('<loam-result command="thread-open">');
+		expect(text).toContain(`<loam-result command="thread-open" id="${nonce}">`);
+		// The value in any case is replaced, so no spelling of it closes a block.
+		expect(contentBlock('x', nonce.toUpperCase(), nonce)).toContain('[removed]');
 		expect(text).toContain('"subject":"[content block 1]"');
 		expect(text).toContain(`<loam-content source="mailfix" id="${nonce}">`);
-		expect(text.split(nonce)).toHaveLength(3);
+		// The value only in the two tags of the result and the two of its block: the content's copy was replaced.
+		expect(text.split(nonce)).toHaveLength(5);
 		// Past the walk's bounds the whole result is content.
 		let deep: Record<string, unknown> = { leaf: 1 };
 		for (let index = 0; index < 40; index++) deep = { deep };

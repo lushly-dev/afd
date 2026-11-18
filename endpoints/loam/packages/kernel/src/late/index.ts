@@ -15,7 +15,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
-import { type AccessActorV1, decideAccess, personKey } from '../scope/access.js';
+import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { PersonalStore } from '../scope/personal.js';
@@ -325,6 +325,7 @@ export async function createLateParts(
 			return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 		},
 		now: () => deps.clock?.now() ?? Date.now(),
+		person: () => personOf({ actor: sessionActor(deps.auth, deps.clock) }),
 	});
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.

@@ -135,6 +135,11 @@ export interface CopilotRunV1 {
 /** The host that runs turns: the web host's frame, or an in-process runtime in tests. */
 export interface CopilotRunnerV1 {
 	start(run: CopilotRunV1): void;
+	/**
+	 * Remove every runtime, as a change of person or a sign-out does (3.2): the kernel calls it once it has stopped
+	 * every running turn as `session-changed`.
+	 */
+	reset?(): void;
 }
 
 /**
@@ -190,7 +195,8 @@ export const PANEL_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = O
 	RUN_STARTED: Object.freeze(['runId', 'threadId']),
 	RUN_FINISHED: Object.freeze(['runId', 'threadId']),
 	RUN_ERROR: Object.freeze(['message', 'code']),
-	TEXT_MESSAGE_START: Object.freeze(['messageId', 'role']),
+	// Never the runtime's `role`: the half sets `assistant`, so the model's text is never drawn as the person's.
+	TEXT_MESSAGE_START: Object.freeze(['messageId']),
 	TEXT_MESSAGE_CONTENT: Object.freeze(['messageId', 'delta']),
 	TEXT_MESSAGE_END: Object.freeze(['messageId']),
 	TOOL_CALL_START: Object.freeze(['toolCallId', 'toolCallName', 'parentMessageId']),

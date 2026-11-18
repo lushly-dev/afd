@@ -9,8 +9,9 @@ import { type CommandResult, type JournalEntry, MemoryJournalSink } from '@lushl
 import { createInProcessLauncher } from '@lushly-dev/loam-copilot';
 import { createTestProvider, type ModelScriptV1 } from '@lushly-dev/loam-copilot/test-provider';
 import { MemoryAdapter } from '@lushly-dev/local-db';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createKernel, createKernelParts } from '../kernel.js';
+import { createScopedWorkspace } from '../scope/fixtures.js';
 import { createFixedEnvironment } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernelV5 } from '../types.js';
@@ -21,6 +22,7 @@ import {
 	createCopilotHost,
 	MODEL_PORT_LIMITS,
 	type PanelEventV1,
+	PORT_BUDGETS,
 	type PortLike,
 	panelEvent,
 	type RuntimePortsV1,
@@ -282,6 +284,65 @@ describe('the copilot commands (3.5)', () => {
 		}
 	});
 
+	it('stops the turn and removes the runtimes on a real change of person, and the next person reaches nothing (3.2)', async () => {
+		const BEA = 'mock-user-bea@example.com';
+		const OLU = 'mock-user-olu@example.com';
+		const launcher = fakeLauncher();
+		const provider = createTestProvider({ scripts: {} });
+		const host = createCopilotHost({
+			launcher,
+			transport: { send: (_provider, body, signal) => provider.send(body, signal) },
+		});
+		const made = await createScopedWorkspace({
+			identity: {
+				mode: 'provider',
+				organization: 'acme',
+				path: 'api/auth',
+				methods: ['passkey', 'password'],
+			},
+			membership: {
+				mode: 'provider',
+				members: new Map([
+					[BEA, 'member'],
+					[OLU, 'owner'],
+				]),
+				digest: 'd1',
+			},
+			empty: true,
+			copilot: { providers: [TEST], runner: host, takeRunId: (id) => host.takeRunId(id) },
+		});
+		disposers.push(() => made.kernel.dispose());
+		const { kernel } = made;
+		const signIn = (email: string) =>
+			kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+		expect((await signIn('bea@example.com')).success).toBe(true);
+		const session = data<{ session: { id: string } }>(
+			await kernel.call('copilot-session-start', {})
+		).session.id;
+		data(await kernel.call('copilot-message-send', { session, text: 'Hello', wait: false }));
+		const agent = side((launcher.launched[0] as RuntimePortsV1).agent);
+		// Another tab signs Olu in: no command here made the change.
+		made.auth._setUser({ id: OLU, email: 'olu@example.com', name: 'olu' });
+		await vi.waitFor(async () => expect(launcher.resets).toBe(1));
+		// Bea's runtime, still holding its port, reaches nothing of Olu's: the port is closed, and nothing answers.
+		agent.post({ id: 1, key: 'call', name: 'project-list', input: {} });
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(agent.heard).toEqual([]);
+		// Bea's turn ended as the change of person, and her session is not Olu's to read.
+		expect((await kernel.call('copilot-session-get', { session })).error?.code).toBe(
+			'COPILOT_SESSION_NOT_FOUND'
+		);
+		await signIn('bea@example.com');
+		const got = data<{ turns: CopilotTurnV1[] }>(
+			await kernel.call('copilot-session-get', { session })
+		);
+		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'session-changed' });
+		const projectCalls = (await entries(made.journal)).filter(
+			(entry) => entry.command === 'project-list' && entry.actor?.id === 'copilot'
+		);
+		expect(projectCalls).toEqual([]);
+	});
+
 	it('lists sessions newest first, with paging, and a session’s turns from a seq', async () => {
 		const { kernel } = await setup();
 		const ids: string[] = [];
@@ -298,6 +359,12 @@ describe('the copilot commands (3.5)', () => {
 			[...ids].sort()
 		);
 		expect(rest.next).toBeUndefined();
+		// A cursor that names no session ends the list.
+		expect(
+			data<{ sessions: unknown[] }>(
+				await kernel.call('copilot-session-list', { before: 'cps_ffffffffffffffff' })
+			).sessions
+		).toEqual([]);
 		const session = ids[0] as string;
 		await kernel.call('copilot-message-send', { session, text: 'One' });
 		await kernel.call('copilot-message-send', { session, text: 'Two' });
@@ -405,8 +472,9 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		expect((await call('copilot-message-send', { session: 'x', text: 'y' })).error?.code).toBe(
 			'HUMAN_REQUIRED'
 		);
+		// Neither exists before phase 4's steps; when they do, both are human commands (6.1).
 		for (const name of ['notification-act', 'palette-run'])
-			expect((await call(name)).success, name).toBe(false);
+			expect((await call(name)).error?.code, name).toBe('COMMAND_NOT_FOUND');
 		agent.post({ id: 8, key: 'confirmation', notification: 'n1' });
 		expect(((await agent.next()) as { result: CommandResult }).result.error?.code).toBe(
 			'COPILOT_PORT_REFUSED'
@@ -589,6 +657,8 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 			toolCallName: 'x',
 			state: 'approval-requested',
 		});
+		// The runtime cannot draw its text as the person's (3.4).
+		post({ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'user' });
 		post({ type: 'TEXT_MESSAGE_CONTENT', messageId: 'm', delta: '<b>bold</b>' }, 'run_other');
 		post({ type: 'MESSAGES_SNAPSHOT', messages: [] });
 		panel.post({
@@ -601,7 +671,51 @@ describe('the model and panel ports’ halves (3.2, 4.2, 4.4)', () => {
 		expect(heard.map((item) => item.event)).toEqual([
 			{ type: 'RUN_FINISHED', runId: run.runId },
 			{ type: 'TOOL_CALL_START', toolCallId: 't1', toolCallName: 'x' },
+			{ type: 'TEXT_MESSAGE_START', messageId: 'm2', role: 'assistant' },
 		]);
+	});
+
+	it('takes one model request at a time, and stops the turn at its rounds, counted on the trusted side (4.4)', async () => {
+		const { kernel, model, session } = await fakeTurn();
+		const body = { messages: [{ role: 'user', content: 'Hi' }] };
+		model.post({ id: 1, key: 'send', provider: 'test', body });
+		model.post({ id: 2, key: 'send', provider: 'test', body });
+		expect(await model.next((message) => (message as { id?: number }).id === 2)).toMatchObject({
+			error: { code: 'COPILOT_PORT_REFUSED' },
+		});
+		await model.next((message) => (message as { key?: string }).key === 'done');
+		for (let round = 2; round <= MODEL_PORT_LIMITS.rounds; round++) {
+			model.post({ id: 10 + round, key: 'send', provider: 'test', body });
+			await model.next((message) => (message as { key?: string }).key === 'done');
+		}
+		model.post({ id: 99, key: 'send', provider: 'test', body });
+		expect(await model.next((message) => (message as { id?: number }).id === 99)).toMatchObject({
+			error: { code: 'COPILOT_PORT_REFUSED' },
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		const got = data<{ turns: CopilotTurnV1[] }>(
+			await kernel.call('copilot-session-get', { session })
+		);
+		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'limit' });
+	});
+
+	it('fails a turn whose runtime keeps sending what its ports refuse, and stops journaling it', async () => {
+		const { kernel, agent, journal, session } = await fakeTurn();
+		for (let index = 0; index < PORT_BUDGETS.refusals + 5; index++) {
+			agent.post({ id: index + 1, key: 'call', name: 'shell-info-get', input: {}, actor: 'x' });
+			await agent.next();
+		}
+		const journaled = (await entries(journal)).filter(
+			(entry) => entry.command === 'copilot-port-refuse'
+		);
+		expect(journaled).toHaveLength(PORT_BUDGETS.refusals);
+		const got = data<{ turns: CopilotTurnV1[] }>(
+			await kernel.call('copilot-session-get', { session })
+		);
+		expect(got.turns[0]).toMatchObject({
+			state: 'failed',
+			failure: { code: 'COPILOT_PORT_REFUSED' },
+		});
 	});
 
 	it('ends every run as session-changed when the host is reset, as removing the frame does', async () => {
@@ -701,6 +815,7 @@ describe('the pure parts', () => {
 			internal: () => false,
 			digest: async () => 'sha256:0',
 			now: () => 0,
+			person: () => 'local',
 		});
 		const next = async () => ({ success: true }) as CommandResult;
 		const trace = { session: 'cps_0000000000000000', turn: 1, call: 'cpc_0001' };

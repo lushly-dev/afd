@@ -29,8 +29,9 @@ export function sessionNonce(): string {
 /** What may name a source in a tag: an instance id, or `shell`. */
 const source = (name: string): string => (/^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : 'unknown');
 
-/** Remove the session's value from text, so the text cannot close a block. */
-const clean = (text: string, nonce: string): string => text.split(nonce).join('[removed]');
+/** Remove the session's value from text, in any case, so the text cannot close a block. */
+const clean = (text: string, nonce: string): string =>
+	text.replace(new RegExp(nonce, 'gi'), '[removed]');
 
 /** A content block: data written by others (5.2). */
 export function contentBlock(from: string, text: string, nonce: string): string {
@@ -90,9 +91,10 @@ export function toolResultText(
 	);
 	if (overflow) return contentBlock(from, JSON.stringify(result), nonce);
 	const json = clean(JSON.stringify(shown), nonce);
-	return [`<loam-result command="${source(command)}">\n${json}\n</loam-result>`, ...blocks].join(
-		'\n'
-	);
+	return [
+		`<loam-result command="${source(command)}" id="${nonce}">\n${json}\n</loam-result id="${nonce}">`,
+		...blocks,
+	].join('\n');
 }
 
 /** The model's messages for a turn: the kernel's history, then the person's text. */

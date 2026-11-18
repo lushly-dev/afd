@@ -746,6 +746,11 @@ export class LoamShell extends FASTElement {
 		}
 		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
 		else if (event.actorChanged || event.command.startsWith('auth-')) {
+			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2).
+			if (event.actorChanged)
+				(
+					this.shadowRoot?.querySelector('loam-copilot-panel') as { reset?(): void } | null
+				)?.reset?.();
 			void this.#readSession();
 			// Another person's persona: their title, and their emphasis, read before the rail's re-read (4.4, 6.1).
 			void this.#readPersona().then(() => this.rail.refresh());

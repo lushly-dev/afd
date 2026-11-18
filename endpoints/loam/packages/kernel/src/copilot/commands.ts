@@ -71,6 +71,12 @@ export const TURN_LIMITS = Object.freeze({
 	outputTokens: 16_384,
 });
 
+/**
+ * The chrome's own commands, which move the person's palette or record their editor selection: never the copilot's
+ * tools (4.5).
+ */
+const CHROME_ONLY: readonly string[] = ['palette-open', 'palette-close', 'editor-selection-set'];
+
 /** 4.5: at most this many tool definitions. */
 export const TOOLS_MAX = 128;
 
@@ -123,6 +129,8 @@ export interface CopilotDeps {
 	digest(value: unknown): Promise<string>;
 	/** The kernel's clock. */
 	now(): number;
+	/** The person the kernel decides for now: a turn acts only while it is still its session's person (3.2). */
+	person(): string;
 }
 
 /** One turn while it runs: what 3.4 records, kept in memory until it settles. */
@@ -161,6 +169,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const { z } = kit;
 	const providers = (): readonly CopilotProviderV1[] => deps.options?.providers ?? [];
 	const running = new Map<string, Running>();
+	/** Sessions whose turn is being created: the second message of a pair is `COPILOT_TURN_RUNNING`. */
+	const starting = new Set<string>();
 
 	const fail = (
 		code: Parameters<CopilotDeps['kit']['kernelFailure']>[0],
@@ -247,6 +257,15 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			? { workspace: deps.workspace, project: session.scope.project }
 			: 'workspace';
 		let calls = 0;
+		/**
+		 * Whether the person the kernel decides for is still the session's: on a change of person every turn stops, and
+		 * a call that races the change is refused rather than run for the next person (3.2).
+		 */
+		const samePerson = (): boolean => {
+			if (deps.person() === session.person) return true;
+			void finish(session.id, live.turn.seq, { state: 'stopped', stoppedBy: 'session-changed' });
+			return false;
+		};
 		const refuse = (reason: string, keys: readonly string[]) =>
 			deps.callAsCopilot(
 				COPILOT_PORT_REFUSE,
@@ -258,6 +277,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			refuse,
 			async call(name, input) {
 				if (live.revoked) return refuse('The turn has ended', ['call']);
+				if (!samePerson()) return refuse('The person changed', ['call']);
 				// The session's limit cannot be skipped: a confirmation is read through `confirmation` alone (3.2).
 				if (typeof name !== 'string' || name.startsWith('confirmation-'))
 					return refuse('Not a command the copilot calls', ['name']);
@@ -291,7 +311,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				return result;
 			},
 			async listCommands() {
-				if (live.revoked) return [];
+				if (live.revoked || !samePerson()) return [];
 				return toolsFor();
 			},
 			async confirmation() {
@@ -311,7 +331,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					!deps.humanOnly(command.name) &&
 					// No mounted tool is listed until step 4, so no mounted content reaches a session before taint (4.5).
 					!deps.isMounted(command.name) &&
-					!command.name.startsWith('confirmation-')
+					!command.name.startsWith('confirmation-') &&
+					!CHROME_ONLY.includes(command.name)
 			)
 			.slice(0, TOOLS_MAX)
 			.map((command) => ({
@@ -411,7 +432,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					SUGGESTIONS.PROVIDER_UNKNOWN
 				);
 			}
-			if (running.has(session.id)) {
+			if (running.has(session.id) || starting.has(session.id)) {
 				return fail(
 					'COPILOT_TURN_RUNNING',
 					'A turn of this session is still running',
@@ -428,7 +449,15 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					'Send the text alone; attachments come with labels and taint'
 				);
 			}
-			const previous = await turnsOf(session.id);
+			// Held from here until the turn is running, so a second message cannot start one beside it.
+			starting.add(session.id);
+			let previous: CopilotTurnV1[];
+			try {
+				previous = await turnsOf(session.id);
+			} catch (cause) {
+				starting.delete(session.id);
+				throw cause;
+			}
 			const seq = (previous.at(-1)?.seq ?? 0) + 1;
 			const turn: CopilotTurnV1 = {
 				session: session.id,
@@ -440,7 +469,11 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				reply: '',
 				usage: { inputTokens: 0, outputTokens: 0 },
 			};
-			await store.create(COPILOT_TURN_TABLE, { id: turnId(session.id, seq), ...turn });
+			try {
+				await store.create(COPILOT_TURN_TABLE, { id: turnId(session.id, seq), ...turn });
+			} finally {
+				starting.delete(session.id);
+			}
 			let resolve!: (turn: CopilotTurnV1) => void;
 			const settled = new Promise<CopilotTurnV1>((done) => {
 				resolve = done;
@@ -566,7 +599,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				const all = listed.data
 					.filter((row) => row.person === person)
 					.sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
-				const from = input.before ? all.findIndex((row) => row.id === input.before) + 1 : 0;
+				const at = input.before ? all.findIndex((row) => row.id === input.before) : -1;
+				// A cursor that names no session of yours ends the list: it never starts it again.
+				if (input.before && at < 0) return kit.success({ sessions: [] });
+				const from = input.before ? at + 1 : 0;
 				const limit = input.limit ?? 20;
 				const sessions = all.slice(from, from + limit);
 				const next = from + limit < all.length ? sessions.at(-1)?.id : undefined;
@@ -825,6 +861,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					finish(live.session.id, live.turn.seq, { state: 'stopped', stoppedBy })
 				)
 			);
+			// A change of person also removes every runtime: the frame goes, with whatever it held (3.2).
+			if (stoppedBy === 'session-changed') deps.options?.runner?.reset?.();
 		},
 	};
 }

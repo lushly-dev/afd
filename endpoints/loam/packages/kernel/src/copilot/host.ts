@@ -62,6 +62,10 @@ export interface PanelEventV1 {
 
 /** 4.2 and 4.4's bounds on the model port. */
 export const MODEL_PORT_LIMITS = Object.freeze({
+	/** 4.4's `copilot.turn.iterations`: model requests per turn, counted here, not by the runtime. */
+	rounds: 16,
+	/** One provider request at a time per session: a runtime cannot fan requests out. */
+	concurrent: 1,
 	bodyBytes: 4 * 1024 * 1024,
 	streamBytes: 16 * 1024 * 1024,
 	streamMs: 10 * 60 * 1000,
@@ -70,6 +74,13 @@ export const MODEL_PORT_LIMITS = Object.freeze({
 });
 
 const REPLY_MAX = 65_536;
+
+/**
+ * Bounds on what a runtime can make the trusted side do in one turn: refusals it can have journaled, after which a
+ * refused message is answered and no longer journaled and the turn fails; and events it can send the panel, after
+ * which the turn stops at its limit (3.2).
+ */
+export const PORT_BUDGETS = Object.freeze({ refusals: 20, events: 20_000 });
 
 export interface CopilotHostOptionsV1 {
 	launcher: RuntimeLauncherV1;
@@ -101,6 +112,10 @@ interface SessionState {
 	reply: string;
 	usage: { inputTokens: number; outputTokens: number };
 	streams: Map<string, AbortController>;
+	/** This turn's model requests, refusals journaled and panel events. */
+	rounds: number;
+	refusals: number;
+	events: number;
 }
 
 type Checked =
@@ -161,6 +176,8 @@ export function panelEvent(
 		const value = (event as Record<string, unknown>)[field];
 		if (typeof value === 'string') copy[field] = value.slice(0, REPLY_MAX);
 	}
+	// Every message the runtime starts is the model's: it can never draw text as the person's (3.4).
+	if (type === 'TEXT_MESSAGE_START') copy.role = 'assistant';
 	return copy;
 }
 
@@ -197,33 +214,66 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 	const capability = (state: SessionState): CopilotAgentCapabilityV1 | undefined =>
 		state.run?.agent;
 
+	/**
+	 * A refusal on any of the session's ports, journaled through the agent port's half (`COPILOT_PORT_REFUSED`, 3.2)
+	 * while the turn's budget lasts; past it, a running turn fails and nothing more is journaled.
+	 */
+	async function refuseOn(
+		state: SessionState,
+		port: 'agent' | 'model' | 'panel',
+		reason: string,
+		keys: readonly string[]
+	): Promise<unknown> {
+		const text = `${port === 'agent' ? '' : `${port} port: `}${reason}`;
+		if (port !== 'agent') options.onRefused?.(port, text);
+		state.refusals += 1;
+		const agent = capability(state);
+		if (state.refusals > PORT_BUDGETS.refusals || !agent) {
+			if (state.run && state.live)
+				end(state, state.run, { state: 'failed', failure: { code: 'COPILOT_PORT_REFUSED' } });
+			return { success: false, error: refusal(text) };
+		}
+		return agent.refuse(text, keys);
+	}
+
 	function serveAgent(state: SessionState): void {
 		state.agent.onmessage = async ({ data }) => {
-			const agent = capability(state);
-			if (!agent) return;
+			if (!capability(state)) return;
 			const checked = checkPortMessage(data, AGENT_PORT_KEYS);
 			if (!checked.ok) {
-				const result = await agent.refuse(checked.reason, checked.keys);
+				const result = await refuseOn(state, 'agent', checked.reason, checked.keys);
 				if (checked.id !== undefined)
 					state.agent.postMessage({ id: checked.id, result: plain(result) });
 				return;
 			}
+			const agent = capability(state) as CopilotAgentCapabilityV1;
 			const { message } = checked;
 			let result: unknown;
+			let input: unknown;
+			try {
+				// JSON alone crosses into the kernel: no BigInt, cycle or prototype the clone let through.
+				input = message.key === 'call' ? plain(message.input ?? {}) : undefined;
+			} catch {
+				input = undefined;
+			}
 			if (!state.live) {
-				result = await agent.refuse('No turn is running', [message.key]);
+				result = await refuseOn(state, 'agent', 'No turn is running', [message.key]);
 			} else if (message.key === 'call') {
 				result =
-					typeof message.name === 'string' && message.name.length <= 128
-						? await agent.call(message.name, message.input)
-						: await agent.refuse('A command name must be a string', ['name']);
+					typeof message.name === 'string' && message.name.length <= 128 && input !== undefined
+						? await agent.call(message.name, input)
+						: await refuseOn(state, 'agent', 'A command name and a JSON input are needed', [
+								'name',
+							]);
 			} else if (message.key === 'listCommands') {
 				result = await agent.listCommands();
 			} else {
 				result =
 					typeof message.notification === 'string'
 						? await agent.confirmation(message.notification)
-						: await agent.refuse('A notification id must be a string', ['notification']);
+						: await refuseOn(state, 'agent', 'A notification id must be a string', [
+								'notification',
+							]);
 			}
 			state.agent.postMessage({ id: message.id, result: plain(result) });
 		};
@@ -231,7 +281,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 
 	function serveModel(state: SessionState): void {
 		const refuse = (id: number | undefined, message: string, code = 'COPILOT_PORT_REFUSED') => {
-			options.onRefused?.('model', message);
+			void refuseOn(state, 'model', message, [code]);
 			if (id !== undefined)
 				state.model.postMessage({
 					id,
@@ -251,6 +301,14 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			// Only the session's own provider, and only while its turn runs (4.2).
 			if (!run || !state.live) return refuse(id, 'No turn is running');
 			if (message.provider !== run.provider.id) return refuse(id, 'Not this session’s provider');
+			// 4.4's rounds, and one request at a time, counted here: the runtime's own loop limit is untrusted.
+			if (state.streams.size >= MODEL_PORT_LIMITS.concurrent)
+				return refuse(id, 'One model request at a time');
+			if (state.rounds >= MODEL_PORT_LIMITS.rounds) {
+				refuse(id, 'The turn reached its limit of model rounds');
+				end(state, run, { state: 'stopped', stoppedBy: 'limit' });
+				return;
+			}
 			const body = message.body;
 			if (
 				body === null ||
@@ -276,6 +334,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 				typeof asked === 'number' && Number.isFinite(asked) && asked > 0
 					? Math.min(Math.floor(asked), MODEL_PORT_LIMITS.outputTokens)
 					: MODEL_PORT_LIMITS.outputTokens;
+			state.rounds += 1;
 			const stream = `mst_${++streams}`;
 			const controller = new AbortController();
 			state.streams.set(stream, controller);
@@ -332,7 +391,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 		if (
 			state.run === run &&
 			state.live &&
-			(state.usage.inputTokens > MODEL_PORT_LIMITS.inputTokens || code === 'MODEL_STREAM_LIMIT')
+			(state.usage.inputTokens > MODEL_PORT_LIMITS.inputTokens ||
+				state.usage.outputTokens > MODEL_PORT_LIMITS.outputTokens * MODEL_PORT_LIMITS.rounds ||
+				code === 'MODEL_STREAM_LIMIT')
 		) {
 			end(state, run, { state: 'stopped', stoppedBy: 'limit' });
 		}
@@ -342,7 +403,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 		state.panel.onmessage = ({ data }) => {
 			const checked = checkPortMessage(data, PANEL_PORT_KEYS);
 			if (!checked.ok) {
-				options.onRefused?.('panel', `${checked.reason}: ${checked.keys.join(', ')}`);
+				void refuseOn(state, 'panel', checked.reason, checked.keys);
 				return;
 			}
 			const { message } = checked;
@@ -362,6 +423,14 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			}
 			const copy = panelEvent(message.event);
 			if (!copy) return;
+			state.events += 1;
+			if (state.events > PORT_BUDGETS.events) {
+				end(state, run, { state: 'stopped', stoppedBy: 'limit' });
+				return;
+			}
+			// A run's ids are the kernel's, never the runtime's.
+			if ('runId' in copy) copy.runId = run.runId;
+			if ('threadId' in copy) copy.threadId = run.session.id;
 			if (copy.type === 'TEXT_MESSAGE_CONTENT' && typeof copy.delta === 'string') {
 				state.reply = (state.reply + copy.delta).slice(0, REPLY_MAX);
 			}
@@ -421,6 +490,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			reply: '',
 			usage: { inputTokens: 0, outputTokens: 0 },
 			streams: new Map(),
+			rounds: 0,
+			refusals: 0,
+			events: 0,
 		};
 		serveAgent(state);
 		serveModel(state);
@@ -449,6 +521,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			state.live = true;
 			state.reply = '';
 			state.usage = { inputTokens: 0, outputTokens: 0 };
+			state.rounds = 0;
+			state.refusals = 0;
+			state.events = 0;
 			run.signal.addEventListener(
 				'abort',
 				() => {
@@ -456,6 +531,11 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 					state.live = false;
 					for (const controller of state.streams.values()) controller.abort();
 					state.panel.postMessage({ key: 'abort', runId: run.runId });
+					// The kernel ended the turn (a stop, a limit, a change of person): the panel's client hears it end.
+					emit(run.session.id, {
+						runId: run.runId,
+						event: { type: 'RUN_FINISHED', runId: run.runId, threadId: run.session.id },
+					});
 				},
 				{ once: true }
 			);
