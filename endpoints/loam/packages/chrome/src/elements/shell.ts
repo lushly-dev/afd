@@ -299,6 +299,12 @@ export class LoamShell extends FASTElement {
 	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
+	/**
+	 * The copilot's panel, which loads into the panel part when it first opens (phase 5 specification, 3.2), with the
+	 * host's side it hears. Null: the panel part keeps its empty state.
+	 */
+	copilot: { host?: import('../copilot/panel.js').CopilotPanelHostV1 } | null = null;
+	#copilot: Promise<void> | undefined;
 	readonly mac: boolean;
 	/** The deployment's root, absolute: the router's base, which `mountShell`'s `base` sets (6.2). */
 	base: string;
@@ -765,6 +771,21 @@ export class LoamShell extends FASTElement {
 		this.dataset.inspector = presentation.inspector;
 		this.dataset.panel = presentation.panel;
 		this.#measurePanelMax();
+		if (presentation.panel !== 'closed') this.#openCopilot();
+	}
+
+	/** The copilot's chunk, once, the first time the panel part opens: never in first paint (phase 5's 2). */
+	#openCopilot(): void {
+		const part = this.shadowRoot?.querySelector('loam-panel') as HTMLElement | null;
+		if (!this.copilot || this.#copilot || !this.kernel || !part) return;
+		const { kernel } = this;
+		const host = this.copilot.host;
+		this.#copilot = import('../copilot/index.js')
+			.then(({ mountCopilotPanel }) => mountCopilotPanel(part, { kernel, host }))
+			.then(
+				() => undefined,
+				(error: unknown) => reportError(error)
+			);
 	}
 
 	/** The panel's rendered height is capped at main's area less `panel.min`. */

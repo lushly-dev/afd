@@ -159,6 +159,9 @@ async function boot(): Promise<void> {
 		listsApps: read.apps.length > 0,
 		base,
 		...(shown ? { identity: shown } : {}),
+		// The copilot's panel (phase 5 specification, 3.2). No provider is configured in a deployment before step 2's
+		// `[copilot]` table, so the kernel answers COPILOT_PROVIDER_MISSING and the panel says what to set.
+		copilot: {},
 	});
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).
 	if (provider)

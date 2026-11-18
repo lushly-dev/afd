@@ -4,6 +4,7 @@ import { defineCommand, success, type ZodCommandDefinition } from '@lushly-dev/a
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { COPILOT_QUERIES } from './copilot/commands.js';
 import { LoamKernelError } from './errors.js';
 import {
 	COMMAND_NAME_SUGGESTION,
@@ -98,7 +99,10 @@ describe('registries and exposure', () => {
 	it('lists every shell command on both interfaces, in order', async () => {
 		const { kernel: k } = await kernel();
 		expect(k.listCommands().map((summary) => summary.name)).toEqual([...SHELL_COMMAND_NAMES]);
-		expect(k.agent.listCommands().map((summary) => summary.name)).toEqual([...SHELL_COMMAND_NAMES]);
+		// The copilot's queries are the palette's alone (phase 5 specification, 3.5).
+		expect(k.agent.listCommands().map((summary) => summary.name)).toEqual(
+			SHELL_COMMAND_NAMES.filter((name) => !(COPILOT_QUERIES as readonly string[]).includes(name))
+		);
 	});
 
 	it('summarizes needsInput, mutation, title and keybinding', async () => {

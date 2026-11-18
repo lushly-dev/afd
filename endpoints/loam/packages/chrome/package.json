@@ -24,6 +24,10 @@
 		"./view": {
 			"types": "./dist/view/view.d.ts",
 			"import": "./dist/view/view.js"
+		},
+		"./copilot": {
+			"types": "./dist/copilot/index.d.ts",
+			"import": "./dist/copilot/index.js"
 		}
 	},
 	"scripts": {

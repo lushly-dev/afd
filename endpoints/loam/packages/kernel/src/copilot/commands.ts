@@ -385,7 +385,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			properties: {
 				session: SESSION_JSON,
 				text: { type: 'string', minLength: 1, maxLength: TEXT_MAX },
-				attach: { type: 'array', maxItems: 10 },
+				attach: { type: 'array', items: {} as never, maxItems: 10 },
 				wait: { type: 'boolean' },
 			},
 			required: ['session', 'text'],
@@ -508,7 +508,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		input: stopInput,
 		jsonSchema: {
 			type: 'object',
-			properties: { session: SESSION_JSON, turn: { type: 'integer', minimum: 1 } },
+			properties: {
+				session: SESSION_JSON,
+				turn: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+			},
 			required: ['session', 'turn'],
 			additionalProperties: false,
 		},
@@ -592,7 +595,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			type: 'object',
 			properties: {
 				session: SESSION_JSON,
-				from: { type: 'integer', minimum: 1 },
+				from: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
 				limit: { type: 'integer', minimum: 1, maximum: 20 },
 			},
 			required: ['session'],

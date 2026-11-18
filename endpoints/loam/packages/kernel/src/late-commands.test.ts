@@ -15,6 +15,7 @@ const EMPTY_BOOT = {
 	apps: [],
 };
 
+import { COPILOT_QUERIES } from './copilot/commands.js';
 import type { KernelEventV1, KernelOptionsV5 } from './types.js';
 
 function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
@@ -53,7 +54,10 @@ describe('stage A and stage B', () => {
 		await Promise.all([kernel.startApps(), kernel.startApps()]);
 		await kernel.appsReady;
 		expect(kernel.listCommands().map((row) => row.name)).toEqual([...SHELL_COMMAND_NAMES]);
-		expect(kernel.agent.listCommands().map((row) => row.name)).toEqual([...SHELL_COMMAND_NAMES]);
+		// The copilot's queries are the palette's alone (phase 5 specification, 3.5).
+		expect(kernel.agent.listCommands().map((row) => row.name)).toEqual(
+			SHELL_COMMAND_NAMES.filter((name) => !(COPILOT_QUERIES as readonly string[]).includes(name))
+		);
 		expect(kernel.lateFailure).toBeUndefined();
 		await kernel.dispose();
 	});

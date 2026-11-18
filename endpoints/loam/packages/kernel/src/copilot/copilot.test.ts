@@ -12,6 +12,7 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKernel, createKernelParts } from '../kernel.js';
 import { createFixedEnvironment } from '../testing.js';
+import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernelV5 } from '../types.js';
 import { createCopilotParts } from './commands.js';
 import {
@@ -83,6 +84,7 @@ afterEach(async () => {
 
 async function setup(
 	options: {
+		documents?: true;
 		launcher?: ReturnType<typeof fakeLauncher> | ReturnType<typeof createInProcessLauncher>;
 		scripts?: Record<string, ModelScriptV1>;
 		providers?: CopilotProviderV1[];
@@ -103,6 +105,7 @@ async function setup(
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
+		...(options.documents ? { deployment: documentsDeployment(), ports: documentsPorts() } : {}),
 		copilot: {
 			providers,
 			...(options.runner === false ? {} : { runner: host }),
@@ -453,6 +456,29 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 			state: 'stopped',
 			calls: [{ command: 'shell-info-get' }],
 		});
+	});
+
+	it('copies the trace to every call made while a copilot call runs, nested calls included (3.2)', async () => {
+		const launcher = fakeLauncher();
+		const { kernel, journal } = await setup({ launcher, documents: true });
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = data<{ id: string }>(made).id;
+		const session = await startSession(kernel);
+		await kernel.call('copilot-message-send', { session, text: 'Export it', wait: false });
+		const agent = side((launcher.launched[0] as RuntimePortsV1).agent);
+		agent.post({ id: 1, key: 'call', name: 'document-export', input: { document } });
+		const answer = (await agent.next()) as { result: CommandResult };
+		expect(answer.result.success, JSON.stringify(answer.result.error)).toBe(true);
+		const all = await entries(journal);
+		const outer = all.find((entry) => entry.command === 'document-export');
+		const nested = all.find((entry) => entry.command === 'probe-export');
+		const trace = { session, turn: 1, call: 'cpc_0001' };
+		expect(outer?.context).toMatchObject({ trace, copilotSession: session, turn: 1 });
+		expect(nested?.context).toMatchObject({ trace, copilotSession: session, turn: 1 });
+		expect(nested?.actor).toMatchObject({ kind: 'agent', id: 'copilot' });
+		// The person's own calls carry none.
+		const own = all.find((entry) => entry.command === 'document-create');
+		expect(own?.context ?? {}).not.toHaveProperty('trace');
 	});
 
 	it('stops a turn at its limit of calls (4.4)', async () => {
