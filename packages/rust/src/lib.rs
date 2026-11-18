@@ -69,6 +69,7 @@ pub struct ReadmeDoctests;
 // Module declarations
 pub mod actor;
 pub mod approval;
+pub mod approval_display;
 pub mod direct;
 pub use direct::{DirectApprovalHook, DirectApprovalRequest, DirectClient};
 pub mod batch;
@@ -314,6 +315,10 @@ pub use approval::{
 pub use approval::{
     canonical_json, create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore,
     ApprovalRelay, ApprovalReplay, ApprovalRequest,
+};
+pub use approval_display::{
+    approval_display, hides_characters, is_hidden_code_point, ApprovalDisplay,
+    ApprovalDisplayLimits, ApprovalDisplayRefusal, APPROVAL_DISPLAY_LIMITS,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

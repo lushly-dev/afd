@@ -386,17 +386,23 @@ impl Gate {
         context: CommandContext,
         next: crate::commands::MiddlewareNext,
     ) -> CommandResult<Value> {
+        // An approver client's call ("Approval evidence from an approver client"): its token
+        // reaches it and is never replaced by an elicitation, its carried evidence is taken by
+        // the first command checked (the one the call routes to), once, and its tokens bind its
+        // principal binding.
+        let approver = context.approver.clone();
+        let carried = approver.as_ref().and_then(|call| call.take());
+        let relays = self.options.relay == ApprovalRelay::McpElicitation && approver.is_none();
         // Claimed only by the command the tool call routes to, once, gated or not, so a command
         // that runs inside another (or after it) cannot turn the tool call into an elicitation.
-        let bound = match self.options.relay {
-            ApprovalRelay::McpElicitation => context.approval_relay.clone(),
-            ApprovalRelay::Off => None,
+        let bound = if relays {
+            context.approval_relay.clone()
+        } else {
+            None
         };
         let relay = bound.as_ref().filter(|relay| relay.claim(&name));
         // A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
-        if let (ApprovalRelay::McpElicitation, Some(up_front)) =
-            (self.options.relay, context.up_front_approval.clone())
-        {
+        if let (true, Some(up_front)) = (relays, context.up_front_approval.clone()) {
             return self
                 .run_up_front(&up_front, name, input, context, next)
                 .await;
@@ -417,6 +423,23 @@ impl Gate {
             }
         };
         let actor_binding = actor_json(context.actor.as_ref());
+        // What a token's `a` binds: the actor, or an approver's principal binding (M8).
+        let who = if approver.is_some() {
+            match crate::principal_binding(context.actor.as_ref(), context.credentials.as_deref()) {
+                Ok(principal) => Binding::Principal(principal),
+                Err(_) => {
+                    return failure(
+                        CommandError::new(
+                            error_codes::INTERNAL_ERROR,
+                            "The caller's credentials cannot be bound",
+                        )
+                        .with_retryable(false),
+                    )
+                }
+            }
+        } else {
+            Binding::Actor(actor_binding.clone())
+        };
 
         let mut rejected = None;
         if let Some(evidence) = &context.relay_evidence {
@@ -432,12 +455,12 @@ impl Gate {
                 Err(reason) => rejected = Some(reason),
             }
         } else {
-            let evidence = context.direct_approval.as_ref().map_or_else(
-                || context.approval.clone(),
-                |state| crate::direct::locked(state).take(),
-            );
+            let evidence = match &context.direct_approval {
+                Some(state) => crate::direct::locked(state).take(),
+                None => carried.or_else(|| context.approval.clone()),
+            };
             if let Some(evidence) = &evidence {
-                match self.verify(evidence, &name, &input_binding, &actor_binding, now) {
+                match self.verify(evidence, &name, &input_binding, &who, now) {
                     Ok(accepted) => {
                         if self.consume(&accepted, now).await {
                             return next().await;
@@ -471,7 +494,7 @@ impl Gate {
             }
         };
         let expires = now.saturating_add(self.options.ttl_ms as i64);
-        let approval_token = self.sign(&name, &input_binding, &actor_binding, now, expires, &nonce);
+        let approval_token = self.sign(&name, &input_binding, &who, now, expires, &nonce);
         let expires_at = iso_time(expires);
 
         if let Some(callback) = &self.options.on_approval_required {
@@ -500,14 +523,20 @@ impl Gate {
         // ("Asking the human over MCP": such calls fall back to `APPROVAL_REQUIRED` without one).
         let relays_over_mcp = self.options.relay == ApprovalRelay::McpElicitation
             && context.interface == Some(crate::CommandInterface::Mcp);
-        let include_token =
-            self.options.include_token && context.direct_approval.is_none() && !relays_over_mcp;
+        // An approver always gets its token; anyone else as the options say.
+        let include_token = context.direct_approval.is_none()
+            && (approver.is_some() || (self.options.include_token && !relays_over_mcp));
         let why = rejected
             .map(|reason| format!("The approval token was not accepted ({reason}). "))
             .unwrap_or_default();
         // Addressed to whoever relays the decision: the token is the approval, so the gated
         // caller must not resubmit it on its own, and tool arguments cannot carry it.
-        let retry = if include_token {
+        let retry = if approver.is_some() {
+            format!(
+                "once they approve, the approver retries the same call with the same input and details.approvalToken in _meta[\"dev.afd/approval\"]. The token expires at {expires_at}{}.",
+                if single_use { " and works once" } else { "" }
+            )
+        } else if include_token {
             format!(
                 "once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at {expires_at}{}.",
                 if single_use { " and works once" } else { "" }
@@ -803,7 +832,7 @@ impl Gate {
         evidence: &str,
         name: &str,
         input: &str,
-        actor: &str,
+        who: &Binding,
         now: i64,
     ) -> Result<Accepted, ApprovalRejection> {
         // TypeScript counts UTF-16 units; a UTF-8 byte count above 3× the cap is over it anyway.
@@ -846,8 +875,11 @@ impl Gate {
         if !matches(&payload.i, "input", input) {
             return Err(ApprovalRejection::InputMismatch);
         }
-        if !matches(&payload.a, "actor", actor) {
-            return Err(ApprovalRejection::ActorMismatch);
+        if !matches(&payload.a, who.purpose(), who.value()) {
+            return Err(match who {
+                Binding::Actor(_) => ApprovalRejection::ActorMismatch,
+                Binding::Principal(_) => ApprovalRejection::CredentialsMismatch,
+            });
         }
         Ok(Accepted {
             nonce: payload.n,
@@ -867,7 +899,7 @@ impl Gate {
         &self,
         name: &str,
         input: &str,
-        actor: &str,
+        who: &Binding,
         issued: i64,
         expires: i64,
         nonce: &str,
@@ -878,11 +910,33 @@ impl Gate {
             "{{\"c\":{},\"i\":\"{}\",\"a\":\"{}\",\"iat\":{issued},\"exp\":{expires},\"n\":\"{nonce}\"}}",
             serde_json::to_string(name).expect("strings serialize"),
             base64url_encode(&digest(key, "input", input)),
-            base64url_encode(&digest(key, "actor", actor)),
+            base64url_encode(&digest(key, who.purpose(), who.value())),
         );
         let signing_input = format!("{TOKEN_PREFIX}.{}", base64url_encode(payload.as_bytes()));
         let mac = base64url_encode(&hmac_sha256(key, signing_input.as_bytes()));
         format!("{signing_input}.{mac}")
+    }
+}
+
+/// What a token's `a` binds: the actor JSON, or an approver's principal binding (M8), each under
+/// its own digest purpose so neither can stand for the other.
+enum Binding {
+    Actor(String),
+    Principal(String),
+}
+
+impl Binding {
+    fn purpose(&self) -> &'static str {
+        match self {
+            Self::Actor(_) => "actor",
+            Self::Principal(_) => "principal",
+        }
+    }
+
+    fn value(&self) -> &str {
+        match self {
+            Self::Actor(value) | Self::Principal(value) => value,
+        }
     }
 }
 
