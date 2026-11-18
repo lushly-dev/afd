@@ -8,7 +8,8 @@ plugin's tests.
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 
 Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane
-that would merge them. None is yet seen in a fleet run.
+that would merge them, in [#1470](https://github.com/lushly-dev/afd/pull/1470). None is yet seen
+in a fleet run.
 
 - **Only a branch's own failures count toward `cells.maxEjections`.** #499 and #503 were released at
   the limit after ejections their own changes did not cause (#503: three `conflict`s, two in
