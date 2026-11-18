@@ -47,6 +47,8 @@ class SweepConfig(BaseModel):
     cohesive: str = "sweep-cohesive.json"
     # Tracked path prefixes never measured, such as imported upstream source
     exclude: list[str] = []
+    # File-name patterns measured although the default skips them, such as "*.stories.*"
+    include_names: list[str] = []
     # Commits touching a file in this many days are its churn
     churn_days: int = Field(default=90, gt=0, strict=True)
     # Source extensions measured; None = the script's default (TypeScript, JavaScript, Python, Rust)
