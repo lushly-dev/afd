@@ -153,9 +153,13 @@ async fn batches() {
             .iter()
             .map(|item| BatchCommand::new(item["command"].as_str().unwrap(), item["input"].clone()))
             .collect();
+        let mut request = BatchRequest::new(commands);
+        if let Some(extra) = case.get("requestContext") {
+            request.context = Some(serde_json::from_value(extra.clone()).unwrap());
+        }
         let result = registry
             .execute_batch_with_context(
-                BatchRequest::new(commands),
+                request,
                 context(case["interface"].as_str(), case["caller"].as_str()),
             )
             .await;

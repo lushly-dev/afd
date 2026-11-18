@@ -186,9 +186,11 @@ step 0c. Python and C++ are a [documented gap](#contract) until
   `expect` is `refused`, a `code`, or the `data`. A case with `validates` needs a registry that
   validates input, which TypeScript's core registry does not.
 - `batches`: a batch run with the case's interface and caller; each item's `expect` as above.
+  `requestContext`, where a language's batch request carries a `context` of its own (Rust), is set
+  on the request; a language without one leaves it out.
 
 A language whose in-process registry for an `apps` call needs the grant at construction
-(TypeScript's `createDirectRegistry`) checks that creating one with `grant: none` fails instead.
+(TypeScript's `createAppCallRegistry`) checks that creating one with `grant: none` fails instead.
 
 ### `journal-context-cap.json`
 

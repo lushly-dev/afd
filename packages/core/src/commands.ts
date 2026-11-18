@@ -73,13 +73,15 @@ export interface ExposeOptions {
 	apps?: boolean;
 }
 
-/** Frozen to prevent accidental mutation */
+/**
+ * Frozen to prevent accidental mutation. `apps` is left out: a flag with no value is off, so other
+ * apps are opt-in like MCP and the CLI, and a report that spreads these defaults is unchanged.
+ */
 export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
 	palette: true, // User-facing: on by default
 	agent: true, // In-app AI: on by default
 	mcp: false, // External agents: opt-in (security)
 	cli: false, // Automation: opt-in
-	apps: false, // Other apps: opt-in, and each call needs a grant
 });
 
 /**

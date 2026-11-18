@@ -320,6 +320,8 @@ describe('@lushly-dev/afd-server/direct', () => {
 		const host = modulesInOutput(hostBundle);
 		expect(host.some((path) => path.endsWith('src/direct-registry.ts'))).toBe(true);
 		expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
+		// App-to-app calls (spec/command-metadata.md) cost a host only when it imports their registry.
+		expect(host.filter((path) => /src\/app-call(s|-registry)\.(ts|js)$/.test(path))).toEqual([]);
 
 		// The router and the tool list load no Node.js built-in since the confirmation gate moved
 		// out of confirmations.ts, so the surface bundles for the browser too.

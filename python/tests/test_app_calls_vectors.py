@@ -4,7 +4,8 @@ App-to-app calls and the ``apps`` exposure flag (spec/command-metadata.md, "App-
 Loam phase 5, step 0b) are implemented in TypeScript and Rust. Python has neither yet: the file
 lists Python in its ``gaps``, and every case here is skipped as that documented gap until Python
 implements them and leaves the list (https://github.com/lushly-dev/afd/issues/1513). Meanwhile
-``apps`` names no surface, so a call naming it is refused with ``COMMAND_NOT_EXPOSED``.
+``apps`` names no surface, so a call naming it is refused as for any such interface:
+``COMMAND_NOT_FOUND`` for a missing command, ``COMMAND_NOT_EXPOSED`` for one that exists.
 """
 
 from __future__ import annotations

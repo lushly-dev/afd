@@ -11,7 +11,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Origin | [#884](https://github.com/lushly-dev/afd/issues/884); Loam's decision D30 (2026-10-31), annotated by D65 and D152; Loam's [phase 5 specification](../../../../endpoints/loam/docs/phases/5-copilot/spec.md), sections 7.5, 9 and 13 |
 | Spec | [`spec/command-metadata.md`](../../../../spec/command-metadata.md): the `expose` row and [App-to-app calls](../../../../spec/command-metadata.md#app-to-app-calls); [`spec/error-codes.md`](../../../../spec/error-codes.md) (`CALL_NOT_GRANTED`); [`spec/plugin-manifest.md`](../../../../spec/plugin-manifest.md) and [`spec/plugin-manifest.core.v2.json`](../../../../spec/plugin-manifest.core.v2.json) |
-| Packages | `spec/`, `@lushly-dev/afd-core` (the flag, the interface, the registry check), `@lushly-dev/afd-server` (`createDirectRegistry`), the `afd` crate |
+| Packages | `spec/`, `@lushly-dev/afd-core` (the flag, the interface, the registry check), `@lushly-dev/afd-server` (`createAppCallRegistry`), the `afd` crate |
 | Vectors | [`spec/vectors/app-calls.json`](../../../../spec/vectors/app-calls.json) |
 | Related | [Unknown and unexposed commands (D4)](../../../../spec/error-codes.md#unknown-and-unexposed-commands-d4), [declared context fields](../../../../spec/context-fields.md), the [shared plugin manifest](../../../../spec/plugin-manifest.md) and its [plan's step 4](../../complete/plugin-manifest/STATUS.md) |
 
@@ -80,10 +80,23 @@ active context, input validation, declared context fields, middleware and the ha
 command, an unexposed one, an ungranted one and invalid input all give the same bytes (J4). It is
 the `apps` interface's form of [D4](../../../../spec/error-codes.md#unknown-and-unexposed-commands-d4):
 an app is an untrusted caller, like a remote one, so it cannot tell "does not exist" from "may not".
-A predicate that throws or panics is refused the same way.
+A predicate that throws or panics is refused the same way. It runs before the declared context
+fields are validated, so it checks the type of what it reads, and a request's own values never
+reach it: Rust drops a batch request's `context` for an `apps` call.
 
 A granted call then runs like any other, with `apps` as its interface, so middleware and the
 journal see who called through the host's field. Batches and pipelines check each command they run.
+A replay of a journaled app call runs the check again.
+
+### TypeScript's registry for app calls
+
+Loam's kernel runs commands through `createDirectRegistry`, whose bundle is on every host's first
+paint with 29 bytes to spare, so the check is not in it. `createAppCallRegistry(commands, {
+callGrant, ...options })` wraps one, runs the check before anything else, serves no tool surface,
+and answers `hasCommand` with `true` for every name, so a `DirectClient` over it cannot answer
+`UNKNOWN_TOOL` with the names it holds. A host that never imports it bundles none of it.
+`createDirectRegistry` itself has no grant check, so under the `apps` interface it exposes nothing
+(fail closed, 19 bytes).
 
 ### The manifest
 
@@ -107,6 +120,7 @@ D30 fixed the rule. These details were left to this proposal:
 | X5 | The flag defaults to `false` in every profile, unlike C5's other flags | Exposure to other apps widens what an install can reach; the callee must opt in |
 | X6 | No predicate means no app call | Fail closed |
 | X7 | Core version 2 is version 1 plus `expose.apps` | The versioning rule: a new core version only adds |
+| X8 | TypeScript's app calls get their own registry, `createAppCallRegistry` | The check in `createDirectRegistry` cost 772 bytes on every host's first paint, past `/direct`'s budget and Loam's; this way it costs 19 |
 
 ## Conformance
 
@@ -117,7 +131,7 @@ D30 fixed the rule. These details were left to this proposal:
   and whether a predicate is installed, then a call with its interface and input and what it must
   return: the command's data, or the exact `CALL_NOT_GRANTED` error.
 
-TypeScript runs the cases on the core registry and on `createDirectRegistry`, Rust on
+TypeScript runs the cases on the core registry and on `createAppCallRegistry`, Rust on
 `CommandRegistry`. Python and C++ load the file and skip every case as the documented gap, naming
 the parity issue, until they implement it.
 
@@ -126,8 +140,10 @@ the parity issue, until they implement it.
 Python and C++ get the same flag, interface and check, as AFD's parity rule requires:
 [#1513](https://github.com/lushly-dev/afd/issues/1513). Both define the `CALL_NOT_GRANTED` constant
 now, since the shared catalog lists it. Until they implement the check, an `apps` interface names no
-surface there, so their registries refuse every app call with `COMMAND_NOT_EXPOSED` (the error
-catalog's rule 3): closed, with another code.
+surface there, so their registries refuse every app call as any interface that names no surface:
+`COMMAND_NOT_FOUND` for a missing command, `COMMAND_NOT_EXPOSED` for one that exists (the error
+catalog's rules 2 and 3). Closed, but a caller can tell the two apart there until #1513. Their
+journal replay also refuses an entry recorded with the `apps` interface until then.
 
 ## Out of scope
 

@@ -704,8 +704,11 @@ naming it ([proposal](../docs/features/active/apps-exposure/apps-exposure.propos
   Loam's `caller`; AFD reserves no context name for it.
 - **The grant.** The registry takes a host predicate, `callGrant(command, context)`, that answers
   whether the caller in `context` holds a grant naming `command`. AFD does not define a grant's
-  shape. The predicate is synchronous and reads only what trusted code put on the context. A
-  registry without one refuses every app call.
+  shape. The predicate is synchronous and reads only what trusted code put on the context. It runs
+  before the declared context fields are validated, so it checks the type of what it reads. A
+  registry without one refuses every app call. A request's own values never reach it: an app's
+  batch carries no context the predicate reads (Rust drops a batch request's `context` for an
+  `apps` call).
 
 A call whose interface is `apps` runs only when the command exists for the caller, sets
 `expose.apps`, and `callGrant` returns `true`; a value other than `true`, a throw or a panic is a
@@ -728,19 +731,29 @@ is the `apps` interface's form of [D4](./error-codes.md#unknown-and-unexposed-co
 is an untrusted caller. A granted call then runs as any other, with `apps` as its interface. A batch
 or pipeline checks each command it runs; a refused one fails as that item or step.
 
-Listings by exposure (TypeScript `listByExposure('apps')`, `createDirectRegistry({ interface:
-'apps' })`'s `listCommands`) hold the commands exposed to apps, whatever any caller is granted. A
-host never shows an app another app's commands from them; it builds a list from its grants.
-`createDirectRegistry` with `interface: 'apps'` throws at creation without `callGrant`, or with a
-tool surface, since an app calls commands one by one.
+Listings by exposure (TypeScript `listByExposure('apps')`, `createAppCallRegistry`'s
+`listCommands`) hold the commands exposed to apps, whatever any caller is granted. A host never
+shows an app another app's commands from them; it builds a list from its grants.
+
+TypeScript's in-process registry for app calls is `createAppCallRegistry(commands, { callGrant,
+...options })`, `createDirectRegistry`'s options less `interface` and `tools`. It throws without
+`callGrant`, serves no tool surface (an app calls commands one by one), and answers `hasCommand`
+with `true` for every name, so a `DirectClient` over it sends every call to the check rather than
+answering `UNKNOWN_TOOL` with names. `createDirectRegistry` has no grant check, so under the `apps`
+interface it exposes nothing.
+
+A journaled app call replays with the `apps` interface, so the replaying registry runs the check
+again and needs the same `callGrant` ([journal replay](./journal.md#replay)). A refusal is returned before
+middleware, so AFD's journal middleware never records one; a host that journals refusals, as Loam
+does, records it where it receives the app's call.
 
 The shared plugin manifest carries the flag from [core version 2](./plugin-manifest.md#k5-exposure).
 
 | Implementation | Status |
 | --- | --- |
-| TypeScript | `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createDirectRegistry({ interface: 'apps', callGrant })` |
+| TypeScript | `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` (`@lushly-dev/afd-server` and `/direct`) |
 | Rust | `ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant` |
-| Python, C++ | Not yet ([#1513](https://github.com/lushly-dev/afd/issues/1513)). `apps` names no surface there, so a call naming it is `COMMAND_NOT_EXPOSED` ([D4](./error-codes.md#unknown-and-unexposed-commands-d4), rule 3) |
+| Python, C++ | Not yet ([#1513](https://github.com/lushly-dev/afd/issues/1513)). `apps` names no surface there, so a call naming it gets what any interface that names no surface gets ([D4](./error-codes.md#unknown-and-unexposed-commands-d4), rules 2 and 3): `COMMAND_NOT_FOUND` for a missing command and `COMMAND_NOT_EXPOSED` for one that exists. Refused, but the one answer does not hold there until #1513 |
 
 The cases are in [`vectors/app-calls.json`](./vectors/app-calls.json).
 

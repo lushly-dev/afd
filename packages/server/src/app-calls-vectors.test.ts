@@ -1,17 +1,19 @@
 /**
- * Checks app-to-app calls on `createDirectRegistry` against `spec/vectors/app-calls.json`
- * (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5, step 0b). Each case builds one
- * registry for the call's interface, with the caller as a declared context field, as Loam's
- * `caller` is. An `'apps'` registry needs `callGrant`, so the `none` cases check that creating one
- * without it throws; an `'apps'` registry serves no tool surface, so the batches run on the core
+ * Checks app-to-app calls against `spec/vectors/app-calls.json` (`spec/command-metadata.md`,
+ * "App-to-app calls"; Loam phase 5, step 0b): an `apps` call on `createAppCallRegistry`, any other
+ * on `createDirectRegistry` with the call's interface, the caller a declared context field, as
+ * Loam's `caller` is. `createAppCallRegistry` needs `callGrant`, so the `none` cases check that
+ * creating one without it throws; it serves no tool surface, so the batches run on the core
  * registry's test only.
  */
 import { readFileSync } from 'node:fs';
+import { DirectClient } from '@lushly-dev/afd-client';
 import type { CommandContext, ExposeOptions } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createDirectRegistry, type DirectRegistryOptions } from './direct-registry.js';
+import { createAppCallRegistry } from './app-call-registry.js';
+import { createDirectRegistry, type DirectCommandRegistry } from './direct-registry.js';
 import { createDirectToolSurface } from './direct-tool-surface.js';
 import { defineCommand } from './schema.js';
 
@@ -62,19 +64,25 @@ function callGrantFor(grant: 'grants' | 'none' | 'throws') {
 		typeof context.caller === 'string' && (grants[context.caller]?.includes(command) ?? false);
 }
 
-describe('spec/vectors/app-calls.json on createDirectRegistry', () => {
+describe('spec/vectors/app-calls.json on createAppCallRegistry and createDirectRegistry', () => {
 	for (const item of vectors.calls) {
 		const { name, interface: iface, caller, input } = item.call;
 		// A call with no interface is a trusted in-process call; a direct registry always has one.
 		if (iface === undefined) continue;
 		it(`call: ${item.description}`, async () => {
 			const callGrant = callGrantFor(item.grant);
-			const options: DirectRegistryOptions = { interface: iface, contextFields, callGrant };
-			if (iface === 'apps' && callGrant === undefined) {
-				expect(() => createDirectRegistry(commands, options)).toThrow(/needs callGrant/);
-				return;
+			let registry: DirectCommandRegistry;
+			if (iface === 'apps') {
+				if (callGrant === undefined) {
+					expect(() => createAppCallRegistry(commands, { contextFields } as never)).toThrow(
+						/needs callGrant/
+					);
+					return;
+				}
+				registry = createAppCallRegistry(commands, { contextFields, callGrant });
+			} else {
+				registry = createDirectRegistry(commands, { interface: iface, contextFields });
 			}
-			const registry = createDirectRegistry(commands, options);
 			const result = await registry.execute(name, input, caller === undefined ? {} : { caller });
 			if (item.expect.refused) {
 				expect(result).toEqual({ success: false, error: vectors.refusal });
@@ -88,31 +96,50 @@ describe('spec/vectors/app-calls.json on createDirectRegistry', () => {
 		});
 	}
 
-	it('refuses a tool surface on an apps registry', () => {
-		expect(() =>
-			createDirectRegistry(commands, {
-				interface: 'apps',
-				callGrant: () => true,
-				tools: createDirectToolSurface(),
-			})
-		).toThrow(/serves no tool surface/);
+	it('exposes nothing under the apps interface of createDirectRegistry, which has no grant check', async () => {
+		const registry = createDirectRegistry(commands, { interface: 'apps' as 'agent' });
+		expect(registry.interface).toBe('apps');
+		expect(registry.listCommandNames()).toEqual([]);
+		expect(registry.hasCommand('tally-get')).toBe(false);
+		const result = await registry.execute('tally-get', {});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('COMMAND_NOT_EXPOSED');
 	});
 
-	it('lists the commands exposed to apps, whatever any caller is granted', () => {
-		const registry = createDirectRegistry(commands, {
-			interface: 'apps',
-			callGrant: () => false,
+	it('serves no tool surface, even from outside the type checker', async () => {
+		const registry = createAppCallRegistry(commands, {
+			callGrant: () => true,
+			...({ tools: createDirectToolSurface(), interface: 'agent' } as object),
 		});
+		expect(registry.interface).toBe('apps');
+		expect(() => registry.listTools()).toThrow(/no tool surface/);
+		expect(await registry.execute('afd-call', { command: 'tally-get' })).toEqual({
+			success: false,
+			error: vectors.refusal,
+		});
+	});
+
+	it('lists the commands exposed to apps, and answers hasCommand for every name', () => {
+		const registry = createAppCallRegistry(commands, { callGrant: () => false });
 		expect(registry.listCommandNames()).toEqual(['tally-get']);
 		expect(registry.hasCommand('tally-get')).toBe(true);
+		expect(registry.hasCommand('tally-nothing')).toBe(true);
+	});
+
+	it('gives a DirectClient over it the one refusal for every name, with no names', async () => {
+		const client = new DirectClient(createAppCallRegistry(commands, { callGrant: () => false }));
+		for (const name of ['tally-get', 'tally-add', 'tally-nothing', 'afd-batch']) {
+			const result = await client.call(name, {});
+			expect(result, name).toMatchObject({ success: false, error: vectors.refusal });
+		}
 	});
 
 	it('runs a granted call through the middleware, with apps as its interface', async () => {
 		const seen: unknown[] = [];
-		const registry = createDirectRegistry(commands, {
-			interface: 'apps',
+		const registry = createAppCallRegistry(commands, {
 			contextFields,
-			callGrant: (command, context) => command === 'tally-get' && context.caller === 'checklist',
+			callGrant: (command: string, context: CommandContext) =>
+				command === 'tally-get' && context.caller === 'checklist',
 			middleware: [
 				async (name, _input, context, next) => {
 					seen.push([name, context.interface, context.caller]);

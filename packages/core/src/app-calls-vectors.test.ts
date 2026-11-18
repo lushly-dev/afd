@@ -103,7 +103,8 @@ describe('spec/vectors/app-calls.json on the core registry', () => {
 	it('names Python and C++ as a documented gap, and its refusal as the catalog code', () => {
 		expect(Object.keys(vectors.gaps).sort()).toEqual(['cpp', 'python']);
 		expect(vectors.refusal.code).toBe(ErrorCodes.CALL_NOT_GRANTED);
-		expect(defaultExpose.apps).toBe(false);
+		expect(defaultExpose.apps).toBeUndefined();
+		expect(isExposedTo({ expose: defaultExpose }, 'apps')).toBe(false);
 	});
 
 	for (const item of vectors.exposure) {

@@ -72,7 +72,8 @@ Rules:
 3. **An empty interface is no interface.** An interface that names no surface (anything other than
    `palette`, `mcp`, `agent`, `cli` or `apps`) exposes nothing, so the command is
    `COMMAND_NOT_EXPOSED`. Python and C++ do not implement `apps` yet
-   ([#1513](https://github.com/lushly-dev/afd/issues/1513)), so there it names no surface either.
+   ([#1513](https://github.com/lushly-dev/afd/issues/1513)), so there it names no surface either:
+   lookup comes first, and a missing command is `COMMAND_NOT_FOUND`.
    Python's former `INVALID_INTERFACE` code is gone.
 4. **Close matches never include a hidden command.** `COMMAND_NOT_FOUND` and `UNKNOWN_TOOL`
    suggestions offer at most three close matches from the names the caller can call, and never echo
@@ -267,7 +268,7 @@ Emitted by a registry for a call with the `apps` interface; see
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `CALL_NOT_GRANTED` | An app's call to a command it may not call: the command does not exist, does not set `expose.apps`, or the host's `callGrant` does not grant it to the caller. One fixed message and suggestion for every case, before lookup and validation, so the caller cannot tell them apart | No | Core executors (registry), server engine (`createDirectRegistry`) |
+| `CALL_NOT_GRANTED` | An app's call to a command it may not call: the command does not exist, does not set `expose.apps`, or the host's `callGrant` does not grant it to the caller. One fixed message and suggestion for every case, before lookup and validation, so the caller cannot tell them apart | No | Core executors (registry), server engine (`createAppCallRegistry`) |
 
 ## Specified, not yet in the catalog
 

@@ -1603,7 +1603,9 @@ impl CommandRegistry {
     /// The batch trace ID is `context.trace_id`, or `batch-<timestamp>`.
     /// The request's `context` entries are added to each command's
     /// [`CommandContext::extra`], without replacing keys the caller set; they
-    /// never change the trace ID, interface or timeout.
+    /// never change the trace ID, interface or timeout. With
+    /// [`CommandInterface::Apps`] they are dropped: an app's batch is the app's,
+    /// and only the host's own context may say who called.
     pub async fn execute_batch_with_context(
         &self,
         request: BatchRequest<serde_json::Value>,
@@ -1652,8 +1654,13 @@ impl CommandRegistry {
             .clone()
             .unwrap_or_else(|| format!("batch-{}", chrono::Utc::now().timestamp_millis()));
         let mut base_context = context;
-        for (key, value) in request.context.into_iter().flatten() {
-            base_context.extra.entry(key).or_insert(value);
+        // An app's batch comes from the app: its own `context` must not reach the grant check,
+        // which reads only what the host's trusted code set (`spec/command-metadata.md`,
+        // "App-to-app calls").
+        if base_context.interface != Some(CommandInterface::Apps) {
+            for (key, value) in request.context.into_iter().flatten() {
+                base_context.extra.entry(key).or_insert(value);
+            }
         }
         let total_commands = request.commands.len();
         let command_metadata: Vec<_> = request

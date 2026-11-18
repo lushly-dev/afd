@@ -402,6 +402,25 @@
 					"refused": true
 				}
 			]
+		},
+		{
+			"description": "a batch's own context cannot name the caller",
+			"grant": "grants",
+			"interface": "apps",
+			"requestContext": {
+				"caller": "checklist"
+			},
+			"items": [
+				{
+					"command": "tally-get",
+					"input": {}
+				}
+			],
+			"expect": [
+				{
+					"refused": true
+				}
+			]
 		}
 	]
 }
