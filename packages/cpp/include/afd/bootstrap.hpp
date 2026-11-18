@@ -15,6 +15,11 @@
 //   order, not declaration order.
 // - `afd-help` groups `groupedByCategory` by each command's category in both formats, as Python
 //   and Rust do; TypeScript's brief format puts every command under `uncategorized`.
+// - `afd-help` lists the declared context fields whenever the registry has some; TypeScript's
+//   does when a server built it.
+// - `afd-docs` orders categories and names by byte, as Rust does, not with `localeCompare`.
+// - The TypeScript generator collapses ASCII whitespace around line breaks in a description;
+//   JavaScript's `\s` also matches Unicode spaces.
 //
 // `afd-help` does not report `toolStrategy` yet: `afd::mcp_stdio` lists one tool per command
 // (#1451).

@@ -370,3 +370,40 @@ TEST_CASE("generate_input_types names types after commands and avoids collisions
           "/** Input of `todo-list`: List */\nexport type TodoListInput = {\n\tlimit?: "
           "number;\n\tpriority?: \"low\" | \"high\";\n\t/** Title */\n\ttitle: string;\n};\n");
 }
+
+TEST_CASE("generate_input_types stops at a depth of 32, as TypeScript does") {
+    const auto nested = [](int levels, const std::string& inner) {
+        Json schema{{"type", "string"}};
+        std::string expected = inner;
+        for (int i = 0; i < levels; ++i) {
+            schema = Json{{"type", "array"}, {"items", schema}};
+            expected = "Array<" + expected + ">";
+        }
+        return std::pair{schema, expected};
+    };
+    const auto [at_limit, at_limit_type] = nested(32, "string");
+    CHECK(type_of(at_limit) == at_limit_type);
+    const auto [beyond, beyond_type] = nested(33, "unknown");
+    CHECK(type_of(beyond) == beyond_type);
+}
+
+TEST_CASE("generate_input_types writes descriptions and literals as TypeScript does") {
+    const auto described_as = [](const std::string& description) {
+        return type_of(
+            {{"type", "object"},
+             {"properties", {{"a", {{"type", "string"}, {"description", description}}}}}});
+    };
+    CHECK(described_as("a  b") == "{\n\t/** a  b */\n\ta?: string;\n}");
+    CHECK(described_as("a \r\n  b") == "{\n\t/** a b */\n\ta?: string;\n}");
+    CHECK(described_as("a **/ b") == "{\n\t/** a **\\/ b */\n\ta?: string;\n}");
+    // JSON.stringify writes a whole number without a fraction.
+    CHECK(type_of({{"const", 1.0}}) == "1");
+    CHECK(type_of({{"enum", Json::array({1.0, 2.5, Json::array({3.0})})}}) == "1 | 2.5 | [3]");
+    // Members that are not schemas leave an empty union, as in TypeScript.
+    CHECK(type_of({{"anyOf", Json::array({1, 2})}}).empty());
+}
+
+TEST_CASE("an empty active context is no context, as the registry reads it") {
+    const auto registry = described();
+    CHECK(run(*registry, "afd-help", Json::object(), "")["data"]["total"] == 6);
+}

@@ -44,8 +44,12 @@ CommandDefinition bootstrap_command(std::string name, std::string description, J
 /// context (the scope's, when the MCP server set one).
 std::vector<std::shared_ptr<const RegisteredCommand>> describable(const CommandRegistry& registry,
                                                                   const CommandContext& context) {
-    const std::optional<std::string> active =
+    std::optional<std::string> active =
         context.context_scope ? context.context_scope->active() : context.active_context;
+    // An empty name is no context, as the registry's own check reads it.
+    if (active && active->empty()) {
+        active.reset();
+    }
     std::vector<std::shared_ptr<const RegisteredCommand>> commands;
     for (auto& command : registry.list_by_exposure(Interface::mcp)) {
         const auto& contexts = command->definition.contexts;
@@ -341,6 +345,26 @@ CommandResult afd_schema(const CommandRegistry& registry, const Json& input,
 
 constexpr int max_type_depth = 32;
 
+/// `value` with every whole number written as an integer, as `JSON.stringify` writes `1.0`.
+Json js_numbers(const Json& value) {
+    if (value.is_number_float()) {
+        return wire::number(value.get<double>());
+    }
+    if (value.is_array() || value.is_object()) {
+        Json out = value;
+        for (auto& item : out) {
+            item = js_numbers(item);
+        }
+        return out;
+    }
+    return value;
+}
+
+/// A JSON literal as TypeScript writes it.
+std::string literal(const Json& value) {
+    return wire::serialize(js_numbers(value));
+}
+
 bool is_identifier(std::string_view key) {
     const auto start = [](unsigned char c) { return std::isalpha(c) || c == '_' || c == '$'; };
     if (key.empty() || !start(static_cast<unsigned char>(key.front()))) {
@@ -513,13 +537,13 @@ std::string to_type(const Json& schema, const std::string& indent, int depth) {
         return "unknown";
     }
     if (const auto value = schema.find("const"); value != schema.end()) {
-        return wire::serialize(*value);
+        return literal(*value);
     }
     if (const auto values = schema.find("enum");
         values != schema.end() && values->is_array() && !values->empty()) {
         std::vector<std::string> members;
         for (const auto& value : *values) {
-            members.push_back(wire::serialize(value));
+            members.push_back(literal(value));
         }
         return join_types(members, " | ");
     }
