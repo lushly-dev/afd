@@ -196,10 +196,6 @@ export const consoleStyles = css`
 		white-space: normal;
 		overflow-wrap: anywhere;
 	}
-	/* As loam-list: its white fallback fails contrast in dark, and it hides which row is active. */
-	violet-option {
-		--color-surface-highlight: var(--color-surface-subtle);
-	}
 	violet-listbox::part(control):focus-visible {
 		outline: var(--size-space-xs) solid var(--color-focus-ring);
 		outline-offset: var(--size-space-xs);

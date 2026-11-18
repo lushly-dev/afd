@@ -96,7 +96,7 @@ can call that tool.
 | TypeScript direct registry (`createDirectRegistry`) | As the TypeScript server with a tool surface (`tools: createDirectToolSurface()`), which serves `afd-discover`; otherwise "Check the command name against the available commands." | As the TypeScript server with a tool surface, which serves the context tools when the registry has contexts; otherwise as C++ |
 | TypeScript core registry | "Use 'afd tools' to see available commands" (the CLI) | Not emitted |
 | Rust registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands."; calls from the MCP server (`server` feature, which serves `afd-discover` in every strategy) end as TypeScript's | As TypeScript when the caller can call `afd-context-list`; otherwise as C++ |
-| C++ registry | As Rust | Names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
+| C++ registry | As Rust | As TypeScript when the caller can call `afd-context-list` (`register_context_commands`); otherwise names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
 | Python server | As TypeScript. [#325](https://github.com/lushly-dev/afd/issues/325) tracks the tool strategies that do not serve `afd-discover` remotely | As TypeScript |
 | Python core registry | "List available commands to see valid options" | As C++ |
 

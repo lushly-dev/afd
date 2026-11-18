@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import "./violet-option";
+import "../theme/violet-theme";
 import { VioletOption } from "./violet-option";
 
 function nextFrame(): Promise<void> {
@@ -183,6 +184,36 @@ describe("violet-option", () => {
         await nextFrame();
 
         expect(control(option).classList.contains("active")).toBe(true);
+    });
+
+    it.each(["light", "dark", "high-contrast"])("keeps active text readable in %s without a palette override", async preset => {
+        const option = await renderOption({ text: "Apple" });
+        const theme = document.createElement("violet-theme");
+        theme.setAttribute("preset", preset);
+        theme.style.color = "var(--color-text-primary)";
+        option.before(theme);
+        theme.append(option);
+        option.active = true;
+        await nextFrame();
+        await nextFrame();
+        // Exclude transition intermediates from the measured color pair.
+        control(option).style.transition = "none";
+        const computed = getComputedStyle(control(option));
+        const surface = getComputedStyle(theme).getPropertyValue("--color-surface-subtle").trim();
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = surface;
+        theme.append(probe);
+        expect(computed.backgroundColor).toBe(getComputedStyle(probe).backgroundColor);
+        const luminance = (color: string): number => {
+            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(value => {
+                const channel = Number(value) / 255;
+                return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+        };
+        const foreground = luminance(computed.color);
+        const background = luminance(computed.backgroundColor);
+        expect((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
     });
 
     it("emits request-select with its value when clicked", async () => {

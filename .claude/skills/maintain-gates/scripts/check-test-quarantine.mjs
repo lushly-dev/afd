@@ -32,7 +32,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_REGISTER = 'scripts/policy/test-quarantine.json';
-const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+export const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const ROOTS = new Set(['describe', 'it', 'test', 'suite', 'bench']);
 const SUPPRESSIONS = new Set(['only', 'skip', 'todo', 'fixme']);
 /** A path as git prints it: forward slashes, no leading `./`, no trailing slash. */

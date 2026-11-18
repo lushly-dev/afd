@@ -30,16 +30,17 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
-| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | None (#341) |
+| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | None: one command tool per command ([#1451](https://github.com/lushly-dev/afd/issues/1451)) |
 | Default | `grouped` | `individual` | `Grouped` | — |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | — |
-| Contexts | `contexts` | `contexts` | `with_contexts` | — |
+| Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
 | Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | — |
-| `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | — |
+| `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
-The C++ todo backend's hand-rolled stdio loop lists one command tool per command; parity item D2
-promotes it to `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)).
+C++'s `afd::mcp_stdio` lists one command tool per command, the context tools among them when it
+serves contexts; the meta-tools, bootstrap tools and strategies are
+[#1451](https://github.com/lushly-dev/afd/issues/1451).
 
 ## Tool lists
 
@@ -126,6 +127,7 @@ A command cannot take a name the server provides itself.
 | TypeScript | The meta-tool names always; the bootstrap names with `bootstrap: true`; the context names with `contexts`. Duplicates are refused too (`command-names.ts`) |
 | Python | The meta-tool names. A command named like a bootstrap tool shadows it ([language parity](../docs/language-parity.md#command-definition)) |
 | Rust | The bootstrap and context names, by `register_bootstrap_commands` and `with_contexts` when a command already has one. A command named like a meta-tool is not refused, but the router handles the meta-tool first, so the command is unreachable |
+| C++ | The meta-tool names, by `register_command`; the context names by `register_context_commands` when a command already has one. C++ has no bootstrap tools ([#1451](https://github.com/lushly-dev/afd/issues/1451)) |
 
 ## Cache hints and `listChanged`
 
@@ -361,9 +363,9 @@ name, which every strategy serves, so it does not change.
 
 | Strategy | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `individual` | Yes | Yes (the default) | Yes | Todo backend only (#341) |
-| `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | No (#341) |
-| `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | No (#341) |
+| `individual` | Yes | Yes (the default) | Yes | Partial: command tools without the meta-tools (#1451) |
+| `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | No (#1451) |
+| `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | No (#1451) |
 | `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
 | `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | Planned |
 | Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |

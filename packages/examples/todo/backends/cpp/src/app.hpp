@@ -5,8 +5,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "store.hpp"
+#include <afd/contexts.hpp>
 #include <afd/expected.hpp>
 #include <afd/registry.hpp>
 
@@ -27,6 +29,11 @@ afd::Expected<Approvals> approvals_from(const char* value);
 /// several processes accept each other's tokens; else 32 random bytes for this process.
 afd::Expected<std::string> approval_secret(const char* value);
 
+/// The todo server's contexts, as the TypeScript backend's src/contexts.ts defines them. With no
+/// context entered every command is visible; `todo-reading` limits an agent to the commands that
+/// read, and `todo-editing` shows every command.
+std::vector<afd::ContextConfig> todo_contexts();
+
 struct RegistryOptions {
     Approvals approvals = Approvals::agents;
     /// The approval key; unused with `Approvals::off`.
@@ -37,7 +44,8 @@ struct RegistryOptions {
     std::shared_ptr<afd::RandomSource> random;
 };
 
-/// The todo commands over `store` and, with `Approvals::agents`, the approval middleware signing
+/// The todo commands over `store`, the context commands for `todo_contexts()` and, with
+/// `Approvals::agents`, the approval middleware signing
 /// with `options.secret`. A held todo-clear asks the person behind an MCP client that declares
 /// form elicitation (`ApprovalRelay::mcp_elicitation`), with a summary of what would go; any
 /// other caller gets `APPROVAL_REQUIRED`. The middleware runs before each handler, so a held call

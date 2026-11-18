@@ -18,7 +18,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CONFIG =
+export const CONFIG =
 	/(^|\/)(vitest|vite)(\.[\w-]+)?\.config(\.[\w-]+)?\.[cm]?[jt]s$|(^|\/)vitest\.(workspace|projects)\.[cm]?[jt]s$/;
 const LAUNCHER = /(^|\/)package\.json$|^\.github\/workflows\/[^/]+\.ya?ml$|(^|\/)lefthook\.ya?ml$/;
 // A key, quoted or not, with any value but a literal `false` (`true`, `!0` and a variable may
