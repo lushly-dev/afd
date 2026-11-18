@@ -107,7 +107,8 @@ def check(backlog: Backlog) -> dict:
             for rule in issue_violations(issue.labels, issue.assigned, backlog.definitions)
         ],
         "dispatchable": dispatchable(backlog),
-        # Related issues (same area and files) are not computed yet; cells take one issue each.
+        # Related issues (same area and files) are not computed yet; the foreman names a
+        # package itself with cell-register's related_because.
         "related": [],
         "staleClaims": stale_claims(backlog),
         "held": held,

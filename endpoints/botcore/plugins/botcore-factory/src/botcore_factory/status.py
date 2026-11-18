@@ -21,6 +21,7 @@ from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 CELL_FIELDS = (
     "branch",
     "issues",
+    "relatedBecause",
     "state",
     "plan",
     "route",
