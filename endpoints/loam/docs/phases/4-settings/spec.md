@@ -44,7 +44,7 @@
   - **External:** the [trajectory refresh](#trajectory-refresh).
 - **Done:** this specification, its fourteen jobs as scenarios (all valid under `afd scenario validate`), and two revisions.
 - **Done since approval:** the owner's answers to Q1 to Q5, 2026-11-18 (D154 to D158).
-- **Not done:** every step of the [plan](#20-implementation-plan), of which step 1 comes first, once phase 3's `HUMAN_REQUIRED` and its step 4 land ([1.2](#12-dependencies-on-phase-3s-steps)).
+- **Not done:** every step of the [plan](#20-implementation-plan). Step 1 comes first and may start now: phase 3's `HUMAN_REQUIRED` landed with its step 3 ([#1141](https://github.com/lushly-dev/afd/pull/1141)) and its step 4 merged in [#1184](https://github.com/lushly-dev/afd/pull/1184) ([1.2](#12-dependencies-on-phase-3s-steps)). The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -1135,7 +1135,7 @@ Where nobody has set autonomy, the default decides what agents do. **It also bou
 - **Ask for everything.** The tradeoff: agents ask before every lookup, and people learn to click through.
 - **Act on everything.** The tradeoff: agents change things unprompted, and every project may then act too, until an owner tightens it.
 
-**Answer (the owner, 2026-11-18; D156): act on reads, ask before changes, and ask before any tool of a mounted server,** as recommended. Owners loosen it with the workspace's mode and ceiling. 4.2 stands.
+**Answer (the owner, 2026-11-18; D156): act on reads, ask before changes, and ask before any tool of a mounted server,** as recommended. Owners loosen it with the workspace's mode and ceiling. 4.2 stands. D145, decided after this question was asked, still makes a vouched server's reads `act`; phase 5's step 3 adds that to 4.2.
 
 ### Q4. May a person's agent write project-level settings?
 
