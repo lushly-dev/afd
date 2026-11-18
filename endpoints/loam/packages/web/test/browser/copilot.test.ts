@@ -123,14 +123,21 @@ function copilotFrame(page: Page): Frame | undefined {
 	return page.frames().find((frame) => frame.url() === `${targets.sandbox}${FRAME_PATH}`);
 }
 
-/** Every event has a type the panel port's half forwards (3.2), and only that type's fields. */
+/**
+ * Every event has a type the panel port's half forwards (3.2), and only that type's fields; a message the runtime
+ * starts is always the model's, whatever the runtime said (3.4).
+ */
 function expectPanelEvents(events: ReadonlyArray<Record<string, unknown>>): void {
 	expect(events.length).toBeGreaterThan(0);
 	for (const event of events) {
 		const type = event.type as string;
 		expect(Object.keys(PANEL_EVENT_FIELDS), type).toContain(type);
-		for (const key of Object.keys(event))
-			expect(['type', ...(PANEL_EVENT_FIELDS[type] ?? [])], `${type}.${key}`).toContain(key);
+		const allowed = ['type', ...(PANEL_EVENT_FIELDS[type] ?? [])];
+		if (type === 'TEXT_MESSAGE_START') {
+			allowed.push('role');
+			expect(event.role).toBe('assistant');
+		}
+		for (const key of Object.keys(event)) expect(allowed, `${type}.${key}`).toContain(key);
 	}
 }
 

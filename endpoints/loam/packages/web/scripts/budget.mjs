@@ -276,12 +276,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * sponsor's confirm and decline and an owner's add form). `late` 77,579 (+464: line 4 on every command of an agent
  * member and the sponsor's read before the handler) and the kernel alone 115,379 (+180) are within their rows.
  * Phase 5's step 1 (the copilot core) added four rows and raised two under D115, measured on this branch against
- * those figures. First paint is unchanged (302,664 and 94,579 gzip): the copilot is never in it. `kernelMinified`
- * 115,500 to 116,800 (116,337, +958): kernel interface 5's minted options for the agent port, the trace a nested
- * call inherits, the context fields `late/` adds and the gate in the chain. `lateMinified` 78,500 to 80,500 (79,516,
- * +1,937): the copilot's deps, its input digest and its load beside the other late chunks. New rows, each at its
- * measurement plus a margin: `lateCopilotMinified` 13,900 (12,630 plus 10%: the copilot's seven commands, its
- * records, the agent port's half and the gate); `copilotPanelGzip` 72,800 (58,244 plus 25%, as the phase 5
+ * those figures. First paint 302,781 and 94,604 gzip (+117 and +25: the shell's hook that loads the panel when its
+ * part opens, and clears it on a change of person); the copilot itself is never in it. `kernelMinified`
+ * 115,500 to 116,800 (116,395, +1,016): kernel interface 5's minted options for the agent port, the trace a nested
+ * call inherits, the context fields `late/` adds and the gate in the chain. `lateMinified` 78,500 to 80,500 (79,691,
+ * +2,112): the copilot's deps, its input digest and its load beside the other late chunks. New rows, each at its
+ * measurement plus a margin: `lateCopilotMinified` 13,900 (12,630 plus 10%, 13,128 after the trust review's fixes: the copilot's seven commands, its
+ * records, the agent port's half and the gate); `copilotPanelGzip` 72,800 (58,244 plus 25%, 58,576 after the fixes, as the phase 5
  * specification's 16 sets its rows from a measurement; under its 113 KB, which counted FAST and the spike's
  * harness); and the runtime frame's two chunks, read from `@lushly-dev/loam-copilot`'s `dist/frame/sizes.json`, at
  * 16's 120,000 gzip (95,308 for `anthropic` and `test`, 95,178 for the OpenAI kinds).
