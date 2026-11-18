@@ -486,3 +486,7 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
     assert "kept-fix-a" not in listed and ".removing-" not in listed
     assert str(other) in listed
     git.remove_checkout(kept)  # Already gone: nothing to do.
+    stray = slots / "kept-stray"  # Left unregistered by a crash: removed all the same.
+    stray.mkdir()
+    git.remove_checkout(str(stray))
+    assert not stray.exists()

@@ -591,7 +591,16 @@ class CliGit:
         if not place.exists():
             return
         trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
-        self.run(["git", "worktree", "move", str(place), str(trash)])
+        try:
+            self.run(["git", "worktree", "move", str(place), str(trash)])
+        except WorldError as exc:
+            if "not a working tree" not in str(exc):
+                raise
+            # Left behind unregistered (a crash mid-move): git has nothing to forget.
+            try:
+                place.rename(trash)
+            except OSError as again:
+                raise WorldError(f"Cannot move {path} aside to remove it: {again}") from again
         _remove_detached(self.target, trash)
 
     _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
