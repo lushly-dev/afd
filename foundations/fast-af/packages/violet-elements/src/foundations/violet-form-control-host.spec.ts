@@ -171,7 +171,7 @@ describe("form control hosts", () => {
             `<violet-text-field label="Name"></violet-text-field>`
         );
         const received: Array<{ value?: string }> = [];
-        host.addEventListener("input", event => received.push((event as CustomEvent).detail));
+        host.addEventListener("input", (event: Event) => received.push((event as CustomEvent).detail));
 
         await userEvent.type(inner(host, "input"), "Ba");
 
