@@ -433,6 +433,8 @@ impl CommandHandler for Tagged {
 
 /// A schema generated with nested types (schemars, for one) keeps them in `$defs` or
 /// `definitions`; their references resolve against the envelope, so both move there.
+/// `returns` (a [`JsonSchema`]) cannot carry `$ref` or `$defs`, so the server never emits them
+/// itself today: this checks the public helper, against results a real `tools/call` sends.
 #[tokio::test]
 async fn nested_definitions_move_to_the_envelope_and_real_results_validate() {
     let named = json!({
