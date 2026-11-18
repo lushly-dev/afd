@@ -28,7 +28,7 @@ or `dist/loam-theme.json`.
 
 ## Color, light / dark / high contrast
 
-AFD's theme, Refined (D154): the AFD site's design system. The primitives are
+AFD's theme, Refined (D159): the AFD site's design system. The primitives are
 the site's colors under its names (`--afd-ink-soft` is `ref.color.ink.soft`),
 with the tints and shades Refined added marked in `src/tree/primitives.ts`.
 
@@ -86,7 +86,7 @@ Some ids are aliases, so they follow the theme:
 The pairs are listed in `src/pairs.ts`. Translucent colors are measured drawn
 over their background, drawn over `color.surface.page`; a field's pairs over
 each of page, card, subtle and floating. A read-only field's line is
-`color.border.strong` and its placeholder `color.text.secondary` (D154).
+`color.border.strong` and its placeholder `color.text.secondary` (D159).
 
 ## Type
 

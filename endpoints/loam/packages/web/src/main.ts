@@ -9,7 +9,7 @@ import { mountShell, parseRoute, renderNotice, type ShellIdentity } from '@lushl
 import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
 import { readBoot } from '@lushly-dev/loam-manifest';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
-// The theme's typefaces (D154), served with the shell: a stylesheet of `@font-face` rules the build
+// The theme's typefaces (D159), served with the shell: a stylesheet of `@font-face` rules the build
 // links from `index.html`, and the woff2 files beside it, since Loam loads nothing from another origin.
 import '@lushly-dev/loam-theme/loam-fonts.css';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
@@ -162,6 +162,8 @@ async function boot(): Promise<void> {
 		listsApps: read.apps.length > 0,
 		base,
 		...(shown ? { identity: shown } : {}),
+		// No `copilot` yet: a deployment names no provider before phase 5's step 2 (`[copilot]`), which passes it, with
+		// the frame's runner, so the shell's panel part keeps its empty state until then.
 	});
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).
 	if (provider)

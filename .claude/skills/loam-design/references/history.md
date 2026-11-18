@@ -185,7 +185,7 @@ The values above landed, for the theme and the components together:
 - **2026-11-12. Brief before writing markup (Component Briefs, step C5).** Call `components-brief` from the
   repository's `umbel` MCP server before writing Loam markup with `violet-*` components; `design.md` wins
   where the brief and Loam's rules differ.
-- **2026-11-17. AFD's theme, Refined (D154, #1430).** The theme's values were the palette the
+- **2026-11-17. AFD's theme, Refined (D159, #1430).** The theme's values were the palette the
   components were first drawn in, Lushly's (oat, tomato, sage, Montserrat). They become AFD's own, Refined,
   from the AFD site's design system, approved by the owner on the site's review pages: ink on paper, mint for
   what is chosen, blue focus, fields toward the base with an inner cut, a soft mint on a selected checkbox,

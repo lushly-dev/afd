@@ -1214,7 +1214,11 @@ and "The Sandbox MUST have ... `allow-scripts`, `allow-same-origin`". D62 follow
   sandbox origin after `deployment write`. `script-src` and `connect-src` do not change.
 - **`frame-ancestors`.** A deployer serves `sandbox/` with `Content-Security-Policy:
   frame-ancestors <shell origin>`. The Chromium suite's server does. A `<meta>` cannot set
-  it, and phase 6's distribution documents it.
+  it, and phase 6's distribution documents it. Every file under `sandbox/copilot/` takes
+  the copilot frame's policy in its place ([phase 5's 3.2](../5-copilot/spec.md#32-where-the-runtime-runs-and-its-ports-the-trust-boundary)):
+  `default-src 'none'; script-src <sandbox origin>/sandbox/copilot/; worker-src blob:;
+  connect-src 'none'; frame-ancestors <shell origin>`, which `loam-host`'s
+  `copilotFramePolicy` builds.
 
 ### 6.2 The view protocol
 

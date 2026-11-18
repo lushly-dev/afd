@@ -1,5 +1,5 @@
 /*
- * The typefaces of AFD's theme (D154), shipped with Loam because Loam runs locally and loads
+ * The typefaces of AFD's theme (D159), shipped with Loam because Loam runs locally and loads
  * nothing from another origin: Inter for the interface (400, 500, 600), Space Grotesk for headings
  * (600, the title weight) and IBM Plex Mono for code and a command's name (400, 500). Latin subset
  * only, woff2 only; other scripts fall back to the system faces in each token's stack. Each family

@@ -82,7 +82,7 @@ never mix two steps, never `weight.light` in the chrome. Density does not change
 Grotesk) for title steps, `font.family.mono` (IBM Plex Mono) for code; read
 the ids, never a literal stack. Loam ships the faces (`loam-fonts.css`).
 
-The theme is AFD's, Refined (D154), from the AFD site's design system: ink on
+The theme is AFD's, Refined (D159), from the AFD site's design system: ink on
 paper, mint for what is chosen, blue focus, rounded buttons and fields. The
 palette the components were first drawn in is Lushly's and lives in Lushly.
 
@@ -98,7 +98,7 @@ palette the components were first drawn in is Lushly's and lives in Lushly.
 - **The resting field border meets 3:1** (decided 2026-11-01, landed in
   #645): it is the field's only boundary. The shared field components draw
   it from `color.field.border`; values in
-  [references/history.md](references/history.md). Refined (D154) draws it as
+  [references/history.md](references/history.md). Refined (D159) draws it as
   the field's top inner line, stone-500, 3:1 on the white field. A read-only
   field draws its line in `color.border.strong` and its placeholder in
   `color.text.secondary`, which hold on every surface; field pairs are

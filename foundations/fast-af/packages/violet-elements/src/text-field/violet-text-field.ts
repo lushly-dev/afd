@@ -76,7 +76,7 @@ const styles = css`
     /*
      * A read-only field's fill is a wash of the text colour, too light behind the resting border
      * and the placeholder: its top line takes the strong border and its placeholder the secondary
-     * text, so both keep their contrast on every surface (Loam's D154).
+     * text, so both keep their contrast on every surface (Loam's D159).
      */
     :host([readonly]) {
         --_field-border: var(--_field-border-readonly);

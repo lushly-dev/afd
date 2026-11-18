@@ -56,6 +56,7 @@ add_library(
     src/approval.cpp
     src/batch.cpp
     src/batch_execution.cpp
+    src/bootstrap.cpp
     src/command.cpp
     src/context_fields.cpp
     src/contexts.cpp
@@ -113,7 +114,7 @@ if(AFD_BUILD_MCP_STDIO)
         message(FATAL_ERROR "AFD_BUILD_MCP_STDIO needs AFD_ENABLE_THREADS: the server reads "
                             "cancellations on a thread of its own")
     endif()
-    add_library(afd_mcp_stdio src/mcp_stdio/server.cpp)
+    add_library(afd_mcp_stdio src/mcp_stdio/server.cpp src/mcp_stdio/tools.cpp)
     add_library(afd::mcp_stdio ALIAS afd_mcp_stdio)
     set_target_properties(afd_mcp_stdio PROPERTIES EXPORT_NAME mcp_stdio)
     target_include_directories(afd_mcp_stdio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

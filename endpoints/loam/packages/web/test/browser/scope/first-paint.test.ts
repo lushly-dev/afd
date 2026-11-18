@@ -81,7 +81,7 @@ async function firstPaint(
 ) {
 	const opened = await openPage(browser, `${site.origin}${path}`, {}, context);
 	// A typeface loads when text first needs its weight, before the mark or after it, so the fonts are left
-	// out: what is compared is the chunks (D154; `budget` measures the fonts in a row of their own).
+	// out: what is compared is the chunks (D159; `budget` measures the fonts in a row of their own).
 	const paths = (await measureFirstPaint(opened.page)).filter((path) => !/\.woff2$/.test(path));
 	await then?.(opened.page);
 	const bytes = Object.fromEntries(

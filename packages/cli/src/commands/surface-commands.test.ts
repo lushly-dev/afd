@@ -101,7 +101,13 @@ describe('surface commands from a real server', () => {
 			jsonSchema: { type: 'object', properties: { title: { type: 'string' } } },
 		});
 		expect(set.expandedGroups).toEqual(['todo']);
-		expect(set.skippedBuiltins.sort()).toEqual(['afd-batch', 'afd-call', 'afd-detail', 'afd-pipe']);
+		expect(set.skippedBuiltins.sort()).toEqual([
+			'afd-batch',
+			'afd-call',
+			'afd-detail',
+			'afd-discover',
+			'afd-pipe',
+		]);
 		expect(set.discovered).toBe(false);
 
 		const result = validateCommandSurface(set.commands);
@@ -115,7 +121,13 @@ describe('surface commands from a real server', () => {
 		expect(set.commands.map((command) => command.name)).toEqual(['todo-create', 'todo-get']);
 		expect(set.commands[1]).toMatchObject({ category: 'todo' });
 		expect(set.expandedGroups).toEqual([]);
-		expect(set.skippedBuiltins.sort()).toEqual(['afd-batch', 'afd-call', 'afd-pipe']);
+		expect(set.skippedBuiltins.sort()).toEqual([
+			'afd-batch',
+			'afd-call',
+			'afd-detail',
+			'afd-discover',
+			'afd-pipe',
+		]);
 		expect(misattributed(set.commands)).toEqual([]);
 	});
 

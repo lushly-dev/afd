@@ -1,5 +1,5 @@
 /**
- * The theme overrides (2.2). Dark is Refined's dark (D154): the AFD site's ink field and its deep
+ * The theme overrides (2.2). Dark is Refined's dark (D159): the AFD site's ink field and its deep
  * greens, paper text, mint for what is chosen and for focus, opaque deep tints behind messages,
  * fields that go toward black, and washes of paper for the second action. High contrast is Loam's:
  * neutral surfaces, 7:1 text, 3:1 non-text and focus ring, a 3px focus width and shadows replaced
@@ -42,7 +42,7 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.action.secondary.pressed', value: 'rgba(244, 240, 234, 0.17)' },
 	{ id: 'color.state.success.background', value: c('green.900') },
 	{ id: 'color.state.success.text', value: c('mint') },
-	// Mint, as the success text: light's mint ink does not show on the dark surfaces (D154).
+	// Mint, as the success text: light's mint ink does not show on the dark surfaces (D159).
 	{ id: 'color.state.success.foreground', value: c('mint') },
 	{ id: 'color.state.warning.background', value: c('amber.950') },
 	{ id: 'color.state.warning.text', value: c('amber.200') },
@@ -111,7 +111,7 @@ export const HIGH_CONTRAST_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.state.danger.text', value: c('contrast.red') },
 	{ id: 'color.state.danger.border', value: c('contrast.red') },
 	// The three ids of #659 carried Lushly's light values into high contrast; they take its own
-	// neutral grey and 7:1 red and green (D154).
+	// neutral grey and 7:1 red and green (D159).
 	{ id: 'color.state.danger.foreground', value: c('contrast.red') },
 	{ id: 'color.state.success.foreground', value: c('contrast.green') },
 	{ id: 'color.surface.pressed', value: c('grey.100') },

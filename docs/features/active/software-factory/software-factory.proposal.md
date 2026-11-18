@@ -164,7 +164,7 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 
 | Event | Meaning | The foreman's action |
 |---|---|---|
-| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
+| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed`, `review-unverified`, `node-missing` (its own `.nvmrc` names a Node the lane host lacks) | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
 | `ejection-limit` | A branch reached `cells.maxEjections` (counted by the lane, not an agent) | `cell-park` it with the diagnosis, or `lane-drop` it |
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
@@ -288,7 +288,8 @@ host the lane validates several branches at once while still merging one at a ti
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
-  wholly on one plan; only the foreman crosses providers. Routes come from
+  wholly on one plan, a Claude plan since 2026-11-17, except for the second reviewer
+  on its first review. Routes come from
   [model routing](../../../operations/model-routing.md).
 - Starting a cell is reserve, then start: `cell-register` claims the issue and assigns the
   plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell

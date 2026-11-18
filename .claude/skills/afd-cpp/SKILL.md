@@ -260,8 +260,8 @@ TEST_CASE("todo-create validates and stamps metadata") {
 ## What C++ Does Not Have
 
 The full list is in [docs/language-parity.md](../../../docs/language-parity.md); `alfred parity` budgets the missing names (`alfred/tests/test_parity.py`). What a caller trips over:
-- **No MCP client, JSON-RPC types, meta-tools or bootstrap commands** (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`). The only MCP server is the opt-in `afd::mcp_stdio` (stdio, individual tools and the context tools; #1451 adds the rest); other transports live in hosts.
+- **No MCP client or JSON-RPC types.** The only MCP server is the opt-in `afd::mcp_stdio`: stdio, the individual, grouped (default) and lazy strategies, the meta-tools, the context tools and the bootstrap commands. No hybrid strategy yet (#1202). Other transports live in hosts.
 - **No retry, rate-limit or telemetry middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
-- **`output_schema` and `prerequisites` are stored but never emitted.**
+- **`output_schema` is stored but never emitted, and `prerequisites` only as `requires` in tool `_meta` and `afd-help`.**
 - **The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.** Rust's whole-schema path accepts `const`; C++ does not.
 - **By design:** pipeline conditions stay validated JSON (no typed condition structs), `CancellationSource` replaces timeout controllers, and there is no `createCommandRegistry`.

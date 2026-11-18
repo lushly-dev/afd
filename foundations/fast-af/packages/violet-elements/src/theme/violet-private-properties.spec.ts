@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-declare global {
-    interface ImportMeta {
-        glob(patterns: string[], options: { query: string; import: string; eager: true }): Record<string, unknown>;
-    }
-}
-
 // Every source file the package ships: specs, stories and the generated theme data set no styles.
 const sources = import.meta.glob(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
     query: "?raw",

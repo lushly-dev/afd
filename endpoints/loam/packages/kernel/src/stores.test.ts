@@ -26,9 +26,9 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from './testing.js';
-import type { LoamKernelV3, WorkspaceAppV1 } from './types.js';
+import type { LoamKernelV5, WorkspaceAppV1 } from './types.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -315,7 +315,7 @@ describe('P2-E10: the workspace store across boots', () => {
 
 	it('lets no call made while stage B applies run beside it: a workspace-app-set waits, and keeps its write', async () => {
 		const inner = new MemoryAdapter();
-		let kernel: LoamKernelV3 | undefined;
+		let kernel: LoamKernelV5 | undefined;
 		let during: Promise<{ success: boolean; error?: { code: string } }> | undefined;
 		// Made while the apply's handler writes its first record, after stage B has read the late commands.
 		const store = Object.assign(Object.create(inner), {

@@ -92,7 +92,7 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
   the title steps' (the dialog's title, the text component's title variants);
   `font.family.mono`, IBM Plex Mono, is for code, a command's name and the
   console's output. Every Loam element reads the ids, never a literal stack.
-  Loam ships the faces (D154): `@lushly-dev/loam-theme`'s `fonts/`, latin
+  Loam ships the faces (D159): `@lushly-dev/loam-theme`'s `fonts/`, latin
   woff2 under the SIL Open Font License 1.1, Inter 400, 500 and 600, Space
   Grotesk 600 and IBM Plex Mono 400 and 500, which `loam-web` links through
   `loam-fonts.css`. Bold (700) uses the heaviest file of each family (Inter's
@@ -119,7 +119,7 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 | Handles | `shell.color.handle.{rest,hover,active}` | The resize handles between parts; aliases of `color.border.subtle`, `color.border.strong` and `color.focus.ring` |
 | Elevation | `shadow.control`, `shadow.card`, `shadow.floating`, `shadow.well` | Raised controls, cards, floating layers; a field's inner cut |
 
-Values, light / dark / high contrast. They are AFD's theme, Refined (D154),
+Values, light / dark / high contrast. They are AFD's theme, Refined (D159),
 from the AFD site's design system: the primitives are the site's colors under
 its names, with the tints Refined added marked in `src/tree/primitives.ts`.
 
@@ -162,7 +162,7 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
 | Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` on both field backgrounds; `color.field.placeholder` on the editable fill and `color.text.secondary` (a read-only field's placeholder) on the read-only fill, each over page, card, subtle and floating; `color.state.danger.foreground`, error text in several components, on page, card, subtle and floating; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
-| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (on the read-only fill, `color.border.strong` in place of `color.field.border`; field pairs over page, card, subtle and floating; D154); `color.state.success.foreground` and `color.state.danger.foreground`, a message's icon, on their state background and on page; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
+| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (on the read-only fill, `color.border.strong` in place of `color.field.border`; field pairs over page, card, subtle and floating; D159); `color.state.success.foreground` and `color.state.danger.foreground`, a message's icon, on their state background and on page; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
 | Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
 `pairs.ts` is the list; a component that relies on a pair it does not hold
@@ -179,12 +179,12 @@ drawn over its background, which is drawn over `color.surface.page`.
   [history](#history) on 2026-11-01: it identifies the field, so it meets
   3:1 in every theme, and so does the invalid border. The theme and the
   eight field components changed together in [#645](https://github.com/lushly-dev/afd/pull/645).
-  Refined (D154) draws it as the field's top inner line in stone-500, 3:1 on
+  Refined (D159) draws it as the field's top inner line in stone-500, 3:1 on
   the white field and on dark's fields. A read-only field's fill is a wash of ink, too light behind it (2.64:1 in
   light on the page, 2.28:1 in dark on the subtle surface), so
   `violet-text-field` and `violet-text-area` draw a read-only field's line in
   `color.border.strong` and its placeholder in `color.text.secondary`; both
-  meet their floors over every surface a field sits on, in every theme (D154). A field's pairs
+  meet their floors over every surface a field sits on, in every theme (D159). A field's pairs
   are measured over page, card, subtle and floating, since its fill can be
   translucent.
 - **High contrast** is a light scheme on neutral colors: white surfaces with
@@ -792,7 +792,7 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   ([Briefs on the shared components](#briefs-on-the-shared-components)); this document wins where the brief
   and Loam's rules differ.
 
-- **2026-11-17. AFD's theme, Refined (D154, [#1430](https://github.com/lushly-dev/afd/issues/1430)).** The
+- **2026-11-17. AFD's theme, Refined (D159, [#1430](https://github.com/lushly-dev/afd/issues/1430)).** The
   theme's values were the palette the components were first drawn in, Lushly's (oat, tomato, sage,
   Montserrat). They become AFD's own, Refined, from the AFD site's design system, approved by the owner on
   the site's review pages: ink on paper, mint for what is chosen, blue focus, fields toward the base with an

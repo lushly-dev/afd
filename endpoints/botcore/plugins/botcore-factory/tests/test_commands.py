@@ -148,6 +148,37 @@ async def test_registering_claims_the_issue_and_assigns_the_roomiest_plan(make_r
     assert data["dispatchable"] == [201] and [s["number"] for s in data["staleClaims"]] == [208]
 
 
+async def test_a_package_the_foreman_names_shares_one_cell(make_run):
+    run = make_run("backlog", dials={"cells.issuesMax": 2})
+    result = await run.call(
+        "cell_register",
+        branch="fix/timeouts",
+        issues=[206, 201],
+        route="sol/high",
+        related_because="  Both change the timeout handling in server.ts  ",
+    )
+    assert result.success, result.error
+    cell = result.data["cell"]
+    assert cell["issues"] == [206, 201]
+    assert cell["relatedBecause"] == "Both change the timeout handling in server.ts"
+    for number in (206, 201):
+        issue = next(i for i in run.world_data()["issues"] if i["number"] == number)
+        assert "status:in-progress" in issue["labels"]
+    [record] = run.store.read_records()
+    assert record["issues"] == [206, 201]
+    assert record["relatedBecause"] == "Both change the timeout handling in server.ts"
+
+
+async def test_one_issue_records_no_package_reason(make_run):
+    run = make_run("backlog")
+    result = await run.call(
+        "cell_register", branch="fix/one", issues=[206], route="r", related_because="unused"
+    )
+    assert result.success, result.error
+    assert "relatedBecause" not in result.data["cell"]
+    assert "relatedBecause" not in run.store.read_records()[0]
+
+
 async def test_registering_answers_open_queue_room_events(make_run):
     run = make_run(events=[{"id": "ev-1", "type": "queue-room", "open": True}])
     assert (await run.call("cell_register", branch="fix/a", issues=[101], route="r")).success
@@ -167,7 +198,21 @@ REFUSALS = [
         {"dials": {"cells.issuesMax": 2}},
         {"branch": "fix/two", "issues": [201, 206]},
         "TOO_MANY_ISSUES",
-        "related",
+        "related_because",
+    ),
+    (
+        "backlog",
+        {"dials": {"cells.issuesMax": 2}},
+        {"branch": "fix/blank", "issues": [201, 206], "related_because": "  "},
+        "TOO_MANY_ISSUES",
+        "related_because",
+    ),
+    (
+        "backlog",
+        {"dials": {"cells.issuesMax": 2}},
+        {"branch": "fix/three", "issues": [201, 206, 101], "related_because": "shared files"},
+        "TOO_MANY_ISSUES",
+        "cells.issuesMax",
     ),
     (
         "backlog",
@@ -241,8 +286,66 @@ async def test_a_failed_claim_write_records_no_cell(make_run):
     host = run.host(**failing(run, "add_comment"))
     result = await run.call("cell_register", host, branch="fix/w", issues=[201], route="r")
     assert result.error.code == "WRITE_FAILED"
-    assert "#201 labelled status:in-progress" in result.error.message
+    assert "put back" in result.error.message
+    issue = next(i for i in run.world_data()["issues"] if i["number"] == 201)
+    assert "status:planned" in issue["labels"] and "status:in-progress" not in issue["labels"]
     assert all(cell["branch"] != "fix/w" for cell in run.state()["cells"])
+
+
+class CommentFailsOn(FixtureGitHub):
+    """The fixture's GitHub, failing only the claim comment on one issue."""
+
+    def __init__(self, store, number):
+        super().__init__(store)
+        self.number = number
+
+    def add_comment(self, number, body):
+        if number == self.number and "botcore-factory:claim" in body:
+            raise WorldError("gh add_comment failed: HTTP 502")
+        return super().add_comment(number, body)
+
+
+async def test_a_package_that_fails_on_its_second_issue_puts_the_first_back(make_run):
+    run = make_run("backlog", dials={"cells.issuesMax": 2})
+    host = run.host(github=CommentFailsOn(FixtureWorld(run.world_path), 201))
+    result = await run.call(
+        "cell_register",
+        host,
+        branch="fix/pair",
+        issues=[206, 201],
+        route="r",
+        related_because="shared files",
+    )
+    assert result.error.code == "WRITE_FAILED"
+    assert "put back" in result.error.message and result.error.details["left"] == []
+    for number in (206, 201):
+        issue = next(i for i in run.world_data()["issues"] if i["number"] == number)
+        assert "status:planned" in issue["labels"] and "status:in-progress" not in issue["labels"]
+    assert all(cell["branch"] != "fix/pair" for cell in run.state()["cells"])
+    # Nothing is left claimed, so the package registers once GitHub answers again.
+    retry = await run.call(
+        "cell_register", branch="fix/pair", issues=[206, 201], route="r", related_because="x"
+    )
+    assert retry.success, retry.error
+
+
+async def test_a_refused_package_claims_none_of_its_issues(make_run):
+    run = make_run("backlog", dials={"cells.issuesMax": 2})
+    before = run.snapshot()
+    result = await run.call(
+        "cell_register", branch="fix/mixed", issues=[206, 205], route="r", related_because="x"
+    )
+    assert result.error.code == "ALREADY_CLAIMED"
+    assert run.snapshot() == before
+
+
+async def test_lane_status_shows_why_a_package_shares_its_cell(make_run):
+    run = make_run("backlog", dials={"cells.issuesMax": 2})
+    await run.call(
+        "cell_register", branch="fix/pair", issues=[206, 201], route="r", related_because="x"
+    )
+    cells = (await run.call("lane_status")).data["cells"]
+    assert next(c for c in cells if c["branch"] == "fix/pair")["relatedBecause"] == "x"
 
 
 # lane_status
@@ -289,6 +392,8 @@ async def test_status_of_the_backlog(make_run):
             "plan": "plan-a",
             "route": "sol/high",
             "ejections": 0,
+            "excused": 0,
+            "countedEjections": 0,
             "thread": "thread-7",
         }
     ]

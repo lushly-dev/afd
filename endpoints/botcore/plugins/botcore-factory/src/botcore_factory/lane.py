@@ -17,16 +17,22 @@ a fixture world and a fake clock. Each step, in order:
    only in files the adapter's ``regenerate`` names are written again by its command and the
    merge committed: lushly-dev/afd#1410), then runs one background
    job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
-   ``.nvmrc`` names (missing, it is the lane's trouble);
+   ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
+   ``.nvmrc``, and is the lane's trouble when the ``.nvmrc`` is the base's own);
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
 A validated head is pushed by commit from its validation checkout, so a slot is free for the
-next branch once the push finished. What ejects a branch is in ``lane_base``. The lane
-never edits code.
+next branch once the push finished. A validated branch behind the front gives its slot to a
+front branch that needs one: its checkout moves aside with its validation (``slot-released``),
+and the base checks at the front decide whether it runs again (lushly-dev/afd#1452). What
+ejects a branch is in ``lane_base``. The lane never edits code.
 """
 
 from __future__ import annotations
+
+import hashlib
+import re
 
 from botcore_factory import job
 from botcore_factory.adapter import matches
@@ -37,7 +43,7 @@ from botcore_factory.lane_base import (
     first_lines,
     log_path,
 )
-from botcore_factory.lane_coverage import Coverage
+from botcore_factory.lane_coverage import Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
 from botcore_factory.runtime import Factory
 from botcore_factory.world import MergeOutcome, WorldError
@@ -63,6 +69,7 @@ class Step(Merging, Coverage):
             if not self.lane.get("paused"):
                 self.queue_held()
                 self.advance_front()
+                self.sweep_kept()
                 if not self.lane.get("stopRequested"):
                     self.start_validations()
                 self.start_coverage()
@@ -146,7 +153,10 @@ class Step(Merging, Coverage):
                 # A front entry requeued after a base change (or a repaired entry) must
                 # not deadlock behind later entries reserving every completed slot.
                 later = self.state["queue"][self.state["queue"].index(entry) + 1 :]
-                reserved = next((e for e in reversed(later) if e["state"] == "validated"), None)
+                reserved = next(
+                    (e for e in reversed(later) if e["state"] == "validated" and e.get("slot")),
+                    None,
+                )
                 if reserved is None:
                     return
             if not self.config.validate_command:
@@ -156,10 +166,56 @@ class Step(Merging, Coverage):
                 continue
             if reserved is not None:
                 free.append(reserved["slot"])
-                self.requeue(reserved, "slot-needed", front=False)
+                self.release_slot(reserved)
             slot = free.pop(0)
             if not self.start_validation(entry, slot):
                 free.insert(0, slot)  # Ejected before it ran: the next branch takes the slot.
+
+    def release_slot(self, entry: dict) -> None:
+        """Give a validated entry's slot to the front of the queue, keeping its validation
+        (lushly-dev/afd#1452).
+
+        Its checkout moves aside to the lane checkout ``kept-<branch>-<hash>`` with the git
+        directory that holds the validation's record, so the validated head is still pushed from
+        where it passed; the entry keeps state ``validated`` and its base, and the base checks at
+        the front decide whether it runs again. When the checkout cannot move, the validation is
+        given up as before (``rerun``, ``slot-needed``).
+        """
+        slot, branch = entry["slot"], entry["branch"]
+        # A short hash of the branch keeps a/b and a-b apart.
+        digest = hashlib.sha256(branch.encode("utf-8")).hexdigest()[:8]
+        name = f"kept-{re.sub(r'[^A-Za-z0-9._-]+', '-', branch).strip('-')}-{digest}"
+        try:
+            path = self.world.git.park_slot(slot, name)
+        except WorldError as exc:
+            self.requeue(entry, "slot-needed", front=False, detail=f"its checkout stayed: {exc}")
+            return
+        entry.pop("slot")
+        entry["path"] = path
+        kept = self.lane.setdefault("keptCheckouts", [])
+        if path not in kept:
+            kept.append(path)
+        self.record("slot-released", branch=branch, attempt=entry["attempt"], slot=slot, path=path)
+        self.actions.append(f"released slot {slot} from {branch}; its validation is kept")
+
+    def sweep_kept(self) -> None:
+        """Remove the kept checkouts no validated entry still needs (pushed, merged, ejected,
+        dropped or validated again); one that cannot be removed is tried again next step."""
+        kept = self.lane.get("keptCheckouts")
+        if not kept:
+            return
+        needed = {
+            entry.get("path") for entry in self.state["queue"] if entry.get("state") == "validated"
+        }
+        for path in list(kept):
+            if path in needed:
+                continue
+            try:
+                self.world.git.remove_checkout(path)
+            except WorldError as exc:
+                self.actions.append(f"kept checkout {path} not removed yet: {exc}")
+                continue
+            kept.remove(path)
 
     def start_validation(self, entry: dict, slot: str) -> bool:
         """Start validating ``entry`` in ``slot``; False when it was ejected instead."""
@@ -185,11 +241,11 @@ class Step(Merging, Coverage):
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
+        steps = self.validation_steps(entry, path, base)
+        if steps is None:
+            return False
         handle = self.world.processes.start_job(
-            self.job_steps("validate", self.config.validate_command, path),
-            cwd=path,
-            log=self.absolute(log),
-            label="validate",
+            steps, cwd=path, log=self.absolute(log), label="validate"
         )
         entry.update(
             state="validating",
@@ -217,6 +273,19 @@ class Step(Merging, Coverage):
             self.actions.append(f"regenerated {', '.join(regenerated)} for {branch}")
         self.actions.append(f"validating {branch} in slot {slot}")
         return True
+
+    def validation_steps(self, entry: dict, path: str, base: str) -> list[dict] | None:
+        """The validation job's steps, on the Node the merged slot's ``.nvmrc`` names. That Node
+        missing ejects the branch as ``node-missing`` when the branch changed ``.nvmrc``; when
+        the ``.nvmrc`` is the base's own, no branch is to blame, and the lane pauses
+        (lushly-dev/afd#1352). None when the branch was ejected."""
+        try:
+            return self.job_steps("validate", self.config.validate_command, path)
+        except NodeUnavailable as unavailable:
+            if ".nvmrc" not in self.world.git.changed_files(path, base):
+                raise
+            self.eject(entry, "node-missing", unavailable.for_branch())
+            return None
 
     def regenerable(self, conflicts: tuple[str, ...]) -> bool:
         """Whether every conflicting path is a file the adapter's ``regenerate`` writes."""

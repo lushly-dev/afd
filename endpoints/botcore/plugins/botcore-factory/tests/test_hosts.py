@@ -18,6 +18,7 @@ EVERY = sorted(
         "cell_register",
         "dial_get",
         "dial_set",
+        "ejection_excuse",
         "event_resolve",
         "foreman_handoff",
         "gate_allow",

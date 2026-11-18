@@ -74,7 +74,7 @@ describe("Loam's Violet tree", () => {
 			expect(entry.property).toBe(cssProperty(id));
 	});
 
-	it("gives light and dark AFD's Refined values (D154)", () => {
+	it("gives light and dark AFD's Refined values (D159)", () => {
 		const light = themeNode('light');
 		expect(value(light, 'color.surface.page')).toBe('#f4f0ea');
 		expect(value(light, 'color.action.primary.background')).toBe('#181b1a');

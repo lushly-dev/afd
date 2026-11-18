@@ -32,8 +32,9 @@ commands as `(CommandDefinition, serde_json::Value)` pairs, each with the JSON S
 input, over a `TodoStore::new()`; nothing is registered, so a host chooses the registry and
 registers each with `register_with_schema` (Umbel's todo plugin does). Each command records its
 own successful changes in the store's history, so a host keeps `todo-history` without any
-middleware. `app::registry` is the registry the binary serves: the commands, the bootstrap
-commands and the approval hold. The binary, the CLI, the shell and the servers need the `server`
+middleware. `app::registry` is the registry the binary serves: the commands and the approval
+hold; `server::mcp_server` adds the context commands, then the bootstrap commands, as
+TypeScript's server orders them. The binary, the CLI, the shell and the servers need the `server`
 feature, which is on by default; without it (`--no-default-features`) the crate depends on `afd`
 without its `server` feature and on neither `axum` nor `tower-http`.
 
@@ -196,8 +197,8 @@ curl -X POST http://127.0.0.1:3100/mcp \
 ```
 src/
 ├── main.rs          # CLI: server, stdio, shell, list-commands, single commands
-├── app.rs           # The registry the binary serves: commands, bootstrap, approval hold; contexts
-├── server.rs        # The MCP server; HTTP: the afd endpoint, Host/Origin checks, CORS, body limit
+├── app.rs           # The registry the binary serves: commands, approval hold; contexts
+├── server.rs        # The MCP server (contexts, then bootstrap); HTTP: the afd endpoint, Host/Origin checks, CORS, body limit
 ├── server/tests.rs  # HTTP tests
 ├── store.rs         # In-memory store: live and deleted todos, the change history
 ├── types.rs         # Todo, stats and sort types

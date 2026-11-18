@@ -1,5 +1,5 @@
 /**
- * @fileoverview Kernel interface version 3 (phase 3 specification, 12), and versions 2 (phase 2
+ * @fileoverview Kernel interface version 5 (phase 5 specification, 3.2), version 3 (phase 3 specification, 12), and versions 2 (phase 2
  * specification, 11.1), 1 (phase 1 specification, 9.1) and 0 (phase 0 specification, 6.2), which it
  * extends: the only surface the chrome binds to.
  */
@@ -34,6 +34,7 @@ import type {
 	ScopeV1,
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
+import type { CopilotOptionsV1, CopilotTraceV1 } from './copilot/types.js';
 import type { ShellKeybindingV0 } from './keybindings.js';
 import type { MembershipV1 } from './scope/access.js';
 import type { ProjectV1, ScopeChangeV2 } from './scope/records.js';
@@ -50,7 +51,11 @@ export type {
 } from './scope/records.js';
 export type { IdentityV1, ScopeV1 };
 
-export const KERNEL_INTERFACE_VERSION = 3;
+/**
+ * Version 5 is phase 5's. Version 4 is phase 4's step 1 (settings), which has not landed: it adds its fields under
+ * its own number when it does, and the shell reports the highest version it implements.
+ */
+export const KERNEL_INTERFACE_VERSION = 5;
 
 export interface LoamKernelV0 {
 	readonly version: 0;
@@ -601,4 +606,40 @@ export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
 	kernelInterface: 3;
 	/** The deployment's identity mode, and its bound organization's slug in `provider` mode (12). */
 	identity: { mode: IdentityV1['mode']; organization: string | null };
+}
+
+// ─── Version 5 ──────────────────────────────────────────────────────────────────
+
+/**
+ * Kernel interface version 5 (phase 5 specification, 3.2): the copilot. A call's options may carry the copilot's
+ * trace, which the kernel reads only from the options object it gave the agent port's half; `copilot` joins the
+ * reserved agent names; and `copilotSession`, `turn` and `trace` are declared context fields, journaled, copied to every
+ * call made while a copilot call runs.
+ */
+export interface LoamKernelV5 extends Omit<LoamKernelV3, 'version' | 'agent' | 'call'> {
+	readonly version: 5;
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: CallOptionsV5
+	): Promise<CommandResult<T>>;
+	readonly agent: Pick<LoamKernelV5, 'call' | 'listCommands'>;
+}
+
+export interface CallOptionsV5 extends CallOptionsV3 {
+	/**
+	 * The copilot's trace. Read only from the options object the kernel made for the agent port's half: on any other
+	 * call it is ignored, so no caller can claim a session or a turn (3.2).
+	 */
+	trace?: CopilotTraceV1;
+}
+
+export interface KernelOptionsV5 extends KernelOptionsV3 {
+	/** The deployment's copilot providers, never a key or an endpoint, and the host's runner (3.2, 4.1). */
+	copilot?: CopilotOptionsV1;
+}
+
+/** What `shell-info-get` returns from version 5. */
+export interface ShellInfoV5 extends Omit<ShellInfoV3, 'kernelInterface'> {
+	kernelInterface: 5;
 }

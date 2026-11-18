@@ -880,7 +880,10 @@ NAME_GAP_BUDGET = {
     # #460 adds client-layer approval hooks; these core-export budgets stay unchanged.
     # D1 (Rust server strategies, meta-tools and contexts) adds Rust-only server and context
     # exports (ContextConfig, ContextStack, register_context_commands, ...): Rust stays at 9.
-    "missing_from_python": 88,
+    # Python 88 → 93, C++ 71 → 76 (Loam phase 5 step 0c): the approval display rules in
+    # TypeScript and Rust (approvalDisplay, ApprovalDisplayRefusal, APPROVAL_DISPLAY_LIMITS,
+    # hidesCharacters, isHiddenCodePoint). Parity tracked in #1466; lower both when it closes.
+    "missing_from_python": 93,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
@@ -890,7 +893,7 @@ NAME_GAP_BUDGET = {
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
     # 76 → 71 (#465): commandResultOutputSchema, in afd/mcp.hpp, closes one gap; the budget had
     # stayed at 76 after the measured count fell to 72 (docs/language-parity.md).
-    "missing_from_cpp": 71,
+    "missing_from_cpp": 76,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

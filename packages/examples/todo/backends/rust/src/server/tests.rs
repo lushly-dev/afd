@@ -244,17 +244,18 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
             .filter_map(|action| action["command"].as_str().map(str::to_string))
             .collect()
     };
-    let bootstrap = commands_of(&tools[5]);
-    for name in [
-        "afd-help",
-        "afd-docs",
-        "afd-schema",
-        "afd-context-list",
-        "afd-context-enter",
-        "afd-context-exit",
-    ] {
-        assert!(bootstrap.iter().any(|c| c == name), "{name}: {bootstrap:?}");
-    }
+    // The context commands, then the bootstrap commands, as TypeScript orders them.
+    assert_eq!(
+        commands_of(&tools[5]),
+        [
+            "afd-context-list",
+            "afd-context-enter",
+            "afd-context-exit",
+            "afd-help",
+            "afd-docs",
+            "afd-schema",
+        ]
+    );
     let actions = tools[4]["_meta"]["actions"].as_array().expect("actions");
     let commands: Vec<&str> = actions
         .iter()

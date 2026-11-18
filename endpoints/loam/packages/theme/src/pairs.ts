@@ -106,7 +106,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	// The danger foreground is error text in many components (a time picker's or a tree's error, a
 	// field's message), so it is held as text wherever a field sits.
 	...on(['color.state.danger.foreground'], FIELD_SURFACES, 'text'),
-	// A message's icon, on its own background and on the page (D154).
+	// A message's icon, on its own background and on the page (D159).
 	...(['success', 'danger'] as const).flatMap((state) =>
 		on([`color.state.${state}.foreground`], [`color.state.${state}.background`, PAGE], 'non-text')
 	),
@@ -114,7 +114,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		on(['color.field.text', 'color.field.placeholder'], ['color.field.background'], 'text')
 	),
 	// On the read-only fill over the subtle surface the placeholder is 4.38 in light, so a read-only
-	// field sets its placeholder in `color.text.secondary` (violet-text-field, violet-text-area; D154).
+	// field sets its placeholder in `color.text.secondary` (violet-text-field, violet-text-area; D159).
 	...overSurfaces(
 		on(['color.field.text', 'color.text.secondary'], ['color.field.background.readonly'], 'text')
 	),
@@ -128,7 +128,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		)
 	),
 	// A read-only field's fill is a wash of the text color, too light behind the resting border, so
-	// its top line is `color.border.strong` (violet-text-field, violet-text-area; D154).
+	// its top line is `color.border.strong` (violet-text-field, violet-text-area; D159).
 	...overSurfaces(
 		on(
 			['color.border.strong', 'color.field.border.hover', 'color.field.border.invalid'],

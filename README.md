@@ -422,7 +422,7 @@ npx afd validate --surface
 Surface Validation Results:
 
   Grouped tools expanded into their commands: todo
-  Built-in AFD tools skipped: afd-batch, afd-pipe, afd-call, afd-detail
+  Built-in AFD tools skipped: afd-discover, afd-detail, afd-call, afd-batch, afd-pipe
 
 ℹ INFO (2):
   missing-output-schema: Command "todo-create" has no output schema — agents cannot predict response shape

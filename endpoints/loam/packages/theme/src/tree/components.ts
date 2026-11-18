@@ -5,7 +5,7 @@
  * the export carries too. The first 108 ids and their order are those of `violet-elements`'
  * registry, `registryVersion` 0.1.0.
  *
- * The values are AFD's theme, Refined (D154): the design system of the AFD site, settled on the
+ * The values are AFD's theme, Refined (D159): the design system of the AFD site, settled on the
  * site's review pages and approved by the owner on 2026-11-17. Ink on paper, mint for what is
  * chosen, blue for focus; fields go toward the base (white here) with an inner cut, a soft mint
  * behind a tick or a switch key, greyed tints behind messages; Inter for the interface, Space

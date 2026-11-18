@@ -56,6 +56,7 @@ describe('tool titles', () => {
 	it('give the meta-tools fixed titles and grouped tools none', () => {
 		const grouped = getToolsList(commands, 'grouped');
 		expect(Object.fromEntries(grouped.map((tool) => [tool.name, tool.title]))).toEqual({
+			'afd-discover': 'Discover commands',
 			'afd-batch': 'Run commands in a batch',
 			'afd-pipe': 'Run a command pipeline',
 			'afd-call': 'Call a command',

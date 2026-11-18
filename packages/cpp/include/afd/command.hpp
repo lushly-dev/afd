@@ -22,6 +22,7 @@ namespace detail {
 struct JournalCallState;
 struct DirectApprovalState;
 class McpApprovalRelay;
+class UpFrontApproval;
 struct JournaledContextFields;
 } // namespace detail
 
@@ -95,8 +96,18 @@ struct CommandContext {
     std::shared_ptr<detail::JournalCallState> journal;
     /// Internal approval marker. DirectClient ignores caller-provided markers and evidence.
     std::shared_ptr<detail::DirectApprovalState> direct_approval;
+    /// Set by the MCP server (afd::mcp_stdio) on every call it routes: with `surface` set, a
+    /// command not exposed to it is answered as an unknown one, identically (spec/error-codes.md,
+    /// D4), and the unknown-command suggestion names afd-discover.
+    bool remote = false;
+    /// The MCP server's tool strategy (`individual`, `grouped` or `lazy`), which `afd-help`
+    /// reports as `toolStrategy`. Only the MCP server sets it.
+    std::optional<std::string> tool_strategy;
     /// Internal MCP approval relay (afd::mcp_stdio). Only the MCP server sets it.
     std::shared_ptr<detail::McpApprovalRelay> mcp_approval_relay;
+    /// Internal up-front approval of an afd-batch or afd-pipe (afd::mcp_stdio). Only the MCP
+    /// server sets it, and the approval middleware removes it before a step runs.
+    std::shared_ptr<detail::UpFrontApproval> up_front_approval;
     /// Set by the registry once the call's declared context fields validated: which of them the
     /// journal keeps. Leave it unset. Never recorded or hashed.
     std::shared_ptr<const detail::JournaledContextFields> journaled_fields;

@@ -2,7 +2,9 @@
  * @fileoverview The commands `afd validate --surface` evaluates, read from a
  * remote server's tool listing whatever its tool strategy:
  *
- * - individual: one tool per command;
+ * - individual: one tool per command (TypeScript's and, once #533 reaches them, every
+ *   language's list also carries afd-discover, so the listed commands are completed with it, which
+ *   adds nothing);
  * - grouped: one tool per group, whose `_meta.actions` lists each command;
  * - lazy: no command tools, so commands are listed with afd-discover and afd-detail;
  * - hybrid: a few first-class command tools beside the meta-tools, so the listed commands are
@@ -208,7 +210,9 @@ export async function collectSurfaceCommands(
 				.map((command) => command.name)
 				.filter((name) => !added.some((command) => command.name === name))
 		);
-		set.discovered = true;
+		// Said only when discovery found what the listing did not: every listing now carries
+		// afd-discover, and one that already lists each command gains nothing (#533).
+		set.discovered = lazy || added.length > 0;
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error);
 		set.warnings.push(

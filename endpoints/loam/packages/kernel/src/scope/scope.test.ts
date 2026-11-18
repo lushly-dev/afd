@@ -20,10 +20,10 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from '../testing.js';
-import type { AppSummaryV2, KernelEventV3, LoamKernelV3, ProjectV1, ScopeV1 } from '../types.js';
+import type { AppSummaryV2, KernelEventV3, LoamKernelV5, ProjectV1, ScopeV1 } from '../types.js';
 import { decideAccess, LOCAL_ACTOR, LOCAL_MEMBERSHIP, personKey } from './access.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -689,7 +689,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 
 	/** A session that `setup` left, then a reload whose URL names `initialScope`, on one journal. */
 	async function reloadAfter(
-		setup: (kernel: LoamKernelV3) => Promise<unknown>,
+		setup: (kernel: LoamKernelV5) => Promise<unknown>,
 		initialScope: { project: string | null }
 	) {
 		const store = new MemoryAdapter();

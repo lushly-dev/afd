@@ -3,7 +3,7 @@
  * tokens under `ref.*`, written on the `loam` node so every theme can reference them; semantic
  * tokens reference them, and no export and no component reads them.
  *
- * The colors are AFD's (D154): the design system of the AFD site, `site/css/tokens-m2.css`, under
+ * The colors are AFD's (D159): the design system of the AFD site, `site/css/tokens-m2.css`, under
  * the site's names (`--afd-ink-soft` is `ink.soft`), with the tints and shades the Refined theme
  * added where the site has none, each marked. The high-contrast colors are Loam's own.
  */
@@ -25,7 +25,7 @@ const COLORS: Record<string, string> = {
 	'stone.300': '#bec6bd',
 	'stone.400': '#adb6ab',
 	'stone.500': '#869089',
-	// Added: between stone-400 and stone-500, dark's strong border (D154).
+	// Added: between stone-400 and stone-500, dark's strong border (D159).
 	'stone.450': '#939c95',
 	'stone.600': '#5e6460',
 	'stone.700': '#4d5b50',

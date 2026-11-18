@@ -974,6 +974,27 @@ An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front,
 
 Only the command the tool call routes to can use the relay, once: a command that a handler runs cannot elicit. An accepted approval that has expired or was already used is asked again, and the question says so. `onApprovalRequired` is not called on the relay path, since no token exists.
 
+#### An approver client
+
+A trusted MCP client that shows a person the held action itself, such as an application shell that mounts this server, can carry the person's decision back (`spec/command-metadata.md`, "Approval evidence from an approver client"). Name it with `approver`, a predicate over the call's context after `createContext`:
+
+```typescript
+createMcpServer({
+	name: 'mail',
+	version: '1.0.0',
+	commands,
+	createContext: (_req, { credentials }) => ({ credentials }),
+	approver: (context) => context.credentials?.clientId === 'loam-shell',
+	middleware: [createApprovalMiddleware({ secret, commands })],
+});
+```
+
+- **An approver gets the token:** its `APPROVAL_REQUIRED` results carry `details.approvalToken` whatever `includeToken` says, and the relay never answers it with a form.
+- **It retries one command on MCP 2026-07-28** with the token in `_meta["dev.afd/approval"]` (`AFD_APPROVAL_META_KEY`) and the same input. On `afd-batch`, `afd-pipe` or a 2025-era request the key fails the call with `APPROVAL_REQUIRED` before anything runs.
+- **Its tokens bind its principal binding** (the actor and the credentials' issuer, subject and client), so another client, even of the same person, gets `credentials-mismatch`.
+- **Anyone else's key is ignored,** and the key in tool arguments (or the HTTP routes' input) is refused with `VALIDATION_ERROR`, from every caller.
+- **The approver promises** never to give the token to an agent or a model, and to present it only on a retry a person approved after seeing the action, shown by `approvalDisplay` from `@lushly-dev/afd-core`, which refuses input too large, too deep or hiding characters.
+
 The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. Servers with several instances must share `confirmationKey` and `nonceStore`.
 
 `spec/command-metadata.md` ("Approvals") is the cross-language contract.
@@ -1328,14 +1349,14 @@ const server = createMcpServer({
 
 ## Tool Strategies
 
-`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. `afd-call`, `afd-batch` and `afd-pipe` are listed in every strategy.
+`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. Every strategy lists the five meta-tools first, in this order: `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` ([`spec/tool-strategies.md`](../../spec/tool-strategies.md#tool-lists), #533). Then:
 
-| Strategy | Tools listed |
+| Strategy | Tools listed after the meta-tools |
 |----------|--------------|
-| `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
+| `grouped` (default) | One tool per group. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
 | `individual` | One tool per command, with its full input schema and `_meta` |
-| `lazy` | `afd-discover` and `afd-detail` only |
-| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
+| `lazy` | The context tools when `contexts` are set, and nothing else |
+| `hybrid` | The context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
 
 A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
 
@@ -1371,7 +1392,7 @@ When a group's per-action schemas are small (at most 8,192 characters of JSON, a
 
 ## Lazy Strategy
 
-For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
+For servers with many commands, the `lazy` strategy lists the 5 meta-tools (and the context tools) instead of the commands:
 
 ```typescript
 const server = createMcpServer({
@@ -1579,6 +1600,8 @@ const server = createMcpServer({
 
 - The server sets `traceId`, `signal` and `interface` (`'mcp'`) itself; `createContext` cannot override them.
 - `context.signal` aborts when the client disconnects before the response is finished, on every route, not only streams. Long-running handlers should honor it.
+- A positive finite `context.timeout` (milliseconds, for example from `createContext`) bounds each command's middleware and handler execution. The deadline aborts its signal and returns `TIMEOUT` with a recovery suggestion, even if the handler ignores cancellation. Each batch item and pipeline step gets its own deadline; batch/pipeline options still bound the whole operation. Nonpositive or nonfinite values disable this command deadline. A timed-out mutation may still complete if it already started: check its effect before retrying. Work waiting in middleware cannot start its handler after cancellation or timeout.
+- This deadline boundary belongs to `createMcpServer` and `createMcpHandler`, including `server.execute()`. In-process hosts using `createDirectRegistry` get per-call deadlines through DirectClient; `/direct` alone includes no server deadline machinery.
 - A throw from `createContext` is reported to `onError` and answered as an internal error (`-32603` on JSON-RPC routes, HTTP 500 elsewhere).
 - Pipeline `$input` does not expose these values, so a pipeline cannot copy them into step inputs.
 - stdio has no HTTP request, so `createContext` is not called there.

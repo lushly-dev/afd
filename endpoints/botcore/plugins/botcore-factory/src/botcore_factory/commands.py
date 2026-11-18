@@ -97,20 +97,24 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         route: str,
         thread: str | None = None,
         session: str | None = None,
+        related_because: str | None = None,
     ) -> CommandResult:
         """Claim issues for a new cell on GitHub and assign the cell the plan with most room.
 
         Args:
-            issues: The issue numbers the cell takes; one unless cells.issuesMax allows more.
+            issues: The issue numbers the cell takes; more than one is a package, which needs
+                related_because and a cells.issuesMax that allows the count.
             branch: The cell's branch.
             route: The model route the cell runs on, e.g. sol/high.
             thread: The T3 Code thread, when it is already known (cell-attach records it later).
             session: The foreman's own session (its T3 Code thread id), which holds the lane.
+            related_because: Required with more than one issue: what the package shares, such
+                as the files it edits, so one PR beats separate cells that would conflict.
         """
 
         def body() -> CommandResult:
             foreman.hold(get(), session, "cell-register")
-            cell = cells.register(get(), issues, branch, route, thread)
+            cell = cells.register(get(), issues, branch, route, thread, related_because)
             return success(
                 {"cell": cell},
                 reasoning=f"Claimed {', '.join(f'#{n}' for n in issues)} for {branch} on "
@@ -253,7 +257,8 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(lambda: success(cells.gate_allow(get(), branch, reason)))
 
     async def plan_list() -> CommandResult:
-        """Each plan's weekly window: share used and elapsed, room, and whether it is above
+        """Each plan's weekly window: share used and elapsed, room, pace (room below
+        plans.ceiling per day to its reset; the highest is chosen next) and whether it is above
         plans.ceiling."""
         return await run(lambda: success(status.plan_list(get())))
 

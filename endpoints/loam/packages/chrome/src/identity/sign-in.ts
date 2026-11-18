@@ -8,7 +8,7 @@
  */
 
 import { css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
-import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import { actionButton } from '../apps/action-styles.js';
 import { deepActiveElement } from '../elements/events.js';
 import { trapTab } from '../elements/focus.js';
@@ -183,7 +183,7 @@ export class LoamSignInDialog extends FASTElement {
 	declare busy: boolean;
 	organization = '';
 	methods: readonly string[] = [];
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** Recovery's request and the single sign-on ceremony's start (5.7), the host's. */
 	recover: ((email: string) => Promise<void>) | undefined;
 	recoverWith: ((provider: string) => Promise<void>) | undefined;

@@ -7,9 +7,9 @@ plugin. Commands are argument lists, never shell strings. Intake reads ``labels`
 ``{worktree}`` for the cell's worktree; the lane runs it again from its ``review`` slot at the
 base before each validation, and that run binds) and ``gate_paths``. When the base moves under a
 validated branch, the lane reads ``units``, ``shared_paths`` and ``gate_paths`` to decide whether
-it may advance the branch without validating it again, and ``main_checks`` to watch main after
-such a merge. The other keys are parsed and
-validated now so the lane's later commands find them checked.
+it may advance the branch without validating it again (``revalidate_paths`` past
+``lane.maxBaseReruns``), and ``main_checks`` to watch main after such a merge. The other keys
+are parsed and validated now so the lane's later commands find them checked.
 """
 
 from __future__ import annotations
@@ -148,6 +148,15 @@ class FactoryConfig(BaseModel):
         default_factory=list,
         description="Globs of inputs every unit reads; main changing one means validating again",
     )
+    revalidate_paths: list[str] | None = Field(
+        default=None,
+        description=(
+            "Globs of lockfiles, dependency manifests and toolchain pins: past"
+            " lane.maxBaseReruns, main changing one still means validating again, while main"
+            " changing any other path, workflows and CI gate files among them, lets the required"
+            " check on the merge ref stand in. Unset: every gate_paths change validates again"
+        ),
+    )
     main_checks: list[str] = Field(
         default_factory=list,
         description=(
@@ -194,13 +203,16 @@ class FactoryConfig(BaseModel):
     @field_validator(
         "gate_paths",
         "shared_paths",
+        "revalidate_paths",
         "main_checks",
         "ui_paths",
         "measure_paths",
         "ignore_branches",
     )
     @classmethod
-    def _patterns(cls, value: list[str], info) -> list[str]:
+    def _patterns(cls, value: list[str] | None, info) -> list[str] | None:
+        if value is None:
+            return None
         if any(not isinstance(item, str) or not item.strip() for item in value):
             raise ValueError(f"{info.field_name} entries must be non-empty strings")
         return value

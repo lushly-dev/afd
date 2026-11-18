@@ -12,8 +12,8 @@ Complete issue(s) #<n>: <acceptance>. Route: <model/effort>.
 First: git fetch origin '+refs/heads/main:refs/remotes/origin/main', then
 git switch -c <branch> origin/main, and start-session. The lane has claimed the issues;
 never claim, push, open a PR, run the full pnpm verify or merge: the lane does.
-Own the work without phase approvals: implementation, an independent review on your own
-provider's routes (wait for it in this turn: a turn that ends reads as the cell finishing),
+Own the work without phase approvals: implementation, independent review as prepare-pr's
+step 2 says, two reviewers first, one per provider (wait for them in this turn: a turn that ends reads as the cell finishing),
 and repairs. Then run prepare-pr in lane mode: it records the review with
 scripts/review-record.mjs and enqueues with a title and body through factory-cell. End your
 turn once the branch is queued (or held); you are resumed only if it is ejected.
@@ -33,7 +33,7 @@ fails, say so in the report; never create a cell's checkout in the shell.
 
 ## Events
 
-When `main` moves under a validated branch, the lane advances the branch to the new `main` without validating it again if `main`'s changes touch no shared input, merge cleanly and share no unit with the branch (a `base-advanced` record; `lane-report` counts them as `baseAdvances`); otherwise it validates again (a `rerun` record, `main-moved`, whose `detail` says why). After `lane.maxBaseReruns` such reruns of one attempt (default 2), a move that merges cleanly and touches no `gate_paths` advances it anyway (a `base-advanced` record with `reason` `rerun-limit`; `lane-report` counts `rerunLimitAdvances`): the PR's `ci-ok`, run on the merge ref, stands in for the local validation, and the merge is watched on `main` like any other advance. A move after the push merges on the `ci-ok` of the older `main` (`checkBase` in the records), so a `main-broken` naming such a PR is the first place to look. None of these raises an event, and none needs you.
+When `main` moves under a validated branch, the lane advances the branch to the new `main` without validating it again if `main`'s changes touch no shared input, merge cleanly and share no unit with the branch (a `base-advanced` record; `lane-report` counts them as `baseAdvances`); otherwise it validates again (a `rerun` record, `main-moved`, whose `detail` says why). After `lane.maxBaseReruns` such reruns of one attempt (default 2), a move that merges cleanly and touches none of the adapter's `revalidate_paths` (lockfiles, dependency manifests, toolchain pins such as `.nvmrc`; workflow and CI gate changes do not stop it) advances it anyway (a `base-advanced` record with `reason` `rerun-limit`; `lane-report` counts `rerunLimitAdvances`): the PR's `ci-ok`, run on the merge ref, stands in for the local validation, and the merge is watched on `main` like any other advance. A move after the push merges on the `ci-ok` of the older `main` (`checkBase` in the records), so a `main-broken` naming such a PR is the first place to look. A validated branch behind the front that gives its slot to it keeps its validation (a `slot-released` record; its checkout waits in `kept-<branch>-<hash>` beside the slots), and the same base checks decide at the front whether it runs again. None of these raises an event, and none needs you.
 
 `lane-wait` returns events this consumer has not seen; reading one does not answer it. An event
 stays in `lane-status`'s `openEvents` until the action that answers it (a re-enqueue or drop
@@ -47,10 +47,12 @@ until it is resolved.
 | Cell ended, branch queued | Nothing. Start another cell if `canStartCell` |
 | Cell ended without queueing | The lane cannot see this; T3 Code tells you. If its thread has a run in progress (`t3_thread_read`), it resumed itself, as a cell does when a background reviewer returns: wait. Otherwise answer a question about the work; access or authority goes to the owner. Otherwise `lane-drop` it with the reason |
 | Cell reports `GATE_EDIT_IN_REPAIR` | A diagnosis on the stronger route, never a looser check. If the gate edit is the right repair, `gate-allow` it with the reason and resume the cell to enqueue again |
-| `ejected` | Resume the cell's thread (`t3_thread_send`) with the reason, detail and `logPath`. It repairs and enqueues again, at the front |
+| `ejected` | Resume the cell's thread (`t3_thread_send`) with the reason, detail and `logPath`. It repairs and enqueues again, at the front. An event with `excused` (a `conflict` with a moved `main`, or the push, PR or merge plumbing) does not count toward `cells.maxEjections`, so nothing stops a loop of them: when `lane-status` shows `ejections` growing with no counted ones (a branch never rebased, or one GitHub refuses as empty), diagnose it as a second counted ejection |
+| `ejected` by a known flake | A failure the diagnosis finds on `main` too or names in an open flake issue (such as #1408) is not the branch's: `ejection-excuse {"branch", "reason": "<the issue>", "session"}` so it stops counting, then resume the cell as for any ejection |
 | `ejected` with `review-unverified` | `main`'s verifier refused the review the cell's own copy accepted, or the cell's worktree moved or is gone. Resume the cell to record its review of the head again with `main`'s `scripts/review-record.mjs` and enqueue again. A change to `review_evidence` or the verifier binds only once it is on `main` and the lane restarts |
-| Second ejection of one branch | A diagnosis on the stronger route first, then resume the cell with it |
-| `ejection-limit` | `lane-drop` it, put the diagnosis on the issue and label it `needs:decision` for the owner (`cell-park` is not built yet) |
+| `ejected` with `node-missing` | The branch's own `.nvmrc` names a Node the lane host lacks (or an alias). If the bump is not the issue's point, resume the cell to keep `main`'s `.nvmrc`. If it is, installing that Node on the lane host is the owner's: ask, then `ejection-excuse` the ejection and resume the cell to enqueue again. `main`'s own `.nvmrc` missing its Node pauses the lane as a `lane-error` instead |
+| Second counted ejection of one branch | A diagnosis on the stronger route first, then resume the cell with it (`lane-status` shows `countedEjections`) |
+| `ejection-limit` | The branch's own failures reached `cells.maxEjections`. If the last one was a known flake, `ejection-excuse` it, which answers this, and resume the cell. Otherwise `lane-drop` it, put the diagnosis on the issue and label it `needs:decision` for the owner (`cell-park` is not built yet) |
 | `merged`, `queue-room` | Start a cell if `canStartCell` |
 | `main-broken` | The lane has paused. With `reason` `unchecked-merge`, a check failed on `main` after a merge the lane advanced past a moved `main` without validating it again (an unrelated move, or one past `lane.maxBaseReruns`); `suspects` are those PRs, the first places to look. `lane-drop` or leave queued what a broken `main` would eject. File a `priority:1` issue naming the merge at fault, labelled `status:planned` and one `execution:*` so it is dispatchable, and start a cell on it; reverting is that cell's work (`lane-revert` is not built yet). Then `lane-resume` and `event-resolve` it, so the next foreman does not file it again |
 | `merged-without-check` | Check that PR's required check; if it failed, treat it as `main-broken`; otherwise `event-resolve` |
@@ -60,8 +62,10 @@ until it is resolved.
 
 ## Plans
 
-`cell-register` assigns the plan with the most room below `plans.ceiling`; `plan-list` shows each
-plan's use. When every plan is at its ceiling, start nothing and report the next reset: a cell
+`cell-register` assigns the plan whose room below `plans.ceiling` most needs spending before its
+reset: the highest `pace`, room over the days to the reset, so each plan is spent by its own reset
+(10% left with four days to go, 2.5 a day, waits behind 100% left with five, 20 a day).
+`plan-list` shows each plan's use, `pace` and `next`. When every plan is at its ceiling, start nothing and report the next reset: a cell
 that hits a usage limit stalls while holding its claim. Dials (`dial-get`, `dial-set`),
 `lane-pause` and choosing the lane host are the owner's.
 

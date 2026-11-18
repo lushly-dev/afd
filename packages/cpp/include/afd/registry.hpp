@@ -31,6 +31,14 @@ namespace afd {
 /// registration rejects it.
 inline constexpr const auto& reserved_command_names = afd_meta_tool_names;
 
+/// The suggestion of COMMAND_NOT_FOUND for `name` (untrusted, never echoed): up to three "did you
+/// mean" names from `candidates`, the names the caller may call, then where to list commands:
+/// afd-discover for a `remote` caller (the MCP server serves it), else afd-help when it is a
+/// candidate. TypeScript's `notFoundSuggestion`.
+[[nodiscard]] std::string not_found_suggestion(std::string_view name,
+                                               const std::vector<std::string>& candidates,
+                                               bool remote = false);
+
 struct CommandRegistryOptions {
     /// Run around every execution, first entry outermost.
     std::vector<CommandMiddleware> middleware;

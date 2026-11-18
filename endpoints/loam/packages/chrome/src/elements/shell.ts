@@ -18,7 +18,7 @@ import {
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	type LoamKernelV3,
+	type LoamKernelV5,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
@@ -281,7 +281,7 @@ export class LoamShell extends FASTElement {
 	readonly rail = new RailBands(this);
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** A `provider` deployment's identity; null in `local` mode, as phases 0 to 2 have it. */
 	identity: ShellIdentity | null = null;
 	/** What main shows in place of the landing in a `provider` deployment (2.1, 2.3). */
@@ -299,6 +299,12 @@ export class LoamShell extends FASTElement {
 	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
+	/**
+	 * The copilot's panel, which loads into the panel part when it first opens (phase 5 specification, 3.2), with the
+	 * host's side it hears. Null: the panel part keeps its empty state.
+	 */
+	copilot: { host?: import('../copilot/panel.js').CopilotPanelHostV1 } | null = null;
+	#copilot: Promise<void> | undefined;
 	readonly mac: boolean;
 	/** The deployment's root, absolute: the router's base, which `mountShell`'s `base` sets (6.2). */
 	base: string;
@@ -388,14 +394,14 @@ export class LoamShell extends FASTElement {
 	}
 
 	/** Bind to a kernel and read its state. */
-	start(kernel: LoamKernelV3): Promise<void> {
+	start(kernel: LoamKernelV5): Promise<void> {
 		this.kernel = kernel;
 		if (!this.$fastController.isConnected) return Promise.resolve();
 		this.#started ??= this.#start(kernel);
 		return this.#started;
 	}
 
-	async #start(kernel: LoamKernelV3): Promise<void> {
+	async #start(kernel: LoamKernelV5): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
 			await defineNotice();
 			this.failure = {
@@ -526,7 +532,7 @@ export class LoamShell extends FASTElement {
 	 * The commands stage B added, for the palette's rows, and the apps it read, whose surfaces start now.
 	 * A chunk that failed says so in main.
 	 */
-	async #stageBEnded(kernel: LoamKernelV3): Promise<void> {
+	async #stageBEnded(kernel: LoamKernelV5): Promise<void> {
 		if (kernel.lateFailure) {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
@@ -579,7 +585,7 @@ export class LoamShell extends FASTElement {
 
 	/** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
 	async readState(): Promise<MainStateV1> {
-		const kernel = this.kernel as LoamKernelV3;
+		const kernel = this.kernel as LoamKernelV5;
 		const [scope, main] = await Promise.all([
 			kernel.call<object>('scope-get'),
 			kernel.call<object>('section-get'),
@@ -617,7 +623,7 @@ export class LoamShell extends FASTElement {
 	#loadApps(): Promise<void> {
 		this.#appsLoad ??= import('../apps/surfaces.js')
 			.then(async ({ attachSurfaces }) => {
-				const apps = await attachSurfaces(this, this.kernel as LoamKernelV3);
+				const apps = await attachSurfaces(this, this.kernel as LoamKernelV5);
 				this.apps = apps;
 				this.#cleanup.push(() => apps.dispose());
 			})
@@ -740,6 +746,11 @@ export class LoamShell extends FASTElement {
 		}
 		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
 		else if (event.actorChanged || event.command.startsWith('auth-')) {
+			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2).
+			if (event.actorChanged)
+				(
+					this.shadowRoot?.querySelector('loam-copilot-panel') as { reset?(): void } | null
+				)?.reset?.();
 			void this.#readSession();
 			// Another person's persona: their title, and their emphasis, read before the rail's re-read (4.4, 6.1).
 			void this.#readPersona().then(() => this.rail.refresh());
@@ -765,6 +776,21 @@ export class LoamShell extends FASTElement {
 		this.dataset.inspector = presentation.inspector;
 		this.dataset.panel = presentation.panel;
 		this.#measurePanelMax();
+		if (presentation.panel !== 'closed') this.#openCopilot();
+	}
+
+	/** The copilot's chunk, once, the first time the panel part opens: never in first paint (phase 5's 2). */
+	#openCopilot(): void {
+		const part = this.shadowRoot?.querySelector('loam-panel') as HTMLElement | null;
+		if (!this.copilot || this.#copilot || !this.kernel || !part) return;
+		const { kernel } = this;
+		const host = this.copilot.host;
+		this.#copilot = import('../copilot/index.js')
+			.then(({ mountCopilotPanel }) => mountCopilotPanel(part, { kernel, host }))
+			.then(
+				() => undefined,
+				(error: unknown) => reportError(error)
+			);
 	}
 
 	/** The panel's rendered height is capped at main's area less `panel.min`. */

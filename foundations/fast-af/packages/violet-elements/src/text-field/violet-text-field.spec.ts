@@ -211,7 +211,7 @@ describe("violet-text-field", () => {
         it("draws a read-only field's line in the strong border and its placeholder in secondary text", async () => {
             const field = await renderTextField({ readonly: "" });
             const style = getComputedStyle(field);
-            // With no theme installed these are the light theme's values (Loam's D154).
+            // With no theme installed these are the light theme's values (Loam's D159).
             expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
             expect(style.getPropertyValue("--_field-placeholder").trim().toLowerCase()).toBe("#48534b");
             // The painted line: the frame's inset top rule is the strong border.

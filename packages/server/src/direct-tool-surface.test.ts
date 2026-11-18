@@ -312,9 +312,11 @@ describe('createDirectToolSurface matches the MCP server', () => {
 		const names = (context?: string) =>
 			registry.listTools(context ? { activeContext: context } : undefined).map((tool) => tool.name);
 		expect(names()).toEqual([
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
 			'afd-batch',
 			'afd-pipe',
-			'afd-call',
 			'note-list',
 			'note-create',
 			'bill-pay',

@@ -22,7 +22,7 @@ import {
 import type { AgentMemberV1, ProjectV1 } from '../scope/records.js';
 import { replayKernel } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
-import type { LoamKernelV3 } from '../types.js';
+import type { LoamKernelV5 } from '../types.js';
 import { type AgentMemberRowV1, widens } from './agent-members.js';
 import type { LoamAccountAccessV1 } from './member-commands.js';
 import { AGENT_MEMBER_TABLE } from './tables.js';
@@ -71,7 +71,7 @@ const DEN_PROJECT: ProjectV1 = {
 const AGENT = 'agt_aaaaaaaaaaaaaaaaaaaa';
 const OTHER = 'agt_bbbbbbbbbbbbbbbbbbbb';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 	vi.restoreAllMocks();
@@ -169,9 +169,9 @@ async function provider(options: ScopedWorkspaceOptions & { agents?: AgentMember
 	return { ...made, ...stub };
 }
 
-const signIn = (kernel: LoamKernelV3, email: string) =>
+const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
-const switchTo = async (kernel: LoamKernelV3, email: string) => {
+const switchTo = async (kernel: LoamKernelV5, email: string) => {
 	await kernel.call('auth-sign-out');
 	await signIn(kernel, email);
 };
@@ -179,7 +179,7 @@ const journalOf = (made: { journal: MemoryJournalSink }) =>
 	made.journal.read() as Promise<JournalEntry[]>;
 const stored = (made: { store: MemoryAdapter | { get: MemoryAdapter['get'] } }, id = AGENT) =>
 	made.store.get<AgentMemberV1>(AGENT_MEMBER_TABLE, id);
-const add = (kernel: LoamKernelV3, input: Record<string, unknown>) =>
+const add = (kernel: LoamKernelV5, input: Record<string, unknown>) =>
 	kernel.call<AgentMemberRowV1>('agent-member-add', { name: 'Reviewer', ...input });
 /** A call as an `agt_` actor with no `onBehalfOf`: afd-auth's middleware stamps the person signed in. */
 const asAgentMember = (
