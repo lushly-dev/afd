@@ -7,7 +7,7 @@
 import { childLauncher } from './child-launcher.js';
 import { createDevHost, type DevHost, type StartDevHostOptions } from './dev-host.js';
 
-export { exposedTo, readAcls } from '../acl.js';
+export { exposedTo, readAcls, restrictAcls } from '../acl.js';
 export type { DevHost, JournalEntry, StartDevHostOptions } from './dev-host.js';
 export { type ScannedHost, type ScannedPage, scanSecrets } from './scan.js';
 
