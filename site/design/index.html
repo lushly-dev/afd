@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en" data-side="design">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>AFD — Agent-First Design (proposal)</title>
+		<meta name="robots" content="noindex">
+		<meta
+			name="description"
+			content="Agents are users too. Agent-First Design is the design side of AFD: patterns, tokens, components and guidance for software that people and agents both use."
+		>
+		<meta name="theme-color" content="#a3ebcd">
+		<link rel="icon" href="../svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="../css/tokens-m2.css">
+		<link rel="stylesheet" href="../css/manifesto-2.css">
+		<link rel="stylesheet" href="../css/manifesto-3.css">
+		<link rel="stylesheet" href="../css/area.css">
+		<link rel="stylesheet" href="../css/design.css">
+		<link rel="stylesheet" href="../css/refined.css">
+		<script type="module" src="../js/design.js"></script>
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="#top" aria-label="AFD design home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<nav aria-label="Primary">
+				<a href="#patterns">Patterns</a><a href="#family">The family</a
+				><a href="#alfred">Alfred</a>
+			</nav>
+			<div class="nav-actions">
+				<nav class="side-switch" aria-label="Side of AFD">
+					<a href="../">Dev</a><a href="./" aria-current="page">Design</a>
+				</nav>
+				<a class="github-link" href="https://github.com/lushly-dev/afd"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<main id="main">
+			<section class="opening opening--design opening--home" id="top">
+				<div class="opening-art" aria-hidden="true">
+					<span class="slash"></span>
+				</div>
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
+				<div class="wrap">
+					<div class="opening-label">
+						<h1>Agent-First Design</h1>
+						<span class="edition">The design side of AFD</span>
+					</div>
+					<div class="opening-statement">
+						<p class="display">
+							<span class="display-line"><span>Agents</span> <span>are</span></span>
+							<span class="display-line"><mark>users</mark> <span>too.</span></span>
+						</p>
+					</div>
+					<div class="opening-base">
+						<div class="opening-footer">
+							<p>
+								<b>Agent-First Design</b> is designing a product for two users: the person who
+								asks and the agent that acts. It is the design side of AFD, an open-source way of
+								building software around commands.
+							</p>
+							<div class="opening-way">
+								<div class="opening-actions">
+									<a href="#patterns" class="button button--ink"
+										>See the patterns <i class="icon icon--down" aria-hidden="true"></i></a
+									>
+									<a href="../" class="text-link"
+										>The dev side <i class="icon icon--out" aria-hidden="true"></i></a
+									>
+								</div>
+							</div>
+						</div>
+						<dl class="hero-facts">
+							<div>
+								<dt>Four patterns</dt>
+								<dd>Discover, understand, keep control and recover. Each has a form for people and a form for agents.</dd>
+							</div>
+							<div>
+								<dt>Five tools</dt>
+								<dd>Tokens, components, evidence, application chrome and memory, each with a design side.</dd>
+							</div>
+							<div>
+								<dt>One character</dt>
+								<dd>Alfred, the agent's face across AFD: a mark that wakes when it has something to do.</dd>
+							</div>
+						</dl>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="role">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 01</span>The role</span>
+						<h2 class="lit" data-lit>The job was never<br><span>the screens.</span></h2>
+					</div>
+					<p class="d-lead">
+						Design answers for the experience. That used to mean one kind of user. Now a person
+						asks, an agent acts, and both have to find their way through the same product.
+					</p>
+					<div class="targets" role="list" aria-label="Three things to design">
+						<div role="listitem" data-who="person">
+							<span class="mono">01 / The person's side</span>
+							<h3>Intent and authority.</h3>
+							<p>
+								Saying what you want, understanding what was done, deciding what goes ahead and
+								stepping in when it shouldn't.
+							</p>
+						</div>
+						<div role="listitem" data-who="agent">
+							<span class="mono">02 / The agent's side</span>
+							<h3>Legible capability.</h3>
+							<p>
+								Actions it can discover, inputs it can supply, results it can predict and
+								failures it can act on.
+							</p>
+						</div>
+						<div role="listitem" data-who="both">
+							<span class="mono">03 / The journey they share</span>
+							<h3>One story.</h3>
+							<p>
+								The same identity, state and meaning for both, with the same permission and the
+								same way back, whoever is acting.
+							</p>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="patterns">
+				<span class="big-numeral" aria-hidden="true">02</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>The patterns</span>
+						<h2>Four questions.<br><span>Four patterns you know.</span></h2>
+					</div>
+					<p class="d-lead">
+						What can I do? What comes back? Should this go ahead? What now? Interfaces have
+						answered these for people for decades. An agent needs the same answers, in a form it
+						can read.
+					</p>
+					<div class="pattern-grid">
+						<article class="pattern">
+							<header>
+								<span class="step-number">01 / Discover</span>
+								<h3>What can I do?</h3>
+							</header>
+							<div class="pair pair--people">
+								<div class="pair-label"><b>People get</b><span>A menu</span></div>
+								<div class="ux-art" aria-hidden="true">
+									<div class="mini-menu">
+										<span class="is-active">New task<kbd>N</kbd></span>
+										<span>Board view<kbd>B</kbd></span>
+										<span>Export<kbd>E</kbd></span>
+									</div>
+								</div>
+							</div>
+							<div class="pair pair--agents">
+								<div class="pair-label"><b>Agents get</b><span>A contract</span></div>
+								<p>
+									A named list of capabilities. Each says what it is for, what it needs and
+									whether it changes anything.
+								</p>
+							</div>
+							<a class="text-link" href="../#agent-ux"
+								>In code <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</article>
+						<article class="pattern">
+							<header>
+								<span class="step-number">02 / Understand</span>
+								<h3>What comes back?</h3>
+							</header>
+							<div class="pair pair--people">
+								<div class="pair-label"><b>People get</b><span>A message</span></div>
+								<div class="ux-art" aria-hidden="true">
+									<div class="mini-toast"><i></i><span>Task added</span><u>View</u></div>
+								</div>
+							</div>
+							<div class="pair pair--agents">
+								<div class="pair-label"><b>Agents get</b><span>A result</span></div>
+								<p>
+									The outcome, the reasoning behind it and how sure the system is. Enough to
+									decide the next move.
+								</p>
+							</div>
+							<a class="text-link" href="../#agent-ux"
+								>In code <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</article>
+						<article class="pattern">
+							<header>
+								<span class="step-number">03 / Keep control</span>
+								<h3>Should this go ahead?</h3>
+							</header>
+							<div class="pair pair--people">
+								<div class="pair-label"><b>People get</b><span>A dialog</span></div>
+								<div class="ux-art" aria-hidden="true">
+									<div class="mini-dialog">
+										<strong>Delete all tasks?</strong><span>This can’t be undone.</span>
+										<div><i>Cancel</i><i class="is-primary">Delete</i></div>
+									</div>
+								</div>
+							</div>
+							<div class="pair pair--agents">
+								<div class="pair-label"><b>Agents get</b><span>A pause</span></div>
+								<p>
+									The same stop. Their person confirms what matters, and is not asked about
+									what doesn't.
+								</p>
+							</div>
+							<a class="text-link" href="../#agent-ux"
+								>In code <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</article>
+						<article class="pattern">
+							<header>
+								<span class="step-number">04 / Recover</span>
+								<h3>What now?</h3>
+							</header>
+							<div class="pair pair--people">
+								<div class="pair-label"><b>People get</b><span>A field error</span></div>
+								<div class="ux-art" aria-hidden="true">
+									<div class="mini-field">
+										<span>Title</span>
+										<i></i>
+										<em>Add a title to continue</em>
+									</div>
+								</div>
+							</div>
+							<div class="pair pair--agents">
+								<div class="pair-label"><b>Agents get</b><span>A next step</span></div>
+								<p>
+									A failure that names what to do about it, so the work carries on instead of
+									stalling.
+								</p>
+							</div>
+							<a class="text-link" href="../#result"
+								>In code <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</article>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="family">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 03</span>The family</span>
+						<h2>One practice.<br><span>Five places it lives.</span></h2>
+					</div>
+					<p class="d-lead">
+						The same idea, taken to tokens, components, evidence, application chrome and memory.
+						Each has a design side and a dev side.
+					</p>
+					<ul class="family-list">
+						<li>
+							<h4>Violet</h4>
+							<p>
+								Design tokens on a tree. A brand, a product and a theme each inherit, override or
+								remove, and one source exports to CSS, Swift, Kotlin and more.
+							</p>
+							<span class="mono family-status family-status--out">In preview, on npm</span>
+							<a href="violet/" aria-label="Violet: try the token tree"
+								>Try the tree <i class="icon icon--right" aria-hidden="true"></i></a
+							>
+						</li>
+						<li>
+							<h4>FAST-AF</h4>
+							<p>
+								A component library where each component has a record an agent reads before it
+								uses one.
+							</p>
+							<span class="mono family-status family-status--out">In preview, on npm</span>
+							<a href="../fast-af/" aria-label="FAST-AF: see every component"
+								>See every component <i class="icon icon--right" aria-hidden="true"></i></a
+							>
+						</li>
+						<li>
+							<h4>Specimen</h4>
+							<p>
+								A bench that shows what actually rendered, so two versions of a component are
+								compared on evidence.
+							</p>
+							<span class="mono family-status family-status--out">In preview, on npm</span>
+							<a href="specimen/" aria-label="Specimen: compare two versions"
+								>Compare two versions <i class="icon icon--right" aria-hidden="true"></i></a
+							>
+						</li>
+						<li>
+							<h4>Loam</h4>
+							<p>
+								One application chrome for many apps: layout, a command palette and a shared UX
+								library, on a Violet theme.
+							</p>
+							<span class="mono family-status">In development</span>
+							<a
+								href="https://github.com/lushly-dev/afd/tree/main/endpoints/loam"
+								aria-label="Read more about Loam"
+								>Read more <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</li>
+						<li>
+							<h4>Umbel</h4>
+							<p>
+								One MCP server for your repo's agents. Guidance and memory they can cite, with every answer traceable to its source.
+							</p>
+							<span class="mono family-status">In development</span>
+							<a href="umbel/" aria-label="Umbel: read a real answer"
+								>Read a real answer <i class="icon icon--right" aria-hidden="true"></i></a
+							>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<section class="slab" id="control" aria-labelledby="control-quote">
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
+				<span class="big-numeral" aria-hidden="true">04</span>
+				<div class="wrap slab__inner">
+					<span class="section-index"><span class="fig-chip">Fig. 04</span>The control check</span>
+					<blockquote class="slab__quote lit" id="control-quote" data-lit>
+						<p>“Control over what <span class="keep"><mark>matters</mark>,</span> not the most decisions.”</p>
+					</blockquote>
+					<p class="slab__caption">
+						One rule for every confirmation, approval and stop button.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="alfred">
+				<span class="big-numeral" aria-hidden="true">05</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>The character</span>
+						<h2>A mark that<br><span>looks back.</span></h2>
+					</div>
+					<div class="character">
+						<div class="character-stage">
+							<svg class="alfred" data-alfred="hero" aria-hidden="true"></svg>
+							<div class="character-buttons" role="group" aria-label="Alfred's expressions">
+								<button type="button" data-express="pass">Pass</button>
+								<button type="button" data-express="warn">Not sure</button>
+								<button type="button" data-express="fail">Fail</button>
+								<button type="button" data-express="surprise">Surprise</button>
+							</div>
+						</div>
+						<div class="character-copy">
+							<p class="d-lead">
+								Alfred is the agent's face across AFD. At rest he is a compass: one bar in a ring,
+								leaning like the slash, turning slowly to find you. Come close and he wakes.
+							</p>
+							<dl class="character-rules">
+								<div>
+									<dt>Two bars, one angle.</dt>
+									<dd>The lean of the wordmark slash never changes.</dd>
+								</div>
+								<div>
+									<dt>Two moves.</dt>
+									<dd>A bar slides along its axis or changes length. Nothing bends or grows a mouth.</dd>
+								</div>
+								<div>
+									<dt>He rests as the mark.</dt>
+									<dd>The face appears when he has something to do, then leaves.</dd>
+								</div>
+							</dl>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A designer's perspective</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. <strong>It's the commands underneath.</strong>
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="#top" class="wordmark" aria-label="AFD design home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<p>For people.<br>And the agents working with them.</p>
+			<nav aria-label="Footer">
+				<a href="../">The dev side</a
+				><a href="https://github.com/lushly-dev/afd">Source</a
+				><a href="../styleguide.html">Style guide</a>
+			</nav>
+			<span class="footer-edition">AGENT-FIRST DESIGN / PROPOSAL</span>
+		</footer>
+	</body>
+</html>

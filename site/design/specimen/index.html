@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en" data-side="design">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Specimen — what a component actually rendered (proposal)</title>
+		<meta name="robots" content="noindex">
+		<meta
+			name="description"
+			content="Specimen renders each state of a component in a real browser and keeps what it finds: sizes, colours, states and what a screen reader is told. Use it to compare two versions, and to brief an agent on every component."
+		>
+		<meta name="theme-color" content="#a3ebcd">
+		<link rel="icon" href="../../svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="../../css/tokens-m2.css">
+		<link rel="stylesheet" href="../../css/manifesto-2.css">
+		<link rel="stylesheet" href="../../css/manifesto-3.css">
+		<link rel="stylesheet" href="../../css/area.css">
+		<link rel="stylesheet" href="../../css/area-kit.css">
+		<link rel="stylesheet" href="../../css/design.css">
+		<link rel="stylesheet" href="../../css/specimen.css">
+		<link rel="stylesheet" href="../../css/refined.css">
+		<script type="module" src="../../js/specimen-page.js"></script>
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="../" aria-label="AFD design home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<nav aria-label="On this page">
+				<a href="#compare">Compare</a><a href="#brief">For agents</a><a href="#themes">Themes</a
+				><a href="#start">Start</a>
+			</nav>
+			<div class="nav-actions">
+				<nav class="side-switch" aria-label="Side of AFD">
+					<a href="../../specimen/">Dev</a><a href="./" aria-current="page">Design</a>
+				</nav>
+				<a class="github-link" href="https://github.com/lushly-dev/afd/tree/main/foundations/specimen"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<main id="main">
+			<section class="opening opening--design opening--area" id="top">
+				<div class="opening-art" aria-hidden="true">
+					<span class="slash"></span>
+				</div>
+				<div class="wrap">
+					<div class="opening-label">
+						<span class="crumb"><a href="../">Agent-First Design</a> / <b>Specimen</b></span>
+						<span class="edition">In preview, on npm</span>
+					</div>
+					<div class="area-hero">
+						<div class="area-hero-text">
+							<h1 class="area-name area-name--long">Specimen</h1>
+							<p class="area-is">
+								A test bench for components.<br><span>It shows what really rendered.</span>
+							</p>
+							<p class="area-lead">
+								Specimen renders each state of a component in a real browser and keeps what it
+								finds: sizes, colours, states and what a screen reader is told. Use it to compare
+								two versions, and to brief an agent on every component.
+							</p>
+							<div class="opening-actions">
+								<a href="#compare" class="button button--ink"
+									>Compare two versions <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+								<a href="#start" class="text-link"
+									>Install <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+						<figure class="area-figure hero-read">
+							<figcaption><span>One capture</span><span>Two readings</span></figcaption>
+							<div class="hero-read-part">
+								<span class="mono">What you see</span>
+								<img
+									src="../../specimen/captures/bar-disabled.png"
+									width="480"
+									height="100"
+									alt="A bar reading “3 changes to Atlas Dark” with three buttons. Save is dimmed. Discard and the close button look normal."
+								>
+							</div>
+							<div class="hero-read-part">
+								<span class="mono">What a screen reader is told</span>
+								<pre data-hero-snapshot>- button "Discard" [disabled]
+- button "Save" [disabled]
+- button "Dismiss" [disabled]</pre>
+							</div>
+							<p class="hero-answer">
+								<span class="mono">What that shows</span>
+								<span data-hero-answer>1 button is disabled. 3 are announced as disabled.</span>
+							</p>
+						</figure>
+					</div>
+					<dl class="hero-facts">
+						<div>
+							<dt>Measured, not eyeballed</dt>
+							<dd>Every size, colour and state is read from the browser, so a review starts from facts.</dd>
+						</div>
+						<div>
+							<dt>Every theme and size</dt>
+							<dd>The same state in light, dark and high contrast, at any screen size, each in a fresh browser.</dd>
+						</div>
+						<div>
+							<dt>A brief for agents</dt>
+							<dd>It writes down what each component is for, and labels every fact by where it came from.</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="idea">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 01</span>The idea</span>
+						<h2 class="lit" data-lit>Five readings.<br><span>Taken from the browser.</span></h2>
+					</div>
+					<p class="d-lead">
+						A screenshot is a picture of a component. A capture is what the browser knows about
+						it, written down. These are the five things Specimen reads, each with a value from
+						the Save button in the bar above.
+					</p>
+					<ol class="readings" aria-label="What a capture holds">
+						<li>
+							<span class="mono">Markup</span>
+							<p>The elements and their attributes, inside shadow roots too.</p>
+							<code data-sample="dom">&lt;button class="keep" type="button"&gt;Save&lt;/button&gt;</code>
+						</li>
+						<li>
+							<span class="mono">Layout</span>
+							<p>Where each element sits and how big it is, to a fraction of a pixel.</p>
+							<code data-sample="layout">55.38 × 32 at 363.63, 21</code>
+						</li>
+						<li>
+							<span class="mono">Styles</span>
+							<p>
+								<span data-style-count>63</span> computed properties for every element: spacing,
+								type, colour, borders.
+							</p>
+							<code data-sample="styles">padding 5px 12px · rgb(23, 18, 15)</code>
+						</li>
+						<li>
+							<span class="mono">State</span>
+							<p>What a control is doing right now: disabled, checked, focused, its value.</p>
+							<code data-sample="state">disabled false · focused false</code>
+						</li>
+						<li>
+							<span class="mono">Accessibility</span>
+							<p>The role and name the browser gives each element, as a screen reader gets them.</p>
+							<code data-sample="a11y">button "Save"</code>
+						</li>
+					</ol>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="compare">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>The comparison</span>
+						<h2>Change one thing.<br><span>See what it moved.</span></h2>
+					</div>
+					<p class="surface-hint">
+						<b>Try it</b
+						><span
+							>Pick a change. Both pictures are captures from a real browser, and the comparison
+							runs on this page when you pick.</span
+						>
+					</p>
+					<div class="sstage">
+						<div class="chips" role="group" aria-label="A change to compare" data-scenarios></div>
+						<p class="sstage-cause">
+							<span class="mono">What was done</span><span data-cause aria-live="polite"></span>
+						</p>
+						<div class="sframes" data-frames></div>
+						<div class="sverdict">
+							<p class="sverdict-status">
+								<span class="mono">Specimen says</span><b data-status>Comparing…</b>
+							</p>
+							<dl class="stally" data-tally></dl>
+						</div>
+						<p class="sreading" data-reading aria-live="polite"></p>
+						<div class="sdiff" data-differences tabindex="0" role="region" aria-label="Differences"></div>
+						<p class="sstage-foot">
+							<span data-ran></span>
+							<a href="../../specimen/#terminal">Run it from a prompt on the dev side</a>
+						</p>
+						<noscript><p class="sstage-foot">The comparison needs JavaScript to run.</p></noscript>
+					</div>
+				</div>
+			</section>
+
+			<section class="slab" id="line" aria-labelledby="line-quote">
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
+				<span class="big-numeral" aria-hidden="true">03</span>
+				<div class="wrap slab__inner">
+					<span class="section-index"><span class="fig-chip">Fig. 03</span>In one line</span>
+					<blockquote class="slab__quote lit" id="line-quote" data-lit>
+						<p>“Looking the same is not being the <span class="keep"><mark>same</mark>.”</span></p>
+					</blockquote>
+					<p class="slab__caption">
+						Two of the changes above leave every pixel where it was. Both change what a screen
+						reader says.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="found">
+				<span class="big-numeral" aria-hidden="true">04</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 04</span>The catch</span>
+						<h2>It found one<br><span>in our own.</span></h2>
+					</div>
+					<p class="d-lead">
+						We wrote the bar on this page for this page. Its first version switched off Save
+						with a <code>disabled</code> attribute on the bar. It looked right. The capture
+						showed all three buttons announced as disabled, because Chromium reports that
+						attribute for every control inside the element that carries it.
+					</p>
+					<div class="found">
+						<figure data-found="bar-disabled">
+							<figcaption><span class="mono">As first written</span><code data-found-tag></code></figcaption>
+							<img src="../../specimen/captures/bar-disabled.png" width="480" height="100" alt="The bar with Save dimmed.">
+							<pre data-found-snapshot></pre>
+						</figure>
+						<figure data-found="bar-disabled-fixed">
+							<figcaption><span class="mono">After the fix</span><code data-found-tag></code></figcaption>
+							<img
+								src="../../specimen/captures/bar-disabled-fixed.png"
+								width="480"
+								height="100"
+								alt="The bar with Save dimmed, looking the same as before."
+							>
+							<pre data-found-snapshot></pre>
+						</figure>
+					</div>
+					<p class="found-note">
+						The two pictures are the same. The fix was one attribute name, and the second
+						capture is how we know it worked. The lesson did not stay in our heads:
+						<a href="#brief">it is now a line in the bar's brief</a>.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--agent" id="brief">
+				<span class="big-numeral" aria-hidden="true">05</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>The brief</span>
+						<h2 class="lit" data-lit>A brief for the agent.<br><span>Every fact shows its source.</span></h2>
+					</div>
+					<p class="d-lead">
+						An agent asked to use a component needs to know what it is for and how to use it
+						well. Specimen writes that down from the same runs, as one small file for each
+						component. This is the one it built for the bar, lesson included.
+					</p>
+					<div class="brief">
+						<div class="brief-key">
+							<p class="brief-count" data-brief-count aria-live="polite">Reading the brief…</p>
+							<div class="brief-bases" role="group" aria-label="Show facts by where they came from" data-brief-bases></div>
+							<p class="brief-note">
+								Pick a word to see only those facts. An agent reading this knows which lines were
+								proven and which are someone's advice.
+							</p>
+						</div>
+						<article class="brief-doc" data-brief aria-label="The brief for the change bar">
+							<p class="brief-wait">Loading…<noscript> It needs JavaScript to draw.</noscript></p>
+						</article>
+					</div>
+					<p class="brief-foot">
+						<span data-brief-built>Built by specimen pack.</span>
+						<a href="../../specimen/pack/data/bench/components/change-bar.json">Open the file an agent reads</a>
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="themes">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 06</span>The themes</span>
+						<h2>Three themes.<br><span>Every screen accounted for.</span></h2>
+					</div>
+					<p class="d-lead">
+						Specimen renders each screen in light, dark and high contrast and compares the three
+						pictures. A screen that looks the same in all three is not always a mistake: a
+						receipt should stay white. So the rule is simple. If it does not change, the project
+						has to say why.
+					</p>
+					<p class="themes-hint">
+						Below, each picture sits on the page colour of its theme. Two of these screens stay
+						white on a dark page. Only one of them is meant to.
+					</p>
+					<div class="themes-wrap">
+						<table class="themes-table" data-themes>
+							<caption class="sr-only">
+								Three screens, each rendered in three themes, with what Specimen concluded
+							</caption>
+						</table>
+					</div>
+					<p class="themes-verdict" data-themes-verdict aria-live="polite"></p>
+					<p class="themes-raw" data-themes-summary></p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="stories">
+				<span class="big-numeral" aria-hidden="true">07</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 07</span>The stories</span>
+						<h2>Already on Storybook?<br><span>Keep your stories.</span></h2>
+					</div>
+					<p class="d-lead">
+						Specimen runs stories written for Storybook as they are: the same files, the same
+						interactions, the same accessibility checks. Storybook does not have to be
+						installed, and nothing has to be rewritten to try it.
+					</p>
+					<ol class="steps">
+						<li>
+							<span class="mono">Step 1</span>
+							<h3>Point it at your stories</h3>
+							<p>A short configuration names your story files and the preview file you already have.</p>
+						</li>
+						<li>
+							<span class="mono">Step 2</span>
+							<h3>Run both, side by side</h3>
+							<p>
+								Your stories keep running in Storybook while you compare. A story that needs
+								something Specimen lacks fails loudly. It is never quietly skipped.
+							</p>
+						</li>
+						<li>
+							<span class="mono">Step 3</span>
+							<h3>Switch when they agree</h3>
+							<p>
+								A codemod changes the imports and shows you every change before it writes. A
+								built review page takes over from Storybook's browser.
+							</p>
+						</li>
+					</ol>
+					<dl class="stats">
+						<div>
+							<dt>407</dt>
+							<dd>stories in AFD's own component library made the move.</dd>
+						</div>
+						<div>
+							<dt>0</dt>
+							<dd>disagreements with Storybook, over three full runs of all of them.</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="proof">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 08</span>The proof</span>
+						<h2>Shown is not proven.<br><span>Specimen keeps them apart.</span></h2>
+					</div>
+					<p class="d-lead">
+						A story called Disabled proves nothing if nothing in it is disabled. Specimen lists
+						every state a component can be in, then grades each one by what a run really saw.
+					</p>
+					<ol class="levels">
+						<li data-level="verified">
+							<b>Verified</b>
+							<p>A check ran against this element, in this state, and held.</p>
+							<span>Counts as covered</span>
+						</li>
+						<li data-level="asserted">
+							<b>Asserted</b>
+							<p>The component was in the state and a check held, but the check was about something else.</p>
+							<span>Does not count</span>
+						</li>
+						<li data-level="represented">
+							<b>Represented</b>
+							<p>Something shows the component in this state. Nothing checked it.</p>
+							<span>Does not count</span>
+						</li>
+						<li data-level="missing">
+							<b>Missing</b>
+							<p>Nothing shows it at all.</p>
+							<span>Does not count</span>
+						</li>
+						<li data-level="unknown">
+							<b>Unknown</b>
+							<p>The capture could not tell. It is never rounded up to covered.</p>
+							<span>Does not count</span>
+						</li>
+					</ol>
+					<p class="levels-note">
+						Written guidance is graded the same way. Each line about how to use a component, or
+						what it needs to be accessible, is marked <b>verified</b> once a check proves it and
+						<b>authored</b> until then. An agent reading the guidance can tell which is which.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="start">
+				<span class="big-numeral" aria-hidden="true">09</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 09</span>The work</span>
+						<h2>Where it<br><span>earns its place.</span></h2>
+					</div>
+					<ul class="family-list runs-list">
+						<li>
+							<h4>In a review</h4>
+							<p>
+								Build one page with every state on it. Pick a phone, a laptop or a custom size,
+								switch the theme, and share the link.
+							</p>
+							<code>specimen build ./review</code>
+						</li>
+						<li>
+							<h4>In a pull request</h4>
+							<p>Capture before and after, and read the difference instead of comparing two pictures by eye.</p>
+							<code>specimen diff before.json after.json</code>
+						</li>
+						<li>
+							<h4>In CI</h4>
+							<p>
+								Stop the build when a screen ignores the theme, or when an accessibility check
+								finds a problem.
+							</p>
+							<code>specimen themes</code>
+						</li>
+						<li>
+							<h4>With your stories</h4>
+							<p>It runs stories written for Storybook, with their interactions, without Storybook installed.</p>
+							<code>specimen run</code>
+						</li>
+						<li>
+							<h4>For an agent</h4>
+							<p>
+								A component pack tells an agent what each component is for and how to use it,
+								with every fact labelled by where it came from.
+							</p>
+							<code>specimen pack</code>
+						</li>
+					</ul>
+					<div class="area-start">
+						<div>
+							<h3>Start with one component.</h3>
+							<p>
+								Point Specimen at a component and a few of its states. A first capture takes a
+								short configuration file and one command.
+							</p>
+							<div class="install-command">
+								<pre><code data-install>npm install --save-dev @lushly-dev/specimen-cli@preview</code></pre>
+								<button
+									type="button"
+									class="icon-button"
+									data-copy-install
+									aria-label="Copy the Specimen install command"
+									title="Copy the Specimen install command"
+								>
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+							<p class="copy-status" data-copy-status role="status"></p>
+						</div>
+						<div class="area-status">
+							<span class="mono">Status</span>
+							<p>
+								<strong>Preview.</strong> Specimen is on npm under the <code>preview</code> tag
+								and can still change. It runs in Chromium only. A comparison reads structure, not
+								pixels, so it does not say two versions look identical. The theme audit is the
+								part that compares pictures.
+							</p>
+							<div class="start-links">
+								<a
+									class="text-link"
+									href="https://github.com/lushly-dev/afd/tree/main/foundations/specimen"
+									>Source <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="../../specimen/"
+									>Commands, code and packages <i class="icon icon--right" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A designer's perspective</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. <strong>It's the commands underneath.</strong>
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="../" class="wordmark" aria-label="AFD design home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<p>For people.<br>And the agents working with them.</p>
+			<nav aria-label="Footer">
+				<a href="../">Agent-First Design</a><a href="../../specimen/">The dev side</a
+				><a href="https://github.com/lushly-dev/afd">Source</a>
+			</nav>
+			<span class="footer-edition">AGENT-FIRST DESIGN / SPECIMEN</span>
+		</footer>
+	</body>
+</html>

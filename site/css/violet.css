@@ -1,0 +1,1257 @@
+/* ============================================================
+   Violet — the design-side page (proposal)
+   ------------------------------------------------------------
+   Loaded after design.css. The page runs a real Violet store, so
+   most of this file draws live data: a tree of tiles, each painted
+   with its node's resolved tokens, and an inspector beside it.
+
+   Tokens only: no hex values, no px font sizes. The --v-* custom
+   properties are not site tokens; they are the Violet tokens of
+   the node a tile shows, set from the store by violet-page.js.
+   ============================================================ */
+
+/* ── Hero: the starting tree, as an outline ──────────────────── */
+
+.hero-tree {
+	--row: 26px; /* a chip and its border */
+	--row-gap: var(--space-2);
+	--indent: var(--space-6);
+	--trunk: 17px; /* the middle of the chip above */
+}
+
+.hero-tree ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hero-tree > ul {
+	padding-block: var(--space-4);
+}
+
+.hero-tree ul ul {
+	padding-left: var(--indent);
+}
+
+.hero-tree li {
+	position: relative;
+}
+
+.hero-tree li li {
+	padding-top: var(--row-gap);
+}
+
+.hero-tree [data-hero-node] {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: var(--row);
+	font-size: var(--t-body);
+	line-height: var(--leading-snug);
+}
+
+/* The trunk down from a parent, and the branch out to each child. The trunk
+   stops at the last child. */
+.hero-tree li li::before,
+.hero-tree li li::after {
+	content: "";
+	position: absolute;
+	left: calc(var(--trunk) - var(--indent));
+}
+
+.hero-tree li li::before {
+	top: 0;
+	bottom: 0;
+	border-left: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.hero-tree li li:last-child::before {
+	bottom: auto;
+	height: calc(var(--row-gap) + var(--row) / 2);
+}
+
+.hero-tree li li::after {
+	top: calc(var(--row-gap) + var(--row) / 2);
+	width: calc(var(--indent) - var(--trunk) - var(--space-1));
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.hero-tree b {
+	font-weight: var(--weight-medium);
+}
+
+.hero-tree [data-hero-count] {
+	color: var(--color-on-dark-muted);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+/* A node in miniature: its page colour, its border, its corner, its brand. */
+.hero-chip {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 24px;
+	border: var(--rule-thin) solid var(--v-color-border, var(--color-on-dark-line));
+	border-radius: calc(var(--v-shape-radius, 0px) / 2);
+	background: var(--v-color-bg, transparent);
+}
+
+.hero-chip::after {
+	content: "";
+	width: 12px;
+	height: 12px;
+	border-radius: calc(var(--v-shape-radius, 0px) / 4);
+	background: var(--v-color-brand, var(--color-on-dark-line));
+}
+
+.hero-tree .hero-answer b {
+	color: var(--accent-agent);
+	font-weight: var(--weight-strong);
+}
+
+/* ── Fig. 01: what a node can do with a token ────────────────── */
+
+.moves {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: var(--space-5);
+	margin: var(--space-8) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.moves li {
+	padding-top: var(--space-5);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.moves h3 {
+	margin-top: var(--space-4);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.moves p {
+	margin-top: var(--space-2);
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* Two squares: the parent's value above, this node's below. Solid ink is a
+   stored value, hollow is inherited, mint is a value of the node's own. */
+.move-art {
+	--box: 28px;
+	--gap: 16px;
+	position: relative;
+	display: grid;
+	align-content: start;
+	gap: var(--gap);
+	height: calc(var(--box) * 2 + var(--gap));
+}
+
+.move-art i {
+	position: relative;
+	display: block;
+	width: var(--box);
+	height: var(--box);
+	border: var(--rule) solid var(--color-text);
+	background: var(--color-text);
+}
+
+.move-art i:first-child::after {
+	content: "";
+	position: absolute;
+	top: 100%;
+	left: calc(50% - 1px);
+	height: calc(var(--gap) + var(--rule));
+	border-left: var(--rule) solid var(--color-text);
+}
+
+.move-art[data-move="inherit"] i:nth-child(2) {
+	background: transparent;
+}
+
+.move-art[data-move="override"] i:nth-child(2),
+.move-art[data-move="add"] i:nth-child(2) {
+	background: var(--accent-agent);
+}
+
+.move-art[data-move="add"] i:first-child {
+	border-style: dashed;
+	border-color: var(--afd-stone-400);
+	background: transparent;
+}
+
+.move-art[data-move="add"] i:first-child::after {
+	border-left-style: dashed;
+	border-left-color: var(--afd-stone-400);
+}
+
+.move-art[data-move="subtract"] i:nth-child(2) {
+	border-style: dashed;
+	background: linear-gradient(
+		to top right,
+		transparent calc(50% - 1px),
+		var(--color-text) calc(50% - 1px),
+		var(--color-text) calc(50% + 1px),
+		transparent calc(50% + 1px)
+	);
+}
+
+/* The local value draining away. */
+.move-art[data-move="reset"] i:nth-child(2) {
+	background: linear-gradient(90deg, var(--accent-agent) 0 34%, transparent 34%);
+}
+
+.move-art[data-move="copy"] i:first-child::after {
+	border-left-style: dashed;
+	border-left-color: var(--afd-stone-400);
+}
+
+.move-art[data-move="copy"] i:nth-child(2),
+.move-art[data-move="copy"] i:nth-child(3) {
+	background: var(--accent-agent);
+}
+
+/* The other branch, to the side, and the line the value arrives on. */
+.move-art[data-move="copy"] i:nth-child(3) {
+	position: absolute;
+	top: calc(var(--box) + var(--gap));
+	left: calc(var(--box) * 2);
+}
+
+.move-art[data-move="copy"] i:nth-child(3)::after {
+	content: "";
+	position: absolute;
+	top: calc(50% - 1px);
+	right: 100%;
+	width: var(--box);
+	border-top: var(--rule) solid var(--color-text);
+}
+
+/* ── Fig. 02: the stage ──────────────────────────────────────── */
+
+.violet-demo .surface-hint {
+	margin-top: var(--heading-gap);
+}
+
+.vstage {
+	display: grid;
+	grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+	align-items: start;
+	gap: var(--space-5);
+}
+
+.vstage-tree {
+	min-width: 0;
+	padding: var(--space-5);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.vstage-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-4);
+	margin-bottom: var(--space-5);
+	color: var(--color-on-dark-muted);
+}
+
+.vstage-bar .mono {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.vstage-reset {
+	padding: var(--space-1) 0;
+	border: 0;
+	background: none;
+	color: var(--color-on-dark);
+	font: var(--weight-medium) var(--t-code) var(--font-sans);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+
+.vstage-reset:hover {
+	color: var(--accent-agent);
+}
+
+/* The tree: nested lists drawn as a chart, parents above children. */
+.vtree {
+	--tile: clamp(132px, 11.5vw, 168px);
+	--k: 0.62;
+	--drop: 18px;
+	--branch: var(--afd-stone-600);
+}
+
+.vtree,
+.vtree ul {
+	display: flex;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.vtree ul {
+	position: relative;
+	padding-top: var(--drop);
+}
+
+.vtree li {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: var(--drop) var(--space-2) 0;
+}
+
+.vtree > li {
+	padding-top: 0;
+}
+
+.vtree-wait {
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+}
+
+/* Down from the parent, across to each child, down into it. */
+.vtree ul::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 50%;
+	height: var(--drop);
+	border-left: var(--rule-thin) solid var(--branch);
+}
+
+.vtree ul > li::before,
+.vtree ul > li::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	width: 50%;
+	height: var(--drop);
+	border-top: var(--rule-thin) solid var(--branch);
+}
+
+.vtree ul > li::before {
+	right: 50%;
+}
+
+.vtree ul > li::after {
+	left: 50%;
+	border-left: var(--rule-thin) solid var(--branch);
+}
+
+.vtree ul > li:first-child::before,
+.vtree ul > li:last-child::after {
+	border-top: 0;
+}
+
+.vnode {
+	display: grid;
+	gap: var(--space-2);
+	width: var(--tile);
+	padding: var(--space-2);
+	border: var(--rule) solid transparent;
+	background: transparent;
+	color: var(--color-on-dark);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.vnode:hover {
+	background: var(--afd-ink-raised);
+}
+
+.vnode[aria-pressed="true"] {
+	border-color: var(--color-on-dark);
+	background: var(--afd-ink-raised);
+}
+
+.vnode-head,
+.vnode-foot {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.vnode-head b {
+	overflow: hidden;
+	font-size: var(--t-small);
+	font-weight: var(--weight-medium);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vnode-head span,
+.vnode-foot {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+.vnode-head span {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.vnode-foot {
+	flex-wrap: wrap;
+	min-height: 1.5em;
+	white-space: nowrap;
+}
+
+.vnode-foot [data-rule] {
+	color: var(--afd-red-300);
+	font-weight: var(--weight-strong);
+}
+
+/* A tile is a small screen, painted with its node's resolved tokens. */
+.vnode-tile {
+	display: block;
+	padding: calc(var(--v-space-pad, 16px) * var(--k));
+	background: var(--v-color-bg, var(--color-surface));
+	color: var(--v-color-fg, var(--color-text));
+	transition:
+		background-color var(--motion-fast),
+		color var(--motion-fast);
+}
+
+.tile-card {
+	display: grid;
+	gap: 6px;
+	padding: calc(var(--v-space-pad, 16px) * var(--k));
+	border: var(--rule-thin) solid var(--v-color-border, currentColor);
+	border-radius: var(--v-shape-radius, 0);
+	background: var(--v-color-surface, transparent);
+	transition:
+		background-color var(--motion-fast),
+		border-radius var(--motion-fast);
+}
+
+.tile-title {
+	font: var(--weight-strong) calc(var(--v-font-size, var(--t-small)) * var(--k) * 1.9) / 1
+		var(--font-sans);
+	letter-spacing: -0.02em;
+}
+
+.tile-line {
+	width: 100%;
+	height: 4px;
+	background: var(--v-color-muted, currentColor);
+	opacity: 0.6;
+}
+
+.tile-line--short {
+	width: 62%;
+}
+
+.tile-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.tile-button {
+	display: inline-flex;
+	align-items: center;
+	height: calc(var(--v-control-height, 36px) * var(--k));
+	padding-inline: calc(var(--v-space-pad, 16px) * var(--k));
+	border-radius: var(--v-shape-radius, 0);
+	background: var(--v-button-bg, currentColor);
+	color: var(--v-button-fg, inherit);
+	font: var(--weight-strong) calc(var(--v-font-size, var(--t-small)) * var(--k) * 1.2) / 1
+		var(--font-sans);
+	transition:
+		background-color var(--motion-fast),
+		border-radius var(--motion-fast),
+		height var(--motion-fast);
+}
+
+/* A node with no hover token (the touch one) has nothing to show here. */
+.vnode:hover .tile-button {
+	background: var(--v-button-hover, var(--v-button-bg, currentColor));
+}
+
+.tile-ghost {
+	flex: 1;
+	min-width: 0;
+	height: calc(var(--v-control-height, 36px) * var(--k));
+	border: var(--rule-thin) solid var(--v-color-border, currentColor);
+	border-radius: var(--v-shape-radius, 0);
+	transition: height var(--motion-fast);
+}
+
+/* Alfred's preview: what a change would reach, and what holds its own. */
+.vnode[data-impact] .vnode-tile {
+	outline-offset: 3px;
+}
+
+.vnode[data-impact="changes"] .vnode-tile,
+.vnode[data-impact="added"] .vnode-tile,
+.vnode[data-impact="removed"] .vnode-tile {
+	outline: var(--rule) solid var(--accent-agent);
+}
+
+.vnode[data-impact="shielded"] .vnode-tile {
+	outline: var(--rule) dashed var(--afd-stone-500);
+}
+
+.vkey {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-5);
+	min-height: 1.5em;
+	margin-top: var(--space-5);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	visibility: hidden;
+}
+
+.vkey[data-on] {
+	visibility: visible;
+}
+
+.vkey span {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.vkey span::before {
+	content: "";
+	width: 14px;
+	height: 10px;
+	border: var(--rule) solid var(--accent-agent);
+}
+
+.vkey [data-key="shielded"]::before {
+	border: var(--rule) dashed var(--afd-stone-500);
+}
+
+/* ── The inspector: a light sheet on the dark stage ──────────── */
+
+.vinspector {
+	min-width: 0;
+	padding: var(--space-5);
+	background: var(--color-surface);
+	color: var(--color-text);
+}
+
+.d-section--ink .vinspector :focus-visible {
+	outline-color: var(--color-text);
+}
+
+.vinspector-head {
+	display: grid;
+	gap: var(--space-2);
+	padding-bottom: var(--space-4);
+	border-bottom: var(--rule) solid var(--color-rule);
+}
+
+.vinspector-head > div {
+	display: flex;
+	flex-direction: row-reverse;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.vinspector-head .mono {
+	color: var(--color-text-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.vinspector-head h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.vinspector-head .vnode-tile {
+	display: none;
+}
+
+.vinspector-head p {
+	min-height: 2.9em;
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: 1.45;
+}
+
+.vtokens {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.vtoken {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(96px, auto);
+	align-items: center;
+	column-gap: var(--space-3);
+	padding-block: 6px;
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.vtoken-name {
+	padding: var(--space-1) 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: var(--t-code) / 1.4 var(--mono);
+	text-align: left;
+	cursor: pointer;
+}
+
+.vtoken-name::before {
+	content: "+";
+	display: inline-block;
+	width: 1.3em;
+	color: var(--color-text-muted);
+}
+
+.vtoken-name[aria-expanded="true"]::before {
+	content: "−";
+}
+
+.vtoken[data-state="here"] .vtoken-name {
+	font-weight: var(--weight-strong);
+}
+
+.vtoken[data-state="removed"] .vtoken-name {
+	color: var(--color-text-muted);
+	text-decoration: line-through;
+}
+
+.vtoken-value {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-2);
+}
+
+.vtoken-value code {
+	min-width: 7ch;
+	font: var(--t-code) / 1.4 var(--mono);
+}
+
+.vtoken[data-kind="size"] .vtoken-value code {
+	min-width: 4ch;
+	text-align: center;
+}
+
+.vtoken[data-kind="removed"] .vtoken-value code {
+	color: var(--color-text-muted);
+}
+
+.vtoken-value input[type="color"] {
+	width: 30px;
+	height: 26px;
+	padding: 0;
+	border: var(--rule-thin) solid var(--color-rule);
+	border-radius: 0;
+	background: none;
+	cursor: pointer;
+}
+
+.vtoken-value input[type="color"]::-webkit-color-swatch-wrapper {
+	padding: 2px;
+}
+
+.vtoken-value input[type="color"]::-webkit-color-swatch {
+	border: 0;
+	border-radius: 0;
+}
+
+.vtoken-value input[type="color"]::-moz-color-swatch {
+	border: 0;
+	border-radius: 0;
+}
+
+.vtoken-value [data-step] {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: var(--rule-thin) solid var(--color-rule);
+	background: transparent;
+	color: inherit;
+	font: var(--weight-medium) var(--t-small) / 1 var(--mono);
+	cursor: pointer;
+}
+
+.vtoken-value [data-step]:hover:not(:disabled) {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+.vtoken-value [data-step]:disabled {
+	border-color: var(--color-line);
+	color: var(--color-text-subtle);
+	cursor: default;
+}
+
+.vswatch {
+	display: inline-block;
+	flex: none;
+	width: 16px;
+	height: 16px;
+	border: var(--rule-thin) solid var(--color-rule);
+}
+
+.vtoken-origin {
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.4 var(--mono);
+	text-align: right;
+	white-space: nowrap;
+}
+
+.vtoken[data-state="here"] .vtoken-origin {
+	color: var(--color-text);
+	font-weight: var(--weight-strong);
+}
+
+.vtoken-problem,
+.vtoken-detail {
+	grid-column: 1 / -1;
+}
+
+.vtoken-problem {
+	margin: var(--space-1) 0 var(--space-1) 1.3em;
+	color: var(--accent-human-text);
+	font-size: var(--t-code);
+	font-weight: var(--weight-medium);
+	line-height: 1.4;
+}
+
+.vtoken-detail {
+	padding: var(--space-2) 0 var(--space-3) 1.3em;
+}
+
+.vlineage {
+	display: grid;
+	gap: var(--space-1);
+	margin: 0;
+	padding: 0 0 0 var(--space-3);
+	border-left: var(--rule) solid var(--color-rule);
+	list-style: none;
+	color: var(--color-text-muted);
+	font-size: var(--t-code);
+	line-height: 1.45;
+}
+
+.vlineage li:last-child {
+	color: var(--color-text);
+}
+
+.vtoken-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+}
+
+.vtoken-actions:empty {
+	display: none;
+}
+
+.vtoken-actions button {
+	min-height: 32px;
+	padding: var(--space-1) var(--space-3);
+	border: var(--rule-thin) solid var(--color-rule);
+	background: transparent;
+	color: inherit;
+	font: var(--weight-medium) var(--t-code) var(--font-sans);
+	cursor: pointer;
+}
+
+.vtoken-actions button:hover {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+/* ── Alfred, under the stage ─────────────────────────────────── */
+
+.vagent {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+	gap: var(--space-7);
+	margin-top: var(--space-5);
+	padding: var(--space-5) var(--space-6);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.vagent-work {
+	display: grid;
+	align-content: start;
+	gap: var(--space-4);
+	min-width: 0;
+}
+
+.vagent .agent-log {
+	min-height: 168px;
+	max-height: 300px;
+}
+
+.vagent-confirm {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3);
+	padding-left: var(--space-6);
+}
+
+.vagent-confirm[hidden] {
+	display: none;
+}
+
+.vagent-confirm .button {
+	min-height: 40px;
+	padding: var(--space-2) var(--space-4);
+	font-size: var(--t-small);
+}
+
+.vtrail {
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-5);
+	margin-top: var(--space-4);
+	overflow: hidden;
+	color: var(--color-on-dark-muted);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.vtrail > .mono {
+	flex: none;
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.vtrail .command-trail li[data-actor="you"] span {
+	color: var(--afd-red-300);
+}
+
+/* ── Tables: the rules and the comparison ────────────────────── */
+
+.rules-table-wrap {
+	min-width: 0;
+	overflow-x: auto;
+}
+
+.rules-table,
+.compare-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--t-small);
+	line-height: 1.4;
+}
+
+.rules-table caption {
+	padding-bottom: var(--space-3);
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.rules-table th,
+.rules-table td,
+.compare-table th,
+.compare-table td {
+	padding: var(--space-3) var(--space-4) var(--space-3) 0;
+	border-top: var(--rule-thin) solid var(--color-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.rules-table thead th,
+.compare-table thead th {
+	border-top: var(--rule) solid var(--color-rule);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.rules-table tbody tr:last-child > *,
+.compare-table tbody tr:last-child > * {
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.rules-table tbody th {
+	min-width: 220px;
+	font-weight: var(--weight-regular);
+}
+
+.rules-table tbody th b {
+	display: block;
+	font-weight: var(--weight-strong);
+}
+
+.rules-table tbody th span {
+	display: block;
+	color: var(--color-text-muted);
+	font-size: var(--t-code);
+}
+
+.rules-table td {
+	font: var(--t-code) / 1.6 var(--mono);
+	white-space: nowrap;
+}
+
+.rules-table td[data-state="fail"] {
+	color: var(--accent-human-text);
+	font-weight: var(--weight-strong);
+}
+
+/* A pass is a quiet dot, so a failure is the only word in the grid. */
+.rules-table td[data-state="pass"]::before {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--color-text);
+}
+
+.rules-table td[data-state="pass"] span {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.rules-table td[data-state="none"] {
+	color: var(--color-text-subtle);
+}
+
+/* ── Fig. 04: the rules ──────────────────────────────────────── */
+
+.rules {
+	display: grid;
+	grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+	align-items: start;
+	gap: var(--space-8);
+	margin-top: var(--space-8);
+}
+
+.rules-side h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.rule-failures {
+	display: grid;
+	gap: var(--space-4);
+	margin: var(--space-5) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rule-failures li {
+	display: grid;
+	gap: var(--space-1);
+	padding-top: var(--space-3);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.rule-failures b {
+	font: var(--weight-strong) var(--t-code) / 1.5 var(--mono);
+}
+
+.rule-failures span {
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.rule-failures button {
+	justify-self: start;
+	padding: var(--space-1) 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: var(--weight-strong) var(--t-code) var(--font-sans);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+
+.rules-kinds {
+	margin-top: var(--space-5);
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* ── Fig. 05: the export ─────────────────────────────────────── */
+
+.export {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+	align-items: start;
+	gap: var(--space-8);
+	margin-top: var(--space-8);
+}
+
+.export-pick {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.export-pick .mono {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.export-pick .chips + .mono {
+	margin-top: var(--space-4);
+}
+
+.export-out {
+	min-width: 0;
+	margin: 0;
+}
+
+.export-out pre {
+	max-height: 440px;
+	margin: 0;
+	padding: var(--space-5);
+	overflow: auto;
+	background: var(--field-ink);
+	color: var(--color-code-text);
+	font: var(--t-code) / 1.7 var(--mono);
+	tab-size: 2;
+}
+
+.export-out figcaption {
+	margin-top: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+/* ── Fig. 06: the comparison ─────────────────────────────────── */
+
+.compare {
+	display: grid;
+	grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+	align-items: start;
+	gap: var(--space-8);
+	margin-top: var(--space-8);
+}
+
+.compare-pick {
+	display: grid;
+	gap: var(--space-4);
+}
+
+.compare-pick label {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.compare-pick .mono {
+	color: var(--color-text-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.compare-pick select {
+	min-height: 44px;
+	padding: 0 var(--space-3);
+	border: var(--rule) solid var(--color-rule);
+	border-radius: 0;
+	background: var(--color-surface);
+	color: inherit;
+	font: var(--weight-medium) var(--t-body) var(--font-sans);
+}
+
+.compare-pick p {
+	min-height: 3em;
+	margin-top: var(--space-2);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+.compare-table tbody th {
+	font: var(--weight-medium) var(--t-code) / 1.6 var(--mono);
+	white-space: nowrap;
+}
+
+.compare-table td {
+	white-space: nowrap;
+}
+
+.compare-table td code {
+	margin-right: var(--space-2);
+	font: var(--t-code) / 1.6 var(--mono);
+}
+
+.compare-table td span {
+	color: var(--color-text-muted);
+	font-size: var(--t-code);
+}
+
+.compare-table td .vswatch {
+	margin-right: var(--space-2);
+	vertical-align: -3px;
+}
+
+.compare-table td[data-state="removed"] {
+	color: var(--color-text-muted);
+	font-size: var(--t-code);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.moves {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		row-gap: var(--space-7);
+	}
+
+	.vstage,
+	.rules,
+	.export,
+	.compare {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.vtree {
+		--tile: 168px;
+	}
+
+	/* The tree is above and out of sight while you edit, so the head stays
+	   put and shows the node you are changing. */
+	.vinspector-head {
+		--k: 0.5;
+		position: sticky;
+		top: var(--nav-h);
+		z-index: var(--layer-content);
+		grid-template-columns: minmax(0, 1fr) 132px;
+		column-gap: var(--space-4);
+		margin: calc(var(--space-3) * -1) 0 0;
+		padding-top: var(--space-3);
+		background: var(--color-surface);
+	}
+
+	.vinspector-head > div,
+	.vinspector-head p {
+		grid-column: 1;
+	}
+
+	.vinspector-head .vnode-tile {
+		display: block;
+		grid-column: 2;
+		grid-row: 1 / span 2;
+		align-self: start;
+		border: var(--rule-thin) solid var(--color-line);
+	}
+
+	.vinspector-head p {
+		min-height: 0;
+	}
+
+	.rules,
+	.export,
+	.compare {
+		gap: var(--space-6);
+	}
+
+	.compare-pick p {
+		min-height: 0;
+	}
+}
+
+@media (max-width: 850px) {
+	.vagent {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-5);
+		padding: var(--space-5);
+	}
+
+	.vagent .agent-log {
+		min-height: 0;
+		padding-left: var(--space-4);
+	}
+
+	.vagent-confirm {
+		padding-left: 0;
+	}
+}
+
+@media (max-width: 620px) {
+	.moves {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.vstage-tree,
+	.vinspector {
+		padding: var(--space-3);
+	}
+
+	/* Three leaves have to fit across a phone. */
+	.vtree {
+		--tile: 104px;
+		--k: 0.44;
+		--drop: 12px;
+	}
+
+	.vtree li {
+		padding-inline: 2px;
+	}
+
+	.vnode {
+		gap: var(--space-1);
+		padding: var(--space-1);
+	}
+
+	.vnode-head span,
+	.vnode-foot [data-count],
+	.tile-ghost {
+		display: none;
+	}
+
+	.vnode-head b {
+		font-size: var(--t-code);
+	}
+
+	.tile-card {
+		gap: 4px;
+	}
+
+	.vtoken {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.vtoken-origin {
+		grid-column: 1 / -1;
+		padding-left: 1.3em;
+		text-align: left;
+	}
+
+	.vtrail {
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+}

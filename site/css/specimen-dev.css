@@ -1,0 +1,500 @@
+/* ============================================================
+   Specimen — the dev-side page (proposal)
+   ------------------------------------------------------------
+   Loaded after area-kit.css and specimen.css. This side shows
+   the comparison from a prompt, then one capture's own record,
+   the packages, the code, the story runner and every command.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── Hero: the counts for one comparison ─────────────────────── */
+
+.hero-diff-line {
+	padding-block: var(--space-4);
+}
+
+.hero-diff code {
+	font: var(--t-code) / 1.6 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.hero-diff-line code::before {
+	content: "$ ";
+	color: var(--accent-agent);
+}
+
+.hero-diff dl {
+	display: grid;
+	gap: var(--space-1);
+	margin: 0;
+	padding-bottom: var(--space-4);
+	font: var(--t-code) / 1.7 var(--mono);
+}
+
+.hero-diff dl > div {
+	display: grid;
+	grid-template-columns: 7em minmax(0, 1fr);
+}
+
+.hero-diff dt {
+	color: var(--color-on-dark-muted);
+}
+
+.hero-diff dd {
+	margin: 0;
+	color: var(--color-on-dark-subtle);
+}
+
+.hero-diff dd[data-on="true"] {
+	color: var(--accent-agent);
+	font-weight: var(--weight-medium);
+}
+
+/* ── Fig. 01: the prompt, and the result read out ────────────── */
+
+.sterm-stage {
+	display: grid;
+	grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+	align-items: stretch;
+	gap: var(--space-5);
+}
+
+.sterm {
+	height: 640px;
+	min-width: 0;
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	background: var(--afd-black);
+}
+
+.sterm .terminal-screen {
+	font-size: var(--t-code);
+}
+
+/* Named chips, so all of them fit; the line itself lands on the prompt. */
+.sterm .terminal-tries {
+	flex-wrap: wrap;
+	overflow: visible;
+}
+
+.sterm .terminal-tries button {
+	font-family: var(--font-sans);
+	font-size: var(--t-code);
+	font-weight: var(--weight-medium);
+}
+
+.sread {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	min-width: 0;
+	height: 640px;
+	padding: var(--space-5);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.sread-bar .mono,
+.sread .mono {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.sread-body {
+	display: grid;
+	align-content: start;
+	gap: var(--space-4);
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	scrollbar-width: thin;
+}
+
+.sread-wait,
+.sread-ran,
+.sread-files {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.sread .sverdict-status b[data-status="failed"] {
+	color: var(--afd-red-300);
+	font-family: var(--mono);
+	font-size: var(--t-lead);
+	overflow-wrap: anywhere;
+}
+
+/* Five cells in a narrow column: the numbers a size down. */
+.sread .stally dd {
+	font-size: var(--t-lead);
+}
+
+.sread-reading,
+.sread-next {
+	font-size: var(--t-body);
+	line-height: var(--leading-snug);
+}
+
+.sread-first {
+	display: grid;
+	gap: var(--space-1);
+}
+
+.sread code {
+	color: var(--accent-agent);
+	font: var(--t-code) / 1.6 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.sread h3 {
+	padding-top: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--accent-agent);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.sread-limits,
+.sread-entries {
+	display: grid;
+	gap: var(--space-2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sread-limits li {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.sread-entries li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) auto;
+	align-items: baseline;
+	gap: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+}
+
+.sread-entries button {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent-agent);
+	font: var(--t-code) / 1.6 var(--mono);
+	text-align: left;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	overflow-wrap: anywhere;
+	cursor: pointer;
+}
+
+.sread-entries button:disabled {
+	color: var(--color-on-dark);
+	text-decoration: none;
+	cursor: default;
+}
+
+.sread-tag {
+	font: var(--t-label) / 1.5 var(--mono);
+	text-transform: uppercase;
+}
+
+.sread-note {
+	padding-top: var(--space-4);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.sread-note a {
+	color: var(--accent-agent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ── Fig. 02: one capture's record ───────────────────────────── */
+
+.capture {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+	align-items: start;
+	gap: var(--space-8);
+	margin-top: var(--heading-gap);
+}
+
+.capture h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.capture-facts {
+	margin: var(--space-5) 0 0;
+}
+
+.capture-facts > div {
+	display: grid;
+	grid-template-columns: 7.5em minmax(0, 1fr);
+	gap: var(--space-4);
+	padding-block: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-line);
+}
+
+.capture-facts > div:first-child {
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.capture-facts dt {
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.9 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.capture-facts dd {
+	margin: 0;
+	font: var(--t-code) / 1.7 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.capture-facts dd b {
+	font-weight: var(--weight-strong);
+}
+
+.capture-facts dd span {
+	color: var(--color-text-muted);
+}
+
+.capture-file {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3) var(--space-6);
+	margin-top: var(--space-5);
+}
+
+.capture-table {
+	width: 100%;
+	margin-top: var(--space-5);
+	border-collapse: collapse;
+	font-size: var(--t-small);
+	line-height: 1.4;
+}
+
+.capture-table th,
+.capture-table td {
+	padding: var(--space-3) var(--space-4) var(--space-3) 0;
+	border-top: var(--rule-thin) solid var(--color-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.capture-table thead th {
+	border-top: var(--rule) solid var(--color-rule);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.capture-table tbody th {
+	font: var(--weight-medium) var(--t-code) / 1.6 var(--mono);
+}
+
+.capture-table tbody tr:last-child > * {
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.capture-table td {
+	color: var(--color-text-muted);
+}
+
+.capture-table td code {
+	display: block;
+	margin-top: var(--space-1);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+/* ── Fig. 06: the pack ───────────────────────────────────────── */
+
+.pack {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+	align-items: start;
+	gap: var(--space-7);
+	margin-top: var(--space-8);
+}
+
+.pack-steps {
+	display: grid;
+	gap: var(--space-5);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pack-steps li {
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.pack-steps code {
+	font: var(--weight-medium) var(--t-small) / 1.5 var(--mono);
+}
+
+.pack-steps p {
+	margin-top: var(--space-2);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.pack .command-source {
+	min-width: 0;
+	margin: 0;
+}
+
+.pack .command-source pre {
+	max-height: 520px;
+	overflow: auto;
+	font-size: var(--t-code);
+}
+
+.pack .command-source__note a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ── Fig. 07: every command ──────────────────────────────────── */
+
+/* Two columns that fill top to bottom, so five groups of uneven length sit level. */
+.command-groups {
+	columns: 2;
+	column-gap: var(--space-8);
+	margin-top: var(--heading-gap);
+}
+
+.command-groups section {
+	margin-bottom: var(--space-7);
+	break-inside: avoid;
+}
+
+.command-groups h3 {
+	padding-bottom: var(--space-3);
+	border-bottom: var(--rule) solid var(--color-rule);
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.command-groups dl {
+	margin: 0;
+}
+
+.command-groups dl > div {
+	display: grid;
+	grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+	gap: var(--space-4);
+	padding-block: var(--space-3);
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.command-groups dt {
+	font: var(--weight-medium) var(--t-code) / 1.7 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+/* A command that writes files says so: it is the one an agent should think twice about. */
+.command-groups dt span {
+	margin-left: var(--space-2);
+	padding: 1px var(--space-1);
+	border: var(--rule-thin) solid var(--accent-human-text);
+	color: var(--accent-human-text);
+	font-size: var(--t-label);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.command-groups dd {
+	margin: 0;
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.sterm-stage,
+	.capture,
+	.pack {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.sterm {
+		height: 520px;
+	}
+
+	.sread {
+		height: auto;
+	}
+
+	.sread-body {
+		overflow: visible;
+	}
+
+	.capture {
+		gap: var(--space-7);
+	}
+}
+
+@media (max-width: 850px) {
+	.command-groups {
+		columns: 1;
+	}
+}
+
+@media (max-width: 620px) {
+	.sterm {
+		height: 460px;
+	}
+
+	.sread {
+		padding: var(--space-3);
+	}
+
+	.capture-facts > div,
+	.command-groups dl > div {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-1);
+	}
+
+	/* Three columns do not fit: the channel and its status share a line, and what it covers goes under. */
+	.capture-table thead {
+		display: none;
+	}
+
+	.capture-table tbody tr {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		border-top: var(--rule-thin) solid var(--color-line);
+	}
+
+	.capture-table tbody tr:first-child {
+		border-top: var(--rule) solid var(--color-rule);
+	}
+
+	.capture-table tbody th,
+	.capture-table tbody td {
+		padding-right: 0;
+		border: 0;
+	}
+
+	.capture-table tbody td:last-child {
+		grid-column: 1 / -1;
+		padding-top: 0;
+	}
+}

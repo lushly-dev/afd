@@ -1,0 +1,1265 @@
+{
+	"recorded": "2026-11-17T09:17:35.567Z",
+	"botcore": {
+		"version": "0.7.0",
+		"platform": "win32"
+	},
+	"source": {
+		"revision": "25814dd6e287439d2b2a2598d7f03fb2cd2303e0",
+		"dirty": true
+	},
+	"project": {
+		"files": {
+			"pyproject.toml": "[build-system]\nrequires = [\"hatchling\"]\nbuild-backend = \"hatchling.build\"\n\n[project]\nname = \"ledger\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\n\n[tool.ruff.lint]\nselect = [\"E\", \"F\"]\n",
+			"src/ledger/__init__.py": "\"\"\"A ledger: entries, and what they add up to.\"\"\"\n",
+			"src/ledger/totals.py": "\"\"\"Add up a ledger's entries.\"\"\"\n\nimport os\nfrom decimal import Decimal\n\n\ndef total(amounts: list[str]) -> Decimal:\n    \"\"\"The sum of the amounts, as exact decimals.\"\"\"\n    return sum((Decimal(amount) for amount in amounts), Decimal(\"0\"))\n",
+			"tests/test_totals.py": "from decimal import Decimal\n\nfrom ledger.totals import total\n\n\ndef test_total_is_exact():\n    assert total([\"0.10\", \"0.20\"]) == Decimal(\"0.30\")\n\n\ndef test_no_entries_is_zero():\n    assert total([]) == Decimal(\"0\")\n",
+			"entries.csv": "account,amount\ncash,120.00\ncash,-45.50\nsavings,300.00\n"
+		},
+		"fixed": {
+			"path": "src/ledger/totals.py",
+			"text": "\"\"\"Add up a ledger's entries.\"\"\"\n\nfrom decimal import Decimal\n\n\ndef total(amounts: list[str]) -> Decimal:\n    \"\"\"The sum of the amounts, as exact decimals.\"\"\"\n    return sum((Decimal(amount) for amount in amounts), Decimal(\"0\"))\n"
+		}
+	},
+	"languages": [
+		{
+			"marker": "pyproject.toml",
+			"init": {
+				"status": "success",
+				"config_path": "<workspace>\\botcore.toml",
+				"language": "python",
+				"skills_seeded": 10,
+				"extensions_selected": [],
+				"extensions_available": {
+					"agents": "pip install lushly-botcore-agents",
+					"llm": "pip install lushly-botcore-llm",
+					"memory": "pip install lushly-botcore-memory"
+				}
+			},
+			"config": "# botcore configuration\r\n# https://github.com/lushly-dev/botcore\r\n\r\nlanguage = \"python\"\r\nlinter = \"ruff\"\r\ntest_runner = \"pytest\"\r\nformatter = \"ruff\"\r\n\r\n[skills]\r\nsource_dir = \".claude/skills\"\r\n"
+		},
+		{
+			"marker": "package.json",
+			"init": {
+				"status": "success",
+				"config_path": "<workspace>\\botcore.toml",
+				"language": "typescript",
+				"skills_seeded": 0,
+				"extensions_selected": [],
+				"extensions_available": {
+					"agents": "pip install lushly-botcore-agents",
+					"llm": "pip install lushly-botcore-llm",
+					"memory": "pip install lushly-botcore-memory"
+				}
+			},
+			"config": "# botcore configuration\r\n# https://github.com/lushly-dev/botcore\r\n\r\nlanguage = \"typescript\"\r\nlinter = \"biome\"\r\ntest_runner = \"vitest\"\r\nformatter = \"biome\"\r\n\r\n[skills]\r\nsource_dir = \".claude/skills\"\r\n"
+		},
+		{
+			"marker": "Cargo.toml",
+			"init": {
+				"status": "success",
+				"config_path": "<workspace>\\botcore.toml",
+				"language": "rust",
+				"skills_seeded": 0,
+				"extensions_selected": [],
+				"extensions_available": {
+					"agents": "pip install lushly-botcore-agents",
+					"llm": "pip install lushly-botcore-llm",
+					"memory": "pip install lushly-botcore-memory"
+				}
+			},
+			"config": "# botcore configuration\r\n# https://github.com/lushly-dev/botcore\r\n\r\nlanguage = \"rust\"\r\nlinter = \"clippy\"\r\ntest_runner = \"cargo-test\"\r\nformatter = \"rustfmt\"\r\n\r\n[skills]\r\nsource_dir = \".claude/skills\"\r\n"
+		}
+	],
+	"session": {
+		"line": "botcore serve",
+		"server": {
+			"name": "botcore",
+			"version": ""
+		},
+		"protocol": "2025-06-18",
+		"tools": [
+			{
+				"name": "botcore-start",
+				"description": "Discovery — version, available functions, quick start",
+				"inputSchema": {
+					"properties": {},
+					"type": "object",
+					"title": "_startArguments"
+				}
+			},
+			{
+				"name": "botcore-docs",
+				"description": "Reference docs by topic (changeset, dev, docs, info, skill, spec, undo)",
+				"inputSchema": {
+					"properties": {
+						"topic": {
+							"default": "overview",
+							"title": "Topic",
+							"type": "string"
+						}
+					},
+					"type": "object",
+					"title": "_docsArguments"
+				}
+			},
+			{
+				"name": "botcore-run",
+				"description": "Execute Python code with all functions available. Use await.",
+				"inputSchema": {
+					"properties": {
+						"code": {
+							"title": "Code",
+							"type": "string"
+						}
+					},
+					"required": [
+						"code"
+					],
+					"type": "object",
+					"title": "_runArguments"
+				}
+			}
+		],
+		"calls": [
+			{
+				"id": "start",
+				"tool": "botcore-start",
+				"arguments": {},
+				"isError": false,
+				"text": "{\n  \"name\": \"botcore\",\n  \"version\": \"0.7.0\",\n  \"description\": \"botcore bot \\u2014 built on botcore\",\n  \"available_functions\": [\n    \"changeset_consume\",\n    \"changeset_create\",\n    \"changeset_delete\",\n    \"changeset_status\",\n    \"dev_build\",\n    \"dev_check_coverage\",\n    \"dev_check_deps\",\n    \"dev_check_paths\",\n    \"dev_check_size\",\n    \"dev_circular_imports\",\n    \"dev_dead_code\",\n    \"dev_dep_graph\",\n    \"dev_lint\",\n    \"dev_skill_lint\",\n    \"dev_test\",\n    \"dev_unused_deps\",\n    \"docs_check_agents\",\n    \"docs_check_changelog\",\n    \"docs_lint\",\n    \"docs_preflight\",\n    \"info_env\",\n    \"info_scripts\",\n    \"info_workspace\",\n    \"research_query\",\n    \"research_stream\",\n    \"skill_adopt\",\n    \"skill_index\",\n    \"skill_lint\",\n    \"skill_lint_spec\",\n    \"skill_list\",\n    \"skill_seed\",\n    \"skill_status\",\n    \"skill_unadopt\",\n    \"spec_create\",\n    \"spec_delete\",\n    \"spec_status\",\n    \"spec_validate\",\n    \"undo_clear\",\n    \"undo_status\"\n  ],\n  \"topics\": [\n    \"changeset\",\n    \"dev\",\n    \"docs\",\n    \"info\",\n    \"skill\",\n    \"spec\",\n    \"undo\"\n  ]\n}"
+			},
+			{
+				"id": "topics",
+				"tool": "botcore-docs",
+				"arguments": {},
+				"isError": false,
+				"text": "# botcore — Topics\n\n- **changeset**: # Changeset Commands\n- **dev**: # Dev Commands\n- **docs**: # Docs Commands\n- **info**: # Info Commands\n- **skill**: # Skill Registry Commands\n- **spec**: # Spec Commands\n- **undo**: # Undo Commands"
+			},
+			{
+				"id": "docs-dev",
+				"tool": "botcore-docs",
+				"arguments": {
+					"topic": "dev"
+				},
+				"isError": false,
+				"text": "# Dev Commands\n\n## dev_lint(package=None, fix=False)\nRun linter (ruff for Python, biome for TypeScript).\n\n## dev_test(package=None, coverage=False)\nRun tests (pytest for Python, vitest for TypeScript).\n\n## dev_build(package=None)\nBuild package.\n\n## dev_check_size(paths=None)\nCheck file sizes against thresholds (warn: 500, error: 1000 lines).\n\n## dev_check_coverage(paths=None)\nCheck test coverage against threshold.\n\n## dev_check_deps()\nCheck dependency freshness.\n\n## dev_dead_code()\nFind unused code.\n\n## dev_circular_imports()\nDetect circular import chains.\n\n## dev_unused_deps()\nFind declared but unused dependencies.\n\n## dev_dep_graph(format=None)\nVisualize module dependency graph.\n\n## dev_check_paths()\nDetect hardcoded/non-portable paths.\n\n## dev_skill_lint()\nRun skill_lint over the configured skills directory.\n"
+			},
+			{
+				"id": "lint",
+				"tool": "botcore-run",
+				"arguments": {
+					"code": "result = await dev_lint()\nreturn result.model_dump(exclude_none=True)"
+				},
+				"isError": false,
+				"text": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": \"LINT_FAILED\",\n    \"message\": \"F401 [*] `os` imported but unused\\n --> src\\\\ledger\\\\totals.py:3:8\\n  |\\n1 | \\\"\\\"\\\"Add up a ledger's entries.\\\"\\\"\\\"\\n2 |\\n3 | import os\\n  |        ^^\\n4 | from decimal import Decimal\\n  |\\nhelp: Remove unused import: `os`\\n  |\\n2 |\\n  - import os\\n3 | from decimal import Decimal\\n  |\\n\\nFound 1 error.\\n[*] 1 fixable with `--fix`.\\n\",\n    \"suggestion\": \"Run 'ruff check . --fix' to auto-fix issues\"\n  }\n}"
+			},
+			{
+				"id": "fix",
+				"tool": "botcore-run",
+				"arguments": {
+					"code": "result = await dev_lint(fix=True)\nreturn result.model_dump(exclude_none=True)"
+				},
+				"isError": false,
+				"text": "{\n  \"success\": true,\n  \"data\": {\n    \"success\": true,\n    \"output\": \"Found 1 error (1 fixed, 0 remaining).\\n\",\n    \"error\": null,\n    \"truncated\": false\n  },\n  \"reasoning\": \"[python] All checks passed\"\n}"
+			},
+			{
+				"id": "test",
+				"tool": "botcore-run",
+				"arguments": {
+					"code": "result = await dev_test()\nreturn result.model_dump(exclude_none=True)"
+				},
+				"isError": false,
+				"text": "{\n  \"success\": true,\n  \"data\": {\n    \"success\": true,\n    \"output\": \"============================= test session starts =============================\\r\\nplatform win32 -- Python 3.15.2, pytest-9.2.0, pluggy-1.7.0\\r\\nrootdir: <workspace>\\r\\nconfigfile: pyproject.toml\\r\\nplugins: anyio-4.15.1, asyncio-1.4.1.post1, cov-7.1.0\\r\\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\\r\\ncollected 2 items\\r\\n\\r\\ntests\\\\test_totals.py ..                                                  [100%]\\r\\n\\r\\n============================== 2 passed in 0.02s ==============================\\r\\n\",\n    \"error\": null,\n    \"truncated\": false\n  },\n  \"reasoning\": \"[python] All tests passed\"\n}"
+			},
+			{
+				"id": "no-topic",
+				"tool": "botcore-docs",
+				"arguments": {
+					"topic": "deploy"
+				},
+				"isError": false,
+				"text": "Unknown topic: 'deploy'. Available: overview, changeset, dev, docs, info, skill, spec, undo"
+			}
+		]
+	},
+	"reference": [
+		{
+			"topic": "changeset",
+			"text": "# Changeset Commands\n\n## changeset_create(change_type, description)\nCreate a changeset file for the next release.\n\n## changeset_delete(path)\nDelete a pending changeset file.\n\n## changeset_status()\nShow pending changeset files.\n\n## changeset_consume(version=None)\nConsume pending changesets into CHANGELOG.md.\n"
+		},
+		{
+			"topic": "dev",
+			"text": "# Dev Commands\n\n## dev_lint(package=None, fix=False)\nRun linter (ruff for Python, biome for TypeScript).\n\n## dev_test(package=None, coverage=False)\nRun tests (pytest for Python, vitest for TypeScript).\n\n## dev_build(package=None)\nBuild package.\n\n## dev_check_size(paths=None)\nCheck file sizes against thresholds (warn: 500, error: 1000 lines).\n\n## dev_check_coverage(paths=None)\nCheck test coverage against threshold.\n\n## dev_check_deps()\nCheck dependency freshness.\n\n## dev_dead_code()\nFind unused code.\n\n## dev_circular_imports()\nDetect circular import chains.\n\n## dev_unused_deps()\nFind declared but unused dependencies.\n\n## dev_dep_graph(format=None)\nVisualize module dependency graph.\n\n## dev_check_paths()\nDetect hardcoded/non-portable paths.\n\n## dev_skill_lint()\nRun skill_lint over the configured skills directory.\n"
+		},
+		{
+			"topic": "docs",
+			"text": "# Docs Commands\n\n## docs_lint(path=None)\nCheck markdown under `path` (default `docs/`) for broken internal links and anchors;\nmissing frontmatter on specs and proposals is a warning. External URLs are skipped.\n\n## docs_check_changelog()\nFlag staged source changes that have no CHANGELOG.md update or pending changeset.\n\n## docs_check_agents()\nFlag staged structural changes (commands, package `__init__.py`) that may need an\nAGENTS.md update.\n\n## docs_preflight()\nRun changelog and AGENTS.md checks together via a DirectClient pipeline.\n"
+		},
+		{
+			"topic": "info",
+			"text": "# Info Commands\n\n## info_workspace()\nShow workspace metadata (root, packages, config).\n\n## info_env()\nShow environment info (Python version, platform, installed tools).\n\n## info_scripts()\nList available scripts from pyproject.toml / package.json.\n"
+		},
+		{
+			"topic": "skill",
+			"text": "# Skill Registry Commands\n\nOwnership lives in the frontmatter's `metadata:` map (`metadata.source`,\n`metadata.version`, `metadata.portable`). A skill without a source is locally owned;\na top-level `source:`, `version:` or `portable:` (older copies) is still read.\n\n## skill_list(show_source=False, plugin_dirs=None)\nList available and installed skills with version and source info.\n\n## skill_seed(update=False, dry_run=False, plugin_dirs=None)\nCopy skills from botcore/plugin sources into project's .claude/skills/.\nSets `metadata.source` for ownership tracking, moving any top-level ownership fields\nunder `metadata:`.\nSkills installed under a retired name (e.g. `manage-documentation`, renamed to\n`docs-manager` in 0.4.0) are migrated when botcore owns them; otherwise they are\nleft in place, listed in `renamed_locally_owned`, and the new name is not seeded.\nSkills botcore retired (`RETIRED_SKILLS`) are removed when botcore owns them, no\n`include` list is set and `skip` doesn't name them; other copies are kept and listed\nin `retired_locally_owned`. Both lists are in the result as `retired` and\n`retired_locally_owned`.\n- `update`: Also update stale skills (default: only new)\n- `dry_run`: Preview changes without writing\n\n## skill_status(plugin_dirs=None)\nDetect version drift between installed and available skills.\nReports: ok, stale, missing, unmanaged, conflict, renamed, retired.\n\n## skill_lint(path=None, strict=False)\nLint skills in the configured skills directory. `botcore skill-lint [path]`\n(`skill_lint_spec`) runs the same rules over any directory.\n- Errors: SK001 no SKILL.md or frontmatter, SK002 no `name`, SK003 no `description`,\n  SK004 name not kebab-case, over 64 characters or unlike its directory, SK005\n  description over 1,024 characters, SK008 missing `references/` file, SK015\n  duplicate name.\n- Warnings: SK009 body over 500 lines, SK010 placeholder text (TODO, FIXME, TBD,\n  Lorem ipsum), SK012 `skill.md` instead of `SKILL.md`, SK014 orphan reference file,\n  SK016 description over 300 characters, SK017 `triggers` field or \"Triggers:\" list,\n  SK018 field outside the open standard and Claude Code (top-level `source`, `version`\n  or `portable` belongs under `metadata:`), SK019 listing over `[skills]\n  listing_budget` (default 8000: description plus `when_to_use`, skipping\n  `disable-model-invocation: true`).\n- Result: per-skill violations plus `listing: {characters, budget}`.\n- `path`: Lint a specific skill path (default: all in skills dir)\n- `strict`: Report every warning as an error\n\n## skill_adopt(name, source=\"local\")\nClaim an unmanaged skill by setting `metadata.source`. A skill already owned by\n`source` with top-level ownership fields has them moved under `metadata:`.\n\n## skill_unadopt(name)\nRemove `metadata.source` (or a top-level `source:`) from a skill.\n\n## skill_index(write=True)\nGenerate `_index.md` table of all installed skills.\n- `write`: Write file (default: True). False for preview.\n"
+		},
+		{
+			"topic": "spec",
+			"text": "# Spec Commands\n\n## spec_create(name, template=\"proposal\")\nCreate a new spec file from template.\n\n## spec_delete(path)\nDelete a spec file.\n\n## spec_status()\nList specs with metadata.\n\n## spec_validate(path=None)\nValidate spec structure.\n"
+		},
+		{
+			"topic": "undo",
+			"text": "# Undo Commands\n\n## undo_status()\nView undo/history status.\n\n## undo_clear()\nClear undo history.\n"
+		}
+	],
+	"skills": {
+		"seeded": [
+			"agent-config",
+			"bloat-sweeper",
+			"botcore-config",
+			"browser-automation",
+			"code-reviewer",
+			"docs-manager",
+			"mcp-builder",
+			"plugin-builder",
+			"security-auditor",
+			"skill-manager"
+		],
+		"stale": {
+			"name": "code-reviewer",
+			"from": "2.0.0",
+			"to": "1.0.0",
+			"restored": true
+		},
+		"local": {
+			"name": "ledger-rules",
+			"text": "---\nname: ledger-rules\ndescription: House rules for the ledger. Use when adding or changing an entry type.\n---\n\n# Ledger rules\n\nAmounts are exact decimals, never floats. Every entry names its account.\n",
+			"kept": true
+		},
+		"skip": {
+			"line": "skip = [\"code-reviewer\"]",
+			"kept": true
+		},
+		"runs": [
+			{
+				"id": "status-seeded",
+				"line": "botcore --json skill-status",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"skills\": [\r\n      {\r\n        \"name\": \"agent-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"bloat-sweeper\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"1.0.0\",\r\n        \"local_version\": \"1.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"botcore-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.3.0\",\r\n        \"local_version\": \"2.3.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"browser-automation\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"code-reviewer\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"docs-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.2.0\",\r\n        \"local_version\": \"2.2.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"mcp-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"plugin-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"security-auditor\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"skill-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"4.1.1\",\r\n        \"local_version\": \"4.1.1\",\r\n        \"status\": \"ok\"\r\n      }\r\n    ],\r\n    \"summary\": {\r\n      \"ok\": 10,\r\n      \"stale\": 0,\r\n      \"unmanaged\": 0,\r\n      \"missing\": 0,\r\n      \"conflict\": 0,\r\n      \"renamed\": 0,\r\n      \"retired\": 0\r\n    }\r\n  }\r\n}\r\n"
+			},
+			{
+				"id": "status-drifted",
+				"line": "botcore --json skill-status",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"skills\": [\r\n      {\r\n        \"name\": \"agent-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"bloat-sweeper\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"1.0.0\",\r\n        \"local_version\": \"1.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"botcore-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.3.0\",\r\n        \"local_version\": \"2.3.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"browser-automation\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"code-reviewer\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"1.0.0\",\r\n        \"status\": \"stale\"\r\n      },\r\n      {\r\n        \"name\": \"docs-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.2.0\",\r\n        \"local_version\": \"2.2.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"mcp-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"plugin-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"security-auditor\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"skill-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"4.1.1\",\r\n        \"local_version\": \"4.1.1\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"ledger-rules\",\r\n        \"source\": null,\r\n        \"source_version\": null,\r\n        \"local_version\": \"0.0.0\",\r\n        \"status\": \"unmanaged\"\r\n      }\r\n    ],\r\n    \"summary\": {\r\n      \"ok\": 9,\r\n      \"stale\": 1,\r\n      \"unmanaged\": 1,\r\n      \"missing\": 0,\r\n      \"conflict\": 0,\r\n      \"renamed\": 0,\r\n      \"retired\": 0\r\n    }\r\n  }\r\n}\r\n"
+			},
+			{
+				"id": "seed-update",
+				"line": "botcore --json skill-seed --update",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"seeded\": [],\r\n    \"updated\": [\r\n      \"agent-config\",\r\n      \"bloat-sweeper\",\r\n      \"botcore-config\",\r\n      \"browser-automation\",\r\n      \"code-reviewer\",\r\n      \"docs-manager\",\r\n      \"mcp-builder\",\r\n      \"plugin-builder\",\r\n      \"security-auditor\",\r\n      \"skill-manager\"\r\n    ],\r\n    \"skipped\": [],\r\n    \"migrated\": [],\r\n    \"renamed_locally_owned\": [],\r\n    \"retired\": [],\r\n    \"retired_locally_owned\": [],\r\n    \"agent_mirrored\": 0,\r\n    \"dry_run\": false\r\n  }\r\n}\r\n"
+			},
+			{
+				"id": "status-updated",
+				"line": "botcore --json skill-status",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"skills\": [\r\n      {\r\n        \"name\": \"agent-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"bloat-sweeper\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"1.0.0\",\r\n        \"local_version\": \"1.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"botcore-config\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.3.0\",\r\n        \"local_version\": \"2.3.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"browser-automation\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"code-reviewer\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.0.0\",\r\n        \"local_version\": \"2.0.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"docs-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.2.0\",\r\n        \"local_version\": \"2.2.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"mcp-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"plugin-builder\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"security-auditor\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"2.1.0\",\r\n        \"local_version\": \"2.1.0\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"skill-manager\",\r\n        \"source\": \"botcore\",\r\n        \"source_version\": \"4.1.1\",\r\n        \"local_version\": \"4.1.1\",\r\n        \"status\": \"ok\"\r\n      },\r\n      {\r\n        \"name\": \"ledger-rules\",\r\n        \"source\": null,\r\n        \"source_version\": null,\r\n        \"local_version\": \"0.0.0\",\r\n        \"status\": \"unmanaged\"\r\n      }\r\n    ],\r\n    \"summary\": {\r\n      \"ok\": 10,\r\n      \"stale\": 0,\r\n      \"unmanaged\": 1,\r\n      \"missing\": 0,\r\n      \"conflict\": 0,\r\n      \"renamed\": 0,\r\n      \"retired\": 0\r\n    }\r\n  }\r\n}\r\n"
+			},
+			{
+				"id": "skill-lint",
+				"line": "botcore --json skill-lint",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"path\": \"<workspace>\",\r\n    \"total\": 11,\r\n    \"passed\": 11,\r\n    \"errors\": 0,\r\n    \"warnings\": 0,\r\n    \"skills\": [\r\n      {\r\n        \"skill\": \"agent-config\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\agent-config\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"bloat-sweeper\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\bloat-sweeper\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"botcore-config\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\botcore-config\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"browser-automation\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\browser-automation\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"code-reviewer\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\code-reviewer\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"docs-manager\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\docs-manager\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"ledger-rules\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\ledger-rules\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"mcp-builder\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\mcp-builder\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"plugin-builder\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\plugin-builder\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"security-auditor\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\security-auditor\",\r\n        \"issues\": []\r\n      },\r\n      {\r\n        \"skill\": \"skill-manager\",\r\n        \"path\": \"<workspace>\\\\.claude\\\\skills\\\\skill-manager\",\r\n        \"issues\": []\r\n      }\r\n    ],\r\n    \"listing\": {\r\n      \"characters\": 2496,\r\n      \"budget\": 8000\r\n    },\r\n    \"success\": true\r\n  },\r\n  \"suggestions\": [\r\n    \"All skills pass the skill lint rules\"\r\n  ]\r\n}\r\n"
+			},
+			{
+				"id": "seed-skip",
+				"line": "botcore --json skill-seed --update",
+				"exit": 0,
+				"stdout": "{\r\n  \"success\": true,\r\n  \"data\": {\r\n    \"seeded\": [],\r\n    \"updated\": [\r\n      \"agent-config\",\r\n      \"bloat-sweeper\",\r\n      \"botcore-config\",\r\n      \"browser-automation\",\r\n      \"docs-manager\",\r\n      \"mcp-builder\",\r\n      \"plugin-builder\",\r\n      \"security-auditor\",\r\n      \"skill-manager\"\r\n    ],\r\n    \"skipped\": [],\r\n    \"migrated\": [],\r\n    \"renamed_locally_owned\": [],\r\n    \"retired\": [],\r\n    \"retired_locally_owned\": [],\r\n    \"agent_mirrored\": 0,\r\n    \"dry_run\": false\r\n  }\r\n}\r\n"
+			}
+		]
+	},
+	"plugin": {
+		"dir": "tools/ledger-bot",
+		"files": {
+			"pyproject.toml": "[build-system]\nrequires = [\"hatchling\"]\nbuild-backend = \"hatchling.build\"\n\n[project]\nname = \"ledger-bot\"\nversion = \"0.1.0\"\ndependencies = [\"lushly-botcore\"]\n\n[project.entry-points.\"botcore.plugins\"]\nledger = \"ledger_bot:LedgerPlugin\"\n\n[tool.hatch.build.targets.wheel]\npackages = [\"ledger_bot\"]\n",
+			"ledger_bot/__init__.py": "\"\"\"This project's own commands, added to Botcore.\"\"\"\n\nimport csv\nfrom decimal import Decimal\nfrom pathlib import Path\n\nfrom afd import CommandResult, error, success\n\nDOCS = \"\"\"\\\n# Ledger Commands\n\n## ledger_balance(account=\"cash\")\nAdd up the entries for one account in entries.csv.\n\"\"\"\n\n\nasync def ledger_balance(account: str = \"cash\") -> CommandResult[dict]:\n    \"\"\"Add up the entries for one account.\"\"\"\n    with Path(\"entries.csv\").open(newline=\"\") as entries:\n        amounts = [Decimal(row[\"amount\"]) for row in csv.DictReader(entries) if row[\"account\"] == account]\n    if not amounts:\n        return error(\n            \"ACCOUNT_NOT_FOUND\",\n            f\"No entries for account '{account}'\",\n            suggestion=\"Check the account names in entries.csv\",\n        )\n    return success(\n        data={\"account\": account, \"entries\": len(amounts), \"balance\": str(sum(amounts))},\n        reasoning=f\"Added up {len(amounts)} entries for {account}\",\n    )\n\n\nclass LedgerPlugin:\n    def register(self, registry) -> None:\n        registry.add_commands([ledger_balance])\n        registry.add_docs(\"ledger\", DOCS)\n\n    def config_schema(self):\n        return None\n"
+		},
+		"session": {
+			"line": "botcore serve",
+			"server": {
+				"name": "botcore",
+				"version": ""
+			},
+			"protocol": "2025-06-18",
+			"tools": [
+				{
+					"name": "botcore-start",
+					"description": "Discovery — version, available functions, quick start",
+					"inputSchema": {
+						"properties": {},
+						"type": "object",
+						"title": "_startArguments"
+					}
+				},
+				{
+					"name": "botcore-docs",
+					"description": "Reference docs by topic (changeset, dev, docs, info, ledger, skill, spec, undo)",
+					"inputSchema": {
+						"properties": {
+							"topic": {
+								"default": "overview",
+								"title": "Topic",
+								"type": "string"
+							}
+						},
+						"type": "object",
+						"title": "_docsArguments"
+					}
+				},
+				{
+					"name": "botcore-run",
+					"description": "Execute Python code with all functions available. Use await.",
+					"inputSchema": {
+						"properties": {
+							"code": {
+								"title": "Code",
+								"type": "string"
+							}
+						},
+						"required": [
+							"code"
+						],
+						"type": "object",
+						"title": "_runArguments"
+					}
+				}
+			],
+			"calls": [
+				{
+					"id": "start",
+					"tool": "botcore-start",
+					"arguments": {},
+					"isError": false,
+					"text": "{\n  \"name\": \"botcore\",\n  \"version\": \"0.7.0\",\n  \"description\": \"botcore bot \\u2014 built on botcore\",\n  \"available_functions\": [\n    \"changeset_consume\",\n    \"changeset_create\",\n    \"changeset_delete\",\n    \"changeset_status\",\n    \"dev_build\",\n    \"dev_check_coverage\",\n    \"dev_check_deps\",\n    \"dev_check_paths\",\n    \"dev_check_size\",\n    \"dev_circular_imports\",\n    \"dev_dead_code\",\n    \"dev_dep_graph\",\n    \"dev_lint\",\n    \"dev_skill_lint\",\n    \"dev_test\",\n    \"dev_unused_deps\",\n    \"docs_check_agents\",\n    \"docs_check_changelog\",\n    \"docs_lint\",\n    \"docs_preflight\",\n    \"info_env\",\n    \"info_scripts\",\n    \"info_workspace\",\n    \"ledger_balance\",\n    \"research_query\",\n    \"research_stream\",\n    \"skill_adopt\",\n    \"skill_index\",\n    \"skill_lint\",\n    \"skill_lint_spec\",\n    \"skill_list\",\n    \"skill_seed\",\n    \"skill_status\",\n    \"skill_unadopt\",\n    \"spec_create\",\n    \"spec_delete\",\n    \"spec_status\",\n    \"spec_validate\",\n    \"undo_clear\",\n    \"undo_status\"\n  ],\n  \"topics\": [\n    \"changeset\",\n    \"dev\",\n    \"docs\",\n    \"info\",\n    \"ledger\",\n    \"skill\",\n    \"spec\",\n    \"undo\"\n  ]\n}"
+				},
+				{
+					"id": "balance",
+					"tool": "botcore-run",
+					"arguments": {
+						"code": "result = await ledger_balance()\nreturn result.model_dump(exclude_none=True)"
+					},
+					"isError": false,
+					"text": "{\n  \"success\": true,\n  \"data\": {\n    \"account\": \"cash\",\n    \"entries\": 2,\n    \"balance\": \"74.50\"\n  },\n  \"reasoning\": \"Added up 2 entries for cash\"\n}"
+				},
+				{
+					"id": "no-account",
+					"tool": "botcore-run",
+					"arguments": {
+						"code": "result = await ledger_balance(\"petty\")\nreturn result.model_dump(exclude_none=True)"
+					},
+					"isError": false,
+					"text": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": \"ACCOUNT_NOT_FOUND\",\n    \"message\": \"No entries for account 'petty'\",\n    \"suggestion\": \"Check the account names in entries.csv\"\n  }\n}"
+				}
+			]
+		}
+	},
+	"flat": {
+		"skipped": [
+			"skill_lint"
+		],
+		"tools": [
+			{
+				"name": "changeset_consume",
+				"description": "Consume changeset files and update CHANGELOG.md.\n\nReads all pending changesets, groups by type, generates a changelog\nsection, inserts it into CHANGELOG.md, and deletes consumed files.\n\nArgs:\n    version: Version string (e.g. \"1.2.0\"). If None, uses [Unreleased].\n",
+				"inputSchema": {
+					"properties": {
+						"version": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Version"
+						}
+					},
+					"title": "changeset_consumeArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "changeset_create",
+				"description": "Create a changeset file for the next release.\n\nArgs:\n    change_type: One of: added, changed, deprecated, removed, fixed, security.\n    description: Changelog entry text (markdown). Bold the component name.\n",
+				"inputSchema": {
+					"properties": {
+						"change_type": {
+							"title": "Change Type",
+							"type": "string"
+						},
+						"description": {
+							"title": "Description",
+							"type": "string"
+						}
+					},
+					"required": [
+						"change_type",
+						"description"
+					],
+					"title": "changeset_createArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "changeset_delete",
+				"description": "Delete a pending changeset file.",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"title": "Path",
+							"type": "string"
+						}
+					},
+					"required": [
+						"path"
+					],
+					"title": "changeset_deleteArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "changeset_status",
+				"description": "Show pending changeset files and their types.",
+				"inputSchema": {
+					"properties": {},
+					"title": "changeset_statusArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_build",
+				"description": "Build a package using the language-appropriate build tool.\n\nWhen multiple languages are configured and no --language is given,\nruns all sequentially.\n",
+				"inputSchema": {
+					"properties": {
+						"package": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Package"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						},
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						}
+					},
+					"title": "dev_buildArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_check_coverage",
+				"description": "Check test coverage against configured thresholds.",
+				"inputSchema": {
+					"properties": {
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_check_coverageArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_check_deps",
+				"description": "Check that dependencies are up-to-date.\n\nDispatches to PyPI (Python), npm (TypeScript), or cargo-outdated (Rust).\nWhen multiple languages are configured and no --language is given,\nchecks all ecosystems.\nRequires httpx for Python: pip install botcore[quality]\n",
+				"inputSchema": {
+					"properties": {
+						"staged_only": {
+							"default": true,
+							"title": "Staged Only",
+							"type": "boolean"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_check_depsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_check_paths",
+				"description": "Scan for hardcoded paths that break cross-platform portability.\n\nDetects:\n- Windows absolute paths (drive-letter paths)\n- Unix/Mac absolute paths (home-directory paths)\n- Hardcoded localhost URLs with ports\n\nArgs:\n    path: Directory to scan (defaults to workspace src/)\n    include_warnings: Include warning-level issues (localhost URLs)\n",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						},
+						"include_warnings": {
+							"default": true,
+							"title": "Include Warnings",
+							"type": "boolean"
+						}
+					},
+					"title": "dev_check_pathsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_check_size",
+				"description": "Check file sizes for agent-friendly limits.\n\nScans files matching the configured language extensions.\nUses warn/error thresholds from config if not explicitly provided.\nWhen staged_only=True, only checks files staged in git.\n",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						},
+						"warn_threshold": {
+							"anyOf": [
+								{
+									"type": "integer"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Warn Threshold"
+						},
+						"error_threshold": {
+							"anyOf": [
+								{
+									"type": "integer"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Error Threshold"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						},
+						"staged_only": {
+							"default": false,
+							"title": "Staged Only",
+							"type": "boolean"
+						}
+					},
+					"title": "dev_check_sizeArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_circular_imports",
+				"description": "Detect circular imports in Python code, or circular deps via madge (TS).",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_circular_importsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_dead_code",
+				"description": "Find dead/unused code using vulture (Python), knip (TS), or cargo-udeps (Rust).",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						},
+						"min_confidence": {
+							"default": 80,
+							"title": "Min Confidence",
+							"type": "integer"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_dead_codeArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_dep_graph",
+				"description": "Generate dependency graph of modules (Python AST, madge for TS, cargo-modules for Rust).",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						},
+						"output": {
+							"default": "json",
+							"title": "Output",
+							"type": "string"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_dep_graphArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_lint",
+				"description": "Run linting using the configured linter.\n\nDispatches to ruff (Python), biome (TypeScript), or clippy (Rust)\nbased on the workspace language configuration.\nWhen multiple languages are configured and no --language is given,\nruns all sequentially.\n",
+				"inputSchema": {
+					"properties": {
+						"package": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Package"
+						},
+						"fix": {
+							"default": false,
+							"title": "Fix",
+							"type": "boolean"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						},
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						}
+					},
+					"title": "dev_lintArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_skill_lint",
+				"description": "Lint Claude skills for common issues.\n\nDelegates to the full skill_lint command in botcore.commands.skill.lint.\n",
+				"inputSchema": {
+					"properties": {},
+					"title": "dev_skill_lintArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_test",
+				"description": "Run tests using the configured test runner.\n\nDispatches to pytest (Python), vitest (TypeScript), or cargo test (Rust).\nWhen multiple languages are configured and no --language is given,\nruns all sequentially.\n",
+				"inputSchema": {
+					"properties": {
+						"package": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Package"
+						},
+						"coverage": {
+							"default": false,
+							"title": "Coverage",
+							"type": "boolean"
+						},
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						},
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						}
+					},
+					"title": "dev_testArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "dev_unused_deps",
+				"description": "Find unused dependencies in pyproject.toml (Python), depcheck (TS), or cargo-udeps (Rust).",
+				"inputSchema": {
+					"properties": {
+						"language": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Language"
+						}
+					},
+					"title": "dev_unused_depsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "docs_check_agents",
+				"description": "Check if AGENTS.md needs updating based on structural changes.",
+				"inputSchema": {
+					"properties": {},
+					"title": "docs_check_agentsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "docs_check_changelog",
+				"description": "Check whether staged source changes need a CHANGELOG.md update.\n\nA staged source file (a code file under any ``src/`` directory) is covered by the\nCHANGELOG.md nearest it, from its directory up to the workspace root, so each package\nof a monorepo answers to its own changelog. A staged changelog, or a pending changeset\nin ``.changeset/``, covers it; a file with no changelog above it needs none.\n",
+				"inputSchema": {
+					"properties": {},
+					"title": "docs_check_changelogArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "docs_lint",
+				"description": "Lint markdown files for broken links and missing frontmatter.\n\nChecks for:\n- Broken internal links\n- Broken anchor links\n- Missing files referenced in links\n- Missing frontmatter for specs/proposals\n",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						}
+					},
+					"title": "docs_lintArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "docs_preflight",
+				"description": "Run docs release-readiness checks via an AFD DirectClient pipeline.",
+				"inputSchema": {
+					"properties": {},
+					"title": "docs_preflightArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "info_env",
+				"description": "Get environment information.",
+				"inputSchema": {
+					"properties": {},
+					"title": "info_envArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "info_scripts",
+				"description": "Get scripts from all packages.\n\nReads both package.json scripts and pyproject.toml [project.scripts].\n",
+				"inputSchema": {
+					"properties": {},
+					"title": "info_scriptsArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "info_workspace",
+				"description": "Get workspace information.",
+				"inputSchema": {
+					"properties": {},
+					"title": "info_workspaceArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "research_query",
+				"description": "Run a research query with an OpenAI GPT model and web search.\n\nCollects ``research_stream`` into a single result.\n\nArgs:\n    query: The research query\n    mode: 'fast' (default), 'deep', or 'thinking' (most reasoning)\n    max_length: Answer budget in characters; a longer answer is cut there and marked\n\nRequires openai: pip install botcore[research]\n",
+				"inputSchema": {
+					"properties": {
+						"query": {
+							"title": "Query",
+							"type": "string"
+						},
+						"mode": {
+							"default": "fast",
+							"title": "Mode",
+							"type": "string"
+						},
+						"max_length": {
+							"default": 100000,
+							"title": "Max Length",
+							"type": "integer"
+						}
+					},
+					"required": [
+						"query"
+					],
+					"title": "research_queryArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "research_stream",
+				"description": "Stream a research query with an OpenAI GPT model and web search.\n\nYields a progress chunk when the search starts, a data chunk ``{\"text\": ...}``\nfor each piece of the answer, and finally a complete chunk carrying the same\ndata ``research_query`` returns, or an error chunk. Joining the data chunks'\ntext gives the complete chunk's ``answer``.\n\nArgs:\n    query: The research query\n    mode: 'fast' (default), 'deep', or 'thinking' (most reasoning)\n    max_length: Answer budget in characters; a longer answer is cut there and marked\n\nRequires openai: pip install botcore[research]\n",
+				"inputSchema": {
+					"properties": {
+						"query": {
+							"title": "Query",
+							"type": "string"
+						},
+						"mode": {
+							"default": "fast",
+							"title": "Mode",
+							"type": "string"
+						},
+						"max_length": {
+							"default": 100000,
+							"title": "Max Length",
+							"type": "integer"
+						}
+					},
+					"required": [
+						"query"
+					],
+					"title": "research_streamArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_adopt",
+				"description": "Claim an unmanaged skill by setting ``metadata.source`` in its frontmatter.\n\nA skill already owned by ``source`` whose ownership fields are still at the top\nlevel (an older copy) has them moved under ``metadata:``.\n\nFails if:\n- Skill directory doesn't exist\n- Skill has no SKILL.md\n- Skill already has a different source\n",
+				"inputSchema": {
+					"properties": {
+						"name": {
+							"title": "Name",
+							"type": "string"
+						},
+						"source": {
+							"default": "local",
+							"title": "Source",
+							"type": "string"
+						}
+					},
+					"required": [
+						"name"
+					],
+					"title": "skill_adoptArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_index",
+				"description": "Generate a _index.md file listing all installed skills.\n\nArgs:\n    write: If True, write the file. If False, return content only (dry run).\n",
+				"inputSchema": {
+					"properties": {
+						"write": {
+							"default": true,
+							"title": "Write",
+							"type": "boolean"
+						}
+					},
+					"title": "skill_indexArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_lint_spec",
+				"description": "Lint SKILL.md files under a path with the shared skill rules (SK001-SK019).\n\nArgs:\n    path: Directory containing skills (or a single skill directory).\n          Defaults to current working directory.\n",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Path"
+						}
+					},
+					"title": "skill_lint_specArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_list",
+				"description": "List all skills — both available sources and locally installed.\n\nReturns:\n    CommandResult with data containing available, installed, and summary.\n",
+				"inputSchema": {
+					"properties": {
+						"show_source": {
+							"default": false,
+							"title": "Show Source",
+							"type": "boolean"
+						},
+						"plugin_dirs": {
+							"anyOf": [
+								{
+									"items": {
+										"format": "path",
+										"type": "string"
+									},
+									"type": "array"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Plugin Dirs"
+						}
+					},
+					"title": "skill_listArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_seed",
+				"description": "Seed available skills into the project's skills directory.\n\nAlgorithm:\n1. Load config → get SkillsConfig (include/skip/source_dir/agent_skills)\n2. discover_available_skills() → all candidates from botcore + plugins\n3. Filter by include/skip (include takes priority; if set, skip is ignored)\nOwnership is ``metadata.source`` in a skill's frontmatter, or a top-level\n``source:`` in older copies.\n\n4. For each local skill under a renamed name whose new name is a candidate:\n   - source botcore → remove it (migrated; the new name is seeded below)\n   - no source or different → leave it, report it, and don't seed the\n     new name alongside it (that would duplicate the skill)\n5. For each local skill botcore retired that no source still ships:\n   - source botcore, no include list and not skipped → remove it (retired)\n   - otherwise → leave it and report it (retired_locally_owned)\n6. For each skill:\n   - Not present locally → copy tree, set metadata.source in frontmatter\n   - Present, matching source → overwrite if update=True, skip otherwise\n   - Present, no source or different → skip (log warning)\n7. If agent_skills=True, mirror to .agent/skills/\n8. Return summary\n",
+				"inputSchema": {
+					"properties": {
+						"update": {
+							"default": false,
+							"title": "Update",
+							"type": "boolean"
+						},
+						"dry_run": {
+							"default": false,
+							"title": "Dry Run",
+							"type": "boolean"
+						},
+						"plugin_dirs": {
+							"anyOf": [
+								{
+									"items": {
+										"format": "path",
+										"type": "string"
+									},
+									"type": "array"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Plugin Dirs"
+						}
+					},
+					"title": "skill_seedArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_status",
+				"description": "Show version drift for managed skills.\n\nStatus per skill:\n- ok: local version matches source version\n- stale: local version is behind source\n- unmanaged: local skill has no source (metadata.source, or top-level source:)\n- missing: source skill not installed locally\n- conflict: local skill has a different source than expected\n- renamed: local skill uses a retired name; see renamed_to and suggestion\n- retired: botcore no longer ships the local skill; see suggestion\n",
+				"inputSchema": {
+					"properties": {
+						"plugin_dirs": {
+							"anyOf": [
+								{
+									"items": {
+										"format": "path",
+										"type": "string"
+									},
+									"type": "array"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"default": null,
+							"title": "Plugin Dirs"
+						}
+					},
+					"title": "skill_statusArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "skill_unadopt",
+				"description": "Remove ``metadata.source`` (or an older top-level ``source:``) from a skill.",
+				"inputSchema": {
+					"properties": {
+						"name": {
+							"title": "Name",
+							"type": "string"
+						}
+					},
+					"required": [
+						"name"
+					],
+					"title": "skill_unadoptArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "spec_create",
+				"description": "Create a new spec from template.\n\nArgs:\n    path: Path like 'docs/features/my-feature' or a full file path\n    template: 'proposal' or 'spec'\n",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"title": "Path",
+							"type": "string"
+						},
+						"template": {
+							"default": "proposal",
+							"title": "Template",
+							"type": "string"
+						}
+					},
+					"required": [
+						"path"
+					],
+					"title": "spec_createArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "spec_delete",
+				"description": "Delete a spec file created on disk.",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"title": "Path",
+							"type": "string"
+						}
+					},
+					"required": [
+						"path"
+					],
+					"title": "spec_deleteArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "spec_status",
+				"description": "Get spec status from frontmatter.",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"title": "Path",
+							"type": "string"
+						}
+					},
+					"required": [
+						"path"
+					],
+					"title": "spec_statusArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "spec_validate",
+				"description": "Validate spec structure.",
+				"inputSchema": {
+					"properties": {
+						"path": {
+							"title": "Path",
+							"type": "string"
+						}
+					},
+					"required": [
+						"path"
+					],
+					"title": "spec_validateArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "undo_clear",
+				"description": "Clear undo history.",
+				"inputSchema": {
+					"properties": {},
+					"title": "undo_clearArguments",
+					"type": "object"
+				}
+			},
+			{
+				"name": "undo_status",
+				"description": "Get undo history status.",
+				"inputSchema": {
+					"properties": {},
+					"title": "undo_statusArguments",
+					"type": "object"
+				}
+			}
+		]
+	}
+}

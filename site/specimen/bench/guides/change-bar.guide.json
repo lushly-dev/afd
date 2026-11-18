@@ -1,0 +1,33 @@
+{
+	"tag": "change-bar",
+	"summary": "A bar that says changes are waiting, with buttons to save them, discard them or put the bar away.",
+	"status": "preview",
+	"usage": [
+		{
+			"id": "change-bar.when",
+			"text": "Show it while there are unsaved changes. Say how many, and to what, in its text."
+		},
+		{
+			"id": "change-bar.label",
+			"text": "The label attribute is the main button's text. Say what saving does, such as Save changes.",
+			"members": ["label"]
+		}
+	],
+	"a11y": [
+		{
+			"id": "change-bar.save-disabled",
+			"text": "To switch off saving, set save-disabled. It disables the main button and leaves the other two alone.",
+			"members": ["save-disabled"]
+		},
+		{
+			"id": "change-bar.not-disabled",
+			"text": "Do not set disabled on the bar. A screen reader then announces all three buttons as unavailable.",
+			"members": ["disabled"]
+		},
+		{
+			"id": "change-bar.dismiss-name",
+			"text": "Keep dismiss-label set. The icon button has no text, so the attribute is its only name.",
+			"members": ["dismiss-label"]
+		}
+	]
+}

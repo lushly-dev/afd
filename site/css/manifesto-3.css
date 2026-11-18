@@ -1,0 +1,1424 @@
+/* ============================================================
+   Command Manifesto 3 — proposal layer
+   ------------------------------------------------------------
+   Loaded after manifesto-2.css by every page. It began as the
+   proposal for the home page (manifesto-3.html, now index.html). Everything here answers a finding from
+   the design review:
+     1. Statements hold two lines (label above, not beside).
+     2. A type floor: nothing below 12px.
+     3. The demo opens with a story and wastes no space.
+     4. Fig. 01 shows a command. Fig. 03 shows all three panels.
+     5. No hard offset shadows; the slash returns in the finale.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+:root {
+	/* The floor of the ramp moves up one step. */
+	--t-label: 12px;
+	--t-code: 13px;
+	--t-small: 15px;
+}
+
+/* ── Focus: one ring, in the page's own colours ─────────────────
+   Ink on light fields, mint on dark ones, sitting close to the control.
+   The ring is drawn outside the element, so its colour follows whatever
+   the element sits on. */
+
+:focus-visible {
+	outline: var(--rule) solid var(--color-text);
+	outline-offset: 3px;
+}
+
+:is(
+		.experience,
+		.handoff,
+		.build-story,
+		.evidence-band,
+		.finale,
+		.contract-panel,
+		.command-source,
+		.install-command,
+		.recovery-response,
+		.result-dialog
+	)
+	:focus-visible {
+	outline-color: var(--accent-agent);
+}
+
+/* Light islands inside the dark demo. The id lifts this above the rule before it. */
+:is(.surface-toolbar, #task-panel) :focus-visible {
+	outline-color: var(--color-text);
+}
+
+/* ── The two sides of AFD: Dev and Design ───────────────────────
+   One link in the nav of both sites. It takes you to the same subject on
+   the other side. */
+
+.manifesto-nav .side-switch {
+	display: inline-flex;
+	gap: 0;
+	border: var(--rule-thin) solid var(--color-text);
+}
+
+.manifesto-nav .side-switch a {
+	padding: 6px var(--space-3);
+	font: var(--weight-medium) var(--t-label) var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.manifesto-nav .side-switch a:hover {
+	color: var(--color-text);
+	background: var(--afd-stone-200);
+}
+
+.manifesto-nav .side-switch a[aria-current="page"] {
+	background: var(--color-text);
+	color: var(--color-page);
+}
+
+.side-switch a:focus-visible {
+	outline-offset: 2px;
+}
+
+/* ── 1. Statements: the figure label sits above the headline ── */
+
+.editorial-heading,
+.start-heading {
+	display: block;
+}
+
+.editorial-heading .section-index,
+.start-heading .section-index {
+	margin-bottom: var(--space-5);
+}
+
+.editorial-heading h2,
+.start-heading h2,
+.thesis h2 {
+	text-wrap: balance;
+}
+
+/* ── No widows ───────────────────────────────────────────────────
+   A last line of one word reads as a mistake. `pretty` asks the
+   browser to break running text so that does not happen. Where a
+   browser does not have it, js/widows.js ties the last two words
+   of the same elements together. Code is left alone: it wraps
+   where it wraps. */
+
+p,
+li,
+dd,
+figcaption,
+blockquote {
+	text-wrap: pretty;
+}
+
+/* A hyphenated name stays on one line: `FAST-` at the end of a line reads as a break in the name. */
+.keep {
+	white-space: nowrap;
+}
+
+/* Display type is set line by line on purpose: one word on the last line is the design. */
+.display,
+.slab__quote p,
+.honesty-statement {
+	text-wrap: wrap;
+}
+
+/* ── Hero: the better line gets the bigger size ─────────────── */
+
+.opening-label {
+	flex-wrap: wrap;
+	row-gap: var(--space-1);
+	font-size: var(--t-code);
+}
+
+.edition {
+	display: block;
+}
+
+/* ── Hero: what every opening says before you scroll ──────────────
+   Two parts are shared by the home pages and the area pages: three
+   facts under a rule, and an install line you can copy. */
+
+.hero-facts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-5) var(--space-7);
+	margin: 0;
+	padding-top: var(--space-5);
+	border-top: var(--rule-thin) solid color-mix(in srgb, var(--color-text) 40%, transparent);
+}
+
+.hero-facts dt {
+	font-size: var(--t-lead);
+	font-weight: var(--weight-strong);
+	line-height: var(--leading-snug);
+}
+
+.hero-facts dd {
+	max-width: 30em;
+	margin: var(--space-2) 0 0;
+	font-size: var(--t-small);
+	line-height: 1.5;
+}
+
+.hero-install {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2) var(--space-4);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.hero-install code {
+	padding: var(--space-2) var(--space-3);
+	border: var(--rule-thin) solid color-mix(in srgb, var(--color-text) 45%, transparent);
+	overflow-wrap: anywhere;
+}
+
+.hero-install button {
+	padding: var(--space-2) 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-weight: var(--weight-strong);
+	letter-spacing: var(--tracking-label);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+/* ── Home hero: the poster line, then what AFD is ─────────────────
+   The big line stays, a fifth smaller, so the first screen also has
+   room for a definition, the way in and the three facts. */
+
+.opening--home > .wrap {
+	gap: var(--space-6);
+}
+
+/* Below this width manifesto-2.css already sets the poster line smaller. */
+@media (min-width: 851px) {
+	.opening--home .display {
+		font-size: calc(var(--t-display) * 0.8);
+	}
+}
+
+/* The definition, the way in and the facts stay together at the foot. */
+.opening-base {
+	display: grid;
+	gap: var(--space-6);
+}
+
+.opening--home .opening-footer {
+	align-items: center;
+	padding-top: var(--space-5);
+}
+
+.opening--home .opening-footer > p {
+	max-width: 33em;
+	line-height: 1.45;
+}
+
+.opening--home .opening-footer > p b {
+	font-weight: var(--weight-strong);
+}
+
+.opening-way {
+	display: grid;
+	flex-shrink: 0;
+	justify-items: end;
+	gap: var(--space-4);
+}
+
+@media (max-width: 850px) {
+	.opening--home .opening-footer {
+		align-items: start;
+	}
+
+	.opening-way {
+		justify-items: start;
+		width: 100%;
+	}
+}
+
+@media (max-width: 620px) {
+	.hero-facts {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* ── 3. The demo: one list, four ways to run it ──────────────── */
+
+.experience-heading {
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-5);
+	margin-bottom: var(--space-5);
+}
+
+/* One line, on a row of its own when it does not fit beside the heading. The base
+   stylesheet caps its width on small screens, which a single line then runs past. */
+.local-label {
+	max-width: none;
+	white-space: nowrap;
+}
+
+/* What to try on this surface, and where to look next. */
+.surface-hint {
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-3);
+	margin-bottom: var(--space-4);
+	color: var(--color-on-dark);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.surface-hint b {
+	flex-shrink: 0;
+	color: var(--accent-agent);
+	font: var(--weight-medium) var(--t-label) var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.surface-name > span {
+	font-size: var(--t-label);
+}
+
+.surface-stage {
+	height: clamp(340px, 27vw, 400px);
+}
+
+/* The new-task field has no box of its own, so a ring round it would hit the
+   crop marks and the rows. Focus thickens the rule it already sits on. */
+.task-form input:focus-visible {
+	outline: none;
+}
+
+.task-form:has(input:focus-visible) {
+	border-bottom-color: var(--color-text);
+	box-shadow: 0 var(--rule-thin) 0 var(--color-text);
+}
+
+.task-form select:focus-visible,
+.task-form .icon-button:focus-visible {
+	outline-offset: 2px;
+}
+
+/* A task: check it off, read it, see who made it, change its priority. */
+.task {
+	grid-template-columns: 28px minmax(0, 1fr) 96px auto;
+}
+
+.task-check {
+	position: relative;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	background: none;
+	cursor: pointer;
+}
+
+.task-check::before {
+	content: "";
+	position: absolute;
+	inset: 5px;
+	border: var(--rule) solid var(--color-text);
+}
+
+/* Ring the box you can see, not the larger area you can press. */
+.task-check:focus-visible {
+	outline: none;
+}
+
+.task-check:focus-visible::before {
+	outline: var(--rule) solid var(--color-text);
+	outline-offset: 2px;
+}
+
+.task .task-priority:focus-visible {
+	outline-offset: 1px;
+}
+
+.task-check:hover::before {
+	background: var(--afd-stone-200);
+}
+
+.task-check[aria-checked="true"]::before {
+	background: var(--color-text);
+}
+
+.task-check[aria-checked="true"]::after {
+	content: "";
+	position: absolute;
+	top: 10px;
+	left: 9px;
+	width: 9px;
+	height: 5px;
+	border: solid var(--color-page);
+	border-width: 0 0 var(--rule) var(--rule);
+	transform: rotate(-45deg);
+}
+
+.task[data-done="true"] strong {
+	color: var(--color-text-subtle);
+	text-decoration: line-through;
+}
+
+.task .task-priority {
+	margin-right: calc(-1 * var(--space-2));
+	padding: var(--space-1) var(--space-2);
+	border: 0;
+	border-radius: var(--radius);
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.task .task-priority:hover {
+	background: var(--afd-stone-200);
+}
+
+/* Each task says which surface created it: one list, three operators. */
+.task-via {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	color: var(--color-text-muted);
+	font: var(--t-label) var(--mono);
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.task-via::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--color-text);
+}
+
+.task-via[data-surface="ui"]::before {
+	background: var(--accent-human);
+}
+
+.task-via[data-surface="agent"]::before {
+	background: var(--accent-agent-text);
+}
+
+/* The board: three lanes you can see, and cards you can drag between them. */
+[data-mode="board"] .task-scroll {
+	display: flex;
+	flex-direction: column;
+}
+
+[data-mode="board"] .tasks {
+	--lane: var(--afd-stone-100);
+	--lane-high: var(--lane);
+	--lane-medium: var(--lane);
+	--lane-low: var(--lane);
+	flex: 1;
+	align-content: start;
+	gap: var(--space-2) var(--space-3);
+	padding-block: var(--space-2);
+	background-image:
+		linear-gradient(var(--lane-high), var(--lane-high)),
+		linear-gradient(var(--lane-medium), var(--lane-medium)),
+		linear-gradient(var(--lane-low), var(--lane-low));
+	background-position:
+		0 0,
+		50% 0,
+		100% 0;
+	background-repeat: no-repeat;
+	background-size: calc((100% - 2 * var(--space-3)) / 3) 100%;
+}
+
+.tasks[data-drop="high"] {
+	--lane-high: var(--afd-stone-300);
+}
+
+.tasks[data-drop="medium"] {
+	--lane-medium: var(--afd-stone-300);
+}
+
+.tasks[data-drop="low"] {
+	--lane-low: var(--afd-stone-300);
+}
+
+[data-mode="board"] .task {
+	grid-template-columns: 28px minmax(0, 1fr) auto;
+	margin-inline: var(--space-2);
+	padding: var(--space-2) var(--space-3) var(--space-3);
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+[data-mode="board"] .task-via {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+[data-mode="board"] .task-priority {
+	grid-column: 3;
+	grid-row: 1;
+}
+
+.task.is-dragging {
+	opacity: 0.3;
+}
+
+.task-ghost {
+	position: fixed;
+	z-index: var(--layer-nav);
+	margin: 0;
+	outline: var(--rule) solid var(--color-text);
+	cursor: grabbing;
+	pointer-events: none;
+}
+
+/* The terminal: a screen, a prompt you type on, and a few lines to start from. */
+.terminal-panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-4) var(--space-5) var(--space-3);
+}
+
+.terminal-screen {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.terminal-screen pre {
+	margin-bottom: var(--space-3);
+	font: inherit;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.terminal-screen .tok-prompt {
+	color: var(--accent-agent);
+}
+
+.terminal-line {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding-top: var(--space-2);
+	border-top: var(--rule-thin) solid var(--afd-stone-700);
+	font: var(--t-code) var(--mono);
+}
+
+.terminal-line > span {
+	color: var(--accent-agent);
+}
+
+.terminal-line input {
+	flex: 1;
+	min-width: 0;
+	padding: var(--space-2) 0;
+	border: 0;
+	background: transparent;
+	color: var(--color-on-dark);
+	font: inherit;
+	caret-color: var(--accent-agent);
+}
+
+/* The caret and the mint rule show focus; a boxed outline would fight the screen. */
+.terminal-line input:focus-visible {
+	outline: none;
+}
+
+.terminal-line:focus-within {
+	border-top-color: var(--accent-agent);
+}
+
+.terminal-line input::placeholder {
+	color: var(--afd-stone-500);
+}
+
+.terminal-line .icon-button {
+	width: 30px;
+	height: 30px;
+	flex-basis: 30px;
+	color: var(--accent-agent);
+}
+
+.terminal-tries {
+	display: flex;
+	gap: var(--space-2);
+	overflow-x: auto;
+	scrollbar-width: thin;
+}
+
+.terminal-tries button {
+	flex: none;
+	padding: var(--space-1) var(--space-2);
+	border: var(--rule-thin) solid var(--afd-stone-700);
+	background: transparent;
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) var(--mono);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.terminal-tries button:hover {
+	border-color: var(--accent-agent);
+	color: var(--accent-agent);
+}
+
+/* The agent: ask on the left, watch the calls on the right. */
+.agent-panel {
+	grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+	align-items: stretch;
+	gap: var(--space-7);
+	padding: var(--space-5) var(--space-6);
+}
+
+.agent-ask {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: var(--space-5);
+	min-width: 0;
+}
+
+.agent-who {
+	display: flex;
+	align-items: center;
+	gap: var(--space-4);
+}
+
+.agent-who .alfred {
+	flex: none;
+	width: 56px;
+}
+
+.agent-who b {
+	display: block;
+	font-size: var(--t-lead);
+	font-weight: var(--weight-medium);
+}
+
+.agent-who span {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+.agent-intents {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.agent-intents button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	min-height: 40px;
+	padding: var(--space-2) var(--space-4);
+	border: var(--rule-thin) solid color-mix(in srgb, var(--accent-agent) 45%, transparent);
+	background: transparent;
+	color: var(--color-on-dark);
+	font: var(--weight-medium) var(--t-small) var(--font-sans);
+	text-align: left;
+	cursor: pointer;
+}
+
+.agent-intents button:hover:not(:disabled) {
+	background: var(--accent-agent);
+	color: var(--afd-ink);
+}
+
+.agent-intents button:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.agent-intents .icon {
+	width: 15px;
+	height: 15px;
+	flex-basis: 15px;
+}
+
+.agent-log {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	min-height: 0;
+	margin: 0;
+	padding: 0 0 0 var(--space-6);
+	border-left: var(--rule-thin) solid var(--color-on-dark-line);
+	overflow: auto;
+	list-style: none;
+	font-size: var(--t-small);
+	line-height: 1.45;
+}
+
+.agent-log li {
+	display: grid;
+	gap: 2px;
+}
+
+.agent-log b {
+	color: var(--color-on-dark-muted);
+	font: var(--weight-medium) var(--t-label) var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.agent-log .agent-log__alfred b {
+	color: var(--accent-agent);
+}
+
+.agent-log .agent-log__empty {
+	max-width: 38ch;
+	margin-block: auto;
+	color: var(--color-on-dark-muted);
+}
+
+.agent-log .agent-log__call {
+	padding-left: var(--space-4);
+	border-left: var(--rule) solid var(--accent-agent);
+}
+
+.agent-log .agent-log__call[data-state="error"] {
+	border-left-color: var(--afd-red-300);
+}
+
+.agent-log__call code {
+	color: var(--accent-agent);
+	font: var(--t-code) var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.agent-log__call span {
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-code);
+}
+
+/* Under the stage: what just ran, and from where. */
+.experience-caption {
+	align-items: baseline;
+}
+
+.experience-caption p {
+	min-width: 0;
+}
+
+.command-trail {
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--space-4);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	white-space: nowrap;
+}
+
+.command-trail li {
+	color: var(--afd-stone-500);
+}
+
+.command-trail li:first-child {
+	color: var(--color-on-dark);
+}
+
+.command-trail li[data-failed] {
+	color: var(--afd-red-200);
+}
+
+.command-trail span {
+	margin-right: var(--space-2);
+	color: var(--accent-agent);
+}
+
+/* ── 4a. Fig. 01: the claim, beside the thing it claims ──────── */
+
+.thesis {
+	grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+	align-items: center;
+	gap: var(--space-8);
+}
+
+.thesis .section-index {
+	margin-bottom: var(--space-5);
+}
+
+.thesis .text-link {
+	margin-top: var(--space-5);
+}
+
+.command-source {
+	min-width: 0;
+	margin: 0;
+	background: var(--color-code-bg);
+	color: var(--color-code-text);
+	/* The same red rule as the demo's command layer: this is that layer. */
+	border-top: var(--rule-heavy) solid var(--accent-human);
+}
+
+.command-source figcaption {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-4);
+	padding: var(--space-4) var(--space-5);
+	border-bottom: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+.command-source figcaption span + span {
+	color: var(--afd-red-300);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.command-source pre {
+	padding: var(--space-5);
+	overflow-x: auto;
+	font: var(--t-label) / 1.75 var(--mono);
+	white-space: pre;
+}
+
+.command-source__note {
+	padding: var(--space-4) var(--space-5);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.command-source__note code {
+	color: var(--accent-agent);
+	font-size: var(--t-code);
+}
+
+/* ── 4b. Fig. 03: three panels at once, not one behind tabs ──── */
+
+.agent-design-lead {
+	max-width: 760px;
+	margin-bottom: var(--space-8);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.45;
+}
+
+/* Four shared rows (head, people, agents, note), so the three panels line up
+   whatever the length of their titles. */
+.contract-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-rows: auto auto 1fr auto;
+	gap: var(--space-5);
+}
+
+.contract-grid .contract-panel {
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	gap: var(--space-5);
+	height: auto;
+	min-height: 0;
+	min-width: 0;
+	padding: var(--space-5);
+	background: var(--color-code-bg);
+	color: var(--color-on-dark);
+}
+
+.contract-head .step-number {
+	display: block;
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.contract-head h3 {
+	margin-top: var(--space-3);
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.contract-head p {
+	margin-top: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* The spine of each panel: what people get, then what agents get. */
+.pair {
+	display: grid;
+	align-content: start;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.pair--agents {
+	padding-top: var(--space-4);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.pair-label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	min-height: 34px;
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+.pair-label b {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	color: var(--color-on-dark);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Red means a person, mint means an agent: the same squares as the task list. */
+.pair-label b::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	background: var(--accent-human);
+}
+
+.pair--agents .pair-label b::before {
+	background: var(--accent-agent);
+}
+
+.pair-label select {
+	max-width: 150px;
+	padding: 7px;
+	border: var(--rule-thin) solid var(--afd-sage-500);
+	background: var(--color-code-bg);
+	color: var(--color-on-dark);
+	font: var(--t-label) var(--mono);
+}
+
+/* The human patterns, drawn in the page's own interface style: flat paper,
+   thin rules, ink for the active control. */
+.contract-grid .ux-art {
+	height: 128px;
+	padding-top: 0;
+	background: var(--color-page);
+	font-family: var(--font-sans);
+	font-size: var(--t-code);
+	line-height: 1.3;
+}
+
+.contract-grid .ux-art::before {
+	content: none;
+}
+
+.mini-menu,
+.mini-dialog {
+	background: var(--color-surface);
+	border: var(--rule-thin) solid var(--afd-stone-300);
+}
+
+.mini-menu {
+	display: grid;
+	width: 176px;
+}
+
+.mini-menu span {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-4);
+	padding: 6px var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-line);
+	font-weight: var(--weight-medium);
+}
+
+.mini-menu span:first-child {
+	border-top: 0;
+}
+
+.mini-menu .is-active {
+	background: var(--color-text);
+	color: var(--color-page);
+}
+
+.mini-menu kbd {
+	color: var(--color-text-subtle);
+	font: var(--t-label) var(--mono);
+}
+
+.mini-menu .is-active kbd {
+	color: var(--afd-stone-400);
+}
+
+.mini-toast {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	background: var(--color-text);
+	color: var(--color-page);
+	font-weight: var(--weight-medium);
+}
+
+.mini-toast i {
+	width: 6px;
+	height: 6px;
+	background: var(--accent-agent);
+}
+
+.mini-toast u {
+	margin-left: var(--space-3);
+	font-weight: var(--weight-strong);
+	text-underline-offset: 3px;
+}
+
+.mini-dialog {
+	display: grid;
+	gap: 2px;
+	width: 216px;
+	padding: var(--space-3) var(--space-4);
+}
+
+.mini-dialog strong {
+	font-size: var(--t-small);
+	font-weight: var(--weight-strong);
+}
+
+.mini-dialog span {
+	color: var(--color-text-muted);
+	font-size: var(--t-label);
+}
+
+.mini-dialog div {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--space-2);
+	margin-top: var(--space-2);
+}
+
+.mini-dialog div i {
+	padding: var(--space-1) 10px;
+	border: var(--rule-thin) solid var(--color-text);
+	font-size: var(--t-label);
+	font-weight: var(--weight-strong);
+}
+
+.mini-dialog .is-primary {
+	background: var(--color-text);
+	color: var(--color-page);
+}
+
+.contract-grid .contract-summary > div {
+	grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.contract-grid .control-decision {
+	align-self: start;
+}
+
+.control-decision h4 {
+	margin: 0;
+	font-size: var(--t-lead);
+	font-weight: var(--weight-medium);
+	line-height: var(--leading-snug);
+}
+
+.control-decision p {
+	margin-top: var(--space-2);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+}
+
+/* The note closes each panel, on one line across all three. */
+.contract-grid .contract-note {
+	align-self: end;
+}
+
+/* ── Fig. 04: headline across the top, so it holds two lines ── */
+
+.recovery .editorial-heading h2 > span:not(.lit-word) {
+	color: inherit;
+}
+
+.recovery .editorial-heading h2 em {
+	font-style: normal;
+	text-decoration: underline;
+	text-decoration-thickness: var(--rule-heavy);
+	text-underline-offset: 0.1em;
+}
+
+.recovery-layout {
+	align-items: start;
+	gap: var(--space-9);
+}
+
+.recovery .story-copy > p {
+	max-width: 440px;
+}
+
+/* The suggestion sits beside the button that applies it, at reading size. */
+.recovery .recovery-note {
+	min-height: 0;
+	max-width: 440px;
+	margin-top: var(--space-7);
+	padding: var(--space-5) 0 0;
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.recovery .recovery-note p {
+	margin-top: var(--space-3);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+/* A fixed request height: the panel no longer grows when a call is made. */
+.request-code {
+	min-height: calc(4 * 1.5em + 2 * var(--space-5));
+	padding-block: var(--space-5);
+	line-height: 1.5;
+}
+
+/* ── 5. No hard offset shadows ───────────────────────────────── */
+
+.recovery-lab {
+	border: var(--rule) solid var(--color-rule);
+	box-shadow: none;
+}
+
+.slab__quote mark {
+	box-shadow: none;
+}
+
+.finale__out {
+	border-left: var(--rule-heavy) solid var(--accent-human);
+	box-shadow: none;
+}
+
+/* ── Proof: label above, and a mark for Alfred ───────────────── */
+
+.evidence-band .evidence-heading {
+	display: block;
+}
+
+.evidence-band .evidence-heading .section-index {
+	margin-bottom: var(--space-5);
+	color: var(--color-on-dark-muted);
+}
+
+/* ── Alfred: the agent's mark, and sometimes its face ────────── */
+
+.alfred {
+	display: block;
+	width: 64px;
+	height: auto;
+	aspect-ratio: 1;
+	cursor: pointer;
+}
+
+.alfred__disc {
+	fill: var(--accent-agent);
+}
+
+.alfred__bar {
+	fill: var(--afd-ink);
+}
+
+/* One colour, for the tab: a disc with the needle cut out. */
+.icon--alfred {
+	--icon: url("../svg/alfred-glyph.svg");
+}
+
+/* In the proof row he stands where the other two figures do. */
+.alfred--figure {
+	margin-block: -4px;
+}
+
+/* He speaks the handoff's line. */
+.agent-speech {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: var(--space-5);
+}
+
+/* ── Fig. 07: two ways in, side by side ──────────────────────── */
+
+.install-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-rows: repeat(5, auto);
+	gap: 0 var(--space-7);
+}
+
+.install-col {
+	display: grid;
+	grid-row: span 5;
+	grid-template-rows: subgrid;
+	min-width: 0;
+}
+
+.install-col.skill-install {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: 0;
+}
+
+.install-col > p:not(.copy-status) {
+	margin-top: var(--space-3);
+	color: var(--muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.install-col .install-tabs,
+.install-kind {
+	align-self: end;
+	margin-top: var(--space-5);
+}
+
+.install-kind {
+	display: block;
+	padding-block: 6px;
+	border-bottom: var(--rule) solid transparent;
+	color: var(--muted);
+	font: var(--t-code) var(--mono);
+}
+
+.install-col .install-command {
+	align-items: flex-start;
+	margin-top: var(--space-3);
+}
+
+.install-col .install-command pre {
+	font-size: var(--t-code);
+}
+
+.start-links {
+	margin-top: var(--space-5);
+}
+
+/* ── Fig. 08: the slash closes the page it opened ────────────── */
+
+.finale {
+	--slash-w: clamp(140px, 19vw, 340px);
+	--slash-x: 66%;
+	--slash-tone: var(--numeral-on-ink);
+}
+
+.finale-art {
+	position: absolute;
+	inset: 0;
+	z-index: var(--layer-art);
+	pointer-events: none;
+}
+
+.finale .slash--thin {
+	background: var(--accent-human);
+}
+
+.finale__resources {
+	align-items: center;
+}
+
+.finale__out a.button--red {
+	color: var(--color-text);
+	text-decoration: none;
+}
+
+/* ── Closing: the founder's line, at a size that can be read ── */
+
+.footer .founder-note {
+	display: block;
+	padding-block: var(--section-pad) var(--space-8);
+}
+
+.footer .founder-note .section-index {
+	margin-bottom: var(--space-5);
+	color: var(--muted);
+}
+
+.footer .founder-note p {
+	max-width: 21em;
+	font-size: var(--t-title);
+	font-weight: var(--weight-thin);
+	line-height: 1.25;
+	letter-spacing: -0.02em;
+}
+
+.footer .founder-note strong {
+	font-weight: var(--weight-medium);
+}
+
+.footer .founder-note a {
+	display: inline-block;
+	margin-top: var(--space-5);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.contract-grid {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: none;
+	}
+
+	.contract-grid .contract-panel {
+		grid-row: auto;
+		grid-template-rows: none;
+	}
+
+	.thesis {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-7);
+	}
+}
+
+@media (max-width: 850px) {
+	/* One column: drop the shared rows, so each block keeps its own rhythm. */
+	.install-grid,
+	.install-col {
+		display: block;
+	}
+
+	.install-col + .install-col {
+		margin-top: var(--space-7);
+	}
+
+	.recovery-layout {
+		gap: var(--space-7);
+	}
+
+	.finale {
+		--slash-x: 70%;
+		--slash-w: 30vw;
+	}
+}
+
+@media (max-width: 620px) {
+	.surface-stage {
+		height: 430px;
+	}
+
+	.experience-caption {
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.surface-hint {
+		display: block;
+	}
+
+	.surface-hint b {
+		display: block;
+		margin-bottom: var(--space-1);
+	}
+
+	.task {
+		grid-template-columns: 26px minmax(0, 1fr) auto auto;
+	}
+
+	[data-mode="board"] .task {
+		margin-inline: var(--space-1);
+		padding-inline: var(--space-2);
+	}
+
+	[data-mode="board"] .task-via {
+		display: none;
+	}
+
+	.terminal-panel {
+		padding-inline: var(--space-3);
+	}
+
+	.agent-panel {
+		grid-template-columns: minmax(0, 1fr);
+		align-content: start;
+		gap: var(--space-4);
+		padding: var(--space-4);
+		overflow: auto;
+	}
+
+	.agent-who .alfred {
+		width: 40px;
+	}
+
+	.agent-intents button {
+		min-height: 36px;
+	}
+
+	.agent-log {
+		padding: var(--space-4) 0 0;
+		border-top: var(--rule-thin) solid var(--color-on-dark-line);
+		border-left: 0;
+		overflow: visible;
+	}
+
+	.command-trail li:nth-child(n + 3) {
+		display: none;
+	}
+
+	/* Three stacked panels are long on a phone: keep the proof, trim the rest. */
+	.contract-grid .contract-panel {
+		gap: var(--space-4);
+		padding: var(--space-4);
+	}
+
+	.contract-grid .ux-art {
+		height: 116px;
+	}
+
+	/* The hero says what AFD is on a phone too. */
+	.edition {
+		margin-left: 0;
+		text-align: left;
+	}
+
+	.contract-grid .contract-note {
+		display: none;
+	}
+
+	.agent-speech {
+		gap: var(--space-4);
+	}
+
+	.agent-speech .alfred {
+		width: 44px;
+	}
+
+	/* The prompt sits on the command's baseline, not its middle. */
+	.finale__line {
+		align-items: baseline;
+	}
+}
+
+/* ── The family list: every row on the same columns ──────────────
+   Each row was its own grid, so a longer link pushed that row's
+   description sideways. The rows now share the list's columns. */
+
+@media (min-width: 851px) {
+	.family-list:not(.runs-list) {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr) auto auto;
+		column-gap: var(--space-6);
+	}
+
+	.family-list:not(.runs-list) li {
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
+	}
+}
