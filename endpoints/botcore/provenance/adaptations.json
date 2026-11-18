@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "acfe09546c7678a3c09df2946630413eb7d95297198f22af70db2c43fea48ac1",
+      "current_import_sha256": "1338c25ed9f316565a9ac7bfe78ae13d05bad2881b1a585ddf80a678bbf28380",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452); cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452); cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "LICENSE",
@@ -2065,11 +2065,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "9116f37d856f743a9c52bf3dcc25a11d66fc0941534605e456d0f631e1f05a8e",
+      "current_import_sha256": "0e16a5891c3675c836cd0a535ddbe5f9859d6fb90ec07dd736b6d062f1c98598",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/context.py",
@@ -2703,14 +2703,36 @@
       "import_reason": "Explicitly excluded during reviewed import"
     },
     {
+      "path": "src/botcore/skills/bloat-sweeper/SKILL.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "28cfc017991133a669a385be941676de6fb7bd2fef0e3aac9ddd12931186d1ee",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+    },
+    {
+      "path": "src/botcore/skills/bloat-sweeper/scripts/sweep.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "36372ba75fb10408469e27473eaeee15724414f7fc6510ba507fbfb7b3bdc286",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+    },
+    {
       "path": "src/botcore/skills/botcore-config/SKILL.md",
       "upstream_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
       "staged_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
-      "current_import_sha256": "7a29bc65f91a4f657d384e15568177cfb14ef599b757a384ec48c8487f3ab163",
+      "current_import_sha256": "444bae78689fe48264a0e35005c59dbc98ddd219011fb7418dd4cf317996e494",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "State only wired settings; add the [skills] section and retired skills; add the [sweep] section"
+      "import_reason": "State only wired settings; add the [skills] section and retired skills; add the [sweep] section; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/config-reference.md",
@@ -5390,11 +5412,11 @@
       "path": "tests/test_config.py",
       "upstream_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
       "staged_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
-      "current_import_sha256": "47c4d49b469eff5048451ffb0c444bbf557f63a649a130ee541ffb84588a911e",
+      "current_import_sha256": "45cb94371f7a589e14373905ca2e21a118dac97ec210c53a42c6b2785da4b543",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget; test the [sweep] section"
+      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget; test the [sweep] section; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
     },
     {
       "path": "tests/test_coverage_gaps.py",

@@ -99,6 +99,7 @@ Read by the sweep-bloat skill's `scripts/sweep.mjs`, not by any command; validat
 | `trend_issue` | unset | Positive integer: the open issue each pass records its measurement on. `bloat --record` and `trend` need it |
 | `cohesive` | `"sweep-cohesive.json"` | Files a pass judged cohesive, by path, with their size then and the reason |
 | `exclude` | `[]` | Tracked path prefixes never measured |
+| `include_names` | `[]` | File-name patterns (`*` and `?`; matched against the whole path when the pattern has a `/`) measured although the default skips them, such as `"*.stories.*"`. Skipped directories and `exclude` still win |
 | `churn_days` | `90` | Positive integer: commits touching a file in this many days are its churn |
 | `extensions` | unset (TypeScript, JavaScript, Python, Rust) | Source extensions measured |
 | `measures` | unset | A command printing the repository's own measures as JSON, which join the report and the trend |
