@@ -146,7 +146,7 @@ const styles = css`
         --_row-background-hover: var(--violet-file-explorer-row-background-hover, var(--_surface-subtle));
         --_row-background-selected: var(--violet-file-explorer-row-background-selected, var(--_surface-hover));
         --_row-border-selected: var(--violet-file-explorer-row-border-selected, var(--_border-subtle));
-        --_danger-text: var(--color-state-danger-foreground, #b42318);
+        --_danger-text: var(--color-state-danger-foreground, #c42a1a);
     }
 
     .explorer {

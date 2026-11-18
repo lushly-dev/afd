@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-text-field";
@@ -206,6 +206,27 @@ describe("violet-text-field", () => {
             await userEvent.keyboard("go{Enter}");
 
             expect(customDetails(events)).toEqual([{ value: "go" }]);
+        });
+
+        it("draws a read-only field's line in the strong border and its placeholder in secondary text", async () => {
+            const field = await renderTextField({ readonly: "" });
+            const style = getComputedStyle(field);
+            // With no theme installed these are the light theme's values (Loam's D159).
+            expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
+            expect(style.getPropertyValue("--_field-placeholder").trim().toLowerCase()).toBe("#48534b");
+            // The painted line: the frame's inset top rule is the strong border.
+            const frame = () => field.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+            expect(getComputedStyle(frame()).boxShadow).toContain("rgb(107, 125, 110)");
+            // The pointer can rest over the field from an earlier test, and the hover line is darker: move it off.
+            const away = document.body.appendChild(document.createElement("div"));
+            away.style.cssText = "position: fixed; inset-block-end: 0; inset-inline-end: 0; inline-size: 4px; block-size: 4px";
+            await userEvent.hover(away);
+            away.remove();
+            field.removeAttribute("readonly");
+            await nextFrame();
+            expect(getComputedStyle(field).getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#869089");
+            // The frame eases its shadow, and the transition may not have started a frame later; wait for the line to settle.
+            await vi.waitFor(() => expect(getComputedStyle(frame()).boxShadow).toContain("rgb(134, 144, 137)"));
         });
 
         it("ignores typing while readonly", async () => {

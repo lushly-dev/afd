@@ -56,7 +56,7 @@ const styles = [
 			background: var(--color-surface-floating);
 			box-shadow: var(--shadow-floating);
 			color: var(--color-text-primary);
-			font-family: 'Montserrat', 'Segoe UI', sans-serif;
+			font-family: var(--font-family-body);
 			opacity: 0;
 			transition:
 				opacity var(--duration-fast) var(--easing-standard),

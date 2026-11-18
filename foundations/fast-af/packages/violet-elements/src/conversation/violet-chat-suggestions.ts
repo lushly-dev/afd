@@ -30,19 +30,19 @@ const styles = css`
         align-items: center;
         min-block-size: var(--size-target-natural, 32px);
         padding: 0 var(--_space-md);
-        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, rgba(28, 26, 13, 0.18));
+        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, transparent);
         border-radius: var(--_radius-round, 9999px);
         background: var(--color-action-secondary-background, var(--_surface-subtle));
         font-size: var(--_suggestion-font-size);
         line-height: var(--_suggestion-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         cursor: pointer;
         transition: background 0.15s ease, border-color 0.15s ease;
         white-space: nowrap;
     }
 
     ::slotted(*:hover) {
-        background: var(--_surface-hover, rgba(28, 26, 13, 0.06));
+        background: var(--_surface-hover, rgba(24, 27, 26, 0.06));
     }
 
     ::slotted(*:focus-visible) {

@@ -48,7 +48,7 @@ const styles = css`
             var(--_tree-row-padding-inline) + (var(--_tree-level, 1) - 1) * var(--_tree-indent-step)
         );
         border-radius: var(--_tree-row-radius);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         cursor: pointer;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);

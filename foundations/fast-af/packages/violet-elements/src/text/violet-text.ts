@@ -18,7 +18,7 @@ const styles = css`
     }
 
     :host([variant="label"]) {
-        --_text-font-size: var(--type-label-sm-size, 12px);
+        --_text-font-size: var(--type-label-sm-size, 13px);
         --_text-line-height: var(--type-label-sm-line, 16px);
         --_text-font-weight: var(--type-label-sm-weight, 500);
     }
@@ -26,7 +26,7 @@ const styles = css`
     :host([variant="caption"]) {
         --_text-font-size: var(--_caption-size);
         --_text-line-height: var(--_caption-line);
-        --_text-font-weight: var(--type-caption-xs-weight, 500);
+        --_text-font-weight: var(--type-caption-xs-weight, 400);
     }
 
     :host([variant="title-sm"]) {
@@ -74,7 +74,7 @@ const styles = css`
     /* Headings keep the display face. */
     :host([variant="title-sm"]) .root,
     :host([variant="title-md"]) .root {
-        font-family: var(--font-family-heading, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        font-family: var(--font-family-heading, var(--font-family-body, "Inter", system-ui, sans-serif));
         letter-spacing: -0.01em;
     }
 

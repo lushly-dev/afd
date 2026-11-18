@@ -47,7 +47,7 @@ const styles = css`
         border-radius: var(--_tooltip-radius);
         background: var(--_tooltip-background);
         box-shadow: var(--_tooltip-shadow);
-        color: var(--color-action-primary-text, #ffffff);
+        color: var(--color-action-primary-text, #f4f0ea);
         font-family: inherit;
         font-size: var(--_tooltip-font-size);
         line-height: var(--_tooltip-line-height);

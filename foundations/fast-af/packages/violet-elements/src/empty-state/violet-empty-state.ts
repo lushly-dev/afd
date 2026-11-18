@@ -27,7 +27,7 @@ const styles = css`
     /* An empty slot is marked with a dashed edge: the one outline left on a surface. */
     :host([appearance="outline"]) {
         --_empty-background: transparent;
-        --_empty-border: color-mix(in srgb, var(--color-border-strong, rgba(28, 26, 13, 0.48)) 60%, transparent);
+        --_empty-border: color-mix(in srgb, var(--color-border-strong, #6b7d6e) 60%, transparent);
     }
 
     :host([orientation="horizontal"]) {

@@ -39,23 +39,23 @@ const styles = css`
     }
 
     :host([color="accent"]) {
-        --_badge-bg: var(--color-control-selected-background, #DDEADF);
-        --_badge-text: var(--color-control-selected-foreground, #244635);
+        --_badge-bg: var(--color-control-selected-background, #badecf);
+        --_badge-text: var(--color-control-selected-foreground, #2c5e4b);
     }
 
     :host([color="success"]) {
-        --_badge-bg: var(--color-state-success-background, #E3F1E7);
-        --_badge-text: var(--color-state-success-text, #166534);
+        --_badge-bg: var(--color-state-success-background, #dfeae3);
+        --_badge-text: var(--color-state-success-text, #2c5e4b);
     }
 
     :host([color="warning"]) {
-        --_badge-bg: var(--color-state-warning-background, #FDEBCC);
+        --_badge-bg: var(--color-state-warning-background, #f3e8d2);
         --_badge-text: var(--color-state-warning-text, #92400E);
     }
 
     :host([color="danger"]) {
-        --_badge-bg: var(--color-state-danger-background, #FBE2E2);
-        --_badge-text: var(--color-state-danger-text, #B42318);
+        --_badge-bg: var(--color-state-danger-background, #f7e4df);
+        --_badge-text: var(--color-state-danger-text, #c42a1a);
     }
 
     .badge {

@@ -38,7 +38,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-text"
 			},
 			{
@@ -68,7 +68,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-action-secondary-border, rgba(28, 26, 13, 0.18))",
+				"default": "var(--color-action-secondary-border, transparent)",
 				"name": "--_tab-key-border"
 			},
 			{

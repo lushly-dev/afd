@@ -165,7 +165,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         margin-block-start: var(--_space-field-gap);
     }
 

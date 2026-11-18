@@ -14,7 +14,7 @@ const styles = css`
         display: block;
         --_result-font-size: var(--violet-result-font-size, var(--_caption-size, 12px));
         --_result-line-height: var(--violet-result-line-height, var(--_caption-line, 16px));
-        --_success-text: var(--color-state-success-text, #166534);
+        --_success-text: var(--color-state-success-text, #2c5e4b);
     }
 
     /* What came back is a line under the command; opened, its output sits in a well. */
@@ -67,7 +67,7 @@ const styles = css`
     }
 
     :host([state="output-error"]) .status-icon {
-        color: var(--color-state-danger-text, #b42318);
+        color: var(--color-state-danger-text, #c42a1a);
     }
 
     .summary-text {
@@ -100,7 +100,7 @@ const styles = css`
         background: var(--_surface-subtle);
         font-size: var(--_result-font-size);
         line-height: var(--_result-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         white-space: pre-wrap;
         word-break: break-word;
     }
@@ -118,7 +118,7 @@ const styles = css`
         border-radius: var(--_radius-md);
         background: var(--_surface-subtle);
         font-size: var(--_result-font-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .footer[hidden] {
@@ -135,7 +135,7 @@ const styles = css`
         inline-size: var(--_result-line-height);
         block-size: var(--_result-line-height);
         border: calc(var(--_result-line-height) * 0.125) solid var(--_border-subtle);
-        border-block-start-color: var(--_text-secondary, #414651);
+        border-block-start-color: var(--_text-secondary, #48534b);
         border-radius: var(--_radius-round, 9999px);
         animation: spin 0.8s linear infinite;
     }

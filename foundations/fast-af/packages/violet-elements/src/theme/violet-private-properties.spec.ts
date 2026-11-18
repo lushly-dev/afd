@@ -60,13 +60,9 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string }
         ],
         why: "the conversation components' smallest gap: always 4px",
     },
-    "--_danger-text": {
-        readers: ["../conversation/violet-message-status.ts"],
-        why: "the message status's error colour: always #dc2626",
-    },
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
-        why: "the citation's link colour: always #2563eb; the interface has no link colour",
+        why: "the citation's link colour: always #146ba0, AFD's blue ink; the interface has no link colour",
     },
 };
 
@@ -212,7 +208,7 @@ describe("undefinedPrivateReads", () => {
     const defaults = [
         'import { css, type ElementStyles } from "@lushly-dev/fast-element";',
         "export const violetFieldTokenDefaults: ElementStyles = css`",
-        "    :host { --_radius-md: var(--radius-md, 4px); }",
+        "    :host { --_radius-md: var(--radius-md, 8px); }",
         "`;",
     ].join("\n");
     const scan = (files: Record<string, string>) => undefinedPrivateReads({ "./violet-token-defaults.ts": defaults, ...files });

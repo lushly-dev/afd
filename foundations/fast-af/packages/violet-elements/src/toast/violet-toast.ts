@@ -42,21 +42,21 @@ const styles = css`
 
 
     :host([tone="success"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-success-background, #E3F1E7) 78%, var(--_surface-card));
-        --_toast-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
-        --_toast-emphasis: var(--color-state-success-text, #166534);
+        --_toast-surface: color-mix(in srgb, var(--color-state-success-background, #dfeae3) 78%, var(--_surface-card));
+        --_toast-border: var(--color-state-success-border, transparent);
+        --_toast-emphasis: var(--color-state-success-text, #2c5e4b);
     }
 
     :host([tone="warning"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-warning-background, #FDEBCC) 82%, var(--_surface-card));
-        --_toast-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_toast-surface: color-mix(in srgb, var(--color-state-warning-background, #f3e8d2) 82%, var(--_surface-card));
+        --_toast-border: var(--color-state-warning-border, transparent);
         --_toast-emphasis: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-danger-background, #FBE2E2) 82%, var(--_surface-card));
-        --_toast-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_toast-emphasis: var(--color-state-danger-text, #B42318);
+        --_toast-surface: color-mix(in srgb, var(--color-state-danger-background, #f7e4df) 82%, var(--_surface-card));
+        --_toast-border: var(--color-state-danger-border, transparent);
+        --_toast-emphasis: var(--color-state-danger-text, #c42a1a);
     }
 
     .frame {

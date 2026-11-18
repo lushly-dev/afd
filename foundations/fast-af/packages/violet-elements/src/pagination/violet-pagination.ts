@@ -24,7 +24,7 @@ const styles = css`
         max-inline-size: 100%;
         --_space-xs: var(--space-stack-xs, 4px);
         --_space-layout-sm: var(--space-layout-sm, 12px);
-        --_text-primary: var(--color-text-primary, #18181b);
+        --_text-primary: var(--color-text-primary, #181b1a);
     }
 
     .nav {

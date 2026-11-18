@@ -70,14 +70,14 @@ const styles = css`
     /* A toned message is a filled box, whoever sent it. */
     :host([tone="error"]) .surface {
         padding: var(--_space-sm) var(--_space-md);
-        border-color: var(--_danger-border, rgba(220, 38, 38, 0.34));
-        background: var(--color-state-danger-background, #fbe2e2);
+        border-color: var(--_danger-border);
+        background: var(--color-state-danger-background, #f7e4df);
     }
 
     :host([tone="success"]) .surface {
         padding: var(--_space-sm) var(--_space-md);
-        border-color: var(--_success-border, rgba(22, 163, 74, 0.34));
-        background: var(--color-state-success-background, #e3f1e7);
+        border-color: var(--_success-border);
+        background: var(--color-state-success-background, #dfeae3);
     }
 
     :host([tone="muted"]) .surface {
@@ -89,7 +89,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         font-size: var(--_msg-meta-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .meta[hidden] {

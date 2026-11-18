@@ -37,21 +37,21 @@ const styles = css`
     }
 
     :host([tone="success"]) {
-        --_alert-surface: var(--color-state-success-background, #E3F1E7);
-        --_alert-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
-        --_alert-emphasis: var(--color-state-success-text, #166534);
+        --_alert-surface: var(--color-state-success-background, #dfeae3);
+        --_alert-border: var(--color-state-success-border, transparent);
+        --_alert-emphasis: var(--color-state-success-text, #2c5e4b);
     }
 
     :host([tone="warning"]) {
-        --_alert-surface: var(--color-state-warning-background, #FDEBCC);
-        --_alert-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_alert-surface: var(--color-state-warning-background, #f3e8d2);
+        --_alert-border: var(--color-state-warning-border, transparent);
         --_alert-emphasis: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_alert-surface: var(--color-state-danger-background, #FBE2E2);
-        --_alert-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_alert-emphasis: var(--color-state-danger-text, #B42318);
+        --_alert-surface: var(--color-state-danger-background, #f7e4df);
+        --_alert-border: var(--color-state-danger-border, transparent);
+        --_alert-emphasis: var(--color-state-danger-text, #c42a1a);
     }
 
     .frame {
