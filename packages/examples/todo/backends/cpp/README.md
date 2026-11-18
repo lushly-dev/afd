@@ -74,8 +74,8 @@ active context fails with `COMMAND_NOT_IN_CONTEXT`.
 
 ## Tools
 
-`tools/list` is TypeScript's grouped list: `afd-batch`, `afd-pipe`, `afd-call` and `afd-detail`,
-then the `todo` group (every todo command as an `action`) and the `bootstrap` group (the context
+`tools/list` is TypeScript's grouped list: the five meta-tools (`afd-discover`, `afd-detail`,
+`afd-call`, `afd-batch`, `afd-pipe`), then the `todo` group (every todo command as an `action`) and the `bootstrap` group (the context
 tools, `afd-help`, `afd-docs` and `afd-schema`). Every command is also callable by its own name,
 which is how the conformance suites call them.
 

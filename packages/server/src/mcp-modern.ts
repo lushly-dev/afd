@@ -117,7 +117,7 @@ export interface ModernMcpDeps {
 	contextFields?: readonly ContextField[];
 	/**
 	 * Freshness hint for `tools/list` and `server/discover` (default: 5 minutes; 0 with contexts,
-	 * except for the hybrid strategy, whose list does not vary by context).
+	 * except for the hybrid and lazy strategies, whose lists do not vary by context).
 	 */
 	toolsListTtlMs?: number;
 	/** The tool strategy; `hybrid` keeps the default hint under contexts. */

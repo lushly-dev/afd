@@ -594,6 +594,19 @@ async fn list_changed_is_false_on_every_strategy_and_era() {
         // Contexts make the default `ttlMs` 0 for the lists that vary by context, not for lazy,
         // which does not (#533); discover says so too.
         let mut client = Client::connect(server, Lane::HttpModern).await;
+        if name == "lazy" {
+            // Over the wire too, naming a context changes nothing.
+            let none = client.raw("tools/list", json!({}), None).await;
+            for context in cases["contexts"].as_array().unwrap() {
+                let named = client
+                    .raw("tools/list", json!({}), context["name"].as_str())
+                    .await;
+                assert_eq!(
+                    named["result"]["tools"], none["result"]["tools"],
+                    "{context}"
+                );
+            }
+        }
         let discovered = client.raw("server/discover", json!({}), None).await;
         assert_eq!(discovered["result"]["ttlMs"], ttl, "{name}");
         assert_eq!(discovered["result"]["cacheScope"], "public", "{name}");

@@ -319,8 +319,8 @@ impl McpServer {
     /// `ttlMs` freshness hint of `tools/list` and `server/discover` results (0 when the command
     /// set can change). Default: [`DEFAULT_TOOLS_LIST_TTL_MS`], or 0 with contexts, because
     /// `tools/list` then varies by `_meta["dev.afd/context"]`, which clients leave out of their
-    /// cache key. A [`ToolStrategy::Hybrid`] list does not vary by context, so it keeps the
-    /// default.
+    /// cache key. A [`ToolStrategy::Hybrid`] or [`ToolStrategy::Lazy`] list does not vary by
+    /// context, so it keeps the default.
     pub fn with_tools_list_ttl_ms(self, ttl_ms: u64) -> Self {
         self.with(|inner| inner.tools_list_ttl_ms = Some(ttl_ms))
     }
