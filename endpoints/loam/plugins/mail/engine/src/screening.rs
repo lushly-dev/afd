@@ -53,7 +53,7 @@ const BLOCKED_SHOWN: u32 = 20;
 
 /// Whether the caller is the person at a terminal: the command line, with
 /// a terminal on standard input. A script at the command line is not.
-fn person_at_terminal(context: &CommandContext) -> bool {
+pub(crate) fn person_at_terminal(context: &CommandContext) -> bool {
     context.interface == Some(CommandInterface::Cli)
         && context
             .actor

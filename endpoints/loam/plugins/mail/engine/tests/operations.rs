@@ -393,7 +393,7 @@ fn label_moves_within_its_account_and_refuses_a_mailbox_that_is_not_there() {
 }
 
 #[test]
-fn an_agent_within_the_policy_changes_mail_and_over_it_changes_nothing() {
+fn an_agent_within_the_policy_changes_mail_and_over_it_proposes() {
     let fixture = Fixture::new(world);
     fixture.set_policy(Policy {
         change_per_call: 2,
@@ -403,7 +403,8 @@ fn an_agent_within_the_policy_changes_mail_and_over_it_changes_nothing() {
     });
     let news: Vec<i64> = (0..4).map(|n| fixture.message(&format!("n{n}"))).collect();
     let over = fixture.agent("a", "mail-archive", json!({ "messages": news }));
-    assert_eq!(over["error"]["code"], "POLICY_LIMIT", "{over}");
+    // Over the policy, it is a proposal, which changes nothing (M28).
+    assert_eq!(over["data"]["state"], "proposed", "{over}");
     assert_eq!(subjects(&fixture, "INBOX").len(), 6, "nothing changed");
     let within = fixture.agent("a", "mail-archive", json!({ "messages": &news[..2] }));
     assert_eq!(within["success"], true, "{within}");
@@ -413,7 +414,7 @@ fn an_agent_within_the_policy_changes_mail_and_over_it_changes_nothing() {
     assert_eq!(first["success"], true, "{first}");
     let strangers = [fixture.message("s0"), fixture.message("s1")];
     let second = fixture.agent("a", "mail-trash", json!({ "messages": strangers }));
-    assert_eq!(second["error"]["code"], "POLICY_LIMIT", "{second}");
+    assert_eq!(second["data"]["state"], "proposed", "{second}");
     // Another agent has a day of its own; a move into the trash by label
     // counts as trash.
     let trash = fixture.mailbox_id("trash");
@@ -437,7 +438,7 @@ fn an_agent_within_the_policy_changes_mail_and_over_it_changes_nothing() {
         ask_above: 200,
     });
     let script = fixture.cli("mail-mark", json!({ "messages": [news[0]], "read": false }));
-    assert_eq!(script["error"]["code"], "POLICY_LIMIT", "{script}");
+    assert_eq!(script["data"]["state"], "proposed", "{script}");
     fixture.changed("mail-mark", json!({ "messages": news, "read": false }));
 }
 
@@ -888,7 +889,8 @@ fn a_move_into_junk_counts_as_trash() {
         "mail-label",
         json!({ "messages": [fixture.message("s0")], "mailbox": junk }),
     );
-    assert_eq!(moved["error"]["code"], "POLICY_LIMIT", "{moved}");
+    assert_eq!(moved["data"]["state"], "proposed", "{moved}");
+    assert_eq!(moved["data"]["proposal"]["proposer"]["kind"], "agent");
     let copied = fixture.agent(
         "a",
         "mail-label",
