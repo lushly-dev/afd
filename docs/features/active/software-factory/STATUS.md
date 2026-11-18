@@ -5,6 +5,24 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
+
+The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by
+[#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions. Not yet seen in a fleet
+run.
+
+- **`lane-start` checks the Node validation uses.** `TOOLCHAIN_MISMATCH` read `engines.node` and
+  `pnpm` from the host's default `PATH`. It now resolves the `.nvmrc` Node as validation does and
+  reads both with that Node's bin directory first on `PATH`, so `pnpm` is the one beside that Node
+  when there is one, else the host's. `lane-host-probe` names a missing `.nvmrc` Node in `missing`.
+- **nvm-windows is searched** (`NVM_HOME`, the directory `NVM_SYMLINK` points into, and
+  `%APPDATA%\nvm`, each version in `v<version>\`), after the fnm and nvm roots.
+- **A branch's own `.nvmrc` bump ejects only that branch.** When the merged slot's `.nvmrc` names a
+  Node the host lacks (or an alias) and the branch changed `.nvmrc` against the base, it is ejected
+  as `node-missing` (counted; its detail starts `NODE_MISSING`: keep the base's `.nvmrc`, or have the
+  owner install that Node on the lane host). The base's own `.nvmrc` missing its Node still pauses
+  the lane, as do coverage runs. The run-fleet runbook says how the foreman answers it.
+
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 
 Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane

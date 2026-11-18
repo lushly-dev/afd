@@ -33,11 +33,14 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 ## Events
 
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
-`pr-closed`, `ci-failed`, `merge-failed`; with `detail`, `lines` and `logPath`, and `excused`
-when it does not count; answered by a re-enqueue or `lane_drop`), `ejection-limit` (the
-branch's own failures reached `cells.maxEjections`: `conflict`, `push-failed`, `pr-failed` and
-`merge-failed` never count, nor one `ejection_excuse` excused; answered as `ejected` is, or by
-the excuse that brings it under the limit), `lane-error`
+`pr-closed`, `ci-failed`, `merge-failed`, `review-unverified`, `node-missing` (the branch's own
+`.nvmrc` names a Node the lane host lacks, or an alias; `detail` starts `NODE_MISSING`: keep
+the base's `.nvmrc`, or the owner installs that Node on the lane host); with `detail`, `lines`
+and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
+`lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`:
+`conflict`, `push-failed`, `pr-failed` and `merge-failed` never count, nor one
+`ejection_excuse` excused; answered as `ejected` is, or by the excuse that brings it under the
+limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
@@ -142,9 +145,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
-  `.nvmrc` names is not installed under fnm or POSIX nvm; validation and coverage run on it),
-  `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
-  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least).
+  `.nvmrc` names is not installed under fnm, nvm or nvm-windows; validation and coverage run
+  on it), `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
+  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least, read on the
+  `.nvmrc` Node with its bin directory first on `PATH`, as validation runs them). Once
+  running, a branch whose own `.nvmrc` names a Node the host lacks is ejected as
+  `node-missing`; main's own pauses the lane.
 - `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
   goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
   only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be
