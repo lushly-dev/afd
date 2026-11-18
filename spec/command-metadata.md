@@ -746,8 +746,9 @@ refusal.
 
 A journaled app call replays with the `apps` interface, so the replaying registry runs the check
 again and needs the same `callGrant` ([journal replay](./journal.md#replay)); a target that cannot
-check it refuses the entry before any handler runs (TypeScript: any target whose interface is not
-`apps`; Python and C++, every target until #1513). In Rust, `ExposeOptions` serializes `apps` only
+check it refuses the entry before any handler runs, whatever context the replay adds (TypeScript:
+any target but `createAppCallRegistry`, the core registry included; Python and C++, every target
+until #1513). In Rust, `ExposeOptions` serializes `apps` only
 when it is `true`, so a serialized default stays valid where core manifest version 1 refuses the
 key. A refusal is returned before
 middleware, so AFD's journal middleware never records one; a host that journals refusals, as Loam

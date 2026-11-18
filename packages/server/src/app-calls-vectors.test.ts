@@ -178,6 +178,11 @@ describe('spec/vectors/app-calls.json on createAppCallRegistry and createDirectR
 		// A registry with no grant check is refused as a target; so is the MCP server.
 		const plain = await replayJournal(createDirectRegistry(counted, { contextFields }), entries);
 		expect(plain.entries[0]?.status).toBe('error');
+		// Nor can the host's own context replay it as another interface.
+		const renamed = await replayJournal(createDirectRegistry(counted, { contextFields }), entries, {
+			context: { interface: 'agent' },
+		});
+		expect(renamed.entries[0]?.status).toBe('error');
 		const server = createMcpServer({ name: 'apps', version: '1.0.0', commands: counted });
 		const onServer = await replayJournal(server, entries);
 		expect(onServer.entries[0]?.status).toBe('error');
