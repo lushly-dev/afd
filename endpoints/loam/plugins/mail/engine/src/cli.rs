@@ -263,16 +263,23 @@ fn run_command(
                 // A command whose detail comes through its preview is not
                 // asked about without it.
                 let Some(lines) = preview(name, &input, runner, &runtime) else {
+                    let why = if name == crate::operations::APPROVE {
+                        "`mail-operation-show` with the operation"
+                    } else {
+                        "`mail-sender-show` with the suggestion"
+                    };
                     writeln!(
                         err,
-                        "{PROGRAM}: `{name}` cannot go ahead now, or what it would do could not be read; `mail-sender-show` with the suggestion says why. Nothing was done."
+                        "{PROGRAM}: `{name}` cannot go ahead now, or what it would do could not be read; {why} says why. Nothing was done."
                     )?;
                     return Ok(EXIT_FAILED);
                 };
                 for line in lines {
                     writeln!(err, "{line}")?;
                 }
-                writeln!(err, "{summary}.")?;
+                // The summary is the engine's words, with a token's name, the
+                // person's own; made safe all the same.
+                writeln!(err, "{}.", printable(&summary))?;
                 if !person.confirm("Go ahead? [y/N] ")? {
                     writeln!(err, "Nothing was done.")?;
                     return Ok(EXIT_FAILED);
@@ -411,6 +418,9 @@ fn preview(
     runner: &(dyn Runner + Sync),
     runtime: &tokio::runtime::Runtime,
 ) -> Option<Vec<String>> {
+    if name == crate::operations::APPROVE {
+        return proposal_preview(input, runner, runtime);
+    }
     if name != crate::screening::ACCEPT {
         return Some(Vec::new());
     }
@@ -468,6 +478,149 @@ fn preview(
         ),
     };
     lines.push(format!("Suggested by {by}."));
+    Some(lines)
+}
+
+/// Who a result's proposer is, in words for the terminal: a token's name is
+/// the person's own, and is shown made safe all the same.
+fn proposer_line(proposer: Option<&serde_json::Value>) -> String {
+    let field = |name: &str| {
+        proposer
+            .and_then(|proposer| proposer.get(name))
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+    };
+    match (field("kind").as_deref(), field("name"), field("token")) {
+        (Some("agent"), Some(name), Some(token)) => {
+            format!("the agent with the token \"{name}\" ({token})")
+        }
+        (Some("agent"), None, Some(token)) => format!("the agent with the token {token}"),
+        (Some("agent"), _, None) => "the agent on standard input".to_string(),
+        (Some("script"), _, _) => "a script at the command line".to_string(),
+        (Some(kind), _, _) => format!("a caller of kind {kind}"),
+        (None, _, _) => "an unknown caller".to_string(),
+    }
+}
+
+/// What the person reads before approving a proposal (the specification's
+/// 9.4): who proposed it, the query it was made with, where its messages
+/// are and go, their classes, and a line of its own for mail from senders
+/// the person knows. Text from mail, a mailbox's name or the query, is named
+/// as it is shown. `None` when the proposal cannot be approved now.
+fn proposal_preview(
+    input: &serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+) -> Option<Vec<String>> {
+    let id = crate::operations::operation_input(input)?;
+    let shown = runtime.block_on(runner.run(
+        "mail-operation-show",
+        serde_json::json!({ "operation": id, "limit": 1 }),
+        true,
+        None,
+    ));
+    let shown = shown.data.filter(|_| shown.success)?;
+    let preview = shown.get("preview")?;
+    if preview.get("approvable") != Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
+    let number = |value: &serde_json::Value, field: &str| {
+        value
+            .get(field)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    };
+    let command = shown
+        .get("command")
+        .and_then(serde_json::Value::as_str)
+        .map(printable)
+        .unwrap_or_default();
+    let mut lines = vec![format!(
+        "Operation {id} ({command}), proposed by {}.",
+        proposer_line(shown.pointer("/proposal/proposer"))
+    )];
+    if let Some(query) = shown.pointer("/query/written") {
+        lines.push(format!(
+            "The query it was made with, as the proposer wrote it: {}",
+            printable(&query.to_string())
+        ));
+    }
+    let places = |value: &serde_json::Value| {
+        let name = value
+            .pointer("/name/text")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default();
+        let role = value
+            .get("role")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("none");
+        format!(
+            "mailbox {} of account {} ({role}; its name, as the provider writes it: {name}): {} places",
+            number(value, "mailbox"),
+            number(value, "account"),
+            number(value, "places"),
+        )
+    };
+    let list = |field: &str| {
+        preview
+            .get(field)
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    for account in list("byAccount") {
+        let provider = account
+            .get("provider")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default();
+        lines.push(format!(
+            "In the {provider} account {}: {} places.",
+            number(&account, "account"),
+            number(&account, "places")
+        ));
+    }
+    for mailbox in list("byMailbox") {
+        lines.push(format!("From {}.", places(&mailbox)));
+    }
+    for mailbox in list("destinations") {
+        lines.push(format!("Into {}.", places(&mailbox)));
+    }
+    let classes = preview.get("byClass");
+    let class = |name: &str| classes.map_or(0, |classes| number(classes, name));
+    lines.push(format!(
+        "By class: {} known, {} bulk, {} unknown, {} blocked, {} your own.",
+        class("known"),
+        class("bulk"),
+        class("unknown"),
+        class("blocked"),
+        class("own"),
+    ));
+    let unreturned = number(preview, "unreturned");
+    if unreturned > 0 {
+        lines.push(format!(
+            "{unreturned} places are messages the provider never returned."
+        ));
+    }
+    if let Some(known) = preview.get("knownSenders") {
+        let (messages, senders) = (number(known, "messages"), number(known, "senders"));
+        if messages > 0 {
+            let senders = if senders == 1 {
+                "1 sender".to_string()
+            } else {
+                format!("{senders} senders")
+            };
+            let messages = if messages == 1 {
+                "1 message".to_string()
+            } else {
+                format!("{messages} messages")
+            };
+            lines.push(format!(
+                "Mail from senders you know: it holds {messages} from {senders} you know."
+            ));
+        }
+    }
     Some(lines)
 }
 

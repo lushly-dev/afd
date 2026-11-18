@@ -34,8 +34,9 @@ pub use decisions::{
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use operations::{
-    Action, ItemStep, Kind, NewItem, NewOperation, OperationItem, OperationRow, OperationState,
-    Step, StepCounts, flags_after,
+    Action, ItemStep, Kind, MOST_PROPOSALS, NewItem, NewOperation, OperationItem, OperationRow,
+    OperationState, OperationStates, PROPOSAL_LIFETIME, PlacesIn, Proposal, ProposalPreview, Step,
+    StepCounts, flags_after,
 };
 pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
@@ -363,6 +364,9 @@ impl Store {
             // This process owns the store now: an operation that says it
             // runs was running in one that is gone.
             Self::stop_interrupted_operations(&connection, wall_clock())?;
+            // A proposal that waited its seven days while no process ran
+            // goes now.
+            Self::expire_proposals_on(&connection, wall_clock())?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
@@ -1220,6 +1224,8 @@ mod bursts_tests;
 mod classes_tests;
 #[cfg(test)]
 mod derived_tests;
+#[cfg(test)]
+mod operations_tests;
 #[cfg(test)]
 mod selections_tests;
 #[cfg(test)]

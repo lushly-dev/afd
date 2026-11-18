@@ -168,6 +168,15 @@ pub fn operation_json(
         "undoOf": row.undo_of,
         "undoneBy": row.undone_by,
         "creator": crate::screening::proposer_json(&row.creator, tokens),
+        // The proposal open now, or the last one: who proposed it, and
+        // until when it waits for the person (9.4).
+        "proposal": row.proposal.as_ref().map(|proposal| json!({
+            "proposer": crate::screening::proposer_json(&proposal.proposer, tokens),
+            "proposedAt": proposal.proposed_at,
+            "expiresAt": proposal.expires_at,
+            "approvedAt": proposal.approved_at,
+        })),
+        "startedAt": row.started_at,
         "createdAt": row.created_at,
         "endedAt": row.ended_at,
         "stopAsked": row.stop_asked,
