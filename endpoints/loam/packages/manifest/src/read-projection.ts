@@ -7,7 +7,6 @@
 
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
-import { copilotOf } from './read-boot.js';
 import type { DeploymentRefusal, ProjectionRead, ProjectionV4 } from './types.js';
 import { validateProjection } from './validate.generated.js';
 
@@ -54,6 +53,40 @@ function hostAdmitted(value: unknown): boolean {
 	return (kind === 'static' || kind === 'desktop') && kernel === undefined;
 }
 
+const PROVIDER_ID = /^[a-z][a-z0-9-]{0,31}$/;
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,127}$/;
+const PROVIDER_KINDS: ReadonlyArray<unknown> = ['anthropic', 'openai', 'openai-compatible', 'test'];
+
+/**
+ * Whether a version 4 projection's `copilot` is one `readBoot`'s `copilotOf` reads (phase 5 specification, 4.1): 1 to
+ * 16 providers of an id, a kind and a model and no other key, ids once each, and a `default` naming one. Written
+ * again here rather than imported, so stage B shares no module with first paint, which would part `read-boot` into a
+ * chunk of its own; `copilot.test.ts` holds the two to the same answers.
+ */
+function copilotAdmitted(value: unknown): boolean {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+	const { default: chosen, providers, ...rest } = value as Record<string, unknown>;
+	if (Object.keys(rest).length > 0 || !Array.isArray(providers)) return false;
+	if (providers.length === 0 || providers.length > 16) return false;
+	const ids = new Set<string>();
+	for (const entry of providers) {
+		if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false;
+		const { id, kind, model, ...extra } = entry as Record<string, unknown>;
+		if (
+			Object.keys(extra).length > 0 ||
+			typeof id !== 'string' ||
+			!PROVIDER_ID.test(id) ||
+			ids.has(id) ||
+			!PROVIDER_KINDS.includes(kind) ||
+			typeof model !== 'string' ||
+			!MODEL_ID.test(model)
+		)
+			return false;
+		ids.add(id);
+	}
+	return typeof chosen === 'string' && ids.has(chosen);
+}
+
 /** As the validator would report a key `readProjection` checks by hand: `DEPLOYMENT_INVALID`, keyed by it. */
 function refusedAt(key: 'identity' | 'host' | 'copilot'): ProjectionRead {
 	const error = { instancePath: `/${key}`, keyword: key, message: 'is invalid', params: {} };
@@ -64,7 +97,7 @@ function refusedAt(key: 'identity' | 'host' | 'copilot'): ProjectionRead {
  * Reads versions 2 to 4. The generated validator is version 2's; a version 3 projection is version 2's
  * fields and `identity`, which `admitted` checks as `projection.v3.json` has it (its test holds the two
  * equal), and a version 4 projection those, `host`, which `hostAdmitted` checks as `projection.v4.json` has it,
- * and `copilot`, which `copilotOf` does.
+ * and `copilot`, which `copilotAdmitted` does as `readBoot`'s `copilotOf` does.
  * Ajv's code for `identity` alone cost the page's `apps` row about 6,700 bytes (phase 3 specification, 13); stage A
  * boots anything but an exact `local` as `provider`, and reads no `host` (phase 6 specification, 14).
  */
@@ -77,7 +110,7 @@ export function readProjection(json: unknown): ProjectionRead {
 		// Version 4's `host` is checked by hand too, so the page's `apps` row carries no validator for it (14).
 		if (version === 3 ? host !== undefined : !hostAdmitted(host)) return refusedAt('host');
 		// Version 4's `copilot` too, with the same reader stage A uses (phase 5 specification, 4.1).
-		if (copilot !== undefined && (version === 3 || copilotOf(copilot) === undefined))
+		if (copilot !== undefined && (version === 3 || !copilotAdmitted(copilot)))
 			return refusedAt('copilot');
 		checked = { ...rest, deployment_version: 2 };
 		// The desktop's sandbox scheme on macOS and Linux (phase 6 specification, 10.2), which version 2's pattern

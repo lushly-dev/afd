@@ -194,7 +194,9 @@ describe('the projection’s `copilot` (4.1)', () => {
 			for (const version of [2, 3, 4]) {
 				const json = { ...PROJECTION, deployment_version: version, copilot };
 				const read = readProjection(json).ok;
-				// Whatever the reader admits, the schema admits.
+				// Both stages give the same answer, and whatever they admit, the schema admits.
+				if (version === 4)
+					expect(read, JSON.stringify(copilot)).toBe(copilotOf(copilot) !== undefined);
 				if (read) expect(validate(json), JSON.stringify(json)).toBe(true);
 				if (version !== 4) expect(read, `${version}`).toBe(false);
 			}

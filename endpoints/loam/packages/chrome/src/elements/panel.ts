@@ -6,7 +6,7 @@
  * Its body is a column: an app's panel views at their own height, then the copilot's panel (phase 5 specification,
  * 3.2), which takes what is left and at least the part's minimum, and whose thread scrolls itself. When the column
  * is taller than the part, the body scrolls, and is then a tab stop, so a person can scroll it by keyboard whatever
- * it holds (WCAG 2.1.1; axe's `scrollable-region-focusable`, which the copilot beside tally's panel failed in
+ * it holds (WCAG 2.1.1; axe's `scrollable-region-focusable`, which the copilot beside an app's panel failed in
  * phase 5's step 1).
  */
 

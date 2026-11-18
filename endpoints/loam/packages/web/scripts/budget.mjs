@@ -293,10 +293,15 @@ export const CEILINGS = Object.freeze({
 	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
 	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
 	// `switcher` (+100) and `tooltip` (+5) are within their rows.
-	jsMinified: 304_000,
-	jsGzip: 95_500,
+	// Raised again under D115 by phase 5's step 2 (model access on the desktop), measured at its final head with
+	// `main` at `e96c2f00` merged in: first paint 305,658 of 304,000 and 95,533 of 95,500 gzip (stage A's strict
+	// reader of the projection's `copilot`, the lazy copilot handed to the kernel and the panel, the panel part's
+	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500.
+	jsMinified: 308_000,
+	jsGzip: 96_500,
 	cssMinified: 8_496,
-	kernelMinified: 116_800,
+	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
+	kernelMinified: 118_000,
 	lateMinified: 80_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
@@ -310,7 +315,8 @@ export const CEILINGS = Object.freeze({
 	accountMenuMinified: 5_400,
 	accountMinified: 28_000,
 	urlMinified: 5_700,
-	appsMinified: 395_700,
+	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
+	appsMinified: 397_000,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
