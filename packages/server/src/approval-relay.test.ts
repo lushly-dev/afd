@@ -1031,6 +1031,69 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 		expect(calls).toEqual([]);
 	});
 
+	it('starts neither ungated nor approved steps after their command deadlines pass', async () => {
+		const calls: string[] = [];
+		const list = commands(calls);
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let completed = 0;
+		let finished = () => {};
+		let timeout: number | undefined;
+		const approval = createApprovalMiddleware({
+			secret: SECRET,
+			commands: list,
+			relay: 'mcp-elicitation',
+			nonceStore: {
+				consume: async () => {
+					await blocked;
+					return true;
+				},
+			},
+		});
+		const { url } = await serve({
+			server: {
+				commands: list,
+				createContext: () => ({ timeout }),
+				middleware: [
+					async (name, input, context, next) => {
+						try {
+							return await approval(name, input, context, next);
+						} finally {
+							if (++completed === 2) finished();
+						}
+					},
+				],
+			},
+		});
+		const call = rawCaller(url);
+		const batch = { commands: BATCH.commands.slice(0, 2) };
+		const state = asked(await call('afd-batch', batch)).requestState as string;
+		completed = 0;
+		const settled = new Promise<void>((resolve) => {
+			finished = resolve;
+		});
+		timeout = 20;
+		try {
+			const result = await call('afd-batch', batch, {
+				inputResponses: approved,
+				requestState: state,
+			});
+			expect(body(result.result)).toMatchObject({
+				results: [
+					{ result: { error: { code: 'TIMEOUT' } } },
+					{ result: { error: { code: 'TIMEOUT' } } },
+				],
+			});
+		} finally {
+			release();
+		}
+		// Wait for the actual approval middleware to resume, including the ungated branch.
+		await settled;
+		expect(calls).toEqual([]);
+	});
+
 	it('names no hidden command and asks about at most 20 steps at once', async () => {
 		const hidden = defineCommand({
 			name: 'secret-wipe',
