@@ -601,11 +601,17 @@ On branch `t3/cpp-meta-tools-2`, from `main` at `f0ebce0e`: the second step for
   context, confirmation and validation checks. `afd-batch` and `afd-pipe` ask once for every gated
   step, in both eras. Over MCP an unexposed command is answered as an unknown one (D4), which the
   C++ server had not done.
-- **What waits.** A batch or pipeline step that needs approval is refused with
-  `APPROVAL_REQUIRED` rather than asked up front: the third step.
 - **The backend.** The default grouped list: `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`,
   `todo` and `bootstrap`, as TypeScript's, with `todo-reading` narrowing `todo` to list, get,
   stats and history. That closes the C++ part of W9's tool list.
+
+### C++ up-front approval
+
+On branch `t3/cpp-up-front-approval`: the third and last step for
+[#1451](https://github.com/lushly-dev/afd/issues/1451). With the MCP relay, a C++ `afd-batch` or
+`afd-pipe` that needs approval asks once, before any step runs, in both eras, as TypeScript, Python
+and Rust do; a gated step reading an earlier step, more than 20 gated steps or a decline runs
+nothing. Every backend now approves batches and pipelines up front.
 
 ## Open questions
 
@@ -657,4 +663,5 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-17 | Phase 5 C++ contexts | Contexts on `afd::mcp_stdio` and the C++ backend's two contexts (W2); the meta-tools, bootstrap commands and strategies split out to #1451 |
 | 2026-11-17 | Phase 5 C++ bootstrap | C++ `afd-help`, `afd-docs` and `afd-schema` (`register_bootstrap_commands`), registered by the C++ backend; #1451 split into three steps. In #1468 |
 | 2026-11-17 | Phase 5 C++ tool list | The meta-tools and the individual, grouped and lazy strategies on `afd::mcp_stdio`; the C++ backend lists TypeScript's grouped tools (W9) |
+| 2026-11-17 | Phase 5 C++ up-front approval | One approval up front for C++'s `afd-batch` and `afd-pipe` over the MCP relay; #1451 done |
 | 2026-11-17 | C++ on MSVC | The C++ backend reads its settings without `std::getenv` on MSVC and builds there with warnings as errors; `conformance.yml` builds and tests it on Windows. In [#1453](https://github.com/lushly-dev/afd/pull/1453) |

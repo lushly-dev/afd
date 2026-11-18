@@ -27,10 +27,12 @@ namespace tools_test {
 struct Fixture {
     std::shared_ptr<afd::CommandRegistry> registry;
     std::shared_ptr<std::atomic<int>> deletes = std::make_shared<std::atomic<int>>(0);
+    std::shared_ptr<std::atomic<int>> removes = std::make_shared<std::atomic<int>>(0);
     std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
 
     explicit Fixture(bool with_contexts = false) {
         auto deleted = deletes;
+        auto removed = removes;
         std::vector<afd::CommandDefinition> commands{
             {.name = "note-create",
              .description = "Create a note. Titles are trimmed.",
@@ -76,7 +78,11 @@ struct Fixture {
              .mutation = true},
             {.name = "tag-remove",
              .description = "Remove a tag",
-             .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+             .handler =
+                 [removed](const Json& input, afd::CommandContext&) {
+                     ++*removed;
+                     return afd::success(input);
+                 },
              .mutation = true,
              .expose = {.mcp = true},
              .approval = afd::ApprovalDecision::required},
@@ -714,27 +720,235 @@ TEST_CASE("2025: a pipeline's confirmation is asked in band, once") {
     CHECK(*fixture.deletes == 1);
 }
 
-TEST_CASE("a batch step that needs approval is not asked about: it says to call it alone") {
+const Json approve{{"action", "accept"}, {"content", {{"approve", true}}}};
+
+/// A 2025 client that declares form elicitation, and the questions it was asked.
+struct Legacy {
+    std::vector<Json> asked;
+    std::optional<Json> answer = approve;
+
+    void connect(StdioServer& server) {
+        send(server,
+             request(0, "initialize",
+                     {{"protocolVersion", "2025-11-25"}, {"capabilities", form_elicitation}}));
+    }
+
+    afd::mcp::ClientRequester requester() {
+        return [this](const Json& sent) -> std::optional<Json> {
+            asked.push_back(sent);
+            return answer;
+        };
+    }
+};
+
+TEST_CASE("2025: a batch is approved up front, once, before any step runs") {
     Fixture fixture;
     auto server = make_server(*fixture.registry);
-    int asked = 0;
-    send(*server, request(0, "initialize",
-                          {{"protocolVersion", "2025-11-25"}, {"capabilities", form_elicitation}}));
-    const afd::mcp::ClientRequester ask = [&](const Json&) -> std::optional<Json> {
-        ++asked;
-        return Json{{"action", "accept"}, {"content", {{"approve", true}}}};
-    };
-    const Json batch =
-        body(call(*server, "afd-batch", {{"commands", {{{"command", "tag-remove"}}}}}, ask));
-    const Json error = batch["results"][0]["result"]["error"];
-    CHECK(error["code"] == "APPROVAL_REQUIRED");
-    CHECK(error["suggestion"].get<std::string>().find("Call tag-remove on its own") !=
+    Legacy client;
+    client.connect(*server);
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-remove"}, {"input", {{"tag", "old"}}}}}}};
+    const Json ran = body(call(*server, "afd-batch", batch, client.requester()));
+    REQUIRE(client.asked.size() == 1);
+    const auto message = client.asked[0]["params"]["message"].get<std::string>();
+    CHECK(message == "This batch includes a step that needs your approval. Approving lets each "
+                     "run once, exactly as shown; if you do not approve, nothing in the batch "
+                     "runs.\n\nStep 2: Run tag-remove\nCommand: tag-remove\nInput: "
+                     "{\"tag\":\"old\"}");
+    CHECK(client.asked[0]["params"]["requestedSchema"]["required"] == Json::array({"approve"}));
+    CHECK(ran["summary"]["successCount"] == 2);
+    CHECK(*fixture.removes == 1);
+
+    // Declined: nothing in the batch runs, the earlier step included.
+    client.answer = Json{{"action", "decline"}};
+    const Json declined = body(call(*server, "afd-batch", batch, client.requester()));
+    CHECK(declined["success"] == false);
+    CHECK(declined["results"].empty());
+    CHECK(declined["error"]["code"] == "APPROVAL_REQUIRED");
+    CHECK(declined["error"]["details"]["reason"] == "declined");
+    CHECK(declined["error"]["message"] == "The user did not approve tag-remove; nothing in the "
+                                          "batch ran");
+    CHECK(*fixture.removes == 1);
+
+    // Unanswered: nobody declined, and nothing ran.
+    client.answer = std::nullopt;
+    const Json silent = body(call(*server, "afd-batch", batch, client.requester()));
+    CHECK(silent["results"].empty());
+    CHECK(silent["error"]["code"] == "APPROVAL_REQUIRED");
+    CHECK_FALSE(silent["error"].contains("details"));
+    CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("2026-07-28: one input_required approves the whole batch, and a replay runs nothing") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const Json batch{{"commands",
+                      {{{"command", "tag-remove"}, {"input", {{"tag", "a"}}}},
+                       {{"command", "tag-remove"}, {"input", {{"tag", "a"}}}}}}};
+    const Json asked = modern_call(*server, "afd-batch", batch, form_elicitation);
+    REQUIRE(asked["resultType"] == "input_required");
+    const Json& form = asked["inputRequests"]["approval"]["params"];
+    CHECK(form["message"].get<std::string>().rfind(
+              "This batch includes 2 steps that need your approval.", 0) == 0);
+    CHECK(*fixture.removes == 0);
+    const Json answer{{"requestState", asked["requestState"]},
+                      {"inputResponses", {{"approval", approve}}}};
+
+    // Another request cannot use the approval.
+    Json other = batch;
+    other["commands"][1]["input"]["tag"] = "b";
+    CHECK(modern_call(*server, "afd-batch", other, form_elicitation, answer)["resultType"] ==
+          "input_required");
+    // Nor a call to the command on its own.
+    CHECK(modern_call(*server, "tag-remove", {{"tag", "a"}}, form_elicitation,
+                      answer)["resultType"] == "input_required");
+    CHECK(*fixture.removes == 0);
+
+    // Two identical steps, two approvals, one answer.
+    const Json done = modern_call(*server, "afd-batch", batch, form_elicitation, answer);
+    CHECK(done["isError"] == false);
+    CHECK(body(done)["summary"]["successCount"] == 2);
+    CHECK(*fixture.removes == 2);
+
+    // A replay of the approved request runs nothing and asks again, saying why.
+    const Json replay = modern_call(*server, "afd-batch", batch, form_elicitation, answer);
+    REQUIRE(replay["resultType"] == "input_required");
+    CHECK(replay["inputRequests"]["approval"]["params"]["message"].get<std::string>().rfind(
+              "The earlier approval expired, was already used or no longer matches", 0) == 0);
+    CHECK(*fixture.removes == 2);
+
+    const Json declined =
+        modern_call(*server, "afd-batch", batch, form_elicitation,
+                    {{"requestState", asked["requestState"]},
+                     {"inputResponses", {{"approval", {{"action", "decline"}}}}}});
+    CHECK(body(declined)["error"]["details"]["reason"] == "declined");
+    CHECK(*fixture.removes == 2);
+}
+
+TEST_CASE("a pipeline step is shown with its $input resolved; a step reading $prev cannot be") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json known{{"input", {{"tag", "piped"}}},
+                     {"steps",
+                      {{{"command", "tag-list"}},
+                       {{"command", "tag-remove"},
+                        {"input", {{"tag", "$input.tag"}}},
+                        {"when", {{"$exists", "$prev"}}}}}}};
+    const Json ran = body(call(*server, "afd-pipe", known, client.requester()));
+    REQUIRE(client.asked.size() == 1);
+    const auto message = client.asked[0]["params"]["message"].get<std::string>();
+    CHECK(message.find("This pipeline includes a step") == 0);
+    CHECK(message.find("Some steps run only when their conditions hold") != std::string::npos);
+    CHECK(message.find("Step 2: Run tag-remove\nCommand: tag-remove\nInput: {\"tag\":\"piped\"}") !=
           std::string::npos);
+    CHECK(ran["steps"][1]["data"] == Json{{"tag", "piped"}});
+    CHECK(*fixture.removes == 1);
+
+    const Json late{{"steps",
+                     {{{"command", "tag-list"}},
+                      {{"command", "tag-remove"}, {"input", {{"tag", "$prev.0"}}}}}}};
+    const Json refused = body(call(*server, "afd-pipe", late, client.requester()));
+    CHECK(client.asked.size() == 1);
+    const Json& error = refused["steps"][0]["error"];
+    CHECK(refused["steps"][0]["index"] == -1);
+    CHECK(error["code"] == "APPROVAL_REQUIRED");
+    CHECK(error["details"] ==
+          Json{{"reason", "input-not-known"}, {"step", 1}, {"command", "tag-remove"}});
+    CHECK(error["suggestion"].get<std::string>().rfind(
+              "Split the pipeline before the step at index 1", 0) == 0);
+    CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("more than 20 gated steps are not asked about") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    Json commands = Json::array();
+    for (int i = 0; i < 21; ++i) {
+        commands.push_back(
+            Json{{"command", "tag-remove"}, {"input", {{"tag", std::to_string(i)}}}});
+    }
+    const Json refused =
+        body(modern_call(*server, "afd-batch", {{"commands", commands}}, form_elicitation));
+    CHECK(refused["error"]["details"] == Json{{"reason", "too-many-approvals"}, {"limit", 20}});
+    CHECK(*fixture.removes == 0);
+}
+
+TEST_CASE("a batch that needs a confirmation and an approval asks for each in turn") {
+    // vault-open asks for confirmation and needs approval; vault-sync runs it from its handler.
+    auto registry = std::make_shared<afd::CommandRegistry>();
+    auto opens = std::make_shared<std::atomic<int>>(0);
+    std::weak_ptr<afd::CommandRegistry> weak = registry;
+    std::vector<afd::CommandDefinition> commands{
+        {.name = "vault-open",
+         .description = "Open the vault",
+         .handler =
+             [opens](const Json&, afd::CommandContext&) {
+                 ++*opens;
+                 return afd::success(nullptr);
+             },
+         .mutation = true,
+         .confirm_prompt = "Open the vault?",
+         .expose = {.mcp = true},
+         .approval = afd::ApprovalDecision::required},
+        {.name = "vault-sync",
+         .description = "Sync the vault, opening it",
+         .handler =
+             [weak](const Json&, afd::CommandContext& context) {
+                 return weak.lock()->execute("vault-open", Json::object(), context);
+             },
+         .expose = {.mcp = true},
+         .approval = afd::ApprovalDecision::required}};
+    auto approval = afd::create_approval_middleware({.secrets = {std::string(32, 's')},
+                                                     .commands = {commands.begin(), commands.end()},
+                                                     .relay = afd::ApprovalRelay::mcp_elicitation});
+    REQUIRE(approval);
+    registry->use(*approval);
+    for (const auto& command : commands) {
+        REQUIRE_FALSE(registry->register_command(command));
+    }
+    auto server = make_server(*registry, {.confirmations = ConfirmationMode::require_human});
+    const Json batch{{"commands", {{{"command", "vault-open"}}}}};
+    const Json confirm_asked = modern_call(*server, "afd-batch", batch, form_elicitation);
+    REQUIRE(confirm_asked["inputRequests"].contains("confirm"));
+    const Json approval_asked =
+        modern_call(*server, "afd-batch", batch, form_elicitation,
+                    {{"requestState", confirm_asked["requestState"]},
+                     {"inputResponses",
+                      {{"confirm", {{"action", "accept"}, {"content", {{"confirm", true}}}}}}}});
+    REQUIRE(approval_asked["inputRequests"].contains("approval"));
+    const Json done = modern_call(*server, "afd-batch", batch, form_elicitation,
+                                  {{"requestState", approval_asked["requestState"]},
+                                   {"inputResponses", {{"approval", approve}}}});
+    CHECK(done["isError"] == false);
+    CHECK(*opens == 1);
+
+    // A command a step runs never sees the step's approval: it falls back, telling the agent to
+    // call it on its own.
+    const Json sync{{"commands", {{{"command", "vault-sync"}}}}};
+    const Json sync_asked = modern_call(*server, "afd-batch", sync, form_elicitation);
+    REQUIRE(sync_asked["inputRequests"].contains("approval"));
+    const Json nested = body(modern_call(*server, "afd-batch", sync, form_elicitation,
+                                         {{"requestState", sync_asked["requestState"]},
+                                          {"inputResponses", {{"approval", approve}}}}));
+    const Json& error = nested["results"][0]["result"]["error"];
+    CHECK(error["code"] == "APPROVAL_REQUIRED");
+    CHECK(error["suggestion"].get<std::string>().find("Call vault-open on its own") !=
+          std::string::npos);
+    CHECK(*opens == 1);
+}
+
+TEST_CASE("without a form elicitation, a batch step that needs approval is held step by step") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    const Json batch =
+        body(call(*server, "afd-batch", {{"commands", {{{"command", "tag-remove"}}}}}));
+    const Json& error = batch["results"][0]["result"]["error"];
+    CHECK(error["code"] == "APPROVAL_REQUIRED");
     CHECK_FALSE(error["details"].contains("approvalToken"));
-    CHECK(asked == 0);
-    // The same command on its own is asked.
-    CHECK(call(*server, "tag-remove", Json::object(), ask)["isError"] == false);
-    CHECK(asked == 1);
+    CHECK(*fixture.removes == 0);
 }
 
 TEST_CASE("server/discover and afd-help describe the strategy") {
