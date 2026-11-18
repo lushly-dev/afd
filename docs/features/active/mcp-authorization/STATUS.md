@@ -1,5 +1,7 @@
 # MCP authorization: status
 
+Epic: [#1552](https://github.com/lushly-dev/afd/issues/1552). File new work for this area as its sub-issue.
+
 Read this before the [proposal](mcp-authorization.proposal.md). Last reconciled 2026-11-13
 against `main` at `1024546b`, using source and merged history. This audit did not rerun suites
 or verify a live identity provider.

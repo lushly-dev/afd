@@ -1,5 +1,7 @@
 # Violet in Loam: status
 
+Epic: [#1556](https://github.com/lushly-dev/afd/issues/1556). File new work for this area as its sub-issue.
+
 Read this before the [proposal](violet-app.proposal.md). It records exactly what is done and what is
 not, so an agent never has to scan the code to learn what is current. It follows the shape of the
 [Pointing status](../pointing/STATUS.md).

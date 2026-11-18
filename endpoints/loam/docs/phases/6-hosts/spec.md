@@ -1,5 +1,7 @@
 # Phase 6 specification: hosts and distribution
 
+Epic: [#1545](https://github.com/lushly-dev/afd/issues/1545). File new work for this area as its sub-issue.
+
 | Field | Value |
 | --- | --- |
 | Phase | 6, hosts and distribution ([architecture section 9](../../architecture.md#9-phases)) |

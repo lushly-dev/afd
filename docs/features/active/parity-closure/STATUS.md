@@ -1,5 +1,7 @@
 # Language parity closure: status
 
+Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551). File new work for this area as its sub-issue.
+
 Read this before the [plan](parity-closure.plan.md). Last reconciled 2026-11-13 against `main`
 at `1024546b`, using the [capability matrix](../../../language-parity.md), merged history and
 the linked tracking issues. This audit did not rerun the four language suites.

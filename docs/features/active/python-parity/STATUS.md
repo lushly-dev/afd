@@ -1,5 +1,7 @@
 # Python name parity: status
 
+Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551) (this plan is part of Language parity closure). File new work for this area as its sub-issue.
+
 Read this before the [plan](python-parity.plan.md). Last reconciled 2026-11-13 against `main`
 at `1024546b`. The September counts in the plan are historical. A fresh Alfred run found **88 missing Python names** (228 TypeScript and 233 Python exports),
 matching the upper budget of 88 in `alfred/tests/test_parity.py`. All four contract constants
