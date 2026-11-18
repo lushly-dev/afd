@@ -642,7 +642,8 @@ tools take TypeScript's shape, and `grouped` is every language's default.
 
 - **TypeScript** and the spec: [#1518](https://github.com/lushly-dev/afd/pull/1518), merged on
   2026-11-18 (`e96c2f00`).
-- **Rust and C++:** [#1527](https://github.com/lushly-dev/afd/pull/1527).
+- **Rust and C++:** [#1527](https://github.com/lushly-dev/afd/pull/1527), merged on 2026-11-18
+  (`7f381a29`).
 - **Python:** on branch `t3/tool-list-alignment-py`. Python's grouped default makes its backend list
   TypeScript's tools, so `tool_list_grouped` runs against every backend but the Umbel modes. It
   also fixed a Python bug the confirmation and approval suites found: a command its strategy does
