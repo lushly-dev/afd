@@ -3,7 +3,7 @@
 //!
 //! [`commands`] returns each command's definition with the JSON Schema of its input, for a host
 //! that registers them itself (Umbel's todo plugin does). [`app::registry`] registers them in a
-//! registry of the backend's own with the bootstrap commands and the approval hold on
+//! registry of the backend's own with the approval hold on
 //! `todo-clear`. The `todo-backend-rust` binary, the CLI, the shell and the MCP server of the
 //! [`server`] module (stdio and HTTP), needs the `server` feature (on by default); without it the
 //! crate depends on `afd` without its `server` feature and on neither `axum` nor `tower-http`.
