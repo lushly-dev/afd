@@ -1086,7 +1086,7 @@ Each step is one pull request, merged on green. **Steps 4, 6, 8 and 10 each get 
 | 8 | Autonomy | Section 4; E4. **Trust review** | `pnpm check`, `loam.yml` |
 | 9 | Experiments | Section 5, `experiment-settle`, R14; E5 | `pnpm check`, `loam.yml` |
 | 10 | Limits | Section 11 and `limit-usage-get`, **on their own**; E10. **Trust review** | `pnpm check`, `pnpm verify`, `loam.yml` |
-| 11 | Exit | Every row and scenario; #710 re-scoped; follow-ups filed | The check exits 0 |
+| 11 | Exit | Every row and scenario; #710 re-scoped; follow-ups filed; the architecture amendments all applied | The check exits 0 |
 
 **Order:**
 
