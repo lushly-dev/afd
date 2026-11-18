@@ -264,7 +264,9 @@ def test_the_base_moving_while_the_check_runs_validates_again_before_any_merge(l
     )
     actions = run_steps(lane)
     assert "rerun feat/export-csv (main-moved)" in actions
-    assert "rerun fix/retry-backoff (slot-needed)" in actions
+    # The validated branch behind it gives up its slot but keeps its validation (#1452).
+    assert "released slot 1 from fix/retry-backoff; its validation is kept" in actions
+    assert "rerun fix/retry-backoff (slot-needed)" not in actions
     assert "merged" not in kinds(lane)
     assert prs(lane)["600"]["state"] == "OPEN"
     entry = lane.state()["queue"][0]
@@ -588,10 +590,10 @@ def test_a_check_that_never_finishes_pauses_the_lane_and_leaves_the_pr_open(lane
 def test_the_ejection_limit(lane):
     with lane.store.update("two ejections") as state:
         state["cells"][3]["ejections"] = 2  # feat/export-csv
-    lane.change_world(outcomes={"merge": {"feat/export-csv": "conflict: a"}})
-    run_steps(lane)
+    lane.change_world(outcomes={"validate": {"feat/export-csv": "fail: FAIL src/x.test.ts"}})
+    run_steps(lane, 2)
     [limit] = events(lane, "ejection-limit")
-    assert limit["branch"] == "feat/export-csv" and "3 ejections" in limit["detail"]
+    assert limit["branch"] == "feat/export-csv" and "3 ejections count" in limit["detail"]
 
 
 def test_a_pr_merged_elsewhere_is_landed_and_flagged(lane):

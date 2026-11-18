@@ -1,10 +1,13 @@
 """What every phase of a lane step uses: records, events, ejection, the lane's own trouble, the
 base branch's head, and where a branch that must be validated again goes in the queue.
 
-A failure ejects a branch only when it is the branch's own: a conflict, a validation that
-failed, a real check failure, a push refused after the lease, a head that changed under a merge,
-a PR GitHub refuses or that was closed. Anything else that failed outside (the network,
-GitHub, a registry, a timeout) is the lane's trouble: it pauses and ejects nothing.
+A failure ejects a branch only when the branch must change to get past it: a conflict, a
+validation that failed, a real check failure, a push refused after the lease, a head that changed
+under a merge, a PR GitHub refuses or that was closed. Anything else that failed outside (the
+network, GitHub, a registry, a timeout) is the lane's trouble: it pauses and ejects nothing. Of
+the ejections, only the branch's own failures count toward ``cells.maxEjections``: a conflict
+with a moved main and the push, PR and merge plumbing (``EXCUSED_CAUSES``) do not, nor one the
+foreman excused (``ejection-excuse``).
 """
 
 from __future__ import annotations
@@ -64,6 +67,39 @@ VALIDATION_FIELDS = (
     "checkStandsIn",
     "checkBase",
 )
+
+
+#: Ejections that are not the branch's own failure, and so never count toward
+#: ``cells.maxEjections``: main moved under it, or pushing, opening or merging its PR failed on
+#: GitHub's side of the plumbing. Each still ejects, so the cell repairs and enqueues again.
+EXCUSED_CAUSES = {
+    "conflict": "main moved under it",
+    "push-failed": "the push was refused",
+    "pr-failed": "GitHub refused the pull request",
+    "merge-failed": "GitHub refused the merge",
+}
+
+
+def counted_ejections(cell: dict) -> int:
+    """The ejections that count toward ``cells.maxEjections``: all but the excused ones."""
+    return max(0, int(cell.get("ejections", 0)) - int(cell.get("excused", 0)))
+
+
+def count_ejection(cell: dict, attempt: int, cause: str, at: str) -> None:
+    """Count one ejection on the cell; one whose cause is excused is counted as excused."""
+    excuse = EXCUSED_CAUSES.get(cause)
+    cell["ejections"] = int(cell.get("ejections", 0)) + 1
+    cell.setdefault("excused", 0)
+    if excuse:
+        cell["excused"] += 1
+    cell["lastEjection"] = {"attempt": attempt, "cause": cause, "at": at, "excused": excuse}
+
+
+def ejection_detail(cell: dict, limit: int) -> str:
+    return (
+        f"{counted_ejections(cell)} ejections count ({cell.get('excused', 0)} of "
+        f"{cell.get('ejections', 0)} excused); cells.maxEjections is {limit}"
+    )
 
 
 class LaneTrouble(Exception):
@@ -201,6 +237,7 @@ class StepBase:
         self.state["queue"].remove(entry)
         lines = first_lines(text) or [cause]
         branch = entry["branch"]
+        excuse = EXCUSED_CAUSES.get(cause)
         self.record(
             "ejected",
             branch=branch,
@@ -209,21 +246,25 @@ class StepBase:
             head=entry.get("head"),
             logPath=log,
             detail=lines[0],
+            counted=excuse is None,
+            **({"excuse": excuse} if excuse else {}),
         )
         self.event(
-            "ejected", branch=branch, reason=cause, detail=lines[0], lines=lines, logPath=log
+            "ejected",
+            branch=branch,
+            reason=cause,
+            detail=lines[0],
+            lines=lines,
+            logPath=log,
+            excused=excuse,
         )
         cell = self.cell(branch)
         if cell is not None:
             cell["state"] = "ejected"
-            cell["ejections"] = int(cell.get("ejections", 0)) + 1
+            count_ejection(cell, entry["attempt"], cause, self.at)
             limit = self.dial("cells.maxEjections")
-            if cell["ejections"] >= limit:
-                self.event(
-                    "ejection-limit",
-                    branch=branch,
-                    detail=f"{cell['ejections']} ejections; cells.maxEjections is {limit}",
-                )
+            if excuse is None and counted_ejections(cell) >= limit:
+                self.event("ejection-limit", branch=branch, detail=ejection_detail(cell, limit))
         self.actions.append(f"ejected {branch} ({cause})")
 
     def trouble(self, detail: str) -> None:
