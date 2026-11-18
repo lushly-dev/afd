@@ -304,7 +304,7 @@ Ordered by how much an agent or a security boundary is affected.
     - **C++:** see item 16.
     - **Fixed in the candidate:** Python intercepts unknown/private MCP SDK tools with structured `COMMAND_NOT_FOUND`; all strategies serve `afd-discover` and `afd-detail` (#325).
 19. **The `ErrorCodes` catalog (fixed).** TypeScript's catalog omitted 20 codes the engines emit, so each language added its own. [`spec/error-codes.md`](../spec/error-codes.md) now lists every emitted code with its meaning, retryability and emitting layer, and separates the 42-code shared catalog from transport-specific and package codes. All four languages define the shared catalog, and each test suite checks it against `spec/vectors/error-codes.json`.
-20. **The TypeScript `MockServer` runs on the core registry.** It has no Zod validation, did-you-mean, middleware or context scoping, so scenario tests run different semantics from production.
+20. **The TypeScript `MockServer` uses the server engine (fixed, #544).** `MockMcpServer` runs single calls and batch entries through `createDirectRegistry`, preserving production Zod validation, did-you-mean suggestions, middleware, context scoping and error handling. Core command definitions and mock helpers remain supported with their historical input passthrough; validation requires the original Zod-backed definition.
 
 ## Defects found in this review
 

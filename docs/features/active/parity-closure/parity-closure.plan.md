@@ -162,7 +162,7 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 - `list_by_tags`. (S)
 
 **TypeScript (M overall):**
-- `MockServer` runs on the server engine (`createDirectRegistry`), so scenario tests get production semantics. (M)
+- `MockServer` runs on the server engine (`createDirectRegistry`), so scenario tests get production semantics. (M) Implemented for #544 on `lush/fleet-544-mockserver-server-engine`: Zod validation, middleware, suggestions and request-scoped contexts apply to single calls and batch entries; core command helpers remain compatible. Full validation belongs to the lane.
 - D8: the engine enforces `CommandContext.timeout`. (S) Implemented for #543 on `lush/fleet-543-context-timeout-parity`: positive finite per-command deadlines abort the signal and return `TIMEOUT`; delayed middleware cannot start cancelled work. MCP and HTTP execution are covered.
 - Complete the `ErrorCodes` catalog as part of 1.2. (S) Done.
 

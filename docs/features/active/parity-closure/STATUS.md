@@ -34,6 +34,16 @@ ejected candidate). With esbuild 0.28.2, the registry host returns from 39,879 t
 tool-surface host from 74,118 to 73,310; their ceilings return to 39,100 and 74,000. No Loam
 ceiling changes. `pnpm -F @lushly-dev/loam-web budget` and server entry-point tests pass.
 
+## TypeScript MockServer candidate (#544)
+
+Implemented on `lush/fleet-544-mockserver-server-engine`: `MockMcpServer` uses
+`createDirectRegistry` from the transport-free server entry. Production Zod definitions
+retain their validation and input transforms; core definitions and mock helpers are adapted
+with their historical input passthrough. Single calls and batch entries
+share server middleware, suggestions, error handling and request-scoped contexts, including
+declared context fields. Defect 20 in the matrix is updated. Focused mock and scenario tests
+cover the candidate; the lane owns full validation and landing.
+
 ## Historical checkpoints
 
 The plan's 2026-10-10 stabilization candidate is now merged (#367), and its first releases are
