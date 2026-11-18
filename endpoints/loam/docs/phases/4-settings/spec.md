@@ -46,7 +46,7 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
   - **External:** the [trajectory refresh](#trajectory-refresh).
 - **Done:** this specification, its fourteen jobs as scenarios (all valid under `afd scenario validate`), and two revisions.
 - **Done since approval:** the owner's answers to Q1 to Q5, 2026-11-18 (D154 to D158).
-- **Done, step 1, the settings core** (#TBD, 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
+- **Done, step 1, the settings core** ([#1533](https://github.com/lushly-dev/afd/pull/1533), 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
 - **Not done:** every step of the [plan](#20-implementation-plan) after step 1. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
@@ -1382,7 +1382,7 @@ A re-check of `faa0c1d9` found the second revision "approvable once fixed". It f
 
 ## Step 1, 2026-11-18
 
-The settings core, in #TBD, on `main` at `276ea9cc`, after two independent reviews whose findings are answered below.
+The settings core, in [#1533](https://github.com/lushly-dev/afd/pull/1533), on `main` at `7f381a29`, after two independent reviews whose findings are answered below.
 
 **Built.**
 
@@ -1419,7 +1419,7 @@ The settings core, in #TBD, on `main` at `276ea9cc`, after two independent revie
 
 - **Step 2:** E1's Chromium check of `settingsChanged` with hello's sections (the delivery is step 1's, unit-tested); the settings section, the palette's setting rows and the custom editors; hello's sections; and `p4-base`'s apps, tally's count and the document. The kernel package cannot depend on the apps (their tests depend on `@lushly-dev/loam-testing`, which depends on the kernel), so step 2 seeds them from a package that may, or through fixture ports serving the built packages. Hello's experiment waits for step 9.
 - **Steps 5 to 10:** the commands `HUMAN_COMMANDS` now names (`notification-act`, `palette-run`), and the rest of `APP_CALLABLE_SHELL_COMMANDS_V2`.
-- **The architecture's section 4 amendment** (settings levels with 3.3's precedence) was not applied here.
+- **The architecture's other amendments** (the overlay policy, the new commands and domains, experiments, the exit) land with their steps; section 4's settings levels with 3.3's precedence landed here.
 
 **Measured.** D115, on Windows with Node 26.13.1: first paint 303,593 and 94,914 gzip, within its rows of 304,000 and 95,500 (section 14 estimated the step at 450 and 180). Raised, each to its measurement plus a margin: `kernelMinified` 116,800 to 118,000 (117,473); `lateMinified` 80,500 to 82,000 (81,246); `appsMinified` 395,700 to 417,500 (416,423), the manifest validator's `ui.settings` (`validate.generated.js` 329,227 to 357,289 bytes unminified). New: `lateSettingsMinified` 22,800 (20,698 plus 10%; section 14 estimated 26,000). `budget.mjs` records each.
 
