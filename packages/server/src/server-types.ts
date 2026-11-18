@@ -13,6 +13,7 @@ import type {
 	PipelineResult,
 	RandomSource,
 } from '@lushly-dev/afd-core';
+import type { ApproverPredicate } from './approver.js';
 import type { ContextField } from './context-fields.js';
 import type { McpAuthOptions, PreDispatchCheck, PreDispatchCheckOptions } from './mcp-auth.js';
 import type { Credentials } from './mcp-auth-rules.js';
@@ -247,6 +248,27 @@ export interface McpServerOptions {
 	 * key, which works only when one process serves every request.
 	 */
 	confirmationKey?: string | Uint8Array;
+
+	/**
+	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver
+	 * client"): MCP clients trusted to show a person a held action and carry the person's decision
+	 * back, such as an application shell that mounts this server. Called once per `tools/call`
+	 * with the call's context after `createContext` (its `credentials` and `actor`); only `true`
+	 * makes an approver. Read only what you verified: the credentials, or an actor you mapped from
+	 * them. A throw fails the call as an internal error. None by default.
+	 *
+	 * For an approver, an `APPROVAL_REQUIRED` result carries `details.approvalToken` (whatever
+	 * `includeToken` says) and is never turned into a form elicitation, and a retry of one command
+	 * on an MCP 2026-07-28 request carries the token in `_meta["dev.afd/approval"]`
+	 * (`AFD_APPROVAL_META_KEY`). Its tokens bind its principal binding (`spec/authorization.md`,
+	 * M8), so only the same credential can redeem them. From any other caller the key is ignored.
+	 * The key in tool arguments is refused from every caller.
+	 *
+	 * An approver promises what the server cannot check: it never gives the token to an agent or a
+	 * model, and presents it only on a retry a person approved after seeing the action, shown by
+	 * the display rules (`approvalDisplay` in `@lushly-dev/afd-core`).
+	 */
+	approver?: ApproverPredicate;
 
 	/**
 	 * Transport protocol to use.

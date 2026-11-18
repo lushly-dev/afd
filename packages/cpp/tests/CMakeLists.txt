@@ -4,6 +4,7 @@ add_executable(
     afd_tests
     approval_test.cpp
     approval_vectors_test.cpp
+    approver_client_vectors_test.cpp
     batch_test.cpp
     batch_vectors_test.cpp
     command_test.cpp

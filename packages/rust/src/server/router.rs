@@ -51,6 +51,7 @@ use crate::{
     CommandError, CommandExecutor, CommandResult, PipelineRequest, TaskSupport,
 };
 
+use super::approver::{self, ApproverDecision};
 use super::authz;
 use super::confirmations::{self, Acknowledgement, Decision, Round, Step};
 use super::context_hook;
@@ -60,6 +61,7 @@ use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
 use super::tasks;
 use super::McpServer;
+use crate::approval::approver::ApproverCall;
 use crate::approval::relay::{ApprovalRelayChannel, RoundAnswers};
 
 mod up_front;
@@ -199,6 +201,9 @@ pub(crate) struct Call<'a> {
     /// Which commands exist for an authorized caller (M6, "Hidden commands"): any other is
     /// answered as a name that does not exist, on every route.
     known: Option<Visibility>,
+    /// An approver client's call ("Approval evidence from an approver client"): on every
+    /// execution context of this call, so its carried evidence is taken once.
+    approver: Option<Arc<ApproverCall>>,
 }
 
 impl Call<'_> {
@@ -276,6 +281,7 @@ impl Call<'_> {
         surface.visible = self.visible.clone();
         context.tool_surface = Some(surface);
         context.known = self.known.clone();
+        context.approver = self.approver.clone();
         context.scope_check = authz::execution_check(self.server, context.credentials.as_ref());
         context
     }
@@ -356,8 +362,11 @@ impl Call<'_> {
 
     /// Whether this request can carry a form elicitation: a modern request that declares it, or
     /// a 2025 connection with a back channel whose client declared it.
+    /// An approver's call never can: its token takes precedence over the relay ("Approval
+    /// evidence from an approver client", rule 2).
     fn can_elicit(&self) -> bool {
-        confirmations::allows_form_elicitation(self.context)
+        self.approver.is_none()
+            && confirmations::allows_form_elicitation(self.context)
             && (confirmations::is_modern(self.context) || self.server.inner.legacy_back_channel)
     }
 
@@ -1009,6 +1018,11 @@ pub(crate) async fn route(
         Ok(credentials) => credentials,
         Err(error) => return refused(*error),
     };
+    // Approval evidence is never input, from any caller: refused before anything else runs
+    // ("Approval evidence from an approver client", rule 5), the `meta` argument included.
+    if let Some(error) = approver::key_in_arguments(request.arguments.as_ref()) {
+        return refused(error);
+    }
     // A meta-tool's `meta` argument counts as `_meta` from here on, for the hook, the active
     // context and the declared context fields alike (TypeScript lifts it first too).
     let keys = meta_argument::meta_argument_keys(&server.inner.registry.context_fields());
@@ -1084,6 +1098,20 @@ pub(crate) async fn route(
         &context.meta,
         &mut base,
     );
+    // An approver's call carries its token in `_meta`, and is never asked with a form. Decided
+    // on the request's own `_meta`: the `meta` argument cannot carry the key (refused above).
+    let approver = match approver::decide(
+        server.inner.approver.as_ref(),
+        &base,
+        &context.meta,
+        name,
+        confirmations::is_modern(context),
+    ) {
+        ApproverDecision::Other => None,
+        ApproverDecision::Approver(call) => Some(call),
+        ApproverDecision::Refuse(error) => return refused(error),
+        ApproverDecision::Unbindable => return Err(confirmation_internal()),
+    };
     let scope = server.request_scope(context)?;
     let visible = authz::visibility(server, base.credentials.as_ref());
     let call = Call {
@@ -1094,6 +1122,7 @@ pub(crate) async fn route(
         base,
         visible,
         known,
+        approver,
     };
     match name {
         "afd-call" => call.afd_call(&args).await,

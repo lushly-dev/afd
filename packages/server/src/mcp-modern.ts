@@ -46,6 +46,12 @@ import {
 } from './approval-relay.js';
 import { createUpFrontApproval } from './approval-up-front.js';
 import {
+	type ApproverPredicate,
+	approvalKeyInInput,
+	bindApprover,
+	decideApprover,
+} from './approver.js';
+import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
 	createContextState,
@@ -126,6 +132,11 @@ export interface ModernMcpDeps {
 	 * binding of its `requestState` names the actor the commands run with.
 	 */
 	actor?: Actor;
+	/**
+	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver
+	 * client"): the server's `approver` option.
+	 */
+	approver?: ApproverPredicate;
 	/**
 	 * Resources, skills and the Skills extension (`spec/mcp-resources.md`), when the server was
 	 * given a `resources` provider or a `skills` catalog.
@@ -505,6 +516,9 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 
 		server.setRequestHandler('tools/call', async (request, ctx) => {
 			const { name } = request.params;
+			// Approval evidence is never input, from any caller: refused before anything else.
+			const keyed = approvalKeyInInput(request.params.arguments);
+			if (keyed) return resultContent(failure(keyed), true) as never;
 			// A meta-tool's `meta` argument counts as `_meta` from here on.
 			const lifted = liftMetaArgument(name, request.params.arguments, ctx.mcpReq._meta, metaKeys);
 			if (!lifted.ok) return resultContent(failure(lifted.error), true) as never;
@@ -535,7 +549,28 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				);
 				return principal;
 			});
-			const relay = canElicit ? approvalRelayFor(round) : undefined;
+			// An approver's call carries its token in `_meta`, and is never asked with a form.
+			let carrier: ReturnType<typeof decideApprover>;
+			try {
+				carrier = decideApprover({
+					approver: deps.approver,
+					context: {
+						...callValues,
+						actor: actorAtStart as Actor | undefined,
+						interface: 'mcp',
+					},
+					actor: actorAtStart as Actor | undefined,
+					credentials: credentialsAtStart,
+					meta: ctx.mcpReq._meta,
+					tool: name,
+					modern: era === 'modern',
+				});
+			} catch (error) {
+				throw internalError(error);
+			}
+			if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true) as never;
+			const approver = carrier.approver;
+			const relay = canElicit && !approver ? approvalRelayFor(round) : undefined;
 			let context = bindConfirmationChannel(
 				bindScopeView(
 					scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
@@ -544,6 +579,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
+			if (approver) context = bindApprover(context, approver);
 			try {
 				const result = await deps.routeToolCall(
 					name,

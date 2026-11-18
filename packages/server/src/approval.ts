@@ -65,6 +65,8 @@ import {
 	type UpFrontDeps,
 	upFrontApproval,
 } from './approval-relay.js';
+import { approverCall, takeApproverEvidence } from './approver.js';
+import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -89,6 +91,7 @@ export type ApprovalRejection =
 	| 'command-mismatch'
 	| 'input-mismatch'
 	| 'actor-mismatch'
+	| 'credentials-mismatch'
 	| 'already-used';
 
 /**
@@ -198,6 +201,12 @@ export interface ApprovalMiddlewareOptions {
 	clock?: Clock;
 }
 
+/** What a token's `a` binds: the actor JSON, or an approver's principal binding (M8). */
+interface Binding {
+	purpose: 'actor' | 'principal';
+	value: string;
+}
+
 type Verdict =
 	| { ok: true; nonce: string; expiresAt: number }
 	| { ok: false; reason: ApprovalRejection };
@@ -284,11 +293,15 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return (await decide(input, context)) !== 'not-required';
 	}
 
+	/**
+	 * Check `evidence` against this call. `who` is what `a` binds: the actor JSON, or for an
+	 * approver's call its principal binding, whose mismatch is `credentials-mismatch`.
+	 */
 	async function verify(
 		evidence: unknown,
 		commandName: string,
 		input: string,
-		actor: string,
+		who: Binding,
 		now: number
 	): Promise<Verdict> {
 		if (typeof evidence !== 'string' || evidence.length > MAX_TOKEN_LENGTH) {
@@ -318,8 +331,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (!safeEqualText(payload.i, base64url(await digest(key, 'input', input)))) {
 			return { ok: false, reason: 'input-mismatch' };
 		}
-		if (!safeEqualText(payload.a, base64url(await digest(key, 'actor', actor)))) {
-			return { ok: false, reason: 'actor-mismatch' };
+		if (!safeEqualText(payload.a, base64url(await digest(key, who.purpose, who.value)))) {
+			return {
+				ok: false,
+				reason: who.purpose === 'principal' ? 'credentials-mismatch' : 'actor-mismatch',
+			};
 		}
 		return { ok: true, nonce: payload.n, expiresAt: payload.exp };
 	}
@@ -327,14 +343,14 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	async function issue(
 		commandName: string,
 		input: string,
-		actor: string,
+		who: Binding,
 		now: number
 	): Promise<TokenPayload> {
 		const key = keys[0] as ApprovalKey;
 		return {
 			c: commandName,
 			i: base64url(await digest(key, 'input', input)),
-			a: base64url(await digest(key, 'actor', actor)),
+			a: base64url(await digest(key, who.purpose, who.value)),
 			iat: now,
 			exp: now + ttlMs,
 			n: base64url(randomBytes(16)),
@@ -438,12 +454,19 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, next) => {
+		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
+		// client"): its token reaches it and is never replaced by an elicitation, its carried
+		// evidence is taken by the first command checked (the one the call routes to), once, and
+		// its tokens bind its principal binding.
+		const approver = approverCall(context);
+		const carried = approver ? takeApproverEvidence(approver) : undefined;
+		const relays = relayMode === 'mcp-elicitation' && !approver;
 		// Claimed only by the command the tool call routes to, once, gated or not, so a command
 		// that runs inside another (or after it) cannot turn the tool call into an elicitation.
-		const bound = relayMode === 'mcp-elicitation' ? approvalRelay(context) : undefined;
+		const bound = relays ? approvalRelay(context) : undefined;
 		const relay = bound?.claim(commandName) ? bound : undefined;
 		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
-		const upFront = relayMode === 'mcp-elicitation' ? upFrontApproval(context) : undefined;
+		const upFront = relays ? upFrontApproval(context) : undefined;
 		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
 		const command = commands.get(commandName);
 		if (!(await requiresApproval(command, input, context))) return next();
@@ -451,12 +474,25 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const now = clock.now();
 		const inputBinding = canonicalJson(input);
 		const actorBinding = actorJson(context.actor);
+		const who: Binding = approver
+			? {
+					purpose: 'principal',
+					value: principalBinding(
+						context.actor,
+						context.credentials as PrincipalCredentials | undefined
+					),
+				}
+			: { purpose: 'actor', value: actorBinding };
 
 		let rejected: ApprovalRejection | undefined;
 		const directExchange = directApprovalExchange(context);
-		const evidence = directExchange ? takeDirectApproval(context) : context.approval;
+		const evidence = directExchange
+			? takeDirectApproval(context)
+			: carried !== undefined
+				? carried
+				: context.approval;
 		if (evidence !== undefined) {
-			const verdict = await verify(evidence, commandName, inputBinding, actorBinding, now);
+			const verdict = await verify(evidence, commandName, inputBinding, who, now);
 			if (verdict.ok) {
 				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
 				rejected = 'already-used';
@@ -512,10 +548,12 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 		}
 
-		const payload = await issue(commandName, inputBinding, actorBinding, now);
+		const payload = await issue(commandName, inputBinding, who, now);
 		const approvalToken = await sign(payload);
 		const expiresAt = new Date(payload.exp).toISOString();
-		const includeToken = !directExchange && (options.includeToken ?? context.interface !== 'mcp');
+		// An approver always gets its token; anyone else as the option says.
+		const includeToken =
+			!directExchange && (!!approver || (options.includeToken ?? context.interface !== 'mcp'));
 		if (directExchange) {
 			holdDirectApproval(context, {
 				approvalToken,
@@ -538,13 +576,15 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const why = rejected ? `The approval token was not accepted (${rejected}). ` : '';
 		// Addressed to whoever relays the decision: the token is the approval, so the gated
 		// caller must not resubmit it on its own, and tool arguments cannot carry it.
-		const retry = includeToken
-			? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
-			: bound
-				? `the client could not be asked from inside afd-batch, afd-pipe or another command. Call ${commandName} on its own so the client can ask the user.`
-				: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
-					? `the client could not be asked here. Call ${commandName} from an MCP client that supports form elicitation, or the application records the approval and retries.`
-					: 'the application retries the same call once it has recorded the approval.';
+		const retry = approver
+			? `once they approve, the approver retries the same call with the same input and details.approvalToken in _meta["dev.afd/approval"]. The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
+			: includeToken
+				? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
+				: bound
+					? `the client could not be asked from inside afd-batch, afd-pipe or another command. Call ${commandName} on its own so the client can ask the user.`
+					: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
+						? `the client could not be asked here. Call ${commandName} from an MCP client that supports form elicitation, or the application records the approval and retries.`
+						: 'the application retries the same call once it has recorded the approval.';
 		return failure({
 			code: ErrorCodes.APPROVAL_REQUIRED,
 			message: `${commandName} needs approval before it runs`,

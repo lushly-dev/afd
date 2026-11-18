@@ -1,0 +1,229 @@
+/**
+ * The approver carrier beyond the shared vectors (`spec/vectors/approver-client.json`): the
+ * 2025-era lane, failing predicates and unbindable credentials, the evidence taken once, a token
+ * outside its approver's calls, and the HTTP routes.
+ */
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { success } from '@lushly-dev/afd-core';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { createApprovalMiddleware } from './approval.js';
+import { AFD_APPROVAL_META_KEY, approvalKeyInInput, bindApprover } from './approver.js';
+import { defineCommand } from './schema.js';
+import { createMcpHandler } from './server.js';
+import type { McpHandlerOptions } from './server-types.js';
+
+const SECRET = 'test-approver-secret-0123456789abcdef';
+const SHELL = { issuer: 'https://auth.example.com', subject: 'person-1', clientId: 'loam-shell' };
+const SHELL_ACTOR = { kind: 'agent' as const, id: 'loam-shell', onBehalfOf: 'person-1' };
+
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(async () => {
+	await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+});
+
+function commands(runs: string[]) {
+	return [
+		defineCommand({
+			name: 'todo-delete',
+			description: 'Delete a todo',
+			mutation: true,
+			approval: 'required',
+			expose: { mcp: true },
+			input: z.object({ id: z.number() }),
+			handler: async (input) => {
+				runs.push(`delete:${input.id}`);
+				return success({ deleted: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'todo-list',
+			description: 'List todos',
+			expose: { mcp: true },
+			input: z.object({}),
+			handler: async () => {
+				runs.push('list');
+				return success([]);
+			},
+		}),
+	];
+}
+
+async function serve(server: Partial<McpHandlerOptions> = {}) {
+	const runs: string[] = [];
+	const list = commands(runs);
+	const errors: Error[] = [];
+	const handler = createMcpHandler({
+		name: 'approver-test',
+		version: '1.0.0',
+		commands: list,
+		host: '127.0.0.1',
+		toolStrategy: 'individual',
+		createContext: () => ({ credentials: SHELL, actor: SHELL_ACTOR }),
+		approver: () => true,
+		onError: (error) => {
+			errors.push(error);
+		},
+		middleware: [createApprovalMiddleware({ secret: SECRET, commands: list })],
+		...server,
+	});
+	const http = createServer(handler);
+	await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+	cleanups.push(async () => {
+		handler.dispose();
+		http.closeAllConnections();
+		await new Promise<void>((resolve) => http.close(() => resolve()));
+	});
+	return { base: `http://127.0.0.1:${(http.address() as AddressInfo).port}`, runs, errors };
+}
+
+async function connect(url: string, mode: 'auto' | 'legacy' = 'auto') {
+	const client = new Client({ name: 'approver', version: '0' }, { versionNegotiation: { mode } });
+	await client.connect(new StreamableHTTPClientTransport(new URL(url)));
+	cleanups.push(() => client.close());
+	return client;
+}
+
+function result(response: unknown): CommandResult {
+	const content = (response as { content: Array<{ text: string }> }).content;
+	return JSON.parse(content[0]?.text ?? '{}');
+}
+
+const token = (held: CommandResult) =>
+	(held.error?.details as { approvalToken?: string } | undefined)?.approvalToken;
+
+describe('the approver carrier', () => {
+	it('gives an approver its token on a 2025-era request, and refuses the key there', async () => {
+		const { base, runs } = await serve();
+		const client = await connect(`${base}/mcp`, 'legacy');
+		const held = result(await client.callTool({ name: 'todo-delete', arguments: { id: 7 } }));
+		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		const approval = token(held);
+		expect(approval).toMatch(/^afdap1\./);
+		const retry = result(
+			await client.callTool({
+				name: 'todo-delete',
+				arguments: { id: 7 },
+				_meta: { [AFD_APPROVAL_META_KEY]: approval },
+			})
+		);
+		expect(retry.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(retry.error?.message).toContain('one command');
+		expect(runs).toEqual([]);
+	});
+
+	it('fails the call when the predicate throws, and never takes it as a yes', async () => {
+		const { base, runs, errors } = await serve({
+			approver: () => {
+				throw new Error('directory down');
+			},
+		});
+		const client = await connect(`${base}/mcp`);
+		await expect(client.callTool({ name: 'todo-delete', arguments: { id: 7 } })).rejects.toThrow();
+		expect(errors.map((error) => error.message)).toContain('directory down');
+		expect(runs).toEqual([]);
+	});
+
+	it('makes no approver of credentials that cannot be bound (M8)', async () => {
+		const { base, runs } = await serve({
+			createContext: () => ({ credentials: { ...SHELL, clientId: '' }, actor: SHELL_ACTOR }),
+		});
+		const client = await connect(`${base}/mcp`);
+		await expect(client.callTool({ name: 'todo-delete', arguments: { id: 7 } })).rejects.toThrow();
+		expect(runs).toEqual([]);
+	});
+
+	it('refuses the key in the HTTP routes’ input', async () => {
+		const { base, runs } = await serve();
+		const rpc = await fetch(`${base}/rpc`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'todo-list',
+				params: { nested: { [AFD_APPROVAL_META_KEY]: 'x' } },
+			}),
+		});
+		expect(((await rpc.json()) as { result: CommandResult }).result.error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		const batch = await fetch(`${base}/batch`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				commands: [{ command: 'todo-list', input: { [AFD_APPROVAL_META_KEY]: 'x' } }],
+			}),
+		});
+		expect(((await batch.json()) as CommandResult).error?.code).toBe('VALIDATION_ERROR');
+		expect(runs).toEqual([]);
+	});
+});
+
+describe('the approval middleware on an approver’s call', () => {
+	const runs: string[] = [];
+	const list = commands(runs);
+	const middleware = createApprovalMiddleware({
+		secret: SECRET,
+		commands: list,
+		includeToken: false,
+	});
+	const base: CommandContext = { interface: 'mcp', actor: SHELL_ACTOR, credentials: SHELL };
+	const next = async () => success('ran');
+
+	it('issues the token whatever includeToken says, bound to the principal', async () => {
+		const held = await middleware('todo-delete', { id: 7 }, bindApprover(base, {}), next);
+		const approval = token(held);
+		expect(approval).toMatch(/^afdap1\./);
+		// The same token set by trusted host code on a call that is not an approver's.
+		const outside = await middleware(
+			'todo-delete',
+			{ id: 7 },
+			{ ...base, approval, interface: 'mcp' },
+			next
+		);
+		expect(outside.error?.details?.reason).toBe('actor-mismatch');
+		// As the host's evidence on the approver's own call, it holds.
+		const host = await middleware(
+			'todo-delete',
+			{ id: 7 },
+			bindApprover({ ...base, approval }, {}),
+			next
+		);
+		expect(host.success).toBe(true);
+	});
+
+	it('lets the first command checked take the carried evidence, once', async () => {
+		const held = await middleware('todo-delete', { id: 7 }, bindApprover(base, {}), next);
+		const context = bindApprover(base, { evidence: token(held) });
+		// The command the call routes to takes it, even one that needs no approval.
+		expect((await middleware('todo-list', {}, context, next)).success).toBe(true);
+		// A command run after it in process never sees it.
+		const nested = await middleware('todo-delete', { id: 7 }, context, next);
+		expect(nested.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(nested.error?.details?.reason).toBeUndefined();
+	});
+});
+
+describe('approvalKeyInInput', () => {
+	it('finds the key at any depth and nowhere else', () => {
+		expect(approvalKeyInInput({ a: [{ b: { [AFD_APPROVAL_META_KEY]: 1 } }] })?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		expect(
+			approvalKeyInInput({ a: AFD_APPROVAL_META_KEY, b: ['dev.afd/confirm'] })
+		).toBeUndefined();
+		const deep: Record<string, unknown> = {};
+		let at = deep;
+		for (let level = 0; level < 100_000; level += 1) {
+			const inner: Record<string, unknown> = {};
+			at.x = inner;
+			at = inner;
+		}
+		at[AFD_APPROVAL_META_KEY] = 1;
+		expect(approvalKeyInInput(deep)?.code).toBe('VALIDATION_ERROR');
+	});
+});

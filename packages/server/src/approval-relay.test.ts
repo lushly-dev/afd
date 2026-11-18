@@ -483,10 +483,15 @@ describe('approval relay over MCP', () => {
 				approvalToken: token,
 				approve: true,
 				confirm: true,
-				_meta: { 'dev.afd/approval': token },
 			};
 			const loose = await client.callTool({ name: 'todo-delete', arguments: smuggled });
 			expect(error(loose)?.code).toBe('APPROVAL_REQUIRED');
+			// The carrier's key is never input: in the arguments, at any depth, it is refused.
+			const keyed = await client.callTool({
+				name: 'todo-delete',
+				arguments: { ...smuggled, _meta: { 'dev.afd/approval': token } },
+			});
+			expect(error(keyed)?.code).toBe('VALIDATION_ERROR');
 			const viaCall = await client.callTool({
 				name: 'afd-call',
 				arguments: { command: 'todo-delete', input: smuggled, confirm: true },

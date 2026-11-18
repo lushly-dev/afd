@@ -11,8 +11,8 @@
 
 - **State: Approved** 2026-11-17 by the coordinator, under the owner's standing grant; the owner answered [Q1 to Q7](#questions-for-the-owner) the same day, each as recommended, Q2 with a condition. D141 to D152 are decided. Written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`, then a re-check and a final verify. Nothing is built.
 - **Last verified:** 2026-11-17. Read: the documents in the table above; Loam's STATUS rows that name this specification; [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), both merged while this specification was in review and merged into its branch. 10.8 was approved on 2026-11-17, with the owner's answers recorded as D137 to D140 in [#1378](https://github.com/lushly-dev/afd/pull/1378). This specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
-- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106; step 0a, the spike, whose results amend 0.1, 0.3, 3.2, 4.2, 4.3, 16 and P5-A2 on 2026-11-17 ([0.3's results](#results-2026-11-17)).
-- **Not done:** every step in [section 19](#19-implementation-plan) after 0a.
+- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106; step 0a, the spike, whose results amend 0.1, 0.3, 3.2, 4.2, 4.3, 16 and P5-A2 on 2026-11-17 ([0.3's results](#results-2026-11-17)); step 0c, AFD's approver carrier and display rules, merged in [#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM) on 2026-11-17: the [proposal](../../../../docs/features/active/approver-client/approver-client.proposal.md), `spec/command-metadata.md`'s "Approval evidence from an approver client" and "Approval display", TypeScript and Rust, `spec/vectors/approver-client.json` (AFD's conformance cases for P5-A6, which pass in both), Python and C++ parity filed as [#1466](https://github.com/lushly-dev/afd/issues/1466).
+- **Not done:** every step in [section 19](#19-implementation-plan) but 0a and 0c.
 - **Follow-ups:** [at the end](#follow-ups).
 
 ## What this phase serves
@@ -805,8 +805,8 @@ From the inventory on [#883](https://github.com/lushly-dev/afd/issues/883):
 
 | Change | Step | Tracked in |
 | --- | --- | --- |
-| Approval evidence from an approver client (7.2), Rust and TypeScript, spec first; Python and C++ parity as a tracked follow-up, the vectors showing the gap meanwhile | 0c | A new `docs/features` proposal, written in step 0c |
-| AFD's display rules for an approval (section 12) | 0c | The same proposal |
+| Approval evidence from an approver client (7.2), Rust and TypeScript, spec first; Python and C++ parity as a tracked follow-up, the vectors showing the gap meanwhile | 0c | [Approval evidence from an approver client](../../../../docs/features/active/approver-client/approver-client.proposal.md), written and implemented in step 0c ([#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM)) |
+| AFD's display rules for an approval (section 12) | 0c | The same proposal, done in step 0c |
 | The `apps` exposure flag (D30) | 0b | [#884](https://github.com/lushly-dev/afd/issues/884) |
 | Agent, delegation, run and session record shapes proposed to the Agent Engine (architecture, AFD prerequisites) | Milestone B's amendment | STATUS's AFD prerequisites |
 | A per-step actor in AFD's scenario runner (phase 4's follow-up) | Not needed | Loam's runner reads the directives |
@@ -1193,7 +1193,7 @@ Its improvements were taken: two stale "if approved" phrases, the jobs for the k
 
 | Date | Follow-up | Status |
 | --- | --- | --- |
-| 2026-11-16 | Python and C++ parity for step 0c's approver carrier | Open; with step 0c |
+| 2026-11-16 | Python and C++ parity for step 0c's approver carrier | Open: [#1466](https://github.com/lushly-dev/afd/issues/1466), filed with step 0c; `spec/vectors/approver-client.json` lists both languages in its `gaps` until it closes |
 | 2026-11-16 | The mail engine's step F changes that 7.2 and 7.3 rely on: an approver token; exactly 7.2's four person-only commands listed over MCP and held; a preview read for each; a revision or digest in each released command's input; approver-evidenced calls counted as the person's; units from a reply set | Open; for mail's step F specification |
 | 2026-11-16 | Approvals through the hosted relay (7.2) | Open; after milestone C |
 | 2026-11-16 | Long-running commands (L3) and batch review (L4): decide their phase | Open, as in STATUS |

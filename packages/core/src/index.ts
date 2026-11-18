@@ -19,6 +19,14 @@ export { ACTOR_KINDS, isActor, isActorKind, withContextDefaults } from './actor.
 // Pre-execution approval policy
 export type { ApprovalDecision, ApprovalPolicy } from './approval.js';
 export { approvalMode } from './approval.js';
+// What a person must be able to read before approving (the approval display rules)
+export type { ApprovalDisplay, ApprovalDisplayRefusal } from './approval-display.js';
+export {
+	APPROVAL_DISPLAY_LIMITS,
+	approvalDisplay,
+	hidesCharacters,
+	isHiddenCodePoint,
+} from './approval-display.js';
 // Batch types
 export type {
 	BatchCommand,
