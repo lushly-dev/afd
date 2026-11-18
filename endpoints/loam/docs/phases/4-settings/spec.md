@@ -1148,7 +1148,7 @@ Every member of a project reads its project-level settings.
 
 ### Q5. Cut and rank the jobs
 
-The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revised after the job-list walk.
+The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) were proposed in this order, revised after the job-list walk.
 
 - **Accept the slice as ranked (recommended):**
   1. per-project settings;
