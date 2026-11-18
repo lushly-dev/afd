@@ -161,6 +161,26 @@ const styles = css`
         .status-chip {
             border-color: currentColor;
         }
+
+        .frame::part(body) {
+            border-block-start-color: ButtonText;
+        }
+
+        /* Inside the opted-out root the theme's text colours stay, so the text takes the system's. */
+        .header,
+        :host([state]) .header,
+        .summary,
+        .detail {
+            background: Canvas;
+            color: CanvasText;
+        }
+        /* Nested controls and icons take the system's colours again. */
+        violet-button,
+        violet-icon,
+        ::slotted(violet-button),
+        ::slotted(violet-icon) {
+            forced-color-adjust: auto;
+        }
     }
 `;
 

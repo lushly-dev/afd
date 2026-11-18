@@ -72,7 +72,8 @@ const styles = css`
 
     /* The text hangs under the label, clear of the chevron. */
     .content {
-        padding: var(--_space-stack-xs) 0 0 calc(var(--_reasoning-line-height) + var(--_space-sm));
+        padding-block-start: var(--_space-stack-xs);
+        padding-inline-start: calc(var(--_reasoning-line-height) + var(--_space-sm));
         font-size: var(--_reasoning-font-size);
         line-height: var(--_reasoning-line-height);
         color: var(--_text-muted);
@@ -103,6 +104,7 @@ const styles = css`
         .root {
             forced-color-adjust: none;
             background: Canvas;
+            box-shadow: 0 0 0 var(--_card-border-width, 1px) ButtonText;
         }
 
         .toggle:hover {

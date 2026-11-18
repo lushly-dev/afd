@@ -356,7 +356,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "58137898e89b7fef6032b1a598bd61601b2327f2a4d5f002167f4e3a2608f1eb"
+      "sha256": "49c6c998b0753d2c09525e501221e061d3959b7d4b22bff5d9bddfd11ade40c0"
     }
   },
   "units": [

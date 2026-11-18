@@ -299,9 +299,10 @@ export const CEILINGS = Object.freeze({
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
-	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 adds seven
-	// ids (the heading font, the field's inner shadow and five field colours), 122 in all; measured 25,969, with
-	// violet-elements' built styles no longer carrying their comments, plus a margin.
+	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
+	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
+	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
+	// comments, plus a margin.
 	viewMinified: 26_100,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
