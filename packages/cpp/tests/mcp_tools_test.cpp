@@ -940,6 +940,94 @@ TEST_CASE("a batch that needs a confirmation and an approval asks for each in tu
     CHECK(*opens == 1);
 }
 
+TEST_CASE("parallel steps share one plan, each gated step on its own approval") {
+    // `tag-drop` needs approval only for tag "keep": a policy function, evaluated per step.
+    auto drops = std::make_shared<std::atomic<int>>(0);
+    std::vector<afd::CommandDefinition> commands{
+        {.name = "tag-drop",
+         .description = "Drop a tag",
+         .input_schema = Json{{"type", "object"},
+                              {"properties", {{"tag", {{"type", "string"}}}}},
+                              {"required", {"tag"}}},
+         .handler =
+             [drops](const Json&, afd::CommandContext&) {
+                 ++*drops;
+                 return afd::success(nullptr);
+             },
+         .mutation = true,
+         .expose = {.mcp = true},
+         .approval =
+             [](const Json& input, const afd::CommandContext&) {
+                 return input["tag"] == "keep" ? afd::ApprovalDecision::required
+                                               : afd::ApprovalDecision::not_required;
+             }}};
+    auto approval = afd::create_approval_middleware({.secrets = {std::string(32, 's')},
+                                                     .commands = {commands.begin(), commands.end()},
+                                                     .relay = afd::ApprovalRelay::mcp_elicitation});
+    REQUIRE(approval);
+    afd::CommandRegistry registry(
+        {.middleware = {*approval}, .runner = std::make_shared<afd::ThreadTaskRunner>()});
+    REQUIRE_FALSE(registry.register_command(commands.front()));
+    auto server = make_server(registry);
+    Json items = Json::array();
+    for (int i = 0; i < 8; ++i) {
+        items.push_back(
+            Json{{"command", "tag-drop"}, {"input", {{"tag", i % 2 == 0 ? "keep" : "x"}}}});
+    }
+    const Json batch{{"commands", items}, {"options", {{"parallelism", 8}}}};
+    const Json asked = modern_call(*server, "afd-batch", batch, form_elicitation);
+    REQUIRE(asked["resultType"] == "input_required");
+    // Only the four steps the policy holds are listed.
+    CHECK(asked["inputRequests"]["approval"]["params"]["message"].get<std::string>().rfind(
+              "This batch includes 4 steps that need your approval.", 0) == 0);
+    CHECK(*drops == 0);
+    const Json done = body(modern_call(
+        *server, "afd-batch", batch, form_elicitation,
+        {{"requestState", asked["requestState"]}, {"inputResponses", {{"approval", approve}}}}));
+    CHECK(done["summary"]["successCount"] == 8);
+    CHECK(*drops == 8);
+}
+
+TEST_CASE("an approved step that a condition skips does not run, and its approval is not reused") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json pipe{{"steps",
+                     {{{"command", "tag-remove"},
+                       {"input", {{"tag", "a"}}},
+                       {"when", {{"$exists", "$prev.missing"}}}},
+                      {{"command", "tag-remove"}, {"input", {{"tag", "b"}}}}}}};
+    const Json ran = body(call(*server, "afd-pipe", pipe, client.requester()));
+    CHECK(client.asked.size() == 1);
+    CHECK(ran["steps"][0]["status"] == "skipped");
+    CHECK(ran["steps"][1]["data"] == Json{{"tag", "b"}});
+    CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("2026-07-28: an up-front approval answers only the caller it was asked of") {
+    Fixture fixture;
+    auto server = make_server(
+        *fixture.registry,
+        {.context_hook = [](afd::CommandContext& context, const afd::mcp::RequestInfo& info) {
+            if (info.meta.contains("dev.example/who") && info.meta["dev.example/who"].is_string()) {
+                context.actor->id = info.meta["dev.example/who"].get<std::string>();
+            }
+        }});
+    const Json batch{{"commands", {{{"command", "tag-remove"}, {"input", {{"tag", "a"}}}}}}};
+    const Json asked = modern_call(*server, "afd-batch", batch, form_elicitation, {},
+                                   {{"dev.example/who", "ada"}});
+    REQUIRE(asked["resultType"] == "input_required");
+    const Json answer{{"requestState", asked["requestState"]},
+                      {"inputResponses", {{"approval", approve}}}};
+    CHECK(modern_call(*server, "afd-batch", batch, form_elicitation, answer,
+                      {{"dev.example/who", "bob"}})["resultType"] == "input_required");
+    CHECK(*fixture.removes == 0);
+    CHECK(modern_call(*server, "afd-batch", batch, form_elicitation, answer,
+                      {{"dev.example/who", "ada"}})["isError"] == false);
+    CHECK(*fixture.removes == 1);
+}
+
 TEST_CASE("without a form elicitation, a batch step that needs approval is held step by step") {
     Fixture fixture;
     auto server = make_server(*fixture.registry);

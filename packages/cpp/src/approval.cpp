@@ -690,6 +690,21 @@ CommandResult relay_declined(std::string_view command, const std::string& summar
 
 // --- One approval up front for afd-batch and afd-pipe (#459) --------------------------------
 
+/// The latest approval clock reading whose expiry still fits an ISO 8601 date (years up to
+/// 9999), as `expiresAt` reports it: 9999-12-31, less a day.
+constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms;
+
+CommandError clock_out_of_range(std::string_view name) {
+    return CommandError{
+        .code = error_codes::COMMAND_EXECUTION_ERROR,
+        .message = std::string(name) + " cannot be approved: the approval clock is out of range",
+        .suggestion = "Give the approval middleware a clock that reads the current time.",
+        .retryable = false,
+        .details = std::nullopt,
+        .cause = nullptr,
+    };
+}
+
 /// The most gated steps one question lists; a person cannot weigh more at once.
 constexpr std::size_t max_up_front_approvals = 20;
 
@@ -750,7 +765,10 @@ std::string steps_message(const detail::UpFrontApproval& up, const std::vector<G
     return message;
 }
 
-/// What the approval middleware decides for an up-front call, before any step runs.
+/// What the approval middleware decides for an up-front call, before any step runs. Every step's
+/// policy (and `summarize`) is evaluated with the context of the step that reached the middleware
+/// first, as in Rust; a policy that decides otherwise for a later step's own context fails that
+/// step with APPROVAL_REQUIRED (spec rule 4), though earlier steps may have run.
 detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApproval& up,
                                      const CommandContext& context) {
     using Plan = detail::UpFrontApproval::Plan;
@@ -782,7 +800,14 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
     }
 
     const std::int64_t now = state.options.clock->wall_ms();
+    // Expiry must fit an ISO 8601 date, as on the single-command path.
+    if (now < 0 || now > max_wall_ms) {
+        return Plan{.refusal = clock_out_of_range(up.tool()), .approved = {}};
+    }
     const auto actor = actor_binding(context.actor);
+    if (!actor) {
+        return Plan{.refusal = *unbindable(up.tool(), actor.error()).error, .approved = {}};
+    }
     std::vector<GatedStep> gated;
     for (const auto& step : up.steps()) {
         if (step.dynamic || !step.input) {
@@ -794,7 +819,7 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
             continue;
         }
         const auto canonical = canonical_json(*step.input);
-        if (!canonical || !actor) {
+        if (!canonical) {
             return Plan{.refusal =
                             CommandError{.code = error_codes::COMMAND_EXECUTION_ERROR,
                                          .message = "The input of " + step.command +
@@ -1047,17 +1072,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
         const std::int64_t now = settings.clock->wall_ms();
         // Expiry must fit an ISO 8601 date (years up to 9999), as `expiresAt` reports it.
-        constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms; // 9999-12-31, less a day
         if (now < 0 || now > max_wall_ms) {
-            return failure(CommandError{
-                .code = error_codes::COMMAND_EXECUTION_ERROR,
-                .message = std::string(name) + " cannot be approved: the approval clock is out "
-                                               "of range",
-                .suggestion = "Give the approval middleware a clock that reads the current time.",
-                .retryable = false,
-                .details = std::nullopt,
-                .cause = nullptr,
-            });
+            return failure(clock_out_of_range(name));
         }
 
         std::optional<ApprovalRejection> rejected;
