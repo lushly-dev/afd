@@ -11,9 +11,9 @@
 
 #include <doctest.h>
 
-namespace {
+namespace approver_client {
 
-afd::Json load_vectors(const char* name) {
+afd::Json load(const char* name) {
     std::ifstream in(std::string(AFD_VECTORS_DIR) + "/" + name, std::ios::binary);
     const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
     auto parsed = afd::parse_bounded(text);
@@ -21,10 +21,10 @@ afd::Json load_vectors(const char* name) {
     return *parsed;
 }
 
-}  // namespace
+} // namespace approver_client
 
 TEST_CASE("approver-client.json: C++ is a documented gap") {
-    const auto vectors = load_vectors("approver-client.json");
+    const auto vectors = approver_client::load("approver-client.json");
     REQUIRE(vectors.at("gaps").contains("cpp"));
     CHECK(vectors.at("gaps").at("cpp").get<std::string>() ==
           "https://github.com/lushly-dev/afd/issues/1466");
