@@ -299,9 +299,11 @@ export function upFrontApproval(context: CommandContext | undefined): UpFrontApp
  * Remove the up-front approval from a step's own context before its handler runs, so a command
  * the handler runs never takes a step's approval. Each step runs with a context of its own. The
  * approval middleware does this (not the engine, which keeps the gate out of `/direct` hosts), so
- * only a handler behind an `mcp-elicitation` approval middleware is covered, which is the only
- * reader of the approval; a retry middleware placed before it retries the step on the ordinary
- * single-command path, which holds it again.
+ * only a handler behind an `mcp-elicitation` approval middleware is covered. The approval is read
+ * twice: by that middleware, and by the engine's up-front step hook, which takes the step's
+ * approved input (#1414). Without the middleware nothing is gated, so a nested command could at
+ * most take a later step's approved input as its own, never an approval. A retry middleware placed
+ * before it retries the step on the ordinary single-command path, which holds it again.
  */
 export function releaseUpFrontApproval(context: CommandContext): void {
 	delete (context as RelayContext)[UP_FRONT];
