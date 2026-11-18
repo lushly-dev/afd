@@ -14,6 +14,19 @@ the linked tracking issues. This audit did not rerun the four language suites.
 | 3. Surfaces | Partial | TypeScript/Python dual-era MCP and clients landed in #391 to #393. Rust's optional server landed in #394 and its strategies, meta-tools and contexts in #526. C++'s opt-in `afd::mcp_stdio` target and command-to-tool helpers landed for [#341](https://github.com/lushly-dev/afd/issues/341) (stdio, individual tools); Python CLI batch/stream [#548](https://github.com/lushly-dev/afd/issues/548) and defaults [#542](https://github.com/lushly-dev/afd/issues/542) remain |
 | 4. Remaining decisions | Partial | Intended differences are recorded in the matrix; Python application auth remains [#549](https://github.com/lushly-dev/afd/issues/549) |
 
+## TypeScript D8 candidate (#543)
+
+Implemented on `lush/fleet-543-context-timeout-parity`: the server engine bounds middleware and
+handler execution by each command's positive finite `context.timeout`, aborts its signal and
+returns `TIMEOUT` with a recovery suggestion. Cancelled or timed-out work cannot start after
+middleware resumes, including gated and ungated steps awaiting the batch approval relay (#1417).
+Focused tests cover the engine, both MCP eras and HTTP `/rpc`; full validation belongs to the lane.
+
+With esbuild 0.28.2, this adds 808 minified bytes to `/direct` for the deadline, signal composition,
+timer cleanup and cancellation guard. The registry host grows from 39,071 to 39,879 bytes (budget
+39,100 → 40,000); the tool-surface host grows from 73,310 to 74,118 (74,000 → 74,200). Other
+budgets hold, and the browser entry gains no transport dependency.
+
 ## Historical checkpoints
 
 The plan's 2026-10-10 stabilization candidate is now merged (#367), and its first releases are

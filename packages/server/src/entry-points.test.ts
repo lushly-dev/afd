@@ -225,6 +225,11 @@ const HOST_IMPORTS =
  *   coordinator 2026-11-10): measured 38,997 bytes on `main` and 39,071 after, with esbuild
  *   0.28.2; `defineCommand` carrying a command's `scopes` adds 31, and the engine's two optional
  *   hooks that look a hidden command up as a missing one add 43. No authorization code is in it.
+ *   D8 (#543), measured 2026-11-17 with esbuild 0.28.2, adds 808 bytes for the per-command
+ *   deadline, composed cancellation, timer cleanup and the guard against starting cancelled
+ *   work after middleware resumes. The registry grows from 39,071 to 39,879 bytes: its ceiling
+ *   moves from 39,100 to 40,000. The tool-surface host grows from 73,310 to 74,118, so its ceiling
+ *   moves from 74,000 to 74,200. The other ceilings hold; no transport dependency is added.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -235,7 +240,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_100,
+		bytes: 40_000,
 	},
 	{
 		what: 'the same host with the approval middleware',
@@ -245,7 +250,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 74_000,
+		bytes: 74_200,
 	},
 	{ what: 'every export', imports: undefined, bytes: 113_000 },
 ];
