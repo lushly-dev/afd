@@ -271,7 +271,7 @@
 		{
 			"basis": "authored",
 			"id": "time-picker.events",
-			"text": "input and change carry detail.value. The native input's own input event also reaches host listeners, without detail; skip events that have none."
+			"text": "input and change carry detail.value."
 		}
 	]
 }

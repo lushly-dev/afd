@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -278,6 +278,8 @@ export class VioletCheckbox extends FASTElement {
 
     readonly #internals: ElementInternals;
     readonly #describedByObserver = new MutationObserver(() => this.#syncDescribedBy());
+    // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
+    readonly #handleFocusIn = (): void => this.#syncDescribedBy();
     #defaultChecked: boolean;
     #defaultIndeterminate: boolean;
 
@@ -365,11 +367,15 @@ export class VioletCheckbox extends FASTElement {
         this.#syncControlState();
         this.#syncFormState();
         this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
+        this.addEventListener("focusin", this.#handleFocusIn);
+        // Targets rendered in the same update as the checkbox exist once that update has landed.
+        Updates.enqueue(() => this.#syncDescribedBy());
     }
 
     public disconnectedCallback(): void {
         super.disconnectedCallback();
         this.#describedByObserver.disconnect();
+        this.removeEventListener("focusin", this.#handleFocusIn);
     }
 
     public handleChange(event: Event): void {

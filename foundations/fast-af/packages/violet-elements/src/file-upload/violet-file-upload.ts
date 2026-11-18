@@ -1,4 +1,4 @@
-import { FASTElement, Observable, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, Updates, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
 
 import { registerSystemAttachIcon } from "../icon/generated/icons/system-attach";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
@@ -585,6 +585,8 @@ export class VioletFileUpload extends FASTElement {
         this.#defaultFiles = [...this.files];
         this.#syncHostState();
         this.#syncFormState();
+        // The browse button renders after this, so anchor validation to it once it has.
+        Updates.enqueue(() => this.#syncFormState());
     }
 
     public filesChanged(): void {
@@ -1041,7 +1043,12 @@ export class VioletFileUpload extends FASTElement {
         const valueMissing = this.required && files.length === 0;
         const customError = Boolean(this.customValidationMessage) || this.invalid;
         const validationMessage = this.customValidationMessage || (this.invalid ? this.errorText || "Invalid file selection." : "") || (valueMissing ? "Select a file to continue." : "");
-        const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
+        // The browse button's own button anchors validation, so a failed form submission focuses it, not the
+        // hidden file input. The anchor must itself be focusable, which a delegating host is not.
+        const browse = this.shadowRoot?.querySelector('[part~="browse-button"]');
+        const control =
+            (browse?.shadowRoot?.querySelector("button") as HTMLElement | null | undefined) ??
+            (this.shadowRoot?.querySelector("input") as HTMLInputElement | null);
 
         this.#internals.ariaInvalid = this.invalid || this.customValidationMessage ? "true" : "false";
 

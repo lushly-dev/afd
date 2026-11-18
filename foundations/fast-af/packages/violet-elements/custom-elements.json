@@ -2966,6 +2966,12 @@
             },
             {
               "kind": "field",
+              "name": "#handleFocusIn",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "#internals",
               "privacy": "private",
               "type": {
@@ -32007,7 +32013,16 @@
                 "type": {
                   "text": "void"
                 }
-              }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ]
             },
             {
               "kind": "method",
@@ -32243,6 +32258,16 @@
             },
             {
               "kind": "method",
+              "name": "#tabStop",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "VioletSegment | undefined"
+                }
+              }
+            },
+            {
+              "kind": "method",
               "name": "checkValidity",
               "privacy": "public",
               "return": {
@@ -32321,6 +32346,15 @@
                   "text": "void"
                 }
               },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ],
               "description": "Focuses the group's Tab stop: the checked segment, or the first enabled one when none is checked."
             },
             {

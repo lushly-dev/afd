@@ -232,6 +232,24 @@ describe("violet-checkbox", () => {
             expect(input(checkbox).ariaDescribedByElements).toEqual([hint]);
         });
 
+        it("links a described-by target that appears after it connects once focus arrives", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                configure: el => {
+                    el.setAttribute("aria-describedby", "terms-error");
+                },
+            });
+            expect(input(checkbox).ariaDescribedByElements ?? []).toEqual([]);
+
+            const error = document.createElement("p");
+            error.id = "terms-error";
+            error.textContent = "Accept the terms to continue.";
+            document.body.append(error);
+            input(checkbox).focus();
+
+            expect(input(checkbox).ariaDescribedByElements).toEqual([error]);
+        });
+
         it("omits aria-label when there is no label text", async () => {
             const { checkbox } = await renderCheckbox();
 

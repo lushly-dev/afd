@@ -116,6 +116,7 @@ import {
 } from "./violet-data-grid-selection";
 import {
   autosizedColumnWidth as computeAutosizedColumnWidth,
+  cssLengthToPixels,
   minimumColumnWidth as computeMinimumColumnWidth,
   renderedColumnWidth as computeRenderedColumnWidth,
   resolvedColumnWidth as resolveGridColumnWidth,
@@ -2197,10 +2198,11 @@ export class VioletDataGrid extends FASTElement {
             return false;
         }
 
-        // Step from the column's own pixel width when it has one: a table narrower than the grid stretches its
+        // Step from the column's own width when it is absolute: a table narrower than the grid stretches its
         // columns, so the drawn width is larger, and stepping from it would grow the column by more than a step.
         const declared = this.resolvedColumnWidth(columnId)?.trim();
-        const declaredPixels = declared && /^\d+(\.\d+)?px$/.test(declared) ? Number.parseFloat(declared) : null;
+        const declaredPixels =
+            declared && /^\d+(\.\d+)?(px|rem)$/.test(declared) ? cssLengthToPixels(declared) : null;
         const width = computeKeyboardResizedColumnWidth({
             key: event.key,
             shiftKey: event.shiftKey,

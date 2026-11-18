@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import "../segment/violet-segment";
 import type { VioletSegment } from "../segment/violet-segment";
@@ -174,6 +174,8 @@ export class VioletSegmentedControl extends FASTElement {
         this.#defaultValue = this.value;
         this.#syncAccessibilityState();
         this.#syncFormState();
+        // Segments render their buttons after this, so anchor validation to the Tab stop once they have.
+        Updates.enqueue(() => this.#syncFormState());
     }
 
     public disconnectedCallback(): void {
@@ -219,8 +221,12 @@ export class VioletSegmentedControl extends FASTElement {
     }
 
     /** Focuses the group's Tab stop: the checked segment, or the first enabled one when none is checked. */
-    public override focus(): void {
-        this.segments.find(segment => segment.buttonTabIndex === 0 && !segment.effectiveDisabled)?.focusButton();
+    public override focus(options?: FocusOptions): void {
+        this.#tabStop()?.focusButton(options);
+    }
+
+    #tabStop(): VioletSegment | undefined {
+        return this.segments.find(segment => segment.buttonTabIndex === 0 && !segment.effectiveDisabled);
     }
 
     public handleSlotChange(): void {
@@ -392,6 +398,9 @@ export class VioletSegmentedControl extends FASTElement {
             this.#internals.setValidity(
                 { customError: this.invalid, valueMissing: this.required && !this.value },
                 this.validationMessageText,
+                // A failed form submission focuses the group's Tab stop. The anchor must itself be focusable,
+                // which a delegating segment host is not, so it is the segment's button.
+                this.#tabStop()?.shadowRoot?.querySelector("button") ?? undefined,
             );
         } else {
             this.#internals.setValidity({});

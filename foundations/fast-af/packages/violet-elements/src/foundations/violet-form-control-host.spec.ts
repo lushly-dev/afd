@@ -178,6 +178,32 @@ describe("form control hosts", () => {
         expect(received).toEqual([{ value: "B" }, { value: "Ba" }]);
     });
 
+    // A failed submission focuses the control's validation anchor, so the anchor must be what a person can use.
+    for (const [markup, focusTarget] of [
+        [
+            `<violet-file-upload label="Photo" name="photo" required></violet-file-upload>`,
+            (host: HTMLElement) => inner(inner(host, '[part~="browse-button"]'), "button"),
+        ],
+        [
+            `<violet-segmented-control label="View" name="view" required><violet-segment value="day">Day</violet-segment><violet-segment value="week">Week</violet-segment></violet-segmented-control>`,
+            (host: HTMLElement) => inner(host.querySelector('violet-segment[value="day"]') as Element, "button"),
+        ],
+    ] as const) {
+        const tag = markup.slice(1, markup.indexOf(" "));
+        it(`${tag} takes focus on a failed form submission`, async () => {
+            document.body.innerHTML = `<form><button type="button">Before</button>${markup}<button>Save</button></form>`;
+            await customElements.whenDefined(tag);
+            await settle();
+            const form = document.querySelector("form") as HTMLFormElement;
+            const host = form.querySelector(tag) as HTMLElement;
+            form.querySelector("button")?.focus();
+
+            form.requestSubmit();
+
+            expect(deepActiveElement()).toBe(focusTarget(host));
+        });
+    }
+
     it("moves focus to a field focused when its dialog opens", async () => {
         document.body.innerHTML = `<button type="button">Edit</button><violet-dialog heading="Edit bed"><violet-date-picker label="Sown"></violet-date-picker></violet-dialog>`;
         await customElements.whenDefined("violet-dialog");
