@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: tool lists** (`spec/tool-strategies.md`; [#533](https://github.com/lushly-dev/afd/issues/533)), the same as every language's: every strategy lists the five meta-tools first, in the hybrid order `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`, with `spec/meta-tools.json`'s definitions. `grouped` is now the default (it was `individual`) and takes TypeScript's shape: groups in order of their first command, the bootstrap and context commands in the `bootstrap` group rather than as command tools, actions in command order, `_meta.actions` with each action's command, schema and metadata, and the schemas inlined as `params.anyOf` when small. `lazy` lists the meta-tools and, with contexts, the context tools (no bootstrap tools) in every context, and keeps the default `ttlMs` with contexts. The context commands are registered before `afd-help`, `afd-docs` and `afd-schema`. Pass `tool_strategy="individual"` for one tool per command.
+
+### Fixed
+
+- A command the tool strategy does not list (any command under `grouped` or `lazy`), called by its own name, now asks the person for its confirmation or approval as its own tool does; it used to answer as a client that cannot elicit.
+
 ### Added
 
 - **`ErrorCodes.CALL_NOT_GRANTED`**, which joins the shared catalog with app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5 step 0b). Python does not emit it yet: the `apps` exposure flag and the call check are [#1513](https://github.com/lushly-dev/afd/issues/1513), and `spec/vectors/app-calls.json` lists Python as a documented gap. Meanwhile `replay_journal` refuses an entry recorded with the `apps` interface (status `error`) before any handler runs, since a target such as `SimpleRegistry` ignores the interface.

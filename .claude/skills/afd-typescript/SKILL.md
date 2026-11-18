@@ -122,7 +122,7 @@ export const panelOpen = defineCommandWithSchema({
 
 ### Tool strategies
 
-`toolStrategy` defaults to `'grouped'` on the server: one tool per group (`category`, else the first name segment) taking `{ action, params }`. `'individual'` is one tool per command, `'lazy'` lists the five meta-tools only (agents run `afd-discover` → `afd-detail` → `afd-call`), and `'hybrid'` lists the meta-tools, the context tools, then 1 to 8 `firstClassTools`. Every meta-tool is routable in every strategy, and so is any exposed command by its own name. Exact lists and order: `spec/tool-strategies.md`.
+`toolStrategy` defaults to `'grouped'` on the server: one tool per group (`category`, else the first name segment) taking `{ action, params }`. `'individual'` is one tool per command, `'lazy'` lists the five meta-tools and the context tools (agents run `afd-discover` → `afd-detail` → `afd-call`), and `'hybrid'` adds 1 to 8 `firstClassTools` to the lazy list. Every strategy lists the five meta-tools first. Every meta-tool is routable in every strategy, and so is any exposed command by its own name. Exact lists and order: `spec/tool-strategies.md`.
 
 - `createDirectToolSurface` defaults to `'individual'`, not `'grouped'`. Pass `strategy` when the in-process list must match a server's.
 - `firstClassTools` is required with `'hybrid'` and refused with any other strategy. Creation throws, naming the entry, for one that is unregistered, not `expose.mcp`, reserved, repeated or beyond 8.

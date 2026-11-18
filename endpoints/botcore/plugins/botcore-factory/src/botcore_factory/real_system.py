@@ -235,6 +235,10 @@ class T3Plans:
             for window in usage.get("windows") or []:
                 if window.get("kind") != "weekly" or not window.get("resetsAt"):
                     continue
+                # Claude's Fable window is a limit only Fable draws on, inside the plan's main
+                # weekly window; it is not a plan a cell starts on.
+                if str(window.get("id", "")).endswith("_fable"):
+                    continue
                 length = float(window.get("windowDurationMins") or 10080) * 60
                 left = (parse_time(window["resetsAt"]) - now).total_seconds()
                 elapsed = min(100.0, max(0.0, 100 * (length - left) / length))

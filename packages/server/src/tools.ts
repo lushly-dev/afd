@@ -172,10 +172,14 @@ function commandTool(
 	};
 }
 
+/** The five meta-tools, in the order every strategy lists them (`spec/tool-strategies.md`, #533). */
+const META_TOOLS = [discoverTool, detailTool, callTool, batchTool, pipeTool];
+
 /**
  * The hybrid list (`spec/tool-strategies.md`, H3): the five meta-tools, the context tools when
  * the server registered them, then the first-class command tools in configured order. It
- * depends on the server's configuration only, never on the active context (H4).
+ * depends on the server's configuration only, never on the active context (H4). With no
+ * first-class tools it is the lazy list.
  */
 function hybridToolsList(
 	commands: ZodCommandDefinition[],
@@ -187,15 +191,7 @@ function hybridToolsList(
 			const cmd = byName.get(name);
 			return cmd && isMcpExposed(cmd) ? [commandTool(cmd, options)] : [];
 		});
-	return [
-		discoverTool,
-		detailTool,
-		callTool,
-		batchTool,
-		pipeTool,
-		...named(CONTEXT_COMMAND_NAMES),
-		...named(options.firstClassTools ?? []),
-	];
+	return [...META_TOOLS, ...named(CONTEXT_COMMAND_NAMES), ...named(options.firstClassTools ?? [])];
 }
 
 /**
@@ -208,11 +204,9 @@ export function getToolsList(
 	activeContext?: string | null,
 	options: ToolsListOptions = {}
 ): McpToolDefinition[] {
-	const builtInTools = [batchTool, pipeTool, callTool];
-
-	// Lazy strategy: meta-tools + built-ins only
+	// Lazy strategy: the meta-tools and the context tools, the same in every context
 	if (toolStrategy === 'lazy') {
-		return [discoverTool, detailTool, ...builtInTools];
+		return hybridToolsList(commands, { ...options, firstClassTools: [] });
 	}
 
 	// Hybrid strategy: a fixed list that ignores the active context
@@ -226,13 +220,12 @@ export function getToolsList(
 		activeContext
 	);
 
-	// Individual strategy: each command is its own tool + built-ins
+	// Individual strategy: the meta-tools, then each command as its own tool
 	if (toolStrategy === 'individual') {
-		return [...builtInTools, ...filtered.map((cmd) => commandTool(cmd, options))];
+		return [...META_TOOLS, ...filtered.map((cmd) => commandTool(cmd, options))];
 	}
 
-	// Grouped strategy: commands grouped by category/entity. afd-detail is listed
-	// because grouped tools only carry per-action schemas in _meta (or inline when small).
+	// Grouped strategy: the meta-tools, then the commands grouped by category or entity.
 	const groups = new Map<string, ZodCommandDefinition[]>();
 	for (const cmd of filtered) {
 		const group = commandGroup(cmd, groupByFn);
@@ -245,5 +238,5 @@ export function getToolsList(
 		groupedTool(groupName, groupCmds, options.confirmations)
 	);
 
-	return [...builtInTools, detailTool, ...groupedTools];
+	return [...META_TOOLS, ...groupedTools];
 }

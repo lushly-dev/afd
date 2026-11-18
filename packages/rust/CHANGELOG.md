@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Tool lists (`server` feature; `spec/tool-strategies.md`, #533):** every strategy lists the five meta-tools first, in the hybrid order `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`, so `individual` gains `afd-discover` and `afd-detail` and `grouped` gains `afd-discover`. `ToolStrategy::Lazy` is the hybrid list with no first-class tools: the meta-tools, then the context tools when contexts are configured, the same in every context, so with contexts it keeps the default `ttlMs` of 300,000 instead of 0.
+
 ### Added
 
 - **App-to-app calls and the `apps` exposure flag (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5 step 0b, D30):** `ExposeOptions::apps` (default `false`, `with_apps`), `CommandInterface::Apps` and `CommandRegistry::set_call_grant(|command, context| bool)`, the host's check of the caller's grants (`CallGrant`). A call with the `apps` interface runs only when the command exists for the caller, sets `apps` and the grant check returns `true`; otherwise, with no grant check, or when it panics, it returns the one fixed `CALL_NOT_GRANTED` refusal (`error_codes::CALL_NOT_GRANTED`, new in the shared catalog) before lookup, validation and middleware. `spec/vectors/app-calls.json` pins it. For an `apps` call, `execute_batch_with_context` drops the batch request's own `context`, so an app cannot name its caller.

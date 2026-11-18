@@ -1,0 +1,28 @@
+name: Main credit
+
+# Every commit that lands on main credits only its author: no Co-authored-by line, a person's
+# included. ci-ok checks a pull request's own commits, but GitHub writes a squash's message at merge
+# time, and its default message adds a Co-authored-by line for every commit author whose address
+# isn't the merging account's. Only a check on main sees that message (scripts/commit-credit.mjs
+# --push-event). Main is not rewritten, so a failure here means fixing the path that wrote it.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  main-credit:
+    name: main-credit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            scripts/commit-credit.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Check the pushed commits' credit
+        run: node scripts/commit-credit.mjs --push-event

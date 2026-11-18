@@ -33,7 +33,8 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Changed
 
-- **`afd::mcp_stdio` lists grouped tools by default**, as TypeScript and Rust do: set `tool_strategy = ToolStrategy::individual` for one tool per command (now after `afd-batch`, `afd-pipe` and `afd-call`). Calls by command name work in every strategy. Over MCP, a command not exposed to it now answers `COMMAND_NOT_FOUND` instead of `COMMAND_NOT_EXPOSED`, and the unknown-command suggestion ends "Use afd-discover to list all commands."
+- **Tool lists (`spec/tool-strategies.md`, #533):** every `afd::mcp_stdio` strategy lists the five meta-tools first, in the hybrid order `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`; `lazy` adds only the context tools when contexts are configured, the same in every context, and keeps the default `ttlMs` with contexts.
+- **`afd::mcp_stdio` lists grouped tools by default**, as TypeScript and Rust do: set `tool_strategy = ToolStrategy::individual` for one tool per command (after the five meta-tools). Calls by command name work in every strategy. Over MCP, a command not exposed to it now answers `COMMAND_NOT_FOUND` instead of `COMMAND_NOT_EXPOSED`, and the unknown-command suggestion ends "Use afd-discover to list all commands."
 - `ApprovalMiddlewareOptions::include_token` is now a `std::optional<bool>`. Left unset, it includes `details.approvalToken` except on calls whose `context.surface` is MCP, as TypeScript does (`spec/command-metadata.md`, "Approvals", rule 6). An MCP agent therefore never holds the token, and the host gets it through `on_approval_required`. Over MCP, a held call's suggestion now says how the client can be asked: call the command on its own, or from a client that supports form elicitation. Set `include_token = true` to keep the old behaviour.
 
 ### Fixed
