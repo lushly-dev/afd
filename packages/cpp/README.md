@@ -146,7 +146,8 @@ if (!server) { /* server.error() says why */ }
 - **Both MCP eras on one connection.**
   - MCP 2026-07-28 requests are served from their own `_meta`, with `server/discover`, `resultType` and cache hints.
   - 2025 clients use `initialize` and `ping`.
-- **One tool per command** whose `expose.mcp` is true. There are no meta-tools, bootstrap commands or tool strategies yet ([#1451](https://github.com/lushly-dev/afd/issues/1451)), and no HTTP transport.
+- **One tool per command** whose `expose.mcp` is true. There are no meta-tools or tool strategies yet ([#1451](https://github.com/lushly-dev/afd/issues/1451)), and no HTTP transport.
+- **Bootstrap commands.** `afd::register_bootstrap_commands(registry)` (`afd/bootstrap.hpp`) registers `afd-help`, `afd-docs` and `afd-schema`, which describe the commands exposed to MCP in the call's active context, themselves among them. With all three registered, `server/discover` says they describe the server, and an unknown command's suggestion points to `afd-help`.
 - **Contexts** ([spec](../../spec/tool-strategies.md#contexts)).
   - Register `afd-context-list`, `afd-context-enter` and `afd-context-exit` with `afd::register_context_commands(registry, contexts)` (`afd/contexts.hpp`), then pass the same `contexts` in `StdioServerOptions::contexts`; `create` fails when the commands are missing or the two lists differ.
   - A 2025 connection keeps one context stack, which enter and exit change. A 2026-07-28 request names its context in `_meta["dev.afd/context"]`; the tools validate it and answer `persisted: false`, and an unknown name is invalid params (`-32602`).

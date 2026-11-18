@@ -276,6 +276,20 @@ class FixtureGit:
     def _slot(self, path: str) -> dict:
         return self._slots()[path.removeprefix("slots/")]
 
+    def park_slot(self, slot: str, name: str) -> str:
+        """``outcomes.park``: ``fail: ...`` refuses the move."""
+        _fail(self.store, "park", self._slots().get(slot, {}).get("branch"))
+        self._slots()[name] = self._slots().pop(slot)
+        self.store.save()
+        return f"slots/{name}"
+
+    def remove_checkout(self, path: str) -> None:
+        """Removed checkouts are listed in ``removedCheckouts``; ``outcomes.remove`` fails it."""
+        _fail(self.store, "remove")
+        self._slots().pop(path.removeprefix("slots/"), None)
+        self.store.data.setdefault("removedCheckouts", []).append(path)
+        self.store.save()
+
     def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")

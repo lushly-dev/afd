@@ -6,6 +6,7 @@ add_executable(
     approval_vectors_test.cpp
     batch_test.cpp
     batch_vectors_test.cpp
+    bootstrap_test.cpp
     command_test.cpp
     context_fields_test.cpp
     context_test.cpp

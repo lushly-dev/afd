@@ -37,11 +37,11 @@ TEST_CASE("tools/list lists every todo command with its title, annotations and _
     auto server = make_server(fixture);
     const auto tools =
         reply(*server, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
-    // The thirteen todo commands, then the three context tools.
-    CHECK(tools.size() == 16);
+    // The thirteen todo commands, then the three context tools and the three bootstrap tools.
+    CHECK(tools.size() == 19);
     for (const auto& tool : tools) {
         CAPTURE(tool["name"].get<std::string>());
-        if (tool["name"].get<std::string>().rfind("afd-context-", 0) == 0) {
+        if (tool["name"].get<std::string>().rfind("afd-", 0) == 0) {
             CHECK(tool["_meta"]["category"] == "bootstrap");
             continue;
         }
