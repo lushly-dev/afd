@@ -111,6 +111,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/violet-elements..." build
+      - name: Type-check component specs (stories are checked by Specimen)
+        run: pnpm -F @lushly-dev/violet-elements typecheck
       - name: Packed package exports, contents and source maps (upstream check:v3 violet scope)
         run: pnpm -F @lushly-dev/violet-elements verify:exports
       - name: Regenerated theme, icons and custom-elements manifest match the tracked files

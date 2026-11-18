@@ -17,6 +17,17 @@ fleet could not start cells ([#1498](https://github.com/lushly-dev/afd/issues/14
 `seven_day_fable` window is no longer read as a plan, since only Fable draws on it. The scenario
 fixtures' two plans are now both Claude's, one per Mac. Not yet seen in a fleet run.
 
+## Squash merges credit no co-author, 2026-11-18
+
+[#1515](https://github.com/lushly-dev/afd/issues/1515): about half of the recent squashes on `main`
+carried a `Co-authored-by:` line, many for `botcore-factory`, the identity a cell's base merges are
+committed under. GitHub's default squash message adds one for every commit author whose address
+isn't the merging account's. Every squash the plugin makes now passes the branch's own messages as
+the body: the lane's `gh pr merge`, and the gateway's merge and pinned auto-merge. Merge commits and
+`Co-authored-by:` lines are left out, and each commit keeps its `Assisted-by:` trailer
+(`botcore_factory/squash.py`). Fixed by hand, since it changes how the lane merges. It hasn't been
+seen in a fleet run yet. A session's own merges follow `prepare-pr` step 9 (#1517).
+
 ## A cell can take a package of related issues, 2026-11-18
 
 `cell-register` takes more than one issue when the foreman names the package: up to
