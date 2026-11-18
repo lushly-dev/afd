@@ -97,6 +97,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		pending: Partial<Record<string, QueuedTicket>>;
 		/** The symbol `run` keeps a queued call's ticket under: the kernel's own, so first paint shares no new one. */
 		queued: symbol;
+		/** The kernel's mark on stage B's own move of an old appearance record (phase 4 specification, 3.6). */
+		migrating?: symbol;
 		/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4, B1). */
 		stageA?: [AccessActorV1] | undefined;
 		/** The kernel's map of each person's active persona when not `default` (phase 3 specification, 6.1). */
@@ -488,9 +490,22 @@ export async function createLateParts(
 	/** Whether the applied projection's host is the desktop, as `shell-info-get` says (phase 6 specification, 10.1). */
 	let desktop = false;
 	const stores = createShellStores(deps.store, deps.scope);
-	/** Whether the applied projection is a hosted `provider` deployment, which refuses shared writes (phase 4's 13). */
-	let hosted = false;
 	const provider = deps.identity?.mode === 'provider';
+	/**
+	 * The deployment's host kind (phase 6 specification, 3.3), decided apart from its apps: a deployment the kernel was
+	 * given names it at once, a version 4 file by its `host` and an older one `static`; with a boot, the projection
+	 * stage B's loader reads names it. Unknown until then, and for good when the loader fails or the boot lists no app.
+	 */
+	let hostKind: 'static' | 'hosted' | 'desktop' | undefined = deps.deployment
+		? ((deps.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host?.kind ??
+			'static')
+		: undefined;
+	/**
+	 * Section 13's hosted `provider` deployment, which refuses shared writes. Fails closed: a `provider` deployment whose
+	 * host is not known yet, or never will be, counts as hosted, since a provider is served by the hosted server (phase
+	 * 6's `DEPLOYMENT_DESKTOP_PROVIDER` and `DEPLOYMENT_PROVIDER_NEEDS_HOST`; the review's B2).
+	 */
+	const hosted = () => provider && (hostKind === undefined || hostKind === 'hosted');
 	settings = createSettings({
 		store: deps.store,
 		scope: deps.scope,
@@ -500,12 +515,14 @@ export async function createLateParts(
 		person: shellPerson,
 		// `personalRecordId`'s shape in `provider` mode, held equal to it by a unit; `local` keeps one record (3.6).
 		recordId: (person) => (provider ? `loam.settings~${person ?? 'signed-out'}` : 'loam.settings'),
-		hosted: () => hosted,
+		hosted,
 		replaying: () => deps.internals?.replaying === true,
 		isOwner: (person) => isOwner(deps.scope.membership, person),
 		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
-		// `loam.documents.trashDays` written through to the workspace row (A-P2-2), which the trash's expiry reads.
-		async trashDays(days, context) {
+		...(deps.migrating !== undefined ? { migrating: deps.migrating } : {}),
+		// `loam.documents.trashDays` written through to the workspace row (A-P2-2), which the trash's expiry reads, in
+		// one batch with the setting's own row.
+		async trashDays(days, context, also) {
 			const row = await stores.workspace();
 			const at = DOCUMENT_KIT.callNow(context);
 			const by = personOf(context);
@@ -522,7 +539,8 @@ export async function createLateParts(
 							createdAt: at,
 							updatedAt: at,
 							updatedBy: by,
-						}
+						},
+				also
 			);
 		},
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
@@ -737,7 +755,6 @@ export async function createLateParts(
 		},
 		async apply(projection, run, settle) {
 			desktop = projection.host?.kind === 'desktop';
-			hosted = projection.host?.kind === 'hosted' && provider;
 			// A replay's entries are what ran (10): it reads its own `internals`, so first paint passes nothing.
 			const replaying = deps.internals?.replaying === true;
 			// A replay applies through its entries; an empty projection there holds nothing to apply. A
@@ -801,6 +818,11 @@ export async function createLateParts(
 								deployment: listed,
 								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
 							} as AppsLoadV2);
+				// The projection's host, whatever its apps do next (phase 4 specification, 13).
+				if (loaded && 'deployment' in loaded)
+					hostKind =
+						(loaded.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host
+							?.kind ?? 'static';
 				// A boot with no loader: every app is listed `failed`, never the shell.
 				return loaded ?? { unavailable: 'no apps loader' };
 			} catch (cause) {

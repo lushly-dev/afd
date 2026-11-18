@@ -103,9 +103,16 @@ async function runFile(
 			const caller = directive.caller;
 			if (caller && 'agent' in caller) return kernel.agent.call(command, input, options);
 			if (caller) {
-				if (caller.inactive) await kernel.call('app-open', { instance: 'console' });
-				else await kernel.call('app-open', { instance: caller.instance });
-				return kernel.appPort(caller.instance).call(command, input) as Promise<CommandResult>;
+				// The step's setup: an app that does not open fails the step, rather than run as another (the review's G).
+				const opened = await kernel.call('app-open', {
+					instance: caller.inactive ? 'console' : caller.instance,
+				});
+				if (!opened.success) return opened as CommandResult<unknown>;
+				const port = kernel.appPort(caller.instance);
+				// A scope directive binds the port to that scope, as a surface's port is bound (phase 2 specification, 3.6).
+				return (
+					scope ? port.surface({ scope }).call(command, input) : port.call(command, input)
+				) as Promise<CommandResult>;
 			}
 			return kernel.call(command, input, options);
 		},

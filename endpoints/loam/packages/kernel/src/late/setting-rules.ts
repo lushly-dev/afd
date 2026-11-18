@@ -14,6 +14,8 @@ export interface KnownSectionV1 {
 	section: SettingSectionV1;
 	/** The declaring instance, or `shell`. */
 	owner: string;
+	/** The declaring app's plugin id: whose own sections the `settings` grant reads (3.8). Absent for the shell's. */
+	plugin?: string;
 }
 
 /**

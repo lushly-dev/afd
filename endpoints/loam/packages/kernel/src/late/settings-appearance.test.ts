@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AppearanceV0 } from '../appearance.js';
 import { createKernel } from '../kernel.js';
 import type { MembershipV1 } from '../scope/access.js';
+import { personalRecordId } from '../scope/personal.js';
 import { createFixedEnvironment, createSteppingClock, SESSION_50 } from '../session.js';
 import { replayKernel } from '../testing.js';
 import type { KernelEventV4, LoamKernelV5 } from '../types.js';
@@ -227,6 +228,18 @@ describe('P4-E3: local mode (R12)', () => {
 			migrated: false,
 		});
 		expect(off.error?.code).toBe('VALIDATION_ERROR');
+		// The person's own palette call is no move either: only the kernel's call carries its mark.
+		const person = await kernel.call('setting-set', {
+			section: 'loam.appearance',
+			key: 'theme',
+			value: 'dark',
+			level: 'person',
+			migrated: true,
+		});
+		expect(person.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			suggestion: 'Leave `migrated` out',
+		});
 	});
 
 	it('SESSION_50 still replays with no difference', async () => {
@@ -269,7 +282,10 @@ describe('P4-E3: provider mode (R4, A-P3-2)', () => {
 		await kernel.startApps();
 		expect(migrations(await journal.read()).map((input) => input.migrated)).toEqual([true, true]);
 		expect(await row(store, 'loam.appearance')).toBeFalsy();
-		expect((await row(store, `loam.settings~${ADA}`))?.value?.['loam.appearance']).toMatchObject({
+		// The production path's record id is `personalRecordId`'s (the second review's L).
+		expect(
+			(await row(store, personalRecordId('loam.settings', ADA)))?.value?.['loam.appearance']
+		).toMatchObject({
 			theme: { value: 'dark', updatedBy: ADA },
 		});
 		expect((await row(store, 'loam.appearance.last'))?.value).toEqual({
@@ -309,11 +325,113 @@ describe('P4-E3: provider mode (R4, A-P3-2)', () => {
 		await kernel.call('auth-sign-out');
 		await signIn('ada@example.com');
 		expect(await appearance(kernel)).toMatchObject({ theme: 'dark', density: 'comfortable' });
-		expect((await row(store, `loam.settings~${OLU}`))?.value?.['loam.appearance']).toMatchObject({
+		expect(
+			(await row(store, personalRecordId('loam.settings', OLU)))?.value?.['loam.appearance']
+		).toMatchObject({
 			density: { value: 'compact' },
 		});
 		// A page that starts with Ada signed in paints hers in stage A.
 		const next = await kernelOn(store, { provider: true, as: ADA, boot: true });
 		expect(await appearance(next.kernel)).toMatchObject({ theme: 'dark' });
+	});
+});
+
+/** A store whose `settings` rows named by `failing` throw on the operations named. */
+function failingStore(failing: { get?: string; write?: string }): MemoryAdapter {
+	const store = new MemoryAdapter();
+	const { get, create, update } = store;
+	const refuse = (table: string, id: string | undefined, which?: string) => {
+		if (table === 'settings' && which !== undefined && id === which)
+			throw new Error('The store is down');
+	};
+	Object.assign(store, {
+		get: async (table: string, id: string) => {
+			refuse(table, id, failing.get);
+			return get.call(store, table, id);
+		},
+		create: async (table: string, record: { id?: string }) => {
+			refuse(table, record.id, failing.write);
+			return create.call(store, table, record as never);
+		},
+		update: async (table: string, id: string, patch: object) => {
+			refuse(table, id, failing.write);
+			return update.call(store, table, id, patch as never);
+		},
+	});
+	return store;
+}
+
+describe("the reviews' findings on the person's record", () => {
+	it("B3: two pages on one store keep each other's values, and expected reads the stored record", async () => {
+		const store = new MemoryAdapter();
+		const first = await kernelOn(store);
+		const second = await kernelOn(store);
+		const set = (kernel: LoamKernelV5, key: string, value: string, expected?: string) =>
+			kernel.call('setting-set', {
+				section: 'loam.appearance',
+				key,
+				value,
+				level: 'person',
+				...(expected !== undefined ? { expected } : {}),
+			});
+		expect((await set(first.kernel, 'theme', 'dark')).success).toBe(true);
+		expect((await set(second.kernel, 'density', 'compact')).success).toBe(true);
+		expect((await set(first.kernel, 'theme', 'light')).success).toBe(true);
+		const held = (await row(store, 'loam.settings'))?.value?.['loam.appearance'];
+		expect(held).toMatchObject({ theme: { value: 'light' }, density: { value: 'compact' } });
+		// The second page changes the theme; the first page's expected, the value it last wrote, is stale.
+		expect((await set(second.kernel, 'theme', 'high-contrast')).success).toBe(true);
+		const stale = await set(first.kernel, 'theme', 'dark', 'light');
+		expect(stale.error).toMatchObject({
+			code: 'SETTING_CONFLICT',
+			details: { current: 'high-contrast', expected: 'light' },
+		});
+	});
+
+	it('B3: a read that fails fails the write, which writes nothing', async () => {
+		const store = failingStore({ get: 'loam.settings' });
+		const { kernel } = await kernelOn(store);
+		const written = await kernel.call('setting-set', {
+			section: 'loam.appearance',
+			key: 'theme',
+			value: 'dark',
+			level: 'person',
+		});
+		expect(written.success).toBe(false);
+		expect(
+			(await store.list('settings')).data.map((held) => (held as { id: string }).id)
+		).not.toContain('loam.settings');
+	});
+
+	it('I2 and D: a refused move keeps the old record, painted, for the next stage B to move', async () => {
+		const store = failingStore({ write: 'loam.settings' });
+		await legacy(store, { theme: 'dark', density: 'compact' });
+		const { kernel, journal } = await kernelOn(store, { boot: true });
+		await kernel.startApps();
+		const moves = (await journal.read()).filter((entry) => entry.command === 'setting-set');
+		expect(moves).toHaveLength(1);
+		expect(moves[0]?.result.success).toBe(false);
+		expect(await row(store, 'loam.appearance')).toBeTruthy();
+		expect(await appearance(kernel)).toMatchObject({ theme: 'dark', density: 'compact' });
+	});
+
+	it('E: a provider session replays as it ran: dark, signed out painting `.last`, then the next person', async () => {
+		const store = new MemoryAdapter();
+		const { kernel, journal } = await kernelOn(store, { provider: true });
+		const signIn = (email: string) =>
+			kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+		await signIn('ada@example.com');
+		await kernel.call('appearance-set', { theme: 'dark' });
+		await kernel.call('auth-sign-out');
+		expect(await appearance(kernel)).toMatchObject({ theme: 'dark' });
+		await signIn('olu@example.com');
+		await kernel.call('appearance-get');
+		await kernel.call('auth-sign-out');
+		await kernel.call('appearance-get');
+		const { report } = await replayKernel(await journal.read(), {
+			identity: PROVIDER,
+			membership: ACME,
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 });

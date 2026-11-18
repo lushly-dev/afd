@@ -72,6 +72,9 @@ export const SETTING_SECTION_MAX_BYTES = 16_384;
 /** A key named like a secret (`MANIFEST_SETTING_SECRET`): a setting is plain text that every reader sees. */
 const SECRET = /secret|passw(or)?d|passphrase|token|api_?key|credential|private_?key/i;
 
+/** In display text, a title or an enum's value: any control or bidirectional formatting character (`textRules`'s). */
+const DISPLAY_CONTROL = /[\p{Cc}\p{Bidi_Control}]/u;
+
 /** A control character, or a bidirectional formatting one; text may still hold a tab or a line break. */
 const CONTROL = /[\p{Cc}\p{Bidi_Control}]/u;
 
@@ -198,8 +201,33 @@ export function settingRules(manifest: ManifestV2, refuse: Refuse, warnings: Fin
 			);
 		}
 		seen.add(section.id);
+		// Text a person reads, plain (3.1; the second review's K): as `textRules` checks every other title.
+		const text = (pointer: string, value: unknown) => {
+			if (typeof value === 'string' && DISPLAY_CONTROL.test(value)) {
+				refuse(
+					'MANIFEST_TEXT_INVALID',
+					pointer,
+					"It holds a control or bidirectional formatting character, and it reaches a person's screen.",
+					'Remove the control character.'
+				);
+			}
+		};
+		text(`${at}/title`, section.title);
+		text(`${at}/description`, section.description);
+		/** The defaults alone, which a section's resolved values may never exceed (3.1's 16 KiB). */
+		const defaults: Record<string, unknown> = {};
 		for (const [name, key] of Object.entries(section.schema.properties)) {
 			const pointer = `${at}/schema/properties/${name}`;
+			text(`${pointer}/title`, key.title);
+			text(`${pointer}/description`, key.description);
+			const choices = key as { enum?: unknown[]; enumTitles?: unknown[] };
+			(choices.enum ?? []).forEach((value, place) => {
+				text(`${pointer}/enum/${place}`, value);
+			});
+			(choices.enumTitles ?? []).forEach((value, place) => {
+				text(`${pointer}/enumTitles/${place}`, value);
+			});
+			if ('default' in key) defaults[name] = key.default;
 			const problem = shapeProblem(key as unknown as Record<string, unknown>);
 			if (problem) {
 				refuse(
@@ -237,6 +265,16 @@ export function settingRules(manifest: ManifestV2, refuse: Refuse, warnings: Fin
 					suggestion: 'Keep secrets out of settings: the `secrets` grant holds them from phase 6.',
 				});
 			}
+		}
+		// A section whose defaults alone are over 16 KiB could never be read or written (the second review's F).
+		const bytes = new TextEncoder().encode(JSON.stringify(defaults)).length;
+		if (bytes > SETTING_SECTION_MAX_BYTES) {
+			refuse(
+				'MANIFEST_SETTING_SCHEMA',
+				`${at}/schema`,
+				`The section's defaults alone are ${bytes} bytes, over the ${SETTING_SECTION_MAX_BYTES} a section's values may hold.`,
+				'Shorten the longest defaults, or split the section.'
+			);
 		}
 	});
 }

@@ -233,6 +233,11 @@ export class LoamViewFrame extends FASTElement {
 
 	#gone: (() => void) | undefined;
 
+	/** The app's own sections changed: `host-context-changed` with `dev.loam/settingsChanged` (phase 4's 3.8). */
+	settingsChanged(sections: string[]): void {
+		this.#host?.changeContext({ 'dev.loam/settingsChanged': sections });
+	}
+
 	/** A change of route reaches the view as `host-context-changed`, and recreates nothing (7.6). */
 	set route(route: string) {
 		if (!this.#options || route === this.#options.route) return;

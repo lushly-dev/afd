@@ -33,6 +33,11 @@ export interface ViewHostContextV1 {
 	'dev.loam/scope'?: { workspace: string; project?: string };
 	'dev.loam/route'?: string;
 	'dev.loam/selectionLevel'?: 'workspace' | 'project';
+	/**
+	 * With the `settings` grant: this app's own sections that changed, by full id, in `host-context-changed`
+	 * (phase 4 specification, 3.8). Read them again with `setting-get` or `setting-list`.
+	 */
+	'dev.loam/settingsChanged'?: string[];
 	/** A document's editor or embed: the document it renders, and a new title (documents specification, 5.6). */
 	'dev.loam/document'?: DocumentRefV1;
 }

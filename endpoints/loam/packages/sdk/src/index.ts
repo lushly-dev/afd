@@ -378,6 +378,11 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	route?: string;
 	/** The level the selection was made at, in a dual-scope app's sidebar. */
 	selectionLevel?: 'workspace' | 'project';
+	/**
+	 * With the `settings` grant: called when this app's own sections changed, by full id (phase 4 specification, 3.8).
+	 * Read them again with `context.settings`.
+	 */
+	settingsChanged?(sections: string[]): void;
 }
 
 /**

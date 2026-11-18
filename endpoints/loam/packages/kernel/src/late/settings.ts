@@ -17,7 +17,7 @@ import {
 	type SettingLevelV1,
 	type SettingSectionV1,
 } from '@lushly-dev/loam-manifest';
-import type { DataAdapter } from '@lushly-dev/local-db';
+import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
@@ -65,8 +65,9 @@ export const APPEARANCE_LAST_ID = 'loam.appearance.last';
 
 /**
  * Each command's output budget, in bytes, as AFD's `outputBudget` declares one (3.9). TypeScript's AFD does not read
- * the declaration yet, so the kernel checks `setting-schema-get`'s and `setting-list`'s itself, and tells a caller past
- * it to name a section; the others answer one key, which a section's 16 KiB bounds.
+ * the declaration yet, so the kernel checks `setting-schema-get`'s and `setting-list`'s itself, in UTF-8 bytes, with or
+ * without a section named, and tells a caller past it to name a section, or within one a key; the others answer one
+ * key, which a section's 16 KiB bounds.
  */
 export const SETTING_OUTPUT_BUDGETS: Readonly<
 	Record<string, { defaultBytes: number; maxBytes: number }>
@@ -77,6 +78,9 @@ export const SETTING_OUTPUT_BUDGETS: Readonly<
 	'setting-set': { defaultBytes: 32_768, maxBytes: 32_768 },
 	'setting-reset': { defaultBytes: 16_384, maxBytes: 16_384 },
 });
+
+/** The UTF-8 bytes of a value's JSON, as an output budget counts them. */
+const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
 /** A shared row of the `setting` table (3.4): `<section>/workspace` or `<section>/project/<project id>`. */
 export interface SettingRowV1 {
@@ -128,8 +132,16 @@ export interface SettingsDeps {
 	isOwner(person: string | undefined): boolean;
 	/** Why `instance` cannot open in `project`: a project write of an app's key needs the app enabled there (3.2). */
 	canOpen(instance: string, project: string | undefined): CommandResult<never> | undefined;
-	/** Write `WorkspaceV1.trashDays` through (A-P2-2). */
-	trashDays(days: number, context: CommandContext): Promise<void>;
+	/**
+	 * Write `WorkspaceV1.trashDays` through (A-P2-2), in one store batch with `also`, the `setting` row's own write, so
+	 * the value shown and the retention applied never diverge.
+	 */
+	trashDays(days: number, context: CommandContext, also: BatchOperation[]): Promise<void>;
+	/**
+	 * The kernel's mark on stage B's own move of an old appearance record (3.6): a key of the call's context only
+	 * `LateParts.migrate`'s call carries, so no person's or agent's call can claim `migrated`.
+	 */
+	migrating?: symbol;
 	kit: SettingsKit;
 }
 
@@ -169,15 +181,18 @@ export function createSettings(deps: SettingsDeps): Settings {
 	const { store, scope, kit } = deps;
 	const { z } = kit;
 
-	/** The person's record in memory, by record id: read from the store once, then kept by this chunk's writes. */
-	const records = new Map<string, PersonSettingsV1>();
 	/** The record the shell's appearance follows now. */
 	let following: string | undefined;
+	/** Each paint's number: one a later paint or a change of person overtook paints nothing (the second review's E). */
+	let painting = 0;
 
+	/**
+	 * The person's record, read from the store at every call: another tab may have written it since, so nothing is kept
+	 * but what the shell paints. A read that fails rejects, and the call fails with it, rather than writing a record it
+	 * never read (the review's B3).
+	 */
 	async function readRecord(id: string): Promise<PersonSettingsV1> {
-		const held = records.get(id);
-		if (held) return held;
-		const row = await store.get<{ value?: unknown }>(SETTINGS, id).catch(() => null);
+		const row = await store.get<{ value?: unknown }>(SETTINGS, id);
 		const value = row?.value;
 		const record: PersonSettingsV1 = {};
 		if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -191,12 +206,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 				record[section] = kept;
 			}
 		}
-		records.set(id, record);
 		return record;
 	}
 
 	async function writeRecord(id: string, record: PersonSettingsV1, at: number): Promise<void> {
-		records.set(id, record);
 		const row = { category: 'settings', value: record, updatedAt: new Date(at).toISOString() };
 		if (await store.get(SETTINGS, id)) await store.update(SETTINGS, id, row);
 		else await store.create(SETTINGS, { id, ...row });
@@ -228,7 +241,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 				// The shell's own namespace is never an app's, and a second instance of an app shares its sections.
 				if (fullId.startsWith('loam.') || ids.has(fullId)) continue;
 				ids.add(fullId);
-				known.push({ fullId, section, owner: app.instance });
+				known.push({ fullId, section, owner: app.instance, plugin: manifest.plugin.id });
 			}
 		}
 		return known;
@@ -245,15 +258,37 @@ export function createSettings(deps: SettingsDeps): Settings {
 		}
 	}
 
+	/**
+	 * Whether a port's app owns a section (3.8): a person's or an agent's call reads every section; an app only those its
+	 * own plugin declared, decided by the section's declaring app, never by a prefix of its id, so no app reads the
+	 * shell's.
+	 */
 	const owns = (app: string | undefined, known: KnownSectionV1) =>
-		app === undefined || known.fullId.startsWith(`${app}.`);
+		app === undefined || (known.owner !== 'shell' && known.plugin === app);
 
 	const fail = (
 		code: LoamKernelErrorCode,
 		message: string,
 		suggestion: string,
-		details?: Record<string, unknown>
-	) => kit.kernelFailure(code, message, suggestion, details ? { details } : {});
+		details?: Record<string, unknown>,
+		retryable = false
+	) =>
+		kit.kernelFailure(code, message, suggestion, {
+			...(details ? { details } : {}),
+			...(retryable ? { retryable } : {}),
+		});
+
+	/**
+	 * One write at a time (the second review's B): a write's `expected` check, its size check and its store write span
+	 * awaits, so two overlapping calls would both pass the check. Each `setting-*` write, and appearance's, runs after the
+	 * one before it has ended, reading the current row.
+	 */
+	let writing: Promise<unknown> = Promise.resolve();
+	const serial = <T>(work: () => Promise<T>): Promise<T> => {
+		const run = writing.then(work, work);
+		writing = run.catch(() => undefined);
+		return run;
+	};
 
 	const notFound = (what: string) =>
 		fail(
@@ -376,13 +411,6 @@ export function createSettings(deps: SettingsDeps): Settings {
 				"Make the call in the project's scope: `_meta` `dev.loam/scope` over MCP, or the call's `scope` option in process"
 			);
 		}
-		if (sharedRecordUnavailable(deps.hosted(), command, { level })) {
-			return fail(
-				'SHARED_RECORD_UNAVAILABLE',
-				`A ${level} value has no record on this hosted deployment yet, so nothing was written`,
-				'Set it in a local deployment, or wait for the release that serves it'
-			);
-		}
 		// A port's call never reaches here (`CALL_NOT_GRANTED` at the port); refused all the same.
 		if ((context as KernelFieldContext).caller !== undefined) {
 			return fail(
@@ -401,6 +429,14 @@ export function createSettings(deps: SettingsDeps): Settings {
 					: `A ${level} value is read by every member, so only a person sets it`,
 				`Ask your person to set it in the shell's settings, at ${route}, or leave them a notice that links there`,
 				{ route, section: known.fullId, key, level }
+			);
+		}
+		// After the agent's hand-off, as section 13's third obligation has the agent interface refused before any request.
+		if (sharedRecordUnavailable(deps.hosted(), command, { level })) {
+			return fail(
+				'SHARED_RECORD_UNAVAILABLE',
+				`A ${level} value has no record on this hosted deployment yet, so nothing was written`,
+				'Set it in a local deployment, or wait for the release that serves it'
 			);
 		}
 		if (rule.rule === 'owner' && !deps.isOwner(personKeyOf(context))) {
@@ -442,7 +478,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 					? next
 					: resolveFrom(known, name, await storedFor(known, name, context), inProject).value;
 		}
-		return new TextEncoder().encode(JSON.stringify(object)).length > SETTING_SECTION_MAX_BYTES;
+		return bytesOf(object) > SETTING_SECTION_MAX_BYTES;
 	}
 
 	/** Store `entry` for `key` at `level`, or remove it with undefined; returns what was stored before. */
@@ -454,9 +490,21 @@ export function createSettings(deps: SettingsDeps): Settings {
 		context: CommandContext
 	): Promise<StoredSettingV1 | undefined> {
 		const at = kit.callNow(context);
+		const commit = async (operations: BatchOperation[]) => {
+			// `loam.documents.trashDays` and the workspace row's, in one batch (A-P2-2; the second review's C).
+			if (known.fullId === 'loam.documents' && key === 'trashDays') {
+				const declared = known.section.schema.properties[key] as SettingKeyV1;
+				await deps.trashDays((entry?.value ?? declared.default) as number, context, operations);
+				return;
+			}
+			if (operations.length === 0) return;
+			const { summary } = await store.batch(operations);
+			if (summary.failed > 0) throw new Error(`The store could not write '${known.fullId}'`);
+		};
+		const path = (id: string) => `/${SETTING_TABLE}/${encodeURIComponent(id)}`;
 		if (level === 'person') {
 			const id = deps.recordId(personKeyOf(context));
-			const record = structuredClone(await readRecord(id));
+			const record = await readRecord(id);
 			const section = record[known.fullId] ?? {};
 			const previous = storedOf(section[key]);
 			if (entry) section[key] = entry;
@@ -475,7 +523,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		if (entry) values[key] = entry;
 		else delete values[key];
 		if (Object.keys(values).length === 0) {
-			if (row) await store.remove(SETTING_TABLE, id);
+			await commit(row ? [{ method: 'DELETE', path: path(id) }] : []);
 			return previous;
 		}
 		const next: SettingRowV1 = {
@@ -488,19 +536,13 @@ export function createSettings(deps: SettingsDeps): Settings {
 			updatedAt: at,
 			updatedBy: writerOf(context.actor, personKeyOf(context) ?? 'local'),
 		};
-		if (row) await store.update(SETTING_TABLE, id, next);
-		else await store.create(SETTING_TABLE, next);
+		await commit([{ method: 'PUT', path: path(id), body: next }]);
 		return previous;
 	}
 
-	/** What follows a write: appearance applied, `trashDays` written through, and the event's sections (3.6, 3.8). */
-	async function afterWrite(known: KnownSectionV1, key: string, context: CommandContext) {
+	/** What follows a write: appearance applied, and the event's sections (3.6, 3.8). */
+	async function afterWrite(known: KnownSectionV1, _key: string, context: CommandContext) {
 		if (known.fullId === 'loam.appearance') await applyAppearance();
-		if (known.fullId === 'loam.documents' && key === 'trashDays') {
-			const stored = await storedFor(known, key, context);
-			const days = resolveFrom(known, key, stored, false, 'workspace').value as number;
-			await deps.trashDays(days, context);
-		}
 		scope.note(context.traceId, { settings: [known.fullId] });
 	}
 
@@ -520,16 +562,23 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const person = deps.person();
 		if (deps.provider && person === undefined) return;
 		const id = deps.recordId(person ?? 'local');
+		const generation = ++painting;
 		following = id;
-		deps.state.setOwnAppearance(appearanceOf(await readRecord(id)));
-		if (!deps.provider || deps.replaying()) return;
+		// Painting only: a read that fails keeps what the shell paints now.
+		const record = await readRecord(id).catch(() => undefined);
+		// Overtaken by a later paint, or the person changed while it read: what it read is no longer the shell's.
+		if (generation !== painting || deps.person() !== person) return;
+		if (record) deps.state.setOwnAppearance(appearanceOf(record));
+		if (!deps.provider) return;
+		// `.last` in memory and in the store, in a replay too, whose own store starts empty, so a signed-out
+		// `appearance-get` after it reads the same.
 		const { theme, density } = deps.state.appearance();
 		const last = { theme, density };
+		deps.state.setLastAppearance(last);
 		const held = await store
 			.get<{ value?: unknown }>(SETTINGS, APPEARANCE_LAST_ID)
 			.catch(() => null);
 		if (sameValue(held?.value, last)) return;
-		deps.state.setLastAppearance(last);
 		// The profile's record, never journaled, so it reads no call's clock: a replay's clock reads stay the original's.
 		const row = { category: 'settings', value: last };
 		if (held) await store.update(SETTINGS, APPEARANCE_LAST_ID, row);
@@ -608,15 +657,18 @@ export function createSettings(deps: SettingsDeps): Settings {
 				})),
 			};
 			const budget = SETTING_OUTPUT_BUDGETS['setting-schema-get']?.maxBytes ?? 0;
-			if (input.section === undefined && JSON.stringify(data).length > budget) {
+			if (bytesOf(data) > budget) {
 				return fail(
 					'OUTPUT_BUDGET_EXCEEDED',
-					`The sections' schemas are over this command's budget of ${budget} bytes`,
-					'Name a section: setting-schema-get { section }',
+					`The schemas are over this command's budget of ${budget} bytes`,
+					input.section === undefined
+						? 'Name a section: setting-schema-get { section }'
+						: 'Name a key: setting-schema-get { section, key }',
 					{ maxBytes: budget }
 				);
 			}
-			return kit.success(data);
+			// Detached: no caller holds the kernel's schemas or stored values (the second review's A).
+			return kit.success(structuredClone(data));
 		},
 	});
 
@@ -627,7 +679,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 		level: SettingLevelV1,
 		context: CommandContext
 	): { writable: boolean; reason?: string } {
-		const refused = writeRefusal('setting-set', known, key, level, context);
+		const refused =
+			writeRefusal('setting-set', known, key, level, context) ??
+			projectRefusal(known, level, context);
 		return refused
 			? { writable: false, reason: refused.error?.code as string }
 			: { writable: true };
@@ -705,15 +759,17 @@ export function createSettings(deps: SettingsDeps): Settings {
 				}
 			}
 			const budget = SETTING_OUTPUT_BUDGETS['setting-list']?.maxBytes ?? 0;
-			if (input.section === undefined && JSON.stringify(values).length > budget) {
+			if (bytesOf({ values }) > budget) {
 				return fail(
 					'OUTPUT_BUDGET_EXCEEDED',
 					`The values are over this command's budget of ${budget} bytes`,
-					'Name a section: setting-list { section }',
+					input.section === undefined
+						? 'Name a section: setting-list { section }'
+						: 'Read one key: setting-get { section, key }',
 					{ maxBytes: budget }
 				);
 			}
-			return kit.success({ values });
+			return kit.success(structuredClone({ values }));
 		},
 	});
 
@@ -740,7 +796,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 			if ('success' in found) return found;
 			const inProject = (context as KernelFieldContext).scope?.project !== undefined;
 			const stored = await storedFor(found.known, input.key, context);
-			return kit.success(resolvedData(resolveFrom(found.known, input.key, stored, inProject)));
+			return kit.success(
+				structuredClone(resolvedData(resolveFrom(found.known, input.key, stored, inProject)))
+			);
 		},
 	});
 
@@ -750,7 +808,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 			'SETTING_CONFLICT',
 			'The value changed since it was read, so nothing was written',
 			'Read the value again with setting-get, then decide',
-			{ current: shown, expected }
+			{ current: shown, expected },
+			true
 		);
 
 	const setInput = z.strictObject({
@@ -787,7 +846,21 @@ export function createSettings(deps: SettingsDeps): Settings {
 			required: ['section', 'key', 'value', 'level'],
 			additionalProperties: false,
 		} as unknown as JsonSchema,
-		async handler(input, context) {
+		handler: (input, context) => serial(() => setHandler(input, context)),
+	});
+
+	async function setHandler(
+		input: {
+			section: string;
+			key: string;
+			value: unknown;
+			level: SettingLevelV1;
+			expected?: unknown;
+			migrated?: boolean;
+		},
+		context: CommandContext
+	) {
+		{
 			const found = lookup(context, input.section, input.key);
 			if ('success' in found) return found;
 			const { known, declared } = found as { known: KnownSectionV1; declared: SettingKeyV1 };
@@ -795,11 +868,18 @@ export function createSettings(deps: SettingsDeps): Settings {
 				writeRefusal('setting-set', known, input.key, input.level, context) ??
 				projectRefusal(known, input.level, context);
 			if (refused) return refused;
-			// `migrated` marks stage B's move of an old appearance record (3.6): a person's own appearance key alone.
+			// `migrated` marks stage B's move of an old appearance record (3.6): only the kernel's own call carries its mark,
+			// and a replay re-runs that call's entry; any other caller's `migrated` is `VALIDATION_ERROR` (the second
+			// review's D).
+			const internal =
+				(deps.migrating !== undefined &&
+					(context as unknown as Record<symbol, unknown>)[deps.migrating] === true) ||
+				deps.replaying();
 			if (
 				input.migrated !== undefined &&
 				!(
 					input.migrated &&
+					internal &&
 					known.fullId === 'loam.appearance' &&
 					input.level === 'person' &&
 					isHumanGesture(context)
@@ -851,7 +931,11 @@ export function createSettings(deps: SettingsDeps): Settings {
 			const resolved = resolveFrom(known, input.key, after, inProject);
 			const at = { section: known.fullId, key: input.key, level: input.level };
 			return kit.success(
-				{ value: resolved.value, from: resolved.from, previous: previous?.value ?? null },
+				structuredClone({
+					value: resolved.value,
+					from: resolved.from,
+					previous: previous?.value ?? null,
+				}),
 				previous
 					? {
 							undoCommand: 'setting-set',
@@ -859,8 +943,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 						}
 					: { undoCommand: 'setting-reset', undoArgs: { ...at, expected: input.value } }
 			);
-		},
-	});
+		}
+	}
 
 	const resetInput = z.strictObject({
 		section: NAME,
@@ -884,44 +968,74 @@ export function createSettings(deps: SettingsDeps): Settings {
 			required: ['section', 'key', 'level'],
 			additionalProperties: false,
 		} as unknown as JsonSchema,
-		async handler(input, context) {
-			const found = lookup(context, input.section, input.key);
-			if ('success' in found) return found;
-			const { known } = found;
-			const refused =
-				writeRefusal('setting-reset', known, input.key, input.level, context) ??
-				projectRefusal(known, input.level, context);
-			if (refused) return refused;
-			const inProject = (context as KernelFieldContext).scope?.project !== undefined;
-			const before = await storedFor(known, input.key, context);
-			if (input.expected !== undefined) {
-				const shown = resolveFrom(known, input.key, before, inProject, input.level).value;
-				if (!sameValue(shown, input.expected)) return conflict(shown, input.expected);
-			}
-			const previous = await store1(known, input.key, input.level, undefined, context);
-			if (previous) await afterWrite(known, input.key, context);
-			const resolved = resolveFrom(
-				known,
-				input.key,
-				await storedFor(known, input.key, context),
-				inProject
-			);
-			return kit.success(
-				{ value: resolved.value, from: resolved.from },
-				previous
-					? {
-							undoCommand: 'setting-set',
-							undoArgs: {
-								section: known.fullId,
-								key: input.key,
-								level: input.level,
-								value: previous.value,
-							},
-						}
-					: {}
-			);
-		},
+		handler: (input, context) =>
+			serial(async () => {
+				const found = lookup(context, input.section, input.key);
+				if ('success' in found) return found;
+				const { known } = found;
+				const refused =
+					writeRefusal('setting-reset', known, input.key, input.level, context) ??
+					projectRefusal(known, input.level, context);
+				if (refused) return refused;
+				const inProject = (context as KernelFieldContext).scope?.project !== undefined;
+				const before = await storedFor(known, input.key, context);
+				if (input.expected !== undefined) {
+					const shown = resolveFrom(known, input.key, before, inProject, input.level).value;
+					if (!sameValue(shown, input.expected)) return conflict(shown, input.expected);
+				}
+				const previous = await store1(known, input.key, input.level, undefined, context);
+				if (previous) await afterWrite(known, input.key, context);
+				const after = await storedFor(known, input.key, context);
+				const resolved = resolveFrom(known, input.key, after, inProject);
+				const shown = resolveFrom(known, input.key, after, inProject, input.level).value;
+				return kit.success(
+					structuredClone({ value: resolved.value, from: resolved.from }),
+					previous
+						? {
+								undoCommand: 'setting-set',
+								undoArgs: {
+									section: known.fullId,
+									key: input.key,
+									level: input.level,
+									value: previous.value,
+									expected: shown,
+								},
+							}
+						: {}
+				);
+			}),
 	});
+
+	/** `appearance-set`'s and the alias's write, serialized with the `setting-*` writes. */
+	async function writeAppearance(
+		patch: Partial<AppearanceStateV0>,
+		context: CommandContext
+	): Promise<void> {
+		const person = personKeyOf(context);
+		// Signed out in `provider` mode: the profile's `.last` alone, never the `~signed-out` record (3.6).
+		if (deps.provider && person === undefined) {
+			const last = { ...deps.state.appearance(), ...patch };
+			const value = { theme: last.theme, density: last.density };
+			deps.state.setLastAppearance(value);
+			const held = await store.get(SETTINGS, APPEARANCE_LAST_ID).catch(() => null);
+			const row = { category: 'settings', value };
+			if (held) await store.update(SETTINGS, APPEARANCE_LAST_ID, row);
+			else await store.create(SETTINGS, { id: APPEARANCE_LAST_ID, ...row });
+			return;
+		}
+		const known = SHELL_SECTIONS[0] as KnownSectionV1;
+		const writer = writerOf(context.actor, person ?? 'local');
+		const id = deps.recordId(person);
+		const record = await readRecord(id);
+		const section = record[known.fullId] ?? {};
+		for (const [key, value] of Object.entries(patch)) {
+			if (value === undefined) continue;
+			section[key] = { value, updatedAt: kit.callNow(context), updatedBy: writer };
+		}
+		record[known.fullId] = section;
+		await writeRecord(id, record, kit.callNow(context));
+		await afterWrite(known, 'theme', context);
+	}
 
 	return {
 		commands: [
@@ -932,32 +1046,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 			settingReset,
 		] as unknown as ZodCommandDefinition[],
 		sections,
-		async writeAppearance(patch, context) {
-			const person = personKeyOf(context);
-			// Signed out in `provider` mode: the profile's `.last` alone, never the `~signed-out` record (3.6).
-			if (deps.provider && person === undefined) {
-				const last = { ...deps.state.appearance(), ...patch };
-				const value = { theme: last.theme, density: last.density };
-				deps.state.setLastAppearance(value);
-				const held = await store.get(SETTINGS, APPEARANCE_LAST_ID).catch(() => null);
-				const row = { category: 'settings', value };
-				if (held) await store.update(SETTINGS, APPEARANCE_LAST_ID, row);
-				else await store.create(SETTINGS, { id: APPEARANCE_LAST_ID, ...row });
-				return;
-			}
-			const known = SHELL_SECTIONS[0] as KnownSectionV1;
-			const writer = writerOf(context.actor, person ?? 'local');
-			const id = deps.recordId(person);
-			const record = structuredClone(await readRecord(id));
-			const section = record[known.fullId] ?? {};
-			for (const [key, value] of Object.entries(patch)) {
-				if (value === undefined) continue;
-				section[key] = { value, updatedAt: kit.callNow(context), updatedBy: writer };
-			}
-			record[known.fullId] = section;
-			await writeRecord(id, record, kit.callNow(context));
-			await afterWrite(known, 'theme', context);
-		},
+		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);
@@ -965,11 +1054,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 			if (id === undefined) {
 				// Signed out in `provider` mode: no one's own appearance; the page paints `.last` (3.6).
 				following = undefined;
+				painting++;
 				deps.state.setOwnAppearance({});
 				return;
 			}
-			// Another tab may have written the next person's record since this one read it.
-			records.delete(id);
 			await applyAppearance();
 		},
 		async migrate(run) {
@@ -984,14 +1072,21 @@ export function createSettings(deps: SettingsDeps): Settings {
 			for (const key of ['theme', 'density'] as const) {
 				const value = legacy[key];
 				if (value === undefined || own[key]) continue;
-				await run('setting-set', {
+				const moved = await run('setting-set', {
 					section: 'loam.appearance',
 					key,
 					value,
 					level: 'person',
 					migrated: true,
 				});
+				// A refused move keeps the old record, which the next stage B moves again (the review's I2).
+				if (!moved.success) return;
 			}
+			// The old record goes only once every key it held is stored for the same person (the second review's D).
+			if (deps.person() !== person) return;
+			const stored = (await readRecord(id))['loam.appearance'] ?? {};
+			if ((['theme', 'density'] as const).some((key) => legacy[key] !== undefined && !stored[key]))
+				return;
 			deps.state.dropLegacyAppearance();
 			await store.remove(SETTINGS, 'loam.appearance').catch(() => undefined);
 		},

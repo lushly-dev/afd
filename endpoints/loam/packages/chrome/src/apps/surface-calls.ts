@@ -80,3 +80,40 @@ export function surfaceCalls(
 		},
 	};
 }
+
+/**
+ * The sections a change names that `manifest`'s app hears (phase 4 specification, 3.8): only with the `settings` grant,
+ * and only the sections it declares itself, by full id.
+ */
+export function settingsHeard(
+	manifest: AppPortV2['manifest'] | undefined,
+	sections: readonly string[]
+): string[] {
+	if (!manifest?.grants?.some((grant) => grant.name === 'settings')) return [];
+	const own = new Set(
+		((manifest.ui?.settings ?? []) as Array<{ id: string }>).map(
+			(section) => `${manifest.plugin.id}.${section.id}`
+		)
+	);
+	return sections.filter((section) => own.has(section));
+}
+
+/**
+ * Tell each surface its app's sections changed (3.8): a native surface's mount calls its element's `settingsChanged`,
+ * a view's frame sends `host-context-changed` with `dev.loam/settingsChanged`. One surface that throws stops no other.
+ */
+export function deliverSettings(surfaces: Iterable<unknown>, sections: readonly string[]): number {
+	if (sections.length === 0) return 0;
+	let told = 0;
+	for (const surface of surfaces) {
+		const target = surface as { settingsChanged?(changed: string[]): void };
+		if (typeof target?.settingsChanged !== 'function') continue;
+		try {
+			target.settingsChanged([...sections]);
+			told++;
+		} catch (cause) {
+			(globalThis as { reportError?(error: unknown): void }).reportError?.(cause);
+		}
+	}
+	return told;
+}

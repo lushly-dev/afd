@@ -4,13 +4,16 @@
  * over (P4-E3) is in `settings-appearance.test.ts`; that settings grant nothing (P4-E2) in `scope/persona-sweep.test.ts`.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { type CommandResult, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { IdentityV1, ManifestV2, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
-import { afterEach, describe, expect, it } from 'vitest';
+import { MemoryAdapter } from '@lushly-dev/local-db';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createKernel } from '../kernel.js';
 import type { MembershipV1 } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace } from '../scope/fixtures.js';
-import { createFixturePorts, replayKernel } from '../testing.js';
+import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
 import type { LoamKernelV5, WorkspaceV1 } from '../types.js';
 import { SETTING_TABLE } from './settings.js';
 
@@ -59,11 +62,14 @@ const keys = (properties: Record<string, unknown>) => ({
 	additionalProperties: false,
 });
 
-/** Over 16 KiB with its defaults alone, so any write of it is `SETTING_TOO_LARGE`. */
+/**
+ * Just under 16 KiB with its defaults (the manifest refuses a section whose defaults alone are over), so a long
+ * value of one key is `SETTING_TOO_LARGE`.
+ */
 const BIG = Object.fromEntries(
-	Array.from({ length: 18 }, (_, index) => [
+	Array.from({ length: 19 }, (_, index) => [
 		`k${index}`,
-		{ type: 'string', title: `K${index}`, maxLength: 1000, default: 'x'.repeat(990) },
+		{ type: 'string', title: `K${index}`, maxLength: 1000, default: 'x'.repeat(850) },
 	])
 );
 
@@ -86,6 +92,21 @@ const GREET = manifestOf(
 			schema: keys({ board: { type: 'boolean', title: 'Board', default: false } }),
 		},
 		{ id: 'big', title: 'Big', levels: ['workspace'], schema: keys(BIG) },
+		{
+			id: 'lists',
+			title: 'Lists',
+			levels: ['workspace'],
+			schema: keys({
+				tags: {
+					type: 'array',
+					title: 'Tags',
+					items: { type: 'string', enum: ['a', 'b', 'c'] },
+					maxItems: 3,
+					uniqueItems: true,
+					default: ['a'],
+				},
+			}),
+		},
 	],
 	['greet-read', 'greet-section', 'greet-peek', 'greet-write']
 );
@@ -352,7 +373,7 @@ describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 		const stale = await write('Three', 'One');
 		expect(stale.error).toMatchObject({
 			code: 'SETTING_CONFLICT',
-			retryable: false,
+			retryable: true,
 			details: { current: 'Two', expected: 'One' },
 		});
 		expect(stale.error?.suggestion).toBe('Read the value again with setting-get, then decide');
@@ -376,7 +397,7 @@ describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 		const result = await kernel.call('setting-set', {
 			section: 'greet.big',
 			key: 'k0',
-			value: 'short',
+			value: 'y'.repeat(1000),
 			level: 'workspace',
 		});
 		expect(result.error).toMatchObject({
@@ -614,7 +635,7 @@ describe('the settings grant (3.8)', () => {
 			.appPort('greet')
 			.call<{ values: Array<{ section: string }> }>('setting-list', {});
 		expect(new Set(listed.data?.values.map((row) => row.section))).toEqual(
-			new Set(['greet.general', 'greet.project', 'greet.big'])
+			new Set(['greet.general', 'greet.project', 'greet.big', 'greet.lists'])
 		);
 		const shell = await kernel
 			.appPort('greet')
@@ -624,29 +645,45 @@ describe('the settings grant (3.8)', () => {
 	});
 });
 
+const PROVIDER: IdentityV1 = {
+	mode: 'provider',
+	organization: 'acme',
+	path: 'api/auth',
+	methods: ['passkey', 'password'],
+};
+const OLU_OWNER: MembershipV1 = {
+	mode: 'provider',
+	members: new Map([['mock-user-olu@example.com', 'owner']]),
+	digest: 'd1',
+};
+const hostedOf = (apps: boolean): ProjectionV4 =>
+	({
+		...deployment(),
+		...(apps ? {} : { apps: [] }),
+		deployment_version: 4,
+		generation: 'hosted',
+		host: { kind: 'hosted', kernel: 'api/kernel' },
+	}) as ProjectionV4;
+
+/** A workspace write and its reset, refused as section 13 has it, with nothing written. */
+async function expectSharedRefused(kernel: LoamKernelV5): Promise<void> {
+	for (const command of ['setting-set', 'setting-reset']) {
+		const refused = await kernel.call(command, {
+			section: 'loam.documents',
+			key: 'trashDays',
+			...(command === 'setting-set' ? { value: 3 } : {}),
+			level: 'workspace',
+		});
+		expect(refused.error?.code, command).toBe('SHARED_RECORD_UNAVAILABLE');
+	}
+}
+
 describe('P4-E17: a hosted provider deployment refuses shared writes (section 13)', () => {
 	it('refuses workspace and project writes, journaled, changing no table; a person-level write succeeds', async () => {
-		const identity: IdentityV1 = {
-			mode: 'provider',
-			organization: 'acme',
-			path: 'api/auth',
-			methods: ['passkey', 'password'],
-		};
-		const membership: MembershipV1 = {
-			mode: 'provider',
-			members: new Map([['mock-user-olu@example.com', 'owner']]),
-			digest: 'd1',
-		};
-		const hosted: ProjectionV4 = {
-			...deployment(),
-			deployment_version: 4,
-			generation: 'hosted',
-			host: { kind: 'hosted', kernel: 'api/kernel' },
-		} as ProjectionV4;
 		const { kernel, journal, store } = await workspace({
-			identity,
-			membership,
-			deployment: hosted,
+			identity: PROVIDER,
+			membership: OLU_OWNER,
+			deployment: hostedOf(true),
 		});
 		await kernel.call('auth-sign-in', {
 			method: 'credentials',
@@ -657,14 +694,16 @@ describe('P4-E17: a hosted provider deployment refuses shared writes (section 13
 		const atlas = { scope: { workspace: 'personal', project: made.data?.id as string } };
 		const before = JSON.stringify((await store.list(SETTING_TABLE)).data);
 		const workspaceRow = JSON.stringify((await kernel.call('workspace-get')).data);
-		for (const [command, level, options] of [
+		const asked = [
 			['setting-set', 'workspace', {}],
 			['setting-reset', 'workspace', {}],
 			['setting-set', 'project', atlas],
 			['setting-reset', 'project', atlas],
-		] as const) {
+		] as const;
+		const start = (await journal.read()).length;
+		for (const [command, level, options] of asked) {
 			// `loam.documents` is workspace-only; the project's case uses an app's key.
-			const asked = await kernel.call(
+			const refused = await kernel.call(
 				command,
 				{
 					...(level === 'project'
@@ -675,19 +714,25 @@ describe('P4-E17: a hosted provider deployment refuses shared writes (section 13
 				},
 				options
 			);
-			expect(asked.error, `${command} at ${level}`).toMatchObject({
+			expect(refused.error, `${command} at ${level}`).toMatchObject({
 				code: 'SHARED_RECORD_UNAVAILABLE',
 				suggestion: 'Set it in a local deployment, or wait for the release that serves it',
 			});
 		}
 		expect(JSON.stringify((await store.list(SETTING_TABLE)).data)).toBe(before);
 		expect(JSON.stringify((await kernel.call('workspace-get')).data)).toBe(workspaceRow);
-		const journaled = (await journal.read()).filter(
-			(entry) =>
-				(entry.command === 'setting-set' || entry.command === 'setting-reset') &&
-				(entry.result as { error?: { code?: string } }).error?.code === 'SHARED_RECORD_UNAVAILABLE'
+		// Each refusal journaled, exactly: by command and level, in order, and nothing else of `setting-*`.
+		const journaled = (await journal.read())
+			.slice(start)
+			.filter((entry) => entry.command.startsWith('setting-'))
+			.map((entry) => ({
+				command: entry.command,
+				level: (entry.input as { level: string }).level,
+				code: (entry.result as { error?: { code?: string } }).error?.code,
+			}));
+		expect(journaled).toEqual(
+			asked.map(([command, level]) => ({ command, level, code: 'SHARED_RECORD_UNAVAILABLE' }))
 		);
-		expect(journaled.length).toBeGreaterThanOrEqual(4);
 		// A person's own value is theirs, hosted or not.
 		expect(
 			(
@@ -699,6 +744,85 @@ describe('P4-E17: a hosted provider deployment refuses shared writes (section 13
 				})
 			).data
 		).toMatchObject({ value: 'dark', from: 'person' });
+		// The agent interface gets its hand-off first, as section 13's third obligation has it.
+		const agent = await kernel.agent.call('setting-set', {
+			section: 'loam.documents',
+			key: 'trashDays',
+			value: 3,
+			level: 'workspace',
+		});
+		expect(agent.error?.code).toBe('HUMAN_REQUIRED');
+	});
+
+	it('refuses them on a hosted projection that lists no app', async () => {
+		const { kernel } = await workspace({
+			identity: PROVIDER,
+			membership: OLU_OWNER,
+			deployment: hostedOf(false),
+		});
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'olu@example.com',
+			password: 'x',
+		});
+		await expectSharedRefused(kernel);
+	});
+
+	it('refuses them, failing closed, when no projection names the host: a failed app load', async () => {
+		const auth = new MockAuthAdapter();
+		auth._setUser({ id: 'mock-user-olu@example.com', email: 'olu@example.com', name: 'olu' });
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			identity: PROVIDER,
+			membership: OLU_OWNER,
+			boot: {
+				generation: 'g',
+				workspace: { id: 'personal', name: 'Personal' },
+				apps: [
+					{
+						instance: 'greet',
+						app: 'greet',
+						title: 'Greet',
+						kind: 'native',
+						icon: 'system/folder',
+						order: 100,
+						scopeLevels: ['workspace'],
+						rail: true,
+						parts: [],
+						layout: {},
+						refusal: null,
+					},
+				],
+				identity: PROVIDER,
+			} as never,
+			appsLoader: () => Promise.reject(new Error('The projection could not be read')),
+		});
+		kernels.push(kernel);
+		vi.stubGlobal('reportError', vi.fn());
+		await kernel.startApps();
+		vi.unstubAllGlobals();
+		await expectSharedRefused(kernel);
+	});
+
+	it('lets a static provider deployment write them, as phase 3 runs locally', async () => {
+		const { kernel } = await workspace({ identity: PROVIDER, membership: OLU_OWNER });
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'olu@example.com',
+			password: 'x',
+		});
+		const set = await kernel.call('setting-set', {
+			section: 'loam.documents',
+			key: 'trashDays',
+			value: 3,
+			level: 'workspace',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
 	});
 });
 
@@ -740,5 +864,200 @@ describe('P4-E15, in part: the settings commands replay', () => {
 			ports: createFixturePorts(packages()) as never,
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});
+
+describe("the review's findings", () => {
+	it('B1: an app named `loam` is refused at load, so no app reads the shell sections', async () => {
+		const LOAM = manifestOf('loam', ['settings'], [], ['loam-read']);
+		const { kernel } = await createScopedWorkspace({
+			deployment: {
+				...deployment(),
+				apps: [{ instance: 'loam', app: 'loam', package: 'fixtures/loam/' }],
+			} as ProjectionV3,
+			ports: createFixturePorts({
+				'fixtures/loam/': {
+					manifest: LOAM,
+					definition: defineApp({
+						sdk: 1,
+						handlers: {
+							'loam-read': (async (_input: unknown, context: AppCallContextV1) =>
+								asResult(
+									await context.client.call('setting-get', {
+										section: 'loam.appearance',
+										key: 'theme',
+									})
+								)) as never,
+						},
+					}),
+				},
+			}) as never,
+		});
+		kernels.push(kernel);
+		const app = await kernel.call<{ state: string; error?: { code: string } }>('app-get', {
+			instance: 'loam',
+		});
+		expect(app.data?.state).toBe('refused');
+		expect(app.data?.error?.code).toBe('MANIFEST_ID_RESERVED');
+		expect((await kernel.call('loam-read')).success).toBe(false);
+	});
+
+	it('B1: ownership is the declaring app, never a prefix of the id', async () => {
+		const { kernel } = await workspace();
+		await kernel.call('app-open', { instance: 'greet' });
+		const port = kernel.appPort('greet');
+		for (const section of ['loam.appearance', 'loam.documents', 'other.prefs']) {
+			const read = await port.call('setting-list', { section });
+			expect(read.error?.code, section).toBe('SETTING_NOT_OWNED');
+		}
+		const own = await port.call<{ values: Array<{ section: string }> }>('setting-list', {
+			section: 'greet.general',
+		});
+		expect(own.data?.values.map((row) => row.section)).toEqual(['greet.general']);
+	});
+
+	it("I1: writable reads the project's refusal: archived, or an app the project does not open", async () => {
+		const { kernel, scopes } = await workspace();
+		await kernel.call('project-archive', { project: 'atlas' });
+		const listed = await kernel.call<{
+			values: Array<{ key: string; writable: boolean; reason?: string }>;
+		}>('setting-list', { section: 'greet.general', level: 'project' }, { scope: scopes.atlas });
+		expect(listed.data?.values[0]).toMatchObject({ writable: false, reason: 'PROJECT_ARCHIVED' });
+	});
+
+	it('I3: a named section over the budget is told to name a key', async () => {
+		const { kernel } = await workspace();
+		const over = await kernel.call('setting-schema-get', { section: 'greet.big' });
+		expect(over.error).toMatchObject({
+			code: 'OUTPUT_BUDGET_EXCEEDED',
+			suggestion: 'Name a key: setting-schema-get { section, key }',
+		});
+		expect(
+			(await kernel.call('setting-schema-get', { section: 'greet.big', key: 'k0' })).success
+		).toBe(true);
+	});
+
+	it("I7: setting-reset's undo carries expected, the value the level shows after the reset", async () => {
+		const { kernel } = await workspace();
+		await kernel.call('setting-set', {
+			section: 'greet.general',
+			key: 'greeting',
+			value: 'Team',
+			level: 'workspace',
+		});
+		const reset = await kernel.call('setting-reset', {
+			section: 'greet.general',
+			key: 'greeting',
+			level: 'workspace',
+		});
+		expect(reset).toMatchObject({
+			undoCommand: 'setting-set',
+			undoArgs: { value: 'Team', expected: 'Hello', level: 'workspace' },
+		});
+		expect((await kernel.call('setting-set', reset.undoArgs as Data)).data).toMatchObject({
+			value: 'Team',
+		});
+	});
+});
+
+describe("the second review's findings", () => {
+	it('A: a read returns a detached copy: changing it changes no later read', async () => {
+		const { kernel } = await workspace();
+		const first = await kernel.call<{ value: string[] }>('setting-get', {
+			section: 'greet.lists',
+			key: 'tags',
+		});
+		first.data?.value.push('b');
+		const schema = await kernel.call<{
+			sections: Array<{ schema: { properties: Record<string, { default: unknown }> } }>;
+		}>('setting-schema-get', { section: 'greet.lists' });
+		const shown = schema.data?.sections[0]?.schema.properties.tags?.default as string[];
+		shown.push('c');
+		const listed = await kernel.call<{ values: Array<{ value: string[] }> }>('setting-list', {
+			section: 'greet.lists',
+		});
+		listed.data?.values[0]?.value.push('c');
+		expect(
+			(
+				await kernel.call<{ value: string[] }>('setting-get', {
+					section: 'greet.lists',
+					key: 'tags',
+				})
+			).data?.value
+		).toEqual(['a']);
+		const again = await kernel.call<{
+			sections: Array<{ schema: { properties: Record<string, { default: unknown }> } }>;
+		}>('setting-schema-get', { section: 'greet.lists' });
+		expect(again.data?.sections[0]?.schema.properties.tags?.default).toEqual(['a']);
+		await kernel.call('setting-set', {
+			section: 'greet.lists',
+			key: 'tags',
+			value: ['b'],
+			level: 'workspace',
+		});
+		const stored = await kernel.call<{ value: string[] }>('setting-get', {
+			section: 'greet.lists',
+			key: 'tags',
+		});
+		stored.data?.value.push('a');
+		expect(
+			(
+				await kernel.call<{ value: string[] }>('setting-get', {
+					section: 'greet.lists',
+					key: 'tags',
+				})
+			).data?.value
+		).toEqual(['b']);
+	});
+
+	it('B: overlapping writes with the same expected: one writes, the other is SETTING_CONFLICT, retryable', async () => {
+		const { kernel } = await workspace();
+		const write = (value: string) =>
+			kernel.call('setting-set', {
+				section: 'greet.general',
+				key: 'greeting',
+				value,
+				level: 'workspace',
+				expected: 'Hello',
+			});
+		const answers = await Promise.all([write('One'), write('Two')]);
+		expect(answers.map((answer) => answer.success)).toEqual([true, false]);
+		expect(answers[1]?.error).toMatchObject({
+			code: 'SETTING_CONFLICT',
+			retryable: true,
+			details: { current: 'One', expected: 'Hello' },
+		});
+		expect(
+			(await kernel.call<Data>('setting-get', { section: 'greet.general', key: 'greeting' })).data
+		).toMatchObject({ value: 'One' });
+	});
+
+	it('C: trashDays and the workspace row are written in one store batch', async () => {
+		const { kernel, store } = await workspace();
+		const batch = vi.spyOn(store, 'batch');
+		await kernel.call('setting-set', {
+			section: 'loam.documents',
+			key: 'trashDays',
+			value: 9,
+			level: 'workspace',
+		});
+		const paths = batch.mock.calls.map((call) =>
+			(call[0] as Array<{ path: string }>).map((operation) => operation.path)
+		);
+		expect(paths).toContainEqual([
+			`/setting/${encodeURIComponent('loam.documents/workspace')}`,
+			'/workspace/personal',
+		]);
+		await kernel.call('setting-reset', {
+			section: 'loam.documents',
+			key: 'trashDays',
+			level: 'workspace',
+		});
+		const last = batch.mock.calls.at(-1)?.[0] as Array<{ method: string; path: string }>;
+		expect(last.map((operation) => [operation.method, operation.path])).toEqual([
+			['DELETE', `/setting/${encodeURIComponent('loam.documents/workspace')}`],
+			['PUT', '/workspace/personal'],
+		]);
+		expect((await kernel.call<WorkspaceV1>('workspace-get')).data?.trashDays).toBe(30);
 	});
 });

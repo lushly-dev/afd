@@ -90,6 +90,11 @@ export class LoamMount extends HTMLElement {
 		if (this.#surface) this.#surface.selectionLevel = level;
 	}
 
+	/** The app's own sections changed (phase 4 specification, 3.8): its element hears it, if it listens. */
+	settingsChanged(sections: string[]): void {
+		this.#surface?.settingsChanged?.(sections);
+	}
+
 	/** A change of route is a property change: it recreates nothing (7.6). */
 	set route(route: string) {
 		if (this.#options) this.#options.route = route;

@@ -7,7 +7,6 @@
 import { checkSettingValue, type SettingSectionV1 } from '@lushly-dev/loam-manifest';
 import { describe, expect, it } from 'vitest';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
-import { personalRecordId } from '../scope/personal.js';
 import { HUMAN_COMMANDS } from './identity-commands.js';
 import { PERSONA_SECTIONS } from './persona.js';
 import { needsMembershipRead } from './session-settle.js';
@@ -206,11 +205,5 @@ describe("phase 3's lists, as phase 4 adds to them (A-P3-1)", () => {
 	it("holds the appearance section's literals equal to first paint's", () => {
 		expect(THEMES).toEqual([...APPEARANCE_THEMES]);
 		expect(DENSITIES).toEqual([...APPEARANCE_DENSITIES]);
-	});
-
-	it("keys the person's record as personalRecordId does, in late/'s literal", () => {
-		// `late/index.ts` writes `loam.settings~<person>` in `provider` mode without importing first paint's function.
-		expect(personalRecordId('loam.settings', 'mock-user-ada')).toBe('loam.settings~mock-user-ada');
-		expect(personalRecordId('loam.settings', undefined)).toBe('loam.settings~signed-out');
 	});
 });

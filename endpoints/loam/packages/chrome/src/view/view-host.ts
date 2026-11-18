@@ -23,6 +23,8 @@ export interface ViewHostContext {
 	'dev.loam/route'?: string;
 	/** A document's editor or embed: the document it renders (documents specification, 5.6). */
 	'dev.loam/document'?: DocumentRefV1;
+	/** The app's own settings sections that changed, by full id (phase 4 specification, 3.8). */
+	'dev.loam/settingsChanged'?: string[];
 }
 
 export interface ViewHostOptions {

@@ -1,28 +1,34 @@
 /**
- * P4-E2's units (phase 4 specification, section 2 and 19): settings grant nothing. Phase 3's E2 sweep (`persona-sweep`)
- * on twin stores whose one person differs only in settings: in one twin their own theme is light, and the `setting`
- * table holds a workspace row and a project row; in the other their theme is the default's, and the table is empty. The person's theme differs
- * until the sweep's own `appearance-set`, which sets the same theme in both, and the shared rows throughout. Every registered command,
- * through a person and through an agent, in both modes, must answer with equal `ok`, `error.code` and `data`, but the
- * `data` of section 19's exemptions, which read settings or what a setting sets; their `ok` and `error.code` still
- * must. No setting is an input to `decideAccess`, line 0, the grants, the auth gate or the owner and human checks.
+ * P4-E2's units (phase 4 specification, section 2 and 19): settings grant nothing. "The type and the scan", as P3-E2's,
+ * and phase 3's E2 sweep (`persona-sweep`) on twin stores whose one person differs only in settings: in one twin their
+ * own theme is light, an app's declared section holds a workspace value and a project value, `loam.documents.trashDays`
+ * is 7, and the `setting` table also holds stray rows of a section no app declares; in the other each declared value
+ * is written at its default. The theme differs until the sweep's own `appearance-set`, which sets the same theme in
+ * both, and the rest throughout. Every registered command, through a person and through an agent, in both modes, must
+ * answer with equal `ok`, `error.code` and `data`, but the `data` of section 19's exemptions, which read settings or
+ * what a setting sets; their `ok` and `error.code` still must. Two answers show a setting's value, and only that is
+ * left out of their comparison: `view-state-list`'s `loam.appearance` alias, and `workspace-get`'s `trashDays`.
  *
  * Not a hand-kept list: a command with no decided input in `call-inputs.ts` fails `call-scope.test.ts`.
  */
 
-import type { IdentityV1 } from '@lushly-dev/loam-manifest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import type { IdentityV1, ManifestV2 } from '@lushly-dev/loam-manifest';
+import { defineApp, success } from '@lushly-dev/loam-sdk';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import {
+	createFixturePorts,
 	createScopedWorkspace,
 	documentsDeployment,
-	documentsPorts,
+	PROBE_DOCUMENTS_DEFINITION,
+	PROBE_DOCUMENTS_MANIFEST,
 	type ScopedWorkspace,
 } from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
-import type { MembershipV1 } from './access.js';
+import type { AccessInputV2, MembershipV1 } from './access.js';
 import { appInput, filled, NOT_CALLED, SHELL_INPUTS } from './call-inputs.js';
-import { SOMEONE_ELSE } from './fixtures.js';
+import { SOMEONE_ELSE, scopedPackages } from './fixtures.js';
 import type { ScopeV1 } from './records.js';
 
 const kernels: LoamKernelV5[] = [];
@@ -46,8 +52,78 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 	'appearance-get',
 	'app-list',
 	'app-get',
-	'view-state-list',
 ]);
+
+/** An app that declares a section at workspace and project level, and one command that reads nothing of it. */
+const PREFS: ManifestV2 = {
+	manifest_version: 2,
+	protocol: 1,
+	plugin: {
+		id: 'prefs',
+		title: 'Prefs',
+		version: '1.0.0',
+		description: 'A fixture whose section the sweep sets in one twin.',
+		kind: 'native',
+		domains: ['prefs'],
+	},
+	native: { entry: 'dist/native.js' },
+	app: { scope_levels: ['workspace', 'project'] },
+	grants: [{ name: 'settings', reason: 'Reads its own section.' }],
+	commands: [
+		{
+			name: 'prefs-ping',
+			title: 'Ping',
+			description: 'Answers, reading nothing.',
+			effects: ['inspect'],
+			input_schema: { type: 'object', properties: {}, additionalProperties: false },
+		},
+	],
+	ui: {
+		surfaces: { main: { element: 'prefs-main' } },
+		settings: [
+			{
+				id: 'general',
+				title: 'General',
+				levels: ['workspace', 'project'],
+				schema: {
+					type: 'object',
+					properties: {
+						mode: {
+							type: 'string',
+							title: 'Mode',
+							enum: ['solo', 'team', 'room'],
+							default: 'solo',
+						},
+					},
+					additionalProperties: false,
+				},
+			},
+		],
+	},
+} as unknown as ManifestV2;
+
+const sweepDeployment = () => {
+	const base = documentsDeployment();
+	return {
+		...base,
+		apps: [...base.apps, { instance: 'prefs', app: 'prefs', package: 'fixtures/prefs/' }],
+	};
+};
+const sweepPorts = () =>
+	createFixturePorts({
+		...scopedPackages(),
+		'fixtures/probe/': {
+			manifest: PROBE_DOCUMENTS_MANIFEST,
+			definition: PROBE_DOCUMENTS_DEFINITION,
+		},
+		'fixtures/prefs/': {
+			manifest: PREFS,
+			definition: defineApp({
+				sdk: 1,
+				handlers: { 'prefs-ping': (async () => success({})) as never },
+			}),
+		},
+	});
 
 /** The sweep's inputs: a sign-in names the twins' one person. */
 const SWEEP_INPUTS: Readonly<Record<string, unknown>> = {
@@ -85,8 +161,8 @@ const signIn = (twin: ScopedWorkspace) =>
 /** One twin: the person's document, link and tab in Citadel; with `set`, their settings and the shared rows. */
 async function twin(set: boolean, mode: Mode): Promise<Twin> {
 	const workspace = await createScopedWorkspace({
-		deployment: documentsDeployment(),
-		ports: documentsPorts(),
+		deployment: sweepDeployment(),
+		ports: sweepPorts(),
 		...(mode === 'provider' ? { identity: PROVIDER, membership: ACME, empty: true } : {}),
 	});
 	const { kernel, store } = workspace;
@@ -114,14 +190,42 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		at
 	);
 	await kernel.call('document-open', { document }, at);
-	// Both twins' person writes their theme, so both kernels' clocks read alike: one light, the other the default's.
-	const written = await kernel.call('setting-set', {
+	// Both twins write the same keys, so both kernels' clocks read alike: one twin a value, the other the default.
+	const write = async (input: Record<string, unknown>, options = {}) => {
+		const written = await kernel.call('setting-set', input, options);
+		expect(written.success, JSON.stringify(written.error)).toBe(true);
+	};
+	await write({
 		section: 'loam.appearance',
 		key: 'theme',
 		value: set ? 'light' : 'system',
 		level: 'person',
 	});
-	expect(written.success, JSON.stringify(written.error)).toBe(true);
+	await write(
+		{ section: 'prefs.general', key: 'mode', value: set ? 'room' : 'solo', level: 'project' },
+		at
+	);
+	// The workspace's values are an owner's: in `provider` mode the sweep's person is no owner, so Olu sets them.
+	if (mode === 'provider') {
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'olu@example.com',
+			password: 'x',
+		});
+	}
+	await write({
+		section: 'prefs.general',
+		key: 'mode',
+		value: set ? 'team' : 'solo',
+		level: 'workspace',
+	});
+	await write({
+		section: 'loam.documents',
+		key: 'trashDays',
+		value: set ? 7 : 30,
+		level: 'workspace',
+	});
+	if (mode === 'provider') await signIn(workspace);
 	if (set) {
 		// Shared rows of a section no app declares now, at both levels: what a stale row could say, it grants nothing.
 		const stamp = { updatedAt: 1, updatedBy: 'mock-user-olu@example.com' };
@@ -167,7 +271,18 @@ function compared(name: string, answer: unknown): unknown {
 					.sort()
 			: DATA_EXEMPT.has(name)
 				? undefined
-				: data;
+				: name === 'view-state-list'
+					? // The `loam.appearance` alias's state is the person's appearance, a setting's value (3.6): only it.
+						{
+							...(data as object),
+							states: (data as { states: Array<{ id: string }> }).states.map((entry) =>
+								entry.id === 'loam.appearance' ? { id: entry.id } : entry
+							),
+						}
+					: name === 'workspace-get'
+						? // `trashDays` is `loam.documents.trashDays` written through (A-P2-2): only it.
+							{ ...(data as object), trashDays: undefined }
+						: data;
 	return JSON.parse(
 		JSON.stringify({ ok: success, code: error?.code, data: held }, (key, value) =>
 			key === 'expiresAt' || key === 'executionTimeMs' || key === 'durationMs' ? undefined : value
@@ -182,11 +297,31 @@ describe('P4-E2: settings grant nothing', () => {
 			const first = await twin(true, mode);
 			const second = await twin(false, mode);
 			expect(first.document).toBe(second.document);
-			// The twins do differ: the first's person paints light, until the sweep's own `appearance-set` (dark in both).
+			// The twins do differ: the first's person paints light, until the sweep's own `appearance-set` (dark in both),
+			// and its declared section and retention differ throughout.
 			const theme = async (held: Twin) =>
 				(await held.kernel.call<{ theme: string }>('appearance-get')).data?.theme;
 			expect(await theme(first)).toBe('light');
 			expect(await theme(second)).toBe('system');
+			const modeOf = async (held: Twin, options = {}) =>
+				(
+					await held.kernel.call<{ value: string }>(
+						'setting-get',
+						{ section: 'prefs.general', key: 'mode' },
+						options
+					)
+				).data?.value;
+			expect([
+				await modeOf(first, { scope: 'workspace' }),
+				await modeOf(second, { scope: 'workspace' }),
+			]).toEqual(['team', 'solo']);
+			expect([
+				await modeOf(first, { scope: first.at }),
+				await modeOf(second, { scope: second.at }),
+			]).toEqual(['room', 'solo']);
+			const days = async (held: Twin) =>
+				(await held.kernel.call<{ trashDays: number }>('workspace-get')).data?.trashDays;
+			expect([await days(first), await days(second)]).toEqual([7, 30]);
 			const commands = first.registries.palette.listCommands();
 			const shell = new Set<string>(SHELL_COMMAND_NAMES);
 			let called = 0;
@@ -215,4 +350,40 @@ describe('P4-E2: settings grant nothing', () => {
 			expect(called).toBe(commands.length - Object.keys(NOT_CALLED).length);
 		}
 	);
+});
+
+describe('P4-E2: the type and the scan (section 19)', () => {
+	it('P4-E2: no setting is a key of the access decision', () => {
+		expectTypeOf<keyof AccessInputV2>().toEqualTypeOf<
+			'actor' | 'scope' | 'project' | 'membership' | 'agent'
+		>();
+	});
+
+	it('P4-E2: no setting is read by the decision, line 0, the gate, the port or the owner and human checks', () => {
+		const read = (path: string) =>
+			readFileSync(new URL(path, import.meta.url), 'utf8')
+				// Comments say what is not an input; only code is scanned.
+				.replace(/\/\*[\s\S]*?\*\//g, '')
+				.replace(/\/\/.*$/gm, '');
+		const sources: Record<string, string> = {
+			'scope/access.ts': read('./access.ts'),
+			'scope/middleware.ts': read('./middleware.ts'),
+			'late/port-refusals.ts': read('../late/port-refusals.ts'),
+			'late/owners.ts': read('../late/owners.ts'),
+			'late/auth-gate.ts': read('../late/auth-gate.ts'),
+			// The port's list names the two commands an app may call with the grant, and nothing else of settings.
+			'late/port-callable.ts': read('../late/port-callable.ts').replace(
+				/'setting-(get|list)'|grants\.has\('settings'\)/g,
+				''
+			),
+		};
+		const identity = read('../late/identity-commands.ts');
+		sources['late/identity-commands.ts humanRequired'] = identity.slice(
+			identity.indexOf('humanRequired(')
+		);
+		for (const [path, source] of Object.entries(sources)) {
+			expect(source.length, path).toBeGreaterThan(0);
+			expect(source, path).not.toMatch(/setting|SETTING_|loam\.settings|resolveSetting/i);
+		}
+	});
 });
