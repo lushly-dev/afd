@@ -4,34 +4,34 @@ export const styles = css`
     :host {
         display: block;
         container-type: inline-size;
-        color: var(--color-text-primary, #18181b);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        color: var(--color-text-primary, #181b1a);
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
 
-        --_surface-page: var(--color-surface-page, #fffefa);
-        --_surface-card: var(--color-surface-card, #faf9f5);
-        --_surface-subtle: var(--color-surface-subtle, #f0efe6);
-        --_surface-selected: var(--color-surface-selected, #ddeadf);
-        --_control-selected-background: var(--color-control-selected-background, #ddeadf);
-        --_control-selected-foreground: var(--color-control-selected-foreground, #244635);
-        --_control-selected-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
-        --_surface-floating: var(--color-surface-floating, #f0efe6);
-        --_text-primary: var(--color-text-primary, #18181b);
-        --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #616775);
-        --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
-        --_error-background: var(--color-state-danger-background, #fbe2e2);
-        --_error-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_error-text: var(--color-state-danger-text, #b42318);
+        --_surface-page: var(--color-surface-page, #f4f0ea);
+        --_surface-card: var(--color-surface-card, #f8f9f3);
+        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
+        --_surface-selected: var(--color-surface-selected, #dfeae3);
+        --_control-selected-background: var(--color-control-selected-background, #badecf);
+        --_control-selected-foreground: var(--color-control-selected-foreground, #2c5e4b);
+        --_control-selected-border: var(--color-control-selected-border, rgba(44, 94, 75, 0.5));
+        --_surface-floating: var(--color-surface-floating, #ffffff);
+        --_text-primary: var(--color-text-primary, #181b1a);
+        --_text-secondary: var(--color-text-secondary, #48534b);
+        --_text-muted: var(--color-text-muted, #5e6460);
+        --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        --_border-strong: var(--color-border-strong, #6b7d6e);
+        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_error-background: var(--color-state-danger-background, #f7e4df);
+        --_error-border: var(--color-state-danger-border, transparent);
+        --_error-text: var(--color-state-danger-text, #c42a1a);
         --_active-cell-ring: var(--violet-data-grid-active-cell-ring, color-mix(in srgb, var(--_focus-ring) 82%, transparent));
         --_active-cell-ring-width: var(--violet-data-grid-active-cell-ring-width, var(--size-focus-ring-width, 2px));
         --_space-inline-sm: var(--space-inline-sm, 4px);
         --_space-inline-md: var(--space-inline-md, 8px);
         --_space-stack-xs: var(--space-stack-xs, 4px);
         --_space-stack-sm: var(--space-stack-sm, 8px);
-        --_radius-md: var(--radius-md, 4px);
-        --_shadow-card: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
+        --_radius-md: var(--radius-md, 8px);
+        --_shadow-card: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
         /* Stacking layers. Declared here rather than inherited: an undefined
            custom property makes the z-index declaration invalid at
            computed-value time, so it is dropped and the element falls back to

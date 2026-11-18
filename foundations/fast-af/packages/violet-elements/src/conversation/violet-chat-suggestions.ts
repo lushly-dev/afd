@@ -30,7 +30,7 @@ const styles = css`
         align-items: center;
         min-block-size: var(--size-target-natural, 32px);
         padding: 0 var(--_space-md);
-        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, rgba(28, 26, 13, 0.18));
+        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, transparent);
         border-radius: var(--_radius-round, 9999px);
         background: var(--color-action-secondary-background, var(--_surface-subtle));
         font-size: var(--_suggestion-font-size);

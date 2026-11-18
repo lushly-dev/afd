@@ -430,7 +430,7 @@ function renderFoundationsOverview(): HTMLElement {
       .foundations {
         display: grid;
         gap: 1.5rem;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
@@ -439,21 +439,21 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 0.9rem;
         padding: 1.5rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         border-radius: 18px;
-        background: var(--color-surface-card, #faf9f5);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
+        background: var(--color-surface-card, #f8f9f3);
+        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .hero {
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.9), transparent 28%),
-          linear-gradient(180deg, var(--color-surface-card, #faf9f5) 0%, var(--color-surface-page, #fffefa) 100%);
+          linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
       }
 
       .eyebrow {
         margin: 0;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
         font-size: 0.78rem;
         font-weight: 700;
         letter-spacing: 0.08em;
@@ -476,7 +476,7 @@ function renderFoundationsOverview(): HTMLElement {
       .token-description,
       .component-why,
       .component-shape {
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
         font-size: 0.98rem;
         line-height: 1.55;
       }
@@ -500,8 +500,8 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.8rem;
         padding: 1rem;
         border-radius: 14px;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .token-grid {
@@ -515,14 +515,14 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.55rem;
         padding: 0.9rem;
         border-radius: 12px;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-page, #fffefa);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .swatch {
         block-size: 3.25rem;
         border-radius: 10px;
-        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        border: 1px solid var(--color-border-strong, #6b7d6e);
       }
 
       .token-header {
@@ -548,18 +548,18 @@ function renderFoundationsOverview(): HTMLElement {
         width: fit-content;
         padding: 0.18rem 0.5rem;
         border-radius: 999px;
-        background: var(--color-surface-subtle, #f0efe6);
-        color: var(--color-text-secondary, #414651);
+        background: var(--color-surface-subtle, #e9e5de);
+        color: var(--color-text-secondary, #48534b);
         font-size: 0.78rem;
       }
 
       .status-chip[data-status="done"] {
-        background: var(--color-surface-selected, #ddeadf);
-        color: var(--color-text-primary, #18181b);
+        background: var(--color-surface-selected, #dfeae3);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .status-chip[data-status="next"] {
-        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        border: 1px solid var(--color-border-strong, #6b7d6e);
       }
 
       .component-list,
@@ -567,7 +567,7 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 0.35rem;
         padding-left: 1rem;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .family-grid {
@@ -740,16 +740,16 @@ function renderAppliedSystem(): HTMLElement {
     <style>
       :host, [data-story="violet-foundations-applied"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-        background: var(--color-surface-page, #fffefa);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .system {
         display: grid;
         gap: 1.5rem;
         padding: 1.25rem;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .hero {
@@ -757,11 +757,11 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.75rem;
         padding: 1.5rem;
         border-radius: 20px;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.92), transparent 26%),
-          linear-gradient(180deg, var(--color-surface-card, #faf9f5) 0%, var(--color-surface-page, #fffefa) 100%);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
+          linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
+        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .eyebrow,
@@ -770,7 +770,7 @@ function renderAppliedSystem(): HTMLElement {
       .field-label,
       .helper,
       .menu-label {
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .eyebrow {
@@ -805,9 +805,9 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.85rem;
         padding: 1rem;
         border-radius: 18px;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
+        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .preview-bar {
@@ -834,16 +834,16 @@ function renderAppliedSystem(): HTMLElement {
         gap: var(--space-inline-sm, 4px);
         min-block-size: 2.5rem;
         padding: 0 1rem;
-        border-radius: var(--radius-md, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
-        color: var(--color-text-primary, #18181b);
+        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
+        color: var(--color-text-primary, #181b1a);
         font: inherit;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #ddeadf);
-        border-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        background: var(--color-surface-selected, #dfeae3);
+        border-color: var(--color-border-strong, #6b7d6e);
       }
 
       .field {
@@ -855,10 +855,10 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: min(100%, 22rem);
         min-block-size: 2.75rem;
         padding: 0 0.95rem;
-        border-radius: var(--radius-md, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-page, #fffefa);
-        color: var(--color-text-primary, #18181b);
+        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-page, #f4f0ea);
+        color: var(--color-text-primary, #181b1a);
         font: inherit;
       }
 
@@ -869,7 +869,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .choice input {
-        accent-color: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
+        accent-color: var(--color-focus-ring, #146ba0);
       }
 
       .switch {
@@ -877,8 +877,8 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 3rem;
         block-size: 1.75rem;
         border-radius: 999px;
-        background: var(--color-surface-selected, #ddeadf);
-        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        background: var(--color-surface-selected, #dfeae3);
+        border: 1px solid var(--color-border-strong, #6b7d6e);
       }
 
       .switch::after {
@@ -889,29 +889,29 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 1.3rem;
         block-size: 1.3rem;
         border-radius: 50%;
-        background: var(--color-surface-card, #faf9f5);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
+        background: var(--color-surface-card, #f8f9f3);
+        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .tab-row {
         padding-block-end: 0.3rem;
-        border-block-end: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        border-block-end: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .tab {
         padding: 0.6rem 0.85rem;
-        border-radius: var(--radius-md, 4px);
-        color: var(--color-text-secondary, #414651);
+        border-radius: var(--radius-md, 8px);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .tab.active {
-        background: var(--color-surface-selected, #ddeadf);
-        color: var(--color-text-primary, #18181b);
+        background: var(--color-surface-selected, #dfeae3);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .slider {
         inline-size: min(100%, 20rem);
-        accent-color: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
+        accent-color: var(--color-focus-ring, #146ba0);
       }
 
       .card h3 {
@@ -920,8 +920,8 @@ function renderAppliedSystem(): HTMLElement {
 
       .menu {
         max-inline-size: 20rem;
-        background: var(--color-surface-floating, #f0efe6);
-        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        background: var(--color-surface-floating, #ffffff);
+        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
       }
 
       .menu-list {
@@ -939,7 +939,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .menu-item.active {
-        background: var(--color-surface-selected, #ddeadf);
+        background: var(--color-surface-selected, #dfeae3);
       }
 
       .grid-frame {
@@ -1085,7 +1085,7 @@ function renderRadiusLab(): HTMLElement {
     <style>
       :host, [data-story="violet-radius-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
         background: #f8f9fa;
         display: block;
@@ -1299,12 +1299,12 @@ function renderRadiusLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .preview-note {
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
         font-size: 0.76rem;
         line-height: 1.4;
       }
@@ -1315,26 +1315,26 @@ function renderRadiusLab(): HTMLElement {
         gap: var(--space-inline-sm, 4px);
         min-block-size: 2.15rem;
         padding: 0 0.8rem;
-        border-radius: var(--radius-md, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
-        color: var(--color-text-primary, #18181b);
+        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
+        color: var(--color-text-primary, #181b1a);
         font: 0.86rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #ddeadf);
-        border-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        background: var(--color-surface-selected, #dfeae3);
+        border-color: var(--color-border-strong, #6b7d6e);
       }
 
       .preview-field {
         inline-size: 8rem;
         min-block-size: 2rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 2px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
-        color: var(--color-text-primary, #18181b);
+        border-radius: var(--radius-sm, 4px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
+        color: var(--color-text-primary, #181b1a);
         font: inherit;
       }
 
@@ -1350,15 +1350,15 @@ function renderRadiusLab(): HTMLElement {
         justify-content: center;
         min-block-size: 1.8rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 2px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-sm, 4px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-page, #f4f0ea);
         font-size: 0.82rem;
       }
 
       .pill-chip {
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-selected, #ddeadf);
+        background: var(--color-surface-selected, #dfeae3);
       }
 
       .round-button {
@@ -1368,9 +1368,9 @@ function renderRadiusLab(): HTMLElement {
         inline-size: 1.9rem;
         block-size: 1.9rem;
         border-radius: var(--radius-round, 9999px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-selected, #ddeadf);
-        color: var(--color-text-primary, #18181b);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-selected, #dfeae3);
+        color: var(--color-text-primary, #181b1a);
         font: 600 0.74rem/1 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
@@ -1395,21 +1395,21 @@ function renderRadiusLab(): HTMLElement {
       .shape-panel,
       .shape-menu {
         padding: 0.85rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .shape-card {
-        border-radius: var(--radius-lg, 6px);
+        border-radius: var(--radius-lg, 12px);
       }
 
       .shape-panel {
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
       }
 
       .shape-menu {
-        border-radius: var(--radius-lg, 6px);
-        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        border-radius: var(--radius-lg, 12px);
+        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
       }
 
       .surface-stack {
@@ -1645,7 +1645,7 @@ function renderSpacingLab(): HTMLElement {
     <style>
       :host, [data-story="violet-spacing-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
         background: #f8f9fa;
         display: block;
@@ -1845,8 +1845,8 @@ function renderSpacingLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .button {
@@ -1855,15 +1855,15 @@ function renderSpacingLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2rem;
         padding: 0 0.75rem;
-        border-radius: var(--radius-md, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        background: var(--color-surface-card, #faf9f5);
-        color: var(--color-text-primary, #18181b);
+        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--color-surface-card, #f8f9f3);
+        color: var(--color-text-primary, #181b1a);
         font: 0.84rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #ddeadf);
+        background: var(--color-surface-selected, #dfeae3);
       }
 
       .inline-row-sm,
@@ -1897,19 +1897,19 @@ function renderSpacingLab(): HTMLElement {
         display: grid;
         padding: 0.85rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .mini-label {
         font: 600 0.72rem/1.25 "IBM Plex Sans", "Segoe UI", sans-serif;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .mini-copy {
         font-size: 0.82rem;
         line-height: 1.4;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .rule {
@@ -2123,7 +2123,7 @@ function renderDensityLab(): HTMLElement {
     <style>
       :host, [data-story="violet-density-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
         background: #f8f9fa;
         display: block;
@@ -2320,8 +2320,8 @@ function renderDensityLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .density-row {
@@ -2329,32 +2329,32 @@ function renderDensityLab(): HTMLElement {
         gap: 0.6rem;
         padding: 0.8rem;
         border: 1px solid rgba(28, 26, 13, 0.08);
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .density-row[data-density="compact"] {
         --violet-target-size: var(--size-target-compact);
         --violet-control-type-size: calc(var(--type-body-md-size, 14px) - 1px);
-        --violet-control-label-size: calc(var(--type-label-sm-size, 12px) - 1px);
+        --violet-control-label-size: calc(var(--type-label-sm-size, 13px) - 1px);
         --violet-control-body-size: calc(var(--type-body-md-size, 14px) - 1px);
-        --violet-control-caption-size: calc(var(--type-caption-xs-size, 11px) - 1px);
+        --violet-control-caption-size: calc(var(--type-caption-xs-size, 12px) - 1px);
       }
 
       .density-row[data-density="natural"] {
         --violet-target-size: var(--size-target-natural);
         --violet-control-type-size: var(--type-body-md-size, 14px);
-        --violet-control-label-size: var(--type-label-sm-size, 12px);
+        --violet-control-label-size: var(--type-label-sm-size, 13px);
         --violet-control-body-size: var(--type-body-md-size, 14px);
-        --violet-control-caption-size: var(--type-caption-xs-size, 11px);
+        --violet-control-caption-size: var(--type-caption-xs-size, 12px);
       }
 
       .density-row[data-density="comfortable"] {
         --violet-target-size: var(--size-target-comfortable);
         --violet-control-type-size: var(--type-body-md-size, 14px);
-        --violet-control-label-size: var(--type-label-sm-size, 12px);
+        --violet-control-label-size: var(--type-label-sm-size, 13px);
         --violet-control-body-size: var(--type-body-md-size, 14px);
-        --violet-control-caption-size: var(--type-caption-xs-size, 11px);
+        --violet-control-caption-size: var(--type-caption-xs-size, 12px);
       }
 
       .density-head {
@@ -2365,7 +2365,7 @@ function renderDensityLab(): HTMLElement {
       }
 
       .density-note {
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
         font-size: 0.85rem;
         line-height: 1.4;
       }
@@ -2381,7 +2381,7 @@ function renderDensityLab(): HTMLElement {
         gap: 0.5rem;
         padding: 0.8rem;
         border: 1px dashed rgba(28, 26, 13, 0.16);
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: rgba(255, 255, 255, 0.55);
       }
 
@@ -2397,8 +2397,8 @@ function renderDensityLab(): HTMLElement {
         min-block-size: 1.7rem;
         padding: 0 0.5rem;
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #f0efe6);
-        color: var(--color-text-secondary, #414651);
+        background: var(--color-surface-subtle, #e9e5de);
+        color: var(--color-text-secondary, #48534b);
         font: 500 0.75rem/1.2 Montserrat, sans-serif;
       }
 
@@ -2625,7 +2625,7 @@ function renderTypographyLab(): HTMLElement {
         --font-family-title: ${fontFamilyDefaults.title};
         --font-family-eyebrow: ${fontFamilyDefaults.eyebrow};
         --font-family-mono: ${fontFamilyDefaults.mono};
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -2837,8 +2837,8 @@ function renderTypographyLab(): HTMLElement {
         gap: var(--space-layout-sm, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .preview-block {
@@ -2846,13 +2846,13 @@ function renderTypographyLab(): HTMLElement {
         gap: var(--space-stack-xs, 4px);
         padding: 0.85rem;
         border: 1px solid #e6e9ef;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .type-sample {
         margin: 0;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .type-caption {
@@ -2860,7 +2860,7 @@ function renderTypographyLab(): HTMLElement {
         font-size: var(--type-caption-xs-size);
         line-height: var(--type-caption-xs-line);
         font-weight: var(--type-caption-xs-weight);
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
         text-transform: uppercase;
         letter-spacing: 0.14em;
       }
@@ -2902,7 +2902,7 @@ function renderTypographyLab(): HTMLElement {
         font-size: var(--type-label-sm-size);
         line-height: var(--type-label-sm-line);
         font-weight: var(--weight-medium, 500);
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .meta-row {
@@ -2917,8 +2917,8 @@ function renderTypographyLab(): HTMLElement {
         padding: 0.2rem 0.45rem;
         border: 1px solid #d8dee8;
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #f0efe6);
-        color: var(--color-text-secondary, #414651);
+        background: var(--color-surface-subtle, #e9e5de);
+        color: var(--color-text-secondary, #48534b);
         font-family: var(--font-family-mono);
         font-size: var(--type-caption-xs-size);
         line-height: var(--type-caption-xs-line);
@@ -2929,8 +2929,8 @@ function renderTypographyLab(): HTMLElement {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-subtle, #f0efe6);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-subtle, #e9e5de);
       }
 
       .mono-code {
@@ -2939,7 +2939,7 @@ function renderTypographyLab(): HTMLElement {
         line-height: var(--type-caption-xs-line);
         font-weight: var(--weight-medium, 500);
         white-space: pre-wrap;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       @container (min-width: 56rem) {
@@ -3154,7 +3154,7 @@ function renderSurfaceLab(): HTMLElement {
     <style>
       :host, [data-story="violet-surface-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
         background: #ffffff;
         display: block;
@@ -3373,8 +3373,8 @@ function renderSurfaceLab(): HTMLElement {
         gap: var(--space-stack-sm, 8px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .surface-card {
@@ -3382,46 +3382,46 @@ function renderSurfaceLab(): HTMLElement {
         gap: var(--space-stack-xs, 4px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .surface-subtle {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-subtle, #f0efe6);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-subtle, #e9e5de);
       }
 
       .surface-selected {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-selected, #ddeadf);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-selected, #dfeae3);
       }
 
       .surface-floating {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-lg, 6px);
+        border-radius: var(--radius-lg, 12px);
         border: 1px solid #e2e6ed;
-        background: var(--color-surface-floating, #f0efe6);
-        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        background: var(--color-surface-floating, #ffffff);
+        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
         max-inline-size: 18rem;
       }
 
       .mini-label {
         font: 600 0.72rem/1.25 "IBM Plex Sans", "Segoe UI", sans-serif;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .mini-copy {
         font-size: 0.82rem;
         line-height: 1.4;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .surface-layout {
@@ -3625,7 +3625,7 @@ function renderTextAndStructureLab(): HTMLElement {
         --font-family-title: "Bitter", Georgia, serif;
         --font-family-eyebrow: "Montserrat", "Segoe UI", sans-serif;
         --font-family-mono: "Space Mono", monospace;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -3841,20 +3841,20 @@ function renderTextAndStructureLab(): HTMLElement {
         gap: var(--space-layout-sm, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
       }
 
       .preview-block {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .text-card {
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .text-heading {
@@ -3862,7 +3862,7 @@ function renderTextAndStructureLab(): HTMLElement {
         font-size: var(--type-title-sm-size, 18px);
         line-height: var(--type-title-sm-line, 24px);
         font-weight: var(--type-title-sm-weight, 600);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .text-body {
@@ -3870,31 +3870,31 @@ function renderTextAndStructureLab(): HTMLElement {
         font-size: var(--type-body-md-size, 14px);
         line-height: var(--type-body-md-line, 20px);
         font-weight: var(--type-body-md-weight, 400);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .text-secondary {
         font-family: var(--font-family-body);
         font-size: var(--type-body-md-size, 14px);
         line-height: var(--type-body-md-line, 20px);
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .text-muted {
         font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 11px);
-        line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #616775);
+        font-size: var(--type-caption-xs-size, 12px);
+        line-height: var(--type-caption-xs-line, 16px);
+        color: var(--color-text-muted, #5e6460);
       }
 
       .eyebrow {
         font-family: var(--font-family-eyebrow);
-        font-size: var(--type-caption-xs-size, 11px);
-        line-height: var(--type-caption-xs-line, 14px);
-        font-weight: var(--type-caption-xs-weight, 500);
+        font-size: var(--type-caption-xs-size, 12px);
+        line-height: var(--type-caption-xs-line, 16px);
+        font-weight: var(--type-caption-xs-weight, 400);
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .structure-stack {
@@ -3909,30 +3909,30 @@ function renderTextAndStructureLab(): HTMLElement {
       }
 
       .rule-subtle {
-        background: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .rule-strong {
-        background: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        background: var(--color-border-strong, #6b7d6e);
       }
 
       .selected-row {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
-        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-selected, #ddeadf);
+        border: 1px solid var(--color-border-strong, #6b7d6e);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-selected, #dfeae3);
       }
 
       .focused-field {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.7rem 0.75rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
-        box-shadow: 0 0 0 2px var(--color-focus-ring, rgba(24, 24, 27, 0.5));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
+        box-shadow: 0 0 0 2px var(--color-focus-ring, #146ba0);
       }
 
       .pill {
@@ -3940,13 +3940,13 @@ function renderTextAndStructureLab(): HTMLElement {
         align-items: center;
         align-self: start;
         padding: 0.2rem 0.45rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #f0efe6);
-        color: var(--color-text-secondary, #414651);
+        background: var(--color-surface-subtle, #e9e5de);
+        color: var(--color-text-secondary, #48534b);
         font-family: var(--font-family-mono);
-        font-size: var(--type-caption-xs-size, 11px);
-        line-height: var(--type-caption-xs-line, 14px);
+        font-size: var(--type-caption-xs-size, 12px);
+        line-height: var(--type-caption-xs-line, 16px);
         font-weight: 500;
       }
 
@@ -4169,7 +4169,7 @@ function renderElevationLab(): HTMLElement {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         --font-family-body: "Montserrat", "Segoe UI", sans-serif;
         --font-family-title: "Bitter", Georgia, serif;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -4375,8 +4375,8 @@ function renderElevationLab(): HTMLElement {
         display: grid;
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
         background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.85) 100%);
       }
 
@@ -4386,9 +4386,9 @@ function renderElevationLab(): HTMLElement {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.95rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
       }
 
       .elevation-card {
@@ -4403,7 +4403,7 @@ function renderElevationLab(): HTMLElement {
         max-inline-size: 20rem;
         justify-self: start;
         box-shadow: var(--shadow-floating);
-        background: var(--color-surface-floating, #f0efe6);
+        background: var(--color-surface-floating, #ffffff);
       }
 
       .elevation-stack {
@@ -4416,21 +4416,21 @@ function renderElevationLab(): HTMLElement {
         font-size: var(--type-title-sm-size, 18px);
         line-height: var(--type-title-sm-line, 24px);
         font-weight: var(--type-title-sm-weight, 600);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
       }
 
       .text-body {
         font-family: var(--font-family-body);
         font-size: var(--type-body-md-size, 14px);
         line-height: var(--type-body-md-line, 20px);
-        color: var(--color-text-secondary, #414651);
+        color: var(--color-text-secondary, #48534b);
       }
 
       .surface-note {
         font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 11px);
-        line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #616775);
+        font-size: var(--type-caption-xs-size, 12px);
+        line-height: var(--type-caption-xs-line, 16px);
+        color: var(--color-text-muted, #5e6460);
       }
 
       .control-strip {
@@ -4447,10 +4447,10 @@ function renderElevationLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.3rem;
         padding: 0.55rem 0.82rem;
-        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #faf9f5);
-        color: var(--color-text-primary, #18181b);
+        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-card, #f8f9f3);
+        color: var(--color-text-primary, #181b1a);
         box-shadow: var(--shadow-control);
         font-family: var(--font-family-body);
         font-size: var(--type-body-md-size, 14px);
@@ -4681,7 +4681,7 @@ function renderMotionLab(): HTMLElement {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         --font-family-body: "Montserrat", "Segoe UI", sans-serif;
         --font-family-title: "Bitter", Georgia, serif;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -4887,8 +4887,8 @@ function renderMotionLab(): HTMLElement {
         display: grid;
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #fffefa);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-surface-page, #f4f0ea);
         min-inline-size: 0;
       }
 
@@ -4906,7 +4906,7 @@ function renderMotionLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.35rem;
         padding: 0.55rem 0.88rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         border: 1px solid transparent;
         font-family: var(--font-family-body);
         font-size: var(--type-body-md-size, 14px);
@@ -4947,7 +4947,7 @@ function renderMotionLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.7rem;
         padding: 0.72rem 0.85rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         border: 1px solid var(--color-field-border);
         background: var(--color-field-background);
         transition:
@@ -4982,7 +4982,7 @@ function renderMotionLab(): HTMLElement {
         gap: 0.4rem;
         max-inline-size: 16rem;
         padding: 0.85rem;
-        border-radius: var(--radius-lg, 6px);
+        border-radius: var(--radius-lg, 12px);
         background: var(--color-surface-floating);
         box-shadow: var(--shadow-floating);
         opacity: 0;
@@ -4995,7 +4995,7 @@ function renderMotionLab(): HTMLElement {
 
       .menu-item {
         padding: 0.58rem 0.72rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: #fff;
         border: 1px solid var(--color-border-subtle);
       }
@@ -5010,7 +5010,7 @@ function renderMotionLab(): HTMLElement {
         block-size: 12rem;
         overflow: auto;
         border: 1px solid var(--color-border-subtle);
-        border-radius: var(--radius-lg, 6px);
+        border-radius: var(--radius-lg, 12px);
         background: var(--color-surface-card);
       }
 
@@ -5045,15 +5045,15 @@ function renderMotionLab(): HTMLElement {
       .scroll-item {
         padding: 0.72rem 0.78rem;
         border: 1px solid var(--color-border-subtle);
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: #fff;
       }
 
       .surface-note {
         font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 11px);
-        line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #616775);
+        font-size: var(--type-caption-xs-size, 12px);
+        line-height: var(--type-caption-xs-line, 16px);
+        color: var(--color-text-muted, #5e6460);
       }
 
       @keyframes menu-enter {
@@ -5384,7 +5384,7 @@ function renderActionAndStateLab(): HTMLElement {
         --font-family-body: "Montserrat", "Segoe UI", sans-serif;
         --font-family-title: "Bitter", Georgia, serif;
         --font-family-mono: "Space Mono", monospace;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -5555,7 +5555,7 @@ function renderActionAndStateLab(): HTMLElement {
       .preview-stage {
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.9) 100%);
       }
 
@@ -5576,8 +5576,8 @@ function renderActionAndStateLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.1rem;
         padding: 0 0.8rem;
-        border-radius: var(--radius-md, 4px);
-        font: 500 var(--type-label-sm-size, 12px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
+        border-radius: var(--radius-md, 8px);
+        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
         border: 1px solid transparent;
       }
 
@@ -5602,7 +5602,7 @@ function renderActionAndStateLab(): HTMLElement {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
       }
 
       .state-card.success {
@@ -5857,7 +5857,7 @@ function renderFormInputLab(): HTMLElement {
       :host, [data-story="violet-form-input-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         --font-family-body: "Montserrat", "Segoe UI", sans-serif;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
@@ -6026,7 +6026,7 @@ function renderFormInputLab(): HTMLElement {
       .preview-stage {
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.9) 100%);
       }
 
@@ -6038,13 +6038,13 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-label {
-        font: 500 var(--type-label-sm-size, 12px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
-        color: var(--color-text-secondary, #414651);
+        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
+        color: var(--color-text-secondary, #48534b);
       }
 
       .field-control,
       .field-area {
-        border-radius: var(--radius-md, 4px);
+        border-radius: var(--radius-md, 8px);
         background: var(--color-field-background);
         color: var(--color-field-text);
         border: 1px solid var(--color-field-border);
@@ -6086,7 +6086,7 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-note {
-        font: 400 var(--type-caption-xs-size, 11px)/var(--type-caption-xs-line, 14px) "Montserrat", "Segoe UI", sans-serif;
+        font: 400 var(--type-caption-xs-size, 12px)/var(--type-caption-xs-line, 16px) "Montserrat", "Segoe UI", sans-serif;
         color: var(--color-text-muted);
       }
 

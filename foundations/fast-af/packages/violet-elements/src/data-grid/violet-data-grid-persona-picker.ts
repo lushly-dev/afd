@@ -50,19 +50,19 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_text-primary);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
 
-        --_surface-page: var(--color-surface-page, #fffefa);
-        --_surface-card: var(--color-surface-card, #faf9f5);
-        --_surface-floating: var(--color-surface-floating, #f0efe6);
-        --_surface-subtle: var(--color-surface-subtle, #f0efe6);
-        --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_text-primary: var(--color-text-primary, #18181b);
-        --_text-secondary: var(--color-text-secondary, #414651);
-        --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
-        --_radius-md: var(--radius-md, 4px);
-        --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        --_surface-page: var(--color-surface-page, #f4f0ea);
+        --_surface-card: var(--color-surface-card, #f8f9f3);
+        --_surface-floating: var(--color-surface-floating, #ffffff);
+        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
+        --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        --_border-strong: var(--color-border-strong, #6b7d6e);
+        --_text-primary: var(--color-text-primary, #181b1a);
+        --_text-secondary: var(--color-text-secondary, #48534b);
+        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_radius-md: var(--radius-md, 8px);
+        --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
         --_size-font-md: var(--size-font-md, 14px);
         --_size-font-sm: var(--size-font-sm, 12px);
     }

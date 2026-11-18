@@ -81,7 +81,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-foreground, #245c36)",
+				"default": "var(--color-state-success-foreground, #2c5e4b)",
 				"name": "--_carousel-dot-active"
 			},
 			{

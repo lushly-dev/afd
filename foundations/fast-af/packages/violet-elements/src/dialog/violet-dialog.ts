@@ -116,7 +116,7 @@ const styles = css`
 
     .title {
         flex: 1;
-        font-family: var(--font-family-heading, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        font-family: var(--font-family-heading, var(--font-family-body, "Inter", system-ui, sans-serif));
         font-size: var(--type-title-sm-size, 18px);
         line-height: var(--type-title-sm-line, 24px);
         font-weight: var(--type-title-sm-weight, 600);

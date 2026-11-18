@@ -141,7 +141,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// changed 19 more, among them `index.ts` and `fast-element.ts`, which match Microsoft's again,
 	// not fast-af's: 481. violet-select's late options (#499) adapted its spec: 480. The Refined
 	// design (#1430) restyled 23 components that still matched upstream, and its private-alias
-	// fixes (#1436) the carousel and the reasoning block's spec: 455. A removed file's record is
-	// kept but not counted.
-	assert(checked > 454, `only ${checked} unchanged upstream files`);
+	// fixes (#1436) the carousel and the reasoning block's spec: 455. AFD's theme as the built-in
+	// default (D154, #1430) rewrote the literal fallbacks of three more: 452. A removed file's record
+	// is kept but not counted.
+	assert(checked > 451, `only ${checked} unchanged upstream files`);
 });

@@ -32,7 +32,7 @@ describe("violet-progress", () => {
 
     it("has a fill colour with no theme installed", async () => {
         const progress = await renderProgress();
-        expect(getComputedStyle(progress).getPropertyValue("--_progress-fill").trim().toLowerCase()).toBe("#244635");
+        expect(getComputedStyle(progress).getPropertyValue("--_progress-fill").trim().toLowerCase()).toBe("#2c5e4b");
     });
 
     it("omits the value attribute for indeterminate progress", async () => {

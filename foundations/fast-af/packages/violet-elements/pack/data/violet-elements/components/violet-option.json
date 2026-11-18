@@ -73,12 +73,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-control-caption-size, var(--type-caption-xs-size, 11px))",
+				"default": "var(--violet-control-caption-size, var(--type-caption-xs-size, 12px))",
 				"name": "--_control-caption-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_option-mark"
 			},
 			{
@@ -98,22 +98,22 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #f0efe6)",
+				"default": "var(--color-surface-subtle, #e9e5de)",
 				"name": "--_surface-active"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #f0efe6)",
+				"default": "var(--color-surface-subtle, #e9e5de)",
 				"name": "--_surface-hover"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-selected, #ddeadf)",
+				"default": "var(--color-surface-selected, #dfeae3)",
 				"name": "--_surface-selected"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-caption-xs-line, 14px)",
+				"default": "var(--type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
 			}
 		],

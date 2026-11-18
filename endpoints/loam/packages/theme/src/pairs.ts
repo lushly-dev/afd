@@ -7,7 +7,8 @@
  * decorative borders (`color.border.subtle`, and the secondary-action, selected-control and state
  * borders beside text or a fill), and button fills, which their labels identify. High contrast
  * holds both to 3:1. The resting and invalid field borders are a field's only boundary, so every
- * theme holds them to 3:1 (the design document, 2026-11-01).
+ * theme holds them to 3:1 (the design document, 2026-11-01), except the resting border on a
+ * read-only field in light (D154, below).
  */
 import type { ThemeName } from './tree/index.js';
 
@@ -52,6 +53,7 @@ const action = (name: string) => [
 const STATES = ['success', 'warning', 'danger'] as const;
 const FIELD_BACKGROUNDS = ['color.field.background', 'color.field.background.readonly'];
 const HIGH_CONTRAST = ['high-contrast'] as const;
+const NOT_LIGHT = ['dark', 'high-contrast'] as const;
 
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	// An app's entry and a selected row: the ring inside a selected or a hovered item (phase 1, step 4).
@@ -91,9 +93,19 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	...on(['color.border.strong'], OPEN_SURFACES, 'non-text'),
 	...on(
 		['color.field.border', 'color.field.border.hover', 'color.field.border.invalid'],
-		FIELD_BACKGROUNDS,
+		['color.field.background'],
 		'non-text'
 	),
+	// A read-only field's fill is a wash of the text color. Its hover and invalid borders meet 3:1 on
+	// it everywhere; its resting border, Refined's stone-500 top line (D154), meets 3:1 on the white
+	// field and is 2.64 on the light read-only fill, which cannot be typed in, so light does not hold
+	// that one pair.
+	...on(
+		['color.field.border.hover', 'color.field.border.invalid'],
+		['color.field.background.readonly'],
+		'non-text'
+	),
+	...on(['color.field.border'], ['color.field.background.readonly'], 'non-text', NOT_LIGHT),
 	...on(
 		['shell.color.handle.hover', 'shell.color.handle.active'],
 		[PAGE, CARD, SUBTLE],

@@ -16,7 +16,7 @@ const styles = css`
     :host {
         display: grid;
         gap: var(--_space-stack-sm);
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
 
         --_panel-background: var(--_surface-page);
         --_panel-border: color-mix(in srgb, var(--_border-subtle) 92%, transparent);

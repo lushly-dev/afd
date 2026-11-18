@@ -66,7 +66,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_progress-fill"
 			},
 			{
@@ -76,7 +76,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent)",
+				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_progress-track"
 			},
 			{

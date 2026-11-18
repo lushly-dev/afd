@@ -13,14 +13,14 @@ const styles = css`
         display: block;
         --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size, 12px));
         --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line, 16px));
-        --_tool-name-size: var(--violet-tool-name-size, var(--type-label-sm-size, 12px));
+        --_tool-name-size: var(--violet-tool-name-size, var(--type-label-sm-size, 13px));
         --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size, 14px));
-        --_warning-bg: var(--color-state-warning-background, #fdebcc);
+        --_warning-bg: var(--color-state-warning-background, #f3e8d2);
         --_warning-text: var(--color-state-warning-text, #92400e);
-        --_success-bg: var(--color-state-success-background, #e3f1e7);
-        --_success-text: var(--color-state-success-text, #166534);
-        --_danger-bg: var(--color-state-danger-background, #fbe2e2);
-        --_danger-text-local: var(--color-state-danger-text, #b42318);
+        --_success-bg: var(--color-state-success-background, #dfeae3);
+        --_success-text: var(--color-state-success-text, #2c5e4b);
+        --_danger-bg: var(--color-state-danger-background, #f7e4df);
+        --_danger-text-local: var(--color-state-danger-text, #c42a1a);
     }
 
     /* A command the agent ran is a band; its state is the badge, not an outline. */
@@ -56,7 +56,7 @@ const styles = css`
 
     /* The command's name, in the mono face. */
     .name {
-        font-family: var(--font-family-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
+        font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
         color: var(--_text-primary, #1c1a0d);
@@ -129,7 +129,7 @@ const styles = css`
     }
 
     .approval-tool-name {
-        font-family: var(--font-family-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
+        font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
         line-height: var(--_body-line);

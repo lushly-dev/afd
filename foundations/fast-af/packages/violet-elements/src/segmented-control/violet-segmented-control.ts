@@ -12,7 +12,7 @@ const styles = css`
     :host {
         display: grid;
         /* The track is a well: a wash of the text colour, with the chosen segment raised out of it. */
-        --_well: color-mix(in srgb, var(--color-text-primary, #18181b) 7%, transparent);
+        --_well: color-mix(in srgb, var(--color-text-primary, #181b1a) 7%, transparent);
     }
 
     .field {
@@ -60,7 +60,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         margin-block-start: var(--_space-stack-2xs);
     }
 

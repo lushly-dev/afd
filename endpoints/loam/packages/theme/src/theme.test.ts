@@ -74,23 +74,29 @@ describe("Loam's Violet tree", () => {
 			expect(entry.property).toBe(cssProperty(id));
 	});
 
-	it('starts light from the registry, with two values raised to meet the floors', () => {
+	it("gives light and dark AFD's Refined values (D154)", () => {
 		const light = themeNode('light');
-		expect(value(light, 'color.surface.page')).toBe('#FFFEFA');
-		expect(value(light, 'color.action.primary.background')).toBe('#C84F3B');
-		expect(value(light, 'color.field.border.focus')).toBe('rgba(24, 24, 27, 0.5)');
+		expect(value(light, 'color.surface.page')).toBe('#f4f0ea');
+		expect(value(light, 'color.action.primary.background')).toBe('#181b1a');
+		expect(value(light, 'color.field.border.focus')).toBe('#146ba0');
+		expect(value(light, 'color.control.selected.background')).toBe('#badecf');
 		expect(value(light, 'type.title.md.weight')).toBe('600');
+		expect(value(light, 'type.label.sm.size')).toBe('13px');
+		expect(value(light, 'radius.md')).toBe('8px');
 		expect(value(light, 'space.layout.md')).toBe('24px');
-		expect(value(light, 'color.text.muted')).toBe('#616775');
-		expect(value(light, 'color.border.strong')).toBe('rgba(28, 26, 13, 0.48)');
-		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#161713');
-		expect(value(themeNode('dark'), 'color.border.strong')).toBe('rgba(255, 248, 235, 0.37)');
+		expect(value(light, 'color.text.muted')).toBe('#5e6460');
+		expect(value(light, 'color.border.strong')).toBe('#6b7d6e');
+		expect(value(light, 'font.family.body')).toBe('"Inter", system-ui, sans-serif');
+		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#181b1a');
+		expect(value(themeNode('dark'), 'color.action.primary.background')).toBe('#f4f0ea');
+		// One step lighter than Refined's sage-500, to meet 3:1 on the subtle surface.
+		expect(value(themeNode('dark'), 'color.border.strong')).toBe('#869089');
 	});
 
 	it('gives the field borders the values the design document decided', () => {
 		const expected: Record<ThemeName, [string, string, string]> = {
-			light: ['rgba(28, 26, 13, 0.48)', 'rgba(28, 26, 13, 0.64)', '#B42318'],
-			dark: ['rgba(255, 248, 235, 0.37)', 'rgba(255, 248, 235, 0.52)', '#F5C7C2'],
+			light: ['#869089', '#48534b', '#c42a1a'],
+			dark: ['#6b7d6e', '#adb6ab', '#ff897a'],
 			'high-contrast': ['#595959', '#000000', '#A30000'],
 		};
 		for (const theme of THEMES)
@@ -118,10 +124,10 @@ describe("Loam's Violet tree", () => {
 		expect(value(themeNode('high-contrast'), 'shadow.well')).toBe('inset 0 0 0 0 #000000');
 	});
 
-	it('gives the ids of interface version 2 the values the components rendered with', () => {
+	it('gives the ids of interface version 2 their values: Space Grotesk and the well', () => {
 		for (const theme of THEMES)
 			expect(value(themeNode(theme), 'font.family.heading')).toBe(
-				value(themeNode(theme), 'font.family.body')
+				'"Space Grotesk", "Segoe UI", system-ui, sans-serif'
 			);
 		expect(value(themeNode('light'), 'shadow.well')).toBe(
 			'inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)'
@@ -204,9 +210,9 @@ describe('exports', () => {
 		expect(light.match(/^\t--/gm)).toHaveLength(tokens(ROOT_NODE).size);
 		expect(light).not.toContain('--ref-');
 		const dark = rule('[data-loam-theme="dark"]');
-		expect(dark).toContain('\t--color-surface-page: #161713;');
+		expect(dark).toContain('\t--color-surface-page: #181b1a;');
 		expect(dark).not.toContain('--size-space-md');
-		expect(dark).not.toContain('--color-action-primary-background');
+		expect(dark).not.toContain('--color-action-danger-background');
 		const contrast = rule('[data-loam-theme="high-contrast"]');
 		expect(contrast).toContain('\t--shell-size-focus: 3px;');
 		// field.* references follow their targets, so their resolved values differ too.
@@ -224,7 +230,7 @@ describe('exports', () => {
 		expect(json.contractVersion).toBe(1);
 		expect(Object.keys(json.nodes)).toEqual(NODE_IDS);
 		const dark = json.nodes['loam/dark'] as { id: string; value: string }[];
-		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#F5EFE3' });
+		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#f4f0ea' });
 		expect(dark.some((token) => token.id.startsWith('ref.'))).toBe(false);
 		expect(outputs.files['contract.json']).toBe(readFileSync(contractUrl, 'utf8'));
 	});

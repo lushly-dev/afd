@@ -44,7 +44,7 @@ const styles = css`
         --_upload-title-size: var(--_control-body-size);
         --_upload-summary-size: var(--_control-caption-size);
         --_upload-icon-size: max(1rem, calc(var(--_target-size) * 0.4));
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     :host([size="compact"]) {
@@ -188,7 +188,7 @@ const styles = css`
     .trigger-copy,
     .dropzone-title {
         margin: 0;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-size: var(--_upload-title-size);
         line-height: 1.25;
         font-weight: 600;
@@ -292,7 +292,7 @@ const styles = css`
 
     .filename {
         margin: 0;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
         font-weight: 500;
@@ -322,7 +322,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-text, #b42318);
+        color: var(--color-state-danger-text, #c42a1a);
     }
 
     @media (forced-colors: active) {

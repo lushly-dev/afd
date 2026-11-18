@@ -8,17 +8,17 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #ddeadf);
-        --_selection-text: var(--color-control-selected-foreground, #244635);
-        --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
-        --_surface-card: var(--color-surface-card, #faf9f5);
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        --_selection-background: var(--color-control-selected-background, #badecf);
+        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
+        --_selection-border: var(--color-control-selected-border, rgba(44, 94, 75, 0.5));
+        --_surface-card: var(--color-surface-card, #f8f9f3);
+        --_border-strong: var(--color-border-strong, #6b7d6e);
         --_radius-full: 999px;
         --_size-font-md: var(--size-font-md, 14px);
         --_control-size: max(var(--_size-font-md), calc(var(--_target-size) * 0.5));
         --_dot-size: max(8px, calc(var(--_control-size) * 0.5));
         --_type-body-line: var(--type-body-md-line, 20px);
-        --_type-caption-line: var(--type-caption-xs-line, 14px);
+        --_type-caption-line: var(--type-caption-xs-line, 16px);
     }
 
     /* The host takes focus; the ring is drawn on the mark, not round the whole row. */
@@ -152,7 +152,7 @@ const styles = css`
     }
 
     .label {
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
     }

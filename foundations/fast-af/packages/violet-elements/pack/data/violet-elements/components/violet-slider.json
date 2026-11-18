@@ -192,7 +192,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"default": "var(--color-state-danger-border, transparent)",
 				"name": "--_danger-border"
 			},
 			{
@@ -202,12 +202,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent)",
+				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_rail-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-fill"
 			},
 			{
@@ -222,7 +222,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_tick-color"
 			},
 			{
