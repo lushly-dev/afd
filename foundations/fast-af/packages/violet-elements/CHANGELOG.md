@@ -1,5 +1,13 @@
 # @lushly-dev/violet-elements
 
+## Unreleased
+
+- Fix active option rows to read the contract color.surface.subtle token in every theme (#659).
+
+- Protect closed dialog Tab order and pointer exclusion with browser regressions, including modal and non-modal transitions and focus restoration (#511).
+
+- Give the data-grid fill handle a 24 × 24 CSS px pointer target while retaining its visual size. Cell focus mode includes keyboard-accessible Fill down and Fill right buttons that emit the same `cell-fill` detail as dragging one row or column, with touch support and live feedback (#506).
+
 ## 0.2.0-preview.1
 
 ### Patch Changes

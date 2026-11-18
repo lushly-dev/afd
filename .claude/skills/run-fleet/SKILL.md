@@ -18,6 +18,8 @@ Three parts, and you are the third ([software factory](../../../docs/features/ac
 - **A cell** is one agent, one package of issues, one worktree. It implements, gets its review, runs `prepare-pr lane` (which records the review and enqueues) and ends its turn.
 - **The foreman** (you) starts cells, resumes an ejected one and asks the owner for decisions. You keep no state and write no status updates: state is `lane-status`, so any fresh session can pick a run up.
 
+One foreman per lane. Pass your thread id as `session` to `cell-register`, `lane-wait` and `dial-set`; it holds the lane while you work and wait. `FOREMAN_BUSY` means another session holds it (`lane-status` shows `foreman`): stop and tell the owner, never work around it, and never hand the lane over yourself. A session that has ended frees the lane once its last `lane-wait` times out and its lease runs out; the owner can free it at once with `foreman-handoff {"session": "<its id>"}`.
+
 `factory` below is `uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory call <command> '<json>'` from the repository root; on Windows PowerShell put the JSON in a file and pass `--args-file <path>`.
 
 ## Start or pick up a run
@@ -33,7 +35,7 @@ Run from the primary checkout on current `main`, on the lane host; cells run the
 
 Run `triage-issues` first, then take work in `issue-check`'s `dispatchable` order. Batch issues that share code into one package; never split work to fill seats. Start a cell only when `lane-status` says `canStartCell`, on its `plan` and `nextIssue`:
 
-1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing.
+1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>", "session": "<your thread id>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing.
 2. `delegate_task` on that plan with `isolation: "worktree"` and [the cell brief](references/runbook.md#the-cell-brief).
 3. `cell-attach {"branch": "<branch>", "thread": "<childThreadId>"}`.
 
@@ -41,7 +43,7 @@ Take the route from [model routing](../../../docs/operations/model-routing.md). 
 
 ## Wake only for judgment
 
-After acting, leave one background `factory call lane-wait '{"consumer": "foreman", "timeout_ms": 7200000}'` and end your turn. T3 Code wakes you when it exits or a cell ends; on `timedOut`, read `lane-status` and wait again. Never poll a cell or the lane. Ask the owner only for a product decision or operator work (sign-ins, secrets, publishing).
+After acting, leave one background `factory call lane-wait '{"consumer": "foreman", "timeout_ms": 7200000, "session": "<your thread id>"}'` and end your turn. T3 Code wakes you when it exits or a cell ends; on `timedOut`, read `lane-status` and wait again. Never poll a cell or the lane. Ask the owner only for a product decision or operator work (sign-ins, secrets, publishing).
 
 ## Finish
 

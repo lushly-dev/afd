@@ -136,6 +136,16 @@ impl Store {
                       (SELECT id FROM mailbox WHERE account_id = ?1))",
             [account.0],
         )?;
+        // So does an operation that acted on it, or put mail there: its
+        // places name mailboxes that are gone, and it can be neither resumed
+        // nor undone. An undo of one acts on the same mail, and goes with it.
+        transaction.execute(
+            "DELETE FROM operation WHERE id IN
+                 (SELECT operation_id FROM operation_item
+                  WHERE mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1)
+                     OR to_mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1))",
+            [account.0],
+        )?;
         transaction.execute(
             "DELETE FROM observation WHERE mailbox_id IN
                  (SELECT id FROM mailbox WHERE account_id = ?1)",
@@ -189,6 +199,10 @@ const HANDLED: &[(&str, &str)] = &[
     ("mailbox", "account"),
     ("selection_item", "message"),
     ("selection_item", "mailbox"),
+    ("operation_item", "message"),
+    // Twice: where the message was, and where it goes.
+    ("operation_item", "mailbox"),
+    ("operation_item", "mailbox"),
     // Derived: emptied by the rebuild that removal begins.
     ("envelope", "message"),
     ("part", "message"),

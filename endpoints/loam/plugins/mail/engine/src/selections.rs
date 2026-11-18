@@ -1,6 +1,6 @@
 //! `mail-selection-create` (the specification's 9.1): a query resolved once
-//! and frozen, which a change then acts on, stating its count. The change
-//! commands arrive with the rest of step D1.
+//! and frozen, which a change then acts on, stating its count
+//! ([`crate::changes`]).
 //!
 //! A selection is the caller's own data and changes no mail, so an agent
 //! makes one over MCP. Its query is journaled as the caller's input (13.1);

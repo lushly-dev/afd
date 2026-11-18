@@ -677,6 +677,9 @@ says which role.
   `EXAMINE`, `UID SEARCH`, `UID FETCH` with `BODY.PEEK`, and `LOGOUT`, and nothing else; a test
   over the scripted server fails if any other command is sent. Step B4 adds `UID FETCH` of
   `BODYSTRUCTURE`, and of `BODY.PEEK` at a part's place, for a message fetched in parts (M20).
+  Step D1 adds, for an operation alone ([9.2](#92-the-commands)), `SELECT`, `STATUS`,
+  `UID STORE`, `UID COPY`, `UID MOVE` where the server offers `MOVE`, and `UID EXPUNGE`; changing
+  mail needs `UIDPLUS`.
 - **First sync.** `UID SEARCH ALL`, then headers in batches of 250, newest first, then bodies
   in batches of up to 400 or 8 MiB. Step B7 measured iCloud at about 2.8 seconds for each request
   and 36 milliseconds for each message in it: 50 messages a request read 10 to 12 a second, 400
@@ -1558,6 +1561,45 @@ message its place and state before, and its outcome.
   reported per message, so if the provider ignores the request the operation says how many
   remain.
 
+**As step D1 built it** (its second part, migration 13):
+
+- **An operation** is a row with its command, what it does to each message (move, copy, remove a
+  copy, or set flags), the policy's limit it counts against, what the caller asked (ids and
+  booleans), the selection and its query when it came from one, who made it, its state
+  (`running`, `stopped` or `done`) and why it stopped, in the engine's words. Each item is a
+  message in a mailbox as the provider named it when the operation was made, and the step it
+  reached: `waiting`, `copying`, `copied`, `flagged`, then `done`, `unchanged` (already as the
+  change would leave it), `missing` (it had moved or gone, and was left alone) or `ignored` (the
+  provider answered and did not act on it, which is how an unreturned message the provider will
+  not move is reported). Results count items, as `places`, beside the `messages` the operation
+  was made with. When an item is done the store shows the change at once, as the next pass of sync
+  finds it.
+- **A change names** a selection and its `expectedCount`, or `messages`: 1 to 200 ids, each
+  acting on its copies outside junk and trash, as a selection that names no mailbox does. An id
+  shown nowhere there is `MESSAGE_NOT_FOUND`. A wrong count, or a selection expired or not there,
+  is `SELECTION_MISMATCH`, and nothing is asked of the provider.
+- **Batches** are 100 items of one mailbox going to one place. A change of at most 1 000
+  messages runs inside the call; on a server, a person's larger one returns its id at once with
+  the state `running` and runs as the server's work, 20 batches at a time, behind a pass of sync
+  that is due or asked for. A call on a server that runs out three quarters of its time hands the
+  rest to the server's work the same way. At a terminal with no server it runs to its end,
+  printing each batch, and Ctrl-C stops it after the batch in hand.
+- **A stop** of any kind leaves the operation `stopped`, resumable: Ctrl-C, `mail-operation-cancel`,
+  a provider's failure (whose failure names the operation in its details), a call cut off, or the
+  program ending, which the next process to open the store records. `mail-operation-resume`
+  carries on from the step each item reached; an operation that runs already, here or as the
+  server's work, is `WORK_RUNNING`, which can be retried, and one that is done or was undone is
+  refused. `mail-operation-list` gives the operations newest first, paged by cursor;
+  `mail-operation-show` one with its counts and a page of its items (each item's message,
+  mailbox, destination and step). `mail-status` counts the operations running and stopped, and on
+  a server its work names the operation that runs and those that wait. A result gives the
+  selection's query labelled as content ([12.1](#121-content-labels)): it is the caller's words,
+  which mail may have steered.
+- **Beside a pass of sync.** A change inside a call can run while a pass does. A pass that
+  listed a mailbox in full before a change and compares after it may take a copy the change just
+  recorded for gone; the next pass finds it again. Nothing is lost at the provider, which is the
+  record.
+
 ### 9.2 The commands
 
 | Command | At an IMAP provider | At Gmail |
@@ -1582,12 +1624,64 @@ delete flag, and `UID EXPUNGE` of exactly the copied messages (UIDPLUS).
 nothing and is reported as unchanged. Mail is never deleted for good by the engine; the provider
 empties its trash on its own schedule.
 
+**As step D1 built it** (its second part):
+
+- **`mail-archive`** takes mail out of the inbox: each copy the inbox shows moves to the
+  account's archive mailbox, as Gmail's archive removes the inbox label. A copy elsewhere is left
+  as it is and reported as unchanged, so archiving a sender's mail does not empty the person's own
+  mailboxes; `mail-label` moves mail from any mailbox.
+- **`mail-trash`** moves each copy to the account's trash; one there already is unchanged. An
+  account with no archive or trash mailbox the engine knows is `MAILBOX_NOT_FOUND`, naming the
+  role.
+- **`mail-label`** takes a mailbox's id and `copy` (a move by default). The mailbox must be one
+  the provider still lists, of the same account as every message named; a copy in that mailbox
+  already is unchanged. A move into the trash, or into junk, which the provider may empty too,
+  counts as trash against the policy.
+- **A move** by `mail-trash` or `mail-label` leaves the copies in the person's sent mailbox, and
+  in Gmail's All Mail, unless the selection named that mailbox, so that a change meant for mail
+  received does not take the person's own copies with it; they are reported as unchanged.
+- **`mail-mark`** takes `read`, `flagged` or both, true or false, and sets or clears `\Seen` and
+  `\Flagged`. A message's flags are recorded before the change is asked for, so a change whose
+  answer was lost is still known as made.
+- **A copy or a move** records the destination's generation and next id (`STATUS`) before it
+  asks. Resumed after its answer was lost, it looks among the destination's ids from there, by
+  each message's identity ([4.2](#42-what-makes-two-messages-the-same)). An unreturned message
+  has none, and its copy is never guessed at: another such message's copy could pass for it, and
+  the original be removed with no copy made. It is asked for again, which at worst leaves two
+  copies. A copy the provider's `COPYUID` leaves out was not made, and the message is `ignored`;
+  a move answered without it is checked, and a message no longer in its mailbox is taken to have
+  moved and is looked for where it went by its identity (one another client removed in between
+  is recorded as moved, with no place to undo it to). With `MOVE` the move is one step;
+  without it, the delete flag goes on exactly the messages whose copies were confirmed, and
+  `UID EXPUNGE` removes exactly those. A test drops the connection before each command of a run,
+  and after each change with its answer lost, and finds each message moved once.
+- **A message moved** keeps its flags; one that already carried the delete flag from another
+  client carries it into the destination too, where that client's next `EXPUNGE` would remove
+  it. Not handled: no such message has been seen.
+
+
 ### 9.3 Undo
 
 `mail-operation-undo` puts back what an operation changed, from the places and states it
 recorded, and is itself an operation. An undo of a trash is possible only while the provider
 still holds the message; the operation records the date after which it may not be, where the
 provider states one, and an undo after that fails for those messages with `UNDO_NOT_POSSIBLE`.
+
+**As step D1 built it** (its second part): the undo acts on the items the operation changed. A
+move is moved back from where it went; a copy is removed, and only while the message it was
+copied from is still where it was and not flagged to be deleted, checked again before a copy
+flagged by the undo is removed, so the engine never removes the last of a message (the copy
+whose original went is reported `missing`, and loses the flag); a removed copy is copied again;
+flags are set back to what each message had before the change was first asked for, for the
+flags the change named. An operation is undone once: a second undo is refused, and an undone
+operation is not resumed; undoing the undo makes the change again. An operation with messages
+part-way through a step (copied and the original not yet removed, or flagged to be) is refused
+until those messages are finished, since an original left flagged could be removed for good by
+another client: a resume finishes them in its first batches, and a cancel then stops it. An operation that runs is `WORK_RUNNING` until it stops, after the batch in
+hand once cancelled. iCloud states no date
+after which its trash may be emptied, so none is recorded; a message the provider no longer
+holds is reported `missing` rather than failing the undo. Gmail's date, and
+`UNDO_NOT_POSSIBLE` with it, arrive with step B6.
 
 ### 9.4 The policy
 
@@ -1611,6 +1705,15 @@ policy could take is refused without asking), and it returns the numbers before,
 undoes. A limit a call is at most 1 000 messages, what a call can finish within its 60 seconds; a
 day's trash at most 10 000, and not below a call's; 0 means an agent or a script makes no such
 change alone.
+
+**As step D1 built it** (its second part): a change, a resume or an undo by any caller but a
+person is checked against the policy before anything is asked of the provider: a change of more
+messages than its call's limit, or a trash that would take the caller's last 24 hours over the
+day's, changes nothing and fails with `POLICY_LIMIT` (the third part makes it a proposal). The
+day counts the messages of the trash operations the caller made, whether they finished or not; a
+resume is checked against the call's limit by what is left, and is not counted again. A script
+shares one day with every other script. At a terminal, the command line shows a change, a resume
+or an undo larger than `askAbove` by its count ("Archive 300 messages") and asks before it runs.
 
 **Over a limit: a proposal (M28).** A change command from an agent or a script that is over a
 limit changes nothing at the provider. It stores the operation in the state `proposed`, with its
@@ -1736,11 +1839,11 @@ says otherwise.
 | `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number |
 | `mail-selection-create` | D | Local | cli, mcp | Step D1 ([9.1](#91-selections)): the query's fields, the items it freezes, its counts and a labelled sample; ten a caller |
-| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)) |
+| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)). Step D1's second part ([9.2](#92-the-commands)): a selection with its count or up to 200 ids; over a limit, `POLICY_LIMIT` until the third part |
 | `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28) |
 | `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's |
-| `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | |
-| `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command |
+| `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor |
+| `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command. Step D1's second part: cancel stops after the batch in hand, for any caller |
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | |
 | `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | |
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
@@ -1814,18 +1917,18 @@ Beside the crate's own codes:
 | `STORE_NEWER` | The store's schema is newer than the program |
 | `STORE_FAILED` | The data directory, the log or the database refused; the message is the engine's own |
 | `INDEX_STALE` | The search index is older than the tables, or gone; `mail-rebuild` makes it again |
-| `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND`, `SENDER_NOT_FOUND`, `STORY_NOT_FOUND` | A named thing does not exist. `SENDER_NOT_FOUND` also when a suggestion's address has become one of the person's own |
+| `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND`, `SENDER_NOT_FOUND`, `STORY_NOT_FOUND`, `OPERATION_NOT_FOUND` | A named thing does not exist. `SENDER_NOT_FOUND` also when a suggestion's address has become one of the person's own |
 | `SIGN_IN_REQUIRED` | The provider refused the stored credential |
 | `PROVIDER_UNAVAILABLE` | The provider could not be reached; retryable |
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
 | `PART_NOT_FOUND` | A message has no part at the place named |
-| `WORK_RUNNING` | `mail-account-remove` on a server while a pass or a rebuild runs; retryable |
+| `WORK_RUNNING` | `mail-account-remove` on a server while a pass or a rebuild runs; a resume or an undo of an operation that runs; retryable |
 | `REPLY_TOO_LARGE` | A reply larger than a call to a running server may return ([3.2](#32-modes)) |
 | `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
-| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
+| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller; until step D1's third part, a change over the policy |
 | `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired, or there is none with that id |
 | `SCREENING_NOT_READY` | Classes or stories are read while messages wait to be derived again or a rebuild is under way ([7.1](#71-senders)); retryable |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
@@ -1921,7 +2024,7 @@ file.
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
 | C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods. Then rule 3 (migration 11): a junk or trash mailbox's history starts no later than when the engine first listed it |
-| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches, `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss`. The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
+| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches (migration 13), `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss`. The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze` |
 | E1 to E3 | Records; proposed stories; reply sets |

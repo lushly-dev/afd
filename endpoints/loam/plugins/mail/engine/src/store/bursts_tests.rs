@@ -745,6 +745,8 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
             "UPDATE mailbox SET first_listed_at = {upgraded};
              UPDATE account SET listed_at = {upgraded};
              UPDATE engine_state SET value = 2 WHERE key = 'burst-rule';
+             DROP TABLE operation_item;
+             DROP TABLE operation;
              DROP TABLE selection_item;
              DROP TABLE selection;
              DROP TABLE policy;

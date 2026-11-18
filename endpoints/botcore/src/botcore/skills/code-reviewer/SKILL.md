@@ -7,7 +7,7 @@ description: >
   reviewer, or reviewing a spec or proposal.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -46,6 +46,11 @@ Ground each finding in something you read or ran, not in memory of how an API us
 | Proposal | The problem is real, the approach solves it, nothing existing already does it, each phase has an exit | Implementation detail |
 | Spec or plan | Implements the approved approach; checkable tasks; concrete test plan; edge and error cases | Whether the feature should exist; other approaches unless this one is broken |
 | Code | Correctness, security, tests for new behaviour, performance, conventions, docs for changed public surface, scope | Untouched code, future features, restyling to taste |
+
+**Tests the change weakened.** A suite made green by checking less looks like a fix. In a code review, list what the branch did to its tests: where the gate-discipline skill is seeded, run its `scripts/report-test-changes.mjs` from the repository root (or read the report the PR body carries). The report counts and quotes; it does not judge, and an assertion rewritten into a weaker one can pass its counts. Read every changed test file's diff as well, and with no report, every deleted or shrunk test file, skip, config and snapshot change.
+
+- A test deleted, skipped or loosened (fewer tests or assertions, a changed expected value, a looser matcher, a lowered threshold, a rewritten snapshot) with no reason stated in the PR or commit is a BLOCKER. A reason clears it only if the diff bears it out: the behaviour under test changed on purpose, the code it tested was removed, the test moved (the report's totals show the net), or it duplicated another.
+- A bug fix with no test that was seen failing before the fix is an IMPROVEMENT: ask for the test and its red evidence, such as its output against the parent commit. A test never seen red may test nothing.
 
 **Phased delivery is normal.** Don't flag phasing itself; flag a phase that leaves the product broken or a contract half-changed, and deferred work the plan doesn't name.
 

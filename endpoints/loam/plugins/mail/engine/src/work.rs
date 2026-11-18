@@ -4,7 +4,11 @@
 //!
 //! - One piece of work runs at a time, in the background, so that a call
 //!   returns within a mounted call's limits: `mail-sync` and `mail-rebuild`
-//!   on a server ask for the work and return at once.
+//!   on a server ask for the work and return at once, and so does a person's
+//!   change too large for a call (the specification's 9.1).
+//! - An operation runs a slice of its batches at a time, and waits behind a
+//!   pass that is due or asked for, so that a long change does not hold new
+//!   mail back.
 //! - A rebuild goes before a pass that waits beside it. One that a stop left
 //!   unfinished is carried on as the server starts: until it ends, new mail
 //!   waits for it to be derived.
@@ -14,6 +18,7 @@
 //!   ended, in ids, counts and the engine's own words.
 //! - Without a server nothing here runs, and the two commands work inline.
 
+use std::collections::VecDeque;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -64,6 +69,10 @@ enum Running {
         done: u64,
         total: u64,
     },
+    Operation {
+        id: i64,
+        started_at: i64,
+    },
 }
 
 /// How a piece of work ended.
@@ -84,8 +93,11 @@ struct State {
     /// A rebuild waits; `true` when it carries on one begun before.
     rebuild_asked: Option<bool>,
     running: Option<Running>,
+    /// Operations that wait for their next slice, in order.
+    operations: VecDeque<i64>,
     last_sync: Option<Ended>,
     last_rebuild: Option<Ended>,
+    last_operation: Option<Ended>,
     /// When the next pass of every account is due, by the wall clock, as
     /// `mail-status` reports it.
     next_sync_at: i64,
@@ -104,8 +116,10 @@ impl Default for State {
             sync_asked: None,
             rebuild_asked: None,
             running: None,
+            operations: VecDeque::new(),
             last_sync: None,
             last_rebuild: None,
+            last_operation: None,
             next_sync_at: 0,
             next_due: Instant::now(),
             rebuild_retry: None,
@@ -157,6 +171,8 @@ enum Job {
     Sync(Accounts),
     /// `true` when it carries on a rebuild begun before.
     Rebuild(bool),
+    /// A slice of an operation's batches.
+    Operation(i64),
 }
 
 impl Work {
@@ -209,6 +225,31 @@ impl Work {
         asked
     }
 
+    /// Asks for operation `id` to run, after the work that runs now.
+    /// Returns whether it was not waiting already.
+    pub fn ask_operation(&self, id: i64) -> bool {
+        let queued = {
+            let mut state = self.state();
+            let running =
+                matches!(state.running, Some(Running::Operation { id: now, .. }) if now == id);
+            let queued = !running && !state.operations.contains(&id);
+            if queued {
+                state.operations.push_back(id);
+            }
+            queued
+        };
+        self.wake.notify_one();
+        queued
+    }
+
+    /// Whether operation `id` waits for its next slice, or runs one now.
+    #[must_use]
+    pub fn operation_waits(&self, id: i64) -> bool {
+        let state = self.state();
+        state.operations.contains(&id)
+            || matches!(state.running, Some(Running::Operation { id: now, .. }) if now == id)
+    }
+
     /// Drops a pass asked for `account` alone, once the account is gone.
     pub fn forget_account(&self, account: i64) {
         let mut state = self.state();
@@ -245,25 +286,26 @@ impl Work {
             }),
             None => Value::Null,
         };
-        let (sync_running, rebuild_running) = match state.running {
+        let (mut sync_running, mut rebuild_running, mut operation_running) =
+            (Value::Null, Value::Null, Value::Null);
+        match state.running {
             Some(Running::Sync {
                 accounts,
                 started_at,
-            }) => (
-                json!({ "account": accounts.id(), "startedAt": started_at }),
-                Value::Null,
-            ),
+            }) => sync_running = json!({ "account": accounts.id(), "startedAt": started_at }),
             Some(Running::Rebuild {
                 started_at,
                 done,
                 total,
-            }) => (
-                Value::Null,
+            }) => {
                 // The highest message id derived, and the highest there is.
-                json!({ "startedAt": started_at, "throughMessage": done, "lastMessage": total }),
-            ),
-            None => (Value::Null, Value::Null),
-        };
+                rebuild_running = json!({ "startedAt": started_at, "throughMessage": done, "lastMessage": total });
+            }
+            Some(Running::Operation { id, started_at }) => {
+                operation_running = json!({ "operation": id, "startedAt": started_at });
+            }
+            None => {}
+        }
         json!({
             "paused": state.paused,
             "sync": {
@@ -278,12 +320,17 @@ impl Work {
                 "retryQueued": state.rebuild_retry.is_some(),
                 "last": ended(&state.last_rebuild),
             },
+            "operations": {
+                "running": operation_running,
+                "queued": state.operations.iter().collect::<Vec<_>>(),
+                "last": ended(&state.last_operation),
+            },
         })
     }
 
     /// Takes the next piece of work, if one waits or a pass is due: a
     /// rebuild first, then a pass, which covers every account when that is
-    /// due.
+    /// due, then a slice of an operation.
     fn take(&self, now: i64, at: Instant) -> Option<Job> {
         let mut state = self.state();
         if state.paused {
@@ -307,18 +354,28 @@ impl Work {
         if at >= state.next_due {
             state.sync_asked = Some(Accounts::All);
         }
-        let accounts = state.sync_asked.take()?;
-        state.running = Some(Running::Sync {
-            accounts,
+        if let Some(accounts) = state.sync_asked.take() {
+            state.running = Some(Running::Sync {
+                accounts,
+                started_at: now,
+            });
+            return Some(Job::Sync(accounts));
+        }
+        let id = state.operations.pop_front()?;
+        state.running = Some(Running::Operation {
+            id,
             started_at: now,
         });
-        Some(Job::Sync(accounts))
+        Some(Job::Operation(id))
     }
 
     /// How long until a pass, or a rebuild tried again, is due without
     /// being asked for.
     fn until_due(&self, at: Instant) -> Duration {
         let state = self.state();
+        if !state.paused && !state.operations.is_empty() {
+            return Duration::ZERO;
+        }
         if state.paused {
             // Woken when the work is let go.
             return Duration::from_secs(3600);
@@ -375,6 +432,19 @@ impl Work {
                     outcome,
                 });
             }
+            Some(Running::Operation { id, started_at }) => {
+                // A slice that left work to do waits for its next turn.
+                if outcome.get("state").and_then(Value::as_str) == Some("running")
+                    && !state.operations.contains(&id)
+                {
+                    state.operations.push_back(id);
+                }
+                state.last_operation = Some(Ended {
+                    started_at,
+                    ended_at: now,
+                    outcome,
+                });
+            }
             None => {}
         }
     }
@@ -396,6 +466,7 @@ impl Work {
         let mut state = self.state();
         state.serving = false;
         state.running = None;
+        state.operations.clear();
     }
 }
 
@@ -489,6 +560,15 @@ async fn run(engine: Arc<Engine>) {
                         .await;
                     match rebuilt {
                         Ok(rebuilt) => rebuilt,
+                        Err(error) => failed(&error),
+                    }
+                })
+                .await
+            }
+            Some(Job::Operation(id)) => {
+                guarded(async {
+                    match crate::operate::run_slice(&engine, id, &clock).await {
+                        Ok(outcome) => outcome,
                         Err(error) => failed(&error),
                     }
                 })

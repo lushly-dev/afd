@@ -14,7 +14,7 @@ from collections.abc import Callable
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
 
-from botcore_factory import cells, events, intake, lane_process, queue, status
+from botcore_factory import cells, events, foreman, intake, lane_process, queue, status
 from botcore_factory.runtime import Factory, guarded, paginate
 
 GITHUB = ("gh",)
@@ -92,7 +92,11 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(body)
 
     async def cell_register(
-        issues: list[int], branch: str, route: str, thread: str | None = None
+        issues: list[int],
+        branch: str,
+        route: str,
+        thread: str | None = None,
+        session: str | None = None,
     ) -> CommandResult:
         """Claim issues for a new cell on GitHub and assign the cell the plan with most room.
 
@@ -101,9 +105,11 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             branch: The cell's branch.
             route: The model route the cell runs on, e.g. sol/high.
             thread: The T3 Code thread, when it is already known (cell-attach records it later).
+            session: The foreman's own session (its T3 Code thread id), which holds the lane.
         """
 
         def body() -> CommandResult:
+            foreman.hold(get(), session, "cell-register")
             cell = cells.register(get(), issues, branch, route, thread)
             return success(
                 {"cell": cell},
@@ -137,14 +143,17 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success(status.dial_get(get(), key)))
 
-    async def dial_set(key: str, value: int | float | bool) -> CommandResult:
+    async def dial_set(
+        key: str, value: int | float | bool, session: str | None = None
+    ) -> CommandResult:
         """Set a dial; the previous value is returned so the change can be undone.
 
         Args:
             key: The dial, e.g. lane.slots.
             value: The new value, within the dial's range.
+            session: The foreman's own session; the owner, setting a dial by hand, names none.
         """
-        return await run(lambda: success(status.dial_set(get(), key, value)))
+        return await run(lambda: success(status.dial_set(get(), key, value, session)))
 
     async def lane_enqueue(
         worktree: str, title: str | None = None, body_file: str | None = None
@@ -167,20 +176,25 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         return await run(body)
 
-    async def lane_wait(consumer: str, timeout_ms: int | None = None) -> CommandResult:
+    async def lane_wait(
+        consumer: str, timeout_ms: int | None = None, session: str | None = None
+    ) -> CommandResult:
         """Wait for events this consumer has not been given; reading never resolves them.
 
         Args:
             consumer: Who reads, e.g. foreman; each consumer is given each event once.
             timeout_ms: How long to wait; no limit when left out (over MCP pass at most 300000).
+            session: The foreman's own session (its T3 Code thread id); it holds the lane, and
+                waiting keeps it.
         """
 
         def body() -> CommandResult:
             factory = get()
             lane_process.check_lane(factory)
+            keep = foreman.waiting(factory, consumer, session, timeout_ms)
             return success(
                 events.lane_wait(
-                    factory, consumer, timeout_ms, lambda: status.compact_status(factory)
+                    factory, consumer, timeout_ms, lambda: status.compact_status(factory), keep
                 )
             )
 

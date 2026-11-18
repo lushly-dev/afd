@@ -9,7 +9,9 @@ prequeue = [
     { name = "lint", run = ["pnpm", "lint"] },
     { name = "typecheck", run = ["pnpm", "typecheck"] },
 ]
-review_evidence = ["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
+review_evidence = [
+    "node", "scripts/review-record.mjs", "verify", "--head", "{head}", "--worktree", "{worktree}",
+]
 gate_paths = [
     "lefthook.yml",
     ".github/workflows/**",
