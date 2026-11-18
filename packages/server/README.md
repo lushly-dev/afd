@@ -1600,6 +1600,8 @@ const server = createMcpServer({
 
 - The server sets `traceId`, `signal` and `interface` (`'mcp'`) itself; `createContext` cannot override them.
 - `context.signal` aborts when the client disconnects before the response is finished, on every route, not only streams. Long-running handlers should honor it.
+- A positive finite `context.timeout` (milliseconds, for example from `createContext`) bounds each command's middleware and handler execution. The deadline aborts its signal and returns `TIMEOUT` with a recovery suggestion, even if the handler ignores cancellation. Each batch item and pipeline step gets its own deadline; batch/pipeline options still bound the whole operation. Nonpositive or nonfinite values disable this command deadline. A timed-out mutation may still complete if it already started: check its effect before retrying. Work waiting in middleware cannot start its handler after cancellation or timeout.
+- This deadline boundary belongs to `createMcpServer` and `createMcpHandler`, including `server.execute()`. In-process hosts using `createDirectRegistry` get per-call deadlines through DirectClient; `/direct` alone includes no server deadline machinery.
 - A throw from `createContext` is reported to `onError` and answered as an internal error (`-32603` on JSON-RPC routes, HTTP 500 elsewhere).
 - Pipeline `$input` does not expose these values, so a pipeline cannot copy them into step inputs.
 - stdio has no HTTP request, so `createContext` is not called there.

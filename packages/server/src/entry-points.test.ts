@@ -298,6 +298,8 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
 		// MCP authorization (spec/authorization.md) is the HTTP layer's: none of it, nor jose.
 		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
+		// Server-only deadlines (#543) must not grow in-process hosts that do not use them.
+		expect(inputs.filter((input) => input.endsWith('src/command-timeout.ts'))).toEqual([]);
 	});
 
 	it('keeps the tool surface out of a registry that does not ask for it', async () => {

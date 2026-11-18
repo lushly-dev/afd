@@ -36,8 +36,9 @@
 // `afd-batch` and `afd-pipe` take a `confirm` array of command names, and ask once, before any
 // step runs, for every gated step. Approvals: an approval middleware created with
 // `.relay = afd::ApprovalRelay::mcp_elicitation` asks the human behind the client in the same way
-// for a call to one command ("Asking the human over MCP"); a batch or pipeline step that needs
-// approval fails with APPROVAL_REQUIRED, telling the agent to call it on its own.
+// for a call to one command ("Asking the human over MCP"), and approves an `afd-batch` or
+// `afd-pipe` up front, as a whole: one question for every gated step before any runs ("One
+// approval up front for `afd-batch` and `afd-pipe`").
 #pragma once
 
 #include "afd/command.hpp"
