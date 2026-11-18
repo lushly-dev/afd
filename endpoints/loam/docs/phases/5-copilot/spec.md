@@ -1233,7 +1233,7 @@ The copilot core, in [#1493](https://github.com/lushly-dev/afd/pull/1493), on `m
 
 ## Step 2, 2026-11-18
 
-Model access on the desktop, in the pull request this record is part of, on `main` at `8f58c33e`.
+Model access on the desktop, in [#1531](https://github.com/lushly-dev/afd/pull/1531), written on `main` at `8f58c33e` and merged with `main` at `c3964f99`.
 
 **Built.**
 
