@@ -7,7 +7,7 @@ description: >
 argument-hint: "[check] [area:<name>] [budget:<n>]"
 metadata:
   source: botcore
-  version: 1.0.0
+  version: 1.1.0
   portable: true
 ---
 
@@ -46,21 +46,31 @@ touches, and names an area: the nearest package (a directory with `package.json`
 `pyproject.toml`, `Cargo.toml` or `go.mod`) holding the top free file. `--record`
 comments the measurement on the trend issue before anything changes, so the log
 shows the main branch as daily work left it. With no area given and none free, a
-scheduled pass can take `sweep.mjs area`, which rotates through the areas by week.
+scheduled pass can take `sweep.mjs area`: its first line is this week's area in a
+rotation through every area, and the rest lists the rotation. An `--area` that holds
+no measured source is refused with the areas meant most likely.
 
 It measures tracked source (TypeScript, JavaScript, Python and Rust by default) and
 never tests, stories, declarations, or anything under a `test`, `tests`, `build`,
 `dist`, `vendor`, `coverage` or `generated` directory, so a hand-written package with
-one of those names is not measured.
+one of those names is not measured. Nor does it measure the skills Botcore seeded
+under `[skills] source_dir` (`metadata.source: botcore`): `skill-seed --update`
+replaces them, so a cut there would not last.
 
 Settings are under `[sweep]` in `botcore.toml` (`[tool.botcore.sweep]` in
 `pyproject.toml`): `trend_issue` (an open issue, needed for `--record` and `trend`),
 `cohesive` (default `sweep-cohesive.json`), `exclude` (path prefixes),
-`churn_days` (90), `extensions`, and `measures`: a command printing the
-repository's own measures, such as bundle chunk sizes, as
-`{"measures": [{"key", "label", "value"}], "lines": [...]}`, with only JSON on
-stdout. Those join the report and the trend, which reads a rise as worse, so report
-measures where bigger is worse.
+`include_names` (file-name patterns measured although skipped by default, such as
+`"*.stories.*"` where a size limit counts stories), `churn_days` (90), `extensions`,
+and `measures`: a command printing the repository's own measures, such as bundle
+chunk sizes, as `{"measures": [{"key", "label", "value"}], "lines": [...]}`, with
+only JSON on stdout. Those join the report's header and the trend, which reads a
+rise as worse, so report measures where bigger is worse.
+
+`trend` reads only the comments the authenticated `gh` account wrote, keeps only
+records whose values are all numbers, and names measures by the labels `measures`
+prints now, so run `trend` as the account that records. A comment anyone else
+writes on the trend issue cannot change the verdict.
 
 If `trend` says **NOT KEEPING UP**, a measure has risen three passes running and
 deferral is losing. Still do the pass, then put the decision to the owner with a

@@ -3,16 +3,18 @@
  * The bloat sweep's measurements, for the bloat-sweeper skill. Run from inside the
  * repository; it needs Node and git, and `gh` for open pull requests and the trend.
  *
- *   area                      this week's area in the rotation
+ *   area                      this week's area in the rotation, then the whole rotation
  *   bloat [--area <a>] [--top <n>] [--record]
  *                             rank oversized files and copied code, name the area to work on;
  *                             --record comments the measurement on the trend issue first
- *   trend                     the recorded measurements, and whether deferral is keeping up
+ *   trend                     the measurements the `gh` user recorded, and whether deferral
+ *                             is keeping up
  *
  * Settings come from botcore.toml (or pyproject.toml's [tool.botcore]): `file_size_warn`
- * is the threshold, and `[sweep]` holds `trend_issue`, `cohesive`, `exclude`,
- * `churn_days`, `extensions` and `measures`. Judgment stays in the skill: whether a long
- * file has a seam, what to extract, and what to do when the trend worsens.
+ * is the threshold, `[skills] source_dir` holds the skills Botcore seeds (never measured),
+ * and `[sweep]` holds `trend_issue`, `cohesive`, `exclude`, `include_names`, `churn_days`,
+ * `extensions` and `measures`. Judgment stays in the skill: whether a long file has a
+ * seam, what to extract, and what to do when the trend worsens.
  *
  * Exit: 0 done, 1 usage, configuration or unexpected error (the reason on stderr).
  */
@@ -95,15 +97,23 @@ function tomlValue(raw) {
 }
 
 /**
- * The flat keys and the `[sweep]` table of a botcore.toml, or of pyproject.toml's
- * `[tool.botcore]` and `[tool.botcore.sweep]`. Enough TOML for these settings, not a
- * general parser; Botcore's own loader validates the file.
+ * The flat keys and the `[sweep]` and `[skills]` tables of a botcore.toml, or of
+ * pyproject.toml's `[tool.botcore]`, `[tool.botcore.sweep]` and `[tool.botcore.skills]`.
+ * Enough TOML for these settings, not a general parser; Botcore's own loader validates
+ * the file.
  */
 export function readSettings(text, { pyproject = false } = {}) {
 	const top = pyproject ? 'tool.botcore' : '';
 	const sweepTable = pyproject ? 'tool.botcore.sweep' : 'sweep';
+	const skillsTable = pyproject ? 'tool.botcore.skills' : 'skills';
 	const flat = {};
 	const sweep = {};
+	const skills = {};
+	const tables = new Map([
+		[top, flat],
+		[sweepTable, sweep],
+		[skillsTable, skills],
+	]);
 	let table = '';
 	let pending;
 	for (const raw of text.split(/\r?\n/u)) {
@@ -122,7 +132,7 @@ export function readSettings(text, { pyproject = false } = {}) {
 		}
 		const pair = /^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$/u.exec(line);
 		if (!pair) continue;
-		const target = table === top ? flat : table === sweepTable ? sweep : undefined;
+		const target = tables.get(table);
 		if (!target) continue;
 		const [, key, value] = pair;
 		if (value.trim().startsWith('[') && !scanLine(value).closes) pending = { target, key, value };
@@ -133,6 +143,8 @@ export function readSettings(text, { pyproject = false } = {}) {
 		trendIssue: typeof sweep.trend_issue === 'number' ? sweep.trend_issue : undefined,
 		cohesive: typeof sweep.cohesive === 'string' ? sweep.cohesive : 'sweep-cohesive.json',
 		exclude: Array.isArray(sweep.exclude) ? sweep.exclude : [],
+		includeNames: Array.isArray(sweep.include_names) ? sweep.include_names : [],
+		skillsDir: typeof skills.source_dir === 'string' ? skills.source_dir : '.claude/skills',
 		churnDays: typeof sweep.churn_days === 'number' ? sweep.churn_days : 90,
 		extensions: Array.isArray(sweep.extensions) ? sweep.extensions : DEFAULT_EXTENSIONS,
 		measures: typeof sweep.measures === 'string' ? sweep.measures : undefined,
@@ -141,14 +153,78 @@ export function readSettings(text, { pyproject = false } = {}) {
 
 // ── What is measured ─────────────────────────────────────────────────────────
 
-/** Whether a tracked path is source the sweep measures. */
+/**
+ * A file-name pattern as a regular expression: `*` is any run of characters but `/`, `?`
+ * one of them. It matches the whole name, or the whole path when the pattern has a `/`.
+ */
+function namePattern(glob) {
+	const body = glob
+		.split('')
+		.map((char) =>
+			char === '*' ? '[^/]*' : char === '?' ? '[^/]' : char.replace(/[\\^$.|+()[\]{}]/u, '\\$&')
+		)
+		.join('');
+	return new RegExp(`${glob.includes('/') ? '^' : '(?:^|/)'}${body}$`, 'u');
+}
+
+/**
+ * Whether a tracked path is source the sweep measures. `include_names` brings back a
+ * name the default skips (`*.stories.*`); skipped directories and `exclude` still win.
+ */
 export function isMeasured(path, settings) {
 	if (!settings.extensions.some((extension) => path.endsWith(extension))) return false;
-	if (SKIPPED_NAME.test(path)) return false;
+	if (
+		SKIPPED_NAME.test(path) &&
+		!(settings.includeNames ?? []).some((glob) => namePattern(glob).test(path))
+	)
+		return false;
 	if (path.split('/').some((segment) => SKIPPED_SEGMENTS.has(segment))) return false;
 	return !settings.exclude.some(
 		(prefix) => path === prefix || path.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)
 	);
+}
+
+/**
+ * Whether a SKILL.md is a copy Botcore seeded: `source: botcore` under its frontmatter's
+ * `metadata:`, or at the top level as older copies have it.
+ */
+export function isSeededSkill(contents) {
+	const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(contents)?.[1];
+	if (!frontmatter) return false;
+	const isBotcore = (value) =>
+		value
+			.replace(/\s+#.*$/u, '')
+			.trim()
+			.replace(/^(["'])(.*)\1$/u, '$2') === 'botcore';
+	let inMetadata = false;
+	for (const line of frontmatter.split(/\r?\n/u)) {
+		const topLevel = /^([A-Za-z0-9_-]+):(.*)$/u.exec(line);
+		if (topLevel) {
+			inMetadata = topLevel[1] === 'metadata';
+			if (topLevel[1] === 'source' && isBotcore(topLevel[2])) return true;
+			continue;
+		}
+		const nested = /^\s+source:(.*)$/u.exec(line);
+		if (inMetadata && nested && isBotcore(nested[1])) return true;
+	}
+	return false;
+}
+
+/**
+ * The directories, each ending in `/`, of the skills Botcore seeded under `skillsDir`
+ * (`[skills] source_dir`). A consumer never edits such a copy, and `skill-seed --update`
+ * replaces it, so its scripts are not the repository's bloat. `read` gives a tracked
+ * file's contents.
+ */
+export function seededSkillPrefixes(paths, skillsDir, read) {
+	const dir = skillsDir
+		.replaceAll('\\', '/')
+		.replace(/^(?:\.\/)+/u, '')
+		.replace(/\/+$/u, '');
+	return paths
+		.filter((path) => path.startsWith(`${dir}/`) && path.endsWith('/SKILL.md'))
+		.filter((path) => isSeededSkill(read(path) ?? ''))
+		.map((path) => path.slice(0, -'SKILL.md'.length));
 }
 
 /** Lines in a file, a final newline not counting as one more. */
@@ -191,6 +267,47 @@ export function isoWeek(date) {
 export function rotationArea(areas, date) {
 	if (areas.length === 0) throw new Error('No sweep areas: no measured source is tracked.');
 	return areas[isoWeek(date) % areas.length];
+}
+
+/**
+ * What `area` prints: this week's area alone on the first line, for a script to read,
+ * then the whole rotation with this week's marked.
+ */
+export function formatArea(areas, date) {
+	const chosen = rotationArea(areas, date);
+	return [
+		chosen,
+		'',
+		`Rotation, one area per ISO week (this is week ${isoWeek(date)}, ${areas.length} areas):`,
+		...areas.map((area) => `${area === chosen ? '>' : ' '} ${area}`),
+	].join('\n');
+}
+
+/** Areas listed in full when `--area` names none of them; past this, `area` lists them. */
+const LISTED_AREAS = 12;
+
+/**
+ * Refuses an `--area` that holds no measured source, with the likeliest areas meant
+ * (those ending in it, then those containing it) and where to find the rest.
+ */
+export function requireKnownArea(area, areas) {
+	if (area === undefined || areas.includes(area)) return;
+	const endsWith = areas.filter((known) => area && known.endsWith(`/${area}`));
+	const contains = areas.filter(
+		(known) => area && known !== '.' && known.includes(area) && !endsWith.includes(known)
+	);
+	const near = [...endsWith, ...contains].slice(0, 3);
+	throw new Error(
+		[
+			`No measured source in area "${area}".`,
+			near.length ? `Did you mean ${near.join(' or ')}?` : '',
+			areas.length <= LISTED_AREAS
+				? `Areas: ${areas.join(', ')}.`
+				: `Run \`sweep.mjs area\` to list all ${areas.length} areas.`,
+		]
+			.filter(Boolean)
+			.join(' ')
+	);
 }
 
 // ── Size and churn ───────────────────────────────────────────────────────────
@@ -321,12 +438,13 @@ const CORE_MEASURES = [
 	['spreadingClones', `copies in ${SPREADING_FILES}+ files`],
 ];
 
-/** The measures a recording holds: the core three, then the repository's own, by their labels. */
-function measuresOf(history) {
-	const extra = new Map();
-	for (const entry of history)
-		for (const [key, label] of Object.entries(entry.labels ?? {})) extra.set(key, label);
-	return [...CORE_MEASURES, ...extra];
+/**
+ * The measures to show: the core three, then the repository's own by their labels. The
+ * labels come from this run's `measures` command, never from a recorded comment, so
+ * text on the trend issue cannot reach the output.
+ */
+function measuresOf(labels = {}) {
+	return [...CORE_MEASURES, ...Object.entries(labels)];
 }
 
 /** The comment `bloat --record` posts: the measures in words, then the machine line. */
@@ -334,7 +452,7 @@ export function recordBody({ metrics, area }) {
 	return [
 		`**Bloat sweep ${metrics.date}** at \`${metrics.head}\`, area \`${area ?? 'none'}\``,
 		'',
-		...measuresOf([metrics])
+		...measuresOf(metrics.labels)
 			.filter(([key]) => typeof metrics[key] === 'number')
 			.map(([key, label]) => `- ${label}: ${metrics[key]}`),
 		'',
@@ -342,14 +460,33 @@ export function recordBody({ metrics, area }) {
 	].join('\n');
 }
 
-/** The measurements recorded in comment bodies, oldest first; a hand-edited one is skipped. */
+/**
+ * Whether a parsed record is one `bloat --record` could have written: an ISO date, a
+ * short commit hash, and numbers for every measure. `labels` is read past, not kept.
+ */
+function isRecording(metrics) {
+	if (typeof metrics !== 'object' || metrics === null || Array.isArray(metrics)) return false;
+	if (typeof metrics.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(metrics.date)) return false;
+	return Object.entries(metrics).every(([key, value]) => {
+		if (key === 'date' || key === 'labels') return true;
+		if (key === 'head') return typeof value === 'string' && /^[0-9a-f]{4,40}$/u.test(value);
+		return typeof value === 'number' && Number.isFinite(value);
+	});
+}
+
+/**
+ * The measurements recorded in comment bodies, oldest first. A record that is not all
+ * numbers is dropped whole: a hand-edited or forged comment adds nothing to the trend.
+ */
 export function parseMetrics(bodies) {
 	const pattern = new RegExp(`<!-- ${METRICS_MARK} (\\{.*?\\}) -->`, 'u');
 	return bodies
 		.flatMap((body) => {
 			try {
 				const metrics = JSON.parse(pattern.exec(body)?.[1] ?? 'null');
-				return typeof metrics?.date === 'string' ? [metrics] : [];
+				if (!isRecording(metrics)) return [];
+				const { labels: _labels, ...measures } = metrics;
+				return [measures];
 			} catch {
 				return [];
 			}
@@ -357,11 +494,21 @@ export function parseMetrics(bodies) {
 		.sort((left, right) => left.date.localeCompare(right.date));
 }
 
+/**
+ * The bodies of the comments `login` wrote, given `{ author, body }` per comment. The
+ * trend reads only the measurements its own account recorded; anyone else who can
+ * comment on the issue could otherwise forge a verdict.
+ */
+export function recordedBy(comments, login) {
+	if (!login) return [];
+	return comments.filter((comment) => comment.author === login).map((comment) => comment.body);
+}
+
 /** Measures that rose in each of the last passes; a pass that did not record one breaks its run. */
-export function worseningMeasures(history, passes = WORSENING_PASSES) {
+export function worseningMeasures(history, { labels = {}, passes = WORSENING_PASSES } = {}) {
 	const recent = history.slice(-(passes + 1));
 	if (recent.length < passes + 1) return [];
-	return measuresOf(history)
+	return measuresOf(labels)
 		.filter(([key]) =>
 			recent.every(
 				(entry, index) =>
@@ -374,14 +521,19 @@ export function worseningMeasures(history, passes = WORSENING_PASSES) {
 /** The skill keys on this verdict line; change the two together. */
 export const NOT_KEEPING_UP = 'Verdict: NOT KEEPING UP.';
 
-export function formatTrend(history, issue) {
-	if (history.length === 0) return `No measurements recorded on #${issue} yet.`;
-	const measures = measuresOf(history);
+/**
+ * The trend table and its verdict. `labels` are the current `measures` command's; a
+ * recorded key it no longer reports is left out. `author` is whose comments were read.
+ */
+export function formatTrend(history, issue, { labels = {}, author } = {}) {
+	if (history.length === 0)
+		return `No measurements recorded on #${issue}${author ? ` by ${author}` : ''} yet.`;
+	const measures = measuresOf(labels);
 	const lines = [`Bloat trend from #${issue}, oldest first:`];
 	for (const entry of history)
 		lines.push(`  ${entry.date}  ${measures.map(([key]) => entry[key] ?? '-').join('  ')}`);
 	lines.push(`  (${measures.map(([, label]) => label).join(' | ')})`, '');
-	const worsening = worseningMeasures(history);
+	const worsening = worseningMeasures(history, { labels });
 	if (worsening.length === 0)
 		lines.push(`Verdict: holding. No measure has risen ${WORSENING_PASSES} passes in a row.`);
 	else
@@ -423,6 +575,23 @@ function trackedFiles(root) {
 	return run(root, 'git', ['ls-files', '-z']).split('\0').filter(Boolean);
 }
 
+function readTracked(root, path) {
+	const file = join(root, path);
+	return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
+}
+
+/** `settings` with the skills Botcore seeded under `[skills] source_dir` excluded too. */
+function withSeededSkillsExcluded(root, paths, settings) {
+	const seeded = seededSkillPrefixes(paths, settings.skillsDir, (path) => readTracked(root, path));
+	return { ...settings, exclude: [...settings.exclude, ...seeded] };
+}
+
+/** The areas holding measured source, sorted: the rotation, and what `--area` accepts. */
+function measuredAreas(paths, settings) {
+	const areaOf = areaResolver(paths);
+	return [...new Set(paths.filter((path) => isMeasured(path, settings)).map(areaOf))].sort();
+}
+
 function churnByPath(root, days) {
 	const log = run(root, 'git', ['log', `--since=${days}.days`, '--name-only', '--format=', '-z']);
 	const churn = new Map();
@@ -451,6 +620,19 @@ function cohesiveVerdicts(root, settings) {
 	return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
 }
 
+/** Keys `bloat` records itself; a repository measure cannot take one over. */
+const RECORDED_KEYS = new Set([
+	'date',
+	'head',
+	'labels',
+	'threshold',
+	'overThreshold',
+	'largestLines',
+	'duplicatedLines',
+	'cloneGroups',
+	'spreadingClones',
+]);
+
 /**
  * The repository's own measures, from `[sweep] measures`: a command printing
  * `{ "measures": [{ "key", "label", "value" }], "lines": ["..."] }`.
@@ -461,7 +643,7 @@ function repositoryMeasures(root, settings) {
 	const metrics = {};
 	const labels = {};
 	for (const { key, label, value } of output.measures ?? []) {
-		if (typeof key !== 'string' || typeof value !== 'number') continue;
+		if (typeof key !== 'string' || !Number.isFinite(value) || RECORDED_KEYS.has(key)) continue;
 		metrics[key] = value;
 		labels[key] = typeof label === 'string' ? label : key;
 	}
@@ -470,8 +652,7 @@ function repositoryMeasures(root, settings) {
 
 // ── Commands ─────────────────────────────────────────────────────────────────
 
-function measureBloat(root, settings, area) {
-	const paths = trackedFiles(root);
+function measureBloat(root, settings, area, paths) {
 	const areaOf = areaResolver(paths);
 	const sources = paths
 		.filter((path) => isMeasured(path, settings) && existsSync(join(root, path)))
@@ -534,13 +715,15 @@ function measureBloat(root, settings, area) {
 const heldBy = (numbers) =>
 	numbers.length ? `  [open PR ${numbers.map((number) => `#${number}`).join(', ')}: skip]` : '';
 
-function formatBloat(report, settings, top) {
+/** The report `bloat` prints: the measures first, the repository's own among them. */
+export function formatBloat(report, settings, top) {
 	const { metrics } = report;
 	const lines = [
 		`Bloat report @ ${metrics.head} (${metrics.date})`,
 		`  area: ${report.area ?? 'none: every oversized file is judged cohesive or has an open pull request'}`,
 		`  files at or over ${metrics.threshold} lines: ${metrics.overThreshold} (largest ${metrics.largestLines})`,
 		`  duplicated lines: ${metrics.duplicatedLines} in ${metrics.cloneGroups} copies, ${metrics.spreadingClones} of them in ${SPREADING_FILES}+ files`,
+		...Object.entries(metrics.labels ?? {}).map(([key, label]) => `  ${label}: ${metrics[key]}`),
 		'',
 		`Oversized, by lines past the threshold x (1 + commits in ${settings.churnDays} days):`,
 		...report.oversized
@@ -568,20 +751,25 @@ function formatBloat(report, settings, top) {
 	return lines.join('\n');
 }
 
+/** The measurements the authenticated `gh` user recorded on the trend issue, and who that is. */
 function readHistory(root, issue) {
-	return parseMetrics(
-		JSON.parse(
-			run(root, 'gh', [
-				'issue',
-				'view',
-				String(issue),
-				'--json',
-				'comments',
-				'--jq',
-				'[.comments[].body]',
-			])
-		)
+	const author = run(root, 'gh', ['api', 'user', '--jq', '.login'], { allowFailure: true })?.trim();
+	if (!author)
+		throw new Error(
+			'Could not read the authenticated GitHub user (`gh api user`): run `gh auth status`. The trend reads only the measurements its own account recorded.'
+		);
+	const comments = JSON.parse(
+		run(root, 'gh', [
+			'issue',
+			'view',
+			String(issue),
+			'--json',
+			'comments',
+			'--jq',
+			'[.comments[] | {author: .author.login, body}]',
+		])
 	);
+	return { author, history: parseMetrics(recordedBy(comments, author)) };
 }
 
 function requireTrendIssue(settings) {
@@ -596,18 +784,19 @@ export function main(
 	root = run(process.cwd(), 'git', ['rev-parse', '--show-toplevel']).trim()
 ) {
 	const [command, ...rest] = args;
-	const settings = loadSettings(root);
-	if (command === 'area' && rest.length === 0) {
-		const paths = trackedFiles(root);
-		const areaOf = areaResolver(paths);
-		const areas = [
-			...new Set(paths.filter((path) => isMeasured(path, settings)).map(areaOf)),
-		].sort();
-		return rotationArea(areas, new Date());
-	}
+	const configured = loadSettings(root);
 	if (command === 'trend' && rest.length === 0) {
-		const issue = requireTrendIssue(settings);
-		return formatTrend(readHistory(root, issue), issue);
+		const issue = requireTrendIssue(configured);
+		const { author, history } = readHistory(root, issue);
+		const { labels } = repositoryMeasures(root, configured);
+		return formatTrend(history, issue, { labels, author });
+	}
+	if (command !== 'area' && command !== 'bloat') throw new Error(USAGE);
+	const paths = trackedFiles(root);
+	const settings = withSeededSkillsExcluded(root, paths, configured);
+	if (command === 'area') {
+		if (rest.length > 0) throw new Error(USAGE);
+		return formatArea(measuredAreas(paths, settings), new Date());
 	}
 	if (command !== 'bloat') throw new Error(USAGE);
 	const { values } = parseArgs({
@@ -617,7 +806,8 @@ export function main(
 	const top = values.top === undefined ? 10 : Number(values.top);
 	if (!Number.isInteger(top) || top < 1)
 		throw new Error(`--top takes a positive whole number.\n${USAGE}`);
-	const report = measureBloat(root, settings, values.area);
+	requireKnownArea(values.area, measuredAreas(paths, settings));
+	const report = measureBloat(root, settings, values.area, paths);
 	if (values.record) {
 		const issue = requireTrendIssue(settings);
 		run(root, 'gh', ['issue', 'comment', String(issue), '--body', recordBody(report)]);
