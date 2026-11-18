@@ -18,6 +18,8 @@ NUMBERS = (
     "reruns",
     "baseAdvances",
     "rerunLimitAdvances",
+    "ejections",
+    "excusedEjections",
 )
 
 
@@ -49,6 +51,14 @@ def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_
         "rerunLimitAdvances": sum(
             1 for r in mine if r.get("kind") == "base-advanced" and r.get("reason") == "rerun-limit"
         ),
+        "ejections": sum(1 for r in mine if r.get("kind") == "ejected"),
+        # Ejections that were not the branch's own failure: by cause (a conflict, the push or PR
+        # plumbing) or excused by the foreman (ejection-excuse); none counts toward
+        # cells.maxEjections.
+        "excusedEjections": sum(
+            1 for r in mine if r.get("kind") == "ejected" and r.get("counted") is False
+        )
+        + sum(1 for r in mine if r.get("kind") == "ejection-excused"),
         "foremanWakes": sum(1 for r in mine if r.get("kind") == "wake"),
         "prs": [
             {
@@ -80,6 +90,8 @@ def numbers(summary: dict) -> dict:
         "reruns": summary.get("reruns", 0),
         "baseAdvances": summary.get("baseAdvances", 0),
         "rerunLimitAdvances": summary.get("rerunLimitAdvances", 0),
+        "ejections": summary.get("ejections", 0),
+        "excusedEjections": summary.get("excusedEjections", 0),
         "foreman": {"wakes": wakes, "wakesPerMerge": _ratio(wakes, merged)},
         "byPlan": _count(prs, "plan"),
         "byRoute": _count(prs, "route"),

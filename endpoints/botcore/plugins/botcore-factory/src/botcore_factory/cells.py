@@ -10,13 +10,15 @@ take the last seat or issue. ``lane-drop`` releases the claims and forgets the c
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from botcore_factory import dials, records
-from botcore_factory.claims import Claim, claim_body, format_time, release_body
+from botcore_factory.claims import Claim, claim_body, format_time, parse_time, release_body
 from botcore_factory.events import answer, emit
 from botcore_factory.intake import not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
+from botcore_factory.lane_base import counted_ejections
+from botcore_factory.records import last_ejection
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import Plan, WorldError
 
@@ -29,29 +31,63 @@ class PlanChoice:
     plan: Plan | None
     next_reset: str | None
     ceiling: float
+    now: datetime | None = None
 
 
-def choose_plan(plans: list[Plan], ceiling: float) -> PlanChoice:
-    """The plan with most room (share of the window elapsed minus share used) below the ceiling.
+#: Days in a plan's window, for a plan that names no reset (the share elapsed says how far in).
+WINDOW_DAYS = 7.0
+#: The least time to a reset a pace is computed over, so a window about to reset (or a cache
+#: whose reset has passed) has a large pace rather than an infinite one.
+MIN_DAYS = 1 / 24
+
+
+def days_to_reset(plan: Plan, now: datetime) -> float:
+    """Days until the plan's window resets: from ``resetsAt``, else from the share elapsed."""
+    if plan.resets_at:
+        days = (parse_time(plan.resets_at) - now).total_seconds() / 86400
+    else:
+        days = WINDOW_DAYS * (100 - plan.elapsed) / 100
+    return max(MIN_DAYS, days)
+
+
+def pace(plan: Plan, ceiling: float, now: datetime) -> float:
+    """How much of the plan's remaining room must be spent a day to use it by its reset: the room
+    below ``plans.ceiling`` (percent of the window) over the days until the reset.
+
+    The plan with the highest pace is the one whose allowance most needs spending before it resets
+    (the owner's rule): 10% left with four days to go (2.5 a day) loses to 100% left with five
+    (20 a day), so every plan tracks to its ceiling around its own reset.
+    """
+    return max(0.0, ceiling - plan.used) / days_to_reset(plan, now)
+
+
+def choose_plan(plans: list[Plan], ceiling: float, now: datetime) -> PlanChoice:
+    """The plan with the highest pace (room below the ceiling per day to its reset) below the
+    ceiling.
 
     A plan at or above ``plans.ceiling`` is skipped. With none left, ``next_reset`` says when
     the first window resets.
     """
     open_plans = [plan for plan in plans if plan.used < ceiling]
     if open_plans:
-        best = max(open_plans, key=lambda plan: (plan.room, -plan.used, plan.id))
-        return PlanChoice(best, None, ceiling)
+        best = max(open_plans, key=lambda plan: (pace(plan, ceiling, now), -plan.used, plan.id))
+        return PlanChoice(best, None, ceiling, now)
     resets = sorted(plan.resets_at for plan in plans if plan.resets_at)
-    return PlanChoice(None, resets[0] if resets else None, ceiling)
+    return PlanChoice(None, resets[0] if resets else None, ceiling, now)
 
 
-def describe_plan(plan: Plan, ceiling: float) -> dict:
+def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict:
     return {
         "id": plan.id,
         "provider": plan.provider,
         "used": plan.used,
         "elapsed": plan.elapsed,
         "room": plan.room,
+        # The room pace spends: percent of the window left below plans.ceiling.
+        "left": round(max(0.0, ceiling - plan.used), 2),
+        # Percent of the window to spend a day to reach the ceiling at the reset; highest first.
+        "pace": round(pace(plan, ceiling, now), 2),
+        "daysToReset": round(days_to_reset(plan, now), 2),
         "aboveCeiling": plan.used >= ceiling,
         "resetsAt": plan.resets_at,
     }
@@ -152,7 +188,9 @@ def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
             "Start the cell when a seat frees: lane-wait reports merged and queue-room events, "
             "and lane-status says canStartCell",
         )
-    choice = choose_plan(read_plans(factory), dials.value(overrides, "plans.ceiling"))
+    choice = choose_plan(
+        read_plans(factory), dials.value(overrides, "plans.ceiling"), factory.world.clock.now()
+    )
     if choice.plan is None:
         raise Refusal(
             "PLAN_ABOVE_CEILING",
@@ -265,6 +303,74 @@ def gate_allow(factory: Factory, branch: str, reason: str) -> dict:
         cell = find(state, branch)
         cell["gateAllowed"] = {"reason": reason, "at": format_time(factory.world.clock.now())}
     return {"allowed": True, "branch": branch}
+
+
+def ejection_excuse(factory: Factory, branch: str, reason: str) -> dict:
+    """Record that the cell's latest ejection was not its branch's fault, so it stops counting
+    toward ``cells.maxEjections``.
+
+    The foreman's call after a diagnosis, for a known flake (a check that fails on main too) or
+    trouble outside the branch the lane could not tell apart. Ejections whose cause is already
+    excused (``conflict`` and the push, PR and merge plumbing) need none. Excusing the ejection
+    that reached the limit answers the open ``ejection-limit`` event; the ``ejected`` event is
+    still answered by a re-enqueue or a drop.
+    """
+    if not reason.strip():
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "reason is empty",
+            "Say why the ejection was not the branch's fault, e.g. the flake's issue",
+        )
+    with factory.store.update(f"ejection-excuse {branch}") as state:
+        cell = find(state, branch)
+        latest = cell.get("lastEjection")
+        if latest is None and int(cell.get("ejections", 0)) > 0:
+            # Ejected before the lane kept the latest ejection on the cell: read it back.
+            found = last_ejection(factory.store.read_records(), branch) or {}
+            if "attempt" in found:
+                latest = {"attempt": found["attempt"], "cause": found.get("cause")}
+                latest["excused"] = None if found.get("counted", True) else found.get("excuse")
+        if latest is None:
+            raise Refusal(
+                "NOT_FOUND",
+                f"{branch} has no ejection to excuse",
+                "lane-status shows each cell's ejections; excuse one after it is ejected",
+            )
+        if latest.get("excused"):
+            raise Refusal(
+                "ALREADY_EXCUSED",
+                f"{branch}'s latest ejection (attempt {latest['attempt']}, {latest.get('cause')}) "
+                f"is already excused: {latest['excused']}",
+                "Nothing to do: it does not count toward cells.maxEjections",
+            )
+        now = format_time(factory.world.clock.now())
+        latest = {**latest, "excused": reason, "excusedAt": now}
+        cell["lastEjection"] = latest
+        cell["excused"] = int(cell.get("excused", 0)) + 1
+        limit = dials.value(state["dials"], "cells.maxEjections")
+        counted = counted_ejections(cell)
+        answered = answer(state, "ejection-excuse", now, branch=branch) if counted < limit else []
+        factory.store.append_record(
+            records.make(
+                "ejection-excused",
+                now,
+                state["lane"].get("runId"),
+                branch=branch,
+                attempt=latest["attempt"],
+                cause=latest.get("cause") or "unknown",
+                reason=reason,
+            )
+        )
+    return {
+        "branch": branch,
+        "attempt": latest["attempt"],
+        "cause": latest.get("cause"),
+        "ejections": int(cell.get("ejections", 0)),
+        "excused": cell["excused"],
+        "counted": counted,
+        "limit": limit,
+        "answered": answered,
+    }
 
 
 def drop(factory: Factory, branch: str, reason: str) -> dict:

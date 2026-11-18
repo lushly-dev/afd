@@ -6,6 +6,12 @@
 //! changes flags and `UIDVALIDITY`, names messages it lists and never returns,
 //! and drops the connection after a number of `FETCH` responses. Every command
 //! the engine sends is logged, without the password.
+//!
+//! It also changes mail as the engine's operations ask (the specification's
+//! 9.2): `SELECT`, `STATUS`, `UID STORE`, `UID COPY` and `UID EXPUNGE` with
+//! UIDPLUS's `COPYUID`, and `UID MOVE` when a test offers `MOVE`. It refuses
+//! a bare `EXPUNGE`, and any change in a mailbox opened with `EXAMINE`; it
+//! can do a command and lose its answer, as a dropped connection would.
 
 #![allow(dead_code, clippy::expect_used, clippy::unwrap_used)]
 
@@ -53,6 +59,9 @@ pub struct Mailbox {
     /// UIDs whose `BODYSTRUCTURE` nests 2 000 deep, as a server's might for
     /// a message built to.
     pub nested: HashSet<u32>,
+    /// UIDs a `COPY` or a `MOVE` leaves where they are, saying nothing of
+    /// them.
+    pub never_copy: HashSet<u32>,
 }
 
 /// Everything the server holds, and what it was asked.
@@ -84,6 +93,13 @@ pub struct World {
     /// if it changed between two openings.
     pub renumber_on_qresync: Option<String>,
     pub connections: usize,
+    /// Offer `MOVE`.
+    pub moves: bool,
+    /// Do the next command with this verb (`COPY`, `MOVE`, `STORE`,
+    /// `EXPUNGE`) and drop the connection instead of answering it.
+    pub drop_after_doing: Option<String>,
+    /// Wait this long before answering each command, as a far server would.
+    pub slow: Option<std::time::Duration>,
 }
 
 impl World {
@@ -103,7 +119,33 @@ impl World {
             nest_examine_of: None,
             renumber_on_qresync: None,
             connections: 0,
+            moves: false,
+            drop_after_doing: None,
+            slow: None,
         }
+    }
+
+    /// The messages of a mailbox: each UID and its flags.
+    pub fn contents(&mut self, mailbox: &str) -> Vec<(u32, Vec<String>)> {
+        self.find(mailbox)
+            .messages
+            .iter()
+            .map(|(uid, message)| (*uid, message.flags.clone()))
+            .collect()
+    }
+
+    /// The subjects of a mailbox's messages, in UID order.
+    pub fn subjects(&mut self, mailbox: &str) -> Vec<String> {
+        self.find(mailbox)
+            .messages
+            .values()
+            .map(|message| {
+                let text = String::from_utf8_lossy(&message.bytes).to_string();
+                text.lines()
+                    .find_map(|line| line.strip_prefix("Subject: ").map(ToString::to_string))
+                    .unwrap_or_default()
+            })
+            .collect()
     }
 
     /// Adds an empty mailbox.
@@ -120,6 +162,7 @@ impl World {
             poison: HashSet::new(),
             poison_body: HashSet::new(),
             nested: HashSet::new(),
+            never_copy: HashSet::new(),
         });
     }
 
@@ -259,6 +302,8 @@ impl Server {
 /// What a connection has open.
 struct Session {
     open: Option<String>,
+    /// Whether it was opened with `EXAMINE`.
+    read_only: bool,
     enabled_qresync: bool,
 }
 
@@ -283,6 +328,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
     }
     let mut session = Session {
         open: None,
+        read_only: true,
         enabled_qresync: false,
     };
     let mut line = String::new();
@@ -296,6 +342,10 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
         let Some((tag, rest)) = command.split_once(' ') else {
             continue;
         };
+        let slow = world.lock().unwrap().slow;
+        if let Some(slow) = slow {
+            tokio::time::sleep(slow).await;
+        }
         let (output, close) = answer(tag, rest, &world, &mut session);
         for chunk in output {
             match chunk {
@@ -357,6 +407,9 @@ fn answer(
     match verb.as_str() {
         "CAPABILITY" => {
             let mut capabilities = "IMAP4rev1 UIDPLUS".to_string();
+            if world.moves {
+                capabilities.push_str(" MOVE");
+            }
             if world.condstore {
                 capabilities.push_str(" CONDSTORE");
             }
@@ -398,7 +451,25 @@ fn answer(
             }
             text(&mut out, format!("{tag} OK listed\r\n"));
         }
-        "EXAMINE" => examine(tag, &words, &mut world, session, &mut out),
+        "EXAMINE" => {
+            examine(tag, &words, &mut world, session, &mut out);
+            session.read_only = true;
+        }
+        "SELECT" => {
+            examine(tag, &words, &mut world, session, &mut out);
+            session.read_only = false;
+            // The answer says it can be changed.
+            if let Some(Chunk::Bytes(last)) = out.last_mut() {
+                *last = String::from_utf8_lossy(last)
+                    .replace("[READ-ONLY] examined", "[READ-WRITE] selected")
+                    .into_bytes();
+            }
+        }
+        "STATUS" => status(tag, &words, &mut world, &mut out),
+        "EXPUNGE" => text(
+            &mut out,
+            format!("{tag} BAD a bare EXPUNGE is refused here\r\n"),
+        ),
         "UID" => {
             let sub = words
                 .get(1)
@@ -408,10 +479,28 @@ fn answer(
                 text(&mut out, format!("{tag} BAD nothing open\r\n"));
                 return (out, false);
             };
+            let changing = matches!(sub.as_str(), "STORE" | "COPY" | "MOVE" | "EXPUNGE");
+            if changing && session.read_only {
+                text(
+                    &mut out,
+                    format!("{tag} NO [READ-ONLY] opened with EXAMINE\r\n"),
+                );
+                return (out, false);
+            }
             match sub.as_str() {
                 "SEARCH" => search(tag, &words[2..], &mut world, &open, &mut out),
                 "FETCH" => fetch(tag, rest, &words, &mut world, &open, &mut out),
+                "STORE" => store(tag, rest, &words, &mut world, &open, &mut out),
+                "COPY" => copy(tag, &words, &mut world, &open, false, &mut out),
+                "MOVE" if world.moves => copy(tag, &words, &mut world, &open, true, &mut out),
+                "EXPUNGE" => expunge(tag, &words, &mut world, &open, &mut out),
                 _ => text(&mut out, format!("{tag} BAD not scripted\r\n")),
+            }
+            if changing && world.drop_after_doing.as_deref() == Some(sub.as_str()) {
+                world.drop_after_doing = None;
+                world.down = world.down_on_drop;
+                // Done, and its answer lost.
+                return (vec![Chunk::Drop], true);
             }
         }
         "NOOP" => text(&mut out, format!("{tag} OK\r\n")),
@@ -517,6 +606,173 @@ fn examine(
         }
     }
     text(out, format!("{tag} OK [READ-ONLY] examined\r\n"));
+}
+
+fn status(tag: &str, words: &[String], world: &mut World, out: &mut Vec<Chunk>) {
+    let Some(name) = words.get(1) else {
+        text(out, format!("{tag} BAD no mailbox\r\n"));
+        return;
+    };
+    let Some(mailbox) = world.mailboxes.iter().find(|mailbox| &mailbox.name == name) else {
+        text(out, format!("{tag} NO no such mailbox\r\n"));
+        return;
+    };
+    text(
+        out,
+        format!(
+            "* STATUS \"{name}\" (UIDNEXT {} UIDVALIDITY {})\r\n",
+            mailbox.uid_next, mailbox.validity
+        ),
+    );
+    text(out, format!("{tag} OK status\r\n"));
+}
+
+/// `UID STORE set +FLAGS.SILENT (flags)` or `-FLAGS.SILENT`.
+fn store(
+    tag: &str,
+    rest: &str,
+    words: &[String],
+    world: &mut World,
+    open: &str,
+    out: &mut Vec<Chunk>,
+) {
+    let (Some(set), Some(item)) = (words.get(2), words.get(3)) else {
+        text(out, format!("{tag} BAD no set\r\n"));
+        return;
+    };
+    let on = match item.to_ascii_uppercase().as_str() {
+        "+FLAGS.SILENT" => true,
+        "-FLAGS.SILENT" => false,
+        _ => {
+            text(out, format!("{tag} BAD not scripted\r\n"));
+            return;
+        }
+    };
+    let flags: Vec<String> = rest
+        .rsplit_once('(')
+        .map(|(_, list)| list.trim_end_matches(')'))
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(ToString::to_string)
+        .collect();
+    world.modseq += 1;
+    let modseq = world.modseq;
+    let mailbox = world.find(open);
+    let highest = mailbox.messages.keys().max().copied().unwrap_or(0);
+    for (uid, message) in &mut mailbox.messages {
+        if !in_set(set, *uid, highest) {
+            continue;
+        }
+        for flag in &flags {
+            let has = message.flags.contains(flag);
+            if on && !has {
+                message.flags.push(flag.clone());
+            } else if !on && has {
+                message.flags.retain(|kept| kept != flag);
+            }
+        }
+        message.modseq = modseq;
+    }
+    text(out, format!("{tag} OK stored\r\n"));
+}
+
+/// `UID COPY set name`, or `UID MOVE set name`, answering with `COPYUID`.
+fn copy(
+    tag: &str,
+    words: &[String],
+    world: &mut World,
+    open: &str,
+    moving: bool,
+    out: &mut Vec<Chunk>,
+) {
+    let (Some(set), Some(to)) = (words.get(2), words.get(3)) else {
+        text(out, format!("{tag} BAD no set\r\n"));
+        return;
+    };
+    if !world.mailboxes.iter().any(|mailbox| &mailbox.name == to) {
+        text(out, format!("{tag} NO [TRYCREATE] no such mailbox\r\n"));
+        return;
+    }
+    let source = world.find(open).clone();
+    let highest = source.messages.keys().max().copied().unwrap_or(0);
+    let chosen: Vec<(u32, Message)> = source
+        .messages
+        .iter()
+        .filter(|(uid, _)| in_set(set, **uid, highest) && !source.never_copy.contains(uid))
+        .map(|(uid, message)| (*uid, message.clone()))
+        .collect();
+    let mut pairs = Vec::new();
+    for (uid, mut message) in chosen {
+        world.modseq += 1;
+        message.modseq = world.modseq;
+        let target = world.find(to);
+        let new = target.uid_next;
+        target.uid_next += 1;
+        target.messages.insert(new, message);
+        pairs.push((uid, new));
+    }
+    let validity = world.find(to).validity;
+    let code = if pairs.is_empty() {
+        String::new()
+    } else {
+        let from: Vec<String> = pairs.iter().map(|(from, _)| from.to_string()).collect();
+        let into: Vec<String> = pairs.iter().map(|(_, into)| into.to_string()).collect();
+        format!(
+            "[COPYUID {validity} {} {}] ",
+            from.join(","),
+            into.join(",")
+        )
+    };
+    if moving {
+        if !code.is_empty() {
+            text(out, format!("* OK {code}moved\r\n"));
+        }
+        for (uid, _) in &pairs {
+            let mailbox = world.find(open);
+            let sequence = mailbox
+                .messages
+                .keys()
+                .position(|kept| kept == uid)
+                .unwrap()
+                + 1;
+            text(out, format!("* {sequence} EXPUNGE\r\n"));
+            world.expunge(open, *uid);
+        }
+        text(out, format!("{tag} OK moved\r\n"));
+    } else {
+        text(out, format!("{tag} OK {code}copied\r\n"));
+    }
+}
+
+/// `UID EXPUNGE set`: removes the messages in the set that carry
+/// `\Deleted`, and no other.
+fn expunge(tag: &str, words: &[String], world: &mut World, open: &str, out: &mut Vec<Chunk>) {
+    let Some(set) = words.get(2) else {
+        text(out, format!("{tag} BAD no set\r\n"));
+        return;
+    };
+    let mailbox = world.find(open);
+    let highest = mailbox.messages.keys().max().copied().unwrap_or(0);
+    let gone: Vec<u32> = mailbox
+        .messages
+        .iter()
+        .filter(|(uid, message)| {
+            in_set(set, **uid, highest) && message.flags.iter().any(|flag| flag == "\\Deleted")
+        })
+        .map(|(uid, _)| *uid)
+        .collect();
+    for uid in gone {
+        let mailbox = world.find(open);
+        let sequence = mailbox
+            .messages
+            .keys()
+            .position(|kept| *kept == uid)
+            .unwrap()
+            + 1;
+        text(out, format!("* {sequence} EXPUNGE\r\n"));
+        world.expunge(open, uid);
+    }
+    text(out, format!("{tag} OK expunged\r\n"));
 }
 
 fn search(tag: &str, criteria: &[String], world: &mut World, open: &str, out: &mut Vec<Chunk>) {
