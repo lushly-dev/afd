@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-text-area";
@@ -269,9 +269,8 @@ describe("violet-text-area", () => {
             area.removeAttribute("readonly");
             await nextFrame();
             expect(getComputedStyle(area).getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#869089");
-            // The frame eases its shadow; read it once the transition ends.
-            await Promise.all(frame().getAnimations().map(animation => animation.finished));
-            expect(getComputedStyle(frame()).boxShadow).toContain("rgb(134, 144, 137)");
+            // The frame eases its shadow, and the transition may not have started a frame later; wait for the line to settle.
+            await vi.waitFor(() => expect(getComputedStyle(frame()).boxShadow).toContain("rgb(134, 144, 137)"));
         });
 
         it("ignores typing while readonly", async () => {
