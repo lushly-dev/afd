@@ -2,7 +2,9 @@
 //! that reaches a command from anywhere but the shell is refused by the command's own origin check. It runs
 //! through Tauri's IPC on its mock runtime, with the app's own configuration and capability and its two schemes
 //! registered, so Tauri's ACL decides as it does in the app: it lets the sandbox's origin through, as a local
-//! one, and only the check refuses it.
+//! one, and only the check refuses it. Phase 5's step 2 adds `model_send` and `model_cancel` (its 4.2 and
+//! P5-A3: "from the sandbox proxy and a view it is refused").
+use loam_desktop::models::{Models, PROVIDER_UNKNOWN};
 use loam_desktop::mounts::{INSTANCE_UNKNOWN, Mounts};
 use loam_desktop::site::{sandbox_origin, shell_origin};
 use loam_desktop::{MAIN, ORIGIN_REFUSED, handler};
@@ -24,6 +26,7 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         .register_uri_scheme_protocol("loam-sandbox", |_, _| empty())
         .invoke_handler(handler())
         .manage(Arc::new(Mounts::new(Ok(Vec::new()))))
+        .manage(Arc::new(Models::new(Ok(Vec::new()))))
         .build(tauri::generate_context!("tauri.conf.json", test = true))
         .expect("a mock app");
     let webview = WebviewWindowBuilder::new(&app, MAIN, Default::default())
@@ -52,6 +55,11 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         ("mount_open", json!({ "instance": "missing" })),
         ("mount_send", json!({ "handle": 1, "message": {} })),
         ("mount_close", json!({ "handle": 1 })),
+        (
+            "model_send",
+            json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] } }),
+        ),
+        ("model_cancel", json!({ "stream": 1 })),
     ];
 
     // The shell passes the ACL and the check, and the command answers.
@@ -62,6 +70,22 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         json!({ "instance": "missing" }),
     );
     assert_eq!(shell.unwrap_err(), json!(INSTANCE_UNKNOWN));
+    let model = call(
+        "model_send",
+        shell_origin(),
+        Some(shell_origin()),
+        json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] } }),
+    );
+    assert_eq!(model.unwrap_err(), json!(PROVIDER_UNKNOWN));
+    assert!(
+        call(
+            "model_cancel",
+            shell_origin(),
+            Some(shell_origin()),
+            json!({ "stream": 1 })
+        )
+        .is_ok()
+    );
 
     // The sandbox proxy frame: a local origin to Tauri, so its ACL admits the call, and the check refuses it.
     for (command, body) in &commands {

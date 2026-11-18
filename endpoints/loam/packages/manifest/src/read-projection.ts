@@ -7,6 +7,7 @@
 
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
+import { copilotOf } from './read-boot.js';
 import type { DeploymentRefusal, ProjectionRead, ProjectionV4 } from './types.js';
 import { validateProjection } from './validate.generated.js';
 
@@ -54,7 +55,7 @@ function hostAdmitted(value: unknown): boolean {
 }
 
 /** As the validator would report a key `readProjection` checks by hand: `DEPLOYMENT_INVALID`, keyed by it. */
-function refusedAt(key: 'identity' | 'host'): ProjectionRead {
+function refusedAt(key: 'identity' | 'host' | 'copilot'): ProjectionRead {
 	const error = { instancePath: `/${key}`, keyword: key, message: 'is invalid', params: {} };
 	return { ok: false, refusals: deploymentRefusals([error], 'projection'), warnings: [] };
 }
@@ -62,18 +63,22 @@ function refusedAt(key: 'identity' | 'host'): ProjectionRead {
 /**
  * Reads versions 2 to 4. The generated validator is version 2's; a version 3 projection is version 2's
  * fields and `identity`, which `admitted` checks as `projection.v3.json` has it (its test holds the two
- * equal), and a version 4 projection those and `host`, which `hostAdmitted` checks as `projection.v4.json` has it.
+ * equal), and a version 4 projection those, `host`, which `hostAdmitted` checks as `projection.v4.json` has it,
+ * and `copilot`, which `copilotOf` does.
  * Ajv's code for `identity` alone cost the page's `apps` row about 6,700 bytes (phase 3 specification, 13); stage A
  * boots anything but an exact `local` as `provider`, and reads no `host` (phase 6 specification, 14).
  */
 export function readProjection(json: unknown): ProjectionRead {
 	let checked = json;
-	const { identity, host, ...rest } = (json ?? {}) as Record<string, unknown>;
+	const { identity, host, copilot, ...rest } = (json ?? {}) as Record<string, unknown>;
 	const version = rest.deployment_version;
 	if (version === 3 || version === 4) {
 		if (!admitted(identity)) return refusedAt('identity');
 		// Version 4's `host` is checked by hand too, so the page's `apps` row carries no validator for it (14).
 		if (version === 3 ? host !== undefined : !hostAdmitted(host)) return refusedAt('host');
+		// Version 4's `copilot` too, with the same reader stage A uses (phase 5 specification, 4.1).
+		if (copilot !== undefined && (version === 3 || copilotOf(copilot) === undefined))
+			return refusedAt('copilot');
 		checked = { ...rest, deployment_version: 2 };
 		// The desktop's sandbox scheme on macOS and Linux (phase 6 specification, 10.2), which version 2's pattern
 		// has no place for: admitted by hand for a desktop projection alone, and checked as an origin otherwise.

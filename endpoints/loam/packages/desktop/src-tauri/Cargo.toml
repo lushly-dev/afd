@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.98"
 publish = false
 license = "MIT"
-description = "Loam's desktop host: the web shell in Tauri 2's webview, with mounts over a Rust transport"
+description = "Loam's desktop host: the web shell in Tauri 2's webview, with mounts and the copilot's model requests over a Rust transport"
 
 [lib]
 name = "loam_desktop"
@@ -32,6 +32,11 @@ percent-encoding = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# A copilot provider's key from the Credential Manager (phase 5 specification, 4.2): `CredReadW`, at the version
+# Tauri's own dependencies already lock.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
 
 [dev-dependencies]
 tempfile = "3"

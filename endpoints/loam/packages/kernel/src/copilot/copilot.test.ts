@@ -284,6 +284,46 @@ describe('the copilot commands (3.5)', () => {
 		}
 	});
 
+	it('in a `local` deployment, a sign-out or a sign-in stops every turn and removes the runtimes (step 2)', async () => {
+		for (const change of ['auth-sign-out', 'auth-sign-in'] as const) {
+			const launcher = fakeLauncher();
+			const { kernel } = await setup({ launcher });
+			expect(
+				(
+					await kernel.call('auth-sign-in', {
+						method: 'credentials',
+						email: 'bea@example.com',
+						password: 'x',
+					})
+				).success
+			).toBe(true);
+			const session = await startSession(kernel);
+			data(await kernel.call('copilot-message-send', { session, text: 'Hello', wait: false }));
+			expect(launcher.launched).toHaveLength(1);
+			const changed = await kernel.call(
+				change,
+				change === 'auth-sign-in'
+					? { method: 'credentials', email: 'olu@example.com', password: 'x' }
+					: {}
+			);
+			expect(changed.success, change).toBe(true);
+			await vi.waitFor(() => expect(launcher.resets, change).toBe(1));
+			// The session is Bea's: back as Bea, its turn ended as the change of person.
+			await kernel.call('auth-sign-in', {
+				method: 'credentials',
+				email: 'bea@example.com',
+				password: 'x',
+			});
+			const got = data<{ turns: CopilotTurnV1[] }>(
+				await kernel.call('copilot-session-get', { session })
+			);
+			expect(got.turns[0], change).toMatchObject({
+				state: 'stopped',
+				stoppedBy: 'session-changed',
+			});
+		}
+	});
+
 	it('stops the turn and removes the runtimes on a real change of person, and the next person reaches nothing (3.2)', async () => {
 		const BEA = 'mock-user-bea@example.com';
 		const OLU = 'mock-user-olu@example.com';

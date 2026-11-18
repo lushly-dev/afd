@@ -1,7 +1,13 @@
 {
 	"identifier": "main",
-	"description": "Loam's three mount commands, for the main webview only. No core or plugin permission (phase 6 specification, 10.2).",
+	"description": "Loam's three mount commands and the copilot's two model commands, for the main webview only. No core or plugin permission (phase 6 specification, 10.2; phase 5 specification, 4.2).",
 	"local": true,
 	"webviews": ["main"],
-	"permissions": ["allow-mount-open", "allow-mount-send", "allow-mount-close"]
+	"permissions": [
+		"allow-mount-open",
+		"allow-mount-send",
+		"allow-mount-close",
+		"allow-model-send",
+		"allow-model-cancel"
+	]
 }

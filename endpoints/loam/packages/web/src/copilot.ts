@@ -92,6 +92,171 @@ export function createPageTransport(
 	};
 }
 
+/** A refusal with a code and Loam's words alone: never a provider's, the body's or the host's. */
+function modelFailure(code: string): Error & { code: string } {
+	return Object.assign(new Error(code), { code });
+}
+
+/** What Tauri's IPC script puts in the main frame (phase 6 specification, 10.2). */
+interface TauriInternals {
+	invoke(command: string, args: Record<string, unknown>): Promise<unknown>;
+}
+
+/** One `loam:model` event's detail, as the Rust host sends it (4.2). */
+type ModelEvent =
+	| { stream: number; status: number }
+	| { stream: number; chunk: string }
+	| { stream: number; done: true; status: number; code?: string };
+
+/** The detail when it has exactly one of the three shapes, else undefined: anything else is dropped. */
+export function modelEventOf(detail: unknown): ModelEvent | undefined {
+	if (detail === null || typeof detail !== 'object' || Array.isArray(detail)) return undefined;
+	const { stream, status, chunk, done, code, ...rest } = detail as Record<string, unknown>;
+	if (Object.keys(rest).length > 0 || !Number.isSafeInteger(stream)) return undefined;
+	const id = stream as number;
+	const statusOk =
+		Number.isSafeInteger(status) && (status as number) >= 0 && (status as number) < 1000;
+	if (done === true && statusOk && chunk === undefined) {
+		if (code !== undefined && (typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(code)))
+			return undefined;
+		return { stream: id, done: true, status: status as number, ...(code ? { code } : {}) };
+	}
+	if (done !== undefined || code !== undefined) return undefined;
+	if (typeof chunk === 'string' && status === undefined) return { stream: id, chunk };
+	if (statusOk && chunk === undefined) return { stream: id, status: status as number };
+	return undefined;
+}
+
+/** Events held for a stream whose id `model_send` has not yet returned: the host may dispatch before it answers. */
+const EARLY_MAX = 256;
+
+/**
+ * The desktop's model transport (4.2): the Rust host's `model_send` and `model_cancel`. The page names a provider id
+ * and gives the body; the Rust host holds the key and the endpoint, builds the request, and sends the answer back as
+ * `loam:model` events on `window`: `{ stream, status }` when its headers arrive, `{ stream, chunk }` for its text,
+ * and `{ stream, done, status, code? }` at its end. A stream past its bounds, or one the network ended, throws with
+ * its code; a provider's refusal (`4xx`) is its status and its body, as data, which the runtime reads.
+ */
+export function createDesktopModelTransport(target: Window = window): ModelTransportV1 {
+	const queues = new Map<number, (event: ModelEvent) => void>();
+	const early = new Map<number, ModelEvent[]>();
+	let held = 0;
+	target.addEventListener('loam:model', (event) => {
+		const detail = modelEventOf((event as CustomEvent).detail);
+		if (!detail) return;
+		const queue = queues.get(detail.stream);
+		if (queue) return queue(detail);
+		if (held >= EARLY_MAX) return;
+		held += 1;
+		const list = early.get(detail.stream) ?? [];
+		list.push(detail);
+		early.set(detail.stream, list);
+	});
+	const internals = (): TauriInternals => {
+		const found = (target as unknown as { __TAURI_INTERNALS__?: TauriInternals })
+			.__TAURI_INTERNALS__;
+		if (typeof found?.invoke !== 'function') throw modelFailure('MODEL_UNREACHABLE');
+		return found;
+	};
+	return {
+		async send(provider, body, signal) {
+			if (signal.aborted) throw modelFailure('MODEL_UNREACHABLE');
+			let stream: number;
+			try {
+				const answer = await internals().invoke('model_send', { provider: provider.id, body });
+				if (!Number.isSafeInteger(answer)) throw modelFailure('MODEL_UNREACHABLE');
+				stream = answer as number;
+			} catch (cause) {
+				const code =
+					typeof cause === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(cause)
+						? cause
+						: ((cause as { code?: string })?.code ?? 'MODEL_UNREACHABLE');
+				throw modelFailure(code);
+			}
+			const waiting: ModelEvent[] = early.get(stream) ?? [];
+			held -= waiting.length;
+			early.delete(stream);
+			let wake: (() => void) | undefined;
+			let ended = false;
+			const stop = () => {
+				if (ended) return;
+				ended = true;
+				queues.delete(stream);
+				wake?.();
+			};
+			queues.set(stream, (event) => {
+				waiting.push(event);
+				wake?.();
+			});
+			const abort = () => {
+				void internals()
+					.invoke('model_cancel', { stream })
+					.catch(() => undefined);
+				stop();
+			};
+			signal.addEventListener('abort', abort, { once: true });
+			const next = async (): Promise<ModelEvent | undefined> => {
+				while (waiting.length === 0 && !ended)
+					await new Promise<void>((resolve) => (wake = resolve));
+				return waiting.shift();
+			};
+			// The status comes first, or the end with a code when the request never reached the provider.
+			const head = await next();
+			if (!head || 'chunk' in head) {
+				stop();
+				throw modelFailure('MODEL_UNREACHABLE');
+			}
+			if ('done' in head) {
+				stop();
+				signal.removeEventListener('abort', abort);
+				throw modelFailure(head.code ?? 'MODEL_UNREACHABLE');
+			}
+			const encoder = new TextEncoder();
+			return {
+				status: head.status,
+				body: (async function* () {
+					try {
+						for (;;) {
+							const event = await next();
+							if (!event) return;
+							if ('chunk' in event) yield encoder.encode(event.chunk);
+							else if ('done' in event) {
+								// A provider's refusal is its status and body; any other code ends the stream with it.
+								if (event.code && event.code !== 'MODEL_REFUSED') throw modelFailure(event.code);
+								return;
+							}
+						}
+					} finally {
+						stop();
+						signal.removeEventListener('abort', abort);
+					}
+				})(),
+			};
+		},
+	};
+}
+
+/**
+ * The transport of a host (4.2): the test provider for `kind = "test"`, in the page, and every other kind through the
+ * desktop's Rust host when the page is the desktop's, else refused, as a static page can name only `test`.
+ */
+export function createHostTransport(
+	target: Window = window,
+	scripts: Readonly<Record<string, ModelScriptV1>> = {}
+): ModelTransportV1 {
+	const page = createPageTransport(scripts);
+	const desktop =
+		typeof (target as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ === 'object'
+			? createDesktopModelTransport(target)
+			: undefined;
+	return {
+		send(provider, body, signal) {
+			if (provider.kind === 'test' || !desktop) return page.send(provider, body, signal);
+			return desktop.send(provider, body, signal);
+		},
+	};
+}
+
 export interface WebCopilot {
 	host: CopilotHostV1;
 	launcher: FrameLauncher;

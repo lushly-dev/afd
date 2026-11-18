@@ -117,31 +117,37 @@ pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
     Ok(file.mounts)
 }
 
-/// POSIX: owned by this user, mode exactly 0600.
-#[cfg(unix)]
+/// `mounts.json` only its owner can read (10.3), or `DESKTOP_MOUNTS_PERMISSIONS`.
 pub fn permissions(path: &Path) -> Result<(), &'static str> {
+    if owner_only(path) {
+        Ok(())
+    } else {
+        Err(PERMISSIONS)
+    }
+}
+
+/// Whether `path` is a file only its owner can read: on POSIX owned by this user, mode exactly 0600. The rule
+/// `mounts.json`, `models.json` and a model's key file share (phase 5 specification, 4.2).
+#[cfg(unix)]
+pub fn owner_only(path: &Path) -> bool {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
-    let metadata = std::fs::symlink_metadata(path).map_err(|_| PERMISSIONS)?;
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
     // SAFETY: `geteuid` has no preconditions and cannot fail.
     let user = unsafe { libc::geteuid() };
-    if !metadata.is_file()
-        || metadata.uid() != user
-        || metadata.permissions().mode() & 0o777 != 0o600
-    {
-        return Err(PERMISSIONS);
-    }
-    Ok(())
+    metadata.is_file() && metadata.uid() == user && metadata.permissions().mode() & 0o777 == 0o600
 }
 
 /// Windows: owned by this user, and every allowing entry of its ACL is this user's. The path reaches
 /// PowerShell as an environment value, never as code.
 #[cfg(windows)]
-pub fn permissions(path: &Path) -> Result<(), &'static str> {
+pub fn owner_only(path: &Path) -> bool {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let metadata = std::fs::symlink_metadata(path).map_err(|_| PERMISSIONS)?;
-    if !metadata.is_file() {
-        return Err(PERMISSIONS);
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => {}
+        _ => return false,
     }
     let script = "$ErrorActionPreference='Stop'; \
         $a=Get-Acl -LiteralPath $env:LOAM_MOUNTS_FILE; \
@@ -151,13 +157,15 @@ pub fn permissions(path: &Path) -> Result<(), &'static str> {
         foreach ($r in $a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])) { \
           if ($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Value -ne $u) { exit 1 } }; \
         exit 0";
-    let windows = std::env::var_os("SystemRoot").ok_or(PERMISSIONS)?;
+    let Some(windows) = std::env::var_os("SystemRoot") else {
+        return false;
+    };
     let powershell = Path::new(&windows)
         .join("System32")
         .join("WindowsPowerShell")
         .join("v1.0")
         .join("powershell.exe");
-    let status = std::process::Command::new(powershell)
+    std::process::Command::new(powershell)
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("LOAM_MOUNTS_FILE", path)
         .stdin(Stdio::null())
@@ -165,12 +173,7 @@ pub fn permissions(path: &Path) -> Result<(), &'static str> {
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .status()
-        .map_err(|_| PERMISSIONS)?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(PERMISSIONS)
-    }
+        .is_ok_and(|status| status.success())
 }
 
 // Each lives in an Arc, one per open handle, so the size of the larger variant costs nothing worth boxing.

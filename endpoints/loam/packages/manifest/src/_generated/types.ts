@@ -1138,6 +1138,23 @@ export interface DeploymentV4 {
 	host?: {
 		kind?: 'static' | 'hosted' | 'desktop';
 	};
+	copilot?: {
+		default?: string;
+		providers?: {
+			id: string;
+			kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test';
+			model: string;
+			endpoint?: string;
+			key?:
+				| {
+						keychain: string;
+						account: string;
+				  }
+				| {
+						file: string;
+				  };
+		}[];
+	};
 	apps: {
 		[k: string]: {
 			app: string;
@@ -1210,6 +1227,14 @@ export interface ProjectionV4 {
 	host?: {
 		kind: 'static' | 'hosted' | 'desktop';
 		kernel?: 'api/kernel';
+	};
+	copilot?: {
+		default: string;
+		providers: {
+			id: string;
+			kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test';
+			model: string;
+		}[];
 	};
 	apps: {
 		instance: string;
