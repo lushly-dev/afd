@@ -1,11 +1,10 @@
 ---
 name: afd-site-design
 description: >
-  Design rules for the AFD websites in site/ (afd.dev and afd.design): tokens,
-  colour-field placement, the type ramp, heroes, section anatomy, a tool's page,
-  marks, motion and the pre-commit checks. Use when editing a page or its CSS,
-  adding a section or a tool's page, or reviewing site design; for Loam's
-  application chrome, use loam-design.
+  Design rules for the AFD websites in site/ (afd.dev, afd.design): tokens,
+  colour fields, type, heroes, sections, tool pages, the Refined interface,
+  motion and checks. Use when editing a page or its CSS, adding a section or
+  tool page, or reviewing site design; for Loam's chrome, use loam-design.
 ---
 
 # AFD Site Design

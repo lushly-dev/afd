@@ -468,7 +468,9 @@ mkdirSync(out, { recursive: true });
 // repository's own portability check refuses them in a committed file, so the record
 // names them instead. The only other change is <workspace> and <tmp>, above.
 const EXAMPLE_PATHS = [
-	['(C:, D:, etc.)', '(drive-letter paths)'],
+	// portability-ok: the example paths Botcore's own description names, replaced here
+	['(C:\\\\, D:\\\\, etc.)', '(drive-letter paths)'],
+	// portability-ok: as above
 	['(/home/user, /Users/name)', '(home-directory paths)'],
 ];
 const named = (json) =>
