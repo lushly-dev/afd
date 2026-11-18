@@ -43,9 +43,15 @@ The harness lists every skill with its description. The others cover each langua
 
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
-When asking the user questions at the end of a turn:
+## Ending a turn
 
-1. Number each question.
-2. Begin each question with a 1–3 word summary for quick reference.
-3. Provide a recommendation, the reason for it, and your confidence in the recommendation.
-4. Place all open questions at the end of the response so they are easy to find.
+The owner reads your last message for outcomes, risks and decisions, so keep it short and put what needs their action last. File lists, diffs, command output and how you got there belong in commits, the pull request and the progress file; include them only when asked. An agent working for another agent reports in the format its brief asks for. A skill with its own report keeps its required facts and closing line: after `end-session`, its archive status is the last line.
+
+End the turn in this order, leaving out any part with nothing to say except the closing line:
+
+1. **Outcome.** If work was done, a few lines: what now works or was decided, the value it gives, and any risk or issue. Say plainly what did not work or was not checked.
+2. **Blocked on.** If progress needs input or action from the owner, exactly what.
+3. **Questions.** Number each. Begin each with a 1–3 word summary, then give your recommendation, the reason for it and your confidence in it. Only the closing line follows them.
+4. **Closing line.** If work remains or a question above is open: `Next recommended tasks: <specific actions>` (`prepare-pr`'s owner steps go here). If everything planned for the session is done and nothing above awaits an answer: `All work planned for this session is complete. Do you want to run /end-session to prepare for archive?` This question is not numbered.
+
+A turn that only answers a question gives the answer, and ends with the closing line only while session work is under way.
