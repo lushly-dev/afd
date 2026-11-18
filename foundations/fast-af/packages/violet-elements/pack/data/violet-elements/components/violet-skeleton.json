@@ -99,17 +99,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, white 68%, var(--_surface-card))",
+				"default": "color-mix(in srgb, var(--color-surface-highlight, #ffffff) 68%, var(--_surface-card))",
 				"name": "--_skeleton-highlight"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_radius-md)",
+				"default": "var(--_radius-sm)",
 				"name": "--_skeleton-radius"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_surface-subtle) 72%, var(--_surface-card))",
+				"default": "color-mix(in srgb, var(--_text-primary) 8%, transparent)",
 				"name": "--_skeleton-surface"
 			}
 		],

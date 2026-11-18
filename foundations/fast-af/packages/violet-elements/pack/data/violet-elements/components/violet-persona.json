@@ -90,18 +90,8 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_border-subtle) 90%, transparent)",
-				"name": "--_persona-border-color"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--violet-persona-font-size, 12px)",
 				"name": "--_persona-font-size"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04))",
-				"name": "--_persona-shadow"
 			},
 			{
 				"basis": "declared",

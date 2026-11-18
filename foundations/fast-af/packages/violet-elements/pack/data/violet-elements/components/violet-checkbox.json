@@ -119,11 +119,6 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--radius-sm, 2px)",
 				"name": "--_radius-sm"
 			},

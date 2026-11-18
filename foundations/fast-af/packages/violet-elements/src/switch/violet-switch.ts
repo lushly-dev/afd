@@ -16,15 +16,19 @@ const styles = css`
         --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
         --_surface-card: var(--color-surface-card, #faf9f5);
         --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_thumb-resting: var(--color-text-muted, #616775);
-        --_radius-full: var(--radius-round, 9999px);
+        --_radius-sm: var(--radius-sm, 2px);
         --_size-font-md: var(--size-font-md, 14px);
-        --_track-block-size: clamp(20px, calc(var(--_target-size) - 10px), 24px);
-        --_track-inline-size: calc(var(--_track-block-size) * 2);
-        --_track-border-width: 1px;
+        /*
+         * A slide key, not an outlined pill: a filled slot as tall as one line of text, and a
+         * squared key the size of a checkbox that crosses it and shows a tick when it is on.
+         * Off, the slot is the control edge colour, which holds 3:1 on the page and on a card.
+         */
+        --_track-block-size: var(--_type-body-line);
+        --_track-inline-size: calc(var(--_track-block-size) * 1.8);
+        --_track-border-width: 0px;
         --_track-padding: 2px;
-        --_thumb-size: clamp(16px, calc(var(--_track-block-size) - 4px), 20px);
+        --_track-edge: 0 0 0 0 transparent;
+        --_thumb-size: calc(var(--_track-block-size) - (var(--_track-padding) * 2));
         --_thumb-offset: calc(
             var(--_track-inline-size) -
             var(--_thumb-size) -
@@ -43,7 +47,7 @@ const styles = css`
     .root {
         display: inline-grid;
         grid-template-columns: auto minmax(0, 1fr);
-        gap: calc(var(--_space-inline-sm) * 2);
+        gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
         cursor: pointer;
@@ -95,9 +99,9 @@ const styles = css`
         inline-size: var(--_track-inline-size);
         block-size: var(--_track-block-size);
         border: var(--_track-border-width) solid var(--_border-strong);
-        border-radius: var(--_radius-full);
-        background: var(--_surface-card);
-        box-shadow: var(--_shadow-control);
+        border-radius: calc(var(--_radius-sm) + var(--_track-padding));
+        background: var(--_border-strong);
+        box-shadow: var(--_track-edge);
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
             border-color var(--_duration-fast) var(--_easing-standard),
@@ -110,8 +114,9 @@ const styles = css`
         inset-block-start: 50%;
         inline-size: var(--_thumb-size);
         block-size: var(--_thumb-size);
-        border-radius: var(--_radius-full);
-        background: var(--_thumb-resting);
+        border-radius: var(--_radius-sm);
+        background: var(--_surface-card);
+        box-shadow: var(--_shadow-control);
         transform: translate(0, -50%);
         transform-origin: center;
         transition:
@@ -119,24 +124,53 @@ const styles = css`
             background-color var(--_duration-fast) var(--_easing-standard);
     }
 
+    /* The tick the key shows when it is on. */
+    .thumb::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        inline-size: 62%;
+        block-size: 62%;
+        background: var(--_selection-background);
+        clip-path: polygon(14% 44%, 0 59%, 37% 100%, 100% 16%, 84% 0, 35% 62%);
+        opacity: 0;
+        transform: scale(0.6);
+        transition:
+            opacity var(--_duration-fast) var(--_easing-standard),
+            transform var(--_duration-fast) var(--_easing-standard);
+    }
+
+    .root:hover .input:not(:checked):not(:disabled) + .track {
+        background: var(--_field-border-hover);
+    }
+
     .input:checked + .track {
         background: var(--_selection-background);
-        border-color: var(--_selection-border);
+        --_track-edge: inset 0 0 0 1px var(--_selection-border);
     }
 
     .input:checked + .track .thumb {
         transform: translate(var(--_thumb-offset), -50%);
         background: var(--_selection-text);
+        box-shadow: none;
+    }
+
+    .input:checked + .track .thumb::after {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* The state colours are for messages; an invalid slot takes the field's 3:1 invalid edge. */
+    :host([invalid]) .track {
+        --_track-edge: inset 0 0 0 1px var(--_danger-border);
     }
 
     .input:focus-visible + .track {
         box-shadow:
-            var(--_shadow-control),
-            0 0 0 2px var(--_focus-ring);
-    }
-
-    :host([invalid]) .track {
-        border-color: var(--_danger-border);
+            var(--_track-edge),
+            0 0 0 2px var(--_surface-page),
+            0 0 0 4px var(--_focus-ring);
     }
 
     :host([disabled]) .root,
@@ -147,14 +181,20 @@ const styles = css`
     /* Supporting text often says why the control is unavailable, so it stays readable. */
     :host([disabled]) :is(.control-shell, .label),
     :host(:disabled) :is(.control-shell, .label) {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
+    /*
+     * The label sits on the first line beside the mark: its line is centred in the target by
+     * the inset, and supporting text runs on below it instead of pushing the label up.
+     */
     .content {
+        box-sizing: border-box;
         display: grid;
-        gap: var(--_space-stack-xs);
+        gap: var(--_space-stack-2xs);
         min-block-size: var(--_target-size);
-        align-content: center;
+        padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
+        align-content: start;
         min-inline-size: 0;
     }
 
@@ -164,6 +204,7 @@ const styles = css`
 
     :host([inline]) .content {
         min-block-size: auto;
+        padding-block: 0;
         align-content: center;
     }
 
@@ -174,13 +215,19 @@ const styles = css`
     }
 
     .supporting {
-        color: var(--_text-secondary);
+        color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
     }
 
     @media (forced-colors: active) {
-        .track {
+        /* The slot has no fill to tell it from the page here, so it gets its outline back. */
+        :host {
+            --_track-border-width: 1px;
+        }
+
+        .track,
+        .root:hover .input:not(:checked):not(:disabled) + .track {
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
@@ -188,6 +235,11 @@ const styles = css`
 
         .thumb {
             background: ButtonText;
+            box-shadow: none;
+        }
+
+        .thumb::after {
+            background: Highlight;
         }
 
         .input:checked + .track {

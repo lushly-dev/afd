@@ -139,7 +139,9 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// disconnecting a replaced controller changed five more, a command spec, the scoped mixin, the
 	// hydration runtime, render and view: 523. The runtime cleanup (#1385) removed 23 of them and
 	// changed 19 more, among them `index.ts` and `fast-element.ts`, which match Microsoft's again,
-	// not fast-af's: 481. violet-select's late options (#499) adapted its spec: 480. A removed
-	// file's record is kept but not counted.
-	assert(checked > 479, `only ${checked} unchanged upstream files`);
+	// not fast-af's: 481. violet-select's late options (#499) adapted its spec: 480. The Refined
+	// design (#1430) restyled 23 components that still matched upstream, and its private-alias
+	// fixes (#1436) the carousel and the reasoning block's spec: 455. A removed file's record is
+	// kept but not counted.
+	assert(checked > 454, `only ${checked} unchanged upstream files`);
 });

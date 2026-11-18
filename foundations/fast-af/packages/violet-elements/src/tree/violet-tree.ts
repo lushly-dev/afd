@@ -22,9 +22,9 @@ const styles = css`
         display: grid;
 
         --_tree-surface-padding: var(--violet-tree-surface-padding, var(--_space-stack-xs));
-        --_tree-surface-radius: var(--violet-tree-surface-radius, calc(var(--_radius-md) * 2));
+        --_tree-surface-radius: var(--violet-tree-surface-radius, var(--_radius-lg));
         --_tree-surface-background: var(--violet-tree-surface-background, var(--_surface-card));
-        --_tree-surface-border: var(--violet-tree-surface-border, var(--_border-subtle));
+        --_tree-surface-border: var(--violet-tree-surface-border, transparent);
     }
 
     .field {
@@ -38,7 +38,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-2xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .surface {

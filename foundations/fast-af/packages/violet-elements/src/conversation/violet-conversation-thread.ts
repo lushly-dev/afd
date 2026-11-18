@@ -29,7 +29,7 @@ const styles = css`
     .content {
         display: flex;
         flex-direction: column;
-        gap: var(--_space-sm);
+        gap: var(--_space-md);
         padding: var(--_space-sm);
     }
 

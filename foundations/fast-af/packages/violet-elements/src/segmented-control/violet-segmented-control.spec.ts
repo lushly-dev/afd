@@ -279,7 +279,7 @@ describe("violet-segmented-control", () => {
                 expect(Number.parseFloat(style.paddingLeft)).toBeGreaterThan(0);
                 expect(Number.parseFloat(style.paddingRight)).toBeGreaterThan(0);
                 expect(Number.isNaN(Number.parseFloat(style.minHeight))).toBe(false);
-                expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 6);
+                expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 4);
                 expect(group.getBoundingClientRect().height).toBeCloseTo(button.getBoundingClientRect().height, 0);
             }
         });

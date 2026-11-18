@@ -73,6 +73,21 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--violet-control-caption-size, var(--type-caption-xs-size, 11px))",
+				"name": "--_control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_option-mark"
+			},
+			{
+				"basis": "declared",
+				"default": "0.6875rem",
+				"name": "--_option-mark-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5))",
 				"name": "--_option-padding-inline-end"
 			},
@@ -83,12 +98,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-state-success-foreground, #245c36) 30%, transparent)",
-				"name": "--_selected-border"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--color-surface-highlight, #ffffff)",
+				"default": "var(--color-surface-subtle, #f0efe6)",
 				"name": "--_surface-active"
 			},
 			{
@@ -98,8 +108,13 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-state-success-background, #e3f1e7) 58%, transparent)",
+				"default": "var(--color-surface-selected, #ddeadf)",
 				"name": "--_surface-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-caption-xs-line, 14px)",
+				"name": "--_type-caption-line"
 			}
 		],
 		"events": [

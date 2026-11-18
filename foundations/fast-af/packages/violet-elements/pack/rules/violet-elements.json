@@ -1396,7 +1396,7 @@
 			},
 			"basis": "authored",
 			"id": "taxonomy.show-fill",
-			"text": "Enables a visible fill track from the minimum value to the current value on a range-like control. Not for: general visibility toggles; selection state."
+			"text": "Has no effect: a range control's track is always filled from the minimum value to the current value. Kept so existing markup stays valid. Not for: new markup; hiding or showing the fill; selection state."
 		},
 		{
 			"appliesTo": {

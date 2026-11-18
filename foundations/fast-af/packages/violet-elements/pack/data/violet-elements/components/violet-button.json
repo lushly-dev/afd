@@ -24,7 +24,7 @@
 			{
 				"basis": "observed",
 				"default": "primary",
-				"description": "Visual emphasis variant for the button.",
+				"description": "Visual emphasis variant for the button. `quiet` and `transparent` render the same, as text until the pointer is on it; `transparent` is kept for existing markup.",
 				"name": "appearance",
 				"property": "appearance",
 				"rules": [
@@ -163,11 +163,6 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--space-inline-md, 8px)",
-				"name": "--_space-inline-md"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--space-inline-sm, 4px)",
 				"name": "--_space-inline-sm"
 			},
@@ -175,11 +170,6 @@
 				"basis": "declared",
 				"default": "var(--space-stack-sm, 8px)",
 				"name": "--_space-stack-sm"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--type-body-md-line, 20px)",
-				"name": "--_type-body-line"
 			}
 		],
 		"events": [],
@@ -279,7 +269,7 @@
 		{
 			"basis": "authored",
 			"id": "button.appearance",
-			"text": "The default appearance is primary, so in a row of buttons set secondary, quiet or transparent on all but the main action, and danger on a destructive one."
+			"text": "The default appearance is primary, so in a row of buttons set secondary or quiet on all but the main action, and danger on a destructive one. Transparent renders exactly as quiet and is kept for existing markup; write quiet."
 		}
 	]
 }

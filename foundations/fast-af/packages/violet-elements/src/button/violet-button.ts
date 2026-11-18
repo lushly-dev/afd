@@ -11,9 +11,7 @@ const styles = css`
         display: inline-flex;
         vertical-align: middle;
         --_space-inline-sm: var(--space-inline-sm, 4px);
-        --_space-inline-md: var(--space-inline-md, 8px);
         --_space-stack-sm: var(--space-stack-sm, 8px);
-        --_type-body-line: var(--type-body-md-line, 20px);
     }
 
     .control {
@@ -42,17 +40,7 @@ const styles = css`
             background-color var(--_duration-fast) var(--_easing-standard),
             color var(--_duration-fast) var(--_easing-standard),
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
-    }
-
-    .control:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--_shadow-control);
-    }
-
-    .control:active {
-        transform: translateY(0);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .control:focus-visible {
@@ -60,9 +48,11 @@ const styles = css`
         outline-offset: calc(var(--_space-inline-sm) / 2);
     }
 
+    /* The filled actions are keys: they sit one step up and go flat when pressed. */
     .control[data-appearance="primary"] {
         background: var(--_action-primary-background);
         color: var(--_action-primary-text);
+        box-shadow: var(--_shadow-control);
     }
 
     .control[data-appearance="primary"]:hover {
@@ -71,6 +61,7 @@ const styles = css`
 
     .control[data-appearance="primary"]:active {
         background: var(--_action-primary-pressed);
+        box-shadow: none;
     }
 
     .control[data-appearance="secondary"] {
@@ -87,9 +78,9 @@ const styles = css`
         background: var(--_action-secondary-pressed);
     }
 
+    /* Quiet is text until the pointer is on it. */
     .control[data-appearance="quiet"] {
         color: var(--_text-secondary);
-        border-color: var(--_border-subtle);
         background: transparent;
     }
 
@@ -104,6 +95,7 @@ const styles = css`
     .control[data-appearance="danger"] {
         background: var(--_action-danger-background);
         color: var(--_action-danger-text);
+        box-shadow: var(--_shadow-control);
     }
 
     .control[data-appearance="danger"]:hover {
@@ -112,13 +104,13 @@ const styles = css`
 
     .control[data-appearance="danger"]:active {
         background: var(--_action-danger-pressed);
+        box-shadow: none;
     }
 
     .control[disabled] {
-        opacity: 0.55;
+        opacity: 0.5;
         cursor: not-allowed;
         box-shadow: none;
-        transform: none;
     }
 
     .label {
@@ -144,9 +136,7 @@ const styles = css`
 
     .control[data-appearance="transparent"] {
         color: var(--_text-secondary);
-        border-color: transparent;
         background: transparent;
-        box-shadow: none;
     }
 
     .control[data-appearance="transparent"]:hover {
@@ -201,7 +191,8 @@ type ElementReferences = Record<(typeof REFERENCES)[ReferenceAttribute], Element
  */
 export class VioletButton extends FASTElement {
     /**
-     * Visual emphasis variant for the button.
+     * Visual emphasis variant for the button. `quiet` and `transparent` render the same, as text
+     * until the pointer is on it; `transparent` is kept for existing markup.
      */
     declare public appearance: VioletButtonAppearance;
 

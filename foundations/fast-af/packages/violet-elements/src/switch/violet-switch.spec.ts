@@ -65,8 +65,8 @@ describe("violet-switch", () => {
 
         const opacity = (selector: string) =>
             getComputedStyle(element.shadowRoot?.querySelector(selector) as Element).opacity;
-        expect(opacity(".control-shell")).toBe("0.6");
-        expect(opacity(".label")).toBe("0.6");
+        expect(opacity(".control-shell")).toBe("0.5");
+        expect(opacity(".label")).toBe("0.5");
         expect(opacity(".supporting")).toBe("1");
         expect(opacity(".root")).toBe("1");
     });

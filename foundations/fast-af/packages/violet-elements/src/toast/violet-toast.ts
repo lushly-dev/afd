@@ -23,9 +23,9 @@ const styles = css`
         color: var(--_text-primary);
         --_toast-padding: var(--violet-toast-padding, var(--_space-md));
         --_toast-gap: var(--violet-toast-gap, var(--_space-md));
-        --_toast-radius: var(--violet-toast-radius, calc(var(--_radius-lg) * 1.33));
-        --_toast-surface: var(--violet-toast-surface, var(--_surface-card));
-        --_toast-border: var(--violet-toast-border, var(--_border-subtle));
+        --_toast-radius: var(--violet-toast-radius, var(--_radius-lg));
+        --_toast-surface: var(--violet-toast-surface, var(--_surface-floating));
+        --_toast-border: var(--violet-toast-border, transparent);
         --_toast-shadow: var(--violet-toast-shadow, var(--_shadow-floating));
         --_toast-emphasis: var(--violet-toast-emphasis, var(--_text-secondary));
         --_toast-icon-size: var(--violet-toast-icon-size, 1rem);
@@ -39,10 +39,7 @@ const styles = css`
         display: none;
     }
 
-    :host([tone="info"]) {
-        --_toast-surface: var(--_surface-floating);
-        --_toast-border: color-mix(in srgb, var(--_border-subtle) 70%, var(--_focus-ring));
-    }
+
 
     :host([tone="success"]) {
         --_toast-surface: color-mix(in srgb, var(--color-state-success-background, #E3F1E7) 78%, var(--_surface-card));
@@ -77,14 +74,13 @@ const styles = css`
         align-items: start;
     }
 
+    /* The icon alone, on the title's line. */
     .leading {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        inline-size: calc(var(--_toast-icon-size) + var(--_space-md));
-        block-size: calc(var(--_toast-icon-size) + var(--_space-md));
-        border-radius: var(--_radius-round);
-        background: color-mix(in srgb, var(--_toast-emphasis) 12%, transparent);
+        inline-size: var(--_toast-icon-size);
+        block-size: var(--_toast-title-line);
         color: var(--_toast-emphasis);
         flex: 0 0 auto;
     }
@@ -121,7 +117,7 @@ const styles = css`
         color: var(--_toast-emphasis);
         font-size: var(--_toast-title-size);
         line-height: var(--_toast-title-line);
-        font-weight: 600;
+        font-weight: 500;
     }
 
     .title[hidden] {
@@ -171,9 +167,7 @@ const styles = css`
         }
 
         .leading {
-            background: Canvas;
             color: ButtonText;
-            outline: 1px solid ButtonText;
         }
     }
 `;

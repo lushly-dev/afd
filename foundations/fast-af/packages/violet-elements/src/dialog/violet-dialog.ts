@@ -18,8 +18,8 @@ const styles = css`
         --_dialog-width: var(--violet-dialog-width, 35rem);
         --_dialog-margin: var(--violet-dialog-margin, 2rem);
         --_dialog-max-height: var(--violet-dialog-max-height, 85vh);
-        --_dialog-radius: var(--violet-dialog-radius, var(--_radius-lg));
-        --_dialog-background: var(--violet-dialog-background, var(--_surface-card));
+        --_dialog-radius: var(--violet-dialog-radius, calc(var(--_radius-lg) + 4px));
+        --_dialog-background: var(--violet-dialog-background, var(--_surface-floating));
         --_dialog-shadow: var(--violet-dialog-shadow, var(--_shadow-floating));
         --_dialog-backdrop: var(--violet-dialog-backdrop, rgba(0, 0, 0, 0.4));
         --_dialog-backdrop-off: transparent;
@@ -49,7 +49,8 @@ const styles = css`
         max-block-size: min(var(--_dialog-max-height), calc(100vh - var(--_dialog-margin)));
         margin: auto;
         padding: 0;
-        border: var(--_dialog-border-width) solid var(--_border-subtle);
+        /* What floats is its surface and shadow. The edge is kept, clear, for forced colours. */
+        border: var(--_dialog-border-width) solid transparent;
         border-radius: var(--_dialog-radius);
         background: var(--_dialog-background);
         box-shadow: var(--_dialog-shadow);
@@ -104,8 +105,9 @@ const styles = css`
         display: flex;
         align-items: center;
         gap: var(--_space-sm);
-        padding: var(--_dialog-padding);
-        border-block-end: var(--_dialog-border-width) solid var(--_border-subtle);
+        /* The title runs into the body: no inset under it and no rule, which shows only in forced colours. */
+        padding: var(--_dialog-padding) var(--_dialog-padding) 0;
+        border-block-end: var(--_dialog-border-width) solid transparent;
     }
 
     .header[hidden] {
@@ -114,7 +116,11 @@ const styles = css`
 
     .title {
         flex: 1;
-        font-weight: 600;
+        font-family: var(--font-family-heading, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
+        font-size: var(--type-title-sm-size, 18px);
+        line-height: var(--type-title-sm-line, 24px);
+        font-weight: var(--type-title-sm-weight, 600);
+        letter-spacing: -0.01em;
         min-inline-size: 0;
     }
 
@@ -130,6 +136,8 @@ const styles = css`
         flex: 1;
         padding: var(--_dialog-padding);
         overflow-y: auto;
+        font-size: var(--_body-size);
+        line-height: var(--_body-line);
     }
 
     .footer {
@@ -139,6 +147,8 @@ const styles = css`
         gap: var(--_space-sm);
         padding: var(--_dialog-padding);
         border-block-start: var(--_dialog-border-width) solid var(--_border-subtle);
+        /* The actions sit on a band. */
+        background: var(--_surface-subtle);
     }
 
     .footer[hidden] {
@@ -163,8 +173,8 @@ const styles = css`
 
         .footer {
             border-block-start-color: ButtonText;
+            background: Canvas;
         }
-
     }
 `;
 

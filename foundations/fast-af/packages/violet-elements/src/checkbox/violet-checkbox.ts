@@ -14,7 +14,6 @@ const styles = css`
         --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
         --_surface-card: var(--color-surface-card, #faf9f5);
         --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
         --_radius-sm: var(--radius-sm, 2px);
         --_size-font-md: var(--size-font-md, 14px);
         --_control-size: max(var(--_size-font-md), calc(var(--_target-size) * 0.5));
@@ -30,7 +29,7 @@ const styles = css`
     .root {
         display: inline-grid;
         grid-template-columns: auto minmax(0, 1fr);
-        gap: calc(var(--_space-inline-sm) * 2);
+        gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
         cursor: pointer;
@@ -70,6 +69,7 @@ const styles = css`
     }
 
     .box {
+        box-sizing: border-box;
         position: relative;
         display: inline-grid;
         place-items: center;
@@ -78,7 +78,6 @@ const styles = css`
         border: 1px solid var(--_border-strong);
         border-radius: var(--_radius-sm);
         background: var(--_surface-card);
-        box-shadow: var(--_shadow-control);
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
             border-color var(--_duration-fast) var(--_easing-standard),
@@ -132,12 +131,17 @@ const styles = css`
         transform: scaleX(1);
     }
 
-    .input:focus-visible + .box {
-        box-shadow:
-            var(--_shadow-control),
-            0 0 0 2px var(--_focus-ring);
+    .root:hover .input:not(:checked):not(:indeterminate):not(:disabled) + .box {
+        border-color: var(--_field-border-hover);
     }
 
+    .input:focus-visible + .box {
+        box-shadow:
+            0 0 0 2px var(--_surface-page),
+            0 0 0 4px var(--_focus-ring);
+    }
+
+    /* The state colours are for messages; an invalid mark takes the field's 3:1 invalid edge. */
     :host([invalid]) .box {
         border-color: var(--_danger-border);
     }
@@ -150,14 +154,20 @@ const styles = css`
     /* Supporting text often says why the control is unavailable, so it stays readable. */
     :host([disabled]) :is(.control-shell, .label),
     :host(:disabled) :is(.control-shell, .label) {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
+    /*
+     * The label sits on the first line beside the mark: its line is centred in the target by
+     * the inset, and supporting text runs on below it instead of pushing the label up.
+     */
     .content {
+        box-sizing: border-box;
         display: grid;
-        gap: var(--_space-stack-xs);
+        gap: var(--_space-stack-2xs);
         min-block-size: var(--_target-size);
-        align-content: center;
+        padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
+        align-content: start;
         min-inline-size: 0;
     }
 
@@ -167,6 +177,7 @@ const styles = css`
 
     :host([inline]) .content {
         min-block-size: auto;
+        padding-block: 0;
         align-content: center;
     }
 
@@ -177,13 +188,14 @@ const styles = css`
     }
 
     .supporting {
-        color: var(--_text-secondary);
+        color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
     }
 
     @media (forced-colors: active) {
-        .box {
+        .box,
+        .root:hover .input:not(:checked):not(:indeterminate):not(:disabled) + .box {
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
@@ -205,6 +217,7 @@ const styles = css`
         .input:focus-visible + .box {
             outline: 2px solid Highlight;
             outline-offset: 2px;
+            box-shadow: none;
         }
 
         :host([disabled]) .box,

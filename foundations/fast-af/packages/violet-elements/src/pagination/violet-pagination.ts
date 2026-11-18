@@ -22,6 +22,9 @@ const styles = css`
     :host {
         display: inline-flex;
         max-inline-size: 100%;
+        --_space-xs: var(--space-stack-xs, 4px);
+        --_space-layout-sm: var(--space-layout-sm, 12px);
+        --_text-primary: var(--color-text-primary, #18181b);
     }
 
     .nav {
@@ -33,7 +36,7 @@ const styles = css`
         display: inline-flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: var(--_space-xs);
+        gap: calc(var(--_space-xs) / 2);
         margin: 0;
         padding: 0;
         list-style: none;
@@ -47,12 +50,13 @@ const styles = css`
     .button,
     .ellipsis {
         box-sizing: border-box;
-        min-inline-size: calc(var(--_target-size) - var(--_space-xs));
-        min-block-size: calc(var(--_target-size) - var(--_space-xs));
+        min-inline-size: var(--_target-size);
+        min-block-size: var(--_target-size);
         border-radius: var(--_radius-md);
         font-family: inherit;
         font-size: var(--_control-body-size);
-        font-weight: var(--_type-label-weight);
+        font-variant-numeric: tabular-nums;
+        font-weight: var(--type-body-md-weight, 400);
         line-height: var(--_type-body-line);
     }
 
@@ -60,7 +64,7 @@ const styles = css`
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0 var(--_space-md);
+        padding: 0 var(--_space-inline-md);
         border: 1px solid transparent;
         background: transparent;
         color: var(--_text-secondary);
@@ -82,33 +86,29 @@ const styles = css`
         box-shadow: 0 0 0 2px var(--_focus-ring);
     }
 
+    /* The page you are on is a filled key, as a pressed secondary button is. */
     .button[aria-current="page"] {
-        background: var(--_surface-page);
-        border-color: var(--_border-subtle);
-        box-shadow: var(--_shadow-control);
+        background: var(--_action-secondary-background);
+        border-color: var(--_action-secondary-border);
         color: var(--_text-primary);
+        font-weight: 500;
     }
 
     .button[data-kind="nav"] {
-        padding-inline: var(--_space-lg);
+        padding-inline: var(--_space-layout-sm);
     }
 
     .button[disabled] {
-        opacity: 0.55;
+        opacity: 0.5;
         cursor: not-allowed;
-        box-shadow: none;
     }
 
     .ellipsis {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0 var(--_space-sm);
+        padding: 0 var(--_space-inline-md);
         color: var(--_text-muted);
-    }
-
-    :host([disabled]) {
-        opacity: 0.72;
     }
 
     @media (forced-colors: active) {

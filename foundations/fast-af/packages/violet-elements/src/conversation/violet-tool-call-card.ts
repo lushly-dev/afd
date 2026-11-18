@@ -13,39 +13,27 @@ const styles = css`
         display: block;
         --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size, 12px));
         --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line, 16px));
-        --_tool-name-size: var(--violet-tool-name-size, var(--_body-size, 14px));
+        --_tool-name-size: var(--violet-tool-name-size, var(--type-label-sm-size, 12px));
+        --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size, 14px));
         --_warning-bg: var(--color-state-warning-background, #fdebcc);
         --_warning-text: var(--color-state-warning-text, #92400e);
-        --_warning-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
         --_success-bg: var(--color-state-success-background, #e3f1e7);
         --_success-text: var(--color-state-success-text, #166534);
-        --_success-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
         --_danger-bg: var(--color-state-danger-background, #fbe2e2);
         --_danger-text-local: var(--color-state-danger-text, #b42318);
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
     }
 
+    /* A command the agent ran is a band; its state is the badge, not an outline. */
     .frame {
         display: block;
-        --violet-card-border-color: var(--_border-subtle);
-        --violet-card-background: var(--_surface-card);
+        --violet-card-radius: var(--_radius-md);
+        --violet-card-border-color: transparent;
+        --violet-card-background: var(--_surface-subtle);
         --violet-card-shadow: none;
     }
 
     .frame::part(root) {
         overflow: hidden;
-    }
-
-    :host([state="approval-requested"]) .frame {
-        --violet-card-border-color: var(--_warning-border);
-    }
-
-    :host([state="output-available"]) .frame {
-        --violet-card-border-color: var(--_success-border);
-    }
-
-    :host([state="output-error"]) .frame {
-        --violet-card-border-color: var(--_danger-border);
     }
 
     .approval-frame {
@@ -57,19 +45,20 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
-        border-block-end: var(--_card-border-width, 1px) solid var(--_border-subtle);
-        background: var(--_surface-subtle, rgba(28, 26, 13, 0.04));
+        border-block-end: var(--_card-border-width, 1px) solid transparent;
     }
 
     .icon {
         flex-shrink: 0;
         display: inline-flex;
-        --violet-icon-size: var(--_tool-name-size);
+        --violet-icon-size: var(--_tool-icon-size);
     }
 
+    /* The command's name, in the mono face. */
     .name {
+        font-family: var(--font-family-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
         font-size: var(--_tool-name-size);
-        font-weight: 600;
+        font-weight: 500;
         color: var(--_text-primary, #1c1a0d);
         min-inline-size: 0;
         overflow: hidden;
@@ -80,10 +69,10 @@ const styles = css`
     .badge {
         flex-shrink: 0;
         margin-inline-start: auto;
-        padding: var(--_space-xs, 4px) var(--_space-sm);
+        padding: 0 var(--_space-sm);
         border-radius: var(--_radius-sm);
         font-size: var(--_tool-font-size);
-        font-weight: 600;
+        font-weight: 500;
         line-height: var(--_tool-line-height);
     }
 
@@ -140,8 +129,9 @@ const styles = css`
     }
 
     .approval-tool-name {
+        font-family: var(--font-family-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
         font-size: var(--_tool-name-size);
-        font-weight: 600;
+        font-weight: 500;
         line-height: var(--_body-line);
         color: var(--_text-primary);
     }

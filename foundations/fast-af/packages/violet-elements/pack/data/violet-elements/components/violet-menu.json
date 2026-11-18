@@ -44,17 +44,17 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-background, var(--_surface-card))",
+				"default": "var(--violet-menu-background, var(--color-surface-floating, #f0efe6))",
 				"name": "--_panel-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-border-color, var(--_border-subtle))",
+				"default": "var(--violet-menu-border-color, transparent)",
 				"name": "--_panel-border-color"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-gap, var(--_space-sm))",
+				"default": "var(--violet-menu-gap, var(--_space-inline-sm))",
 				"name": "--_panel-gap"
 			},
 			{
@@ -74,18 +74,23 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-padding, var(--_space-sm))",
+				"default": "var(--violet-menu-padding, var(--_space-inline-sm))",
 				"name": "--_panel-padding"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-radius, calc(var(--_radius-md) * 2))",
+				"default": "var(--violet-menu-radius, var(--radius-lg, 6px))",
 				"name": "--_panel-radius"
 			},
 			{
 				"basis": "declared",
 				"default": "var(--violet-menu-shadow, var(--_shadow-floating))",
 				"name": "--_panel-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
+				"name": "--_shadow-floating"
 			}
 		],
 		"events": [

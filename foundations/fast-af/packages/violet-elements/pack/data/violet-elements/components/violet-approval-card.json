@@ -25,11 +25,6 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-border, rgba(245, 158, 11, 0.34))",
-				"name": "--_approval-border-color"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--violet-approval-caption-size, var(--_caption-size, 12px))",
 				"name": "--_approval-caption-size"
 			},
@@ -80,17 +75,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_approval-border-color)",
+				"default": "transparent",
 				"name": "--violet-card-border-color"
 			},
 			{
 				"basis": "declared",
-				"default": "none",
+				"default": "var(--_shadow-card)",
 				"name": "--violet-card-shadow"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_approval-line-height)",
+				"default": "1rem",
 				"name": "--violet-icon-size"
 			}
 		],

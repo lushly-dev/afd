@@ -25,6 +25,7 @@ const styles = css`
         cursor: pointer;
         font-family: inherit;
         font-size: var(--_control-body-size);
+        font-weight: 500;
         line-height: var(--_type-body-line);
         outline: none;
         user-select: none;
@@ -38,8 +39,10 @@ const styles = css`
 
         --_selection-text: var(--color-control-selected-foreground, #244635);
         --_tab-border: color-mix(in srgb, var(--_border-subtle) 88%, transparent);
-        --_tab-hover: color-mix(in srgb, var(--_surface-subtle) 42%, white);
-        --_tab-closed-resting: color-mix(in srgb, var(--_surface-card) 86%, white);
+        --_tab-key-background: var(--color-action-secondary-background, var(--_surface-subtle));
+        --_tab-key-border: var(--color-action-secondary-border, rgba(28, 26, 13, 0.18));
+        --_tab-hover: var(--_tab-key-background);
+        --_tab-closed-resting: var(--_surface-subtle);
         --_tab-indicator-thickness: 2px;
         --_tab-selected-accent-thickness: var(--_tab-indicator-thickness);
     }
@@ -55,7 +58,7 @@ const styles = css`
     :host([disabled]),
     :host([aria-disabled="true"]) {
         cursor: not-allowed;
-        opacity: 0.55;
+        opacity: 0.5;
     }
 
     :host(:focus-visible) {
@@ -75,6 +78,10 @@ const styles = css`
         max-inline-size: 100%;
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: calc(var(--_space-inline-sm) + 2px) var(--_space-inline-sm);
+    }
+
+    :host([data-appearance="open"]) .surface {
+        padding-block: var(--_space-inline-sm);
     }
 
     .label {
@@ -104,12 +111,22 @@ const styles = css`
         color: var(--_text-primary, var(--color-text-primary, #18181b));
     }
 
+    /* An open tab is a key: the one you are on is filled, as a pressed secondary button is. */
+    :host([data-appearance="open"]) {
+        border-radius: var(--_radius-md);
+    }
+
+    :host([data-appearance="open"][aria-selected="true"]) {
+        background: var(--_tab-key-background);
+        border-color: var(--_tab-key-border);
+    }
+
+    /* The fill marks the open tab; its line is placed here but shown only in forced colours. */
     :host([data-appearance="open"][aria-selected="true"]) .indicator {
         inset-inline: 0;
         inset-block-end: calc(var(--_space-inline-sm) * -1);
         inline-size: auto;
         block-size: var(--_tab-indicator-thickness);
-        opacity: 1;
         transform: scaleX(1);
     }
 
@@ -167,7 +184,6 @@ const styles = css`
         padding-inline-end: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
     }
 
-    :host([data-orientation="vertical"][data-appearance="open"]),
     :host([data-orientation="vertical"][data-appearance="mixed"]:not([aria-selected="true"])) {
         border-radius: var(--_radius-md);
     }
@@ -209,6 +225,13 @@ const styles = css`
         block-size: auto;
         opacity: 1;
         transform: none;
+    }
+
+    @media (forced-colors: active) {
+        :host([data-appearance="open"][aria-selected="true"]) .indicator {
+            background: Highlight;
+            opacity: 1;
+        }
     }
 `;
 

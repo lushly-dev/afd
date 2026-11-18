@@ -20,10 +20,14 @@ const styles = css`
         --_tooltip-line-height: var(--violet-tooltip-line-height, 16px);
         --_tooltip-max-width: var(--violet-tooltip-max-width, 240px);
         --_tooltip-gap: var(--violet-tooltip-gap, var(--_space-sm));
-        --_tooltip-radius: var(--violet-tooltip-radius, var(--_radius-md));
-        --_tooltip-background: var(--violet-tooltip-background, var(--_surface-card));
-        --_tooltip-shadow: var(--violet-tooltip-shadow, var(--_shadow-floating));
-        --_tooltip-border-color: var(--violet-tooltip-border-color, var(--_border-subtle));
+        --_tooltip-radius: var(--violet-tooltip-radius, calc(var(--_radius-md) - 2px));
+        /* A tooltip is the one inverted surface: the primary action's fill and text. */
+        --_tooltip-background: var(
+            --violet-tooltip-background,
+            var(--color-action-primary-background, var(--_surface-card))
+        );
+        --_tooltip-shadow: var(--violet-tooltip-shadow, var(--_shadow-card));
+        --_tooltip-border-color: var(--violet-tooltip-border-color, transparent);
     }
 
     .anchor {
@@ -36,12 +40,14 @@ const styles = css`
         position: fixed;
         position-anchor: --violet-tooltip-anchor;
         margin: 0;
-        padding: var(--_space-sm) var(--_space-md);
+        /* The position area is as wide as the anchor, so the tip sizes to its text, up to the maximum. */
+        inline-size: max-content;
+        padding: calc(var(--_space-sm) / 2) var(--_space-sm);
         border: var(--_tooltip-border-width) solid var(--_tooltip-border-color);
         border-radius: var(--_tooltip-radius);
         background: var(--_tooltip-background);
         box-shadow: var(--_tooltip-shadow);
-        color: inherit;
+        color: var(--color-action-primary-text, #ffffff);
         font-family: inherit;
         font-size: var(--_tooltip-font-size);
         line-height: var(--_tooltip-line-height);
@@ -97,6 +103,7 @@ const styles = css`
             forced-color-adjust: none;
             border: var(--_tooltip-border-width) solid ButtonText;
             background: Canvas;
+            color: CanvasText;
             box-shadow: none;
         }
     }

@@ -26,20 +26,25 @@ const styles = css`
         display: grid;
         inline-size: min(100%, var(--violet-calendar-inline-size, 18rem));
         color: var(--_text-primary);
-        --_calendar-radius: calc(var(--_radius-md) * 2);
+        --_calendar-radius: var(--_radius-lg);
+        --_calendar-background: var(--violet-calendar-background, var(--_surface-card));
+        --_calendar-shadow: var(--violet-calendar-shadow, var(--_shadow-card));
         --_calendar-cell-size: clamp(2rem, 6vw, 2.25rem);
-        --_calendar-accent: var(--color-state-success-foreground, #245c36);
+        --_calendar-accent: var(--color-control-selected-foreground, #244635);
         --_calendar-accent-soft: color-mix(in srgb, var(--_calendar-accent) 16%, transparent);
+        --_calendar-selected-background: var(--color-control-selected-background, #ddeadf);
+        --_calendar-selected-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
     }
 
     .root {
         display: grid;
         gap: var(--_space-md);
         padding: var(--_space-md);
-        border: 1px solid var(--_border-subtle);
+        /* The shadow is the edge. The border is kept, clear, for forced colours. */
+        border: 1px solid transparent;
         border-radius: var(--_calendar-radius);
-        background: var(--_surface-card);
-        box-shadow: var(--_shadow-card);
+        background: var(--_calendar-background);
+        box-shadow: var(--_calendar-shadow);
     }
 
     .header {
@@ -52,7 +57,7 @@ const styles = css`
     .heading {
         justify-self: center;
         font-size: var(--_body-size);
-        font-weight: 600;
+        font-weight: 500;
         line-height: var(--_body-line);
     }
 
@@ -62,9 +67,9 @@ const styles = css`
         place-items: center;
         inline-size: var(--_calendar-cell-size);
         block-size: var(--_calendar-cell-size);
-        border: 1px solid var(--_border-subtle);
-        border-radius: var(--_radius-round);
-        background: var(--_surface-card);
+        border: 1px solid transparent;
+        border-radius: var(--_radius-md);
+        background: transparent;
         color: inherit;
         font: inherit;
         cursor: pointer;
@@ -75,13 +80,6 @@ const styles = css`
 
     .nav:hover {
         background: var(--_surface-hover);
-    }
-
-    .nav:focus-visible,
-    .day-button:focus-visible {
-        outline: none;
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--_focus-ring) 35%, transparent);
     }
 
     .weekday-row,
@@ -116,12 +114,13 @@ const styles = css`
         block-size: var(--_calendar-cell-size);
         padding: 0;
         border: 1px solid transparent;
-        border-radius: var(--_radius-round);
+        border-radius: var(--_radius-md);
         background: transparent;
         color: inherit;
         cursor: pointer;
         font: inherit;
         font-size: var(--_body-size);
+        font-variant-numeric: tabular-nums;
         line-height: 1;
     }
 
@@ -137,15 +136,22 @@ const styles = css`
         background: color-mix(in srgb, var(--_calendar-accent) 10%, transparent);
     }
 
-    .day-button.selected {
-        background: var(--_calendar-accent);
-        color: white;
-    }
-
+    /* Chosen is ink on the selected fill, as a checked checkbox is. */
+    .day-button.selected,
     .day-button.range-start,
     .day-button.range-end {
-        background: var(--_calendar-accent);
-        color: white;
+        background: var(--_calendar-selected-background);
+        color: var(--_calendar-accent);
+        box-shadow: inset 0 0 0 1px var(--_calendar-selected-border);
+        font-weight: 500;
+    }
+
+    /* After the chosen day, so a chosen day that has focus still shows its ring. */
+    .nav:focus-visible,
+    .day-button:focus-visible {
+        outline: none;
+        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--_focus-ring) 35%, transparent);
     }
 
     .day-button.today:not(.selected):not(.range-start):not(.range-end) {
@@ -174,6 +180,7 @@ const styles = css`
             background: Highlight;
             color: HighlightText;
             border-color: Highlight;
+            box-shadow: none;
         }
 
         .day-cell.range {

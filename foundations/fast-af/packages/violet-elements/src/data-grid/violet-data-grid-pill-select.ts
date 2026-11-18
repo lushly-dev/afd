@@ -37,6 +37,7 @@ const styles = css`
         --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         --_pill-font-size: var(--violet-data-grid-pill-font-size, 0.8125rem);
         --_size-font-md: var(--size-font-md, 14px);
+        --_size-font-sm: var(--size-font-sm, 12px);
     }
 
     .root {

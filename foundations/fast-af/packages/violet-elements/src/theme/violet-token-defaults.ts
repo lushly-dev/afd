@@ -21,6 +21,7 @@ export const violetActionTokenDefaults: ElementStyles = css`
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         --_text-secondary: var(--color-text-secondary, #414651);
+        --_text-muted: var(--color-text-muted, #616775);
         --_radius-md: var(--radius-md, 4px);
         --_shadow-control: var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04));
         --_layer-base: var(--z-index-base, 0);
@@ -31,31 +32,25 @@ export const violetActionTokenDefaults: ElementStyles = css`
         --_layer-modal: var(--z-index-modal, 300);
         --_layer-toast: var(--z-index-toast, 400);
         --_space-inline-sm: var(--space-inline-sm, 4px);
+        --_space-inline-md: var(--space-inline-md, 8px);
         --_type-body-size: var(--type-body-md-size, 14px);
-        --_type-body-size-compact: calc(var(--_type-body-size) - 1px);
+        --_type-body-line: var(--type-body-md-line, 20px);
         --_target-size-compact: var(--size-target-compact, 24px);
         --_target-size-natural: var(--size-target-natural, 32px);
         --_target-size-comfortable: var(--size-target-comfortable, 44px);
         --_auto-target-size: var(--_target-size-natural);
-        --_auto-control-type-size: var(--_type-body-size);
         --_target-size: var(--violet-target-size, var(--_auto-target-size));
-        --_control-type-size: var(--violet-control-type-size, var(--_auto-control-type-size));
+        --_control-type-size: var(--violet-control-type-size, var(--_type-body-size));
+        /* Rows inside a field (an option, a segment, a page) follow the field's body size when a host sets it. */
+        --_control-body-size: var(--violet-control-body-size, var(--_control-type-size));
         --_duration-fast: var(--duration-fast, 120ms);
         --_duration-base: var(--duration-base, 180ms);
         --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
     }
 
-    @media (pointer: fine) {
-        :host {
-            --_auto-target-size: var(--_target-size-compact);
-            --_auto-control-type-size: var(--_type-body-size-compact);
-        }
-    }
-
     @media (any-pointer: coarse) {
         :host {
             --_auto-target-size: var(--_target-size-comfortable);
-            --_auto-control-type-size: var(--_type-body-size);
         }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -78,12 +73,31 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         --_field-border: var(--color-field-border, rgba(28, 26, 13, 0.48));
         --_field-border-hover: var(--color-field-border-hover, rgba(28, 26, 13, 0.64));
+        --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring));
+        --_field-background: var(--color-field-background, var(--_surface-page));
+        --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle));
+        --_field-text: var(--color-field-text, var(--color-text-primary, #18181b));
+        --_field-placeholder: var(--color-field-placeholder, var(--_text-muted));
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_danger-border: var(--color-field-border-invalid, #b42318);
         --_surface-card: var(--color-surface-card, #faf9f5);
+        --_surface-floating: var(--color-surface-floating, #f0efe6);
         --_radius-md: var(--radius-md, 4px);
+        --_radius-lg: var(--radius-lg, 6px);
         --_shadow-control: var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04));
         --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        /*
+         * A field is a well let into the page. Its edge is an inner cut: a hairline border all
+         * round and, inside it along the top, the 3:1 rule that finds the control, with a soft
+         * shadow under it. The rule is an inset shadow, not a border colour, so it thins to
+         * nothing round the corners. The full outline comes back for focus and an invalid value.
+         */
+        --_shadow-well: var(--shadow-well, inset 0 2px 3px -1px rgba(0, 0, 0, 0.1));
+        --_field-shadow: inset 0 1px 0 var(--_field-border), var(--_shadow-well);
+        --_field-shadow-hover: inset 0 1px 0 var(--_field-border-hover), var(--_shadow-well);
+        --_field-shadow-focus:
+            0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--_field-border-focus),
+            0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent);
         --_layer-base: var(--z-index-base, 0);
         --_layer-raised: var(--z-index-raised, 1);
         --_layer-sticky: var(--z-index-sticky, 10);
@@ -94,6 +108,8 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_space-stack-xs: var(--space-stack-xs, 4px);
         --_space-stack-sm: var(--space-stack-sm, 8px);
         --_space-stack-2xs: calc(var(--_space-stack-xs) / 2);
+        /* One gap above a control, under its label, and one below it, over its supporting text. */
+        --_space-field-gap: calc(var(--_space-stack-xs) + var(--_space-stack-2xs));
         --_space-inline-sm: var(--space-inline-sm, 4px);
         --_space-inline-md: var(--space-inline-md, 8px);
         --_type-label-size: var(--type-label-sm-size, 12px);
@@ -110,33 +126,18 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_target-size-natural: var(--size-target-natural, 32px);
         --_target-size-comfortable: var(--size-target-comfortable, 44px);
         --_auto-target-size: var(--_target-size-natural);
-        --_auto-control-label-size: var(--_type-label-size);
-        --_auto-control-body-size: var(--_type-body-size);
-        --_auto-control-caption-size: var(--_type-caption-size);
         --_target-size: var(--violet-target-size, var(--_auto-target-size));
-        --_control-label-size: var(--violet-control-label-size, var(--_auto-control-label-size));
-        --_control-body-size: var(--violet-control-body-size, var(--_auto-control-body-size));
-        --_control-caption-size: var(--violet-control-caption-size, var(--_auto-control-caption-size));
+        --_control-label-size: var(--violet-control-label-size, var(--_type-label-size));
+        --_control-body-size: var(--violet-control-body-size, var(--_type-body-size));
+        --_control-caption-size: var(--violet-control-caption-size, var(--_type-caption-size));
         --_duration-fast: var(--duration-fast, 120ms);
         --_duration-base: var(--duration-base, 180ms);
         --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
     }
 
-    @media (pointer: fine) {
-        :host {
-            --_auto-target-size: var(--_target-size-compact);
-            --_auto-control-label-size: var(--_type-label-size-compact);
-            --_auto-control-body-size: var(--_type-body-size-compact);
-            --_auto-control-caption-size: var(--_type-caption-size-compact);
-        }
-    }
-
     @media (any-pointer: coarse) {
         :host {
             --_auto-target-size: var(--_target-size-comfortable);
-            --_auto-control-label-size: var(--_type-label-size);
-            --_auto-control-body-size: var(--_type-body-size);
-            --_auto-control-caption-size: var(--_type-caption-size);
         }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -162,6 +163,7 @@ export const violetSurfaceTokenDefaults: ElementStyles = css`
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
         --_success-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
+        --_shadow-control: var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04));
         --_shadow-card: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
         --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         --_layer-base: var(--z-index-base, 0);
@@ -184,6 +186,7 @@ export const violetSurfaceTokenDefaults: ElementStyles = css`
         --_space-lg: var(--space-layout-md, 24px);
         --_body-size: var(--type-body-md-size, 14px);
         --_body-line: var(--type-body-md-line, 20px);
+        --_type-label-weight: var(--type-label-sm-weight, 500);
         --_caption-size: var(--type-caption-xs-size, 11px);
         --_caption-line: var(--type-caption-xs-line, 14px);
         --_meta-size: var(--type-caption-xs-size, 11px);
