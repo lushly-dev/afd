@@ -181,4 +181,6 @@ Once the feature is built, the same files move beside the code and run as its ac
 Proposed → Review → Active → Implementation → Complete
 ```
 
+Moving a feature to `active/` opens its epic, an issue of type `Epic` whose sub-issues are the work, and its `STATUS.md` names it on the line under the title; the epic closes when its whole scope is done, which for an epic other plans share is not when this one completes ([epics](../../.claude/skills/triage-issues/references/epics.md)).
+
 A proposal that adds or changes commands is ready for review when its jobs are written as scenarios, they pass the checks, and readers who did not write them have walked the paths. A revision needs the walk again only when it adds jobs or commands.

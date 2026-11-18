@@ -1,5 +1,7 @@
 # Loam status
 
+Epic: [#1541](https://github.com/lushly-dev/afd/issues/1541). File new work for this area as its sub-issue.
+
 Read this before anything else in the area, and update it before you end a
 session that changed Loam. It is the source of truth for progress: an agent
 should never have to scan the codebase to learn what is current.

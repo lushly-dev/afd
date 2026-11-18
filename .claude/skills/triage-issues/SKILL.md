@@ -1,8 +1,8 @@
 ---
 name: triage-issues
 description: >
-  Triages AFD issues into the software factory's labels (status, priority,
-  execution, needs). Use before a factory run; `check` only reports.
+  Triages AFD issues into the factory's labels and keeps epics in shape. Use
+  before a factory run or when opening an epic; `check` only reports.
 argument-hint: check | limit:<n>
 ---
 
@@ -74,10 +74,12 @@ easier for agents; never defer for scope, length or complexity.
    or architecture question only the owner can answer (`needs:decision`);
    credentials, consent, a registry or vendor portal, a tag or a publish
    (`needs:operator`: publishing is the maintainer's, AGENTS.md); an open blocker
-   (`blocked`; name the issue or dependency); an epic with open children; or a
+   (`blocked`; name the issue or dependency); an epic ([epics](references/epics.md):
+   no comment needed, and its sub-issues are what you classify); or a
    closure candidate with evidence that nothing observable remains (obsolete,
    duplicate, already fixed; a typo is just `bounded` work). Defer:
-   `status:deferred`, no execution profile, exactly one comment naming the reason,
+   `status:deferred`, no execution profile, exactly one comment naming the reason
+   (none for an epic),
    and the owner assigned for decisions, operator work and closure candidates.
 3. **If the agent chooses wrong, will anything catch it?** The gates catch
    functional wrongness. They don't catch a plausible but wrong engineering path
@@ -105,7 +107,9 @@ easier for agents; never defer for scope, length or complexity.
    everyone.
 
 Add the `area:` (or `lang:`) label when the area is clear; cells use it to spot
-overlapping work.
+overlapping work. When an issue plainly serves an epic it isn't under yet, attach
+it as a sub-issue ([epics](references/epics.md)); that is a parent link, not a
+body edit.
 
 **Decision or approach.** A decision is a product question only a person can
 answer, and it blocks. An approach is an engineering fork an agent can reason about
@@ -126,7 +130,9 @@ claim or close the issue.
 
 ## Limits
 
-Writes are labels, adding an assignee and one deferral comment. Triage never runs
+Writes are labels, adding an assignee, one deferral comment and sub-issue links.
+Opening and closing an epic belong to the session that activates or completes its
+plan ([epics](references/epics.md)), not to a triage pass. Triage never runs
 anything, spawns sessions, closes issues, edits bodies or changes milestones, and
 never removes an assignee the owner set on themselves: they know something you
 don't. Name a required account or operator action, never a credential.
