@@ -97,8 +97,6 @@ export type LateCommandDeps = ShellCommandDeps &
 		pending: Partial<Record<string, QueuedTicket>>;
 		/** The symbol `run` keeps a queued call's ticket under: the kernel's own, so first paint shares no new one. */
 		queued: symbol;
-		/** The kernel's mark on stage B's own move of an old appearance record (phase 4 specification, 3.6). */
-		migrating?: symbol;
 		/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4, B1). */
 		stageA?: [AccessActorV1] | undefined;
 		/** The kernel's map of each person's active persona when not `default` (phase 3 specification, 6.1). */
@@ -519,7 +517,6 @@ export async function createLateParts(
 		replaying: () => deps.internals?.replaying === true,
 		isOwner: (person) => isOwner(deps.scope.membership, person),
 		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
-		...(deps.migrating !== undefined ? { migrating: deps.migrating } : {}),
 		// `loam.documents.trashDays` written through to the workspace row (A-P2-2), which the trash's expiry reads, in
 		// one batch with the setting's own row.
 		async trashDays(days, context, also) {

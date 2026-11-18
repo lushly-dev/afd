@@ -240,9 +240,6 @@ export interface KernelPartsInternals {
 export const QUEUED = Symbol();
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
-/** The mark on stage B's own move of an old appearance record (phase 4 specification, 3.6): `late/` reads it. */
-const MIGRATING = Symbol('loam.migrating');
-
 export async function createKernelParts(
 	options: KernelOptionsV5,
 	internals: KernelPartsInternals = {}
@@ -462,7 +459,6 @@ export async function createKernelParts(
 				run,
 				runBoot,
 				queued: QUEUED,
-				migrating: MIGRATING,
 				stageA: chosen,
 				clock,
 				identity,
@@ -517,10 +513,11 @@ export async function createKernelParts(
 	const runBoot = (name: string, input?: unknown) => run('palette', name, input, {}, BOOT_FIELDS);
 	/**
 	 * A palette call stage B makes itself, past the queue it holds, journaled as the person's (phase 4's 3.6), with the
-	 * kernel's own mark, a symbol no caller can name, which `setting-set` reads to accept `migrated`.
+	 * kernel's own `migration` field, which no caller can set and the journal keeps, so `setting-set` accepts `migrated`
+	 * on that call and on its entry's replay alone.
 	 */
 	const runNow = (name: string, input: unknown) =>
-		execute('palette', name, input, {}, { [MIGRATING]: true } as KernelCallFields);
+		execute('palette', name, input, {}, { migration: true });
 	let endStageB: () => void = () => {};
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;

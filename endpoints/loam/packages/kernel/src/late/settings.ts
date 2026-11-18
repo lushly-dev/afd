@@ -137,11 +137,6 @@ export interface SettingsDeps {
 	 * the value shown and the retention applied never diverge.
 	 */
 	trashDays(days: number, context: CommandContext, also: BatchOperation[]): Promise<void>;
-	/**
-	 * The kernel's mark on stage B's own move of an old appearance record (3.6): a key of the call's context only
-	 * `LateParts.migrate`'s call carries, so no person's or agent's call can claim `migrated`.
-	 */
-	migrating?: symbol;
 	kit: SettingsKit;
 }
 
@@ -868,13 +863,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 				writeRefusal('setting-set', known, input.key, input.level, context) ??
 				projectRefusal(known, input.level, context);
 			if (refused) return refused;
-			// `migrated` marks stage B's move of an old appearance record (3.6): only the kernel's own call carries its mark,
-			// and a replay re-runs that call's entry; any other caller's `migrated` is `VALIDATION_ERROR` (the second
-			// review's D).
-			const internal =
-				(deps.migrating !== undefined &&
-					(context as unknown as Record<symbol, unknown>)[deps.migrating] === true) ||
-				deps.replaying();
+			// `migrated` marks stage B's move of an old appearance record (3.6): only the kernel's own call carries its
+			// `migration` field, which the journal keeps, so a replay of that entry carries it and a replay of a person's
+			// forged call does not; any other caller's `migrated` is `VALIDATION_ERROR` (the second review's D).
+			const internal = (context as KernelFieldContext).migration === true;
 			if (
 				input.migrated !== undefined &&
 				!(

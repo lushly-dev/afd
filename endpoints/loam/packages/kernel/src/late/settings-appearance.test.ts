@@ -242,14 +242,38 @@ describe('P4-E3: local mode (R12)', () => {
 		});
 	});
 
-	it('SESSION_50 still replays with no difference', async () => {
+	it('SESSION_50 still replays with no difference, a forged `migrated` refused in both', async () => {
 		const { kernel, journal } = await kernelOn(new MemoryAdapter());
 		for (const call of SESSION_50) {
 			if (call.interface === 'agent') await kernel.agent.call(call.name, call.input);
 			else await kernel.call(call.name, call.input);
 		}
+		// A person's own `migrated`: refused live, and refused again when its entry replays (the re-check's I1).
+		const forged = await kernel.call('setting-set', {
+			section: 'loam.appearance',
+			key: 'theme',
+			value: 'dark',
+			level: 'person',
+			migrated: true,
+		});
+		expect(forged.error?.code).toBe('VALIDATION_ERROR');
 		const { report } = await replayKernel(await journal.read());
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it("replays stage B's move as it ran: its entry carries the kernel's `migration` field", async () => {
+		const store = new MemoryAdapter();
+		await legacy(store, { theme: 'dark', density: 'compact' });
+		const { journal } = await kernelOn(store);
+		const entries = await journal.read();
+		const moves = entries.filter((entry) => entry.command === 'setting-set');
+		expect(moves.map((entry) => (entry.context as { migration?: unknown }).migration)).toEqual([
+			true,
+			true,
+		]);
+		const { report, appearance: replayed } = await replayKernel(entries);
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		expect(replayed).toMatchObject({ theme: 'dark', density: 'compact' });
 	});
 });
 

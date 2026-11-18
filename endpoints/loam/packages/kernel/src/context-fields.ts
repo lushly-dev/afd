@@ -21,6 +21,9 @@ export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFi
 		// The active persona's id, when not `default` (phase 3 specification, 6.2; D89): journaled, set by the kernel
 		// alone, never declared to a server, never given to an app, and never read by a decision.
 		{ name: 'persona', meta: 'dev.loam/persona', schema: id, journal: true },
+		// Stage B's own move of an old appearance record (phase 4 specification, 3.6): set by the kernel alone, on that
+		// call alone, and journaled, so a replay of its entry carries it and a person's forged `migrated` never does.
+		{ name: 'migration', meta: 'dev.loam/migration', schema: z.literal(true), journal: true },
 	]);
 
 /** What the kernel sets for a call. */
@@ -37,6 +40,8 @@ export interface KernelCallFields {
 	 * and the agent, the outer call was for. Absent: the session's person, or the agent interface's agent.
 	 */
 	actor?: Actor;
+	/** Stage B's own move of an old appearance record (phase 4 specification, 3.6): the kernel's alone. */
+	migration?: true;
 }
 
 /** The fields a handler reads back from its command context. */
