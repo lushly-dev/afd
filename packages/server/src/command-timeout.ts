@@ -1,8 +1,8 @@
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import { failure, truncateName } from '@lushly-dev/afd-core';
 
 /** Bound middleware and handler execution by one per-command deadline. */
-export async function withCommandTimeout(
+async function withCommandTimeout(
 	name: string,
 	context: CommandContext,
 	execute: () => Promise<CommandResult>
@@ -39,4 +39,30 @@ export async function withCommandTimeout(
 	} finally {
 		clearTimeout(timer);
 	}
+}
+
+/**
+ * The standalone server's deadline boundary: outside user middleware, with a cancellation guard
+ * directly before the handler. Keep this out of `/direct`, whose callers use DirectClient's
+ * deadline, so in-process hosts that never set `context.timeout` do not bundle timer machinery.
+ */
+export function withCommandDeadlines(
+	middleware: readonly CommandMiddleware[]
+): CommandMiddleware[] {
+	return [
+		(name, _input, context, next) => withCommandTimeout(name, context, next),
+		...middleware,
+		async (name, _input, context, next) => {
+			// A delayed approval must never start work after its caller received a timeout or
+			// cancelled the request, including an ungated step resuming after the shared plan.
+			if (context.signal?.aborted) {
+				return failure({
+					code: 'COMMAND_CANCELLED',
+					message: `Command '${truncateName(name)}' was cancelled before it started`,
+					suggestion: 'Retry with a fresh signal if the command is still needed.',
+				});
+			}
+			return next();
+		},
+	];
 }

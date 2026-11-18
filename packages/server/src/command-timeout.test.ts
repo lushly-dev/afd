@@ -4,9 +4,10 @@ import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-d
 import { success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { withCommandDeadlines } from './command-timeout.js';
 import { createExecutionEngine } from './execution.js';
 import { defineCommand } from './schema.js';
-import { createMcpHandler } from './server.js';
+import { createMcpHandler, createMcpServer } from './server.js';
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
@@ -32,7 +33,7 @@ function setup(
 	const onCommand = vi.fn();
 	const engine = createExecutionEngine({
 		commandMap: new Map([[command.name, command]]),
-		middleware,
+		middleware: withCommandDeadlines(middleware),
 		devMode: false,
 		onCommand,
 	});
@@ -198,6 +199,18 @@ describe('per-command deadlines', () => {
 });
 
 describe('remote command deadlines', () => {
+	it('also enforces deadlines on server.execute without starting a transport', async () => {
+		vi.useFakeTimers();
+		const { command } = setup(async ({ signal }) => {
+			await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve()));
+			return success('late');
+		});
+		const server = createMcpServer({ name: 'deadline-test', version: '1', commands: [command] });
+		const running = server.execute('work-run', {}, { timeout: 10 });
+		await vi.advanceTimersByTimeAsync(10);
+		expect((await running).error?.code).toBe('TIMEOUT');
+	});
+
 	it.each(['/message', '/mcp', '/rpc'] as const)(
 		'enforces createContext.timeout on %s',
 		async (path) => {

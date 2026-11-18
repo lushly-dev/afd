@@ -16,16 +16,23 @@ the linked tracking issues. This audit did not rerun the four language suites.
 
 ## TypeScript D8 candidate (#543)
 
-Implemented on `lush/fleet-543-context-timeout-parity`: the server engine bounds middleware and
-handler execution by each command's positive finite `context.timeout`, aborts its signal and
+Implemented on `lush/fleet-543-context-timeout-parity`: the standalone server's engine middleware
+bounds middleware and handler execution by each command's positive finite `context.timeout`, aborts its signal and
 returns `TIMEOUT` with a recovery suggestion. Cancelled or timed-out work cannot start after
 middleware resumes, including gated and ungated steps awaiting the batch approval relay (#1417).
 Focused tests cover the engine, both MCP eras and HTTP `/rpc`; full validation belongs to the lane.
 
-With esbuild 0.28.2, this adds 808 minified bytes to `/direct` for the deadline, signal composition,
-timer cleanup and cancellation guard. The registry host grows from 39,071 to 39,879 bytes (budget
-39,100 → 40,000); the tool-surface host grows from 73,310 to 74,118 (74,000 → 74,200). Other
-budgets hold, and the browser entry gains no transport dependency.
+Attempt 1 placed deadlines in the shared engine, adding 808 minified bytes to `/direct` and
+failing Loam's kernel budget at 116,441 of 115,500 bytes. The repair moves the deadline boundary
+and final cancellation guard into `createMcpServer`/`createMcpHandler`'s middleware assembly,
+including `server.execute()`. The shared engine and in-process registry stay on their original
+path; DirectClient continues to enforce its own deadline. A module-graph assertion keeps server
+timers out of `/direct`.
+
+After rebasing onto `eeea8be1`, the kernel measures 115,401 of 115,500 bytes (1,040 fewer than the
+ejected candidate). With esbuild 0.28.2, the registry host returns from 39,879 to 39,071 and the
+tool-surface host from 74,118 to 73,310; their ceilings return to 39,100 and 74,000. No Loam
+ceiling changes. `pnpm -F @lushly-dev/loam-web budget` and server entry-point tests pass.
 
 ## Historical checkpoints
 

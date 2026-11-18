@@ -37,7 +37,6 @@ import {
 	notFoundSuggestion,
 	notInContextError,
 } from './command-routing.js';
-import { withCommandTimeout } from './command-timeout.js';
 import { applyContextFields, type ContextField } from './context-fields.js';
 import { type ContextState, resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -197,15 +196,6 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		// Build middleware chain
 		const runHandler = async (): Promise<CommandResult> => {
-			// Middleware may resume after cancellation or after our caller received TIMEOUT.
-			// In particular, a delayed approval must never start work we said did not run.
-			if (context.signal?.aborted) {
-				return failure({
-					code: 'COMMAND_CANCELLED',
-					message: `Command '${truncateName(commandName)}' was cancelled before it started`,
-					suggestion: 'Retry with a fresh signal if the command is still needed.',
-				});
-			}
 			const { clock } = context;
 			const startTime = clock.now();
 			const result = await command.handler(data, context);
@@ -235,7 +225,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		let result: CommandResult;
 		try {
-			result = await withCommandTimeout(commandName, context, next);
+			result = await next();
 		} catch (error) {
 			reportError(error);
 			// The raw message and stack only in devMode, to prevent information leakage.
