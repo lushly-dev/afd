@@ -104,7 +104,7 @@ const toastStyles = [
 			background: var(--color-surface-floating);
 			color: var(--color-text-primary);
 			box-shadow: var(--shadow-floating);
-			font-family: 'Montserrat', 'Segoe UI', sans-serif;
+			font-family: var(--font-family-body);
 			font-size: var(--type-body-md-size);
 			line-height: var(--type-body-md-line);
 			pointer-events: auto;

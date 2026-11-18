@@ -9,6 +9,9 @@ import { mountShell, parseRoute, renderNotice, type ShellIdentity } from '@lushl
 import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
 import { readBoot } from '@lushly-dev/loam-manifest';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
+// The theme's typefaces (D154), served with the shell: a stylesheet of `@font-face` rules the build
+// links from `index.html`, and the woff2 files beside it, since Loam loads nothing from another origin.
+import '@lushly-dev/loam-theme/loam-fonts.css';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
 import { type ProviderIdentity, probeIdentity } from './identity.js';
 

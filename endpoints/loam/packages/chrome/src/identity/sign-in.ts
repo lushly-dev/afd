@@ -86,7 +86,7 @@ const styles = [
 			background: var(--color-surface-floating);
 			box-shadow: var(--shadow-floating);
 			color: var(--color-text-primary);
-			font-family: 'Montserrat', 'Segoe UI', sans-serif;
+			font-family: var(--font-family-body);
 		}
 		dialog[open] {
 			display: grid;

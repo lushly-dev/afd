@@ -284,7 +284,13 @@ export const CEILINGS = Object.freeze({
 	// `switcher` (+100) and `tooltip` (+5) are within their rows.
 	jsMinified: 304_000,
 	jsGzip: 95_500,
-	cssMinified: 8_496,
+	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D154, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
+	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
+	// stylesheet `index.html` links; measured 10,251, plus a margin.
+	cssMinified: 10_500,
+	// AFD's typefaces (D154): six latin woff2 files, Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono
+	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
+	fontsBytes: 116_000,
 	kernelMinified: 115_500,
 	lateMinified: 78_500,
 	lateDocumentsMinified: 13_218,
@@ -587,6 +593,10 @@ async function measurePage() {
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const gzipOf = (code) => gzipSync(code, { level: 9 }).length;
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
+	// The typefaces the linked stylesheet names (D154): every font file the build emits.
+	const fontAssets = output.filter(
+		(item) => item.type === 'asset' && /\.(woff2?|ttf|otf)$/.test(item.fileName)
+	);
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
 	let inlineCss = 0;
 	for (const chunk of initialChunks)
@@ -626,6 +636,7 @@ async function measurePage() {
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
 			cssAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0) + inlineCss,
+		fontsBytes: fontAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0),
 		packages: breakdown(initialChunks),
 	};
 }
@@ -688,6 +699,7 @@ const ROWS = [
 	['jsMinified', 'JavaScript, minified'],
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
+	['fontsBytes', "The theme's typefaces, woff2"],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
