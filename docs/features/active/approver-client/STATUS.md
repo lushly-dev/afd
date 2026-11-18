@@ -9,7 +9,7 @@
 
 ## Done
 
-- **Spec, TypeScript and Rust,** in [#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM): the subsection and the display rules in `spec/command-metadata.md`; `createMcpServer({ approver })` and `AFD_APPROVAL_META_KEY` in `@lushly-dev/afd-server`; `approvalDisplay` and its names in `@lushly-dev/afd-core`; `McpServer::with_approver`, `afd::server::AFD_APPROVAL_META_KEY` and `afd::approval_display` in the `afd` crate.
+- **Spec, TypeScript and Rust,** in [#1475](https://github.com/lushly-dev/afd/pull/1475): the subsection and the display rules in `spec/command-metadata.md`; `createMcpServer({ approver })` and `AFD_APPROVAL_META_KEY` in `@lushly-dev/afd-server`; `approvalDisplay` and its names in `@lushly-dev/afd-core`; `McpServer::with_approver`, `afd::server::AFD_APPROVAL_META_KEY` and `afd::approval_display` in the `afd` crate.
 - **Vectors:** [`spec/vectors/approver-client.json`](../../../../spec/vectors/approver-client.json), 87 display and 9 carrier cases. TypeScript and Rust run all of them (Rust's carrier with `server-auth`); Python and C++ load the file and skip every case as the documented gap.
 
 ## Not done
