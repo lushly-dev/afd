@@ -60,13 +60,16 @@ const received: Received[] = [];
 /** The frame's script: `model_send` through every path a frame has, with a body the allow-list admits. */
 const PROBE = `(() => {
 	const shell = decodeURIComponent(location.hash.slice(1));
-	const payload = { provider: 'local', body: { max_tokens: 8, stream: true, messages: [{ role: 'user', content: 'from the frame' }] } };
+	const payload = { provider: 'local', stream: 77, body: { max_tokens: 8, stream: true, messages: [{ role: 'user', content: 'from the frame' }] } };
 	const headers = { Origin: shell };
 	const message = JSON.stringify({ cmd: 'model_send', callback: 1, error: 2, payload, options: { headers }, __TAURI_INVOKE_KEY__: 'forged' });
-	try { window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke('model_send', payload, { headers }).catch(() => {}); } catch {}
-	for (const post of [window.ipc, window.chrome && window.chrome.webview, window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc]) {
-		try { post && post.postMessage && post.postMessage(message); } catch {}
+	const tried = [];
+	try { window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke('model_send', payload, { headers }).catch(() => {}); tried.push('invoke'); } catch {}
+	for (const [name, post] of [['window.ipc', window.ipc], ['chrome.webview', window.chrome && window.chrome.webview], ['webkit.messageHandlers.ipc', window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc]]) {
+		try { if (post && post.postMessage) { post.postMessage(message); tried.push(name); } } catch {}
 	}
+	// That it ran, and what it posted through: the test's own listener reads it, the shell does not.
+	window.parent.postMessage({ loamModelProbe: tried }, '*');
 })();
 `;
 
@@ -249,10 +252,14 @@ interface ModelEventView {
 	code?: string;
 }
 
-/** `model_send` in the main frame: the stream id, or the refusal's code. */
+/** Stream ids this suite names, as a page names its own (4.2). */
+let nextStream = 1000;
+
+/** `model_send` in the main frame, on a stream id of its own: that id, or the refusal's code. */
 function send(provider: string, body: unknown): Promise<{ ok: boolean; value: string }> {
+	nextStream += 1;
 	return desktop.browser.execute(
-		async (provider, body) => {
+		async (provider, body, stream) => {
 			const internals = (
 				window as unknown as {
 					__TAURI_INTERNALS__: { invoke(command: string, args: unknown): Promise<unknown> };
@@ -261,14 +268,15 @@ function send(provider: string, body: unknown): Promise<{ ok: boolean; value: st
 			try {
 				return {
 					ok: true,
-					value: String(await internals.invoke('model_send', { provider, body })),
+					value: String(await internals.invoke('model_send', { provider, body, stream })),
 				};
 			} catch (error) {
 				return { ok: false, value: String(error) };
 			}
 		},
 		provider,
-		body
+		body,
+		nextStream
 	) as Promise<{ ok: boolean; value: string }>;
 }
 
@@ -425,17 +433,32 @@ describe('P5-A3: the model transport on the desktop', () => {
 	it("P5-A3 (D153): no message a frame like the runtime's posts runs model_send: the provider hears nothing", async () => {
 		const before = received.length;
 		const refusals = desktop.stderr.keyRefusals;
-		await desktop.browser.execute(
-			(sandbox, shell) => {
-				const frame = document.createElement('iframe');
-				frame.setAttribute('sandbox', 'allow-scripts');
-				frame.dataset.probe = 'models';
-				frame.src = `${sandbox}/sandbox/copilot/probe-models.html#${encodeURIComponent(shell)}`;
-				document.body.append(frame);
-			},
+		// The probe says it ran, and through which paths it posted, so a frame that never ran cannot pass for one refused.
+		const tried = (await desktop.browser.execute(
+			(sandbox, shell) =>
+				new Promise<string[]>((resolve, reject) => {
+					const frame = document.createElement('iframe');
+					frame.setAttribute('sandbox', 'allow-scripts');
+					frame.dataset.probe = 'models';
+					const heard = (event: MessageEvent) => {
+						const ran = (event.data as { loamModelProbe?: string[] } | null)?.loamModelProbe;
+						if (event.source !== frame.contentWindow || !Array.isArray(ran)) return;
+						window.removeEventListener('message', heard);
+						resolve(ran);
+					};
+					window.addEventListener('message', heard);
+					setTimeout(() => reject(new Error('the probe never ran')), 20_000);
+					frame.src = `${sandbox}/sandbox/copilot/probe-models.html#${encodeURIComponent(shell)}`;
+					document.body.append(frame);
+				}),
 			ORIGINS.sandbox,
 			ORIGINS.shell
-		);
+		)) as string[];
+		// WebView2 gives the frame Tauri's script; WebKitGTK gives it wry's handler. Each path it had, it used.
+		expect(tried.length).toBeGreaterThan(0);
+		if (windows)
+			expect(tried).toEqual(expect.arrayContaining(['invoke', 'window.ipc', 'chrome.webview']));
+		else expect(tried).toContain('webkit.messageHandlers.ipc');
 		// Time for a delivered message to run, and for a request to reach the provider.
 		await new Promise((resolve) => setTimeout(resolve, 4_000));
 		expect(received.length).toBe(before);

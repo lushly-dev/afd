@@ -41,7 +41,7 @@ pub const EVENT_TEXT_MAX: usize = 64 * 1024;
 /// `models.json`, at most 1 MiB, as `mounts.json`.
 const FILE_MAX: usize = 1024 * 1024;
 /// A key file, at most 4 KiB.
-const KEY_FILE_MAX: u64 = 4096;
+const KEY_FILE_MAX: usize = 4096;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -147,16 +147,13 @@ pub fn endpoint_allowed(endpoint: &str) -> bool {
 
 /// `models.json`, or a code: none at `path` configures no provider; one others can read is refused (4.2).
 pub fn read(path: &Path) -> Result<Vec<Provider>, &'static str> {
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    if !crate::mounts::owner_only(path) {
-        return Err(PERMISSIONS);
-    }
-    let bytes = std::fs::read(path).map_err(|_| PERMISSIONS)?;
-    if bytes.len() > FILE_MAX {
-        return Err(MODELS_INVALID);
-    }
+    use crate::mounts::{Unread, read_owner_only};
+    let bytes = match read_owner_only(path, FILE_MAX) {
+        Ok(bytes) => bytes,
+        Err(Unread::Missing) => return Ok(Vec::new()),
+        Err(Unread::Denied) => return Err(PERMISSIONS),
+        Err(Unread::TooLarge) => return Err(MODELS_INVALID),
+    };
     let file: File = serde_json::from_slice(&bytes).map_err(|_| MODELS_INVALID)?;
     let mut seen = std::collections::HashSet::new();
     for provider in &file.providers {
@@ -190,14 +187,13 @@ pub fn read(path: &Path) -> Result<Vec<Provider>, &'static str> {
 pub fn resolve_key(key: &KeyRef) -> Result<String, &'static str> {
     let found = match key {
         KeyRef::File(FileRef { file }) => {
-            if !crate::mounts::owner_only(file) {
-                return Err(PERMISSIONS);
+            use crate::mounts::{Unread, read_owner_only};
+            match read_owner_only(file, KEY_FILE_MAX) {
+                Ok(bytes) => String::from_utf8(bytes).map_err(|_| KEY_MISSING)?,
+                // No file is no key, whose suggestion is to set one; one others can read is refused as such.
+                Err(Unread::Missing | Unread::TooLarge) => return Err(KEY_MISSING),
+                Err(Unread::Denied) => return Err(PERMISSIONS),
             }
-            let metadata = std::fs::metadata(file).map_err(|_| KEY_MISSING)?;
-            if metadata.len() > KEY_FILE_MAX {
-                return Err(KEY_MISSING);
-            }
-            std::fs::read_to_string(file).map_err(|_| KEY_MISSING)?
         }
         KeyRef::Keychain(KeychainRef { keychain, account }) => {
             if !keychain_name(keychain) || !keychain_name(account) {
@@ -424,6 +420,36 @@ fn anthropic_content(value: &Value) -> Checked {
     }
 }
 
+/// TanStack's Anthropic adapter marks only the last tool, system block and message block for caching, and sends
+/// `cache_control: null` on the others: removed here, where the allow-list will see them, as if never sent. Any
+/// other value is the allow-list's to judge.
+fn drop_null_cache_control(body: &mut Map<String, Value>) {
+    fn strip(value: &mut Value) {
+        if let Value::Object(map) = value
+            && map.get("cache_control").is_some_and(Value::is_null)
+        {
+            map.remove("cache_control");
+        }
+    }
+    for key in ["tools", "system"] {
+        if let Some(Value::Array(items)) = body.get_mut(key) {
+            items.iter_mut().for_each(strip);
+        }
+    }
+    if let Some(Value::Array(messages)) = body.get_mut("messages") {
+        for message in messages {
+            if let Some(Value::Array(blocks)) = message.get_mut("content") {
+                for block in blocks {
+                    strip(block);
+                    if let Some(Value::Array(parts)) = block.get_mut("content") {
+                        parts.iter_mut().for_each(strip);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Anthropic's Messages API, as TanStack's adapter sends it.
 fn anthropic_body(body: &Map<String, Value>) -> Checked {
     only(
@@ -639,10 +665,19 @@ pub fn checked_body(kind: Kind, model: &str, body: Value) -> Result<Vec<u8>, &'s
         return Err(BODY_REFUSED);
     };
     match kind {
-        Kind::Anthropic => anthropic_body(&map)?,
+        Kind::Anthropic => {
+            drop_null_cache_control(&mut map);
+            anthropic_body(&map)?;
+        }
         Kind::Openai | Kind::OpenaiCompatible => openai_body(&map)?,
     }
     map.insert("model".into(), Value::String(model.to_owned()));
+    // Streamed, and for the Chat Completions kinds with its usage: the turn's token limits are counted from the
+    // stream's usage (4.4), which the runtime cannot then turn off.
+    map.insert("stream".into(), Value::Bool(true));
+    if kind != Kind::Anthropic {
+        map.insert("stream_options".into(), json!({ "include_usage": true }));
+    }
     let encoded = serde_json::to_vec(&Value::Object(map)).map_err(|_| BODY_REFUSED)?;
     if encoded.len() > BODY_MAX {
         return Err(BODY_REFUSED);
@@ -697,12 +732,22 @@ pub fn request_parts(provider: &Provider, key: Option<&str>) -> Result<RequestPa
     })
 }
 
+/// The largest stream id a page may name: JavaScript's safe integers.
+pub const STREAM_ID_MAX: u64 = (1 << 53) - 1;
+
+/// Each open stream: running, or held while its key is read.
+enum Slot {
+    Reserved,
+    Running(AbortHandle),
+}
+
 /// Every provider `models.json` lists, and the streams the webview holds open.
 pub struct Models {
     providers: Result<Vec<Provider>, &'static str>,
     client: Option<reqwest::Client>,
-    next: AtomicU64,
-    streams: Arc<Mutex<HashMap<u64, AbortHandle>>>,
+    streams: Arc<Mutex<HashMap<u64, Slot>>>,
+    /// Moved by every page load: a stream of an earlier page neither starts nor emits.
+    epoch: Arc<AtomicU64>,
 }
 
 impl Models {
@@ -717,13 +762,26 @@ impl Models {
         Self {
             providers,
             client,
-            next: AtomicU64::new(1),
             streams: Arc::default(),
+            epoch: Arc::default(),
         }
     }
 
-    /// `model_send`: a stream id at once, or a code; the answer follows as events through `emit`.
-    pub async fn send(&self, provider: &str, body: Value, emit: Emit) -> Result<u64, &'static str> {
+    /// The main webview began loading a page: every stream of the page it leaves goes silent at once, and is
+    /// cancelled by [`Models::cancel_all`].
+    pub fn leave_page(&self) {
+        self.epoch.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// `model_send`: `stream`, the id the page chose and listens on, at once, or a code; the answer follows as
+    /// events through `emit`. The page names the id, so it hears every event of it, the first included.
+    pub async fn send(
+        &self,
+        provider: &str,
+        body: Value,
+        stream: u64,
+        emit: Emit,
+    ) -> Result<u64, &'static str> {
         let providers = self.providers.as_ref().map_err(|code| *code)?;
         let provider = providers
             .iter()
@@ -735,18 +793,59 @@ impl Models {
             return Err(BODY_REFUSED);
         }
         let encoded = checked_body(provider.kind, &provider.model, body)?;
+        if stream == 0 || stream > STREAM_ID_MAX {
+            return Err(BODY_REFUSED);
+        }
+        let epoch = self.epoch.load(Ordering::SeqCst);
+        // The slot is held from here, through the key's lookup, so the bound counts it and a page load meets it.
+        {
+            let mut streams = self.streams.lock().await;
+            if streams.len() >= STREAMS_MAX || streams.contains_key(&stream) {
+                return Err(STREAM_LIMIT);
+            }
+            streams.insert(stream, Slot::Reserved);
+        }
+        let release = |streams: &mut HashMap<u64, Slot>| {
+            if matches!(streams.get(&stream), Some(Slot::Reserved)) {
+                streams.remove(&stream);
+            }
+        };
         // The key, read now: a key set after Loam started is used, and one removed is not.
         let key = match provider.key.clone() {
-            None => None,
-            Some(reference) => Some(
-                tokio::task::spawn_blocking(move || resolve_key(&reference))
-                    .await
-                    .map_err(|_| KEY_MISSING)??,
-            ),
+            None => Ok(None),
+            Some(reference) => tokio::task::spawn_blocking(move || resolve_key(&reference))
+                .await
+                .map_err(|_| KEY_MISSING)
+                .and_then(|found| found.map(Some)),
         };
-        let (url, headers) = request_parts(&provider, key.as_deref())?;
-        drop(key);
-        let client = self.client.clone().ok_or(UNREACHABLE)?;
+        let parts = key
+            .as_ref()
+            .map_err(|code| *code)
+            .and_then(|key| request_parts(&provider, key.as_deref()));
+        let client = self.client.clone().ok_or(UNREACHABLE);
+        let mut streams = self.streams.lock().await;
+        let (url, headers) = match parts {
+            Ok(parts) => parts,
+            Err(code) => {
+                release(&mut streams);
+                return Err(code);
+            }
+        };
+        let client = match client {
+            Ok(client) => client,
+            Err(code) => {
+                release(&mut streams);
+                return Err(code);
+            }
+        };
+        // The page left while the key was read, or cancelled the stream: nothing is sent.
+        if self.epoch.load(Ordering::SeqCst) != epoch
+            || !matches!(streams.get(&stream), Some(Slot::Reserved))
+        {
+            release(&mut streams);
+            return Err(UNREACHABLE);
+        }
+        let secret = key.ok().flatten();
         let mut request = client
             .post(url)
             .header("content-type", "application/json")
@@ -754,31 +853,35 @@ impl Models {
         for (name, value) in headers {
             request = request.header(name, value);
         }
-        let mut streams = self.streams.lock().await;
-        if streams.len() >= STREAMS_MAX {
-            return Err(STREAM_LIMIT);
-        }
-        let stream = self.next.fetch_add(1, Ordering::Relaxed);
         let held = self.streams.clone();
+        let current = self.epoch.clone();
+        // Silent once the page that asked has gone.
+        let emit: Emit = Arc::new(move |event| {
+            if current.load(Ordering::SeqCst) == epoch {
+                emit(event);
+            }
+        });
         let task = tokio::spawn(async move {
-            run(stream, request, &emit).await;
+            run(stream, request, &emit, secret.as_deref()).await;
             held.lock().await.remove(&stream);
         });
-        streams.insert(stream, task.abort_handle());
+        streams.insert(stream, Slot::Running(task.abort_handle()));
         Ok(stream)
     }
 
     /// `model_cancel`: the request is dropped, and nothing more of it arrives.
     pub async fn cancel(&self, stream: u64) {
-        if let Some(task) = self.streams.lock().await.remove(&stream) {
+        if let Some(Slot::Running(task)) = self.streams.lock().await.remove(&stream) {
             task.abort();
         }
     }
 
     /// Every stream, when the app exits or the main webview loads a page: a page's streams are its own.
     pub async fn cancel_all(&self) {
-        for (_, task) in self.streams.lock().await.drain() {
-            task.abort();
+        for (_, slot) in self.streams.lock().await.drain() {
+            if let Slot::Running(task) = slot {
+                task.abort();
+            }
         }
     }
 }
@@ -814,7 +917,43 @@ fn emit_text(stream: u64, text: &str, emit: &Emit) {
 
 /// One request: `{ stream, status }` when its headers arrive, `{ stream, chunk }` for its text, and one
 /// `{ stream, done, status, code? }` at its end. A refusal (`4xx`, `5xx`) ends with its status and code alone.
-async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
+/// The text that replaces the key in a stream that quotes it.
+pub const KEY_REMOVED: &str = "[key removed]";
+
+/// A stream's text with the key removed: text is held back until no key can be split across what is emitted and
+/// what comes next.
+struct Redactor<'a> {
+    key: Option<&'a str>,
+    held: String,
+}
+
+impl Redactor<'_> {
+    /// What may be emitted now of `text` added to what was held.
+    fn take(&mut self, text: &str) -> String {
+        self.held.push_str(text);
+        let Some(key) = self.key else {
+            return std::mem::take(&mut self.held);
+        };
+        let clean = self.held.replace(key, KEY_REMOVED);
+        // Keep the last `key.len() - 1` bytes: the start of a key the next text may complete.
+        let mut keep = clean.len().saturating_sub(key.len().saturating_sub(1));
+        while !clean.is_char_boundary(keep) {
+            keep -= 1;
+        }
+        self.held = clean[keep..].to_owned();
+        clean[..keep].to_owned()
+    }
+
+    fn finish(&mut self) -> String {
+        let held = std::mem::take(&mut self.held);
+        match self.key {
+            Some(key) => held.replace(key, KEY_REMOVED),
+            None => held,
+        }
+    }
+}
+
+async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit, key: Option<&str>) {
     let done = |status: u16, code: Option<&str>| {
         let mut detail = json!({ "stream": stream, "done": true, "status": status });
         if let Some(code) = code {
@@ -843,6 +982,10 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
         let mut body = response.bytes_stream();
         let mut total = 0usize;
         let mut pending = Vec::new();
+        let mut redactor = Redactor {
+            key,
+            held: String::new(),
+        };
         while let Some(chunk) = body.next().await {
             let Ok(chunk) = chunk else {
                 return (status, Some(UNREACHABLE));
@@ -852,11 +995,10 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
                 return (status, Some(STREAM_LIMIT));
             }
             pending.extend_from_slice(&chunk);
-            emit_text(stream, &take_text(&mut pending), emit);
+            emit_text(stream, &redactor.take(&take_text(&mut pending)), emit);
         }
-        if !pending.is_empty() {
-            emit_text(stream, &String::from_utf8_lossy(&pending), emit);
-        }
+        let rest = redactor.take(&String::from_utf8_lossy(&pending)) + &redactor.finish();
+        emit_text(stream, &rest, emit);
         (status, None)
     })
     .await;
@@ -1265,13 +1407,15 @@ mod tests {
         let emit: Emit = Arc::new(move |event| seen.lock().unwrap().push(event));
         let none = Models::new(Ok(Vec::new()));
         assert_eq!(
-            none.send("claude", anthropic(), emit.clone()).await.err(),
+            none.send("claude", anthropic(), 7, emit.clone())
+                .await
+                .err(),
             Some(PROVIDER_UNKNOWN)
         );
         let refused = Models::new(Err(PERMISSIONS));
         assert_eq!(
             refused
-                .send("claude", anthropic(), emit.clone())
+                .send("claude", anthropic(), 7, emit.clone())
                 .await
                 .err(),
             Some(PERMISSIONS)
@@ -1291,6 +1435,7 @@ mod tests {
                 .send(
                     "claude",
                     with(anthropic(), "/mcp_servers", json!([])),
+                    7,
                     emit.clone()
                 )
                 .await
@@ -1298,7 +1443,15 @@ mod tests {
             Some(BODY_REFUSED)
         );
         assert_eq!(
-            keyless.send("claude", anthropic(), emit).await.err(),
+            keyless
+                .send("claude", anthropic(), 7, emit.clone())
+                .await
+                .err(),
+            Some(KEY_MISSING)
+        );
+        // The slot held through the key's lookup was released: the id can be named again.
+        assert_eq!(
+            keyless.send("claude", anthropic(), 7, emit).await.err(),
             Some(KEY_MISSING)
         );
         assert!(sent.lock().unwrap().is_empty());
@@ -1336,7 +1489,7 @@ mod tests {
             endpoint: Some(format!("http://127.0.0.1:{port}/v1")),
             key: None,
         }]));
-        let stream = models.send("local", openai(), emit).await.unwrap();
+        let stream = models.send("local", openai(), 41, emit).await.unwrap();
         for _ in 0..200 {
             if events
                 .lock()
@@ -1355,6 +1508,205 @@ mod tests {
                 json!({ "stream": stream, "done": true, "status": 401, "code": REFUSED }),
             ]
         );
+    }
+
+    #[test]
+    fn p5_a3_two_tools_from_the_anthropic_adapter_pass_its_null_cache_markers_dropped() {
+        // As TanStack's adapter sends two tools: only the last is marked, the first carries `cache_control: null`.
+        let mut body = anthropic();
+        let first = json!({
+            "name": "note-get", "type": "custom", "description": "Gets",
+            "input_schema": { "type": "object", "properties": {} },
+            "cache_control": null
+        });
+        body["tools"].as_array_mut().unwrap().insert(0, first);
+        body["system"][0]["cache_control"] = Value::Null;
+        body["messages"][1]["content"][0]["cache_control"] = Value::Null;
+        let sent = sent(Kind::Anthropic, body).unwrap();
+        assert!(sent["tools"][0].get("cache_control").is_none());
+        assert_eq!(
+            sent["tools"][1]["cache_control"],
+            json!({ "type": "ephemeral" })
+        );
+        assert!(sent["system"][0].get("cache_control").is_none());
+        // Any other value is still the allow-list's to refuse.
+        assert_eq!(
+            sent_err(with(
+                anthropic(),
+                "/tools/0/cache_control",
+                json!({ "type": "other" })
+            )),
+            Some(BODY_REFUSED)
+        );
+    }
+
+    fn sent_err(body: Value) -> Option<&'static str> {
+        checked_body(Kind::Anthropic, "m", body).err()
+    }
+
+    #[test]
+    fn p5_a3_every_request_streams_and_a_chat_completion_reports_its_usage() {
+        let mut quiet = openai();
+        quiet["stream"] = json!(false);
+        quiet["stream_options"] = json!({ "include_usage": false });
+        let sent = sent(Kind::OpenaiCompatible, quiet).unwrap();
+        assert_eq!(sent["stream"], true);
+        assert_eq!(sent["stream_options"], json!({ "include_usage": true }));
+        let mut anthropic_quiet = anthropic();
+        anthropic_quiet.as_object_mut().unwrap().remove("stream");
+        let sent = super::checked_body(Kind::Anthropic, "m", anthropic_quiet)
+            .map(|bytes| serde_json::from_slice::<Value>(&bytes).unwrap())
+            .unwrap();
+        assert_eq!(sent["stream"], true);
+        assert!(sent.get("stream_options").is_none());
+    }
+
+    #[test]
+    fn p5_a3_a_key_quoted_in_an_accepted_stream_is_removed_across_chunks() {
+        let key = "sk-test-0123456789abcdef";
+        let mut redactor = Redactor {
+            key: Some(key),
+            held: String::new(),
+        };
+        let mut out = String::new();
+        // The key split across three chunks, and quoted twice.
+        for part in [
+            "data: {\"error\":\"bad sk-test-01",
+            "23456789ab",
+            "cdef\"} and sk-test-0123456789abcdef é",
+        ] {
+            out.push_str(&redactor.take(part));
+        }
+        out.push_str(&redactor.finish());
+        assert!(!out.contains(key), "{out}");
+        assert!(!out.contains("0123456789"), "{out}");
+        assert_eq!(out.matches(KEY_REMOVED).count(), 2);
+        assert!(out.ends_with(" é"));
+        let mut plain = Redactor {
+            key: None,
+            held: String::new(),
+        };
+        assert_eq!(plain.take("as is"), "as is");
+    }
+
+    #[tokio::test]
+    async fn p5_a3_a_page_names_its_stream_and_a_page_load_silences_it() {
+        let port = provider_answering(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\ncontent-length: 14\r\n\r\ndata: [DONE]\n\n",
+        )
+        .await;
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let seen = events.clone();
+        let emit: Emit = Arc::new(move |event| seen.lock().unwrap().push(event));
+        let local = |port: u16| Provider {
+            id: "local".into(),
+            kind: Kind::OpenaiCompatible,
+            model: "m".into(),
+            endpoint: Some(format!("http://127.0.0.1:{port}/v1")),
+            key: None,
+        };
+        let models = Models::new(Ok(vec![local(port)]));
+        // Ids out of JavaScript's safe integers, and zero, are refused.
+        for id in [0, STREAM_ID_MAX + 1] {
+            assert_eq!(
+                models.send("local", openai(), id, emit.clone()).await.err(),
+                Some(BODY_REFUSED)
+            );
+        }
+        assert_eq!(
+            models.send("local", openai(), 900, emit.clone()).await,
+            Ok(900)
+        );
+        for _ in 0..200 {
+            if events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|event| event["done"] == true)
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|event| event["stream"] == 900)
+        );
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|event| event["done"] == true)
+        );
+        // A stream of the page that left emits nothing more.
+        let silent = Models::new(Ok(vec![local(port)]));
+        events.lock().unwrap().clear();
+        silent
+            .send("local", openai(), 901, emit.clone())
+            .await
+            .unwrap();
+        silent.leave_page();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(
+            events.lock().unwrap().is_empty(),
+            "{:?}",
+            events.lock().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn p5_a3_an_id_in_use_is_refused_and_the_bound_counts_held_slots() {
+        let models = Models::new(Ok(Vec::new()));
+        models.streams.lock().await.insert(5, Slot::Reserved);
+        let emit: Emit = Arc::new(|_| {});
+        // An unknown provider is refused first; a known one meets the slot.
+        let local = Models::new(Ok(vec![Provider {
+            id: "local".into(),
+            kind: Kind::OpenaiCompatible,
+            model: "m".into(),
+            endpoint: Some("http://127.0.0.1:9/v1".into()),
+            key: None,
+        }]));
+        local.streams.lock().await.insert(5, Slot::Reserved);
+        assert_eq!(
+            local.send("local", openai(), 5, emit.clone()).await.err(),
+            Some(STREAM_LIMIT)
+        );
+        for id in 100..(100 + STREAMS_MAX as u64) {
+            local.streams.lock().await.insert(id, Slot::Reserved);
+        }
+        assert_eq!(
+            local.send("local", openai(), 6, emit).await.err(),
+            Some(STREAM_LIMIT)
+        );
+        assert!(models.streams.lock().await.contains_key(&5));
+    }
+
+    #[test]
+    fn p5_a3_a_missing_key_file_is_a_missing_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let reference = KeyRef::File(FileRef {
+            file: dir.path().join("absent.key"),
+        });
+        assert_eq!(resolve_key(&reference).err(), Some(KEY_MISSING));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn p5_a3_a_key_file_reached_through_a_link_is_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real.key");
+        std::fs::write(&real, "sk-a-file-key-0123").unwrap();
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let link = dir.path().join("link.key");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let reference = KeyRef::File(FileRef { file: link });
+        assert_eq!(resolve_key(&reference).err(), Some(PERMISSIONS));
     }
 
     #[test]

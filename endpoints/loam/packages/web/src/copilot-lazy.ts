@@ -42,7 +42,10 @@ export function lazyCopilot(
 	const runner: CopilotRunnerV1 = {
 		start(run) {
 			void host().then(
-				(loaded) => loaded.start(run),
+				(loaded) => {
+					// Stopped while the chunk loaded (the person's stop, or a change of person): nothing to start.
+					if (!run.signal.aborted) loaded.start(run);
+				},
 				(error: unknown) => {
 					reportError(error);
 					run.settle({

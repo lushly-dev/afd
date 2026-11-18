@@ -15,12 +15,13 @@ import { createScopedWorkspace } from '../scope/fixtures.js';
 import { createFixedEnvironment } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernelV5 } from '../types.js';
-import { createCopilotParts } from './commands.js';
+import { COPILOT_TURN_TABLE, createCopilotParts } from './commands.js';
 import {
 	type CopilotHostV1,
 	checkPortMessage,
 	createCopilotHost,
 	MODEL_PORT_LIMITS,
+	type ModelTransportV1,
 	type PanelEventV1,
 	PORT_BUDGETS,
 	type PortLike,
@@ -91,13 +92,17 @@ async function setup(
 		scripts?: Record<string, ModelScriptV1>;
 		providers?: CopilotProviderV1[];
 		runner?: false;
+		/** In place of the test provider: the trusted host's transport, as the desktop's would answer. */
+		transport?: ModelTransportV1;
 	} = {}
 ): Promise<Setup> {
 	const journal = new MemoryJournalSink();
 	const provider = createTestProvider({ scripts: options.scripts ?? {} });
 	const host = createCopilotHost({
 		launcher: options.launcher ?? createInProcessLauncher(),
-		transport: { send: (_provider, body, signal) => provider.send(body, signal) },
+		transport: options.transport ?? {
+			send: (_provider, body, signal) => provider.send(body, signal),
+		},
 	});
 	const providers = options.providers ?? [TEST];
 	const kernel = await createKernel({
@@ -282,6 +287,95 @@ describe('the copilot commands (3.5)', () => {
 			expect(sent.error?.code).toBe('COPILOT_PROVIDER_MISSING');
 			expect(sent.error?.suggestion).toContain('loam.deployment.toml');
 		}
+	});
+
+	it('a turn failed by the trusted transport reports the transport’s code, not the runtime’s reading of it (step 2)', async () => {
+		const { kernel } = await setup({
+			transport: {
+				async send() {
+					throw Object.assign(new Error('COPILOT_KEY_MISSING'), { code: 'COPILOT_KEY_MISSING' });
+				},
+			},
+		});
+		const session = await startSession(kernel);
+		const sent = data<{ turn: CopilotTurnV1 }>(
+			await kernel.call('copilot-message-send', { session, text: 'Hello' })
+		);
+		expect(sent.turn).toMatchObject({ state: 'failed', failure: { code: 'COPILOT_KEY_MISSING' } });
+	});
+
+	it('a stream that reports no usage is counted from its bytes, so the turn’s token limits still bind (step 2)', async () => {
+		const provider = createTestProvider({ scripts: {} });
+		const { kernel } = await setup({
+			transport: {
+				async send(_provider, body, signal) {
+					const answer = await provider.send(body, signal);
+					const decoder = new TextDecoder();
+					const encoder = new TextEncoder();
+					return {
+						status: answer.status,
+						// The provider's own stream, every usage record removed.
+						body: (async function* () {
+							for await (const chunk of answer.body)
+								yield encoder.encode(
+									decoder.decode(chunk).replace(/"usage":\{[^}]*\}/g, '"usage":{}')
+								);
+						})(),
+					};
+				},
+			},
+		});
+		const session = await startSession(kernel);
+		const sent = data<{ turn: CopilotTurnV1 }>(
+			await kernel.call('copilot-message-send', { session, text: 'Hello' })
+		);
+		expect(sent.turn.state).toBe('done');
+		expect(sent.turn.usage.inputTokens).toBeGreaterThan(0);
+		expect(sent.turn.usage.outputTokens).toBeGreaterThan(0);
+	});
+
+	it('a turn whose record was being written when the person changed ends unlaunched (step 2)', async () => {
+		const launcher = fakeLauncher();
+		const { kernel } = await setup({ launcher });
+		const signIn = (email: string) =>
+			kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+		expect((await signIn('bea@example.com')).success).toBe(true);
+		const session = await startSession(kernel);
+		// The turn's record is held mid-write until the person has signed out.
+		const create = MemoryAdapter.prototype.create;
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let held = false;
+		const spy = vi.spyOn(MemoryAdapter.prototype, 'create').mockImplementation(async function (
+			this: MemoryAdapter,
+			table,
+			record
+		) {
+			if (table === COPILOT_TURN_TABLE && !held) {
+				held = true;
+				await gate;
+			}
+			return create.call(this, table, record) as never;
+		});
+		try {
+			const sending = kernel.call('copilot-message-send', { session, text: 'Hello', wait: false });
+			await vi.waitFor(() => expect(held).toBe(true));
+			expect((await kernel.call('auth-sign-out', {})).success).toBe(true);
+			release();
+			await sending;
+		} finally {
+			release();
+			spy.mockRestore();
+		}
+		// Nothing was launched for a person who had gone.
+		expect(launcher.launched).toEqual([]);
+		await signIn('bea@example.com');
+		const got = data<{ turns: CopilotTurnV1[] }>(
+			await kernel.call('copilot-session-get', { session })
+		);
+		expect(got.turns[0]).toMatchObject({ state: 'stopped', stoppedBy: 'session-changed' });
 	});
 
 	it('in a `local` deployment, a sign-out or a sign-in stops every turn and removes the runtimes (step 2)', async () => {

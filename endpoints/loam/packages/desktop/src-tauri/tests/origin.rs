@@ -57,7 +57,7 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         ("mount_close", json!({ "handle": 1 })),
         (
             "model_send",
-            json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] } }),
+            json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] }, "stream": 1 }),
         ),
         ("model_cancel", json!({ "stream": 1 })),
     ];
@@ -74,7 +74,7 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         "model_send",
         shell_origin(),
         Some(shell_origin()),
-        json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] } }),
+        json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] }, "stream": 1 }),
     );
     assert_eq!(model.unwrap_err(), json!(PROVIDER_UNKNOWN));
     assert!(

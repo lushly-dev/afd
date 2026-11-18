@@ -163,7 +163,12 @@ describe('deployment write with `[copilot]` (4.1, 4.2)', () => {
 	it('refuses `--models-out` inside what is served, on `--mounts-out`, or on the deployment file', async () => {
 		const paths = await layout(file('desktop'));
 		const mountsOut = join(paths.root, 'private/mounts.json');
-		for (const modelsOut of [join(paths.dist, 'models.json'), mountsOut, paths.config]) {
+		// On a volume that ignores case, a path that differs only by case is the same file (Windows, macOS).
+		const folded =
+			process.platform === 'win32' || process.platform === 'darwin'
+				? [mountsOut.toUpperCase()]
+				: [];
+		for (const modelsOut of [join(paths.dist, 'models.json'), mountsOut, paths.config, ...folded]) {
 			const written = await writeDeployment({
 				...paths,
 				mountsOut,

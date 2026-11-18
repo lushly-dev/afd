@@ -85,14 +85,12 @@ struct File {
 
 /// `mounts.json`, or a code: none at `path` mounts nothing; one others can read is refused (10.3).
 pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    permissions(path)?;
-    let bytes = std::fs::read(path).map_err(|_| PERMISSIONS)?;
-    if bytes.len() > REQUEST_MAX {
-        return Err(MOUNTS_INVALID);
-    }
+    let bytes = match read_owner_only(path, REQUEST_MAX) {
+        Ok(bytes) => bytes,
+        Err(Unread::Missing) => return Ok(Vec::new()),
+        Err(Unread::Denied) => return Err(PERMISSIONS),
+        Err(Unread::TooLarge) => return Err(MOUNTS_INVALID),
+    };
     let file: File = serde_json::from_slice(&bytes).map_err(|_| MOUNTS_INVALID)?;
     let mut seen = std::collections::HashSet::new();
     for entry in &file.mounts {
@@ -115,6 +113,68 @@ pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
         }
     }
     Ok(file.mounts)
+}
+
+/// Why [`read_owner_only`] read nothing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// Nothing is at the path.
+    Missing,
+    /// Something is, but not a file only its owner can read, or it cannot be read.
+    Denied,
+    /// Over the bound.
+    TooLarge,
+}
+
+/// A file only its owner can read, read from the handle its check was made on, so no other file can be put in its
+/// place between the check and the read (phase 5's step 2, from its trust review). On POSIX the open refuses a
+/// symbolic link and the check is the handle's own metadata; on Windows the handle refuses to share writing and
+/// deleting while it is held, so the path names the same file for the ACL's check and the read.
+pub fn read_owner_only(path: &Path, max: usize) -> Result<Vec<u8>, Unread> {
+    use std::io::Read;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 0x1;
+        options.share_mode(FILE_SHARE_READ);
+    }
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(Unread::Missing),
+        Err(_) => return Err(Unread::Denied),
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let metadata = file.metadata().map_err(|_| Unread::Denied)?;
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let user = unsafe { libc::geteuid() };
+        if !metadata.is_file()
+            || metadata.uid() != user
+            || metadata.permissions().mode() & 0o777 != 0o600
+        {
+            return Err(Unread::Denied);
+        }
+    }
+    #[cfg(windows)]
+    if !owner_only(path) {
+        return Err(Unread::Denied);
+    }
+    let mut bytes = Vec::new();
+    file.take(max as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| Unread::Denied)?;
+    if bytes.len() > max {
+        return Err(Unread::TooLarge);
+    }
+    Ok(bytes)
 }
 
 /// `mounts.json` only its owner can read (10.3), or `DESKTOP_MOUNTS_PERMISSIONS`.

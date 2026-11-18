@@ -461,7 +461,7 @@ async function pathRefusals(
 			places.some(
 				(place) =>
 					secrets.includes(place) ||
-					mounts.includes(place) ||
+					mounts.some((mount) => samePath(mount, place, options.platform)) ||
 					served.some((directory) => isWithin(place, directory))
 			)
 		) {
@@ -475,6 +475,13 @@ async function pathRefusals(
 		}
 	}
 	return found;
+}
+
+/** Two paths naming one file: on Windows and macOS, whose volumes ignore case by default, compared without it. */
+function samePath(a: string, b: string, platform: NodeJS.Platform | undefined): boolean {
+	const folds =
+		(platform ?? process.platform) === 'win32' || (platform ?? process.platform) === 'darwin';
+	return folds ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /** What will be copied, listed first, so a problem found here costs nothing. A link leaving is skipped. */

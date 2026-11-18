@@ -146,8 +146,9 @@ async fn mount_close<R: Runtime>(
     mounts.close(handle).await.map_err(String::from)
 }
 
-/// `model_send` (phase 5 specification, 4.2): a provider id from `models.json` and a body the kind's allow-list
-/// admits; the Rust host builds the request, and the answer arrives as `loam:model` events. A stream id at once.
+/// `model_send` (phase 5 specification, 4.2): a provider id from `models.json`, a body the kind's allow-list
+/// admits, and the stream id the page listens on; the Rust host builds the request, and the answer arrives as
+/// `loam:model` events. The id back at once.
 #[tauri::command]
 async fn model_send<R: Runtime>(
     app: AppHandle<R>,
@@ -156,10 +157,11 @@ async fn model_send<R: Runtime>(
     models: State<'_, Arc<Models>>,
     provider: String,
     body: Value,
+    stream: u64,
 ) -> Result<u64, String> {
     from_shell(&webview, &request)?;
     models
-        .send(&provider, body, emitter(app))
+        .send(&provider, body, stream, emitter(app))
         .await
         .map_err(String::from)
 }
@@ -324,6 +326,7 @@ pub fn run() {
                 .on_page_load(|window, payload| {
                     if payload.event() == tauri::webview::PageLoadEvent::Started {
                         let models = window.state::<Arc<Models>>().inner().clone();
+                        models.leave_page();
                         tauri::async_runtime::spawn(async move { models.cancel_all().await });
                     }
                 })

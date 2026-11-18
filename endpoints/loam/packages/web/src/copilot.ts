@@ -127,34 +127,26 @@ export function modelEventOf(detail: unknown): ModelEvent | undefined {
 	return undefined;
 }
 
-/** Events held for a stream whose id `model_send` has not yet returned: the host may dispatch before it answers. */
-const EARLY_MAX = 256;
-/** Ended streams remembered, so the events still queued behind their end are dropped, not held. */
-const ENDED_MAX = 64;
+/** A stream id the page names: a random safe integer, so no two of a run, or of two page loads, meet. */
+function streamId(): number {
+	const [high, low] = crypto.getRandomValues(new Uint32Array(2)) as unknown as [number, number];
+	return (high & 0x1f_ffff) * 2 ** 32 + low + 1;
+}
 
 /**
- * The desktop's model transport (4.2): the Rust host's `model_send` and `model_cancel`. The page names a provider id
- * and gives the body; the Rust host holds the key and the endpoint, builds the request, and sends the answer back as
- * `loam:model` events on `window`: `{ stream, status }` when its headers arrive, `{ stream, chunk }` for its text,
- * and `{ stream, done, status, code? }` at its end. A stream past its bounds, or one the network ended, throws with
- * its code; a provider's refusal (`4xx`) is its status alone, which the runtime reads. A stream the page stops
- * reading before its end, whatever stopped it, is cancelled at the host, so it spends nothing more.
+ * The desktop's model transport (4.2): the Rust host's `model_send` and `model_cancel`. The page names a provider id,
+ * the body and the stream id it listens on; the Rust host holds the key and the endpoint, builds the request, and
+ * sends the answer back as `loam:model` events on `window`: `{ stream, status }` when its headers arrive,
+ * `{ stream, chunk }` for its text, and `{ stream, done, status, code? }` at its end. The page listens before it
+ * asks, so it hears every event of its stream, and drops every other. A stream past its bounds, or one the network
+ * ended, throws with its code; a provider's refusal (`4xx`) is its status alone, which the runtime reads. A stream
+ * the page stops reading before its end, whatever stopped it, is cancelled at the host, so it spends nothing more.
  */
 export function createDesktopModelTransport(target: Window = window): ModelTransportV1 {
 	const queues = new Map<number, (event: ModelEvent) => void>();
-	const early = new Map<number, ModelEvent[]>();
-	const ended: number[] = [];
-	let held = 0;
 	target.addEventListener('loam:model', (event) => {
 		const detail = modelEventOf((event as CustomEvent).detail);
-		if (!detail) return;
-		const queue = queues.get(detail.stream);
-		if (queue) return queue(detail);
-		if (ended.includes(detail.stream) || held >= EARLY_MAX) return;
-		held += 1;
-		const list = early.get(detail.stream) ?? [];
-		list.push(detail);
-		early.set(detail.stream, list);
+		if (detail) queues.get(detail.stream)?.(detail);
 	});
 	const internals = (): TauriInternals => {
 		const found = (target as unknown as { __TAURI_INTERNALS__?: TauriInternals })
@@ -165,21 +157,8 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 	return {
 		async send(provider, body, signal) {
 			if (signal.aborted) throw modelFailure('MODEL_UNREACHABLE');
-			let stream: number;
-			try {
-				const answer = await internals().invoke('model_send', { provider: provider.id, body });
-				if (!Number.isSafeInteger(answer)) throw modelFailure('MODEL_UNREACHABLE');
-				stream = answer as number;
-			} catch (cause) {
-				const code =
-					typeof cause === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(cause)
-						? cause
-						: ((cause as { code?: string })?.code ?? 'MODEL_UNREACHABLE');
-				throw modelFailure(code);
-			}
-			const waiting: ModelEvent[] = early.get(stream) ?? [];
-			held -= waiting.length;
-			early.delete(stream);
+			const stream = streamId();
+			const waiting: ModelEvent[] = [];
 			let wake: (() => void) | undefined;
 			let stopped = false;
 			/** Whether the host said the stream ended: until then, stopping cancels it there. */
@@ -188,8 +167,6 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 				if (stopped) return;
 				stopped = true;
 				queues.delete(stream);
-				ended.push(stream);
-				if (ended.length > ENDED_MAX) ended.shift();
 				signal.removeEventListener('abort', stop);
 				if (!finished)
 					void Promise.resolve()
@@ -202,13 +179,26 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 				waiting.push(event);
 				wake?.();
 			});
-			// A stop while `model_send` was answering: its listener came too late to hear it.
-			if (signal.aborted) {
-				stop();
-				throw modelFailure('MODEL_UNREACHABLE');
-			}
+			// Heard from now: a stop while `model_send` answers cancels the slot the host holds for it.
 			signal.addEventListener('abort', stop, { once: true });
-			if (waiting.some((event) => 'done' in event)) finished = true;
+			try {
+				const answer = await internals().invoke('model_send', {
+					provider: provider.id,
+					body,
+					stream,
+				});
+				if (answer !== stream) throw modelFailure('MODEL_UNREACHABLE');
+			} catch (cause) {
+				// Refused before anything was sent: there is nothing at the host to cancel.
+				finished = true;
+				stop();
+				const code =
+					typeof cause === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(cause)
+						? cause
+						: ((cause as { code?: string })?.code ?? 'MODEL_UNREACHABLE');
+				throw modelFailure(code);
+			}
+			if (stopped) throw modelFailure('MODEL_UNREACHABLE');
 			const next = async (): Promise<ModelEvent | undefined> => {
 				while (waiting.length === 0 && !stopped)
 					await new Promise<void>((resolve) => (wake = resolve));
