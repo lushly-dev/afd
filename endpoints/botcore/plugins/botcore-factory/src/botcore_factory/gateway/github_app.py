@@ -41,6 +41,7 @@ from botcore_factory.gateway.github import (
     HeadMoved,
     MergeMethodNotAllowed,
 )
+from botcore_factory.squash import squash_body
 
 API = "https://api.github.com"
 STATUS_API = "https://www.githubstatus.com/api/v2/incidents/unresolved.json"
@@ -465,12 +466,18 @@ class GitHubApp:
     def update_pull(self, repo, number, *, title, body):
         self._call("PATCH", f"/repos/{repo}/pulls/{number}", json={"title": title, "body": body})
 
+    def _squash_body(self, repo: str, number: int, method: str) -> str | None:
+        """A squash's body (``squash_body``); None for another method, which adds no trailers."""
+        if method != "squash":
+            return None
+        return squash_body(self._pages(f"/repos/{repo}/pulls/{number}/commits"))
+
     def merge_pull(self, repo, number, head, method):
-        response = self._send(
-            "PUT",
-            f"/repos/{repo}/pulls/{number}/merge",
-            json={"sha": head, "merge_method": method},
-        )
+        sent = {"sha": head, "merge_method": method}
+        body = self._squash_body(repo, number, method)
+        if body is not None:
+            sent["commit_message"] = body
+        response = self._send("PUT", f"/repos/{repo}/pulls/{number}/merge", json=sent)
         if response.status_code == 409:
             current = self.pull(repo, number)
             raise HeadMoved((current or {}).get("head") or "")
@@ -483,12 +490,14 @@ class GitHubApp:
 
     def enable_auto_merge(self, repo, number, head, method):
         node = self._node_id(repo, number)
+        body = self._squash_body(repo, number, method)
         try:
             self._graphql(
                 _ENABLE_AUTO_MERGE,
                 id=node,
                 method=_METHODS.get(method, method.upper()),
                 head=head,
+                **({} if body is None else {"body": body}),
             )
         except GitHubRefused as refused:
             text = refused.message.lower()
@@ -706,9 +715,12 @@ _PULLS_QUERY = f"""query($owner: String!, $name: String!, $states: [PullRequestS
     }}
   }}
 }}"""
-_ENABLE_AUTO_MERGE = """mutation($id: ID!, $method: PullRequestMergeMethod!, $head: GitObjectID!) {
+_ENABLE_AUTO_MERGE = """mutation($id: ID!, $method: PullRequestMergeMethod!, $head: GitObjectID!,
+                 $body: String) {
   enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method,
-                                     expectedHeadOid: $head}) { clientMutationId }
+                                     expectedHeadOid: $head, commitBody: $body}) {
+    clientMutationId
+  }
 }"""
 _DISABLE_AUTO_MERGE = """mutation($id: ID!) {
   disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId }

@@ -72,6 +72,16 @@ In the same pull request:
 
 ## 1.0-rc
 
+[`tool-strategies.md`](./tool-strategies.md) makes the individual, grouped and lazy lists normative
+([#533](https://github.com/lushly-dev/afd/issues/533), decided by the owner on 2026-11-17): every
+strategy lists the five meta-tools first, in the hybrid order (`afd-discover`, `afd-detail`,
+`afd-call`, `afd-batch`, `afd-pipe`); `lazy` is the hybrid list with no first-class tools (the
+meta-tools and the context tools); grouped tools take TypeScript's shape, with `_meta.actions` and
+groups in order of their first command; and `grouped` is every language's default. TypeScript
+serves the lists; Python, Rust and C++ follow in their own steps, and the "Alignment" table records
+which. Clients that read `tools/list` see `afd-discover` and `afd-detail` in every strategy, so the
+version stays.
+
 [`command-metadata.md`](./command-metadata.md) adds approval evidence from an approver client and
 the approval display rules (Loam phase 5 step 0c, D146 and D150): a server may name approvers,
 which get `details.approvalToken` on every held MCP result, are never asked with a form, and carry
