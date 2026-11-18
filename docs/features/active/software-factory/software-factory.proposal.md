@@ -398,6 +398,7 @@ Lushly's lane assumes macOS. The plugin must not:
 | `lane.slots` | 1 | Validation concurrency against re-runs when `main` moves |
 | `cells.max` | 3 | Ready branches against host load and allowance |
 | `cells.issuesMax` | 1 | Small PRs against fewer cells for closely related issues |
+| `cells.claudeOnly` | true | Cells on Opus, as model routing says (2026-11-17), against spending every plan on cells |
 | `host.minFreeGb` | 8 | Room kept free on the host for validation |
 | `lane.queueTarget` | 2 | When the foreman starts another cell |
 | `lane.queueMax` | 10 | Queued branches before new ones are held |

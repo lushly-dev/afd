@@ -41,6 +41,12 @@ DIALS: dict[str, Dial] = {
         _int("lane.queueMax", 10, 1, 100, "Queued branches before new ones are held"),
         Dial("plans.ceiling", 85, "percent", 1, 100, "Factory use of a plan's week"),
         Dial("fable.ceiling", 50, "percent", 0, 100, "Ordinary Fable routes against hard cases"),
+        Dial(
+            "cells.claudeOnly",
+            True,
+            "bool",
+            trades="Cells on Opus, as model routing says, against spending every plan on cells",
+        ),
         _int("lane.coverageEvery", 5, 1, 100, "Merges between coverage runs on main"),
         _int(
             "lane.checkTimeoutMinutes",

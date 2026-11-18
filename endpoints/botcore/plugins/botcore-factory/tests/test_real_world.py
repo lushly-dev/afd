@@ -258,6 +258,32 @@ def test_a_missing_program_is_a_world_error():
         run_process(["botcore-factory-no-such-program"])
 
 
+def test_a_squash_body_reads_every_page_of_commits():
+    page = [{"parents": [{"sha": "p"}], "commit": {"message": f"fix: {n}"}} for n in range(100)]
+    path = "gh api repos/o/r/pulls/7/commits?per_page=100"
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            f"{path}&page=1": json.dumps(page),
+            f"{path}&page=2": json.dumps(page[:1]),
+        }
+    )
+    GhGitHub(run).merge_pr(7, "abc")
+    body = run.calls[-1][1]
+    assert body.count("fix: ") == 101 and body.endswith("fix: 99\n\nfix: 0")
+
+
+def test_stdin_arrives_as_written_and_output_reads_as_text():
+    # A squash body or a blob written through stdin keeps its LF on every platform.
+    echo = (
+        "import sys; data = sys.stdin.buffer.read(); sys.stdout.buffer.write(repr(data).encode())"
+    )
+    done = run_process([sys.executable, "-c", echo], stdin="fix: é\n\nAssisted-by: Codex\n")
+    assert done.stdout == repr("fix: é\n\nAssisted-by: Codex\n".encode())
+    crlf = "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\rc\\n')"
+    assert run_process([sys.executable, "-c", crlf]).stdout == "a\nb\nc\n"
+
+
 class FixedClock:
     def now(self):
         return datetime(2030, 1, 4, tzinfo=UTC)
@@ -277,6 +303,13 @@ def test_plans_come_from_t3_code_s_weekly_windows(tmp_path):
                             "resetsAt": "2030-01-07T12:00:00Z",
                         },
                         {"id": "five_hour", "kind": "session", "usedPercent": 90, "resetsAt": "x"},
+                        # Only Fable draws on this window, inside seven_day: not a plan.
+                        {
+                            **week,
+                            "id": "seven_day_fable",
+                            "usedPercent": 5,
+                            "resetsAt": "2030-01-07T12:00:00Z",
+                        },
                     ]
                 }
             }
@@ -315,6 +348,9 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
             "gh pr list": "[]",
             "gh pr create": "https://github.com/o/r/pull/612\n",
             "gh pr view": json.dumps({"state": "MERGED"}),
+            "gh api repos/o/r/pulls/612/commits?per_page=100&page=1": json.dumps(
+                [{"parents": [{"sha": "p"}], "commit": {"message": "fix: a\n\nAssisted-by: Codex"}}]
+            ),
         },
         fail={"gh api repos/o/r/branches/main/protection/required_status_checks": "HTTP 404"},
     )
@@ -351,7 +387,8 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
         "--body-file",
         "-",
     ] in calls
-    assert ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"] in calls
+    merge = ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"]
+    assert (merge + ["--body-file", "-"], "fix: a\n\nAssisted-by: Codex") in run.calls
     assert GhGitHub(FakeRun(fail={"gh auth status": "not logged in"})).signed_in() is False
 
 

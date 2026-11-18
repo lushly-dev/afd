@@ -10,7 +10,14 @@ from __future__ import annotations
 import difflib
 
 from botcore_factory import dials, foreman
-from botcore_factory.cells import choose_plan, describe_plan, read_plans, seated
+from botcore_factory.cells import (
+    cell_plans,
+    choose_plan,
+    describe_plan,
+    no_plan_reason,
+    read_plans,
+    seated,
+)
 from botcore_factory.events import open_events, view
 from botcore_factory.intake import dispatchable, read_backlog
 from botcore_factory.labels import NEEDS_OWNER
@@ -52,15 +59,14 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
     if len(seated(state)) >= most:
         return {"canStartCell": False, "reason": f"Every seat is taken (cells.max is {most})"}
     try:
-        choice = choose_plan(
-            read_plans(factory), dials.value(overrides, "plans.ceiling"), factory.world.clock.now()
-        )
+        plans = cell_plans(read_plans(factory), overrides)
     except Refusal as refusal:
         return {"canStartCell": False, "reason": refusal.message}
+    choice = choose_plan(plans, dials.value(overrides, "plans.ceiling"), factory.world.clock.now())
     if choice.plan is None:
         return {
             "canStartCell": False,
-            "reason": f"Every plan is at or above plans.ceiling ({choice.ceiling:g}%)",
+            "reason": no_plan_reason(plans, choice, overrides)[1],
             "nextReset": choice.next_reset,
         }
     floor = dials.value(overrides, "host.minFreeGb")
@@ -147,10 +153,12 @@ def compact_status(factory: Factory) -> dict:
 
 
 def plan_list(factory: Factory) -> dict:
-    ceiling = dials.value(factory.store.read()["dials"], "plans.ceiling")
+    overrides = factory.store.read()["dials"]
+    ceiling = dials.value(overrides, "plans.ceiling")
     plans, now = read_plans(factory), factory.world.clock.now()
     described = [describe_plan(plan, ceiling, now) for plan in plans]
-    chosen = choose_plan(plans, ceiling, now).plan
+    # Every plan is listed; the next is the one a cell would start on.
+    chosen = choose_plan(cell_plans(plans, overrides), ceiling, now).plan
     return {"plans": described, "ceiling": ceiling, "next": chosen.id if chosen else None}
 
 

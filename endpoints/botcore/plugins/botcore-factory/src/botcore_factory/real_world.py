@@ -19,6 +19,7 @@ from pathlib import Path
 
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
+from botcore_factory.squash import squash_body
 from botcore_factory.world import (
     Comment,
     HostRecord,
@@ -261,7 +262,26 @@ class GhGitHub:
         return "missing"
 
     def merge_pr(self, pr: int, head: str) -> None:
-        self.run(["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head])
+        """A squash bound to ``head``, with the branch's messages as its body (``squash_body``)."""
+        body = squash_body(self._commits(pr))
+        self.run(
+            ["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head]
+            + ["--body-file", "-"],
+            body,
+        )
+
+    def _commits(self, pr: int) -> list[dict]:
+        """A pull request's commits, which GitHub lists up to 250 of, 100 to a page."""
+        commits: list[dict] = []
+        path = f"repos/{self.repository()}/pulls/{pr}/commits"
+        for page in range(1, 4):
+            batch = parse_json(
+                self.run(["gh", "api", f"{path}?per_page=100&page={page}"]), "gh api commits"
+            )
+            commits += batch
+            if len(batch) < 100:
+                break
+        return commits
 
     def pr_state(self, pr: int) -> str:
         data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "state"]), "gh pr")
