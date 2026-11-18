@@ -46,7 +46,8 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'owner-ceiling': 'step 8: autonomy',
 	'opt-into-experiment': "step 9: experiments and hello's `hello.inspector-v2`",
 	'workspace-experiment-opt-out': 'step 9: experiments',
-	'decline-confirmation': "step 6: confirmations and tally's `tally-reset`",
+	'decline-confirmation':
+		"step 6: confirmations, and the second app's command with a `confirm_prompt`",
 	'palette-prompts-for-input': "step 6: the palette's input prompt",
 	'inbox-action': "steps 5 and 6: the inbox and hello's guest book",
 	'agent-leaves-notice': 'step 5: the inbox',
