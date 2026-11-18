@@ -8,8 +8,14 @@
 // an elicitation. Opaque outside the library: never serialized, never read from tool arguments.
 #pragma once
 
+#include "afd/errors.hpp"
+#include "afd/json.hpp"
+
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -86,6 +92,121 @@ private:
     Answerer answer_;
     bool claimed_ = false;
     std::optional<RelayHold> hold_;
+};
+
+/// One step of an `afd-batch` or `afd-pipe`, as its up-front approval sees it.
+struct UpFrontStep {
+    /// The step's position in the request, 0-based as in its results.
+    std::size_t index = 0;
+    std::string command;
+    /// Whether its input reads an earlier step's data, so it is known only when the pipeline runs.
+    bool dynamic = false;
+    /// The validated input of a step that is not dynamic; unset when it names no command the
+    /// caller can run or does not validate (it then fails when it runs).
+    std::optional<Json> input;
+};
+
+/// The human's answers an up-front call carries: every accepted question, and the bindings of
+/// the declined ones.
+struct UpFrontAnswers {
+    std::vector<RelayAnswer> accepted;
+    std::vector<std::string> declined;
+};
+
+/// What the approval middleware held an up-front call for: one question per gated step, asked
+/// with one form.
+struct UpFrontHold {
+    std::vector<RelayHold> questions;
+    std::string message;
+};
+
+/// The up-front approval of one `afd-batch` or `afd-pipe` that can carry a form elicitation
+/// (spec/command-metadata.md, "One approval up front for `afd-batch` and `afd-pipe`", #459):
+/// every step runs, each gated one on its own single-use approval, or none does. The approval
+/// middleware decides the plan once, when the first step reaches it, and removes this from each
+/// step's context before the step runs. Only the MCP server creates it.
+class UpFrontApproval {
+public:
+    /// What the middleware decided.
+    struct Plan {
+        /// Why nothing runs; unset when every step runs.
+        std::optional<CommandError> refusal;
+        /// The bindings of the approvals the gated steps run on, each taken once.
+        std::vector<std::pair<std::string, bool>> approved;
+    };
+
+    UpFrontApproval(std::string tool, std::string call, bool conditional,
+                    std::vector<UpFrontStep> steps, UpFrontAnswers answers)
+        : tool_(std::move(tool)), call_(std::move(call)), conditional_(conditional),
+          steps_(std::move(steps)), answers_(std::move(answers)) {}
+
+    /// `afd-batch` or `afd-pipe`.
+    [[nodiscard]] const std::string& tool() const noexcept { return tool_; }
+    /// The whole request as sent, as canonical JSON: every approval is bound to it.
+    [[nodiscard]] const std::string& call() const noexcept { return call_; }
+    /// Whether a step runs only under a `when` condition.
+    [[nodiscard]] bool conditional() const noexcept { return conditional_; }
+    [[nodiscard]] const std::vector<UpFrontStep>& steps() const noexcept { return steps_; }
+    [[nodiscard]] const UpFrontAnswers& answers() const noexcept { return answers_; }
+
+    /// The plan, decided by `decide` the first time; later steps wait for it and get the same.
+    template <class Decide>
+    std::shared_ptr<Plan> plan(Decide&& decide) {
+        const std::lock_guard lock(plan_mutex_);
+        if (!plan_) {
+            auto decided = std::make_shared<Plan>(decide());
+            const std::lock_guard state(mutex_);
+            if (decided->refusal && !refusal_) {
+                refusal_ = decided->refusal;
+            }
+            plan_ = std::move(decided);
+        }
+        return plan_;
+    }
+
+    /// Takes one unused approval whose binding is among `bindings`.
+    bool take(const std::vector<std::string>& bindings) {
+        const std::lock_guard lock(mutex_);
+        if (!plan_) {
+            return false;
+        }
+        for (auto& [binding, used] : plan_->approved) {
+            if (!used && std::find(bindings.begin(), bindings.end(), binding) != bindings.end()) {
+                used = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void hold(UpFrontHold hold) {
+        const std::lock_guard lock(mutex_);
+        hold_ = std::move(hold);
+    }
+
+    /// The questions to ask, when the plan was to ask.
+    [[nodiscard]] std::optional<UpFrontHold> held() const {
+        const std::lock_guard lock(mutex_);
+        return hold_;
+    }
+
+    /// Why nothing ran, when the plan refused the call; the server answers with it.
+    [[nodiscard]] std::optional<CommandError> refusal() const {
+        const std::lock_guard lock(mutex_);
+        return refusal_;
+    }
+
+private:
+    std::string tool_;
+    std::string call_;
+    bool conditional_ = false;
+    std::vector<UpFrontStep> steps_;
+    UpFrontAnswers answers_;
+    std::mutex plan_mutex_;
+    mutable std::mutex mutex_;
+    std::shared_ptr<Plan> plan_;
+    std::optional<UpFrontHold> hold_;
+    std::optional<CommandError> refusal_;
 };
 
 } // namespace afd::detail

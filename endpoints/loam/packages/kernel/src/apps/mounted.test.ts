@@ -17,7 +17,7 @@ import {
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
-	LoamKernelV3,
+	LoamKernelV5,
 	McpToolCallResult,
 	MountTransportV2,
 } from '../types.js';
@@ -203,7 +203,7 @@ async function boot(
 	return { ...parts, journal, deployment, packages, asked };
 }
 
-async function instance(kernel: LoamKernelV3, name = 'work'): Promise<AppInstanceV1 | undefined> {
+async function instance(kernel: LoamKernelV5, name = 'work'): Promise<AppInstanceV1 | undefined> {
 	const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }

@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "56ff31fd906e2d5873090f92bfcc9e3ce8e7b063a6240da962809fd96838e86c",
+      "current_import_sha256": "acfe09546c7678a3c09df2946630413eb7d95297198f22af70db2c43fea48ac1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452)"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432); The Factory lane counts only a branch's own ejections, lets ci-ok stand in for main's gate files past the rerun limit, paces plans to their resets and keeps a validation when its slot is given up (lushly-dev/afd#1452); cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
     },
     {
       "path": "LICENSE",
@@ -1295,6 +1295,94 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/cells.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "60ac7e9aa63610f91d10b2d71292c58495875279ca5631d7193c5efe7e58bf80",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/commands.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "6148ad24ccaf5b72fef579fb4b4853a9f6c33b916a79750d18347f2555c2d7ba",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/docs.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "76b27d611c472cf3f83d9ec0fe2d2790977742b5c2eb33d7cf55f70ddf2e2bc5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/intake.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "0c1819fedaa380652e63382cb062d81e3aea7f99910b22e3aeb6ee2c757bad1d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/records.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "2378b5333360414d42158c01c7ec264c553e150ae4444d92a087bd91e8d14206",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/status.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "4d1b02d87b52f2046609a9eb6a0fa06737ae08bea0fa97abeade52e1a4d8484f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_commands.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "e505c4b257a2402051129306ceaec18f8a2b6add245b2e5ddc4a333fc093565b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_lane_git.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "556cce2ebf9f0bde6a83ccce28041c7b46342e99ea3e8e6e7f48ea17919b6ad5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -5533,11 +5621,11 @@
       "path": "tests/test_remaining_coverage.py",
       "upstream_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
       "staged_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
-      "current_import_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
+      "current_import_sha256": "4cf369f4623391ce5935bfe2141dc8b08bc90037e12b86f998ecbf402d6933dd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows"
     },
     {
       "path": "tests/test_research.py",

@@ -12,6 +12,7 @@ import { upFrontApproval } from './approval-relay.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
+import { withCommandDeadlines } from './command-timeout.js';
 import { createConfirmationGate } from './confirmation-gate.js';
 import { checkContextFields } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
@@ -145,9 +146,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	}
 
 	const contextDefaults = { clock: options.clock, random: options.random };
+	const commandMiddleware = withCommandDeadlines(middleware);
 	const engine = createExecutionEngine({
 		commandMap,
-		middleware,
+		middleware: commandMiddleware,
 		devMode,
 		onCommand,
 		onError,
@@ -162,7 +164,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		// MCP authorization (spec/authorization.md, M6): a resolver decides every command again at
 		// execution, on its validated input, before any other middleware or the handler; and a
 		// command hidden from the caller is looked up as a name that does not exist.
-		middleware: options.auth ? [executionScopes, ...middleware] : middleware,
+		middleware: options.auth ? [executionScopes, ...commandMiddleware] : commandMiddleware,
 		...(options.auth && {
 			hidden: (commandName: string, context: CommandContext) =>
 				!(scopeViewOf(context)?.known(commandName) ?? true),
@@ -232,6 +234,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		toolStrategy,
 		confirmationKey: options.confirmationKey,
 		actor: options.actor ?? { kind: 'agent' },
+		approver: options.approver,
 		resources,
 		resourcesTtlMs,
 		devMode,
@@ -267,6 +270,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxSseConnections: options.maxSseConnections,
 		getToolsList: boundGetToolsList,
 		routeToolCall,
+		approver: options.approver,
+		actor: options.actor ?? { kind: 'agent' },
 		executeCommand: remoteEngine.executeCommand,
 		executeBatch: remoteEngine.executeBatch,
 		executeStream: remoteEngine.executeStream,

@@ -91,6 +91,8 @@ export {
 	type ApprovalSecret,
 	createApprovalMiddleware,
 } from './approval.js';
+// Approval evidence from an approver client (spec/command-metadata.md)
+export { AFD_APPROVAL_META_KEY, type ApproverPredicate } from './approver.js';
 // Bootstrap tools
 export {
 	type ContextState,

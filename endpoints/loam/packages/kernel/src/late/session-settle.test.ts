@@ -23,7 +23,7 @@ import type { ScopeV1 } from '../scope/records.js';
 import type { QueuedTicket } from '../scope/runtime.js';
 import { createFixedEnvironment } from '../session.js';
 import { documentsDeployment, documentsPorts, replayKernel } from '../testing.js';
-import type { KernelEventV3, KernelPortsV1, LoamKernelV3 } from '../types.js';
+import type { KernelEventV3, KernelPortsV1, LoamKernelV5 } from '../types.js';
 import { emptyEditorState } from './editor-state.js';
 import { HUMAN_COMMANDS, PROVIDER_COMMANDS } from './identity-commands.js';
 import {
@@ -56,7 +56,7 @@ const user = (id: string): User => {
 	return { id, email, name: email.split('@')[0] as string };
 };
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -114,7 +114,7 @@ const providerWorkspace = (options: ScopedWorkspaceOptions = {}): Promise<Scoped
 	workspace({ identity: PROVIDER, membership: ACME, empty: true, ...options });
 
 /** Vault, restricted to Bea, made by Bea, then entered. */
-async function enterVault(kernel: LoamKernelV3): Promise<void> {
+async function enterVault(kernel: LoamKernelV5): Promise<void> {
 	const created = await kernel.call('project-create', {
 		name: 'Vault',
 		access: { mode: 'restricted', members: [BEA] },
@@ -123,7 +123,7 @@ async function enterVault(kernel: LoamKernelV3): Promise<void> {
 	expect((await kernel.call('scope-set', { project: 'vault' })).success).toBe(true);
 }
 
-const signIn = (kernel: LoamKernelV3, email: string) =>
+const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 const journalOf = (made: { journal: MemoryJournalSink }) => made.journal.read();
 const settles = async (made: { journal: MemoryJournalSink }) =>

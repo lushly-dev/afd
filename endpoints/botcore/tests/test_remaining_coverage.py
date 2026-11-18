@@ -266,8 +266,15 @@ async def test_run_external_tool_not_found() -> None:
         )
 
     assert result is None
-    assert len(w) == 1
-    assert "not found" in str(w[0].message)
+    # Count only this call's warning: an unrelated one (a ResourceWarning from garbage
+    # collection, say) can land in the window and must not fail the test (#1467).
+    ours = [
+        x for x in w
+        if issubclass(x.category, UserWarning) and "__nonexistent_tool_xyz__" in str(x.message)
+    ]
+    assert len(ours) == 1
+    assert "not found" in str(ours[0].message)
+    assert "Install it somehow" in str(ours[0].message)
 
 
 async def test_run_external_tool_found() -> None:

@@ -7,7 +7,7 @@
  * commands and Forward survives.
  */
 
-import type { AppSummaryV2, KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { AppSummaryV2, KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from './elements/shell.js';
 import { formatRoute } from './route-format.js';
 import type { RouterV1, RouteV1 } from './router.js';
@@ -27,7 +27,7 @@ export interface MainStateV1 {
 
 /** What the shell gives this chunk: `loam-shell` itself. */
 export interface UrlHostV1 {
-	readonly kernel: LoamKernelV3 | null;
+	readonly kernel: LoamKernelV5 | null;
 	readonly base: string;
 	readonly ownerDocument: Document;
 	readonly router: RouterV1 | null;
@@ -95,7 +95,7 @@ export function routeOf(state: MainStateV1): RouteV1 | undefined {
 }
 
 export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
-	const kernel = host.kernel as LoamKernelV3;
+	const kernel = host.kernel as LoamKernelV5;
 	const router = host.router as RouterV1;
 	const { base } = host;
 	const view = host.ownerDocument.defaultView ?? window;

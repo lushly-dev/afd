@@ -15,7 +15,7 @@
 import type {
 	AccountV1,
 	AgentMemberRowV1,
-	LoamKernelV3,
+	LoamKernelV5,
 	MemberInvitationV1,
 	MemberV1,
 	OwnInvitationV1,
@@ -52,7 +52,7 @@ const TAB_NAMES: Record<Tab, string> = {
 
 /** `loam-account-section` (5.1): the person's account, at workspace level. */
 export class LoamAccountSection extends AccountElement {
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** The deployment's root, for the tabs' addresses. */
 	base = '';
 	workspace = '';
@@ -152,7 +152,7 @@ export class LoamAccountSection extends AccountElement {
 		if (generation === this.#reads) panel.replaceChildren(...rendered);
 	}
 
-	async #profile(kernel: LoamKernelV3): Promise<Node[]> {
+	async #profile(kernel: LoamKernelV5): Promise<Node[]> {
 		const read = (await kernel.call<AccountV1>('account-get')) as Answer<AccountV1>;
 		if (!read.success || !read.data) return [el('p', {}, this.#failed(read))];
 		const account = read.data;
@@ -236,7 +236,7 @@ export class LoamAccountSection extends AccountElement {
 	}
 
 	/** A command that needs a fresh passkey session (5.2): on `REAUTH_REQUIRED`, a passkey sign-in, then once again. */
-	async #fresh(kernel: LoamKernelV3, name: string, input: unknown): Promise<Answer> {
+	async #fresh(kernel: LoamKernelV5, name: string, input: unknown): Promise<Answer> {
 		const first = (await kernel.call(name, input)) as Answer;
 		if (first.error?.code !== 'REAUTH_REQUIRED') return first;
 		this.#say('This needs a fresh sign-in with a passkey. Confirm with your passkey to continue.');
@@ -245,7 +245,7 @@ export class LoamAccountSection extends AccountElement {
 		return (await kernel.call(name, input)) as Answer;
 	}
 
-	async #passkeys(kernel: LoamKernelV3): Promise<Node[]> {
+	async #passkeys(kernel: LoamKernelV5): Promise<Node[]> {
 		const read = (await kernel.call<{
 			passkeys: { id: string; name: string | null; createdAt: string; deviceType: string | null }[];
 		}>('account-passkey-list')) as Answer<{
@@ -317,7 +317,7 @@ export class LoamAccountSection extends AccountElement {
 		];
 	}
 
-	async #sessions(kernel: LoamKernelV3): Promise<Node[]> {
+	async #sessions(kernel: LoamKernelV5): Promise<Node[]> {
 		type Row = { id: string; current: boolean; device: string | null; createdAt: string };
 		const read = (await kernel.call<{ sessions: Row[] }>('session-list')) as Answer<{
 			sessions: Row[];
@@ -383,7 +383,7 @@ export class LoamAccountSection extends AccountElement {
 		];
 	}
 
-	async #members(kernel: LoamKernelV3): Promise<Node[]> {
+	async #members(kernel: LoamKernelV5): Promise<Node[]> {
 		const [read, me] = (await Promise.all([
 			kernel.call('member-list'),
 			kernel.call('account-get'),
@@ -470,7 +470,7 @@ export class LoamAccountSection extends AccountElement {
 	}
 
 	/** The owner's invite form and the pending invitations (7.2). */
-	async #invitations(kernel: LoamKernelV3, ownerRole: boolean): Promise<Node[]> {
+	async #invitations(kernel: LoamKernelV5, ownerRole: boolean): Promise<Node[]> {
 		const email = el('input', {
 			id: 'invite-email',
 			type: 'email',
@@ -550,7 +550,7 @@ const SECTION = 'loam-account-section';
 
 /** `loam-account-invitations` (5.3): a signed-in person who is no member, and their invitations to accept. */
 export class LoamAccountInvitations extends AccountElement {
-	kernel: LoamKernelV3 | null = null;
+	kernel: LoamKernelV5 | null = null;
 	/** After an invitation is accepted: the shell reads the session and membership again. */
 	accepted: (() => void) | undefined;
 
@@ -620,7 +620,7 @@ function define(): void {
 
 /** Follow the state: show, update or remove the account section in main (5.1). */
 export async function syncAccount(shell: LoamShell): Promise<void> {
-	const kernel = shell.kernel as LoamKernelV3;
+	const kernel = shell.kernel as LoamKernelV5;
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();
@@ -658,7 +658,7 @@ export async function showInvitations(shell: LoamShell, accepted: () => void): P
 		panel = shell.ownerDocument.createElement(INVITATIONS) as LoamAccountInvitations;
 		main.append(panel);
 	}
-	panel.kernel = shell.kernel as LoamKernelV3;
+	panel.kernel = shell.kernel as LoamKernelV5;
 	panel.accepted = () => {
 		panel?.remove();
 		accepted();

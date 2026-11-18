@@ -77,9 +77,17 @@ export function commandToolAnnotations(
 /**
  * The top-level MCP `outputSchema` of a command tool: the `CommandResult` envelope, with `data`
  * typed by the command's output schema (`spec/command-metadata.md`, "Structured results").
+ *
+ * `$defs` and `definitions` move from `data` to the envelope, because `#/$defs/...` and
+ * `#/definitions/...` references resolve against the document root. `$schema` is dropped.
  */
 export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
-	const { $schema: _dialect, ...data } = dataSchema as JsonSchema & { $schema?: unknown };
+	const {
+		$schema: _dialect,
+		$defs,
+		definitions,
+		...data
+	} = dataSchema as JsonSchema & { $schema?: unknown; $defs?: unknown; definitions?: unknown };
 	return {
 		type: 'object',
 		properties: {
@@ -89,5 +97,7 @@ export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
 			metadata: { type: 'object' },
 		},
 		required: ['success'],
-	};
+		...($defs === undefined ? {} : { $defs }),
+		...(definitions === undefined ? {} : { definitions }),
+	} as JsonSchema;
 }

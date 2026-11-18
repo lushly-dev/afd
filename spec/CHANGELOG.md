@@ -72,6 +72,18 @@ In the same pull request:
 
 ## 1.0-rc
 
+[`command-metadata.md`](./command-metadata.md) adds approval evidence from an approver client and
+the approval display rules (Loam phase 5 step 0c, D146 and D150): a server may name approvers,
+which get `details.approvalToken` on every held MCP result, are never asked with a form, and carry
+the token back in `_meta["dev.afd/approval"]` on a one-command MCP 2026-07-28 call; any other
+caller's key is ignored, and the key in tool arguments is refused with `VALIDATION_ERROR`. A token
+issued on an approver's call binds `principal\0` and the call's principal binding in `a`, verified
+with `credentials-mismatch`. The display rules bound what a person is shown before approving (8000
+UTF-16 code units of canonical JSON, 400 values, depth 6, strings of 2000 and keys of 200, no
+hidden code points or stacked marks). New vector file
+[`vectors/approver-client.json`](./vectors/approver-client.json), with a documented gap for Python
+and C++ ([#1466](https://github.com/lushly-dev/afd/issues/1466)); additive, so the version stays.
+
 [`authorization.md`](./authorization.md) specifies MCP authorization for AFD servers on HTTP (Umbel
 phase 5 step 0a, decision D106): one bearer token in one `Authorization` header, verified by explicit
 rules (RFC 9068 JWT access tokens with exactly one audience, the resource; `typ`, the algorithm

@@ -28,10 +28,10 @@ import {
 	seedProjects,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { LoamKernelV3, ScopeV1, ViewBrokerV1 } from '../types.js';
+import type { LoamKernelV5, ScopeV1, ViewBrokerV1 } from '../types.js';
 import { createAppStore } from './store.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -586,7 +586,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 });
 
 /** The probe app without its optional `projects` grant. */
-async function probeKernel(): Promise<LoamKernelV3> {
+async function probeKernel(): Promise<LoamKernelV5> {
 	const manifest = {
 		...PROBE_MANIFEST,
 		grants: PROBE_MANIFEST.grants?.filter((grant) => grant.name !== 'projects'),

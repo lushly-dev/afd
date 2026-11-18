@@ -5,7 +5,7 @@
  */
 
 import type { FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import {
 	appEntryDefinition,
 	LoamAppEntry,
@@ -90,7 +90,7 @@ export function defineChrome(): Promise<void> {
 }
 
 export interface MountShellOptions {
-	kernel: LoamKernelV3;
+	kernel: LoamKernelV5;
 	/** The text of `@lushly-dev/loam-theme/loam-theme.css`, adopted on the document. */
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
@@ -112,6 +112,11 @@ export interface MountShellOptions {
 	home?: string;
 	/** A `provider` deployment's identity, from its host (phase 3 specification, 2.1, 4.2). Absent: `local`. */
 	identity?: ShellIdentity;
+	/**
+	 * The copilot's panel in the panel part, loaded when the part first opens, with the host's side it hears (phase 5
+	 * specification, 3.2). Absent: the panel part keeps its empty state.
+	 */
+	copilot?: { host?: import('./copilot/panel.js').CopilotPanelHostV1 };
 }
 
 /** Apply the theme, define the chrome and mount `loam-shell` into `container`. */
@@ -128,6 +133,7 @@ export async function mountShell(
 	shell.home = options.home ?? new URL(shell.base).pathname;
 	if (options.listsApps) shell.listsApps = true;
 	if (options.identity) shell.identity = options.identity;
+	if (options.copilot) shell.copilot = options.copilot;
 	container.append(shell);
 	await shell.ready;
 	return shell;
