@@ -164,7 +164,7 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 
 | Event | Meaning | The foreman's action |
 |---|---|---|
-| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
+| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed`, `review-unverified`, `node-missing` (its own `.nvmrc` names a Node the lane host lacks) | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
 | `ejection-limit` | A branch reached `cells.maxEjections` (counted by the lane, not an agent) | `cell-park` it with the diagnosis, or `lane-drop` it |
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
@@ -218,7 +218,7 @@ so each repository states its own contract:
 | `coverage` | `pnpm check:all` | `pnpm validate:coverage` |
 | `install` | `pnpm install --frozen-lockfile` | Same |
 | `required_check` | A new aggregate check (see [AFD prerequisites](#afd-prerequisites)) | `ci-ok` |
-| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
+| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/policy/**`, the `maintain-gates` skill's scripts (its AFD projection and Botcore's canonical copy) and their test, `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
 | `review_evidence` | The record `prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
 | `receipt` | Optional. Confirms an existing validation of this head, so it is reused | `validate:final --verify` |
 | `ui_paths` | `endpoints/loam/**`, `foundations/specimen/**`, `foundations/fast-af/**`, `site/**` | Lushly's app paths |
@@ -288,7 +288,8 @@ host the lane validates several branches at once while still merging one at a ti
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
-  wholly on one plan; only the foreman crosses providers. Routes come from
+  wholly on one plan, a Claude plan since 2026-11-17, except for the second reviewer
+  on its first review. Routes come from
   [model routing](../../../operations/model-routing.md).
 - Starting a cell is reserve, then start: `cell-register` claims the issue and assigns the
   plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell
@@ -397,6 +398,7 @@ Lushly's lane assumes macOS. The plugin must not:
 | `lane.slots` | 1 | Validation concurrency against re-runs when `main` moves |
 | `cells.max` | 3 | Ready branches against host load and allowance |
 | `cells.issuesMax` | 1 | Small PRs against fewer cells for closely related issues |
+| `cells.claudeOnly` | true | Cells on Opus, as model routing says (2026-11-17), against spending every plan on cells |
 | `host.minFreeGb` | 8 | Room kept free on the host for validation |
 | `lane.queueTarget` | 2 | When the foreman starts another cell |
 | `lane.queueMax` | 10 | Queued branches before new ones are held |

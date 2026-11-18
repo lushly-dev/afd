@@ -2,8 +2,9 @@
 # The ejection is fixture state the lane's loop would have written.
 name: Get an ejected branch back and return to the front
 description: >-
-  When the lane ejects my branch, I want the reason, the failing line and the log, and my repaired
-  branch to go to the front of the queue, so that one repair costs one more validation and no wait.
+  When the lane ejects my branch, I want the reason, the failing line and the log, only my branch's
+  own failures counted against it, and my repaired branch to go to the front of the queue, so that
+  one repair costs one more validation and no wait.
 job: return-an-ejected-branch
 tags: [slice]
 fixture:
@@ -33,6 +34,25 @@ steps:
           - { branch: fix/parser-empty-input, ejections: 1 }
           - { branch: feat/export-csv, ejections: 0 }
           - { branch: fix/loosened-check, ejections: 1 }
+          - { branch: fix/type-slip, ejections: 0 }
+  - description: >-
+      A diagnosis finds the failure was a known flake, not the branch's: the foreman excuses it, so
+      it stops counting toward cells.maxEjections, and the ejection itself stays open
+    command: ejection-excuse
+    input: { branch: fix/parser-empty-input, reason: "#1408: the hosted harness flakes under load" }
+    expect:
+      success: true
+      data: { branch: fix/parser-empty-input, cause: final-failed, ejections: 1, counted: 0 }
+  - description: The status shows what still counts
+    command: lane-status
+    expect:
+      success: true
+      data:
+        openEvents: { length: 1 }
+        cells:
+          - { branch: fix/parser-empty-input, ejections: 1, excused: 1, countedEjections: 0 }
+          - { branch: feat/export-csv, ejections: 0, countedEjections: 0 }
+          - { branch: fix/loosened-check, ejections: 1, countedEjections: 1 }
           - { branch: fix/type-slip, ejections: 0 }
   - description: The repaired branch goes ahead of the branch that was already waiting
     command: lane-enqueue

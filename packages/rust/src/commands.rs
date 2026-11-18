@@ -1907,12 +1907,21 @@ pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_jso
 
 /// The MCP `outputSchema` of a command tool: the CommandResult envelope, with `data` typed by
 /// `data_schema` (`spec/command-metadata.md`, "Structured results").
+///
+/// `$defs` and `definitions` move from `data` to the envelope, because `#/$defs/...` and
+/// `#/definitions/...` references resolve against the document root. `$schema` is dropped.
 pub fn command_result_output_schema(data_schema: &serde_json::Value) -> serde_json::Value {
     let mut data = data_schema.clone();
+    let mut hoisted = serde_json::Map::new();
     if let Some(object) = data.as_object_mut() {
         object.remove("$schema");
+        for key in ["$defs", "definitions"] {
+            if let Some(definitions) = object.remove(key) {
+                hoisted.insert(key.to_owned(), definitions);
+            }
+        }
     }
-    serde_json::json!({
+    let mut envelope = serde_json::json!({
         "type": "object",
         "properties": {
             "success": { "type": "boolean" },
@@ -1921,7 +1930,11 @@ pub fn command_result_output_schema(data_schema: &serde_json::Value) -> serde_js
             "metadata": { "type": "object" },
         },
         "required": ["success"],
-    })
+    });
+    if let Some(object) = envelope.as_object_mut() {
+        object.extend(hoisted);
+    }
+    envelope
 }
 
 /// Convert a legacy definition to a tool. For whole-schema registrations, use

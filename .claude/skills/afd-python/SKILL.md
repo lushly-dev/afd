@@ -88,7 +88,7 @@ Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 
 `tool_strategy` is `"individual"` (Python's default; TypeScript and Rust default to `grouped`), `"grouped"`, `"lazy"` or `"hybrid"` ([spec/tool-strategies.md](../../../spec/tool-strategies.md)). Python's lists differ from TypeScript's:
 
-- **Individual, grouped and lazy** list all five meta-tools first (`afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`), plus `afd-help`, `afd-docs` and `afd-schema` as tools.
+- **Individual, grouped and lazy** list all five meta-tools first (`afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`), plus `afd-help`, `afd-docs` and `afd-schema` as tools: the earlier list, until Python's #533 step (the spec now asks for the hybrid order and TypeScript's grouped shape).
 - **With `contexts`,** they also list `afd-context-list`, `afd-context-enter` and `afd-context-exit`. Lazy filters these bootstrap-category tools by the active context.
 - **Grouped** sorts groups and actions by name and has no `_meta.actions`.
 - **Out-of-context calls.** A context-scoped command is hidden from discovery outside its context and returns `COMMAND_NOT_IN_CONTEXT` when called.
@@ -137,6 +137,7 @@ Two vector suites hold Python to these rules: `tests/test_pipeline_vectors.py` a
 - **Approval policy.** Declare `approval="required"`, `"not-required"`, or a function of the input and context, on `define_command` or `@server.command`.
 - **Approval middleware.** Install `create_approval_middleware(secret=os.environ["AFD_APPROVAL_SECRET"], commands=[...])` from `afd.server`, after any middleware that sets `context.actor`. It gates only the commands in `commands`, so pass the same decorated functions you register.
 - **The approval flow.** A held call returns `APPROVAL_REQUIRED` with `details.approvalToken`. Once a human approves, trusted surface code retries the same call with `CommandContext(approval=token)`. The token never comes from tool arguments.
+- **Asking over MCP.** `relay="mcp-elicitation"` asks the person behind an MCP client that declares form elicitation instead of returning a token; `afd-batch` and `afd-pipe` are asked about once, up front, and a pipeline whose gated step reads an earlier step runs nothing (`reason: "input-not-known"`). Leave it off where the agent's own code is the MCP client. The relay works through the server's MCP handler only; `route_tool_call` and `execute` never ask.
 - **Tokens** are single-use by default (`replay="within-ttl"` to allow repeats) and expire after five minutes on the middleware's `clock`. They verify across TypeScript, Python and Rust servers that share the secret. See [spec/command-metadata.md](../../../spec/command-metadata.md), "Approvals".
 
 ## DirectClient

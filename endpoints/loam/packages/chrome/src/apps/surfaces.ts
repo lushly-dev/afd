@@ -17,7 +17,7 @@ import type {
 	AppSummaryV2,
 	KernelEventV1,
 	KernelEventV3,
-	LoamKernelV3,
+	LoamKernelV5,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1 } from '@lushly-dev/loam-sdk';
@@ -106,7 +106,7 @@ const mainWithApp = css`
 
 export class AppSurfaces implements ShellApps {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV3;
+	readonly #kernel: LoamKernelV5;
 	readonly #cleanup: Array<() => void> = [];
 	readonly #held = new Map<string, HeldApp>();
 	#queue: Promise<void> = Promise.resolve();
@@ -132,7 +132,7 @@ export class AppSurfaces implements ShellApps {
 	readonly #status = new StatusItems();
 	readonly #overlays: OverlaySurfaces;
 
-	constructor(shell: LoamShell, kernel: LoamKernelV3) {
+	constructor(shell: LoamShell, kernel: LoamKernelV5) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 		this.#overlays = new OverlaySurfaces(shell, kernel);
@@ -958,7 +958,7 @@ export class AppSurfaces implements ShellApps {
 }
 
 /** Create the controller, once the chunk's elements are defined. */
-export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV3): Promise<ShellApps> {
+export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV5): Promise<ShellApps> {
 	await defineAppElements();
 	// `ICONS_V1` is registered now: the rail's entries show their icons (2.4).
 	shell.rail.showIcons();

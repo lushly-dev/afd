@@ -57,6 +57,11 @@ describe('specimen.get and specimen.set (#118)', () => {
 			['button', false],
 			['input', false],
 			['card', true],
+			['text', false],
+			['link', false],
+			['checkbox', false],
+			// focus.ring comes from the mixin product includes
+			['focus', true],
 		]);
 		expect(role(data, 'card', 'background')).toEqual({
 			role: 'background',
@@ -161,6 +166,146 @@ describe('specimen.get and specimen.set (#118)', () => {
 		// Prototype keys are not roles
 		expect(await code({ button: { constructor: 'btn.bg' } })).toBe('VALIDATION_ERROR');
 		expect(await context.db.getSpecimenMap('other')).toBeNull();
+	});
+
+	it('draws the text block, link, checkbox and focus ring by convention (#498)', async () => {
+		for (const [tokenId, value] of [
+			['text.foreground', '#242424'],
+			['text.font.family', 'Segoe UI, sans-serif'],
+			['text.line.height', '1.5'],
+			['link.foreground', '#0F6CBD'],
+			['link.underline', 'underline dotted 1px'],
+			['link.underline.offset', '0.2em'],
+			['checkbox.background', '#FFFFFF'],
+			['checkbox.size', '16px'],
+			['checkbox.check', 'url(javascript:alert(1))'],
+			['focus.ring.width', '-2px'],
+			['focus.ring.offset', '-2px'],
+		]) {
+			await tokenAddCommand.handler({ nodeId: 'global', tokenId, value }, context);
+		}
+		const data = await get('product');
+		const component = (name: string) => data.components.find((entry) => entry.component === name);
+
+		expect(component('text')).toMatchObject({ label: 'Text block', required: 'foreground' });
+		expect(component('text')?.roles.map((entry) => entry.role)).toEqual([
+			'background',
+			'foreground',
+			'padding.x',
+			'padding.y',
+			'font.size',
+			'font.weight',
+			'font.family',
+			'line.height',
+		]);
+		expect(component('link')?.roles.map((entry) => entry.role)).toEqual([
+			'foreground',
+			'font.size',
+			'font.weight',
+			'underline',
+			'underline.offset',
+		]);
+		expect(component('checkbox')?.roles.map((entry) => entry.role)).toEqual([
+			'background',
+			'border',
+			'radius',
+			'size',
+			'check',
+		]);
+		expect(component('focus')).toMatchObject({ label: 'Focus ring', required: 'ring' });
+		expect(component('focus')?.roles.map((entry) => entry.role)).toEqual([
+			'background',
+			'radius',
+			'ring',
+			'ring.width',
+			'ring.offset',
+		]);
+		// The original components keep their ten roles
+		expect(component('button')?.roles).toHaveLength(10);
+
+		for (const name of ['text', 'link', 'checkbox', 'focus']) {
+			expect(component(name)?.drawn, name).toBe(true);
+		}
+		for (const [name, roleName] of [
+			['text', 'font.family'],
+			['text', 'line.height'],
+			['link', 'underline'],
+			['link', 'underline.offset'],
+			['checkbox', 'size'],
+		]) {
+			expect(role(data, name, roleName), `${name}.${roleName}`).toMatchObject({
+				source: 'convention',
+				valid: true,
+			});
+		}
+		// Resolves but fails the role's validator, so it is not drawn
+		expect(role(data, 'checkbox', 'check')).toMatchObject({ resolves: true, valid: false });
+		expect(role(data, 'focus', 'ring.width')).toMatchObject({ resolves: true, valid: false });
+		// An outline offset may be negative; a width may not
+		expect(role(data, 'focus', 'ring.offset')).toMatchObject({ resolves: true, valid: true });
+		expect(role(data, 'focus', 'ring')).toMatchObject({ tokenId: 'focus.ring', valid: true });
+
+		// Without the mixin, the root has no focus ring to draw
+		const root = await get('global');
+		expect(root.components.find((entry) => entry.component === 'focus')?.drawn).toBe(false);
+	});
+
+	it('maps the new components and their roles, and refuses roles they do not take (#498)', async () => {
+		const set = await specimenSetCommand.handler(
+			{
+				nodeId: 'global',
+				map: {
+					text: { foreground: 'btn.fg', 'line.height': 'btn.corner' },
+					link: { foreground: 'btn.bg', underline: 'btn.fg' },
+					checkbox: { background: 'btn.fg', check: 'btn.bg', size: 'btn.corner' },
+					focus: { ring: 'btn.bg', 'ring.width': 'btn.corner', 'ring.offset': 'btn.corner' },
+				},
+			},
+			context,
+		);
+		expect(set.success).toBe(true);
+		expect(set.data?.changed).toEqual([
+			'checkbox.background',
+			'checkbox.check',
+			'checkbox.size',
+			'focus.ring',
+			'focus.ring.offset',
+			'focus.ring.width',
+			'link.foreground',
+			'link.underline',
+			'text.foreground',
+			'text.line.height',
+		]);
+		// btn.fg (#FFFFFF) is not an underline
+		expect(set.warnings?.map((warning) => warning.details)).toEqual([
+			{ component: 'link', role: 'underline', tokenId: 'btn.fg' },
+		]);
+
+		const data = await get('global');
+		expect(role(data, 'focus', 'ring.width')).toMatchObject({
+			tokenId: 'btn.corner',
+			source: 'map',
+			valid: true,
+		});
+		expect(role(data, 'link', 'underline')).toMatchObject({ source: 'map', valid: false });
+		expect(data.components.find((entry) => entry.component === 'focus')?.drawn).toBe(true);
+
+		// A role another component takes is refused, with the component's roles as the suggestion
+		const wrong = await specimenSetCommand.handler(
+			{ nodeId: 'global', map: { button: { ring: 'btn.bg' }, link: { check: 'btn.bg' } } },
+			context,
+		);
+		expect(wrong.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			message: 'Role(s) the component does not take: button.ring, link.check',
+		});
+		expect(wrong.error?.suggestion).toContain('link roles are: foreground, font.size');
+		expect(wrong.error?.suggestion).toContain('button roles are: background, foreground');
+		const unknown = await specimenSetCommand.handler(
+			{ nodeId: 'global', map: { checkbox: { glow: 'btn.bg' } } },
+			context,
+		);
+		expect(unknown.error?.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('warns when a mapped value fails its role on the root', async () => {

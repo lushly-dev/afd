@@ -96,7 +96,7 @@ can call that tool.
 | TypeScript direct registry (`createDirectRegistry`) | As the TypeScript server with a tool surface (`tools: createDirectToolSurface()`), which serves `afd-discover`; otherwise "Check the command name against the available commands." | As the TypeScript server with a tool surface, which serves the context tools when the registry has contexts; otherwise as C++ |
 | TypeScript core registry | "Use 'afd tools' to see available commands" (the CLI) | Not emitted |
 | Rust registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands."; calls from the MCP server (`server` feature, which serves `afd-discover` in every strategy) end as TypeScript's | As TypeScript when the caller can call `afd-context-list`; otherwise as C++ |
-| C++ registry | As Rust | Names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
+| C++ registry | As Rust | As TypeScript when the caller can call `afd-context-list` (`register_context_commands`); otherwise names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
 | Python server | As TypeScript. [#325](https://github.com/lushly-dev/afd/issues/325) tracks the tool strategies that do not serve `afd-discover` remotely | As TypeScript |
 | Python core registry | "List available commands to see valid options" | As C++ |
 
@@ -150,7 +150,7 @@ budget code, the authorization code and the task code.
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `SERVICE_UNAVAILABLE` | A service the command depends on is down | Yes | Application |
-| `TIMEOUT` | An operation ran out of time: a DirectClient call past `context.timeout`, a client request, a Rust registry call past `timeout_ms`, or `timeoutError()`. The command may still have run | Yes | DirectClient, client, core executors (Rust registry), application |
+| `TIMEOUT` | An operation ran out of time: a DirectClient or TypeScript server engine call past `context.timeout`, a client request, a Rust registry call past `timeout_ms`, or `timeoutError()`. The command may still have run | Yes | DirectClient, TypeScript server engine, client, core executors (Rust registry), application |
 | `CONNECTION_ERROR` | The request could not reach the server, or failed on the way. It may have reached the server | Yes | Client |
 
 ### Internal
@@ -167,7 +167,7 @@ budget code, the authorization code and the task code.
 | --- | --- | --- | --- |
 | `COMMAND_NOT_FOUND` | No such command, or (remotely) one the caller may not see; see [D4](#unknown-and-unexposed-commands-d4). Also the `error` of an `afd-detail` entry with `found: false` | No | Core executors, server engine, router |
 | `INVALID_COMMAND_ARGS` | The arguments do not fit the command, outside schema validation | No | Application |
-| `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation)) | No | Application; core executors (batch, pipeline) |
+| `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation)) | No | Application; TypeScript server engine; core executors (batch, pipeline) |
 | `COMMAND_EXECUTION_ERROR` | The handler threw (or panicked). Outside dev mode the message is "An internal error occurred" and carries no exception text | No | Core executors, server engine, DirectClient, batch, pipeline |
 
 ### Routing and access

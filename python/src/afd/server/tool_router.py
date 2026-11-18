@@ -7,13 +7,19 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from afd.core.actor import Actor
 from afd.core.batch import create_failed_batch_result
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.pipeline import create_pipeline_failure
 from afd.core.result import CommandResult, error, failure as command_failure
+from afd.server.approval_relay import (
+    NEVER_ASKS,
+    UpFrontApproval,
+    bind_approval_relay,
+    current_approval_relay,
+)
 from afd.server.confirmations import (
     ConfirmationGate,
     ConfirmationStep,
@@ -44,6 +50,10 @@ class ToolRouterDeps:
     actor: Actor | None = None
     # Confirmation enforcement (`confirmations` server option); None means off.
     confirmations: ConfirmationGate | None = None
+    # For the up-front approval of afd-batch and afd-pipe over the MCP approval relay: whether
+    # an MCP caller can run a command, and one step's validated input as it will run.
+    can_run: Callable[[str], bool] | None = None
+    validate_step: Callable[[str, Any], tuple[bool, Any]] | None = None
 
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
@@ -142,6 +152,32 @@ def create_tool_router(deps: ToolRouterDeps):
             return to_result(refusal)
         return command_failure(refusal)
 
+    def routed(command_name: str) -> None:
+        """Name the one command this tool call routes to: only it may ask for approval."""
+        relay = current_approval_relay()
+        if relay is not None:
+            relay.route(command_name)
+
+    async def approved_up_front(
+        tool: Literal["afd-batch", "afd-pipe"],
+        request: Any,
+        run: Callable[[], Awaitable[Any]],
+        refused: Callable[[Any], Any],
+    ) -> Any:
+        """Run an ``afd-batch`` or ``afd-pipe``. On a call that can carry a form elicitation,
+        its steps never ask one at a time (asking mid-run would run the earlier steps again on
+        the retry): the approval middleware approves the whole call up front, before any step
+        runs (#459), and a refusal answers the call instead of the run."""
+        relay = current_approval_relay()
+        if relay is None or deps.can_run is None or deps.validate_step is None:
+            return await run()
+        up_front = UpFrontApproval(relay, tool, request, deps.can_run, deps.validate_step)
+        with bind_approval_relay(NEVER_ASKS, up_front):
+            result = await run()
+        if up_front.refusal is not None:
+            return refused(up_front.refusal)
+        return result
+
     async def route_tool_call(tool_name: str, args: Any) -> Any:
         active_context = deps.context_state.get_active() if deps.context_state else None
 
@@ -183,6 +219,7 @@ def create_tool_router(deps: ToolRouterDeps):
             if refused is not None:
                 return refused
 
+            routed(command_name)
             return await deps.execute_command(
                 command_name,
                 command_input,
@@ -214,7 +251,13 @@ def create_tool_router(deps: ToolRouterDeps):
             )
             if refused is not None:
                 return refused
-            return await deps.execute_batch(without_confirm(args), mcp_context("batch", active_context))
+            request = without_confirm(args)
+            return await approved_up_front(
+                "afd-batch",
+                request,
+                lambda: deps.execute_batch(request, mcp_context("batch", active_context)),
+                create_failed_batch_result,
+            )
 
         if tool_name == "afd-pipe":
             refused = await unconfirmed(
@@ -225,8 +268,12 @@ def create_tool_router(deps: ToolRouterDeps):
             )
             if refused is not None:
                 return refused
-            return await deps.execute_pipeline(
-                without_confirm(args), mcp_context("pipeline", active_context)
+            request = without_confirm(args)
+            return await approved_up_front(
+                "afd-pipe",
+                request,
+                lambda: deps.execute_pipeline(request, mcp_context("pipeline", active_context)),
+                create_pipeline_failure,
             )
 
         if deps.tool_strategy == "grouped":
@@ -308,6 +355,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 )
                 if refused is not None:
                     return refused
+                routed(command.name)
                 return await deps.execute_command(
                     command.name,
                     params,
@@ -334,6 +382,7 @@ def create_tool_router(deps: ToolRouterDeps):
         if refused is not None:
             return refused
 
+        routed(tool_name)
         return await deps.execute_command(
             tool_name,
             command_input,

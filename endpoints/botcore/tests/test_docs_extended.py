@@ -200,7 +200,8 @@ async def test_docs_check_changelog_needs_update(tmp_path) -> None:
     with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
         with patch("botcore.commands.docs.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0,
+                args=[],
+                returncode=0,
                 stdout="src/botcore/server.py\nsrc/botcore/config.py\n",
                 stderr="",
             )
@@ -218,7 +219,8 @@ async def test_docs_check_changelog_already_updated(tmp_path) -> None:
     with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
         with patch("botcore.commands.docs.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0,
+                args=[],
+                returncode=0,
                 stdout="src/botcore/server.py\nCHANGELOG.md\n",
                 stderr="",
             )
@@ -235,7 +237,10 @@ async def test_docs_check_changelog_no_src_changes(tmp_path) -> None:
     with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
         with patch("botcore.commands.docs.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="README.md\n", stderr="",
+                args=[],
+                returncode=0,
+                stdout="README.md\n",
+                stderr="",
             )
             result = await docs_check_changelog()
 
@@ -263,54 +268,187 @@ async def test_docs_check_agents_no_file(tmp_path) -> None:
     assert data["has_agents_md"] is False
 
 
-async def test_docs_check_agents_needs_update(tmp_path) -> None:
-    """Detects when structural changes are staged but AGENTS.md is not."""
-    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+def _repo(root, agents: str, files: dict[str, str]) -> None:
+    """A git repository at ``root`` with AGENTS.md and ``files`` committed."""
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    (root / "AGENTS.md").write_text(agents, encoding="utf-8")
+    for name, content in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "base"],
+        cwd=root,
+        check=True,
+    )
 
-    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
-        with patch("botcore.commands.docs.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0,
-                stdout="src/botcore/commands/new_cmd.py\nsrc/botcore/__init__.py\n",
-                stderr="",
-            )
-            result = await docs_check_agents()
 
-    data = assert_success(result)
+def _stage(root, files: dict[str, str | None]) -> None:
+    """Write (or, for None, remove) ``files`` and stage everything."""
+    for name, content in files.items():
+        if content is None:
+            (root / name).unlink()
+            continue
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+
+
+async def _check_agents(root):
+    with patch("botcore.commands.docs.find_workspace", return_value=root):
+        return assert_success(await docs_check_agents())
+
+
+async def test_docs_check_agents_new_command_is_advisory(tmp_path) -> None:
+    """A router AGENTS.md need not list a new command, package, skill or workflow (#1128)."""
+    _repo(
+        tmp_path,
+        "# Agents\n\n`src/` holds the code.\n",
+        {
+            "src/tool/__init__.py": "",
+            "skills/other/SKILL.md": "# Other\n",
+            ".github/workflows/ci.yml": "on: push\n",
+        },
+    )
+    _stage(
+        tmp_path,
+        {
+            "src/tool/commands/new_cmd.py": "x = 1\n",
+            "skills/release/SKILL.md": "# Release\n",
+            ".github/workflows/nightly.yml": "on: push\n",
+        },
+    )
+
+    data = await _check_agents(tmp_path)
+
+    assert data["needs_update"] is False
+    assert data["owned_changes"] == []
+    assert "New command: src/tool/commands/new_cmd.py" in data["structural_changes"]
+
+
+async def test_docs_check_agents_new_top_level_directory(tmp_path) -> None:
+    """A new top-level directory AGENTS.md does not name needs an entry."""
+    _repo(tmp_path, "# Agents\n\n`src/` holds the code.\n", {"src/a.py": ""})
+    _stage(tmp_path, {"tools/run.py": "x = 1\n"})
+
+    data = await _check_agents(tmp_path)
+
     assert data["needs_update"] is True
-    assert len(data["structural_changes"]) >= 1
+    assert data["owned_changes"] == ["New top-level directory: tools/"]
+
+
+async def test_docs_check_agents_new_top_level_directory_already_named(tmp_path) -> None:
+    """A new directory AGENTS.md already names, or a new root file, needs nothing."""
+    _repo(tmp_path, "# Agents\n\n`src/` and `tools/` hold the code.\n", {"src/a.py": ""})
+    _stage(tmp_path, {"tools/run.py": "x = 1\n", "NOTES.md": "notes\n"})
+
+    assert (await _check_agents(tmp_path))["needs_update"] is False
+
+
+async def test_docs_check_agents_renamed_path_it_names(tmp_path) -> None:
+    """AGENTS.md cites a script that the change renames."""
+    agents = "# Agents\n\nRun `scripts/check-size.mjs` before pushing.\n"
+    _repo(tmp_path, agents, {"scripts/check-size.mjs": "export {};\n"})
+    subprocess.run(
+        ["git", "mv", "scripts/check-size.mjs", "scripts/check-file-size.mjs"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    data = await _check_agents(tmp_path)
+
+    assert data["needs_update"] is True
+    assert data["owned_changes"] == [
+        "AGENTS.md names scripts/check-size.mjs, which this change renamed to "
+        "scripts/check-file-size.mjs"
+    ]
+
+
+async def test_docs_check_agents_removed_skill_it_names(tmp_path) -> None:
+    """AGENTS.md cites a skill by name that the change removes."""
+    _repo(
+        tmp_path,
+        "# Agents\n\nShip with `prepare-pr`.\n",
+        {"skills/prepare-pr/SKILL.md": "# Prepare\n", "skills/other/SKILL.md": "# Other\n"},
+    )
+    _stage(tmp_path, {"skills/prepare-pr/SKILL.md": None})
+
+    data = await _check_agents(tmp_path)
+
+    assert data["needs_update"] is True
+    assert data["owned_changes"] == ["AGENTS.md names `prepare-pr`, which this change removed"]
+
+
+async def test_docs_check_agents_removed_manifest_is_not_a_citation(tmp_path) -> None:
+    """A generic file name AGENTS.md happens to mention is not a citation of every such file."""
+    _repo(
+        tmp_path,
+        "# Agents\n\nDependencies live in `package.json`.\n",
+        {"package.json": "{}\n", "packages/old/package.json": "{}\n"},
+    )
+    _stage(tmp_path, {"packages/old/package.json": None})
+
+    assert (await _check_agents(tmp_path))["needs_update"] is False
+
+
+async def test_docs_check_agents_in_a_nested_workspace(tmp_path) -> None:
+    """A workspace below the git root reads its own paths and its own AGENTS.md."""
+    ws = tmp_path / "sub"
+    ws.mkdir()
+    _repo(tmp_path, "# Root\n", {"sub/AGENTS.md": "# Sub\n", "sub/src/a.py": ""})
+    _stage(tmp_path, {"sub/scripts/x.py": "x = 1\n"})
+
+    data = await _check_agents(ws)
+    assert data["owned_changes"] == ["New top-level directory: scripts/"]
+
+    _stage(tmp_path, {"sub/AGENTS.md": "# Sub\n\n`scripts/`\n"})
+    assert (await _check_agents(ws))["needs_update"] is False
+
+
+async def test_docs_check_agents_moved_directory_it_names(tmp_path) -> None:
+    """AGENTS.md names a directory the change moves away; one file leaving it is not that."""
+    _repo(
+        tmp_path,
+        "# Agents\n\n`alfred/` is the quality bot.\n",
+        {"alfred/a.py": "", "alfred/b.py": "", "src/c.py": ""},
+    )
+    subprocess.run(["git", "mv", "alfred/a.py", "src/a.py"], cwd=tmp_path, check=True)
+    assert (await _check_agents(tmp_path))["needs_update"] is False
+
+    subprocess.run(["git", "mv", "alfred/b.py", "src/b.py"], cwd=tmp_path, check=True)
+    data = await _check_agents(tmp_path)
+    assert data["owned_changes"] == ["AGENTS.md names alfred/, which this change removes or moves"]
+
+
+async def test_docs_check_agents_cites_whole_names_only(tmp_path) -> None:
+    """A removed command module is not cited by a longer name that contains it."""
+    _repo(
+        tmp_path,
+        "# Agents\n\nSee `src/tool/commands/blacklist.py`.\n",
+        {"src/tool/commands/list.py": "", "src/tool/commands/blacklist.py": ""},
+    )
+    _stage(tmp_path, {"src/tool/commands/list.py": None})
+
+    assert (await _check_agents(tmp_path))["needs_update"] is False
 
 
 async def test_docs_check_agents_up_to_date(tmp_path) -> None:
     """No update needed when AGENTS.md is also staged."""
-    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+    _repo(tmp_path, "# Agents\n", {"src/a.py": ""})
+    _stage(tmp_path, {"tools/run.py": "x = 1\n", "AGENTS.md": "# Agents\n\n`tools/`\n"})
 
-    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
-        with patch("botcore.commands.docs.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0,
-                stdout="src/botcore/commands/new.py\nAGENTS.md\n",
-                stderr="",
-            )
-            result = await docs_check_agents()
-
-    data = assert_success(result)
-    assert data["needs_update"] is False
+    assert (await _check_agents(tmp_path))["needs_update"] is False
 
 
 async def test_docs_check_agents_no_structural_changes(tmp_path) -> None:
     """No update needed when changes aren't structural."""
-    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+    _repo(tmp_path, "# Agents\n", {"src/config.py": "x = 1\n"})
+    _stage(tmp_path, {"src/config.py": "x = 2\n"})
 
-    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
-        with patch("botcore.commands.docs.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="src/botcore/config.py\n", stderr="",
-            )
-            result = await docs_check_agents()
+    data = await _check_agents(tmp_path)
 
-    data = assert_success(result)
     assert data["needs_update"] is False
+    assert data["structural_changes"] == []
 
 
 # ── #779: whole-repository coverage ──────────────────────────────────────
@@ -411,14 +549,19 @@ async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands
         "src/tool/commands/latest.py\n"
         "packages/core/package.json\n"
     )
-    added = (
-        staged.replace("packages/server/src/commands/list.ts\n", "")
-        .replace("src/tool/commands/__init__.py\n", "")
-        .replace("packages/core/package.json\n", "")
+    modified = {
+        "packages/server/src/commands/list.ts",
+        "src/tool/commands/__init__.py",
+        "packages/core/package.json",
+    }
+    status = "".join(
+        f"{'M' if path in modified else 'A'}\t{path}\n" for path in staged.splitlines()
     )
 
     def run(args, **_kwargs):
-        return _staged(added if "--diff-filter=AR" in args else staged)
+        if "ls-tree" in args:  # Every top-level directory is already tracked.
+            return _staged("packages\ncrates\nskills\n.github\nsrc\n")
+        return _staged(status)
 
     with (
         patch("botcore.commands.docs.find_workspace", return_value=tmp_path),
@@ -427,7 +570,7 @@ async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands
         result = await docs_check_agents()
 
     data = assert_success(result)
-    assert data["needs_update"] is True
+    assert data["needs_update"] is False  # AGENTS.md routes; these are reported (#1128).
     assert data["structural_changes"] == [
         "New package: packages/new/package.json",
         "New package: crates/tool/Cargo.toml",
@@ -437,4 +580,3 @@ async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands
         # A test is not a command, though a command may have "test" in its name.
         "New command: src/tool/commands/latest.py",
     ]
-

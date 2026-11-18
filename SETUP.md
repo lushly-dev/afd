@@ -33,8 +33,10 @@ On Windows 11, use the tools above and run repository commands from Git Bash. Th
 - **Python.** `python3` and `python` may be the Microsoft Store stubs (App execution aliases), which exit 9009. Native release tooling needs Python 3.11 or newer: it uses `PYTHON` when set, otherwise the first compatible interpreter among `python3`, `python` and `py -3`. Tools that call `python3` directly still need a real Python first on `PATH` (`uv python install`, then `~/.local/bin` first), or the aliases turned off in Settings → Apps → Advanced app settings.
 - **C and C++.** Visual Studio 2022 Build Tools with the C++ workload (MSVC), CMake, and NASM, which `aws-lc-sys` needs to build `packages/rust` (`winget install NASM.NASM`, then put `%LOCALAPPDATA%\bin\NASM` on `PATH`). OpenSSL from `winget install ShiningLight.OpenSSL.Light` (`C:\Program Files\OpenSSL-Win64\bin`).
 - **Rust.** `rustup` with the `wasm32-wasip2` target, which Umbel's `rust-toolchain.toml` names. Run Cargo from the crate's directory to select its pinned toolchain; `--manifest-path` alone does not select a nested rustup override.
+- **Cargo jobs.** Cargo runs one job per logical core. On a 32-thread machine, Umbel's debug test links then exhaust Windows' commit limit (RAM plus page file). This fails with `LNK1102: out of memory` or `paging file is too small (os error 1455)`, after hours of swapping. Set `CARGO_BUILD_JOBS=8` in your user environment; Umbel's workspace tests then take about 30 minutes. Clearing `target` also removes the `wasm32-wasip2` fixtures the component tests load; `pnpm verify` rebuilds them first.
 - **Loam profiles.** Windows PowerShell provisions new and profile-owned directories with private ACLs for the current account, SYSTEM and Administrators before files are written. Existing data-directory ACLs are checked; the host reports `HOST_SECRET_PERMISSIONS` when access cannot be verified. Use a dedicated data directory.
 - **Botcore HTTP tokens.** Use a dedicated private directory for `--store`. Botcore creates private files and coordinates operator commands with native Windows locks; unsafe existing permissions are refused. See [the token-store rules](endpoints/botcore/docs/host-composition.md#serving-hosts-over-http).
+- **A shared `%TEMP%`.** Some tools grant another group read access to your profile, and so to `%TEMP%`; Codex's sandbox adds `CodexSandboxUsers`. Umbel's `acls_follow_the_files_secrecy` test then fails, because the files it makes there are not private. Point `TMP` and `TEMP` at a folder only you, SYSTEM and Administrators can read, for example `mkdir "$LOCALAPPDATA/afd-private-tmp" && icacls "$(cygpath -w "$LOCALAPPDATA/afd-private-tmp")" /inheritance:r /grant:r "${USERNAME}:(OI)(CI)F" SYSTEM:"(OI)(CI)F" Administrators:"(OI)(CI)F"`. Loam's host tests make their own private folder ([#1483](https://github.com/lushly-dev/afd/pull/1483)) and need no change.
 - **Ownership.** Git refuses a checkout another account owns ("detected dubious ownership"), as on a drive or folder created by an administrator, and so does every script that runs `git`. Prefer taking ownership of the folder; for one command, `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=<path>` trusts it without editing your configuration.
 - **A fresh worktree** needs `pnpm install --frozen-lockfile` and `pnpm build` before the first commit: the hooks neither install nor build, and packages import each other's `dist`.
 
@@ -149,7 +151,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 |------|----------|--------|
 | pre-commit | Biome lint and fix (staged), portability, file-size, typecheck of the staged files' packages and their dependents | `git commit` |
 | commit-msg | commitlint (conventional commits) | `git commit` |
-| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, test-configs, boundaries, skills, tooling tests | `git push` |
+| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, test-configs, test-quarantine, boundaries, skills, tooling tests | `git push` |
 | check | All pre-push + build of the affected packages | `pnpm check` |
 
 **Check scripts** (`scripts/`):
@@ -160,7 +162,14 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes) and package managers started without a shell, which fail on Windows. Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
+
+The `maintain-gates` skill (Botcore's `gate-discipline`, `.claude/skills/maintain-gates/scripts/`) carries two more checks and a report, shared with every repository that seeds it:
+
+| Script | What it checks |
+|--------|---------------|
 | `check-test-configs.mjs` | No Vitest or Vite config sets `passWithNoTests`, and no `package.json` script, workflow, `lefthook.yml` or `scripts/affected` module passes `--passWithNoTests`: a runner that finds no test file must fail, not pass. A new package adds its first test with its config |
+| `check-test-quarantine.mjs` | No `.only` in any JavaScript or TypeScript test, and each unconditional `.skip`, `.todo` or Playwright `.fixme` registered with an owner, reason and issue in `scripts/policy/test-quarantine.json`; an entry whose test recovered fails. Conditional skips (`skipIf`, `runIf`, Playwright's `test.skip(condition, reason)`) need no entry |
+| `report-test-changes.mjs` | Not a gate: lists the tests, assertions, snapshots and runner configs a branch deleted, skipped, changed or loosened against its merge base with `origin/main`, for the reviewer and the pull request (`prepare-pr`). Always exits 0 |
 
 Skip hooks: `git commit --no-verify` / `git push --no-verify`
 

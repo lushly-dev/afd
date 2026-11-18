@@ -20,8 +20,8 @@ use std::time::{Duration, Instant};
 
 use loam_mail::home::Home;
 use loam_mail::store::{
-    HeaderSeen, KINDS_SHOWN, MailboxId, MailboxSeen, MessageId, PartSeen, Place, Role, Store,
-    StoryMessages, ThreadId,
+    Class, HeaderSeen, KINDS_SHOWN, MailboxId, MailboxSeen, MessageId, PartSeen, Place, Proposer,
+    Role, Selected, SelectionQuery, Store, StoryMessages, ThreadId,
 };
 use serde_json::json;
 
@@ -32,6 +32,10 @@ const OPEN_P95_MS: f64 = 50.0;
 const IMPORT_PER_SECOND: f64 = 500.0;
 const DERIVED_RATIO: f64 = 3.0;
 const DIRECTORY_RATIO: f64 = 1.5;
+
+/// How long a call to a running server may take (the specification's 3.2):
+/// what a selection must be made within.
+const CALL_MS: f64 = 60_000.0;
 
 /// The largest attachment the harness makes. The census found larger ones;
 /// they would add bytes to the log and nothing to the tables.
@@ -681,6 +685,65 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
         sorted_ms(story_kind_ms),
     );
 
+    // Selections (step D1): the large mailbox frozen whole, as emptying it
+    // would; the whole account and the whole of the bulk class, the largest
+    // sets there are; the largest story; and every match of the commonest
+    // word. Each is made within one call.
+    let creator = Proposer {
+        kind: "agent".to_string(),
+        id: Some("measure".to_string()),
+    };
+    let mut selections = serde_json::Map::new();
+    let mut slowest_selection_ms = 0f64;
+    for (name, query) in [
+        (
+            "large_mailbox",
+            SelectionQuery {
+                mailbox: Some(mailboxes[0]),
+                ..SelectionQuery::default()
+            },
+        ),
+        (
+            "whole_account",
+            SelectionQuery {
+                account: Some(account),
+                ..SelectionQuery::default()
+            },
+        ),
+        (
+            "bulk_class",
+            SelectionQuery {
+                class: Some(Class::Bulk),
+                ..SelectionQuery::default()
+            },
+        ),
+        (
+            "largest_story",
+            SelectionQuery {
+                story: largest.as_ref().map(|story| story.id),
+                ..SelectionQuery::default()
+            },
+        ),
+        (
+            "commonest_word",
+            SelectionQuery {
+                text: Some(word(0)),
+                ..SelectionQuery::default()
+            },
+        ),
+    ] {
+        let started = Instant::now();
+        let Selected::Made(row) = store.select(&query, "{}", &creator, now).unwrap() else {
+            panic!("the measurement holds few selections");
+        };
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        slowest_selection_ms = slowest_selection_ms.max(ms);
+        selections.insert(
+            name.to_string(),
+            json!({ "ms": round(ms), "messages": row.messages, "threads": row.threads }),
+        );
+    }
+
     let derived_ratio = (database_bytes + index_bytes) as f64 / text_bytes.max(1) as f64;
     let directory_ratio = directory_on_disk as f64 / held_bytes.max(1) as f64;
     let directory_length_ratio = directory_length as f64 / held_bytes.max(1) as f64;
@@ -728,6 +791,7 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
             "open_largest_ms": times(&story_open_ms),
             "page_of_a_kind_ms": times(&story_kind_ms),
         },
+        "selections": selections,
         "checks": { "threads_listed": listed, "queries": 300, "queries_with_hits": queries_with_hits,
                     "hits": hits, "opened_with_text": opened_with_text },
         "derived_ratio": round(derived_ratio),
@@ -740,6 +804,7 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
             "import_per_second": { "limit": IMPORT_PER_SECOND, "met": import_rate >= IMPORT_PER_SECOND },
             "derived_ratio": { "limit": DERIVED_RATIO, "met": derived_ratio <= DERIVED_RATIO },
             "directory_ratio": { "limit": DIRECTORY_RATIO, "met": directory_ratio <= DIRECTORY_RATIO },
+            "selection_ms": { "limit": CALL_MS, "met": slowest_selection_ms <= CALL_MS },
         },
     })
 }
@@ -778,6 +843,21 @@ fn the_measurement_runs_at_a_small_size() {
         "{result}"
     );
     assert!(result["bytes"]["index"].as_u64().unwrap() > 0);
+    for selection in [
+        "large_mailbox",
+        "whole_account",
+        "bulk_class",
+        "largest_story",
+        "commonest_word",
+    ] {
+        assert!(
+            result["selections"][selection]["messages"]
+                .as_u64()
+                .unwrap()
+                > 0,
+            "{selection}: {result}"
+        );
+    }
 }
 
 #[test]

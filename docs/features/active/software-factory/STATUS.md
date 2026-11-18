@@ -5,6 +5,113 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Cells start only on a Claude plan, 2026-11-18
+
+AFD's model routing of 2026-11-17 puts every cell on Opus 5.5 `medium` and spends the ChatGPT
+allowance on review, but the lane chose among every plan, so a roomier ChatGPT plan won and the
+fleet could not start cells ([#1498](https://github.com/lushly-dev/afd/issues/1498)). The
+`cells.claudeOnly` dial, on by default, limits `cell-register`, `lane-status` and `plan-list`'s
+`next` to Claude's plans. With none signed in, `cell-register` refuses `NO_CLAUDE_PLAN`,
+`lane-status` gives `canStartCell: false` with that reason, and `plan-list` lists the plans with
+`next: null`. An empty plan list is `PLANS_UNREADABLE` from every reader. Claude's
+`seven_day_fable` window is no longer read as a plan, since only Fable draws on it. The scenario
+fixtures' two plans are now both Claude's, one per Mac. Not yet seen in a fleet run.
+
+## Squash merges credit no co-author, 2026-11-18
+
+[#1515](https://github.com/lushly-dev/afd/issues/1515): about half of the recent squashes on `main`
+carried a `Co-authored-by:` line, many for `botcore-factory`, the identity a cell's base merges are
+committed under. GitHub's default squash message adds one for every commit author whose address
+isn't the merging account's. Every squash the plugin makes now passes the branch's own messages as
+the body: the lane's `gh pr merge`, and the gateway's merge and pinned auto-merge. Merge commits and
+`Co-authored-by:` lines are left out, and each commit keeps its `Assisted-by:` trailer
+(`botcore_factory/squash.py`). Fixed by hand, since it changes how the lane merges. It hasn't been
+seen in a fleet run yet. A session's own merges follow `prepare-pr` step 9 (#1517).
+
+## A cell can take a package of related issues, 2026-11-18
+
+`cell-register` takes more than one issue when the foreman names the package: up to
+`cells.issuesMax` dispatchable issues, with `related_because` saying what they share. The cell and
+its `cell-registered` record keep that reason as `relatedBecause`, and `lane-status` shows it. A
+claim write that fails partway now puts back the claims it wrote. Before this, any second issue
+was refused as unrelated whatever the dial said, because `issue-check` never computes `related`;
+it still does not, and suggesting packages from it is later work (lushly-dev/afd#1431).
+
+## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
+
+The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by
+[#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions, in
+[#1502](https://github.com/lushly-dev/afd/pull/1502). Not yet seen in a fleet run.
+
+- **`lane-start` checks the Node validation uses.** `TOOLCHAIN_MISMATCH` read `engines.node` and
+  `pnpm` from the host's default `PATH`. It now resolves the `.nvmrc` Node as validation does and
+  reads both with that Node's bin directory first on `PATH`, so `pnpm` is the one beside that Node
+  when there is one, else the host's. `lane-host-probe` names a missing `.nvmrc` Node in `missing`.
+- **nvm-windows is searched** (`NVM_HOME`, the directory `NVM_SYMLINK` points into, and
+  `%APPDATA%\nvm`, each version in `v<version>\`), after the fnm and nvm roots.
+- **A branch's own `.nvmrc` bump ejects only that branch.** When the merged slot's `.nvmrc` names a
+  Node the host lacks (or an alias) and the branch changed `.nvmrc` against the base, it is ejected
+  as `node-missing` (counted; its detail starts `NODE_MISSING`: keep the base's `.nvmrc`, or have the
+  owner install that Node on the lane host). The base's own `.nvmrc` missing its Node still pauses
+  the lane, as do coverage runs. The run-fleet runbook says how the foreman answers it.
+
+## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
+
+Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane
+that would merge them, in [#1470](https://github.com/lushly-dev/afd/pull/1470). None is yet seen
+in a fleet run.
+
+- **Only a branch's own failures count toward `cells.maxEjections`.** #499 and #503 were released at
+  the limit after ejections their own changes did not cause (#503: three `conflict`s, two in
+  provenance records alone; #499: `final-failed`, `conflict`, `ci-failed`). A `conflict` and the
+  push, PR and merge plumbing (`push-failed`, `pr-failed`, `merge-failed`) now eject without
+  counting (the record's `counted` is false, with its `excuse`). The foreman's new `ejection-excuse
+  {branch, reason}` stops the latest ejection counting when a diagnosis finds a known flake (such as
+  #1408), records `ejection-excused`, and answers an open `ejection-limit` once under it.
+  `lane-status` shows `excused` and `countedEjections`; `lane-report` counts `ejections` and
+  `excusedEjections`. Records `SCHEMA` is 3.
+- **Gate files past the rerun limit.** #1391's guard refused to let the PR's `ci-ok` stand in when
+  main's move touched any `gate_paths`. Past `lane.maxBaseReruns`, it now refuses only main's
+  changes to the adapter's new `revalidate_paths` (AFD: `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+  `package.json`, `.npmrc`, `.nvmrc`, `Cargo.lock`, `uv.lock`, `rust-toolchain.toml`, `.cargo/`),
+  since `ci-ok` runs on the merge ref with main's own workflows and gates. A lockfile change on
+  main, which the guard let through before as a `shared_paths` entry that is no gate path, now
+  validates again too. The watch on `main_checks` after the merge is unchanged.
+- **Plan pacing (the owner's rule).** The lane assigned the plan with the most room (elapsed minus
+  used). It now assigns the highest pace: room below `plans.ceiling` over the days to the plan's
+  reset (a plan without `resetsAt` reads it from its share elapsed of a seven-day window), so every
+  plan tracks to its ceiling around its own reset. `plan-list` shows `left` (room below the
+  ceiling), `pace`, `daysToReset` and `next`; `lane-status`'s `plan` carries its `pace`. The ceiling
+  and its refusals stand.
+- **[#1452](https://github.com/lushly-dev/afd/issues/1452): a finished validation is kept when its
+  slot goes to the front.** #503's passed validation was discarded (`rerun`, `slot-needed`) so #506
+  could validate. The validated branch now keeps state `validated` and its base; its checkout moves
+  aside (`git worktree move` to `<checkout>.factory-slots/kept-<branch>-<hash>`), keeping the git
+  directory where `pnpm verify`'s record lives, so the real pre-push decision still accepts its push
+  (tested against `scripts/pre-push.mjs`). The base checks at the front decide whether it runs
+  again. A `slot-released` record names it; the kept checkout is removed once no validated entry
+  needs it: renamed aside at once and removed by `git worktree remove --force` in a detached
+  process, which unregisters only that checkout (never `git worktree prune`). The slot checks out
+  afresh, so the front branch's validation installs from nothing. A checkout that cannot move falls
+  back to the old `slot-needed` rerun.
+
+## Provenance conflicts, one foreman, and the lane's own review check, 2026-11-17
+
+[#1410](https://github.com/lushly-dev/afd/issues/1410): three of round 2's ejections were merge
+conflicts in provenance records alone. When a merge of `main` conflicts only in files the
+adapter's new `regenerate` entries name, the lane now runs the entry's command in the slot while
+the merge is open and commits it. AFD's runs `scripts/provenance-merge.mjs`, which merges each
+unit's records three ways and recomputes the manifest hashes; a value both sides changed
+differently still ejects as `conflict`.
+[#1432](https://github.com/lushly-dev/afd/issues/1432): a second foreman took a seat on the same
+lane. The foreman now names its session on `cell-register`, `lane-wait` and `dial-set`, which
+takes a lease (`foreman.leaseMinutes`, 30); another session is refused `FOREMAN_BUSY`, and
+`foreman-handoff` frees the lane.
+[#1308](https://github.com/lushly-dev/afd/issues/1308) (#1444): the lane checks each review
+itself with `main`'s verifier before validating, ejecting as `review-unverified`. Fixed by hand,
+not by a cell, since the changes are to the lane that would merge them. Not yet seen in a fleet
+run.
+
 ## Repairs, ejection details and the units checkout, 2026-11-17
 
 Three faults the second fleet (run-3) found. [#1374](https://github.com/lushly-dev/afd/issues/1374):

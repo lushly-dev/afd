@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from botcore_factory.fixture_world import FIXTURE_LANE_PID
-from botcore_factory.lane_process import host_lock, pins, run_loop
+from botcore_factory.lane_process import host_lock, pins, run_loop, toolchain_mismatches
 
 
 def lock_of(run):
@@ -104,6 +104,72 @@ async def test_lane_start_refuses_an_nvmrc_alias_it_cannot_resolve(
     result = await run.call("lane_start", run.host(target=target))
     assert result.error.code == "NODE_UNPINNED"
     assert "version number" in result.error.suggestion
+
+
+# #1352: lane-start reads the pins on the .nvmrc Node, as validation runs, not the host's PATH.
+
+NODE_26 = "/fnm/v26.13.0/bin"
+
+
+def _pinned_target_with_nvmrc(tmp_path, example_repo):
+    target = _target_with_nvmrc(tmp_path, example_repo, "26")
+    (target / "package.json").write_text(
+        json.dumps({"packageManager": "pnpm@10.30.1", "engines": {"node": ">=26.0.0"}})
+    )
+    return target
+
+
+async def test_lane_start_reads_the_pins_on_the_nvmrc_node_not_the_host_s_path(
+    make_run, tmp_path, example_repo
+):
+    target = _pinned_target_with_nvmrc(tmp_path, example_repo)
+    run = make_run(
+        laneHost="workstation",
+        toolchains={"node": "24.21.0", "pnpm": "9.15.0"},  # The host's default PATH.
+        nodes={"26": NODE_26},
+        nodeToolchains={NODE_26: {"node": "26.13.0", "pnpm": "10.30.1"}},
+    )
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.data["running"] is True
+
+
+async def test_lane_start_refuses_a_pnpm_off_its_pin_on_the_nvmrc_node(
+    make_run, tmp_path, example_repo
+):
+    target = _pinned_target_with_nvmrc(tmp_path, example_repo)
+    run = make_run(
+        laneHost="workstation",
+        toolchains={"node": "26.13.0", "pnpm": "10.30.1"},  # Right, but not where jobs look.
+        nodes={"26": NODE_26},
+        nodeToolchains={NODE_26: {"node": "26.13.0", "pnpm": "10.29.0"}},
+    )
+    before = run.snapshot()
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.error.code == "TOOLCHAIN_MISMATCH"
+    assert result.error.details["mismatches"] == ["pnpm ==10.30.1 (have 10.29.0)"]
+    assert "for Node 26" in result.error.suggestion
+    assert run.snapshot() == before
+
+
+def test_a_pnpm_outside_the_node_s_bin_is_the_one_on_the_host_s_path(
+    make_run, tmp_path, example_repo
+):
+    target = _pinned_target_with_nvmrc(tmp_path, example_repo)
+    run = make_run(
+        toolchains={"node": "24.21.0", "pnpm": "9.15.0"},
+        nodes={"26": NODE_26},
+        nodeToolchains={NODE_26: {"node": "26.13.0"}},  # No pnpm beside this Node.
+    )
+    assert toolchain_mismatches(run.factory(target)) == ["pnpm ==10.30.1 (have 9.15.0)"]
+
+
+async def test_a_host_probe_names_the_missing_nvmrc_node_and_not_the_default_node(
+    make_run, tmp_path, example_repo
+):
+    target = _pinned_target_with_nvmrc(tmp_path, example_repo)
+    run = make_run(toolchains={"node": "24.21.0", "pnpm": "10.30.1"})
+    record = (await run.call("lane_host_probe", run.host(target=target))).data["record"]
+    assert record["missing"] == ["node 26 from .nvmrc (not installed)"]
 
 
 def test_run_loop_refuses_when_the_nvmrc_node_is_not_installed(make_run, tmp_path, example_repo):

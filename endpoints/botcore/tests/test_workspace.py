@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from botcore.config import BotCoreConfig, LanguageConfig, PackageOverrideConfig
-from botcore.utils.workspace import resolve_language
+from botcore.utils.workspace import display_path, resolve_language, resolve_path
 
 
 def _make_config(**kwargs) -> BotCoreConfig:
@@ -106,3 +106,32 @@ def test_resolve_language_none(tmp_path: Path) -> None:
     config = _make_config()
     result = resolve_language(None, config, tmp_path)
     assert result is None
+
+
+# ── resolve_path / display_path (#1355) ──────────────────────────────────
+
+
+def test_resolve_path_relative_uses_workspace(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    ws = tmp_path / "ws"
+    assert resolve_path("src/pkg", ws) == (ws / "src" / "pkg").resolve()
+
+
+def test_resolve_path_without_workspace_uses_cwd(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert resolve_path("src", None) == (tmp_path / "src").resolve()
+
+
+def test_resolve_path_absolute_and_default(tmp_path) -> None:
+    ws = tmp_path / "ws"
+    assert resolve_path(str(tmp_path / "other"), ws) == (tmp_path / "other").resolve()
+    assert resolve_path(None, ws) == (ws / "src").resolve()
+    assert resolve_path(None, ws, "docs") == (ws / "docs").resolve()
+
+
+def test_display_path_inside_and_outside_workspace(tmp_path) -> None:
+    ws = tmp_path / "ws"
+    assert display_path((ws / "src" / "a.py").resolve(), ws) == str(Path("src/a.py"))
+    outside = (tmp_path / "other" / "b.py").resolve()
+    assert display_path(outside, ws) == str(outside)
+    assert display_path(outside, None) == str(outside)

@@ -55,7 +55,7 @@
 	"plans": [
 		{
 			"id": "plan-a",
-			"provider": "openai",
+			"provider": "anthropic",
 			"used": 10,
 			"elapsed": 80,
 			"resetsAt": "2030-01-08T00:00:00Z"

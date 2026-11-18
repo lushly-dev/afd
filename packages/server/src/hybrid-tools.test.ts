@@ -398,11 +398,44 @@ describe('the hybrid list (H3, H4, H6)', () => {
 		expect(defaulted.ttlMs).toBe(300_000);
 		const set = await modernList(await serve(optionsFor({ ...config, toolsListTtlMs: 0 })));
 		expect(set.ttlMs).toBe(0);
-		// Contexts still make the other strategies' lists stale by default.
+		// Contexts still make the individual and grouped lists stale by default; lazy, which does
+		// not vary by context either, keeps the default.
+		const grouped = await modernList(
+			await serve(optionsFor({ ...config, toolStrategy: 'grouped', firstClassTools: undefined }))
+		);
+		expect(grouped.ttlMs).toBe(0);
 		const lazy = await modernList(
 			await serve(optionsFor({ ...config, toolStrategy: 'lazy', firstClassTools: undefined }))
 		);
-		expect(lazy.ttlMs).toBe(0);
+		expect(lazy.ttlMs).toBe(300_000);
+	});
+
+	it('lists the lazy strategy as the hybrid list with no first-class tools (#533)', async () => {
+		const base = await serve(
+			optionsFor({ ...config, toolStrategy: 'lazy', firstClassTools: undefined })
+		);
+		const names = async (context: string | null) =>
+			(await modernList(base, context)).tools.map((tool) => tool.name);
+		const expected = [
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
+			'afd-batch',
+			'afd-pipe',
+			'afd-context-list',
+			'afd-context-enter',
+			'afd-context-exit',
+		];
+		// The same in every context, and no bootstrap tools although they are registered.
+		expect(await names(null)).toEqual(expected);
+		for (const context of spec.contexts.map((entry: { name: string }) => entry.name)) {
+			expect(await names(context)).toEqual(expected);
+		}
+		// Without contexts, the meta-tools alone.
+		const plain = await serve(
+			optionsFor({ ...config, toolStrategy: 'lazy', firstClassTools: undefined, contexts: false })
+		);
+		expect((await modernList(plain)).tools.map((tool) => tool.name)).toEqual(expected.slice(0, 5));
 	});
 
 	it('advertises the hybrid instructions on server/discover', async () => {

@@ -140,6 +140,8 @@ class MergeOutcome:
     clean: bool
     head: str = ""
     conflicts: tuple[str, ...] = ()
+    #: The conflicts are left for the lane to regenerate: the merge is still in progress.
+    open: bool = False
 
 
 @dataclass(frozen=True)
@@ -286,9 +288,32 @@ class Git(Protocol):
         """
         ...
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
+    def park_slot(self, slot: str, name: str) -> str:
+        """Move the checkout of ``slot`` to the lane checkout ``name``, keeping its git
+        directory (a validation record lives there), and return the new path. The slot's own
+        path is then free: the next ``prepare_slot`` checks it out afresh."""
+        ...
+
+    def remove_checkout(self, path: str) -> None:
+        """Forget the lane checkout at ``path`` (one ``park_slot`` made); absent is done."""
+        ...
+
+    def merge_main(
+        self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
+    ) -> MergeOutcome:
         """Merge ``main`` into the slot's head. A conflict is aborted and reported, never
-        resolved; a merge that failed otherwise raises WorldError (never reported clean)."""
+        resolved, unless ``keep_open`` accepts its paths: then the merge stays in progress
+        (``open``) for ``finish_merge`` or ``abort_merge``. A merge that failed otherwise raises
+        WorldError (never reported clean)."""
+        ...
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        """Commit the open merge once nothing is unmerged; with paths still unmerged, abort it
+        and report them."""
+        ...
+
+    def abort_merge(self, path: str) -> None:
+        """Abort the open merge, if any."""
         ...
 
     def tree(self, path: str) -> str: ...
@@ -347,14 +372,16 @@ class Machine(Protocol):
         """Whether this user can create symlinks (Windows needs Developer Mode)."""
         ...
 
-    def tool_version(self, tool: str) -> str | None:
-        """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing."""
+    def tool_version(self, tool: str, path: Sequence[str] = ()) -> str | None:
+        """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing.
+        ``path`` (directories) is searched before ``PATH`` and put first on the ``PATH`` the
+        tool runs with, as a lane job step's is: the ``.nvmrc`` Node's bin directory."""
         ...
 
     def node_bin(self, spec: str) -> str | None:
-        """The directory holding the ``node`` a version manager (fnm, nvm) installed for
-        ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest match), or None
-        when no installed Node matches it."""
+        """The directory holding the ``node`` a version manager (fnm, nvm, nvm-windows)
+        installed for ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest
+        match), or None when no installed Node matches it."""
         ...
 
 

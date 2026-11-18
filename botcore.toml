@@ -21,14 +21,16 @@ check_agents = true
 # Must equal listingBudget in skills/exports.json; pnpm check:skills compares them.
 # Standing rule (owner, 2026-11-12): a PR that still needs more raises both to the
 # listing total rounded up to the next 100, up to 8,000; above that, ask the owner.
-listing_budget = 6600
+listing_budget = 6800
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
+    "bloat-sweeper",
     "botcore-config",
     "browser-automation",
     "code-reviewer",
     "docs-manager",
+    "gate-discipline",
     "mcp-builder",
     "plugin-builder",
     "security-auditor",
@@ -82,8 +84,12 @@ install = ["pnpm", "install", "--frozen-lockfile"]
 validate = ["pnpm", "verify"]
 coverage = ["pnpm", "check:all"]
 # prepare-pr's lane mode records the review of the exact head in the worktree's git directory;
-# lane-enqueue accepts only a passing review of that commit (scripts/review-record.mjs).
-review_evidence = ["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
+# lane-enqueue accepts only a passing review of that commit (scripts/review-record.mjs). The lane
+# runs this again from its own checkout of main before each validation, and that run binds: a
+# change here or to the script takes effect once it is on main and the lane restarts.
+review_evidence = [
+    "node", "scripts/review-record.mjs", "verify", "--head", "{head}", "--worktree", "{worktree}",
+]
 required_check = "ci-ok"
 # When main moves under a validated branch, the lane advances it without validating it again only
 # if main's changes touch none of shared_paths or gate_paths, merge cleanly, and share no unit with
@@ -110,6 +116,21 @@ shared_paths = [
     "**/uv.lock",
     "**/Cargo.lock",
     ".cargo/**",
+]
+# Past lane.maxBaseReruns, a move of main that merges cleanly lets the PR's ci-ok stand in for a
+# new local validation, since ci-ok runs on the merge ref with main's own workflows and gates;
+# main changing one of these still means validating again: lockfiles, dependency manifests and
+# toolchain pins, whose effect only the full local install and verify show.
+revalidate_paths = [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "package.json",
+    ".npmrc",
+    ".nvmrc",
+    "**/Cargo.lock",
+    "**/uv.lock",
+    "**/rust-toolchain.toml",
+    "**/.cargo/**",
 ]
 # ci-ok runs on pull requests only: after a merge that was not validated again, main is red when a
 # check run on its merge commit fails, apart from publishing and deploying.
@@ -138,12 +159,32 @@ gate_paths = [
     ".github/workflows/**",
     ".github/labels.json",
     "scripts/check-*.mjs",
+    "scripts/policy/**",
+    "scripts/gate-discipline.test.mjs",
+    ".claude/skills/maintain-gates/scripts/**",
+    "endpoints/botcore/src/botcore/skills/gate-discipline/scripts/**",
     "scripts/issue-labels.mjs",
     "scripts/affected*",
     "scripts/pre-push.mjs",
     "scripts/verify-record.mjs",
     "scripts/review-record.mjs",
+    "scripts/provenance-merge.mjs",
     "biome.json",
     "package.json",
     "botcore.toml",
 ]
+
+# Two branches that each edit an imported unit both change its provenance records, so their merge
+# conflicts in the records alone. The lane merges them three ways instead of ejecting the branch;
+# a row or value both sides changed differently still ejects (lushly-dev/afd#1410). Health's records
+# keep their rows in provenance.json, which the script does not merge, so they are not listed.
+[[plugins.factory.regenerate]]
+name = "provenance"
+paths = [
+    "foundations/fast-af/provenance/*.json",
+    "foundations/specimen/provenance/*.json",
+    "foundations/violet/provenance/*.json",
+    "endpoints/botcore/provenance/*.json",
+    "endpoints/botcore/src/botcore/provenance/*.json",
+]
+run = ["node", "scripts/provenance-merge.mjs"]

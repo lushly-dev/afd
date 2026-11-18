@@ -256,8 +256,11 @@ class FixtureGit:
         return "origin" not in self.store.this_machine().get("missing", [])
 
     def read_file(self, worktree: str, path: str) -> str | None:
-        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``.
-            return self.store.data.get("slotFiles", {}).get(path)
+        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``; a
+            # branch's own (``branchSlotFiles.<branch>``) take their place in its slot.
+            branch = self._slots().get(worktree.removeprefix("slots/"), {}).get("branch")
+            own = self.store.data.get("branchSlotFiles", {}).get(branch, {})
+            return own.get(path, self.store.data.get("slotFiles", {}).get(path))
         return self._worktree(worktree).get("files", {}).get(path)
 
     def fetch_base(self, base: str) -> str:
@@ -276,18 +279,54 @@ class FixtureGit:
     def _slot(self, path: str) -> dict:
         return self._slots()[path.removeprefix("slots/")]
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
+    def park_slot(self, slot: str, name: str) -> str:
+        """``outcomes.park``: ``fail: ...`` refuses the move."""
+        _fail(self.store, "park", self._slots().get(slot, {}).get("branch"))
+        self._slots()[name] = self._slots().pop(slot)
+        self.store.save()
+        return f"slots/{name}"
+
+    def remove_checkout(self, path: str) -> None:
+        """Removed checkouts are listed in ``removedCheckouts``; ``outcomes.remove`` fails it."""
+        _fail(self.store, "remove")
+        self._slots().pop(path.removeprefix("slots/"), None)
+        self.store.data.setdefault("removedCheckouts", []).append(path)
+        self.store.save()
+
+    def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")
         if result.startswith("conflict"):
             files = result.split(":", 1)[1] if ":" in result else ""
             names = tuple(name.strip() for name in files.split(",") if name.strip())
+            if keep_open is not None and keep_open(names):
+                slot["merging"] = main
+                self.store.save()
+                return MergeOutcome(False, conflicts=names, open=True)
             return MergeOutcome(False, conflicts=names)
         if result.startswith("fail"):
             raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge did not happen")
         slot["head"] = f"{slot['head']}+{main}"
         self.store.save()
         return MergeOutcome(True, head=slot["head"])
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        """``outcomes.finish[branch]``: ``clean`` (the default) commits the open merge, or
+        ``conflict: a, b`` names paths still unmerged."""
+        slot = self._slot(path)
+        main = slot.pop("merging")
+        result = _outcome(self.store, "finish", slot["branch"], "clean")
+        if result.startswith("conflict"):
+            files = result.split(":", 1)[1] if ":" in result else ""
+            self.store.save()
+            return MergeOutcome(False, conflicts=tuple(f.strip() for f in files.split(",") if f))
+        slot["head"] = f"{slot['head']}+{main}"
+        self.store.save()
+        return MergeOutcome(True, head=slot["head"])
+
+    def abort_merge(self, path: str) -> None:
+        self._slot(path).pop("merging", None)
+        self.store.save()
 
     def tree(self, path: str) -> str:
         return f"tree-{self._slot(path)['head']}"
@@ -368,7 +407,13 @@ class FixtureMachine:
     def symlinks(self) -> bool:
         return "symlinks" not in self.store.this_machine().get("missing", [])
 
-    def tool_version(self, tool: str) -> str | None:
+    def tool_version(self, tool: str, path: Sequence[str] = ()) -> str | None:
+        """``nodeToolchains.<bin>.<tool>`` for the first directory of ``path`` that has the
+        tool, else ``toolchains.<tool>`` (the host's PATH)."""
+        on_path = self.store.data.get("nodeToolchains", {})
+        for directory in path:
+            if tool in on_path.get(directory, {}):
+                return on_path[directory][tool]
         return self.store.data.get("toolchains", {}).get(tool)
 
     def node_bin(self, spec: str) -> str | None:
@@ -486,7 +531,30 @@ class FixtureProcesses:
     ) -> Completed:
         if label == "units":
             return _units_run(self.store, tuple(args))
-        worktree = self.store.data.get("worktrees", {}).get(cwd)
+        if label and label.startswith("regenerate:"):
+            # ``outcomes.regenerate[name]``: ``pass`` (the default), ``fail: why`` (exits 1) or
+            # ``error: why`` (cannot run).
+            name = label.split(":", 1)[1]
+            result = _outcome(self.store, "regenerate", name, "pass")
+            if result.startswith("error"):
+                raise WorldError(result.removeprefix("error").lstrip(": ") or "cannot run")
+            if result.startswith("fail"):
+                return Completed(tuple(args), 1, "", result.removeprefix("fail").lstrip(": "))
+            return Completed(tuple(args), 0, "regenerated", "")
+        worktrees = self.store.data.get("worktrees", {})
+        worktree = worktrees.get(cwd)
+        if worktree is None and label == "review-evidence":
+            # The lane's own run, from its review slot: the worktree is named in the arguments,
+            # and ``outcomes.review`` scripts a verifier that cannot run (``fail: ...``) or one
+            # that exits with another code (``exit N``).
+            scripted = _outcome(self.store, "review", None, "ok")
+            if scripted.startswith("exit "):
+                return Completed(tuple(args), int(scripted.split()[1]), "", scripted)
+            _fail(self.store, "review")
+            named = [worktrees[arg] for arg in args if arg in worktrees]
+            if not named:
+                return Completed(tuple(args), 3, "", "review-record: no such worktree")
+            worktree = named[0]
         if worktree is not None and label:
             return _worktree_run(tuple(args), worktree, label)
         commands = self.store.data.get("processes", {}).get("results", {})
@@ -536,8 +604,10 @@ def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Complete
     """Answer a labelled run in a fixture worktree: its review record or a prequeue stage."""
     if label == "review-evidence":
         review = worktree.get("review")
-        reviewed = bool(review) and review.get("head") == worktree.get("head")
-        return Completed(args, 0 if reviewed else 1, "", "" if reviewed else "no review record")
+        asked = args[args.index("--head") + 1] if "--head" in args[:-1] else worktree.get("head")
+        reviewed = bool(review) and review.get("head") == worktree.get("head") == asked
+        # 3 is the verifier's refusal (``scripts/review-record.mjs``'s ``REFUSED``).
+        return Completed(args, 0 if reviewed else 3, "", "" if reviewed else "no review record")
     if label.startswith("prequeue:"):
         stage = label.split(":", 1)[1]
         results = worktree.get("prequeue", {})

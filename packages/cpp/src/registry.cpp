@@ -1,5 +1,6 @@
 #include "afd/registry.hpp"
 
+#include "afd/contexts.hpp"
 #include "afd/similarity.hpp"
 
 #include <algorithm>
@@ -37,33 +38,12 @@ bool is_accessible_in_context(const CommandDefinition& command,
            command.contexts.end();
 }
 
-// TypeScript's notFoundSuggestion. The unknown name is untrusted and never echoed. It names a
-// tool only where the host provides it (spec/error-codes.md, D4): C++ has no afd-discover, so it
-// points to afd-help when the caller can call one, as Rust does.
-std::string not_found_suggestion(std::string_view name,
-                                 const std::vector<std::string>& candidates) {
-    const bool has_help =
-        std::find(candidates.begin(), candidates.end(), "afd-help") != candidates.end();
-    const std::string list = has_help ? "Use afd-help to list all commands."
-                                      : "Check the command name against the available commands.";
-    const auto matches = find_similar_tools(name, candidates, max_not_found_matches);
-    if (matches.empty()) {
-        return list;
+// COMMAND_NOT_IN_CONTEXT's suggestion. It names the afd-context-* tools when the caller can call
+// them (contexts.hpp), and otherwise the contexts the command belongs to, as Rust does.
+std::string contexts_suggestion(const CommandDefinition& command, bool context_tools) {
+    if (context_tools) {
+        return "Use afd-context-list to see available contexts, or afd-context-enter to switch.";
     }
-    std::string also_close;
-    if (matches.size() > 1) {
-        also_close = " Other close matches: ";
-        for (std::size_t i = 1; i < matches.size(); ++i) {
-            also_close += (i > 1 ? ", '" : "'") + matches[i] + "'";
-        }
-        also_close += ".";
-    }
-    return "Did you mean '" + matches.front() + "'?" + also_close + " " + list;
-}
-
-// COMMAND_NOT_IN_CONTEXT's suggestion. C++ has no afd-context-* tools, so it names the contexts
-// the command belongs to; the host decides how the caller switches.
-std::string contexts_suggestion(const CommandDefinition& command) {
     std::string contexts;
     for (const auto& context : command.contexts) {
         contexts += (contexts.empty() ? "'" : ", '") + context + "'";
@@ -81,6 +61,32 @@ std::string issue_summary(const ValidationFailure& failure) {
 }
 
 } // namespace
+
+// TypeScript's notFoundSuggestion. The unknown name is untrusted and never echoed. It names a
+// tool only where the host provides it (spec/error-codes.md, D4): afd-discover for a remote call
+// (the MCP server serves it in every strategy), else afd-help when the caller can call one, as
+// Rust does.
+std::string not_found_suggestion(std::string_view name, const std::vector<std::string>& candidates,
+                                 bool remote) {
+    const bool has_help =
+        std::find(candidates.begin(), candidates.end(), "afd-help") != candidates.end();
+    const std::string list = remote     ? "Use afd-discover to list all commands."
+                             : has_help ? "Use afd-help to list all commands."
+                                        : "Check the command name against the available commands.";
+    const auto matches = find_similar_tools(name, candidates, max_not_found_matches);
+    if (matches.empty()) {
+        return list;
+    }
+    std::string also_close;
+    if (matches.size() > 1) {
+        also_close = " Other close matches: ";
+        for (std::size_t i = 1; i < matches.size(); ++i) {
+            also_close += (i > 1 ? ", '" : "'") + matches[i] + "'";
+        }
+        also_close += ".";
+    }
+    return "Did you mean '" + matches.front() + "'?" + also_close + " " + list;
+}
 
 CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std::move(options)) {
     if (!options_.clock) {
@@ -286,6 +292,11 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     context = with_context_defaults(
         std::move(context),
         {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
+    // A call with a context scope (contexts.hpp) runs in the scope's active context, so the two
+    // never disagree.
+    if (context.context_scope) {
+        context.active_context = context.context_scope->active();
+    }
     std::shared_ptr<const RegisteredCommand> command;
     std::vector<std::string> candidates;
     std::vector<std::string> exposed_names;
@@ -294,8 +305,13 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
         if (const auto it = commands_.find(name); it != commands_.end()) {
             command = it->second;
         }
-        const bool hidden = command && context.surface &&
-                            !is_exposed_to(command->definition.expose, *context.surface);
+        bool hidden = command && context.surface &&
+                      !is_exposed_to(command->definition.expose, *context.surface);
+        // A remote caller cannot tell an unexposed command from a missing one (D4).
+        if (hidden && context.remote) {
+            command.reset();
+            hidden = false;
+        }
         if (!command || hidden) {
             for (const auto& entry : order_) {
                 const auto& definition = entry->definition;
@@ -315,9 +331,9 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     // 1-2. Lookup and exposure. A command hidden from this surface is reported as not exposed,
     // and never offered as a suggestion.
     if (!command) {
-        return failure(create_error(error_codes::COMMAND_NOT_FOUND,
-                                    "Command '" + truncate_name(name) + "' not found",
-                                    {.suggestion = not_found_suggestion(name, candidates)}));
+        return failure(create_error(
+            error_codes::COMMAND_NOT_FOUND, "Command '" + truncate_name(name) + "' not found",
+            {.suggestion = not_found_suggestion(name, candidates, context.remote)}));
     }
     const auto& definition = command->definition;
     if (context.surface && !is_exposed_to(definition.expose, *context.surface)) {
@@ -338,11 +354,16 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 
     // 3. Context.
     if (!is_accessible_in_context(definition, context.active_context)) {
-        return failure(create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
-                                    "Command '" + definition.name +
-                                        "' is not available in context '" +
-                                        *context.active_context + "'",
-                                    {.suggestion = contexts_suggestion(definition)}));
+        // The afd-context-* tools, when this caller can call them (the lock is released above).
+        const auto context_list = get("afd-context-list");
+        const bool context_tools =
+            context_list &&
+            (!context.surface || is_exposed_to(context_list->definition.expose, *context.surface));
+        return failure(
+            create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
+                         "Command '" + definition.name + "' is not available in context '" +
+                             *context.active_context + "'",
+                         {.suggestion = contexts_suggestion(definition, context_tools)}));
     }
 
     // 4. Validation.

@@ -10,11 +10,16 @@ for ``gh`` and ``git`` without calling them.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
+from botcore_factory.squash import squash_body
 from botcore_factory.world import (
     Comment,
     HostRecord,
@@ -257,7 +262,26 @@ class GhGitHub:
         return "missing"
 
     def merge_pr(self, pr: int, head: str) -> None:
-        self.run(["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head])
+        """A squash bound to ``head``, with the branch's messages as its body (``squash_body``)."""
+        body = squash_body(self._commits(pr))
+        self.run(
+            ["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head]
+            + ["--body-file", "-"],
+            body,
+        )
+
+    def _commits(self, pr: int) -> list[dict]:
+        """A pull request's commits, which GitHub lists up to 250 of, 100 to a page."""
+        commits: list[dict] = []
+        path = f"repos/{self.repository()}/pulls/{pr}/commits"
+        for page in range(1, 4):
+            batch = parse_json(
+                self.run(["gh", "api", f"{path}?per_page=100&page={page}"]), "gh api commits"
+            )
+            commits += batch
+            if len(batch) < 100:
+                break
+        return commits
 
     def pr_state(self, pr: int) -> str:
         data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "state"]), "gh pr")
@@ -567,19 +591,75 @@ class CliGit:
         self.run(["git", "-C", path, "clean", "-fd", "--quiet"])
         return path
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
-        identity = ["-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost"]
+    def park_slot(self, slot: str, name: str) -> str:
+        """Move the slot's checkout, with its git directory and the validation record kept
+        there, to the lane's checkout ``name`` (``git worktree move``: a rename, so nothing is
+        copied); the slot's path is free for ``prepare_slot`` to check out afresh."""
+        source, target = self._slot_path(slot), self._slot_path(name)
+        if Path(target).exists():
+            self.remove_checkout(target)
+        self.run(["git", "worktree", "move", source, target])
+        return target
+
+    def remove_checkout(self, path: str) -> None:
+        """Forget one lane checkout: ``git worktree move`` renames it aside at once, keeping
+        git's record of it in step, then a detached process runs ``git worktree remove --force``
+        on it, so the step never waits on deleting a checkout's dependencies. Only this checkout
+        is unregistered: never ``git worktree prune``, which would drop every worktree of the
+        repository whose directory is missing, other sessions' among them. Absent is done."""
+        place = Path(path)
+        if not place.exists():
+            return
+        trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
+        try:
+            self.run(["git", "worktree", "move", str(place), str(trash)])
+        except WorldError as exc:
+            if "not a working tree" not in str(exc):
+                raise
+            # Left behind unregistered (a crash mid-move): git has nothing to forget.
+            try:
+                place.rename(trash)
+            except OSError as again:
+                raise WorldError(f"Cannot move {path} aside to remove it: {again}") from again
+        _remove_detached(self.target, trash)
+
+    _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
+
+    def _unmerged(self, path: str) -> tuple[str, ...]:
+        found = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
+        return tuple(line for line in found.splitlines() if line.strip())
+
+    def merge_main(
+        self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
+    ) -> MergeOutcome:
+        identity = list(self._IDENTITY)
         # A conflict exits nonzero; the unmerged paths say so, and the merge is aborted.
         self.run(["git", "-C", path, *identity, "merge", "--no-edit", "--quiet", main], None, False)
-        conflicts = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
-        files = tuple(line for line in conflicts.splitlines() if line.strip())
+        files = self._unmerged(path)
         if files:
+            if keep_open is not None and keep_open(files):
+                return MergeOutcome(False, conflicts=files, open=True)
             self.run(["git", "-C", path, "merge", "--abort"])
             return MergeOutcome(False, conflicts=files)
         # No conflict is not a merge: the base must now be in the head's history.
         if not self._ancestor(path, main):
             raise WorldError(f"Merging {main} into the slot did not happen")
         return MergeOutcome(True, head=self.head(path))
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        files = self._unmerged(path)
+        if files:
+            self.abort_merge(path)
+            return MergeOutcome(False, conflicts=files)
+        # A commit runs pre-commit, which a clean ``git merge`` never does: the repository's
+        # hooks would check every file main brought in, before the slot is even installed.
+        self.run(
+            ["git", "-C", path, *self._IDENTITY, "commit", "--no-edit", "--no-verify", "--quiet"]
+        )
+        return MergeOutcome(True, head=self.head(path))
+
+    def abort_merge(self, path: str) -> None:
+        self.run(["git", "-C", path, "merge", "--abort"], None, False)
 
     def _ancestor(self, path: str, commit: str) -> bool:
         try:
@@ -623,6 +703,33 @@ class CliGit:
         if lease:
             args.append(f"--force-with-lease=refs/heads/{branch}:{lease}")
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
+
+
+def _remove_detached(repository: str, path: Path) -> None:
+    """``git worktree remove --force`` the checkout at ``path`` in a process of its own that
+    outlives the lane step, then delete whatever is left (best effort: a leftover
+    ``.removing-*`` directory holds no lane state)."""
+    options: dict = (
+        {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+        if sys.platform == "win32"
+        else {"start_new_session": True}
+    )
+    code = (
+        "import shutil, subprocess, sys\n"
+        "subprocess.run(['git', '-C', sys.argv[1], 'worktree', 'remove', '--force', sys.argv[2]],"
+        " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
+        "shutil.rmtree(sys.argv[2], ignore_errors=True)\n"
+    )
+    try:
+        subprocess.Popen(  # noqa: S603 - an argument list, no shell
+            [sys.executable, "-c", code, repository, str(path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            **options,
+        )
+    except OSError as exc:
+        raise WorldError(f"Cannot start removing {path}: {exc}") from exc
 
 
 def real_world(target: Path, *, caches: Path | None = None) -> World:

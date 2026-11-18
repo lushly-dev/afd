@@ -229,6 +229,7 @@ Engine and framework adapters (Unreal, Unity, Godot, Qt, …) are **not** part o
   - Commands need `expose = {.mcp = true}`.
   - Set the caller's identity in `StdioServerOptions::context_hook`, never `approval`.
   - Approval elicitation needs the middleware's `relay = ApprovalRelay::mcp_elicitation`.
+  - Contexts need both `afd::register_context_commands(registry, contexts)` and the same list in `StdioServerOptions::contexts`; `create` fails without the commands. Never set `CommandContext::context_scope` yourself: the server does, and in process the context tools answer `SESSION_REQUIRED`.
   - A command's `output_schema` becomes the tool's top-level `outputSchema`, which clients check `structuredContent` against, so `data` must match it; `advertise_output_schema = false` drops it.
   - For another transport, wrap `CommandRegistry::execute` and use `command_to_mcp_tool` (`afd/mcp.hpp`) for the tool list.
 
@@ -259,8 +260,8 @@ TEST_CASE("todo-create validates and stamps metadata") {
 ## What C++ Does Not Have
 
 The full list is in [docs/language-parity.md](../../../docs/language-parity.md); `alfred parity` budgets the missing names (`alfred/tests/test_parity.py`). What a caller trips over:
-- **No MCP client, JSON-RPC types, meta-tools or bootstrap commands** (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`). The only MCP server is the opt-in `afd::mcp_stdio` (stdio, individual tools); other transports live in hosts.
+- **No MCP client or JSON-RPC types.** The only MCP server is the opt-in `afd::mcp_stdio`: stdio, the individual, grouped (default) and lazy strategies, the meta-tools, the context tools and the bootstrap commands. No hybrid strategy yet (#1202). Other transports live in hosts.
 - **No retry, rate-limit or telemetry middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
-- **`output_schema` and `prerequisites` are stored but never emitted.**
+- **`output_schema` is stored but never emitted, and `prerequisites` only as `requires` in tool `_meta` and `afd-help`.**
 - **The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.** Rust's whole-schema path accepts `const`; C++ does not.
 - **By design:** pipeline conditions stay validated JSON (no typed condition structs), `CancellationSource` replaces timeout controllers, and there is no `createCommandRegistry`.

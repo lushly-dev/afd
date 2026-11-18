@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from botcore_factory.real_world import CliGit, make_runner
-from botcore_factory.world import WorldError
+from botcore_factory.world import MergeOutcome, WorldError
 
 ROOT = Path(__file__).resolve().parents[5]
 
@@ -140,6 +140,69 @@ def test_afd_s_review_evidence_accepts_only_the_recorded_head(tmp_path, monkeypa
     with pytest.raises(Refusal, match="no-such-verifier-xyz is not on PATH") as cannot:
         _check_review(unrunnable, str(repo), moved)
     assert cannot.value.code == "REVIEW_MISSING"
+
+
+def test_a_branch_that_rewrites_the_verifier_still_needs_its_review(tmp_path, monkeypatch):
+    """lushly-dev/afd#1308: enqueue runs the branch's own verifier, which the branch can make
+    always pass; the lane runs the base's copy from its review slot, which still refuses."""
+    from types import SimpleNamespace
+
+    from botcore.config import load_config
+
+    from botcore_factory import FactoryPlugin
+    from botcore_factory.lane import Step
+    from botcore_factory.queue import _check_review
+    from botcore_factory.real_system import OsProcesses
+
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    adapter = load_config(workspace=ROOT, discovered_plugins={"factory": FactoryPlugin()}).plugins[
+        "factory"
+    ]
+    repo, cell = tmp_path / "repo", tmp_path / "cell"
+    script = "scripts/review-record.mjs"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / script).write_bytes((ROOT / script).read_bytes())
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "add", "."])
+    run(["git", "commit", "-m", "base"])
+    base = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "update-ref", "refs/remotes/origin/main", base])
+    run(["git", "worktree", "add", "-b", "feat/cell", str(cell)])
+    in_cell = make_runner(str(cell))
+    in_cell(["git", "commit", "--allow-empty", "-m", "reviewed"])
+    reviewed = in_cell(["git", "rev-parse", "HEAD"]).strip()
+    lanes = [{"lane": "general", "model": "fixture", "effort": "high", "verdict": "pass"}]
+    in_cell(["node", script, "write", "--lanes", json.dumps(lanes)])
+
+    ejected: list[tuple[str, str]] = []
+    world = SimpleNamespace(git=CliGit(run), processes=OsProcesses())
+    lane = SimpleNamespace(
+        config=adapter,
+        world=world,
+        cell=lambda branch: {"worktree": str(cell)},
+        eject=lambda entry, cause, text, log=None: ejected.append((cause, text)),
+    )
+    assert Step.review_verified(lane, {"branch": "feat/cell", "head": reviewed}, base)
+    assert not ejected
+
+    (cell / script).write_text("process.exit(0);\n", encoding="utf-8")
+    in_cell(["git", "commit", "-am", "a verifier that always passes"])
+    head = in_cell(["git", "rev-parse", "HEAD"]).strip()
+    cell_factory = SimpleNamespace(config=adapter, world=world)
+    _check_review(cell_factory, str(cell), head)  # The branch's copy lets enqueue through.
+
+    assert not Step.review_verified(lane, {"branch": "feat/cell", "head": head}, base)
+    assert ejected[0][0] == "review-unverified"
+    assert f"review recorded is of {reviewed}, not {head}" in ejected[0][1]
+    slot = Path(CliGit(run)._slot_path("review"))
+    assert (slot / script).read_bytes() == (ROOT / script).read_bytes()  # The base's copy ran.
 
 
 def test_merge_tree_and_diff_names_read_a_moved_base_without_a_checkout(tmp_path, monkeypatch):
@@ -278,3 +341,202 @@ def test_a_repair_s_gate_edits_are_its_own_not_main_s_brought_in_by_a_rebase(tmp
     run(["git", "checkout", "--quiet", "-B", "fix/merged", ejected])
     run(["git", "merge", "--quiet", "--no-edit", moved])
     assert git.repair_edits(str(repo), moved, ejected, gate) == []
+
+
+def test_a_merge_left_open_for_generated_files_is_finished_or_aborted(tmp_path, monkeypatch):
+    """lushly-dev/afd#1410: the slot's merge stays open only when ``keep_open`` accepts every
+    conflict; it commits once nothing is unmerged, and aborts when something still is."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+
+    def commit(files: dict[str, str], message: str) -> str:
+        for name, text in files.items():
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text(text, encoding="utf-8")
+        run(["git", "add", "-A"])
+        run(["git", "commit", "-q", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    commit({"records/r.json": "base\n", "src/a.ts": "a\n"}, "base")
+    run(["git", "checkout", "-q", "-b", "feat"])
+    branch = commit({"records/r.json": "branch\n"}, "branch")
+    run(["git", "checkout", "-q", "main"])
+    main = commit({"records/r.json": "main\n"}, "main")
+    git = CliGit(run)
+    slot = git.prepare_slot("1", "", branch)
+    records_only = lambda files: all(f.startswith("records/") for f in files)  # noqa: E731
+
+    assert git.merge_main(slot, main) == MergeOutcome(False, conflicts=("records/r.json",))
+    opened = git.merge_main(slot, main, keep_open=records_only)
+    assert (opened.open, opened.conflicts) == (True, ("records/r.json",))
+    finished = git.finish_merge(slot)  # Nothing regenerated it: still unmerged, so aborted.
+    assert (finished.clean, finished.conflicts) == (False, ("records/r.json",))
+    assert git.head(slot) == branch
+
+    # The repository's hooks would check every file main brought in: the merge runs none.
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (hooks / "pre-commit").chmod(0o755)
+    run(["git", "config", "core.hooksPath", str(hooks)])
+    git.merge_main(slot, main, keep_open=records_only)
+    (Path(slot) / "records/r.json").write_text("both\n", encoding="utf-8")
+    run(["git", "-C", slot, "add", "records/r.json"])
+    finished = git.finish_merge(slot)
+    assert finished.clean
+    parents = run(["git", "-C", slot, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
+    assert parents[1:] == [branch, main]
+
+
+def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_path, monkeypatch):
+    """lushly-dev/afd#1452: a validated slot given to the front of the queue moves aside with
+    the git directory that holds its validation record, so the real pre-push decision still
+    accepts its push, and the slot's path is checked out afresh."""
+    import time
+
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo, remote = tmp_path / "repo", tmp_path / "remote.git"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "commit", "--allow-empty", "-m", "base"])
+    base = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "update-ref", "refs/remotes/origin/main", base])
+    run(["git", "init", "--bare", str(remote)])
+    run(["git", "remote", "add", "origin", str(remote)])
+    run(["git", "commit", "--allow-empty", "-m", "candidate"])
+    head = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "checkout", "--detach", base])
+    (repo / ".git" / "info" / "exclude").write_text("node_modules/\n", encoding="utf-8")
+    git = CliGit(run, str(repo))
+    slot = git.prepare_slot("1", "", head)
+    (Path(slot) / "node_modules").mkdir()
+    (Path(slot) / "node_modules" / "installed").write_text("x", encoding="utf-8")
+    git_path = ["rev-parse", "--git-path", "afd-verify-record.json"]
+    record = Path(slot) / run(["git", "-C", slot, *git_path]).strip()
+    record.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "head": head,
+                "base": base,
+                "tree": run(["git", "-C", slot, "rev-parse", "HEAD^{tree}"]).strip(),
+                "results": [{"name": "check (ci.yml)", "ok": True}],
+                "finishedAt": datetime.now(UTC).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    kept = git.park_slot("1", "kept-fix-a")
+    assert kept == str(Path(slot).with_name("kept-fix-a")) and not Path(slot).exists()
+    assert (Path(kept) / "node_modules" / "installed").exists()  # Moved, not copied or lost.
+    assert git.head(kept) == head
+    # The slot's own path is free and is checked out afresh for the front of the queue.
+    assert git.head(git.prepare_slot("1", "", base)) == base
+
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    run(["git", "config", "core.hooksPath", str(hooks)])
+    checker = tmp_path / "check-record.mjs"
+    checker.write_text(
+        "import {execFileSync} from 'node:child_process';\n"
+        "import {readFileSync} from 'node:fs';\n"
+        f"import {{decide}} from {json.dumps((ROOT / 'scripts/pre-push.mjs').as_uri())};\n"
+        "const git = args => execFileSync('git', args, {encoding:'utf8'});\n"
+        "const decision = decide({updates:readFileSync(0,'utf8'), git});\n"
+        "if (!decision.accepted) {console.error(decision.reason); process.exit(1);}\n",
+        encoding="utf-8",
+    )
+    hook = hooks / "pre-push"
+    hook.write_text(f"#!/bin/sh\nexec node {shlex.quote(checker.as_posix())}\n", encoding="utf-8")
+    hook.chmod(0o755)
+    git.push_head(kept, "fix/a", head, None)
+    assert run(["git", "--git-dir", str(remote), "rev-parse", "refs/heads/fix/a"]).strip() == head
+
+    # Another session's worktree whose directory is missing (moved, or on a drive not mounted)
+    # stays registered: removing the lane's checkout unregisters only that checkout.
+    other = tmp_path / "other"
+    run(["git", "worktree", "add", "--detach", str(other), base])
+    other.rename(tmp_path / "other-elsewhere")
+    git.remove_checkout(kept)
+    assert not Path(kept).exists()
+    listed = run(["git", "worktree", "list", "--porcelain"])
+    assert other.as_posix() in listed  # git lists forward slashes, also on Windows.
+    slots = Path(slot).parent
+    deadline = time.monotonic() + 30
+    while any(slots.glob(".removing-*")) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not any(slots.glob(".removing-*"))
+    listed = run(["git", "worktree", "list", "--porcelain"])
+    assert "kept-fix-a" not in listed and ".removing-" not in listed
+    assert other.as_posix() in listed  # git lists forward slashes, also on Windows.
+    git.remove_checkout(kept)  # Already gone: nothing to do.
+    stray = slots / "kept-stray"  # Left unregistered by a crash: removed all the same.
+    stray.mkdir()
+    git.remove_checkout(str(stray))
+    assert not stray.exists()
+
+
+def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeypatch):
+    """lushly-dev/afd#1352: after the slot merges the base in, ``.nvmrc`` is among the files the
+    branch changes against the base only when the branch changed it, so a Node missing for it
+    ejects that branch, while main's own bump (the slot holds it too) pauses the lane."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+
+    def commit(files: dict[str, str], message: str) -> str:
+        for name, text in files.items():
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text(text, encoding="utf-8")
+        run(["git", "add", "-A"])
+        run(["git", "commit", "-q", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    commit({".nvmrc": "26\n", "src/a.ts": "a\n"}, "base")
+    run(["git", "checkout", "-q", "-b", "bump"])
+    bump = commit({".nvmrc": "27\n", "src/a.ts": "a on 27\n"}, "bump")
+    run(["git", "checkout", "-q", "main"])
+    run(["git", "checkout", "-q", "-b", "feature"])
+    feature = commit({"src/b.ts": "b\n"}, "feature")
+    run(["git", "checkout", "-q", "main"])
+    main = commit({"docs/c.md": "c\n"}, "main moves")
+    git = CliGit(run)
+
+    slot = git.prepare_slot("1", "", bump)
+    assert git.merge_main(slot, main).clean
+    assert git.read_file(slot, ".nvmrc") == "27\n"
+    assert ".nvmrc" in git.changed_files(slot, main)
+
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, main).clean
+    assert ".nvmrc" not in git.changed_files(slot, main)
+
+    bumped_main = commit({".nvmrc": "28\n"}, "main bumps .nvmrc")
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, bumped_main).clean
+    assert git.read_file(slot, ".nvmrc") == "28\n"  # Main's Node, which no branch answers for.
+    assert ".nvmrc" not in git.changed_files(slot, bumped_main)

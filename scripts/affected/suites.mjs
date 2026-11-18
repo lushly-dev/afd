@@ -51,6 +51,7 @@ export const SUITES = [
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element build' },
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element test:chromium' },
 			{ gate: 'components', run: 'pnpm -F "@lushly-dev/violet-elements..." build' },
+			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements typecheck' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements verify:exports' },
 			{ gate: 'components', run: 'node scripts/fast-af-generated.mjs' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements lint' },
@@ -179,15 +180,19 @@ export const SUITES = [
 		remote: 'Python 3.11',
 		steps: [
 			{ cwd: 'endpoints/botcore', run: 'uv lock --check' },
-			{ cwd: 'endpoints/botcore', run: 'uv sync --frozen --extra dev --extra mcp --extra cdp' },
 			{
 				cwd: 'endpoints/botcore',
-				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/',
+				run: 'uv sync --frozen --extra dev --extra mcp --extra cdp --group packages',
+			},
+			{
+				cwd: 'endpoints/botcore',
+				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/',
 			},
 			{
 				cwd: 'endpoints/botcore',
 				run: 'uv run --frozen pytest tests/ --ignore=tests/integration -q',
 			},
+			{ cwd: 'endpoints/botcore', run: 'uv run --frozen python scripts/package_tests.py' },
 			{ cwd: 'endpoints/botcore', run: 'uv run --frozen python scripts/package_smoke.py' },
 		],
 	},
@@ -359,7 +364,7 @@ export const SUITES = [
 		workflow: 'conformance.yml',
 		tools: ['uv', 'cargo', 'cmake'],
 		remote:
-			"every backend's MCP 2026-07-28 runs (--mode modern), the TypeScript and Python confirmation suites, the Rust backend's fmt and clippy, and the C++ backend unit tests",
+			"every backend's MCP 2026-07-28 runs (--mode modern), the TypeScript and Python confirmation suites, the Rust backend's fmt and clippy, the C++ backend unit tests, and the C++ backend's MSVC build on Windows",
 		steps: [
 			{ gate: 'todo', tools: [], run: 'pnpm build' },
 			{

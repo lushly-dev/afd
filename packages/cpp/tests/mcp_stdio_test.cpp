@@ -99,8 +99,10 @@ struct Notes {
     }
 };
 
+/// A server; the tests of command tools list them one per command (`individual`).
 std::unique_ptr<StdioServer> make_server(const afd::CommandRegistry& registry,
-                                         afd::mcp::StdioServerOptions options = {}) {
+                                         afd::mcp::StdioServerOptions options = {
+                                             .tool_strategy = afd::mcp::ToolStrategy::individual}) {
     auto server = StdioServer::create(registry, std::move(options));
     REQUIRE(server);
     return std::move(*server);
@@ -150,6 +152,19 @@ Json body(const Json& result) {
     return Json::parse(result["content"][0]["text"].get<std::string>());
 }
 
+/// The command tools of a tool list: everything but the meta-tools the strategy lists first.
+Json command_tools(const Json& tools) {
+    Json out = Json::array();
+    for (const auto& tool : tools) {
+        const auto name = tool["name"].get<std::string>();
+        if (name != "afd-batch" && name != "afd-pipe" && name != "afd-call" &&
+            name != "afd-discover" && name != "afd-detail") {
+            out.push_back(tool);
+        }
+    }
+    return out;
+}
+
 Json accept(std::string_view field) {
     return Json{{"action", "accept"}, {"content", {{std::string(field), true}}}};
 }
@@ -158,7 +173,9 @@ Json accept(std::string_view field) {
 
 TEST_CASE("initialize echoes a supported protocol version, else the newest") {
     Notes notes;
-    auto server = make_server(*notes.registry, {.name = "notes", .version = "1.0.0"});
+    auto server = make_server(
+        *notes.registry,
+        {.name = "notes", .version = "1.0.0", .tool_strategy = afd::mcp::ToolStrategy::individual});
     const auto known = send(*server, request(0, "initialize", {{"protocolVersion", "2025-03-26"}}));
     CHECK(known["result"]["protocolVersion"] == "2025-03-26");
     CHECK(known["result"]["capabilities"] == Json{{"tools", {{"listChanged", false}}}});
@@ -172,7 +189,9 @@ TEST_CASE("initialize echoes a supported protocol version, else the newest") {
 
 TEST_CASE("MCP 2026-07-28 requests are served statelessly from their _meta") {
     Notes notes;
-    auto server = make_server(*notes.registry, {.name = "notes", .version = "1.0.0"});
+    auto server = make_server(
+        *notes.registry,
+        {.name = "notes", .version = "1.0.0", .tool_strategy = afd::mcp::ToolStrategy::individual});
     const auto discover =
         send(*server, request("d", "server/discover", {{"_meta", modern_meta()}}));
     CHECK(discover["result"]["resultType"] == "complete");
@@ -183,7 +202,7 @@ TEST_CASE("MCP 2026-07-28 requests are served statelessly from their _meta") {
     const auto tools = send(*server, request(1, "tools/list", {{"_meta", modern_meta()}}));
     CHECK(tools["result"]["resultType"] == "complete");
     CHECK(tools["result"]["cacheScope"] == "public");
-    CHECK(tools["result"]["tools"].size() == 4);
+    CHECK(command_tools(tools["result"]["tools"]).size() == 4);
 
     const auto created = modern_call(*server, "note-create", {{"title", "Modern"}}, {});
     CHECK(created["resultType"] == "complete");
@@ -215,7 +234,7 @@ TEST_CASE("notifications and responses get no reply; ping does") {
 TEST_CASE("tools/list carries each command's tool, title, annotations and _meta") {
     Notes notes;
     auto server = make_server(*notes.registry);
-    const auto tools = send(*server, request(1, "tools/list"))["result"]["tools"];
+    const auto tools = command_tools(send(*server, request(1, "tools/list"))["result"]["tools"]);
     REQUIRE(tools.size() == 4);
     for (const auto& tool : tools) {
         CHECK_FALSE(tool.contains("title"));
@@ -292,7 +311,7 @@ TEST_CASE("tool results carry structuredContent that satisfies the advertised ou
          .handler = [](const Json&, afd::CommandContext&) { return afd::success(Json::array()); },
          .expose = {.mcp = true}}));
     auto server = make_server(registry);
-    const auto tools = send(*server, request(1, "tools/list"))["result"]["tools"];
+    const auto tools = command_tools(send(*server, request(1, "tools/list"))["result"]["tools"]);
     REQUIRE(tools.size() == 2);
     const Json& get = tools[0]["name"] == "note-get" ? tools[0] : tools[1];
     const Json& list = tools[0]["name"] == "note-get" ? tools[1] : tools[0];
@@ -328,8 +347,10 @@ TEST_CASE("tool results carry structuredContent that satisfies the advertised ou
     CHECK(unknown["structuredContent"]["error"]["code"] == "COMMAND_NOT_FOUND");
 
     // The top-level outputSchema can be switched off; _meta.outputSchema stays.
-    auto quiet = make_server(registry, {.advertise_output_schema = false});
-    const auto quiet_tools = send(*quiet, request(5, "tools/list"))["result"]["tools"];
+    auto quiet = make_server(registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                        .advertise_output_schema = false});
+    const auto quiet_tools =
+        command_tools(send(*quiet, request(5, "tools/list"))["result"]["tools"]);
     REQUIRE(quiet_tools.size() == 2);
     for (const auto& tool : quiet_tools) {
         CHECK_FALSE(tool.contains("outputSchema"));
@@ -375,8 +396,10 @@ TEST_CASE("tools/call never takes approval from the call") {
 
 TEST_CASE("enforce: an acknowledgement runs a confirm-gated command; nothing else does") {
     Notes notes;
-    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::enforce});
-    const auto tools = send(*server, request(1, "tools/list"))["result"]["tools"];
+    auto server =
+        make_server(*notes.registry, {.confirmations = ConfirmationMode::enforce,
+                                      .tool_strategy = afd::mcp::ToolStrategy::individual});
+    const auto tools = command_tools(send(*server, request(1, "tools/list"))["result"]["tools"]);
     for (const auto& tool : tools) {
         const bool gated = tool["name"] == "note-clear" || tool["name"] == "vault-open";
         const bool advertised = tool["inputSchema"].contains("properties") &&
@@ -416,8 +439,10 @@ TEST_CASE("enforce: an acknowledgement runs a confirm-gated command; nothing els
 
 TEST_CASE("require-human refuses an acknowledgement") {
     Notes notes;
-    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human});
-    const auto tools = send(*server, request(1, "tools/list"))["result"]["tools"];
+    auto server =
+        make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,
+                                      .tool_strategy = afd::mcp::ToolStrategy::individual});
+    const auto tools = command_tools(send(*server, request(1, "tools/list"))["result"]["tools"]);
     for (const auto& tool : tools) {
         const bool advertised = tool["inputSchema"].contains("properties") &&
                                 tool["inputSchema"]["properties"].contains("confirm");
@@ -976,4 +1001,265 @@ TEST_CASE("notifications/cancelled cancels the call it names, which gets no repl
     CHECK(*saw_cancel);
     CHECK(out.str().find(R"("id":7)") == std::string::npos);
     CHECK(out.str().find(R"("id":8)") != std::string::npos);
+}
+
+// --- Contexts (spec/tool-strategies.md, "Contexts") ---------------------------------------------
+
+namespace {
+
+/// Notes with two contexts: `note-clear` only while editing.
+struct ScopedNotes {
+    std::shared_ptr<afd::CommandRegistry> registry = std::make_shared<afd::CommandRegistry>();
+    std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
+
+    ScopedNotes() {
+        REQUIRE_FALSE(afd::register_context_commands(*registry, contexts));
+        const auto ok = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); };
+        REQUIRE_FALSE(registry->register_command({.name = "note-list",
+                                                  .description = "List notes",
+                                                  .handler = ok,
+                                                  .contexts = {"reading", "editing"},
+                                                  .expose = {.mcp = true}}));
+        REQUIRE_FALSE(registry->register_command({.name = "note-clear",
+                                                  .description = "Delete every note",
+                                                  .handler = ok,
+                                                  .contexts = {"editing"},
+                                                  .mutation = true,
+                                                  .confirm_prompt = "Delete every note?",
+                                                  .expose = {.mcp = true}}));
+    }
+};
+
+/// The names of a list's command tools.
+std::vector<std::string> names(const Json& tools) {
+    std::vector<std::string> out;
+    for (const auto& tool : command_tools(tools)) {
+        out.push_back(tool["name"].get<std::string>());
+    }
+    return out;
+}
+
+Json context_meta(std::string_view name) {
+    Json meta = modern_meta();
+    meta["dev.afd/context"] = std::string(name);
+    return meta;
+}
+
+} // namespace
+
+TEST_CASE("create refuses contexts whose commands are not registered") {
+    Notes notes;
+    auto refused = StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}}});
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().find("register_context_commands") != std::string::npos);
+    CHECK_FALSE(StdioServer::create(*notes.registry, {.tools_list_ttl_ms = -1}));
+}
+
+TEST_CASE("2025: the connection keeps a context stack that scopes tools/list and tools/call") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,
+                                                .tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    send(*server, request(0, "initialize", {{"protocolVersion", "2025-11-25"}}));
+    const std::vector<std::string> every{"afd-context-list", "afd-context-enter",
+                                         "afd-context-exit", "note-list", "note-clear"};
+    CHECK(names(send(*server, request(1, "tools/list"))["result"]["tools"]) == every);
+
+    const auto entered = send(
+        *server, request(2, "tools/call",
+                         {{"name", "afd-context-enter"}, {"arguments", {{"context", "reading"}}}}));
+    CHECK(body(entered["result"])["data"]["entered"] == "reading");
+    CHECK(names(send(*server, request(3, "tools/list"))["result"]["tools"]) ==
+          std::vector<std::string>{"afd-context-list", "afd-context-enter", "afd-context-exit",
+                                   "note-list"});
+
+    // Refused before anyone is asked to confirm it.
+    bool asked = false;
+    const auto refused = send(
+        *server, request(4, "tools/call", {{"name", "note-clear"}, {"arguments", Json::object()}}),
+        [&](const Json&) -> std::optional<Json> {
+            asked = true;
+            return accept("confirm");
+        });
+    CHECK_FALSE(asked);
+    CHECK(body(refused["result"])["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+    CHECK(body(refused["result"])["error"]["suggestion"] ==
+          "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+
+    send(*server,
+         request(5, "tools/call", {{"name", "afd-context-exit"}, {"arguments", Json::object()}}));
+    CHECK(names(send(*server, request(6, "tools/list"))["result"]["tools"]) == every);
+}
+
+TEST_CASE("2026-07-28: each request names its context in _meta, and nothing persists") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.name = "notes",
+                                                .tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    const auto discover =
+        send(*server, request("d", "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["ttlMs"] == 0);
+    CHECK(discover["result"]["instructions"].get<std::string>().find(
+              "Commands are scoped by context (afd-context-list lists them). Send "
+              "_meta[\"dev.afd/context\"] with a context name on tools/list and tools/call to "
+              "work in that context.") != std::string::npos);
+
+    const auto reading =
+        send(*server, request(1, "tools/list", {{"_meta", context_meta("reading")}}));
+    CHECK(reading["result"]["ttlMs"] == 0);
+    CHECK(names(reading["result"]["tools"]).back() == "note-list");
+
+    const auto refused = modern_call(*server, "note-clear", Json::object(), {}, Json::object(),
+                                     {{"dev.afd/context", "reading"}});
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+
+    const auto entered = modern_call(*server, "afd-context-enter", {{"context", "editing"}}, {},
+                                     Json::object(), {{"dev.afd/context", "reading"}});
+    CHECK(body(entered)["data"] ==
+          Json{{"entered", "editing"}, {"previous", "reading"}, {"persisted", false}});
+    // Still five tools with no context named: nothing was stored.
+    CHECK(names(send(*server,
+                     request(2, "tools/list", {{"_meta", modern_meta()}}))["result"]["tools"])
+              .size() == 5);
+
+    const auto listed = modern_call(*server, "afd-context-list", Json::object(), {}, Json::object(),
+                                    {{"dev.afd/context", "editing"}});
+    CHECK(body(listed)["data"]["activeContext"] == "editing");
+}
+
+TEST_CASE("2026-07-28: an unknown context in _meta is invalid params") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    for (const Json& name : {Json("nowhere"), Json(7)}) {
+        Json meta = modern_meta();
+        meta["dev.afd/context"] = name;
+        const auto list = send(*server, request(1, "tools/list", {{"_meta", meta}}));
+        CHECK(list["error"]["code"] == -32602);
+        CHECK(list["error"]["message"] == "Unknown context in _meta[\"dev.afd/context\"]");
+        CHECK(list["error"]["data"]["suggestion"] == "Use one of: reading, editing");
+        const auto call =
+            send(*server,
+                 request(2, "tools/call",
+                         {{"name", "note-list"}, {"arguments", Json::object()}, {"_meta", meta}}));
+        CHECK(call["error"]["code"] == -32602);
+    }
+}
+
+TEST_CASE("a set tools_list_ttl_ms wins over the contexts default") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts,
+                                                .tools_list_ttl_ms = 1234});
+    CHECK(send(*server, request(1, "tools/list", {{"_meta", modern_meta()}}))["result"]["ttlMs"] ==
+          1234);
+}
+
+TEST_CASE("create refuses server contexts that differ from the registered ones") {
+    ScopedNotes notes;
+    CHECK_FALSE(StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}}}));
+    CHECK_FALSE(
+        StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}, {.name = ""}}}));
+    CHECK_FALSE(StdioServer::create(
+        *notes.registry,
+        {.contexts = {{.name = "reading"}, {.name = "editing"}, {.name = "reading"}}}));
+    CHECK(StdioServer::create(*notes.registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts}));
+}
+
+TEST_CASE("2026-07-28: a confirm-gated command outside the context is refused, not asked") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,
+                                                .tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    const auto refused = modern_call(*server, "note-clear", Json::object(), form_elicitation,
+                                     Json::object(), {{"dev.afd/context", "reading"}});
+    CHECK(refused["resultType"] == "complete");
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+}
+
+TEST_CASE("2025: _meta[\"dev.afd/context\"] is ignored; the connection's stack decides") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    send(*server, request(0, "initialize", {{"protocolVersion", "2025-11-25"}}));
+    const auto listed =
+        send(*server, request(1, "tools/list", {{"_meta", {{"dev.afd/context", "nowhere"}}}}));
+    CHECK(names(listed["result"]["tools"]).size() == 5);
+}
+
+TEST_CASE("the context hook sees the active context but cannot change the scope") {
+    ScopedNotes notes;
+    std::optional<std::string> seen;
+    auto server = make_server(
+        *notes.registry,
+        {.tool_strategy = afd::mcp::ToolStrategy::individual,
+         .contexts = notes.contexts,
+         .context_hook = [&](afd::CommandContext& context, const afd::mcp::RequestInfo& info) {
+             seen = info.active_context;
+             context.active_context.reset();
+             context.context_scope.reset();
+         }});
+    const auto refused = modern_call(*server, "note-clear", Json::object(), {}, Json::object(),
+                                     {{"dev.afd/context", "reading"}});
+    CHECK(seen == "reading");
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+}
+
+TEST_CASE("server/discover never reads a context; without contexts nothing changes") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.tool_strategy = afd::mcp::ToolStrategy::individual,
+                                                .contexts = notes.contexts});
+    Json meta = modern_meta();
+    meta["dev.afd/context"] = "nowhere";
+    CHECK(send(*server, request(1, "server/discover", {{"_meta", meta}}))["result"]["resultType"] ==
+          "complete");
+
+    Notes plain;
+    auto without = make_server(*plain.registry, {.name = "notes"});
+    const auto discover = send(*without, request(2, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["ttlMs"] == 300000);
+    CHECK(discover["result"]["instructions"] ==
+          "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
+          "data, error: { code, message, suggestion } }; follow error.suggestion to recover. "
+          "Each tool groups related commands: pass { action, params }. afd-detail returns a "
+          "command schema; afd-call runs any command by name. Use afd-batch for several "
+          "independent commands and afd-pipe to chain them.");
+}
+
+TEST_CASE("server/discover says the bootstrap tools describe the server, once all three serve") {
+    Notes notes;
+    REQUIRE_FALSE(afd::register_bootstrap_commands(*notes.registry));
+    auto server = make_server(*notes.registry, {.name = "notes"});
+    const auto discover = send(*server, request(1, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["instructions"] ==
+          "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
+          "data, error: { code, message, suggestion } }; follow error.suggestion to recover. "
+          "Each tool groups related commands: pass { action, params }. afd-detail returns a "
+          "command schema; afd-call runs any command by name. Use afd-batch for several "
+          "independent commands and afd-pipe to chain them. afd-help, afd-docs and afd-schema "
+          "describe this server.");
+    // Grouped: the bootstrap commands are the `bootstrap` group.
+    const auto listed = send(*server, request(2, "tools/list"))["result"]["tools"];
+    CHECK(names(listed) == std::vector<std::string>{"note", "vault", "bootstrap"});
+
+    // An unknown command now points to afd-help, which the caller can call.
+    const auto unknown =
+        body(send(*server, request(3, "tools/call", {{"name", "note-craete"}}))["result"]);
+    CHECK(unknown["error"]["suggestion"] == "Did you mean 'note-create'? Other close matches: "
+                                            "'note-clear', 'note-list'. Use afd-discover to list "
+                                            "all commands.");
+
+    // Two of three is not the bootstrap tools.
+    afd::CommandRegistry partial;
+    for (auto& command : afd::bootstrap_commands(partial)) {
+        if (command.name != "afd-schema") {
+            REQUIRE_FALSE(partial.register_command(std::move(command)));
+        }
+    }
+    auto without = make_server(partial, {.name = "notes"});
+    const auto partial_discover =
+        send(*without, request(4, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(partial_discover["result"]["instructions"].get<std::string>().find("afd-help") ==
+          std::string::npos);
 }

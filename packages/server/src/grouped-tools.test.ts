@@ -40,9 +40,16 @@ function groupTool(commands: ZodCommandDefinition[], name = 'todo') {
 }
 
 describe('grouped strategy tool list', () => {
-	it('lists afd-detail alongside afd-batch, afd-pipe and afd-call, but not afd-discover', () => {
+	it('lists the five meta-tools, then the groups', () => {
 		const names = getToolsList([create, list], 'grouped').map((t) => t.name);
-		expect(names).toEqual(['afd-batch', 'afd-pipe', 'afd-call', 'afd-detail', 'todo']);
+		expect(names).toEqual([
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
+			'afd-batch',
+			'afd-pipe',
+			'todo',
+		]);
 	});
 
 	it('puts every action with its schema and metadata in _meta.actions', () => {

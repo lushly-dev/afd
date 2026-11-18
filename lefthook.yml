@@ -86,7 +86,10 @@ pre-push-checks:
       run: node scripts/check-versions.mjs
 
     test-configs:
-      run: node scripts/check-test-configs.mjs
+      run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
+
+    test-quarantine:
+      run: node .claude/skills/maintain-gates/scripts/check-test-quarantine.mjs
 
     boundaries:
       run: pnpm check:boundaries
@@ -131,7 +134,10 @@ check:
       run: node scripts/check-versions.mjs
 
     test-configs:
-      run: node scripts/check-test-configs.mjs
+      run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
+
+    test-quarantine:
+      run: node .claude/skills/maintain-gates/scripts/check-test-quarantine.mjs
 
     boundaries:
       run: pnpm check:boundaries

@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from afd import CommandResult
 from afd.core.streaming import StreamChunk
 
+from . import orchestrator as orchestrator_mod
 from .config import AgentsPluginConfig, get_agents_config
 from .orchestrator import get_orchestrator, reset_orchestrator
 from .state import JsonStateBackend, OrchestratorStateBackend
@@ -31,8 +32,22 @@ def _get_config() -> AgentsPluginConfig:
 
 
 def set_config(config: AgentsPluginConfig | None) -> None:
-    """Allow the plugin to inject config at registration time."""
+    """Allow the plugin to inject config at registration time.
+
+    The same configuration again keeps the orchestrator and its agents: resolving an agent's
+    connector tools builds botcore's namespace, which configures every plugin again, this one
+    included (lushly-dev/afd#780). A different configuration starts a new orchestrator.
+    """
     global _backend, _config
+    if config is not None and config == _config:
+        return
+    live = orchestrator_mod._orchestrator
+    if config is not None and live is not None and live.agents:
+        logger.info(
+            "A changed agents configuration drops %d agent(s): %s",
+            len(live.agents),
+            ", ".join(sorted(live.agents)),
+        )
     _config = config
     _backend = None
     reset_orchestrator()

@@ -2280,7 +2280,9 @@ describe("violet-data-grid", () => {
     expect(cancellations).toEqual([{ rowId: "row-0", columnId: "dtm" }]);
     expect(announcementAtCancellation).toMatch(/unsaved invalid edit.+cancelled/i);
     expect(grid.editingCell).toBeNull();
-    const editStatus = grid.shadowRoot?.querySelector<HTMLElement>('[role="status"]');
+    const editStatus = grid.shadowRoot?.querySelector<HTMLElement>('[part~="edit-status"][role="status"]');
+    expect(grid.shadowRoot?.querySelector('.fill-status[role="status"]')).toBeInstanceOf(HTMLElement);
+    expect(editStatus?.getAttribute("aria-live")).toBe("polite");
     expect(editStatus?.textContent).toMatch(/unsaved invalid edit.+cancelled/i);
     expect(editStatus ? getComputedStyle(editStatus).display : "none").not.toBe("none");
     expect(grid.shadowRoot?.querySelector('tr[data-row-index="0"]')).toBeNull();
@@ -2415,7 +2417,7 @@ describe("violet-data-grid", () => {
     await nextFrame();
 
     expect(grid.editAnnouncement).toBe("");
-    expect(grid.shadowRoot?.querySelector('[role="status"]')?.textContent).toBe("");
+    expect(grid.shadowRoot?.querySelector('[part~="edit-status"][role="status"]')?.textContent).toBe("");
   });
 
   it("clears the active edit before a reentrant commit listener runs", async () => {

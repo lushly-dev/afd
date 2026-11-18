@@ -13,7 +13,8 @@
 			"plan": "plan-a",
 			"route": "sol/high",
 			"state": "ejected",
-			"ejections": 1
+			"ejections": 1,
+			"lastEjection": { "attempt": 1, "cause": "final-failed", "at": "2030-01-01T00:00:00Z" }
 		},
 		{
 			"branch": "feat/export-csv",
@@ -22,7 +23,8 @@
 			"plan": "plan-b",
 			"route": "opus/medium",
 			"state": "queued",
-			"ejections": 0
+			"ejections": 0,
+			"worktree": "wt/export-csv"
 		},
 		{
 			"branch": "fix/loosened-check",
@@ -99,6 +101,19 @@
 			"prequeue": {
 				"lint": "pass",
 				"typecheck": "fail: src/index.ts(12,3): Type 'string' is not assignable to type 'number'"
+			},
+			"gatePathsChanged": []
+		},
+		"wt/export-csv": {
+			"branch": "feat/export-csv",
+			"clean": true,
+			"head": "b2c3d4e",
+			"review": {
+				"head": "b2c3d4e"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
 			},
 			"gatePathsChanged": []
 		}

@@ -12,21 +12,24 @@ fixture:
     laneHost: workstation
     dials: { cells.max: 1 }
 steps:
-  - description: Each plan shows its room (window elapsed minus share used)
+  - description: >-
+      Each plan shows its room (window elapsed minus share used), what is left below the ceiling
+      and its pace (what is left per day to its reset); the plan with the highest pace is next
     command: plan-list
     expect:
       success: true
       data:
         plans:
-          - { id: plan-a, room: 70, aboveCeiling: false }
-          - { id: plan-b, room: 20, aboveCeiling: false }
+          - { id: plan-a, room: 70, left: 75, pace: 10.71, daysToReset: 7, aboveCeiling: false }
+          - { id: plan-b, room: 20, left: 45, pace: 5, daysToReset: 9, aboveCeiling: false }
+        next: plan-a
   - description: Status says a cell may start, on which plan, and with which issue
     command: lane-status
     expect:
       success: true
       data:
         canStartCell: true
-        plan: { id: plan-a }
+        plan: { id: plan-a, pace: 10.71 }
         nextIssue: 101
   - description: A cell with two issues is refused while one issue per cell is the rule
     command: cell-register
@@ -38,7 +41,7 @@ steps:
         suggestion: { contains: cells.issuesMax }
   - description: Registering before the cell starts claims its issue and assigns the plan
     command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [101], route: sol/high }
+    input: { branch: fix/parser-empty-input, issues: [101], route: opus/medium }
     expect:
       success: true
       data:

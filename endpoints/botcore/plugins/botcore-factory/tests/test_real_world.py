@@ -258,6 +258,32 @@ def test_a_missing_program_is_a_world_error():
         run_process(["botcore-factory-no-such-program"])
 
 
+def test_a_squash_body_reads_every_page_of_commits():
+    page = [{"parents": [{"sha": "p"}], "commit": {"message": f"fix: {n}"}} for n in range(100)]
+    path = "gh api repos/o/r/pulls/7/commits?per_page=100"
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            f"{path}&page=1": json.dumps(page),
+            f"{path}&page=2": json.dumps(page[:1]),
+        }
+    )
+    GhGitHub(run).merge_pr(7, "abc")
+    body = run.calls[-1][1]
+    assert body.count("fix: ") == 101 and body.endswith("fix: 99\n\nfix: 0")
+
+
+def test_stdin_arrives_as_written_and_output_reads_as_text():
+    # A squash body or a blob written through stdin keeps its LF on every platform.
+    echo = (
+        "import sys; data = sys.stdin.buffer.read(); sys.stdout.buffer.write(repr(data).encode())"
+    )
+    done = run_process([sys.executable, "-c", echo], stdin="fix: é\n\nAssisted-by: Codex\n")
+    assert done.stdout == repr("fix: é\n\nAssisted-by: Codex\n".encode())
+    crlf = "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\rc\\n')"
+    assert run_process([sys.executable, "-c", crlf]).stdout == "a\nb\nc\n"
+
+
 class FixedClock:
     def now(self):
         return datetime(2030, 1, 4, tzinfo=UTC)
@@ -277,6 +303,13 @@ def test_plans_come_from_t3_code_s_weekly_windows(tmp_path):
                             "resetsAt": "2030-01-07T12:00:00Z",
                         },
                         {"id": "five_hour", "kind": "session", "usedPercent": 90, "resetsAt": "x"},
+                        # Only Fable draws on this window, inside seven_day: not a plan.
+                        {
+                            **week,
+                            "id": "seven_day_fable",
+                            "usedPercent": 5,
+                            "resetsAt": "2030-01-07T12:00:00Z",
+                        },
                     ]
                 }
             }
@@ -315,6 +348,9 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
             "gh pr list": "[]",
             "gh pr create": "https://github.com/o/r/pull/612\n",
             "gh pr view": json.dumps({"state": "MERGED"}),
+            "gh api repos/o/r/pulls/612/commits?per_page=100&page=1": json.dumps(
+                [{"parents": [{"sha": "p"}], "commit": {"message": "fix: a\n\nAssisted-by: Codex"}}]
+            ),
         },
         fail={"gh api repos/o/r/branches/main/protection/required_status_checks": "HTTP 404"},
     )
@@ -351,7 +387,8 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
         "--body-file",
         "-",
     ] in calls
-    assert ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"] in calls
+    merge = ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"]
+    assert (merge + ["--body-file", "-"], "fix: a\n\nAssisted-by: Codex") in run.calls
     assert GhGitHub(FakeRun(fail={"gh auth status": "not logged in"})).signed_in() is False
 
 
@@ -895,3 +932,59 @@ def test_a_job_step_s_program_is_found_on_its_own_path(tmp_path):
     handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "p.log"), label="validate")
     done = wait_for(lambda: processes.poll(handle))
     assert (done.returncode, "v26.13.0" in done.stdout) == (0, True)
+
+
+# #1352: nvm-windows installs, and the toolchain check run on the .nvmrc Node's PATH.
+
+
+def test_an_nvm_windows_install_is_found_in_its_version_directory(tmp_path):
+    nvm_home = tmp_path / "nvm"
+    _install_node(nvm_home, "v24.21.0", "")
+    new = _install_node(nvm_home, "v26.13.0", "")  # nvm-windows: node.exe in v<version>/.
+    assert find_node_bin("26", [nvm_home]) == str(new)
+
+
+def test_node_roots_cover_nvm_windows(tmp_path):
+    roots = node_roots({"NVM_HOME": "/nvm-home", "APPDATA": "/appdata"}, tmp_path)
+    assert Path("/nvm-home") in roots
+    assert Path("/appdata/nvm") in roots
+    assert Path("/appdata/fnm/node-versions") in roots
+    assert roots.index(Path("/nvm-home")) < roots.index(Path("/appdata/nvm"))
+
+
+def test_node_roots_follow_nvm_windows_s_symlink_to_its_root(tmp_path):
+    home = tmp_path / "elsewhere"
+    version = _install_node(home, "v26.13.0", "")
+    link = tmp_path / "nodejs"
+    if sys.platform == "win32":  # A junction, as older nvm-windows makes: no privilege needed.
+        import _winapi
+
+        _winapi.CreateJunction(str(version), str(link))
+    else:
+        link.symlink_to(version, target_is_directory=True)
+    roots = node_roots({"NVM_SYMLINK": str(link)}, tmp_path)
+    assert home.resolve() in roots
+    assert find_node_bin("26", roots) == str(version.resolve())
+    assert node_roots({"NVM_SYMLINK": str(home)}, tmp_path) == node_roots({}, tmp_path)
+
+
+def _tools_beside_node(bin_dir: Path) -> None:
+    """A ``pnpm`` shim that runs on the first ``node`` on PATH, as the real one does."""
+    bin_dir.mkdir()
+    if sys.platform == "win32":
+        (bin_dir / "botcore-factory-node.cmd").write_text("@echo v26.13.0\r\n")
+        (bin_dir / "botcore-factory-pnpm.cmd").write_text("@call botcore-factory-node\r\n")
+        return
+    for name, body in (("node", "echo v26.13.0"), ("pnpm", "exec botcore-factory-node")):
+        program = bin_dir / f"botcore-factory-{name}"
+        program.write_text(f"#!/bin/sh\n{body}\n")
+        program.chmod(0o755)
+
+
+def test_a_tool_s_version_is_read_with_the_node_bin_first_on_path(tmp_path):
+    bin_dir = tmp_path / "node-bin"
+    _tools_beside_node(bin_dir)
+    machine = LocalMachine()
+    assert machine.tool_version("botcore-factory-pnpm", [str(bin_dir)]) == "26.13.0"
+    assert machine.tool_version("botcore-factory-pnpm") is None  # Not on the host's PATH.
+    assert machine.tool_version("botcore-factory-no-such-program", [str(bin_dir)]) is None

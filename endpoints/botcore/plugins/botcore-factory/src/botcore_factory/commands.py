@@ -14,7 +14,7 @@ from collections.abc import Callable
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
 
-from botcore_factory import cells, events, intake, lane_process, queue, status
+from botcore_factory import cells, events, foreman, intake, lane_process, queue, status
 from botcore_factory.runtime import Factory, guarded, paginate
 
 GITHUB = ("gh",)
@@ -92,19 +92,31 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(body)
 
     async def cell_register(
-        issues: list[int], branch: str, route: str, thread: str | None = None
+        issues: list[int],
+        branch: str,
+        route: str,
+        thread: str | None = None,
+        session: str | None = None,
+        related_because: str | None = None,
     ) -> CommandResult:
-        """Claim issues for a new cell on GitHub and assign the cell the plan with most room.
+        """Claim issues for a new cell on GitHub and assign it a plan: the highest pace among
+        Claude's plans while cells.claudeOnly is on (refused NO_CLAUDE_PLAN with none), else
+        among every plan.
 
         Args:
-            issues: The issue numbers the cell takes; one unless cells.issuesMax allows more.
+            issues: The issue numbers the cell takes; more than one is a package, which needs
+                related_because and a cells.issuesMax that allows the count.
             branch: The cell's branch.
-            route: The model route the cell runs on, e.g. sol/high.
+            route: The model route the cell runs on, e.g. opus/medium.
             thread: The T3 Code thread, when it is already known (cell-attach records it later).
+            session: The foreman's own session (its T3 Code thread id), which holds the lane.
+            related_because: Required with more than one issue: what the package shares, such
+                as the files it edits, so one PR beats separate cells that would conflict.
         """
 
         def body() -> CommandResult:
-            cell = cells.register(get(), issues, branch, route, thread)
+            foreman.hold(get(), session, "cell-register")
+            cell = cells.register(get(), issues, branch, route, thread, related_because)
             return success(
                 {"cell": cell},
                 reasoning=f"Claimed {', '.join(f'#{n}' for n in issues)} for {branch} on "
@@ -137,14 +149,17 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success(status.dial_get(get(), key)))
 
-    async def dial_set(key: str, value: int | float | bool) -> CommandResult:
+    async def dial_set(
+        key: str, value: int | float | bool, session: str | None = None
+    ) -> CommandResult:
         """Set a dial; the previous value is returned so the change can be undone.
 
         Args:
             key: The dial, e.g. lane.slots.
             value: The new value, within the dial's range.
+            session: The foreman's own session; the owner, setting a dial by hand, names none.
         """
-        return await run(lambda: success(status.dial_set(get(), key, value)))
+        return await run(lambda: success(status.dial_set(get(), key, value, session)))
 
     async def lane_enqueue(
         worktree: str, title: str | None = None, body_file: str | None = None
@@ -167,20 +182,25 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         return await run(body)
 
-    async def lane_wait(consumer: str, timeout_ms: int | None = None) -> CommandResult:
+    async def lane_wait(
+        consumer: str, timeout_ms: int | None = None, session: str | None = None
+    ) -> CommandResult:
         """Wait for events this consumer has not been given; reading never resolves them.
 
         Args:
             consumer: Who reads, e.g. foreman; each consumer is given each event once.
             timeout_ms: How long to wait; no limit when left out (over MCP pass at most 300000).
+            session: The foreman's own session (its T3 Code thread id); it holds the lane, and
+                waiting keeps it.
         """
 
         def body() -> CommandResult:
             factory = get()
             lane_process.check_lane(factory)
+            keep = foreman.waiting(factory, consumer, session, timeout_ms)
             return success(
                 events.lane_wait(
-                    factory, consumer, timeout_ms, lambda: status.compact_status(factory)
+                    factory, consumer, timeout_ms, lambda: status.compact_status(factory), keep
                 )
             )
 
@@ -239,8 +259,10 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(lambda: success(cells.gate_allow(get(), branch, reason)))
 
     async def plan_list() -> CommandResult:
-        """Each plan's weekly window: share used and elapsed, room, and whether it is above
-        plans.ceiling."""
+        """Each plan's weekly window: share used and elapsed, room, pace (room below
+        plans.ceiling per day to its reset) and whether it is above plans.ceiling. next is the
+        plan cell-register would assign: the highest pace among Claude's plans while
+        cells.claudeOnly is on, null when none can take a cell."""
         return await run(lambda: success(status.plan_list(get())))
 
     return [

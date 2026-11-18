@@ -45,6 +45,15 @@ def entry_of(run, branch: str) -> dict:
     return next(e for e in run.state()["queue"] if e["branch"] == branch)
 
 
+def reviewed(run, state: dict, branch: str, head: str, worktree: str) -> None:
+    """What lane-enqueue records for a branch a test queues by hand: its cell's worktree, which
+    holds the head and its review, for the lane's own review check."""
+    next(c for c in state["cells"] if c["branch"] == branch)["worktree"] = worktree
+    run.change_world(
+        worktrees={worktree: {"branch": branch, "head": head, "review": {"head": head}}}
+    )
+
+
 @pytest.fixture
 def lane(make_run):
     """The running fixture: two branches queued, one slot, this machine the lane host."""
@@ -101,6 +110,7 @@ def test_a_queued_branch_is_validated_pushed_merged_and_landed(lane):
 def test_a_validated_head_keeps_its_checkout_until_pushed(lane):
     with lane.store.update("third") as state:
         state["queue"].append({"branch": "fix/parser-empty-input", "head": "a1b2c3d"})
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
     lane.change_world(
         outcomes={
             "checks": {"feat/export-csv": "pending"},
@@ -254,7 +264,9 @@ def test_the_base_moving_while_the_check_runs_validates_again_before_any_merge(l
     )
     actions = run_steps(lane)
     assert "rerun feat/export-csv (main-moved)" in actions
-    assert "rerun fix/retry-backoff (slot-needed)" in actions
+    # The validated branch behind it gives up its slot but keeps its validation (#1452).
+    assert "released slot 1 from fix/retry-backoff; its validation is kept" in actions
+    assert "rerun fix/retry-backoff (slot-needed)" not in actions
     assert "merged" not in kinds(lane)
     assert prs(lane)["600"]["state"] == "OPEN"
     entry = lane.state()["queue"][0]
@@ -416,6 +428,7 @@ def test_a_repair_pushes_over_the_lane_s_own_merge_commit_with_a_lease(lane):
     assert lane.world_data()["pushed"]["feat/export-csv"] == "b2c3d4e+main-0"
     with lane.store.update("repaired") as state:  # The cell's repair, enqueued again.
         state["queue"].insert(0, {"branch": "feat/export-csv", "head": "b2c3d4f", "attempt": 2})
+        reviewed(lane, state, "feat/export-csv", "b2c3d4f", "wt/export-csv")
         next(c for c in state["cells"] if c["branch"] == "feat/export-csv")["state"] = "queued"
     lane.change_world(outcomes={"checks": {"feat/export-csv": "success"}})
     run_steps(lane, 3)
@@ -429,6 +442,7 @@ def test_a_branch_someone_else_pushed_to_is_not_overwritten(lane):
     lane.change_world(pushed={"feat/export-csv": "someone-else"})
     with lane.store.update("repaired") as state:
         state["queue"].insert(0, {"branch": "feat/export-csv", "head": "b2c3d4f", "attempt": 2})
+        reviewed(lane, state, "feat/export-csv", "b2c3d4f", "wt/export-csv")
     run_steps(lane, 2)
     assert events(lane, "ejected")[-1]["reason"] == "push-failed"
     assert lane.world_data()["pushed"]["feat/export-csv"] == "someone-else"
@@ -441,6 +455,7 @@ def test_coverage_debt_from_a_merge_during_a_coverage_run_is_kept(lane):
     with lane.store.update("every merge") as state:
         state["dials"]["lane.coverageEvery"] = 1
         state["queue"].append({"branch": "fix/parser-empty-input", "head": "a1b2c3d"})
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
     lane.change_world(
         outcomes={"coverage": "running", "changed": {"fix/retry-backoff": ["lefthook.yml"]}}
     )
@@ -521,6 +536,7 @@ def test_a_node_the_host_lacks_pauses_the_lane_and_validates_nothing(lane):
     assert queue(lane)[0] == ("feat/export-csv", "queued")
     detail = lane.state()["lane"]["pauseReason"]
     assert "Node 26" in detail and "fnm install 26" in detail
+    assert not events(lane, "ejected")  # The base's own .nvmrc: no branch is to blame.
 
 
 def test_an_nvmrc_alias_pauses_the_lane_with_the_way_forward(lane):
@@ -528,6 +544,54 @@ def test_an_nvmrc_alias_pauses_the_lane_with_the_way_forward(lane):
     run_steps(lane)
     assert "validation-started" not in kinds(lane)
     assert "pin a version number" in lane.state()["lane"]["pauseReason"]
+
+
+# #1352: a branch that bumps .nvmrc to a Node the host lacks is ejected; the lane goes on.
+
+NODE_26 = "/fnm/v26.13.0/bin"
+
+
+def _bumps_nvmrc(lane, spec: str) -> None:
+    lane.change_world(
+        slotFiles={".nvmrc": "26\n"},
+        nodes={"26": NODE_26},
+        branchSlotFiles={"feat/export-csv": {".nvmrc": spec + "\n"}},
+        outcomes={"changed": {"feat/export-csv": [".nvmrc", "src/export.ts"]}},
+    )
+
+
+def test_a_branch_that_bumps_nvmrc_to_a_node_the_host_lacks_is_ejected(lane):
+    _bumps_nvmrc(lane, "27")
+    actions = run_steps(lane, **INSTALL)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    assert "validating fix/retry-backoff in slot 1" in actions  # The next branch takes the slot.
+    assert not lane.state()["lane"].get("paused")
+    ejected = events(lane, "ejected")[0]
+    assert ejected["reason"] == "node-missing" and not ejected.get("excused")
+    assert ejected["detail"].startswith("NODE_MISSING: the branch's .nvmrc names Node 27")
+    assert "keep the base's .nvmrc" in ejected["detail"] and "fnm install 27" in ejected["detail"]
+    [record] = [r for r in lane.store.read_records() if r["kind"] == "ejected"]
+    assert record["cause"] == "node-missing" and record["counted"] is True
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert [s["path"] for s in job["steps"]] == [[NODE_26]] * 2  # Main's Node for the next.
+    cell = next(c for c in lane.state()["cells"] if c["branch"] == "feat/export-csv")
+    assert cell["state"] == "ejected" and cell["lastEjection"]["cause"] == "node-missing"
+
+
+def test_a_branch_that_sets_an_nvmrc_alias_is_ejected_with_the_way_forward(lane):
+    _bumps_nvmrc(lane, "lts/*")
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    assert "pin a version number" in events(lane, "ejected")[0]["detail"]
+    assert not lane.state()["lane"].get("paused")
+
+
+def test_a_branch_whose_nvmrc_node_is_installed_validates_on_it(lane):
+    _bumps_nvmrc(lane, "27")
+    lane.change_world(nodes={"27": "/fnm/v27.0.0/bin"})
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert job["steps"][0]["path"] == ["/fnm/v27.0.0/bin"]
 
 
 # S6, S7, S8: never validated against a base it lacks, never merged unguarded or as a non-host.
@@ -575,10 +639,10 @@ def test_a_check_that_never_finishes_pauses_the_lane_and_leaves_the_pr_open(lane
 def test_the_ejection_limit(lane):
     with lane.store.update("two ejections") as state:
         state["cells"][3]["ejections"] = 2  # feat/export-csv
-    lane.change_world(outcomes={"merge": {"feat/export-csv": "conflict: a"}})
-    run_steps(lane)
+    lane.change_world(outcomes={"validate": {"feat/export-csv": "fail: FAIL src/x.test.ts"}})
+    run_steps(lane, 2)
     [limit] = events(lane, "ejection-limit")
-    assert limit["branch"] == "feat/export-csv" and "3 ejections" in limit["detail"]
+    assert limit["branch"] == "feat/export-csv" and "3 ejections count" in limit["detail"]
 
 
 def test_a_pr_merged_elsewhere_is_landed_and_flagged(lane):
@@ -691,3 +755,170 @@ def test_first_lines_prefer_failures_and_logs_are_named_per_attempt():
     assert first_lines("ok\nok\nFAIL a\nError: b\n") == ["FAIL a", "Error: b"]
     assert first_lines("one\ntwo") == ["one", "two"]
     assert log_path("fix/a b", 2) == "attempts/fix-a-b-2.log"
+
+
+# lushly-dev/afd#1308: the lane checks each review itself, with the base's verifier.
+
+
+def test_the_lane_ejects_a_head_whose_review_the_base_s_verifier_refuses(lane):
+    """Enqueue ran the branch's own verifier; the lane's run, from the base, binds."""
+    lane.change_world(worktrees={"wt/export-csv": {"review": None}})
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (review-unverified)" in actions
+    assert "validating fix/retry-backoff in slot 1" in actions
+    ejected = events(lane, "ejected")[0]
+    assert (ejected["reason"], ejected["detail"]) == ("review-unverified", "no review record")
+    assert "validation-started" not in [
+        r["kind"] for r in lane.store.read_records() if r.get("branch") == "feat/export-csv"
+    ]
+    review = lane.world_data()["checkouts"]["review"]
+    assert (review["branch"], review["head"]) == ("", "main-0")  # The base, never the branch.
+
+
+def test_a_review_of_an_older_head_does_not_pass_the_lane(lane):
+    lane.change_world(worktrees={"wt/export-csv": {"head": "b2c3d4f"}})  # Moved after enqueue.
+    assert "ejected feat/export-csv (review-unverified)" in run_steps(lane)
+
+
+def test_a_cell_whose_worktree_is_gone_is_ejected_not_paused(lane):
+    data = lane.world_data()
+    del data["worktrees"]["wt/export-csv"]
+    lane.world_path.write_text(json.dumps(data), encoding="utf-8")
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (review-unverified)" in actions
+    assert "is gone" in events(lane, "ejected")[0]["detail"]
+    assert not lane.state()["lane"].get("paused")
+
+
+def test_a_verifier_that_cannot_run_pauses_the_lane_and_ejects_nothing(lane):
+    lane.change_world(outcomes={"review": "fail: node is not on PATH"})
+    run_steps(lane)
+    assert lane.state()["lane"]["paused"] is True
+    assert "node is not on PATH" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+    assert queue(lane) == [("feat/export-csv", "queued"), ("fix/retry-backoff", "queued")]
+
+
+def test_review_evidence_without_the_worktree_is_the_lane_s_trouble(lane):
+    run_steps(
+        lane, review_evidence=["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
+    )
+    assert "must name {worktree}" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+
+
+def test_a_verifier_that_crashes_on_the_base_pauses_the_lane_and_ejects_nothing(lane):
+    """Node exits 1 for a missing or broken script: that is not the branch's refusal (3)."""
+    lane.change_world(outcomes={"review": "exit 1"})
+    run_steps(lane)
+    assert "review verifier failed" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+
+
+def test_a_repair_without_a_review_keeps_a_validated_branch_s_slot(lane):
+    with lane.store.update("a validated branch holds the only slot") as state:
+        state["queue"] = [
+            {"branch": "fix/parser-empty-input", "head": "a1b2c3d"},
+            {
+                "branch": "feat/export-csv",
+                "head": "b2c3d4e",
+                "state": "validated",
+                "slot": "1",
+                "validatedHead": "b2c3d4e+main-0",
+                "base": "main-0",
+            },
+        ]
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
+    lane.change_world(worktrees={"wt/parser": {"review": None}})
+    actions = run_steps(lane)
+    assert "ejected fix/parser-empty-input (review-unverified)" in actions
+    assert entry_of(lane, "feat/export-csv")["state"] == "validated"
+    assert "rerun" not in kinds(lane)
+
+
+# lushly-dev/afd#1410: a merge whose only conflicts are generated records is written again.
+
+RECORDS = (
+    "endpoints/botcore/provenance/provenance.json, endpoints/botcore/provenance/adaptations.json"
+)
+REGENERATE = {
+    "regenerate": [
+        {
+            "name": "provenance",
+            "paths": ["endpoints/*/provenance/*.json"],
+            "run": ["node", "scripts/provenance-merge.mjs"],
+        }
+    ]
+}
+
+
+def regenerating(run_, steps: int = 1) -> list[str]:
+    from botcore_factory.adapter import Regenerate
+
+    specs = [Regenerate(**spec) for spec in REGENERATE["regenerate"]]
+    return run_steps(run_, steps, regenerate=specs)
+
+
+def test_conflicts_only_in_generated_records_are_written_again_and_validated(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
+    actions = regenerating(lane)
+    assert actions[:2] == [
+        "regenerated provenance for feat/export-csv",
+        "validating feat/export-csv in slot 1",
+    ]
+    assert entry_of(lane, "feat/export-csv")["validatedHead"] == "b2c3d4e+main-0"
+    started = next(r for r in lane.store.read_records() if r["kind"] == "validation-started")
+    assert started["regenerated"] == ["provenance"]
+    assert not events(lane, "ejected")
+
+
+def test_a_conflict_outside_the_generated_files_still_ejects(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}, src/a.ts"}})
+    assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+    assert (
+        "checkouts" not in lane.world_data()
+        or "merging" not in (lane.world_data()["checkouts"]["1"])
+    )
+
+
+def test_a_regenerate_command_that_refuses_ejects_as_a_conflict(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "regenerate": {
+                "provenance": "fail: both sides changed $.files[a.py].import_classification"
+            },
+        }
+    )
+    actions = regenerating(lane)
+    assert "ejected feat/export-csv (conflict)" in actions
+    detail = events(lane, "ejected")[0]["detail"]
+    assert "provenance could not merge them: both sides changed" in detail
+    assert "merging" not in lane.world_data()["checkouts"]["1"]
+
+
+def test_a_regenerate_command_that_cannot_run_pauses_the_lane(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "regenerate": {"provenance": "error: node is not on PATH"},
+        }
+    )
+    regenerating(lane)
+    assert "could not run: node is not on PATH" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+
+
+def test_paths_left_unmerged_after_regenerating_eject(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "finish": {"feat/export-csv": "conflict: endpoints/botcore/provenance/provenance.json"},
+        }
+    )
+    assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+
+
+def test_without_regenerate_a_records_conflict_ejects_as_before(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
+    assert "ejected feat/export-csv (conflict)" in run_steps(lane)

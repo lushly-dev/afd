@@ -72,7 +72,7 @@ afd::Json contract(afd::Json schema) {
 TEST_CASE("the registered commands are exactly those in commands.schema.json") {
     Fixture fixture;
     std::vector<std::string> registered;
-    for (const auto& command : fixture.registry->list()) {
+    for (const auto& command : fixture.todo_commands()) {
         registered.push_back(command->definition.name);
         CHECK(command->definition.expose.mcp);
     }
@@ -85,7 +85,7 @@ TEST_CASE("the registered commands are exactly those in commands.schema.json") {
 
 TEST_CASE("each command declares the metadata in commands.schema.json") {
     Fixture fixture;
-    for (const auto& command : fixture.registry->list()) {
+    for (const auto& command : fixture.todo_commands()) {
         const auto& definition = command->definition;
         CAPTURE(definition.name);
         const auto& metadata = spec()["commands"][definition.name]["metadata"];
@@ -106,7 +106,7 @@ TEST_CASE("each command declares the metadata in commands.schema.json") {
 
 TEST_CASE("each input schema is the contract's, descriptions aside") {
     Fixture fixture;
-    for (const auto& command : fixture.registry->list()) {
+    for (const auto& command : fixture.todo_commands()) {
         const auto& definition = command->definition;
         CAPTURE(definition.name);
         const afd::Json expected = contract(spec()["commands"][definition.name]["input"]);
@@ -121,7 +121,7 @@ TEST_CASE("each input schema is the contract's, descriptions aside") {
 
 TEST_CASE("every command has a title, an output schema, examples and the version") {
     Fixture fixture;
-    for (const auto& command : fixture.registry->list()) {
+    for (const auto& command : fixture.todo_commands()) {
         const auto& definition = command->definition;
         CAPTURE(definition.name);
         CHECK(definition.title.has_value());
@@ -137,7 +137,7 @@ TEST_CASE("every change declares an approval policy, and the undoable ones say s
         "todo-create",       "todo-update",       "todo-toggle",       "todo-delete",
         "todo-create-batch", "todo-delete-batch", "todo-toggle-batch", "todo-restore"};
     Fixture fixture;
-    for (const auto& command : fixture.registry->list()) {
+    for (const auto& command : fixture.todo_commands()) {
         const auto& definition = command->definition;
         CAPTURE(definition.name);
         CHECK(definition.approval.has_value() == definition.mutation);
@@ -149,6 +149,19 @@ TEST_CASE("every change declares an approval policy, and the undoable ones say s
             CHECK(mode == afd::ApprovalMode::not_required);
         }
     }
+}
+
+TEST_CASE("the two contexts are served, as src/contexts.ts defines them") {
+    Fixture fixture;
+    for (const char* name : {"afd-context-list", "afd-context-enter", "afd-context-exit"}) {
+        const auto command = fixture.registry->get(name);
+        REQUIRE(command);
+        CHECK(command->definition.expose.mcp);
+    }
+    const auto listed = fixture.run("afd-context-list");
+    CHECK(listed["data"]["contexts"].size() == 2);
+    CHECK(listed["data"]["contexts"][0]["name"] == "todo-reading");
+    CHECK(listed["data"]["contexts"][1]["name"] == "todo-editing");
 }
 
 TEST_CASE("todo-history's description states the history limit") {

@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "app.hpp"
 #include "commands.hpp"
@@ -31,6 +32,18 @@ struct Fixture {
                                           .random = std::make_shared<afd::SeededRandom>("1")});
         REQUIRE_MESSAGE(made.has_value(), (made ? std::string() : made.error()));
         registry = std::move(*made);
+    }
+
+    /// The todo commands: every registered command but the context and bootstrap commands
+    /// (category `bootstrap`).
+    [[nodiscard]] std::vector<std::shared_ptr<const afd::RegisteredCommand>> todo_commands() const {
+        std::vector<std::shared_ptr<const afd::RegisteredCommand>> commands;
+        for (const auto& command : registry->list()) {
+            if (command->definition.category != "bootstrap") {
+                commands.push_back(command);
+            }
+        }
+        return commands;
     }
 
     /// Runs `name` as `actor` (a person by default), a millisecond after the last call.

@@ -234,6 +234,8 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-rebuild",
         "mail-sender-screen",
         "mail-sender-accept",
+        "mail-policy-set",
+        "mail-operation-approve",
     ] {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
@@ -245,6 +247,9 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-story-list",
         "mail-story-open",
         "mail-story-changes",
+        "mail-selection-create",
+        "mail-policy-show",
+        "mail-operation-dismiss",
     ] {
         assert!(listed.contains(agents), "{agents} is not listed: {listed}");
     }
@@ -256,10 +261,12 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-token-revoke",
         "mail-sender-screen",
         "mail-sender-accept",
+        "mail-policy-set",
+        "mail-operation-approve",
     ] {
         let call = mcp_body(
             "tools/call",
-            json!({ "name": "afd-call", "arguments": { "command": person, "input": { "name": "x", "token": id, "account": 1, "sender": 1, "decision": "out", "suggestion": 1 } } }),
+            json!({ "name": "afd-call", "arguments": { "command": person, "input": { "name": "x", "token": id, "account": 1, "sender": 1, "decision": "out", "suggestion": 1, "operation": 1 } } }),
         );
         let (status, body) = request(&app, "/mcp", sent(Some(&agent)), call).await;
         assert_eq!(status, 200, "{body}");

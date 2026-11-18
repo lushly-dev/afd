@@ -88,7 +88,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-highlight, #ffffff)",
+				"default": "var(--color-surface-subtle, #f0efe6)",
 				"name": "--_surface-active"
 			},
 			{

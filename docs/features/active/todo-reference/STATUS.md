@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
   TypeScript, and both backends on one SQLite database by default (D4). Rust is merged in
-  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; the C++ parity pull request is in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) (see [C++](#c)). After it, what stands of phase 5 is the C++ contexts and tool list, which wait on the library ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) and the wider suite.
+  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; C++ parity merged in [#1426](https://github.com/lushly-dev/afd/pull/1426) on 2026-11-17 (`feca7208`; see [C++](#c)). Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) merged in [#1442](https://github.com/lushly-dev/afd/pull/1442) on 2026-11-17 (`673e8795`): every backend runs every approval case. C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)) merged in [#1454](https://github.com/lushly-dev/afd/pull/1454) on 2026-11-17 (`3cb229af`), closing W2 (see [C++ contexts](#c-contexts)). C++'s bootstrap commands merged in [#1468](https://github.com/lushly-dev/afd/pull/1468) on 2026-11-17 (`d16dc64e`), the first of three steps for [#1451](https://github.com/lushly-dev/afd/issues/1451); its meta-tools and tool strategies, which give the C++ backend TypeScript's tool list (W9), merged in [#1477](https://github.com/lushly-dev/afd/pull/1477) on 2026-11-17 (`b26a16e6`; see [C++ meta-tools and strategies](#c-meta-tools-and-strategies)), and the up-front approval of its `afd-batch` and `afd-pipe`, the last step, merged in [#1482](https://github.com/lushly-dev/afd/pull/1482) on 2026-11-17 (`8d11828e`; see [C++ up-front approval](#c-up-front-approval)). The wider suite, the last item of phase 5, merged in [#1496](https://github.com/lushly-dev/afd/pull/1496) on 2026-11-17 (`d2a22697`; see [The wider suite](#the-wider-suite)). What stands of the exit criteria is W9's Python tool list, which waits on the owner's decision in [#533](https://github.com/lushly-dev/afd/issues/533).
 
 ## Plan
 
@@ -42,21 +42,21 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) | See [phase 5](#phase-5-the-other-languages) | C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)), the wider suite |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in [#1426](https://github.com/lushly-dev/afd/pull/1426); Python's approval relay in [#1442](https://github.com/lushly-dev/afd/pull/1442); C++ contexts in [#1454](https://github.com/lushly-dev/afd/pull/1454); C++ bootstrap commands in [#1468](https://github.com/lushly-dev/afd/pull/1468); C++ meta-tools and strategies in [#1477](https://github.com/lushly-dev/afd/pull/1477); C++ up-front approval in [#1482](https://github.com/lushly-dev/afd/pull/1482); the wider suite in [#1496](https://github.com/lushly-dev/afd/pull/1496) | See [phase 5](#phase-5-the-other-languages) | W9's Python tool list, after the owner decides [#533](https://github.com/lushly-dev/afd/issues/533) |
 
 ## Findings
 
 | Finding | State |
 | --- | --- |
 | W1 `total` capped at 100 in TypeScript | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
-| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts in [#1319](https://github.com/lushly-dev/afd/pull/1319). Rust declares and serves them in #1335 (and the Umbel plugin's manifest declares them). C++ declares them but cannot serve them: the library's `afd::mcp_stdio` has no context tools ([#1425](https://github.com/lushly-dev/afd/issues/1425)) |
+| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts in [#1319](https://github.com/lushly-dev/afd/pull/1319). Rust declares and serves them in #1335 (and the Umbel plugin's manifest declares them). C++ declares them, and serves them since [#1454](https://github.com/lushly-dev/afd/pull/1454) ([#1425](https://github.com/lushly-dev/afd/issues/1425); see [C++ contexts](#c-contexts)) |
 | W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes advertised `destructiveHint: false`, since a mounted tool could not declare `destructive`; in #1335 it can, and the `todo-http` fixture does (see follow-ups) |
 | W4 no confirmation gate in C++ | Fixed: prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforced in [#1379](https://github.com/lushly-dev/afd/pull/1379): the backend runs on `afd::mcp_stdio`, reads `CONFIRMATIONS` and passes the confirmation suite in both eras, in CI ([#467](https://github.com/lushly-dev/afd/issues/467)) |
 | W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
 | W8 todo-directclient's copied commands and hand-written tools | Fixed in [#1281](https://github.com/lushly-dev/afd/pull/1281): the main commands (D5), tools from `listTools()`, and `allow` in look mode |
-| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read `pnpm test:interop` makes alike on one database, order (an accented, mixed-case title sort among them) and alternatives included, and describe every command alike in `afd-detail` (title, description, category, tags, mutation); Python makes ids in TypeScript's format from the context's random. Title order follows JavaScript's `localeCompare` for Latin text, digits and ASCII punctuation (`collation.py`), not every script. In #1335 Rust returns TypeScript's `alternatives`, keeps ties in insertion order in both directions, makes ids in TypeScript's format from the context's random (a seeded id checked against TypeScript's), and lists TypeScript's grouped tools (`todo` and `bootstrap`, from the library's tool list). Rust's title sort folds case its own way, not `localeCompare` (see follow-ups). On the C++ parity branch C++ returns TypeScript's `alternatives`, keeps ties in insertion order in both directions (a restored todo counts as added again) and makes TypeScript's ids from the context's random (the seeded id checked against TypeScript's); its tests compare each input schema with the contract's, descriptions aside. C++'s title sort folds ASCII case only, and its tool list is one tool per command until `afd::mcp_stdio` serves meta-tools ([#1425](https://github.com/lushly-dev/afd/issues/1425)) |
+| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read `pnpm test:interop` makes alike on one database, order (an accented, mixed-case title sort among them) and alternatives included, and describe every command alike in `afd-detail` (title, description, category, tags, mutation); Python makes ids in TypeScript's format from the context's random. Title order follows JavaScript's `localeCompare` for Latin text, digits and ASCII punctuation (`collation.py`), not every script. In #1335 Rust returns TypeScript's `alternatives`, keeps ties in insertion order in both directions, makes ids in TypeScript's format from the context's random (a seeded id checked against TypeScript's), and lists TypeScript's grouped tools (`todo` and `bootstrap`, from the library's tool list). Rust's title sort folds case its own way, not `localeCompare` (see follow-ups). On the C++ parity branch C++ returns TypeScript's `alternatives`, keeps ties in insertion order in both directions (a restored todo counts as added again) and makes TypeScript's ids from the context's random (the seeded id checked against TypeScript's); its tests compare each input schema with the contract's, descriptions aside. C++'s title sort folds ASCII case only. Its tool list is TypeScript's grouped one (`todo` and `bootstrap`, from the library's tool list) since [#1477](https://github.com/lushly-dev/afd/pull/1477). Since [#1496](https://github.com/lushly-dev/afd/pull/1496) the suite checks alternatives, ties in both directions, the destructive hints and TypeScript's tool list against every backend ([the wider suite](#the-wider-suite)); Python's tool list waits on [#533](https://github.com/lushly-dev/afd/issues/533) |
 
 ## Phase 1: fix what is wrong
 
@@ -324,14 +324,11 @@ Merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16:
   bytes, else a random key) as TypeScript reads them; `todo-clear` is held for any caller that is
   not a person through `create_approval_middleware`, with TypeScript's summary text. The store is
   synchronous here, so the summary reads its counts directly, with no counts middleware. The
-  approval suite's two `acknowledge` cases now name Python; `accept` and `decline` stay
-  TypeScript's until the library can ask over MCP
-  ([#1312](https://github.com/lushly-dev/afd/issues/1312)). The runner now skips a client kind
-  with no case for the language, and still fails a suite that leaves it none. **Until #1312, a
-  held clear cannot be approved over the Python server's MCP:** no MCP call carries the token, so
-  the retry is held again. `APPROVALS` stays `agents` by default (parity, and safe); a clear runs
-  with `APPROVALS=off`, from trusted in-process code that retries with the token, from a person in
-  process, or through the TypeScript server on the same database. Each server keeps its own spent
+  approval suite's two `acknowledge` cases name Python. Until #1312, `accept` and `decline` stayed
+  TypeScript's and a held clear could not be approved over the Python server's MCP; since the
+  Python relay (2026-11-17, see [the relay](#pythons-approval-relay)), the server asks the person
+  as the others do and every case runs against it. The runner skips a client kind with no case
+  for the language, and still fails a suite that leaves it none. Each server keeps its own spent
   tokens, so with a shared `TODO_APPROVAL_SECRET` one approval can run the clear once on each
   server; both backends' READMEs say so.
 - **The shared SQLite store (D4).** `store/sqlite.py` reads and writes local-db's layout through
@@ -500,10 +497,11 @@ In review in [#1426](https://github.com/lushly-dev/afd/pull/1426), on the librar
     declares form elicitation is asked; any other MCP client gets `APPROVAL_REQUIRED` and no
     token.
   - The command form runs as `human`, the person at the terminal.
-- **What stands (W2, W9).** `afd::mcp_stdio` has no context tools, meta-tools, bootstrap commands
-  or tool strategies, so the two contexts are declared but not served, and the tool list is one
-  tool per command ([#1425](https://github.com/lushly-dev/afd/issues/1425)). The title sort folds
-  ASCII case only, as before.
+- **What stood (W2, W9).** `afd::mcp_stdio` had no context tools, meta-tools, bootstrap commands
+  or tool strategies, so the two contexts were declared but not served, and the tool list is one
+  tool per command ([#1425](https://github.com/lushly-dev/afd/issues/1425)). Contexts are served
+  since [C++ contexts](#c-contexts); the tool list since [C++ meta-tools and strategies](#c-meta-tools-and-strategies).
+  The title sort folds ASCII case only, as before.
 - **Spec and CI.**
   - `implementedBy` and `x-implementedBy` are gone from `commands.schema.json` and the six test
     cases, since all four languages implement everything. The two `acknowledge` approval cases
@@ -520,7 +518,121 @@ An independent review compared 27 calls side by side with the TypeScript server 
 for validation texts, now listed in the README) and found one blocker, fixed: an `offset` beyond
 int64 was cast out of range, which on x86 could read out of bounds. Integer inputs are now clamped
 to [0, 2^53 - 1]. Its improvements (missing-key reads, a test that an approved clear over MCP is
-recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC.
+recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC. MSVC
+later failed on `std::getenv` (see the findings log); fixed in [#1453](https://github.com/lushly-dev/afd/pull/1453).
+
+### Python's approval relay
+
+Merged in [#1442](https://github.com/lushly-dev/afd/pull/1442) on 2026-11-17 (`673e8795`), for
+[#1312](https://github.com/lushly-dev/afd/issues/1312).
+
+- **The library.** `create_approval_middleware(relay="mcp-elicitation")` asks the person behind
+  an MCP client that declares form elicitation, as TypeScript's, Rust's and C++'s do
+  (`spec/command-metadata.md`, "Asking the human over MCP"): `input_required` on 2026-07-28, a
+  server-sent elicitation on a 2025 stdio or stateful HTTP connection, then the call runs again.
+  `afd-batch` and `afd-pipe` are approved up front (#459), which the issue left out but the spec
+  and the parity matrix ask of every server that serves them.
+- **One state per call.** The confirmation's `requestState` was its bare digest; it is now a
+  sealed JSON object that carries the questions asked and the earlier rounds' answers, each
+  lapsing 10 minutes after it was asked, so a call that needs a confirmation and an approval asks
+  for each in turn. The SDK still seals it and binds it to the request and the principal, so a
+  retry with other arguments is refused before any handler runs.
+- **The backend.** `server.py` passes `relay="mcp-elicitation"`. `include_token` keeps Python's
+  default (on), which in-process callers rely on; an MCP agent that cannot elicit still gets
+  the token, which no tool argument can carry.
+- **Spec and CI.** `accept` and `decline` in `approval-cases.json` are every language's now;
+  `conformance.yml` already ran Python's approvals in both eras.
+
+Verified locally on 2026-11-17: the Python library's tests (3,216, with 48 new relay tests over
+real MCP sessions in both eras), the backend's tests, Python conformance 41/41 in legacy and
+modern modes, confirmations 5/5 and approvals 4/4 in legacy, modern and auto modes, and the full
+`pnpm verify` on Node 26. An independent review found no blocker; its improvements are in: the
+spec's own parity table, no channel or relay inherited by a call outside a request, a shielded
+up-front plan, and tests for identical steps, hidden and nested commands, first-class tools, a
+batch confirmed then approved, a policy that raises, a 2025 client that gives no answer, every
+step reference and a re-asked batch.
+
+### C++ contexts
+
+Merged in [#1454](https://github.com/lushly-dev/afd/pull/1454) on 2026-11-17 (`3cb229af`), for
+[#1425](https://github.com/lushly-dev/afd/issues/1425). The issue let the meta-tools, bootstrap
+commands and strategies be split out; they are [#1451](https://github.com/lushly-dev/afd/issues/1451).
+
+- **The library.** `afd/contexts.hpp` (`ContextConfig`, `ContextStack`, `register_context_commands`)
+  gives C++ the three context tools with Rust's results and errors. `StdioServerOptions::contexts`
+  serves them: a 2025 connection keeps one stack, a 2026-07-28 request names its context in
+  `_meta["dev.afd/context"]` (an unknown one is `-32602`, as in Rust), `tools/list` is filtered,
+  `ttlMs` is 0 and `server/discover` says how to send a context. A confirm-gated command outside
+  the context is refused before anyone is asked, and `COMMAND_NOT_IN_CONTEXT` names the context
+  tools.
+- **The backend.** `todo_contexts()` is `src/contexts.ts`; `todo-reading` shows list, get, stats
+  and history. The spec tests compare the thirteen todo commands, leaving the context tools out.
+
+Verified locally on 2026-11-17 with Apple clang: the library's tests (278 cases, 9 new context
+cases and 10 new server cases in both eras) in the dev and no-exceptions/no-RTTI builds, the
+backend's 38 cases with warnings as errors, C++ conformance 41/41 in legacy, modern and auto modes,
+confirmations 5/5 and approvals 4/4 in both eras, and the full `pnpm verify` on Node 26. An
+independent review found no blocker; its improvements are in: the server refuses contexts that
+differ from the registered ones, the registry takes the active context from the scope, three stale
+spec rows, and tests for each check's order.
+
+### C++ bootstrap commands
+
+Merged in [#1468](https://github.com/lushly-dev/afd/pull/1468) on 2026-11-17 (`d16dc64e`): the first of three steps for
+[#1451](https://github.com/lushly-dev/afd/issues/1451). The next two are the meta-tools and tool
+strategies on `afd::mcp_stdio`, then the up-front approval of `afd-batch` and `afd-pipe`.
+
+- **The library.** `afd/bootstrap.hpp` (`register_bootstrap_commands`) gives C++ `afd-help`,
+  `afd-docs` and `afd-schema`, TypeScript's commands ported, `afd-schema`'s TypeScript generator
+  among them. They describe the MCP-exposed commands in the active context. With all three
+  registered, `server/discover` adds TypeScript's bootstrap sentence and an unknown command's
+  suggestion points to `afd-help`.
+- **The backend.** It registers them after the context tools, as TypeScript's `bootstrap: true`
+  does, so its tool list has TypeScript's tools, one per command, until the grouped strategy.
+
+### C++ meta-tools and strategies
+
+Merged in [#1477](https://github.com/lushly-dev/afd/pull/1477) on 2026-11-17 (`b26a16e6`): the second step for
+[#1451](https://github.com/lushly-dev/afd/issues/1451).
+
+- **The library.** `StdioServerOptions::tool_strategy` (`individual`, `grouped` by default, `lazy`)
+  and `group_by` give TypeScript's and Rust's tool lists; the five meta-tools are
+  `spec/meta-tools.json`, checked field for field. Every route goes through the same exposure,
+  context, confirmation and validation checks. `afd-batch` and `afd-pipe` ask once for every gated
+  step, in both eras. Over MCP an unexposed command is answered as an unknown one (D4), which the
+  C++ server had not done.
+- **The backend.** The default grouped list: `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`,
+  `todo` and `bootstrap`, as TypeScript's, with `todo-reading` narrowing `todo` to list, get,
+  stats and history. That closes the C++ part of W9's tool list.
+
+### C++ up-front approval
+
+Merged in [#1482](https://github.com/lushly-dev/afd/pull/1482) on 2026-11-17 (`8d11828e`): the third and last step for
+[#1451](https://github.com/lushly-dev/afd/issues/1451). With the MCP relay, a C++ `afd-batch` or
+`afd-pipe` that needs approval asks once, before any step runs, in both eras, as TypeScript, Python
+and Rust do; a gated step reading an earlier step, more than 20 gated steps or a decline runs
+nothing. Every backend now approves batches and pipelines up front.
+
+### The wider suite
+
+Merged in [#1496](https://github.com/lushly-dev/afd/pull/1496) on 2026-11-17 (`d2a22697`): phase 5's last item. `spec/test-cases.json`
+grows from 41 to 50 cases. TypeScript, Python, Rust, C++ and `umbel` pass them in both eras and
+`umbel-mounted` in the 2025 era (its modern run is CI's, in `umbel.yml`):
+
+- **Alternatives:** a filtered `todo-list` offers the unfiltered list and the opposite state, and
+  an unfiltered one offers none.
+- **Ties:** equal priorities and equal titles keep insertion order in both directions.
+- **Destructive hints:** through `afd-detail` everywhere, and in the tool list everywhere but
+  Umbel, whose hybrid list leaves the todo commands out.
+- **The tool list:** TypeScript's grouped list, which TypeScript, Rust and C++ serve. The runner
+  reads `tools/list` the same way for every strategy (`toolListView`).
+
+The Rust backend now registers its bootstrap commands after the context commands, so its
+`bootstrap` group lists its actions in TypeScript's order; the case found the difference.
+
+What the suite cannot check yet: Python's tool list. Its backend lists one tool per command, and
+Python's grouped strategy lists other tools, until [#533](https://github.com/lushly-dev/afd/issues/533)
+decides the alignment; `tool_list_grouped` does not run against Python.
 
 ## Open questions
 
@@ -540,7 +652,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed in #1319 (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
 | 2026-11-16 | Phase 5 Python | `afd.testing` cannot be imported with only the `testing` extra: `afd/testing/__init__.py` imports `fixtures.py`, which imports `afd.transports` and so `httpx` from the `client` extra (`python/pyproject.toml`). The example lists both extras | Open |
 | 2026-11-16 | Phase 5 Python | `afd.testing`'s scenario evaluator compares an expected array of objects whole (`_deep_equal` in `python/src/afd/testing/scenarios/evaluator.py`), where TypeScript's matches it item by item with matchers (`evaluateArrayAssertions` in `packages/testing/src/runner/evaluator.ts`), so job 9 fails against Python; its test is a strict `xfail` | Open |
-| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
+| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Fixed in [#1442](https://github.com/lushly-dev/afd/pull/1442) ([#1312](https://github.com/lushly-dev/afd/issues/1312)): `relay="mcp-elicitation"` and the up-front approval of `afd-batch` and `afd-pipe`; see [the relay](#pythons-approval-relay) |
 | 2026-11-16 | Phase 5 review | TypeScript's `SqliteStore.record()` reads the next `seq` outside its write, so two writers (TypeScript and Python, or two TypeScript servers) can take one `seq` and one history entry replaces the other; the reviewer saw 79 of 80 entries once in 5 mixed runs. Python's store reads it inside the write. Documented in both stores, the todo README and the TypeScript README | Open: [#1317](https://github.com/lushly-dev/afd/issues/1317) |
 | 2026-11-16 | Phase 5 review | A shared `TODO_APPROVAL_SECRET` lets one token run the clear once on each server, since each process keeps its own nonce store (the library's in-memory default). Documented in both backends' READMEs; a shared nonce store would close it | Open |
 | 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too (and Rust, in #1335). Left for the C++ pull request, so this one does not run the C++ suites for a comment | Fixed on the C++ parity branch: C++ takes `deleted`, and the spec marks no language |
@@ -548,7 +660,8 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Rust | Under Umbel `todo-clear` is not held for agents: a plugin manifest declares only a fixed `approval = "required"`, and the loader refuses a definition with a per-call policy (`mismatch` in `endpoints/umbel/src/plugins/loader.rs`), so the plugin drops it and the clear is gated by its confirmation prompt alone. The description says so in every host | Open: [#1329](https://github.com/lushly-dev/afd/issues/1329) |
 | 2026-11-16 | Phase 5 Rust | The conformance runner reaches the Rust backend over stdio, so asking the person over Streamable HTTP (MCP 2026-07-28) is not exercised: the backend's HTTP test checks only that a client declaring no elicitation gets `APPROVAL_REQUIRED` without a token, and Umbel's mounted run uses HTTP with `APPROVALS=off` | Open |
 | 2026-11-16 | Phase 5 Rust review | Two small differences from TypeScript kept on purpose: Rust's `NOT_FOUND` errors carry `retryable: false`, which TypeScript leaves unset, and the Rust commands are also exposed to its own command line (`expose.cli`) | Kept |
-| 2026-11-17 | Phase 5 C++ | `afd::mcp_stdio` serves one tool per command and nothing else: no context tools, meta-tools, bootstrap commands or tool strategies, so the C++ backend declares its two contexts but cannot serve them (W2) and its tool list is not TypeScript's (W9) | Open: [#1425](https://github.com/lushly-dev/afd/issues/1425); the hybrid step is [#1202](https://github.com/lushly-dev/afd/issues/1202), unblocked by #1379 |
+| 2026-11-17 | Windows verify | The C++ backend does not build with MSVC: `main.cpp` (from #1379) calls `std::getenv`, which MSVC deprecates (C4996), and `AFD_WARNINGS_AS_ERRORS` makes that C2220, so `test:conformance:cpp` failed on Windows. No CI job built the backend with MSVC: `conformance.yml` runs it on Linux and `cpp.yml`'s MSVC legs build only the library, daily | Fixed in [#1453](https://github.com/lushly-dev/afd/pull/1453): `_dupenv_s` on MSVC, `std::getenv` elsewhere, warnings still errors; `conformance.yml`'s `todo-cpp-windows` job builds the backend and its tests with MSVC and runs them |
+| 2026-11-17 | Phase 5 C++ | `afd::mcp_stdio` serves one tool per command and nothing else: no context tools, meta-tools, bootstrap commands or tool strategies, so the C++ backend declares its two contexts but cannot serve them (W2) and its tool list is not TypeScript's (W9) | Contexts (W2) fixed in [#1454](https://github.com/lushly-dev/afd/pull/1454) ([#1425](https://github.com/lushly-dev/afd/issues/1425)); the bootstrap commands in [#1468](https://github.com/lushly-dev/afd/pull/1468); the meta-tools and strategies (W9) in [#1477](https://github.com/lushly-dev/afd/pull/1477), the up-front approval in [#1482](https://github.com/lushly-dev/afd/pull/1482), and the hybrid step in [#1202](https://github.com/lushly-dev/afd/issues/1202) |
 
 ## Session log
 
@@ -567,3 +680,10 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; in #1319 |
 | 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. In #1335 |
 | 2026-11-17 | Phase 5 C++ | C++ at parity on the library (restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties, the clear held for agents through the MCP relay); the spec's `implementedBy` markers removed; all approval cases in both eras. In #1426 |
+| 2026-11-17 | Phase 5 Python relay | The Python library's MCP approval relay and the up-front approval of `afd-batch` and `afd-pipe` (#1312); the Python backend asks the person over MCP; every approval case runs against every backend |
+| 2026-11-17 | Phase 5 C++ contexts | Contexts on `afd::mcp_stdio` and the C++ backend's two contexts (W2); the meta-tools, bootstrap commands and strategies split out to #1451 |
+| 2026-11-17 | Phase 5 C++ bootstrap | C++ `afd-help`, `afd-docs` and `afd-schema` (`register_bootstrap_commands`), registered by the C++ backend; #1451 split into three steps. In #1468 |
+| 2026-11-17 | Phase 5 C++ tool list | The meta-tools and the individual, grouped and lazy strategies on `afd::mcp_stdio`; the C++ backend lists TypeScript's grouped tools (W9) |
+| 2026-11-17 | Phase 5 C++ up-front approval | One approval up front for C++'s `afd-batch` and `afd-pipe` over the MCP relay; #1451 done. In #1482 |
+| 2026-11-17 | Phase 5 wider suite | 50 cases: alternatives, ties, destructive hints and the tool list; the Rust backend's bootstrap order. In #1496 |
+| 2026-11-17 | C++ on MSVC | The C++ backend reads its settings without `std::getenv` on MSVC and builds there with warnings as errors; `conformance.yml` builds and tests it on Windows. In [#1453](https://github.com/lushly-dev/afd/pull/1453) |

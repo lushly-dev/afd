@@ -7,9 +7,10 @@ without a shell.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from botcore_factory.world import Completed, WorldError
 
@@ -34,30 +35,48 @@ def resolve_program(program: str, path: str | None = None) -> str:
     return found
 
 
+def path_env(path: Sequence[str]) -> dict[str, str] | None:
+    """This process's environment with ``path`` (directories) before its ``PATH``; None when
+    ``path`` is empty, so the environment is inherited as it is."""
+    if not path:
+        return None
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join([*path, env.get("PATH", "")])
+    return env
+
+
 def run_process(
     args: Sequence[str],
     *,
     cwd: str | None = None,
     stdin: str | None = None,
     timeout: float | None = 60,
+    env: Mapping[str, str] | None = None,
 ) -> Completed:
-    """Run an argument list and capture its output. Never a shell."""
-    argv = [resolve_program(args[0]), *args[1:]]
+    """Run an argument list and capture its output. Never a shell. With ``env``, the program is
+    found on its ``PATH``, and it runs with that environment.
+
+    ``stdin`` goes as UTF-8 bytes, so its line endings arrive as written: a text-mode pipe
+    turns each ``\\n`` into ``\\r\\n`` on Windows, which would reach a commit message or a blob.
+    Output is read with universal newlines, as text mode reads it."""
+    argv = [resolve_program(args[0], env.get("PATH") if env else None), *args[1:]]
     try:
         done = subprocess.run(  # noqa: S603 - an argument list, resolved program, no shell
             argv,
             cwd=cwd,
-            input=stdin,
+            env=env,
+            input=None if stdin is None else stdin.encode("utf-8"),
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=timeout,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise WorldError(f"{args[0]} could not run: {exc}") from exc
-    return Completed(tuple(args), done.returncode, done.stdout, done.stderr)
+    return Completed(tuple(args), done.returncode, _text(done.stdout), _text(done.stderr))
+
+
+def _text(output: bytes) -> str:
+    return output.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def make_runner(cwd: str) -> Run:

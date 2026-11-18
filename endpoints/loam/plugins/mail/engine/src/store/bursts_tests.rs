@@ -736,7 +736,8 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
     mail.flood(junk, "s", &[], 35, FLOOD);
     assert_eq!(mail.bursts().len(), 1);
     // Migration 10 then took each mailbox's first listing from its last
-    // pass, after the flood, and the second rule found its bursts.
+    // pass, after the flood, and the second rule found its bursts. What the
+    // migrations after 11 made goes too, as they run again.
     let upgraded = FLOOD + 3 * DAY;
     mail.store
         .connection
@@ -744,6 +745,11 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
             "UPDATE mailbox SET first_listed_at = {upgraded};
              UPDATE account SET listed_at = {upgraded};
              UPDATE engine_state SET value = 2 WHERE key = 'burst-rule';
+             DROP TABLE operation_item;
+             DROP TABLE operation;
+             DROP TABLE selection_item;
+             DROP TABLE selection;
+             DROP TABLE policy;
              PRAGMA user_version = 10;"
         ))
         .unwrap();
@@ -1287,4 +1293,50 @@ fn every_burst_query_reads_an_index() {
         }
     }
     assert!(failed.is_empty(), "{}", failed.join("\n\n"));
+}
+
+#[test]
+fn a_bursts_selection_is_what_its_story_shows_and_no_known_senders_mail() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    let flood = mail.flood(inbox, "s", &[], 35, FLOOD);
+    // The person screens one of the new senders in: its message stays a
+    // first contact of the burst, and leaves the burst's story.
+    mail.decide("s0@flood.example", Some(Decision::In));
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    let story = bursts[0].id;
+    let selected = match mail
+        .store
+        .select(
+            &SelectionQuery {
+                story: Some(story),
+                ..SelectionQuery::default()
+            },
+            "{}",
+            &Proposer {
+                kind: "agent".to_string(),
+                id: None,
+            },
+            NOW,
+        )
+        .unwrap()
+    {
+        Selected::Made(row) => row,
+        other => panic!("{other:?}"),
+    };
+    let messages: Vec<i64> = mail
+        .store
+        .selection_items(selected.id)
+        .unwrap()
+        .into_iter()
+        .filter_map(|item| item.message)
+        .collect();
+    assert_eq!(messages.len(), 34);
+    assert!(!messages.contains(&flood[0].0));
+    let shown = mail
+        .store
+        .story_messages(story, &StoryMessages::Every, None, 100)
+        .unwrap();
+    assert_eq!(shown.len(), messages.len(), "what the story shows");
 }

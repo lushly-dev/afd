@@ -1,8 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * Phase 6's desktop suite, P6-D1 to P6-D4 (specification, 10.7): Vitest with `webdriverio` as its WebDriver
- * client, driving the app under `tauri-driver`, one app at a time. Run by `test:desktop` after `build:app`.
+ * Phase 6's desktop suite, P6-D1 to P6-D4 (specification, 10.7), and phase 5's P5-A2 on the desktop: Vitest with
+ * `webdriverio` as its WebDriver client, driving the app under `tauri-driver`, one app at a time. Run by
+ * `test:desktop` after `build:app`.
  */
 export default defineConfig({
 	test: {

@@ -9,18 +9,12 @@ import {
     type VioletTokenInterface,
 } from "./violet-theme-css";
 
-declare global {
-    interface ImportMeta {
-        glob(patterns: string[], options: { query: string; import: string; eager: true }): Record<string, unknown>;
-    }
-}
-
 // Every source file the package ships: specs, stories and the generated theme data read no token.
-const sources = import.meta.glob(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
+const sources = import.meta.glob<string>(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
     query: "?raw",
     import: "default",
     eager: true,
-}) as Record<string, string>;
+});
 
 const TOKEN_TYPES = new Set<string>(VIOLET_TOKEN_TYPES);
 

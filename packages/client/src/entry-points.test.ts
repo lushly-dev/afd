@@ -1,5 +1,5 @@
 /**
- * @fileoverview `@lushly-dev/afd-client/streamable-http` must stay browser-safe.
+ * @fileoverview `@lushly-dev/afd-client/streamable-http` and `/direct` stay browser-safe.
  *
  * Bundles an entry that imports only that subpath with esbuild for the browser. The test fails if
  * the module graph reaches this package's `eventsource` dependency or a Node.js builtin, if the
@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import * as direct from './direct.js';
 import * as root from './index.js';
 import type {
 	ElicitationHandler,
@@ -281,5 +282,42 @@ describe('@lushly-dev/afd-client/streamable-http', () => {
 		expect(text.match(FUNCTION_REFERENCES)).toHaveLength(ZOD_FUNCTION_REFERENCES);
 		expect(text).not.toMatch(/\beval\b/);
 		expect(text).not.toMatch(/\bprocess\.|\bBuffer\b|\brequire\(/);
+	});
+});
+
+describe('@lushly-dev/afd-client/direct', () => {
+	it('declares the subpath and preserves the root runtime exports', () => {
+		expect(manifest.exports['./direct']).toEqual({
+			types: './dist/direct.d.ts',
+			import: './dist/direct.js',
+		});
+		expect(Object.keys(direct).sort()).toEqual([
+			'DirectClient',
+			'DirectTransport',
+			'createDirectClient',
+			'isUnknownToolError',
+		]);
+		expect(direct.DirectClient).toBe(root.DirectClient);
+		expect(direct.createDirectClient).toBe(root.createDirectClient);
+		expect(direct.DirectTransport).toBe(root.DirectTransport);
+		expect(direct.isUnknownToolError).toBe(root.isUnknownToolError);
+	});
+
+	it('bundles without MCP, eventsource, Node builtins or unresolved imports', async () => {
+		const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`, { minify: true });
+		expect(result.errors.map((message) => message.text)).toEqual([]);
+		const inputs = Object.keys(result.metafile?.inputs ?? {});
+		expect(inputs.some((input) => input === 'src/direct.ts')).toBe(true);
+		expect(
+			inputs.filter((input) => /modelcontextprotocol|eventsource|^node:|^\(disabled\):/.test(input))
+		).toEqual([]);
+		expect(Object.values(result.metafile?.outputs ?? {}).flatMap((o) => o.imports)).toEqual([]);
+		const text = new TextDecoder().decode(result.outputFiles?.[0]?.contents);
+		expect(text).not.toMatch(/\bprocess\.|\bBuffer\b|\brequire\(/);
+		// Whole public entry including pipeline and handoff: 37,490 bytes on 2026-11-17,
+		// with esbuild 0.28.2. The 42 KB ceiling leaves about 12% headroom.
+		expect(
+			result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY
+		).toBeLessThanOrEqual(42_000);
 	});
 });

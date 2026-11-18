@@ -604,6 +604,30 @@ Expected<PipelineRequest, CommandError> parse_pipeline_request(const Json& reque
     return parsed;
 }
 
+namespace {
+
+bool reads_step_data_at(const Json& value, std::size_t depth) {
+    if (value.is_string()) {
+        const auto reference = parse_reference(value.get_ref<const std::string&>());
+        return reference && reference->kind != SourceKind::input;
+    }
+    if (!value.is_array() && !value.is_object()) {
+        return false;
+    }
+    // Deeper containers are rejected by the pipeline before any step runs.
+    if (depth >= max_pipeline_nesting_depth) {
+        return true;
+    }
+    return std::any_of(value.begin(), value.end(),
+                       [depth](const Json& item) { return reads_step_data_at(item, depth + 1); });
+}
+
+} // namespace
+
+bool reads_step_data(const Json& input) {
+    return reads_step_data_at(input, 0);
+}
+
 std::optional<Json> resolve_variable(std::string_view reference, const PipelineContext& context) {
     if (starts_with(reference, "$$")) {
         return Json(std::string(reference.substr(1)));

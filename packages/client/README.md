@@ -330,7 +330,7 @@ It exports `StreamableHttpTransport`, `MODERN_PROTOCOL_VERSION`, and the types
 - A page on another origin needs the server to allow it through CORS: MCP's headers trigger a
   preflight, and the response must expose `Mcp-Session-Id`. AFD's server does both for an allowed
   origin.
-- A browser-safe `DirectClient` is a separate entry, [#655](https://github.com/lushly-dev/afd/issues/655).
+- For in-process calls in a browser, use `@lushly-dev/afd-client/direct` (see DirectClient below).
 
 ### SSE Transport (Deprecated)
 
@@ -364,7 +364,7 @@ server). No URL is needed.
 
 ```typescript
 import { createClient } from '@lushly-dev/afd-client';
-import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { createDirectRegistry } from '@lushly-dev/afd-server/direct';
 
 const client = createClient({ transport: 'direct', registry: createDirectRegistry(commands) });
 await client.connect();
@@ -379,12 +379,14 @@ the meta-tools and grouped tools that `call()` routes, and one tool per command 
 
 ### DirectClient (Zero Overhead)
 
+Use `@lushly-dev/afd-client/direct` for the browser-safe in-process client and its types. It loads no MCP SDK, `eventsource` or Node built-in. Pair it with `@lushly-dev/afd-server/direct` in browsers, workers and webviews; root imports remain supported.
+
 For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead. Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`: it runs each call through the same engine as the MCP server (Zod input validation, middleware, error sanitization) and only offers commands exposed to agents (`expose.agent`, on by default).
 
 ```typescript
 import { isSuccess } from '@lushly-dev/afd-core';
-import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
-import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client/direct';
+import { createDirectRegistry } from '@lushly-dev/afd-server/direct';
 import { commands } from '@my-app/commands';
 
 // Direct execution - ~0.03-0.1ms latency vs 2-10ms for MCP

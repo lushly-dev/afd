@@ -176,6 +176,11 @@ struct PipelineContext {
 /// nested deeper than `max_pipeline_nesting_depth`. A bare unresolved reference resolves to null.
 Expected<Json> resolve_variables(const Json& input, const PipelineContext& context);
 
+/// Whether `input` holds a reference to an earlier step's data (`$prev`, `$first` or `$steps`),
+/// so that it is known only when the pipeline runs. `$input` references are known up front.
+/// TypeScript's `readsStepData`.
+bool reads_step_data(const Json& input);
+
 /// Resolves one reference string; `std::nullopt` when it is a reference that does not resolve. A
 /// string that is not a reference comes back unchanged.
 std::optional<Json> resolve_variable(std::string_view reference, const PipelineContext& context);
