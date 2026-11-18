@@ -187,9 +187,11 @@ fn each_strategy_lists_its_tools() {
     assert_eq!(
         names(&individual.tools()),
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
             "todo-create",
             "todo-list",
             "todo-clear",
@@ -200,10 +202,11 @@ fn each_strategy_lists_its_tools() {
     assert_eq!(
         names(&grouped.tools()),
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
-            "afd-detail",
             "todo",
             "note"
         ]
@@ -214,9 +217,9 @@ fn each_strategy_lists_its_tools() {
         [
             "afd-discover",
             "afd-detail",
+            "afd-call",
             "afd-batch",
-            "afd-pipe",
-            "afd-call"
+            "afd-pipe"
         ]
     );
     // Grouped is the default, as in TypeScript.
@@ -327,10 +330,11 @@ async fn group_by_names_the_grouped_tools() {
     assert_eq!(
         names(&server.tools()),
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
-            "afd-detail",
             "writes",
             "general"
         ]

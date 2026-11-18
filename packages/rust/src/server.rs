@@ -627,7 +627,13 @@ impl McpServer {
     /// The `ttlMs` of `tools/list` and `server/discover` results.
     fn tools_list_ttl_ms(&self) -> u64 {
         self.inner.tools_list_ttl_ms.unwrap_or(
-            if self.inner.contexts.is_some() && self.inner.strategy != ToolStrategy::Hybrid {
+            // The hybrid and lazy lists do not vary by context (`spec/tool-strategies.md`, H6).
+            if self.inner.contexts.is_some()
+                && !matches!(
+                    self.inner.strategy,
+                    ToolStrategy::Hybrid | ToolStrategy::Lazy
+                )
+            {
                 0
             } else {
                 DEFAULT_TOOLS_LIST_TTL_MS
@@ -663,15 +669,12 @@ impl McpServer {
     /// The listed tools while `active` is the active context, showing only the commands
     /// `visible` allows when the server filters listings by scope.
     fn tools_in(&self, active: Option<&str>, visible: Option<&Visibility>) -> Vec<Value> {
-        let mut tools = Vec::new();
         if self.inner.strategy == ToolStrategy::Hybrid {
-            return self.hybrid_tools(visible);
+            return self.hybrid_tools(visible, true);
         }
+        // Lazy: the hybrid list with no first-class tools (#533).
         if self.inner.strategy == ToolStrategy::Lazy {
-            tools.push(meta_tools::discover_tool());
-            tools.push(meta_tools::detail_tool());
-            tools.extend(strategy::built_in_tools());
-            return tools;
+            return self.hybrid_tools(visible, false);
         }
         let in_context: Vec<Arc<CommandDefinition>> = self
             .exposed_commands()
@@ -679,7 +682,7 @@ impl McpServer {
             .filter(|command| command.is_accessible_in_context(active))
             .filter(|command| visible.is_none_or(|visible| visible.allows(command)))
             .collect();
-        tools.extend(strategy::built_in_tools());
+        let mut tools = strategy::built_in_tools();
         if self.inner.strategy == ToolStrategy::Individual {
             let listed: Vec<Value> = match &self.inner.tools {
                 Some(defined) => defined
@@ -720,7 +723,6 @@ impl McpServer {
                 }
             })
             .collect();
-        tools.push(meta_tools::detail_tool());
         tools.extend(strategy::grouped_tools(
             &listed,
             self.inner.group_by.as_ref(),
@@ -729,16 +731,11 @@ impl McpServer {
     }
 
     /// The hybrid list (`spec/tool-strategies.md`, H3): the meta-tools, the context tools when
-    /// contexts are configured, then the first-class tools in configured order. It does not
-    /// depend on the active context.
-    fn hybrid_tools(&self, visible: Option<&Visibility>) -> Vec<Value> {
-        let mut tools = vec![
-            meta_tools::discover_tool(),
-            meta_tools::detail_tool(),
-            meta_tools::call_tool(),
-            meta_tools::batch_tool(),
-            meta_tools::pipe_tool(),
-        ];
+    /// contexts are configured, then, with `first_class`, the first-class tools in configured
+    /// order. It does not depend on the active context. Without first-class tools it is the lazy
+    /// list.
+    fn hybrid_tools(&self, visible: Option<&Visibility>, first_class: bool) -> Vec<Value> {
+        let mut tools = strategy::built_in_tools();
         let context_tools: &[&str] = if self.inner.contexts.is_some() {
             crate::AFD_CONTEXT_COMMAND_NAMES
         } else {
@@ -748,6 +745,7 @@ impl McpServer {
             .inner
             .first_class_tools
             .as_deref()
+            .filter(|_| first_class)
             .map_or(&[][..], |names| names.as_slice());
         let names = context_tools
             .iter()
