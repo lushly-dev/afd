@@ -93,11 +93,16 @@ A replay of a journaled app call runs the check again.
 Loam's kernel runs commands through `createDirectRegistry`, whose bundle is on every host's first
 paint with 29 bytes to spare, so the check is not in it. `createAppCallRegistry(commands, {
 callGrant, ...options })` wraps one, runs the check before anything else, serves no tool surface,
-and answers `hasCommand` with `true` for every name, so a `DirectClient` over it cannot answer
-`UNKNOWN_TOOL` with the names it holds. A host that never imports it bundles none of it.
-`createDirectRegistry` itself has no grant check, so under the `apps` interface it exposes nothing
-unless `createAppCallRegistry` built it, through an options key that is a module-private symbol
-(fail closed, 41 bytes; `/direct`'s smallest budget rises from 39,100 to 39,200 under D115).
+and answers `hasCommand` with `true` for every name. A host that never imports it bundles none of
+it. Everything else that could answer an app first refuses the `apps` interface, fail closed:
+`createDirectRegistry` throws for it unless `createAppCallRegistry` built it, through an options
+key that is a module-private symbol; `DirectClient` and `DirectTransport` refuse to wrap an app-call
+registry, since their `allow` option, middleware and `tools/list` answer before the registry;
+`createMcpServer`'s in-process `execute` and `executePipeline` refuse an `apps` context with the one
+refusal; and `replayJournal` replays an app call only on a target whose interface is `apps`, where
+the grant is checked again. The cost on `/direct`'s smallest host is 104 bytes, and its budget
+rises from 39,100 to 39,200 under D115; Loam's first paint grows 100 bytes and its kernel 109,
+within their limits.
 
 ### The manifest
 
@@ -121,7 +126,7 @@ D30 fixed the rule. These details were left to this proposal:
 | X5 | The flag defaults to `false` in every profile, unlike C5's other flags | Exposure to other apps widens what an install can reach; the callee must opt in |
 | X6 | No predicate means no app call | Fail closed |
 | X7 | Core version 2 is version 1 plus `expose.apps` | The versioning rule: a new core version only adds |
-| X8 | TypeScript's app calls get their own registry, `createAppCallRegistry` | The check in `createDirectRegistry` cost 772 bytes on every host's first paint, past `/direct`'s budget and Loam's; this way it costs 41 on `/direct` and 47 on Loam's kernel |
+| X8 | TypeScript's app calls get their own registry, `createAppCallRegistry` | The check in `createDirectRegistry` cost 772 bytes on every host's first paint, past `/direct`'s budget and Loam's; this way it costs 104 on `/direct` and 109 on Loam's kernel |
 
 ## Conformance
 
@@ -144,7 +149,8 @@ now, since the shared catalog lists it. Until they implement the check, an `apps
 surface there, so their registries refuse every app call as any interface that names no surface:
 `COMMAND_NOT_FOUND` for a missing command, `COMMAND_NOT_EXPOSED` for one that exists (the error
 catalog's rules 2 and 3). Closed, but a caller can tell the two apart there until #1513. Their
-journal replay also refuses an entry recorded with the `apps` interface until then.
+journal replay refuses an entry recorded with the `apps` interface, before any handler runs, so a
+target that ignores the interface cannot run it unchecked.
 
 ## Out of scope
 

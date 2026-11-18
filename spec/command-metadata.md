@@ -738,13 +738,18 @@ shows an app another app's commands from them; it builds a list from its grants.
 TypeScript's in-process registry for app calls is `createAppCallRegistry(commands, { callGrant,
 ...options })`, `createDirectRegistry`'s options less `interface` and `tools`. It throws without
 `callGrant`, serves no tool surface (an app calls commands one by one), and answers `hasCommand`
-with `true` for every name, so a `DirectClient` over it sends every call to the check rather than
-answering `UNKNOWN_TOOL` with names. `createDirectRegistry` has no grant check, so under the `apps`
-interface it exposes nothing and answers as any registry with nothing exposed: it is not a registry
-for app calls.
+with `true` for every name. Whatever cannot run the check refuses the `apps` interface rather
+than answer an app: `createDirectRegistry` throws for it; `DirectClient` and `DirectTransport`
+refuse to wrap an app-call registry, since their `allow` option, middleware and `tools/list` would
+answer first; and `createMcpServer`'s in-process `execute` and `executePipeline` give the one
+refusal.
 
 A journaled app call replays with the `apps` interface, so the replaying registry runs the check
-again and needs the same `callGrant` ([journal replay](./journal.md#replay)). A refusal is returned before
+again and needs the same `callGrant` ([journal replay](./journal.md#replay)); a target that cannot
+check it refuses the entry before any handler runs (TypeScript: any target whose interface is not
+`apps`; Python and C++, every target until #1513). In Rust, `ExposeOptions` serializes `apps` only
+when it is `true`, so a serialized default stays valid where core manifest version 1 refuses the
+key. A refusal is returned before
 middleware, so AFD's journal middleware never records one; a host that journals refusals, as Loam
 does, records it where it receives the app's call.
 

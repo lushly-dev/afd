@@ -334,8 +334,9 @@ pub struct ExposeOptions {
     /// Other apps, each under a host's grant (default `false`: opt in). The callee's
     /// declaration that another app may call the command; a call with
     /// [`CommandInterface::Apps`] also needs [`CommandRegistry::set_call_grant`]'s grant
-    /// (`spec/command-metadata.md`, "App-to-app calls").
-    #[serde(default = "default_false")]
+    /// (`spec/command-metadata.md`, "App-to-app calls"). Serialized only when `true`, so the
+    /// default serializes as it did before the flag existed.
+    #[serde(default = "default_false", skip_serializing_if = "is_false")]
     pub apps: bool,
 }
 
@@ -393,6 +394,11 @@ const fn default_true() -> bool {
 
 const fn default_false() -> bool {
     false
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes a reference
+const fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl Default for ExposeOptions {

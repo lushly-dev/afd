@@ -340,6 +340,14 @@ export async function replayJournal(
 				},
 			};
 			(context as Record<symbol, unknown>)[JOURNAL_REPLAY] = marker;
+			// An app's call replays only where its grant is checked again (`createAppCallRegistry`);
+			// any other target would run it unchecked, or as another interface.
+			if (
+				context.interface === 'apps' &&
+				(registry as { readonly interface?: unknown }).interface !== 'apps'
+			) {
+				throw new Error("An app's call replays only on createAppCallRegistry");
+			}
 
 			const replayed = await registry.execute(entry.command, entry.input, context);
 			const differences: ReplayDifference[] = [];

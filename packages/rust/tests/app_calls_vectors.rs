@@ -101,6 +101,22 @@ fn the_refusal_is_the_catalog_code_and_python_and_cpp_are_a_gap() {
 }
 
 #[test]
+fn the_default_serializes_as_before_and_apps_round_trips() {
+    // Core manifest version 1 refuses an `apps` key even when false, so the default leaves it out.
+    assert_eq!(
+        serde_json::to_value(ExposeOptions::default()).unwrap(),
+        json!({ "palette": true, "mcp": false, "agent": true, "cli": false })
+    );
+    let apps = ExposeOptions::default().with_apps(true);
+    let value = serde_json::to_value(&apps).unwrap();
+    assert_eq!(value["apps"], json!(true));
+    assert_eq!(
+        serde_json::from_value::<ExposeOptions>(value).unwrap(),
+        apps
+    );
+}
+
+#[test]
 fn exposure() {
     let vectors = vectors();
     for case in vectors["exposure"].as_array().unwrap() {

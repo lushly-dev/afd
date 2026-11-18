@@ -65,9 +65,8 @@ export interface DirectRegistryOptions {
 	 * The interface this registry serves. Only commands exposed to it are
 	 * listed and executable. Default: `'agent'`, the in-app AI assistant.
 	 *
-	 * Not `'apps'`, under which this registry exposes nothing: app-to-app calls need the host's
-	 * grant check, so they have their own registry, `createAppCallRegistry`
-	 * (`spec/command-metadata.md`, "App-to-app calls").
+	 * Not `'apps'`, which throws: app-to-app calls need the host's grant check, so they have their
+	 * own registry, `createAppCallRegistry` (`spec/command-metadata.md`, "App-to-app calls").
 	 */
 	interface?: Exclude<ExposeInterface, 'apps'>;
 
@@ -349,6 +348,10 @@ export function createDirectRegistry(
 	options: DirectRegistryOptions = {}
 ): DirectCommandRegistry {
 	const iface = (options.interface ?? 'agent') as ExposeInterface;
+	// An app's calls need the grant check only `createAppCallRegistry` adds (fail closed).
+	if (iface === 'apps' && !(options as Record<symbol, unknown>)[APP_CALLS]) {
+		throw new TypeError('Use createAppCallRegistry for apps');
+	}
 	const contexts = [...(options.contexts ?? [])];
 	const contextNames = new Set(contexts.map((context) => context.name));
 	const contextFields = checkContextFields(options.contextFields);
@@ -378,15 +381,7 @@ export function createDirectRegistry(
 	});
 	for (const command of tools?.commands ?? []) register(command);
 
-	// An app's calls need the grant check only `createAppCallRegistry` adds: without it, `apps`
-	// exposes nothing (fail closed, and a few bytes in every host's bundle).
-	const exposed = new Map(
-		[...registered].filter(
-			([, command]) =>
-				((options as Record<symbol, unknown>)[APP_CALLS] || iface !== 'apps') &&
-				isExposedTo(command, iface)
-		)
-	);
+	const exposed = new Map([...registered].filter(([, command]) => isExposedTo(command, iface)));
 
 	const engine = createExecutionEngine({
 		commandMap: exposed,

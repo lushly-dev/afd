@@ -305,7 +305,7 @@ fn check_exposure(
         CommandInterface::Mcp => pipeline.expose.mcp,
         CommandInterface::Agent => pipeline.expose.agent,
         CommandInterface::Cli => pipeline.expose.cli,
-        CommandInterface::Palette => false,
+        CommandInterface::Palette | CommandInterface::Apps => false,
     };
     for interface in INTERFACES
         .into_iter()

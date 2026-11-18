@@ -38,9 +38,10 @@ export interface AppCallRegistryOptions extends Omit<DirectRegistryOptions, 'int
  * them with invalid input) returns one fixed `CALL_NOT_GRANTED` before lookup, the `allow` option,
  * the active context, validation and middleware, so an app learns nothing about commands it may not
  * call. It serves no tool surface (an app calls commands one by one), and `hasCommand` answers
- * `true` for every name, so a `DirectClient` over it sends every call here rather than answering
- * `UNKNOWN_TOOL` with names. Its listings hold the commands exposed to apps, whatever any caller is
- * granted: build what an app may see from your grants, never from them.
+ * `true` for every name, since `execute` answers every name. `DirectClient` and `DirectTransport`
+ * refuse to wrap it: their `allow`, middleware and tool listing would answer before the check. Its
+ * listings hold the commands exposed to apps, whatever any caller is granted: build what an app
+ * may see from your grants, never from them.
  *
  * @throws TypeError without `callGrant`; otherwise as `createDirectRegistry`
  */
@@ -66,10 +67,12 @@ export function createAppCallRegistry(
 		interface: registry.interface,
 		contextFields: registry.contextFields,
 		async execute(name, input, context: CommandContext = {}, callOptions) {
-			if (!appCallGranted(byName.get(name), name, context, callGrant)) {
+			// The grant check sees the interface the call runs with, as in the core registry.
+			const appContext: CommandContext = { ...context, interface: 'apps' };
+			if (!appCallGranted(byName.get(name), name, appContext, callGrant)) {
 				return failure(callNotGranted());
 			}
-			return registry.execute(name, input, context, callOptions);
+			return registry.execute(name, input, appContext, callOptions);
 		},
 		listTools: registry.listTools,
 		listCommandNames: registry.listCommandNames,

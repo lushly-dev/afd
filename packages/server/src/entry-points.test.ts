@@ -226,15 +226,16 @@ const HOST_IMPORTS =
  *   0.28.2; `defineCommand` carrying a command's `scopes` adds 31, and the engine's two optional
  *   hooks that look a hidden command up as a missing one add 43. No authorization code is in it.
  *   Raised to 39,200 by app-to-app calls (Loam phase 5 step 0b, under D115's rule that a step
- *   raises the limit it exceeds): measured 39,071 bytes on `main` and 39,112 after. The check
+ *   raises the limit it exceeds): measured 39,071 bytes on `main` and 39,175 after. The check
  *   itself is in `createAppCallRegistry`'s own module, which this host does not bundle (asserted
- *   below); `createDirectRegistry` only refuses to expose anything to `apps` unless that registry
- *   built it, through a module-private symbol, which adds 41. Putting the check here cost 772.
+ *   below); `createDirectRegistry` only throws for `apps` unless that registry built it, through
+ *   a module-private symbol, which adds 104. Putting the check here cost 772.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
  * - 103.7 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool
- *   surface and approvals joined the entry; it is now 113 KB.
+ *   surface and approvals joined the entry; it was 113 KB, and app-to-app calls raised it to 114 KB
+ *   (Loam phase 5 step 0b, D115): 111,851 measured on `main`, 113,133 with `createAppCallRegistry`.
  */
 const DIRECT_BUDGETS = [
 	{
@@ -252,7 +253,7 @@ const DIRECT_BUDGETS = [
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 74_000,
 	},
-	{ what: 'every export', imports: undefined, bytes: 113_000 },
+	{ what: 'every export', imports: undefined, bytes: 114_000 },
 ];
 
 /** The modules only the tool surface needs. */
