@@ -5,6 +5,15 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## A cell can take a package of related issues, 2026-11-18
+
+`cell-register` takes more than one issue when the foreman names the package: up to
+`cells.issuesMax` dispatchable issues, with `related_because` saying what they share. The cell and
+its `cell-registered` record keep that reason as `relatedBecause`, and `lane-status` shows it. A
+claim write that fails partway now puts back the claims it wrote. Before this, any second issue
+was refused as unrelated whatever the dial said, because `issue-check` never computes `related`;
+it still does not, and suggesting packages from it is later work (lushly-dev/afd#1431).
+
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 
 Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane
