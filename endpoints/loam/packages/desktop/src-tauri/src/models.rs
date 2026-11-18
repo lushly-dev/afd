@@ -923,8 +923,9 @@ pub const KEY_REMOVED: &str = "[key removed]";
 /// A stream's text with the key removed: text is held back until no key can be split across what is emitted and
 /// what comes next.
 ///
-/// Each clean piece is emitted one step late, joined to the tail at the end, so no chunk's size says how long the key
-/// is. The key is matched as written and as JSON may escape it (`\/`, and `<`, `>` and `&` as `\u` sequences),
+/// Each clean piece is emitted one step late, and the last joined to the tail, so the final chunk is not the tail
+/// alone. This does not hide the key's length from a reader of every chunk: where each piece is cut is the end of a
+/// network chunk less the tail. The standard providers' key lengths are public, which is why that is accepted. The key is matched as written and as JSON may escape it (`\/`, and `<`, `>` and `&` as `\u` sequences),
 /// which a key's allowed characters can need.
 struct Redactor {
     forms: Vec<String>,
@@ -964,8 +965,12 @@ impl Redactor {
     }
 
     /// What may be emitted now: the clean piece before this one, while `text` waits to be matched against what follows.
+    /// With no key there is nothing to match, and `text` goes at once.
     fn take(&mut self, text: &str) -> String {
         self.held.push_str(text);
+        if self.forms.is_empty() {
+            return std::mem::take(&mut self.held);
+        }
         let longest = self.forms.first().map_or(0, String::len);
         let clean = self.clean(&self.held);
         // Keep the last `longest - 1` bytes: the start of a key the next text may complete.
@@ -977,8 +982,9 @@ impl Redactor {
         std::mem::replace(&mut self.ready, clean[..keep].to_owned())
     }
 
-    /// The rest: the last clean piece and the tail, as one.
-    fn finish(&mut self) -> String {
+    /// The rest, with `text`, the stream's last undecoded bytes: the last clean piece and the tail, as one.
+    fn finish(&mut self, text: &str) -> String {
+        self.held.push_str(text);
         let held = std::mem::take(&mut self.held);
         let tail = self.clean(&held);
         std::mem::take(&mut self.ready) + &tail
@@ -1026,9 +1032,12 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit, key: Op
             pending.extend_from_slice(&chunk);
             emit_text(stream, &redactor.take(&take_text(&mut pending)), emit);
         }
-        let rest = redactor.take(&String::from_utf8_lossy(&pending));
-        emit_text(stream, &rest, emit);
-        emit_text(stream, &redactor.finish(), emit);
+        // One last chunk: the last clean piece joined to the tail, never the tail alone.
+        emit_text(
+            stream,
+            &redactor.finish(&String::from_utf8_lossy(&pending)),
+            emit,
+        );
         (status, None)
     })
     .await;
@@ -1604,7 +1613,7 @@ mod tests {
         ] {
             out.push_str(&redactor.take(part));
         }
-        out.push_str(&redactor.finish());
+        out.push_str(&redactor.finish(""));
         assert!(!out.contains(key), "{out}");
         assert!(!out.contains("0123456789"), "{out}");
         assert_eq!(out.matches(KEY_REMOVED).count(), 2);
@@ -1612,7 +1621,7 @@ mod tests {
         let mut plain = Redactor::new(None);
         let mut both = plain.take("as ");
         both.push_str(&plain.take("is"));
-        both.push_str(&plain.finish());
+        both.push_str(&plain.finish(""));
         assert_eq!(both, "as is");
     }
 
@@ -1628,7 +1637,8 @@ mod tests {
         ] {
             chunks.push(redactor.take(part));
         }
-        chunks.push(redactor.finish());
+        // As `run` ends: `finish` with the stream's last undecoded bytes, which are none here.
+        chunks.push(redactor.finish(""));
         let out = chunks.concat();
         assert!(!out.contains("0123456789"), "{out}");
         assert_eq!(out.matches(KEY_REMOVED).count(), 3);
@@ -1731,6 +1741,36 @@ mod tests {
             Some(STREAM_LIMIT)
         );
         assert!(models.streams.lock().await.contains_key(&5));
+    }
+
+    #[tokio::test]
+    async fn p5_a3_run_removes_a_quoted_key_and_ends_on_no_chunk_the_tail_alone() {
+        // A provider that accepts the request, quotes the key, and ends; as `run` streams it, not the redactor alone.
+        let key = "sk-ant-api03-abcdefghijklmnop";
+        let body = "data: {\"type\":\"error\",\"message\":\"key sk-ant-api03-abcdefghijklmnop refused\"}\n\ndata: [DONE]\n\n";
+        let response: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\ncontent-length: {}\r\n\r\n{body}",
+                body.len()
+            )
+            .into_boxed_str(),
+        );
+        let port = provider_answering(response).await;
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let seen = events.clone();
+        let emit: Emit = Arc::new(move |event| seen.lock().unwrap().push(event));
+        let request =
+            reqwest::Client::new().post(format!("http://127.0.0.1:{port}/v1/chat/completions"));
+        run(3, request, &emit, Some(key)).await;
+        let events = events.lock().unwrap();
+        let chunks: Vec<&str> = events
+            .iter()
+            .filter_map(|event| event["chunk"].as_str())
+            .collect();
+        let text = chunks.concat();
+        assert_eq!(text, body.replace(key, KEY_REMOVED));
+        assert_ne!(chunks.last().map(|chunk| chunk.len()), Some(key.len() - 1));
+        assert_eq!(events.last().unwrap()["done"], true);
     }
 
     #[test]
