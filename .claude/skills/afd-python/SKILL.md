@@ -88,7 +88,7 @@ Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 
 `tool_strategy` is `"individual"` (Python's default; TypeScript and Rust default to `grouped`), `"grouped"`, `"lazy"` or `"hybrid"` ([spec/tool-strategies.md](../../../spec/tool-strategies.md)). Python's lists differ from TypeScript's:
 
-- **Individual, grouped and lazy** list all five meta-tools first (`afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`), plus `afd-help`, `afd-docs` and `afd-schema` as tools.
+- **Individual, grouped and lazy** list all five meta-tools first (`afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`), plus `afd-help`, `afd-docs` and `afd-schema` as tools: the earlier list, until Python's #533 step (the spec now asks for the hybrid order and TypeScript's grouped shape).
 - **With `contexts`,** they also list `afd-context-list`, `afd-context-enter` and `afd-context-exit`. Lazy filters these bootstrap-category tools by the active context.
 - **Grouped** sorts groups and actions by name and has no `_meta.actions`.
 - **Out-of-context calls.** A context-scoped command is hidden from discovery outside its context and returns `COMMAND_NOT_IN_CONTEXT` when called.
