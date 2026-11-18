@@ -97,11 +97,6 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
-			},
-			{
-				"basis": "declared",
 				"default": "max(8px, calc(var(--_control-size) * 0.5))",
 				"name": "--_dot-size"
 			},

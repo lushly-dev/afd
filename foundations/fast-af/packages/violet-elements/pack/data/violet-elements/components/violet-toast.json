@@ -86,7 +86,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-toast-border, var(--_border-subtle))",
+				"default": "var(--violet-toast-border, transparent)",
 				"name": "--_toast-border"
 			},
 			{
@@ -111,7 +111,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-toast-radius, calc(var(--_radius-lg) * 1.33))",
+				"default": "var(--violet-toast-radius, var(--_radius-lg))",
 				"name": "--_toast-radius"
 			},
 			{
@@ -121,7 +121,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-toast-surface, var(--_surface-card))",
+				"default": "var(--violet-toast-surface, var(--_surface-floating))",
 				"name": "--_toast-surface"
 			},
 			{

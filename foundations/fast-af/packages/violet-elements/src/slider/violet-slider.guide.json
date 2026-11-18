@@ -37,6 +37,13 @@
       ]
     },
     {
+      "id": "slider.fill",
+      "text": "The rail is always filled from the minimum to the value. The show-fill attribute is kept for existing markup and changes nothing, so leave it off.",
+      "members": [
+        "show-fill"
+      ]
+    },
+    {
       "id": "slider.ticks",
       "text": "The show-ticks attribute draws marks only when the range divides into 2 to 50 steps.",
       "members": [

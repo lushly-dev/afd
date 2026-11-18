@@ -56,12 +56,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-popover-background, var(--_surface-card))",
+				"default": "var(--violet-popover-background, var(--_surface-floating))",
 				"name": "--_popover-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-popover-border, var(--_border-subtle))",
+				"default": "var(--violet-popover-border, transparent)",
 				"name": "--_popover-border"
 			},
 			{
@@ -86,7 +86,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-popover-radius, calc(var(--_radius-md) * 2))",
+				"default": "var(--violet-popover-radius, var(--_radius-lg))",
 				"name": "--_popover-radius"
 			},
 			{

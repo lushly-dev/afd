@@ -22,6 +22,8 @@ const styles = css`
         display: grid;
         --_panel-min-inline: var(--violet-listbox-min-inline-size, 14rem);
         --_panel-max-block: var(--violet-listbox-max-block-size, 18rem);
+        /* The surface block has no inline spacing; the panel's padding is the menu's and the select popup's. */
+        --_space-inline-sm: var(--space-inline-sm, 4px);
         --_panel-padding: var(--violet-listbox-padding, var(--_space-inline-sm));
     }
 
@@ -33,20 +35,27 @@ const styles = css`
         max-block-size: min(var(--_panel-max-block), 70vh);
         overflow: auto;
         padding: var(--_panel-padding);
-        border: 1px solid var(--_border-subtle);
-        border-radius: calc(var(--_radius-md) * 1.25);
+        /* The shadow is the edge. The border is kept, clear, for forced colours. */
+        border: 1px solid transparent;
+        border-radius: var(--_radius-lg);
         background: var(--_surface-card);
-        box-shadow: var(--_shadow-control);
+        box-shadow: var(--_shadow-card);
         outline: none;
     }
 
     .control:focus-visible {
-        border-color: color-mix(in srgb, var(--_focus-ring) 45%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--_focus-ring) 35%, transparent);
+        box-shadow:
+            var(--_shadow-card),
+            0 0 0 2px var(--_focus-ring);
+    }
+
+    /* The keys are in this list while it has focus, so its active row draws its ring. */
+    .control:focus-visible ::slotted(violet-option) {
+        --violet-option-active-ring: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
     }
 
     :host([disabled]) .control {
-        opacity: 0.65;
+        opacity: 0.5;
         cursor: not-allowed;
     }
 

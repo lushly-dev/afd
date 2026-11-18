@@ -123,6 +123,11 @@
 				"basis": "declared",
 				"default": "var(--_surface-card)",
 				"name": "--_carousel-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-target-size, var(--size-target-natural, 32px))",
+				"name": "--_target-size"
 			}
 		],
 		"events": [

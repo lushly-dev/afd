@@ -48,18 +48,28 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_surface-card) 86%, white)",
+				"default": "var(--_surface-subtle)",
 				"name": "--_tab-closed-resting"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_surface-subtle) 42%, white)",
+				"default": "var(--_tab-key-background)",
 				"name": "--_tab-hover"
 			},
 			{
 				"basis": "declared",
 				"default": "2px",
 				"name": "--_tab-indicator-thickness"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-action-secondary-background, var(--_surface-subtle))",
+				"name": "--_tab-key-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-action-secondary-border, rgba(28, 26, 13, 0.18))",
+				"name": "--_tab-key-border"
 			},
 			{
 				"basis": "declared",

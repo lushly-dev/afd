@@ -89,6 +89,16 @@
 				"basis": "declared",
 				"default": "var(--violet-listbox-padding, var(--_space-inline-sm))",
 				"name": "--_panel-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-sm, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_focus-ring) 55%, transparent)",
+				"name": "--violet-option-active-ring"
 			}
 		],
 		"events": [

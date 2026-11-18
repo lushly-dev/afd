@@ -2,8 +2,9 @@
  * The theme overrides (2.2). Dark is `violet-elements`' dark preset, with `color.border.strong`
  * raised to meet 3:1 and the hover field border one step stronger than the resting one. High
  * contrast is new: neutral surfaces, 7:1 text, 3:1 non-text and focus ring, a 3px focus width
- * and shadows replaced by borders (a spread shadow draws a border without changing layout); its
- * field borders keep the values they had before the design document raised light and dark.
+ * and shadows replaced by borders (a spread shadow draws a border without changing layout; the
+ * field's well, which already has a border, takes none); its field borders keep the values they
+ * had before the design document raised light and dark.
  */
 import { ref, type TreeToken } from './types.js';
 
@@ -48,6 +49,9 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 		id: 'shadow.floating',
 		value: '0 8px 18px rgba(0, 0, 0, 0.34), 0 24px 48px rgba(0, 0, 0, 0.28)',
 	},
+	// The field's well: light's geometry, deepened as the other dark shadows are, since a tenth of
+	// black does not show on the dark page.
+	{ id: 'shadow.well', value: 'inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)' },
 ];
 
 export const HIGH_CONTRAST_OVERRIDES: readonly TreeToken[] = [
@@ -91,5 +95,8 @@ export const HIGH_CONTRAST_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'shadow.control', value: '0 0 0 1px #000000' },
 	{ id: 'shadow.card', value: '0 0 0 1px #000000' },
 	{ id: 'shadow.floating', value: '0 0 0 2px #000000' },
+	// A field's edge is already a border and a rule in the field border colours, so its well takes
+	// no shadow: a zero spread draws nothing, and a list of shadows cannot hold `none`.
+	{ id: 'shadow.well', value: 'inset 0 0 0 0 #000000' },
 	{ id: 'shell.size.focus', value: '3px' },
 ];

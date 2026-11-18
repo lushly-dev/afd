@@ -19,12 +19,14 @@ const styles = css`
         inline-size: min(var(--violet-snackbar-inline-size, 32rem), calc(100vw - (var(--_space-lg) * 2)));
         max-inline-size: calc(100vw - (var(--_space-lg) * 2));
         color: var(--_text-primary);
+        /* The surface block has no target sizes; a message with no action is still one control tall. */
+        --_target-size-natural: var(--size-target-natural, 32px);
         --_snackbar-padding-inline: var(--violet-snackbar-padding-inline, var(--_space-md));
         --_snackbar-padding-block: var(--violet-snackbar-padding-block, var(--_space-sm));
         --_snackbar-gap: var(--violet-snackbar-gap, var(--_space-sm));
-        --_snackbar-radius: var(--violet-snackbar-radius, calc(var(--_radius-lg) * 1.33));
+        --_snackbar-radius: var(--violet-snackbar-radius, var(--_radius-lg));
         --_snackbar-surface: var(--violet-snackbar-surface, var(--_surface-floating));
-        --_snackbar-border: var(--violet-snackbar-border, var(--_border-subtle));
+        --_snackbar-border: var(--violet-snackbar-border, transparent);
         --_snackbar-shadow: var(--violet-snackbar-shadow, var(--_shadow-floating));
         --_snackbar-emphasis: var(--violet-snackbar-emphasis, var(--_text-primary));
         --_snackbar-action: var(--violet-snackbar-action, var(--_text-primary));
@@ -38,7 +40,6 @@ const styles = css`
 
     :host([tone="info"]) {
         --_snackbar-surface: var(--_surface-card);
-        --_snackbar-border: color-mix(in srgb, var(--_border-subtle) 70%, var(--_focus-ring));
     }
 
     :host([tone="success"]) {

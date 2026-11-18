@@ -53,8 +53,8 @@ describe("Loam's Violet tree", () => {
 	it('resolves, less ref.*, to exactly the contract in every node', () => {
 		const contractIds = Object.keys(committed.tokens).sort();
 		for (const nodeId of NODE_IDS) expect([...tokens(nodeId).keys()].sort()).toEqual(contractIds);
-		expect(Object.keys(committed.tokens)).toHaveLength(115 + SHELL_TOKENS.length);
-		expect(COMPONENT_TOKENS).toHaveLength(115);
+		expect(Object.keys(committed.tokens)).toHaveLength(117 + SHELL_TOKENS.length);
+		expect(COMPONENT_TOKENS).toHaveLength(117);
 		for (const id of contractIds) expect(id.startsWith('ref.')).toBe(false);
 	});
 
@@ -114,6 +114,21 @@ describe("Loam's Violet tree", () => {
 	it('replaces shadows with borders in high contrast', () => {
 		for (const id of ['shadow.control', 'shadow.card', 'shadow.floating'])
 			expect(value(themeNode('high-contrast'), id)).toMatch(/^0 0 0 [12]px #000000$/);
+		// The field's well has its border and rule already, so its shadow draws nothing.
+		expect(value(themeNode('high-contrast'), 'shadow.well')).toBe('inset 0 0 0 0 #000000');
+	});
+
+	it('gives the ids of interface version 2 the values the components rendered with', () => {
+		for (const theme of THEMES)
+			expect(value(themeNode(theme), 'font.family.heading')).toBe(
+				value(themeNode(theme), 'font.family.body')
+			);
+		expect(value(themeNode('light'), 'shadow.well')).toBe(
+			'inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)'
+		);
+		expect(value(themeNode('dark'), 'shadow.well')).toBe(
+			'inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)'
+		);
 	});
 
 	it('changes only density in compact, and never takes a target below 24px', () => {

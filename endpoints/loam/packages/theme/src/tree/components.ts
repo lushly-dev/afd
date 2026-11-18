@@ -147,7 +147,7 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'easing.standard', value: 'cubic-bezier(0.2, 0, 0, 1)' },
 	{ id: 'easing.emphasized', value: 'cubic-bezier(0.16, 1, 0.3, 1)' },
 	// Type families, which the components read through 'font.family.body'; 'font.family.mono' is
-	// reserved in the interface, and its value is the console's monospace stack.
+	// the console's monospace stack, which the tool-call card sets a command's name in.
 	{ id: 'font.family.body', value: '"Montserrat", "Segoe UI", sans-serif' },
 	{ id: 'font.family.mono', value: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace' },
 	// Ids the components read before the interface listed them. Each takes its literal fallback in
@@ -158,4 +158,11 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'color.surface.highlight', value: c('white') },
 	{ id: 'color.surface.pressed', value: c('oat.300') },
 	{ id: 'size.focus-ring.width', value: '2px' },
+	// Ids the Refined design added to the interface (contractVersion 2). Each takes the value the
+	// components rendered with before a theme could set it, so light does not change: headings
+	// (the dialog's title, the text component's heading variants) are set in the body family, and
+	// a field's well keeps the soft inner shadow under its top rule. Dark and high contrast
+	// override the well (themes.ts).
+	{ id: 'font.family.heading', value: ref('font.family.body') },
+	{ id: 'shadow.well', value: 'inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)' },
 ];

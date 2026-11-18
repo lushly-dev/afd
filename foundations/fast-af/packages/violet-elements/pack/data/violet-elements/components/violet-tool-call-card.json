@@ -50,11 +50,6 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--color-state-danger-text, #b42318)",
 				"name": "--_danger-text-local"
 			},
@@ -62,11 +57,6 @@
 				"basis": "declared",
 				"default": "var(--color-state-success-background, #e3f1e7)",
 				"name": "--_success-bg"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--color-state-success-border, rgba(22, 101, 52, 0.28))",
-				"name": "--_success-border"
 			},
 			{
 				"basis": "declared",
@@ -80,12 +70,17 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--violet-tool-name-size, var(--_body-size, 14px))",
+				"name": "--_tool-icon-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-tool-line-height, var(--_caption-line, 16px))",
 				"name": "--_tool-line-height"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-name-size, var(--_body-size, 14px))",
+				"default": "var(--violet-tool-name-size, var(--type-label-sm-size, 12px))",
 				"name": "--_tool-name-size"
 			},
 			{
@@ -95,23 +90,23 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-border, rgba(245, 158, 11, 0.34))",
-				"name": "--_warning-border"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--color-state-warning-text, #92400e)",
 				"name": "--_warning-text"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_surface-card)",
+				"default": "var(--_surface-subtle)",
 				"name": "--violet-card-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_border-subtle)",
+				"default": "transparent",
 				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_radius-md)",
+				"name": "--violet-card-radius"
 			},
 			{
 				"basis": "declared",
@@ -120,7 +115,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_tool-name-size)",
+				"default": "var(--_tool-icon-size)",
 				"name": "--violet-icon-size"
 			}
 		],

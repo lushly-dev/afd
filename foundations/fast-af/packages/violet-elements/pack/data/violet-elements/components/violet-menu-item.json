@@ -38,11 +38,6 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-highlight, #ffffff)",
-				"name": "--_surface-highlight"
-			},
-			{
-				"basis": "declared",
 				"default": "var(--color-surface-subtle, #f0efe6)",
 				"name": "--_surface-hover"
 			},

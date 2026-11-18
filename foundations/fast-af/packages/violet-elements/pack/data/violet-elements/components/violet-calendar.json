@@ -105,7 +105,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-foreground, #245c36)",
+				"default": "var(--color-control-selected-foreground, #244635)",
 				"name": "--_calendar-accent"
 			},
 			{
@@ -115,13 +115,33 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--violet-calendar-background, var(--_surface-card))",
+				"name": "--_calendar-background"
+			},
+			{
+				"basis": "declared",
 				"default": "clamp(2rem, 6vw, 2.25rem)",
 				"name": "--_calendar-cell-size"
 			},
 			{
 				"basis": "declared",
-				"default": "calc(var(--_radius-md) * 2)",
+				"default": "var(--_radius-lg)",
 				"name": "--_calendar-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-background, #ddeadf)",
+				"name": "--_calendar-selected-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"name": "--_calendar-selected-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-calendar-shadow, var(--_shadow-card))",
+				"name": "--_calendar-shadow"
 			}
 		],
 		"events": [

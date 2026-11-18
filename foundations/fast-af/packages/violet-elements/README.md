@@ -74,26 +74,37 @@ reads, by token id, with its type:
 
 ```json
 {
-  "contractVersion": 1,
+  "contractVersion": 2,
   "package": "@lushly-dev/violet-elements",
   "tokens": {
     "color.surface.page": { "property": "--color-surface-page", "type": "color" },
     "font.family.body": { "property": "--font-family-body", "type": "fontFamily" },
-    "font.family.mono": { "property": "--font-family-mono", "type": "fontFamily", "reserved": true }
+    "shadow.well": { "property": "--shadow-well", "type": "shadow" }
   }
 }
 ```
 
-- A theme set supplies every id in its default preset. `reserved` marks an id of the interface
-  that no component reads yet; supply it anyway.
-- `contractVersion` changes whenever an id is added, removed, renamed or retyped.
+- A theme set supplies every id in its default preset. `"reserved": true` on an entry marks an
+  id of the interface that no component reads yet; supply it anyway. No id is reserved in
+  version 2.
+- `contractVersion` changes whenever an id is added, removed, renamed or retyped. Version 2
+  (the Refined design) added `font.family.heading`, `shadow.well`, `color.field.background`,
+  `color.field.background.readonly`, `color.field.text`, `color.field.placeholder` and
+  `color.field.border.focus`; `font.family.mono`, reserved in version 1, is now read.
 - Types: `color`, `dimension`, `duration`, `cubicBezier`, `fontWeight`, `fontFamily`, `number`
   and `shadow`.
 - `src/theme/violet-token-interface.spec.ts` fails when a component reads a property the file
   does not list (private `--_*` aliases and the components' own `--violet-*` knobs aside), or
   when the file lists one nothing reads that is not `reserved`.
-- Typefaces come from `font.family.body`; no component names a font family except as that
-  token's fallback.
+- Typefaces come from `font.family.body`, from `font.family.heading` for a dialog's title and
+  the text component's headings (its fallback is the body family) and from `font.family.mono`
+  for a tool call's command name; no component names a font family except as a fallback of
+  those tokens.
+- `src/theme/violet-private-properties.spec.ts` fails when a component reads a private `--_*`
+  alias with no fallback that neither it nor a token-default block it includes defines (the
+  declaration would be dropped), and when one read with a fallback is not listed there with
+  its reason. The one dropped read it knows of and allows, in `violet-gantt`, is listed there
+  too.
 
 ## The Built-In Default Theme
 
