@@ -248,6 +248,7 @@ describe('`loam copilot key set` (4.2)', () => {
 			service: 'loam-copilot',
 			account: 'claude',
 			checked: true,
+			answered: 200,
 		});
 		expect(made.stored).toEqual([['loam-copilot', 'claude', KEY]]);
 		expect(made.prompts).toEqual(['Key for claude (anthropic): ']);

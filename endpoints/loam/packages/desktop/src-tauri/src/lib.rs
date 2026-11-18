@@ -319,6 +319,14 @@ pub fn run() {
                 // IndexedDB and the rest of the webview's profile live beside the site, per data directory.
                 .data_directory(data.join("webview"))
                 .on_navigation(may_navigate)
+                // A reload or a navigation leaves the page that asked for each model stream: none outlives it (phase 5's
+                // 4.2), so no late event of one reaches the next page.
+                .on_page_load(|window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Started {
+                        let models = window.state::<Arc<Models>>().inner().clone();
+                        tauri::async_runtime::spawn(async move { models.cancel_all().await });
+                    }
+                })
                 .build()?;
             Ok(())
         })

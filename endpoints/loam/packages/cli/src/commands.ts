@@ -188,11 +188,14 @@ export function createCopilotKeySetCommand(deps: () => CopilotKeySetDeps = syste
 					provider: result.provider,
 					keychain: { service: result.service, account: result.account },
 					checked: result.checked,
+					...(result.answered === undefined ? {} : { answered: result.answered }),
 				},
 				{
 					reasoning: result.checked
 						? 'Stored the key, and the provider accepted it.'
-						: 'Stored the key; the provider could not be reached to check it.',
+						: result.answered === undefined
+							? 'Stored the key; the provider could not be reached to check it.'
+							: `Stored the key; the provider answered ${result.answered}, so it was not checked.`,
 				}
 			);
 		},

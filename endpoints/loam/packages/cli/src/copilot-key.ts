@@ -45,8 +45,10 @@ export type CopilotKeySetResult =
 			provider: string;
 			service: string;
 			account: string;
-			/** `true` when the provider answered the check; `false` when it was not reached. */
+			/** `true` when the provider accepted the key; `false` when it was not reached or did not say. */
 			checked: boolean;
+			/** The check's status, when the provider answered it. */
+			answered?: number;
 	  }
 	| { ok: false; code: string; message: string; suggestion: string };
 
@@ -178,6 +180,7 @@ export async function copilotKeySet(
 		service: where.keychain,
 		account: where.account,
 		checked: status >= 200 && status < 300,
+		answered: status,
 	};
 }
 

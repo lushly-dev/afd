@@ -12,8 +12,11 @@
  * - The key appears in no DOM, store, journal entry, log line (the app's stderr) or error.
  * - On Windows, a key set in the Credential Manager by `loam copilot key set`'s own writer is read by the Rust host.
  *
- * From the sandbox proxy and a view `model_send` is refused by the origin check (`src-tauri/tests/origin.rs`), and from
- * the copilot's frame no message runs a command (P5-A2, D153, `copilot.test.ts`).
+ * From the sandbox proxy and a view `model_send` is refused by the origin check (`src-tauri/tests/origin.rs`). From a
+ * frame made as the copilot's runtime frame is (`sandbox="allow-scripts"`, on the copilot's path), `model_send` posted
+ * through `invoke` with the shell's `Origin` forged, `window.ipc.postMessage`, `chrome.webview.postMessage` and
+ * `webkit.messageHandlers.ipc` reaches no provider: the scripted provider is the counter (D153, as P5-A2 shows for
+ * `mount_open` in `copilot.test.ts`).
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -23,7 +26,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { systemKeychain } from '@lushly-dev/loam-cli/copilot-key';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type Desktop, desktopDeployment, openDesktop, pageText, storedText } from './harness';
+import {
+	type Desktop,
+	desktopDeployment,
+	ORIGINS,
+	openDesktop,
+	pageText,
+	redactInvokeKey,
+	storedText,
+} from './harness';
 
 const windows = process.platform === 'win32';
 /** Windows' own tools, by path: another `whoami` on `PATH` (Git's) takes other arguments. */
@@ -45,6 +56,19 @@ let desktop: Desktop;
 let server: Server;
 let port = 0;
 const received: Received[] = [];
+
+/** The frame's script: `model_send` through every path a frame has, with a body the allow-list admits. */
+const PROBE = `(() => {
+	const shell = decodeURIComponent(location.hash.slice(1));
+	const payload = { provider: 'local', body: { max_tokens: 8, stream: true, messages: [{ role: 'user', content: 'from the frame' }] } };
+	const headers = { Origin: shell };
+	const message = JSON.stringify({ cmd: 'model_send', callback: 1, error: 2, payload, options: { headers }, __TAURI_INVOKE_KEY__: 'forged' });
+	try { window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke('model_send', payload, { headers }).catch(() => {}); } catch {}
+	for (const post of [window.ipc, window.chrome && window.chrome.webview, window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc]) {
+		try { post && post.postMessage && post.postMessage(message); } catch {}
+	}
+})();
+`;
 
 const chunk = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
 
@@ -180,7 +204,18 @@ beforeAll(async () => {
 	restrict(keyFile);
 	if (windows) await systemKeychain('win32').set(SERVICE, ACCOUNT, KEYCHAIN_KEY);
 	const deployment = `${desktopDeployment()}\n${copilotTable(keyFile)}`;
-	desktop = await openDesktop({ deployment });
+	desktop = await openDesktop({
+		deployment,
+		async prepare(data) {
+			// A frame on the copilot's path, under its policy, that posts `model_send` every way a frame can (D153).
+			const copilot = join(data, 'site/sandbox/copilot');
+			await writeFile(
+				join(copilot, 'probe-models.html'),
+				'<!doctype html>\n<html lang="en"><head><meta charset="utf-8" /><title>D153 model_send probe</title><script src="probe-models.js"></script></head></html>\n'
+			);
+			await writeFile(join(copilot, 'probe-models.js'), PROBE);
+		},
+	});
 	await desktop.browser.setTimeout({ script: 120_000 });
 	// Every `loam:model` event the page hears, from the start.
 	await desktop.browser.execute(() => {
@@ -371,15 +406,57 @@ describe('P5-A3: the model transport on the desktop', () => {
 		expect(request.headers.authorization).toBe(`Bearer ${FILE_KEY}`);
 	});
 
-	it.runIf(windows)(
-		'P5-A3: a key in the Credential Manager, as loam copilot key set writes it, is the request’s key',
-		async () => {
+	it('P5-A3: a keychain key is read per request: on Windows, the one loam copilot key set’s writer stored', async () => {
+		if (windows) {
+			// The Credential Manager entry `systemKeychain` wrote before the app started.
 			const sent = await send('keychain', BODY('Hello'));
 			expect(sent.ok, sent.value).toBe(true);
 			await untilDone(Number(sent.value));
 			expect((received.at(-1) as Received).headers.authorization).toBe(`Bearer ${KEYCHAIN_KEY}`);
+			return;
 		}
-	);
+		// Elsewhere the suite's runner holds no keychain to write (the Linux job has no Secret Service): the keychain
+		// path is still taken, and an entry that is not there is refused before anything is sent.
+		const before = received.length;
+		expect(await send('nokey', BODY('Hello'))).toEqual({ ok: false, value: 'COPILOT_KEY_MISSING' });
+		expect(received.length).toBe(before);
+	});
+
+	it("P5-A3 (D153): no message a frame like the runtime's posts runs model_send: the provider hears nothing", async () => {
+		const before = received.length;
+		const refusals = desktop.stderr.keyRefusals;
+		await desktop.browser.execute(
+			(sandbox, shell) => {
+				const frame = document.createElement('iframe');
+				frame.setAttribute('sandbox', 'allow-scripts');
+				frame.dataset.probe = 'models';
+				frame.src = `${sandbox}/sandbox/copilot/probe-models.html#${encodeURIComponent(shell)}`;
+				document.body.append(frame);
+			},
+			ORIGINS.sandbox,
+			ORIGINS.shell
+		);
+		// Time for a delivered message to run, and for a request to reach the provider.
+		await new Promise((resolve) => setTimeout(resolve, 4_000));
+		expect(received.length).toBe(before);
+		// The control: the same command from the main frame reaches it.
+		const sent = await send('local', BODY('control'));
+		expect(sent.ok, sent.value).toBe(true);
+		await untilDone(Number(sent.value));
+		expect(received.length).toBe(before + 1);
+		// WebView2 hears no frame's message at all; WebKitGTK hears it and the invoke key drops it (D153).
+		if (windows) expect(desktop.stderr.keyRefusals).toBe(refusals);
+		else expect(desktop.stderr.keyRefusals).toBeGreaterThan(refusals);
+	});
+
+	it("#1448: the harness shows Tauri's refusal line with the expected key replaced", () => {
+		const line = '__TAURI_INVOKE_KEY__ expected 0123456789abcdef but received forged';
+		expect(redactInvokeKey(line)).toBe('__TAURI_INVOKE_KEY__ expected <key> but received <other>');
+		expect(redactInvokeKey('__TAURI_INVOKE_KEY__ expected 0123456789abcdef but received ')).toBe(
+			'__TAURI_INVOKE_KEY__ expected <key> but received <empty>'
+		);
+		expect(desktop.stderr.lines.join('\n')).not.toMatch(/__TAURI_INVOKE_KEY__ expected (?!<key>)/);
+	});
 
 	it('P5-A3: the key appears in no DOM, store, journal entry, log line or error', async () => {
 		const seen = [

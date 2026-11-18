@@ -775,7 +775,7 @@ impl Models {
         }
     }
 
-    /// Every stream, when the app exits.
+    /// Every stream, when the app exits or the main webview loads a page: a page's streams are its own.
     pub async fn cancel_all(&self) {
         for (_, task) in self.streams.lock().await.drain() {
             task.abort();
@@ -813,7 +813,7 @@ fn emit_text(stream: u64, text: &str, emit: &Emit) {
 }
 
 /// One request: `{ stream, status }` when its headers arrive, `{ stream, chunk }` for its text, and one
-/// `{ stream, done, status, code? }` at its end. A provider's error body is passed as data, as any answer is.
+/// `{ stream, done, status, code? }` at its end. A refusal (`4xx`, `5xx`) ends with its status and code alone.
 async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
     let done = |status: u16, code: Option<&str>| {
         let mut detail = json!({ "stream": stream, "done": true, "status": status });
@@ -829,6 +829,17 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
         };
         let status = response.status().as_u16();
         emit(json!({ "stream": stream, "status": status }));
+        // A refusal's body is not passed on: a provider's 401 can quote part of the key (OpenAI's names its first
+        // and last characters), and a local server may quote more. Its status and code say enough.
+        if !(200..=299).contains(&status) {
+            drop(response);
+            let code = if (400..=499).contains(&status) {
+                REFUSED
+            } else {
+                UNREACHABLE
+            };
+            return (status, Some(code));
+        }
         let mut body = response.bytes_stream();
         let mut total = 0usize;
         let mut pending = Vec::new();
@@ -846,12 +857,7 @@ async fn run(stream: u64, request: reqwest::RequestBuilder, emit: &Emit) {
         if !pending.is_empty() {
             emit_text(stream, &String::from_utf8_lossy(&pending), emit);
         }
-        let code = match status {
-            200..=299 => None,
-            400..=499 => Some(REFUSED),
-            _ => Some(UNREACHABLE),
-        };
-        (status, code)
+        (status, None)
     })
     .await;
     match outcome {
@@ -1296,6 +1302,59 @@ mod tests {
             Some(KEY_MISSING)
         );
         assert!(sent.lock().unwrap().is_empty());
+    }
+
+    /// A provider on 127.0.0.1 that answers every request with `response`, raw.
+    async fn provider_answering(response: &'static str) -> u16 {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut buffer = vec![0u8; 65536];
+                let _ = socket.read(&mut buffer).await;
+                let _ = socket.write_all(response.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            }
+        });
+        port
+    }
+
+    #[tokio::test]
+    async fn p5_a3_a_refusal_passes_no_body_on_since_it_can_quote_the_key() {
+        let port = provider_answering(
+            "HTTP/1.1 401 Unauthorized\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: 64\r\n\r\n{\"error\":\"Incorrect API key provided: sk-ab****************wxyz\"}",
+        )
+        .await;
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let seen = events.clone();
+        let emit: Emit = Arc::new(move |event| seen.lock().unwrap().push(event));
+        let models = Models::new(Ok(vec![Provider {
+            id: "local".into(),
+            kind: Kind::OpenaiCompatible,
+            model: "m".into(),
+            endpoint: Some(format!("http://127.0.0.1:{port}/v1")),
+            key: None,
+        }]));
+        let stream = models.send("local", openai(), emit).await.unwrap();
+        for _ in 0..200 {
+            if events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|event| event["done"] == true)
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![
+                json!({ "stream": stream, "status": 401 }),
+                json!({ "stream": stream, "done": true, "status": 401, "code": REFUSED }),
+            ]
+        );
     }
 
     #[test]

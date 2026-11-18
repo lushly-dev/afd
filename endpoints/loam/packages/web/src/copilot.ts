@@ -129,24 +129,28 @@ export function modelEventOf(detail: unknown): ModelEvent | undefined {
 
 /** Events held for a stream whose id `model_send` has not yet returned: the host may dispatch before it answers. */
 const EARLY_MAX = 256;
+/** Ended streams remembered, so the events still queued behind their end are dropped, not held. */
+const ENDED_MAX = 64;
 
 /**
  * The desktop's model transport (4.2): the Rust host's `model_send` and `model_cancel`. The page names a provider id
  * and gives the body; the Rust host holds the key and the endpoint, builds the request, and sends the answer back as
  * `loam:model` events on `window`: `{ stream, status }` when its headers arrive, `{ stream, chunk }` for its text,
  * and `{ stream, done, status, code? }` at its end. A stream past its bounds, or one the network ended, throws with
- * its code; a provider's refusal (`4xx`) is its status and its body, as data, which the runtime reads.
+ * its code; a provider's refusal (`4xx`) is its status alone, which the runtime reads. A stream the page stops
+ * reading before its end, whatever stopped it, is cancelled at the host, so it spends nothing more.
  */
 export function createDesktopModelTransport(target: Window = window): ModelTransportV1 {
 	const queues = new Map<number, (event: ModelEvent) => void>();
 	const early = new Map<number, ModelEvent[]>();
+	const ended: number[] = [];
 	let held = 0;
 	target.addEventListener('loam:model', (event) => {
 		const detail = modelEventOf((event as CustomEvent).detail);
 		if (!detail) return;
 		const queue = queues.get(detail.stream);
 		if (queue) return queue(detail);
-		if (held >= EARLY_MAX) return;
+		if (ended.includes(detail.stream) || held >= EARLY_MAX) return;
 		held += 1;
 		const list = early.get(detail.stream) ?? [];
 		list.push(detail);
@@ -177,26 +181,36 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 			held -= waiting.length;
 			early.delete(stream);
 			let wake: (() => void) | undefined;
-			let ended = false;
+			let stopped = false;
+			/** Whether the host said the stream ended: until then, stopping cancels it there. */
+			let finished = false;
 			const stop = () => {
-				if (ended) return;
-				ended = true;
+				if (stopped) return;
+				stopped = true;
 				queues.delete(stream);
+				ended.push(stream);
+				if (ended.length > ENDED_MAX) ended.shift();
+				signal.removeEventListener('abort', stop);
+				if (!finished)
+					void Promise.resolve()
+						.then(() => internals().invoke('model_cancel', { stream }))
+						.catch(() => undefined);
 				wake?.();
 			};
 			queues.set(stream, (event) => {
+				if ('done' in event) finished = true;
 				waiting.push(event);
 				wake?.();
 			});
-			const abort = () => {
-				void internals()
-					.invoke('model_cancel', { stream })
-					.catch(() => undefined);
+			// A stop while `model_send` was answering: its listener came too late to hear it.
+			if (signal.aborted) {
 				stop();
-			};
-			signal.addEventListener('abort', abort, { once: true });
+				throw modelFailure('MODEL_UNREACHABLE');
+			}
+			signal.addEventListener('abort', stop, { once: true });
+			if (waiting.some((event) => 'done' in event)) finished = true;
 			const next = async (): Promise<ModelEvent | undefined> => {
-				while (waiting.length === 0 && !ended)
+				while (waiting.length === 0 && !stopped)
 					await new Promise<void>((resolve) => (wake = resolve));
 				return waiting.shift();
 			};
@@ -208,7 +222,6 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 			}
 			if ('done' in head) {
 				stop();
-				signal.removeEventListener('abort', abort);
 				throw modelFailure(head.code ?? 'MODEL_UNREACHABLE');
 			}
 			const encoder = new TextEncoder();
@@ -221,14 +234,14 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 							if (!event) return;
 							if ('chunk' in event) yield encoder.encode(event.chunk);
 							else if ('done' in event) {
-								// A provider's refusal is its status and body; any other code ends the stream with it.
+								// A provider's refusal is its status; any other code ends the stream with it.
 								if (event.code && event.code !== 'MODEL_REFUSED') throw modelFailure(event.code);
 								return;
 							}
 						}
 					} finally {
+						// Read to its end, or left early (a stop, the kernel's 16 MiB bound): either way, no more.
 						stop();
-						signal.removeEventListener('abort', abort);
 					}
 				})(),
 			};
