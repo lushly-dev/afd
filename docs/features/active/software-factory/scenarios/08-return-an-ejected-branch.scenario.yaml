@@ -76,3 +76,11 @@ steps:
       data:
         events: { length: 0 }
         timedOut: true
+  - description: A new foreman has nothing to do about the answered ejection either
+    command: lane-wait
+    input: { consumer: next-foreman, timeout_ms: 0 }
+    expect:
+      success: true
+      data:
+        events: { length: 0 }
+        timedOut: true
