@@ -61,7 +61,7 @@ const DEPLOYER_KEYS = [
  * Three named exemptions. Phase 4's step 5 adds `notification-push`'s `action.command`, a command's name (its 10.1),
  * the path step 3's comment below foresaw, kept by the coordinator on 2026-11-19; and, from that step's reviews, its
  * `link.route`, an app's route within its own URL (10.1's `ResourceLinkV1`, the reviews' item 6), never a projection
- * entry's `route`, for that step's re-check. Phase 4's step 3 adds `popover-open`'s menu
+ * entry's `route`, kept by the coordinator on 2026-11-19. Phase 4's step 3 adds `popover-open`'s menu
  * item `command`, a command's name (its 6.4), kept by the coordinator on 2026-11-18 (that step's record, R-a). The first (phase 3 specification, Status, step 6,
  * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and

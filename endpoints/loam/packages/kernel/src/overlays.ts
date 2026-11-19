@@ -98,10 +98,11 @@ export interface OverlayStore {
 	 */
 	land(overlayId: string, notification: string): void;
 	/**
-	 * A muted app's toast (3.7; step 5's R2): held, timed and capped as any toast, so the app sees the same lifecycle,
-	 * but the shell does not show it. The shell's list marks it `hidden`; the app's never does.
+	 * The next toast `open` makes is a muted app's (3.7; step 5's R2): held and timed as any toast, so the app sees the
+	 * same course, but the shell does not show it. The shell's list marks it `hidden`; the app's never does. Set at
+	 * once before the call that opens it and cleared after; `open` takes it.
 	 */
-	hide(overlayId: string): void;
+	hideNext(on: boolean): void;
 	get(overlayId: string): OverlayV1 | undefined;
 	/** When an open toast opened, on the call's clock, for a full region's `retryAfterMs`. */
 	openedAt(overlayId: string): number | undefined;
@@ -138,7 +139,16 @@ export function createOverlayStore(): OverlayStore {
 	const waiters = new Map<string, Array<(result: OverlayResultV1) => void>>();
 	let counter = 0;
 
-	const toasts = () => [...open.values()].filter((overlay) => overlay.kind === 'toast');
+	/**
+	 * The toasts a new one counts against for the cap (6.1): the shown ones for a shown toast, the hidden for a hidden
+	 * one, so a muted app's unseen toasts never push a shown one off (the re-check's improvement 1). The muted app sees
+	 * no other app's overlays, so the split is nothing it can read.
+	 */
+	const toasts = (hidden = false) =>
+		[...open.values()].filter(
+			(overlay) => overlay.kind === 'toast' && (overlay.hidden === true) === hidden
+		);
+	let nextHidden = false;
 
 	function add(
 		owner: OverlayOwner,
@@ -184,8 +194,10 @@ export function createOverlayStore(): OverlayStore {
 			return owner && { ...owner };
 		},
 		open(owner, kind, input, options) {
+			const hidden = kind === 'toast' && nextHidden;
+			nextHidden = false;
 			if (kind === 'toast') {
-				const shown = toasts();
+				const shown = toasts(hidden);
 				const oldest = shown.length >= TOAST_CAP ? shown[0] : undefined;
 				if (oldest) store.close(oldest.overlayId, 'dismissed', 'cap');
 			}
@@ -196,7 +208,9 @@ export function createOverlayStore(): OverlayStore {
 					if (overlay.kind === 'popover') store.close(overlay.overlayId, 'dismissed', 'replaced');
 				}
 			}
-			return add(owner, kind, input, options);
+			const ref = add(owner, kind, input, options);
+			if (hidden) (open.get(ref.overlayId) as OverlayV1).hidden = true;
+			return ref;
 		},
 		openAgentToast(owner, input, options) {
 			const shown = toasts();
@@ -215,9 +229,8 @@ export function createOverlayStore(): OverlayStore {
 			const overlay = open.get(overlayId);
 			if (overlay?.kind === 'toast') overlay.notification = notification;
 		},
-		hide(overlayId) {
-			const overlay = open.get(overlayId);
-			if (overlay?.kind === 'toast') overlay.hidden = true;
+		hideNext(on) {
+			nextHidden = on;
 		},
 		get(overlayId) {
 			const overlay = open.get(overlayId);

@@ -370,7 +370,11 @@ export class LoamInbox extends HTMLElement {
 			waiting(notice) ? 'Waiting for your answer' : unread ? 'Unread' : '',
 			this.#from(notice),
 			when(notice.createdAt),
-			notice.state === 'done' ? 'Done' : notice.state === 'acting' ? 'Running' : '',
+			notice.state === 'done'
+				? 'Done'
+				: notice.state === 'acting'
+					? 'Running, or ran with no outcome recorded'
+					: '',
 		].filter(Boolean);
 		const actions = el('div', { class: 'row' });
 		const item = el(

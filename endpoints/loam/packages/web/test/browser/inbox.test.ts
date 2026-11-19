@@ -249,4 +249,45 @@ describe('P4-E6: the inbox, after the reviews', () => {
 		expect(errors).toEqual([]);
 		await page.context().close();
 	});
+
+	it("holds a muted app's timed toast under its own modal, as a shown one is held (the re-check's B1)", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await kernelCall(page, 'setting-set', {
+			section: 'loam.notifications',
+			key: 'muted',
+			value: ['hello'],
+			level: 'person',
+		});
+		const modal = await helloCall(page, 'modal-open', { title: 'Sure?', body: 'Say so.' });
+		expect(modal.success).toBe(true);
+		const shown = await helloCall(page, 'toast-show', { message: 'Quiet', durationMs: 1000 });
+		const id = shown.data?.overlayId as string;
+		// What the app reads: whether its toast has settled, polled through its own port.
+		await page.evaluate((overlayId) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { appPort(instance: string): { waitOverlay(id: string): Promise<unknown> } };
+			};
+			const box = window as unknown as { settledQuiet?: unknown };
+			void shell.kernel
+				.appPort('hello')
+				.waitOverlay(overlayId)
+				.then((result) => {
+					box.settledQuiet = result;
+				});
+		}, id);
+		const settled = () =>
+			page.evaluate(() => (window as unknown as { settledQuiet?: unknown }).settledQuiet ?? null);
+		await page.waitForTimeout(2500);
+		expect(await settled()).toBeNull();
+		await kernelCall(page, 'overlay-dismiss', {
+			overlayId: modal.data?.overlayId,
+			result: 'cancel',
+		});
+		await expect
+			.poll(settled, { timeout: 8000 })
+			.toMatchObject({ result: 'dismissed', reason: 'timeout' });
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
 });

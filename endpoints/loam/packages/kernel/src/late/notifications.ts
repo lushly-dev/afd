@@ -104,7 +104,7 @@ export interface NotificationDeps {
 		input: Pick<ToastInputV1, 'sticky' | 'tone'>,
 		toastSticky: NotificationPrefsV1['toastSticky']
 	): boolean;
-	overlays: Pick<OverlayStore, 'land' | 'hide'>;
+	overlays: Pick<OverlayStore, 'land' | 'hideNext'>;
 	/** Whose a notice is, as the shell shows it (6.6): step 3's owner line for an app or an agent, none for the shell. */
 	fromOf(source: string): OverlayFromV1 | undefined;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
@@ -849,7 +849,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					scope: row.scope,
 					...(context.actor ? { actor: context.actor } : {}),
 				});
-				const { state: _state, claim: _claim, ...kept } = claimed;
+				// Put back from the row as stored now, not the claim's snapshot, so a read or an archive made meanwhile (in
+				// another tab) stands; only the claim's fields change.
+				const { state: _state, claim: _claim, ...kept } = (await reread(row.id)) ?? claimed;
 				if (!result.success) {
 					// Nothing ran: the claim goes, so the person may try again.
 					await putBack(kept);
@@ -878,8 +880,18 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 	// ─── toast-show's inbox half ────────────────────────────────────────────────────
 
 	function toastShow(original: ZodCommandDefinition): ZodCommandDefinition {
-		const show = (input: unknown, context: CommandContext) =>
-			original.handler(input, context) as Promise<CommandResult<OverlayRefV1>>;
+		/**
+		 * Show it, hidden for a muted app: the store opens it hidden, so it counts against the hidden toasts' cap alone.
+		 * The original reaches `open` with no await before it on an app's path, so the flag is the one it takes.
+		 */
+		const show = async (input: unknown, context: CommandContext, hidden = false) => {
+			deps.overlays.hideNext(hidden);
+			try {
+				return (await original.handler(input, context)) as CommandResult<OverlayRefV1>;
+			} finally {
+				deps.overlays.hideNext(false);
+			}
+		};
 		/** A landed toast's notice: its message as the title, cut to 120, with the whole message as the body. */
 		const fieldsOf = (toast: ToastInputV1) => ({
 			title: toast.message.length > 120 ? `${toast.message.slice(0, 119)}…` : toast.message,
@@ -913,21 +925,19 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (sticky) {
 					return admit(person, async () => {
 						if (source.kind !== 'shell' && (await full(person))) return quotaRefusal();
-						const shown = await show(input, context);
+						const shown = await show(input, context, muted);
 						if (!shown.success || !shown.data) return shown;
 						const ref = shown.data;
-						if (muted) deps.overlays.hide(ref.overlayId);
 						const notice = await insert(context, person, sourceName(source), fieldsOf(toast));
 						if (notice === 'full') return kit.success(ref);
 						deps.overlays.land(ref.overlayId, notice.id);
 						return kit.success({ ...ref, notification: notice.id });
 					});
 				}
-				const shown = await show(input, context);
+				// A muted app's toast runs its course unseen: the app sees what it would of any toast (3.7, R2).
+				const shown = await show(input, context, muted);
 				if (!shown.success || !shown.data) return shown;
 				const ref = shown.data;
-				// A muted app's toast runs its course unseen: the app sees what it would of any toast (3.7, R2).
-				if (muted) deps.overlays.hide(ref.overlayId);
 				// One the person's `toastSticky` selects lands within its owner's scope, rate and the quota, or not at all;
 				// the result never says which, so no app reads the person's setting from it (R2).
 				if (!deps.landsInInbox(toast, prefs.toastSticky) || !deps.allows(actor, scopeOf(context)))

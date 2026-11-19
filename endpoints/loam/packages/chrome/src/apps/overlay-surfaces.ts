@@ -155,8 +155,8 @@ export class OverlaySurfaces {
 		const { overlays } = result.data;
 		await this.#renderModal(overlays.find(({ kind }) => kind === 'modal'));
 		const toasts = overlays.filter(({ kind }) => kind === 'toast');
-		this.#runHidden(toasts.filter(({ hidden }) => hidden));
 		this.#renderToasts(toasts.filter(({ hidden }) => !hidden));
+		this.#runHidden(toasts.filter(({ hidden }) => hidden));
 		const popovers = overlays.filter(({ kind }) => kind === 'popover');
 		if (popovers.length === 0 && !this.#popovers) return;
 		this.#popovers ??= import('./overlays.js').then(
@@ -180,13 +180,21 @@ export class OverlaySurfaces {
 
 	/**
 	 * A muted app's toasts (3.7; step 5's R2): never drawn, but a timed one times out as a shown one does, so the app
-	 * reads the same course of its toast; a sticky one stays until a switch, a change of person or its own close.
+	 * reads the same course of its toast; a sticky one stays until a switch, a change of person or its own close. Under
+	 * any modal its timer is held, as a shown toast's is, and starts again in full once the modal closes (the re-check's
+	 * B1: else an app's own modal would tell it it is muted). Run after the shown toasts, whose pass resets `waiting`.
 	 */
 	#runHidden(toasts: OverlayV1[]): void {
+		const held = this.#anyModal;
 		for (const [id, timer] of this.#hidden) {
-			if (toasts.some(({ overlayId }) => overlayId === id)) continue;
+			if (!held && toasts.some(({ overlayId }) => overlayId === id)) continue;
 			clearTimeout(timer);
 			this.#hidden.delete(id);
+		}
+		if (held) {
+			// A modal's close reads again, and the timers start then.
+			if (toasts.some(({ input }) => !(input as ToastInputV1).sticky)) this.#waiting = true;
+			return;
 		}
 		for (const { overlayId, input } of toasts) {
 			const { sticky, durationMs } = input as ToastInputV1;

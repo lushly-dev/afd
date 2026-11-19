@@ -787,7 +787,7 @@ describe("the shell's own notices, the seam of steps 8 to 10 (10.2)", () => {
 			limits: { agent: 5, app: 10 },
 			prefs: async () => ({ toastSticky: 'danger', muted: [] }),
 			landsInInbox: () => false,
-			overlays: { land: () => undefined, hide: () => undefined },
+			overlays: { land: () => undefined, hideNext: () => undefined },
 			fromOf: () => undefined,
 			run: async () => ({ success: true }),
 			kit: { ...DOCUMENT_KIT, archivedRefusal: () => undefined, personKey } as never,
@@ -835,7 +835,7 @@ describe('acting (the reviews: act-time checks, and acting twice)', () => {
 			const [kept] = (await listed(kernel, { notification: row(index + 1).id })).notifications;
 			expect(kept).not.toHaveProperty('state');
 		}
-		// A disabled source app's action is another app's to the shell now.
+		// An action naming another app's command than its source's is foreign, whatever the source.
 		await store.create(
 			NOTIFICATION_TABLE,
 			row(9, {
@@ -893,9 +893,17 @@ describe('acting (the reviews: act-time checks, and acting twice)', () => {
 			}) as never
 		);
 		const first = await kernel.call('notification-act', { notification: row(1).id });
-		expect(first.success).toBe(false);
+		// The source app disabled: the nested call is refused as any call of the person's would be, and nothing runs.
+		expect(first.error?.code).toBe('APP_DISABLED');
 		const [kept] = (await listed(kernel, { notification: row(1).id })).notifications;
 		expect(kept).not.toHaveProperty('state');
+		await kernel.call('workspace-app-set', { instance: 'probe', enabled: true });
+		expect(JSON.stringify((await kernel.call('probe-list')).data ?? {})).not.toContain('later');
+		// Enabled again, the person acts again, once.
+		expect((await kernel.call('notification-act', { notification: row(1).id })).success).toBe(true);
+		expect(JSON.stringify((await kernel.call('probe-list')).data ?? {}).split('later').length).toBe(
+			2
+		);
 	});
 });
 
@@ -1012,5 +1020,27 @@ describe('MCP (section 13; the reviews: item 9)', () => {
 		const served = parts.mcpOptions()?.commands ?? [];
 		expect(served.filter((command) => command.name.startsWith('notification-'))).toEqual([]);
 		expect(served.find((command) => command.name === 'probe-list')?.category).toBe('notification');
+	});
+});
+
+describe("a muted app's toasts and the cap (the re-check's improvement 1)", () => {
+	it('never pushes a shown toast off for a hidden one', async () => {
+		const { kernel, probe, sums } = await boot();
+		await kernel.call('setting-set', {
+			section: 'loam.notifications',
+			key: 'muted',
+			value: ['probe'],
+			level: 'person',
+		});
+		for (let index = 0; index < 5; index++)
+			await sums.call('toast-show', { message: `shown ${index}`, durationMs: 30_000 });
+		for (let index = 0; index < 7; index++)
+			await probe.call('toast-show', { message: `hidden ${index}`, durationMs: 30_000 });
+		const all = await overlays(kernel);
+		expect(
+			all.filter((each) => !each.hidden).map((each) => (each.input as { message: string }).message)
+		).toEqual(['shown 0', 'shown 1', 'shown 2', 'shown 3', 'shown 4']);
+		// The hidden ones keep their own cap of five, as the app would see its own toasts kept.
+		expect(all.filter((each) => each.hidden)).toHaveLength(5);
 	});
 });
