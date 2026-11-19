@@ -379,6 +379,7 @@ export const CEILINGS = Object.freeze({
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
+	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
 	jsGzip: 97_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
@@ -393,8 +394,8 @@ export const CEILINGS = Object.freeze({
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
-	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it). Step 4 merged on top:
-	// 105,000 combined, set to 105,500 under D115 (step 4's own +11,665 is in its header note).
+	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it). Step 4 merged on top, measured from
+	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	lateMinified: 105_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_400,
