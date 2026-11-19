@@ -57,16 +57,17 @@ probably…" asides. List them before touching anything.
 
 ## 2. Land the work
 
-Every session PR ends merged, or closed with a recorded reason.
+Every session PR ends merged, closed with a recorded reason, or left open with the reason
+`prepare-pr`'s step 9 requires (a decision that is the owner's, or no independent review).
 
 - **Check for supersession before waiting.** A parallel session may have landed an
   equivalent change; close a redundant PR as superseded.
 - **Red CI** goes back through `prepare-pr`, which owns push and update.
-- **Enqueue the session's own reviewed, green pull request** (AGENTS.md authorizes it), with `prepare-pr`'s step 9 and no other
-  command: `main` merges through the merge queue, and step 9 binds the enqueue to the head
-  whose checks you verified. The pull request has landed only when its state is `MERGED`; a
-  queued one and one the queue removed are both still open, and step 9 says how to tell them
-  apart.
+- **Enqueue the session's own reviewed, green pull request** (AGENTS.md authorizes it),
+  with `prepare-pr`'s step 9 and no other command: `main` merges through the merge queue,
+  and step 9 binds the enqueue to the head whose checks you verified. The pull request has
+  landed only when its state is `MERGED`; a queued one and one the queue removed are both
+  still open, and step 9 says how to tell them apart.
 - **A wait that would block the close-out indefinitely** switches to `park`.
 
 **Park** describes a stopped owner, not merely unfinished work. Finish or stop this
@@ -112,7 +113,7 @@ End every mode with this layout; the status is the literal last line:
 ## Session close: <title>
 
 - Verified at: <UTC time of the final PR and branch re-read>
-- Pull requests: #N merged | #N closed (<reason>) | none
+- Pull requests: #N merged | #N closed (<reason>) | #N open (<reason>) | none
 - Issues filed: #N <title> | none
 - Knowledge captured: <skill, doc or memory> | none
 - Task/plan: <issue closed, plan moved> | n/a

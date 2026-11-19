@@ -41,7 +41,7 @@ The harness lists every skill with its description. The others cover each langua
 
 **Credit goes to the owner.** Commits are authored by the owner, never by an agent. An agent that helped is listed with an email-free trailer, `Assisted-by: Claude Code`, never `Co-authored-by:`, which GitHub counts as a full contributor. `scripts/commit-credit.mjs` refuses either in the commit-msg hook and in `ci-ok`.
 
-**Land your own pull request.** No human reviews pull requests here: the agent reviewers and the gates are the review. A session marks the pull request it opened ready and enqueues it with `prepare-pr`'s step 9, without asking, once that skill's review is done (the self-review and the independent reviewers it requires, no blocker unresolved) and every check on the exact head is green. When the review could not be completed or a decision is the owner's, leave it open and say so in the pull request and the final message.
+**Land your own pull request.** No human reviews pull requests here: the agent reviewers and the gates are the review. A session marks the pull request it opened or resumed ready and enqueues it with `prepare-pr`'s step 9, without asking, once that skill's review covers the head (no blocker unresolved) and every check on that head is green. When no independent review could run, or a decision is the owner's, leave it open and say why in the pull request and the final message.
 
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge or enqueue the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
