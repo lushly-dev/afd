@@ -562,3 +562,5 @@ explicitly authorizes one retry. JSON or noninteractive calls remain held withou
 ## License
 
 MIT
+
+<!-- Merge queue trial B (#1598): a one-unit change on the throwaway queue-trial branch. -->
