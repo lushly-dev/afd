@@ -34,6 +34,9 @@ export const SHELL_COMMAND_NAMES = [
 	'toast-show',
 	'modal-open',
 	'popover-open',
+	// Phase 4's step 4 (its 6.1): the dialog and the prompt.
+	'dialog-open',
+	'prompt-open',
 	'overlay-dismiss',
 	'overlay-list',
 	'scope-get',
@@ -121,4 +124,15 @@ export const SHELL_COMMAND_NAMES = [
 	'setting-get',
 	'setting-set',
 	'setting-reset',
+	'notification-push',
+	'notification-list',
+	'notification-read',
+	'notification-archive',
+	'notification-act',
+	// Phase 4's step 8 (its 4.4): autonomy.
+	'autonomy-get',
+	'autonomy-list',
+	'autonomy-set',
+	// Phase 4's step 10 (its section 11): the limits' usage, owners only.
+	'limit-usage-get',
 ] as const;

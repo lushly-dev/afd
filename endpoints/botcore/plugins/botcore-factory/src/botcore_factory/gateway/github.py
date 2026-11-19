@@ -97,6 +97,19 @@ class GitHub(Protocol):
         ...
 
     def disable_auto_merge(self, repo: str, number: int) -> None: ...
+    def enqueue_pull(self, repo: str, number: int, head: str) -> dict:
+        """Add the pull request to its base's merge queue, bound to ``head`` (GraphQL
+        enqueuePullRequest with expectedHeadOid), and return the entry GitHub made
+        (``state``, ``position``); ``HeadMoved`` when the head is another, ``GitHubRefused``
+        when GitHub made no entry. A pull request says whether its base has a queue
+        (``mergeQueue.required``) and, once a queue let it go, when and why
+        (``mergeQueue.removed {at, reason}``: ``failed_checks``, ``merged``, ...)."""
+        ...
+
+    def dequeue_pull(self, repo: str, number: int) -> None:
+        """Take the pull request out of the merge queue (GraphQL dequeuePullRequest)."""
+        ...
+
     def create_revert(self, repo: str, number: int, title: str, body: str) -> int:
         """A pull request reverting a merged one (GraphQL revertPullRequest)."""
         ...
@@ -362,15 +375,51 @@ class FakeGitHub:
             return pull["mergedAt"]
 
     def enable_auto_merge(self, repo, number, head, method):
+        """Behind a merge queue (the pull request's ``mergeQueue.required``) GitHub takes a
+        pull request that is clean and whose checks all passed into the queue at once; any
+        other waits with auto-merge set, as without a queue."""
         with self._write(repo) as data:
             self._merge_method(data, method)
-            self._pull(data, number).update(
-                autoMerge=True, autoMergeHead=head, autoMergeMethod=method
+            pull = self._pull(data, number)
+            pull.update(autoMerge=True, autoMergeHead=head, autoMergeMethod=method)
+            queue = pull.get("mergeQueue") or {}
+            green = pull.get("mergeable") == "MERGEABLE" and all(
+                run.get("conclusion") == "success" for run in pull.get("checks", [])
             )
+            if queue.get("required") and green:
+                self._enqueue(pull, head)
 
     def disable_auto_merge(self, repo, number):
+        """GitHub refuses to turn off auto-merge that is not set."""
         with self._write(repo) as data:
-            self._pull(data, number).update(autoMerge=False, autoMergeHead=None)
+            pull = self._pull(data, number)
+            if not pull.get("autoMerge"):
+                raise GitHubRefused(200, "Can't disable auto-merge for this pull request")
+            pull.update(autoMerge=False, autoMergeHead=None)
+
+    def _enqueue(self, pull: dict, head: str) -> None:
+        pull["mergeQueue"] = {
+            **(pull.get("mergeQueue") or {}),
+            "queued": True,
+            "state": "QUEUED",
+            "position": 1,
+            "head": head,
+        }
+
+    def enqueue_pull(self, repo, number, head):
+        with self._write(repo) as data:
+            pull = self._pull(data, number)
+            if pull["head"] != head:
+                raise HeadMoved(pull["head"])
+            if not (pull.get("mergeQueue") or {}).get("required"):
+                raise GitHubRefused(200, "Merge queue is not enabled for the base branch")
+            self._enqueue(pull, head)
+            return {"state": "QUEUED", "position": 1}
+
+    def dequeue_pull(self, repo, number):
+        with self._write(repo) as data:
+            pull = self._pull(data, number)
+            pull["mergeQueue"] = {"required": bool((pull.get("mergeQueue") or {}).get("required"))}
 
     def create_revert(self, repo, number, title, body):
         original = self.pull(repo, number)

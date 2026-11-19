@@ -471,6 +471,14 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
         clock = std::make_shared<TapeClock>(entry.tape->clock, static_cast<double>(*start));
     }
 
+    // An app's call (spec/command-metadata.md, "App-to-app calls") needs the grant check C++ does
+    // not have yet (#1513): run without a surface, it would be a trusted call, so it is refused.
+    if (entry.context_digest.surface && *entry.context_digest.surface == "apps") {
+        outcome.error = "the entry is an app's call (interface 'apps'), which C++ cannot check "
+                        "against a grant yet; not replayed";
+        return outcome;
+    }
+
     CommandContext context;
     context.trace_id = entry.trace_id;
     context.actor = entry.actor;

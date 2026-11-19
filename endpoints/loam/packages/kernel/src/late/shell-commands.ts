@@ -503,7 +503,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			if (deps.overlays.modalOpen()) {
 				return kernelFailure(
 					'OVERLAY_MODAL_BUSY',
-					'A modal is open, so the palette cannot open',
+					'A modal or a prompt is open, so the palette cannot open',
 					'Close the modal first',
 					{ retryable: true }
 				);

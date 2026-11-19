@@ -65,6 +65,8 @@ export type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 export { MemoryJournalSink } from '@lushly-dev/afd-core';
+export type { CallGrant } from '@lushly-dev/afd-core/internal/app-calls';
+export { type AppCallRegistryOptions, createAppCallRegistry } from './app-call-registry.js';
 export {
 	type ApprovalCommand,
 	type ApprovalMiddlewareOptions,

@@ -14,6 +14,7 @@ import {
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { BootProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { StoreQuota } from './apps/store.js';
 import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
@@ -91,6 +92,8 @@ export interface AppsRuntime {
 	): Promise<CommandResult> | undefined;
 	/** What a call of `name` carries in its context: who owns it, and whether it is recorded (7.6). */
 	contextOf(name: string, input: unknown): KernelFieldContext;
+	/** The `store` grant's quota, for `limit-usage-get` and `store-usage-settle` (phase 4 specification, section 11). */
+	storeQuota?: StoreQuota;
 	/** A journal entry as it is kept: a mounted server's result is bounded (7.6). */
 	redact(record: JournalRecord): JournalRecord;
 	/** Register a catalog a journal recorded, with no network. Only a replay has one. */

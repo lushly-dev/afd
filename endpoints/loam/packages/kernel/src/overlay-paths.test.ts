@@ -559,7 +559,7 @@ describe("whose an overlay is, by kind (the review's R-d)", () => {
 		expect(openerOf({ interface: 'mcp' } as never, nobody).kind).toBe('none');
 	});
 
-	it('refuses an agent named shell, loam or as an app is, and an agent confirm', async () => {
+	it("refuses an agent named shell, loam or as an app is, an agent's confirm, and its cancel of the shell's", async () => {
 		const { kernel } = await boot();
 		for (const agent of ['shell', 'loam', 'probe']) {
 			const refused = await kernel.agent.call('toast-show', { message: 'x' }, { agent });
@@ -571,9 +571,11 @@ describe("whose an overlay is, by kind (the review's R-d)", () => {
 			result: 'confirm',
 		});
 		expect(confirm.error?.code).toBe('HUMAN_REQUIRED');
+		// The shell's own closes only by a person (6.5, F6): the agent's cancel too is HUMAN_REQUIRED.
 		expect(
-			(await kernel.agent.call('overlay-dismiss', { overlayId: opened.data?.overlayId })).success
-		).toBe(true);
+			(await kernel.agent.call('overlay-dismiss', { overlayId: opened.data?.overlayId })).error
+				?.code
+		).toBe('HUMAN_REQUIRED');
 	});
 });
 

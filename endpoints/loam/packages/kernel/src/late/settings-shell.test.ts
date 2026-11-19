@@ -124,6 +124,7 @@ describe("the shell's own sections (3.7)", () => {
 			'loam.rail',
 			'loam.keybindings',
 			'loam.notifications',
+			'loam.limits',
 			'loam.documents',
 		]);
 		const listed = await kernel.call<{ values: Array<{ section: string; key: string }> }>(
@@ -383,7 +384,8 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 		for (const [target, code] of [
 			['greet.general.colour', 'SETTING_NOT_FOUND'],
 			['nowhere', 'SETTING_NOT_FOUND'],
-			['loam.autonomy', 'SETTING_USE_AUTONOMY'],
+			['loam.experiments', 'SETTING_USE_AUTONOMY'],
+			['loam.autonomy.mode', 'SETTING_NOT_FOUND'],
 		] as const) {
 			const refused = await kernel.call('section-open', { section: 'settings', target });
 			expect(refused.error?.code, target).toBe(code);
@@ -394,6 +396,19 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 			{ section: 'settings', target: 'loam.appearance', path: 'x' },
 		]) {
 			expect((await kernel.call('section-open', input)).error?.code).toBe('VALIDATION_ERROR');
+		}
+	});
+
+	it("opens the autonomy section, and its cap's key, which only autonomy-set writes (step 8)", async () => {
+		const { kernel } = await workspace();
+		for (const [target, path] of [
+			['loam.autonomy', 'loam.autonomy'],
+			['loam.autonomy.cap', 'loam.autonomy/cap'],
+		] as const) {
+			const opened = await kernel.call('section-open', { section: 'settings', target });
+			expect(opened.success, target).toBe(true);
+			const shown = await kernel.call<{ section: string; path: string }>('section-get');
+			expect(shown.data).toMatchObject({ section: 'settings', path });
 		}
 	});
 

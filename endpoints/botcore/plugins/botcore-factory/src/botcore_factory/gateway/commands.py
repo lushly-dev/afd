@@ -165,8 +165,8 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         return await run(lambda: get().claim_list(repo, stale))
 
     async def pr_status(repo: Repo, number: int) -> CommandResult:
-        """Read where a pull request stands, settled: merged, closed or open, mergeability
-        and the required check.
+        """Read where a pull request stands, settled: merged, closed or open, mergeability,
+        the required check and, where main has a merge queue, its place in it.
 
         Args:
             repo: owner/name of a repository this gateway serves.
@@ -328,7 +328,9 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
 
     async def pr_merge(repo: Repo, number: int, head: Sha, cancel: bool = False) -> CommandResult:
         """Merge a pull request at the head the lane validated, at once or by auto-merge bound
-        to that head, by the repository's merge method; cancel turns auto-merge off.
+        to that head, by the repository's merge method; cancel turns auto-merge off. Where main
+        has a merge queue the pull request is queued instead (state queued, with mergeQueue),
+        and cancel takes it out of the queue.
 
         Args:
             repo: owner/name of a repository this gateway serves.

@@ -109,6 +109,8 @@ inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";
 inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
 // Tasks
 inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
+// App calls: not emitted by C++ yet (#1513); the shared catalog lists it
+inline constexpr char CALL_NOT_GRANTED[] = "CALL_NOT_GRANTED";
 } // namespace error_codes
 
 /// `{code, message}` plus any of `options`.

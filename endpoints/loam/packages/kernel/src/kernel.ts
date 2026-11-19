@@ -47,6 +47,7 @@ import {
 } from './keybindings.js';
 import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
+import { createKernelLimits, type KernelLimits } from './limits.js';
 import type { OverlayStore } from './overlays.js';
 import { type AccessActorV1, type MembershipV1, personKey, personOf } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
@@ -90,7 +91,8 @@ export const NEEDS_STAGE_B: readonly string[] = [
  * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
  * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
  * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
- * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3).
+ * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3), and
+ * `notification-list` the Inbox count's (phase 4 specification, 10.3).
  */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	'palette-search',
@@ -100,6 +102,10 @@ export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	// The shell reads it at stage B, at each change of person and at each switch (phase 3 specification, 6.3), as it
 	// reads `scope-get`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing else.
 	'persona-list',
+	// The Inbox count reads it at stage B and after each call that may change it (phase 4 specification, 10.3, step 5),
+	// as the shell reads `persona-list`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing
+	// else, so an agent's or an app's read of it is not journaled either.
+	'notification-list',
 ]);
 
 /**
@@ -157,10 +163,14 @@ function checkNames(commands: readonly ZodCommandDefinition[]): void {
  * A sink that passes every call through and remembers the `seq` it assigned to each trace ID,
  * so a kernel call learns whether, and where, it was journaled.
  */
-function seqTrackingSink(sink: JournalSink, seqs: Map<string, number>): JournalSink {
+function seqTrackingSink(
+	sink: JournalSink,
+	seqs: Map<string, number>,
+	bound: (record: JournalRecord) => JournalRecord = (record) => record
+): JournalSink {
 	return {
 		async append(record) {
-			const entry = await sink.append(record);
+			const entry = await sink.append(bound(record));
 			if (record.traceId !== undefined) seqs.set(record.traceId, entry.seq);
 			return entry;
 		},
@@ -207,6 +217,8 @@ export interface KernelParts {
 	 * command, from the boot registry; any other name answers `COMMAND_NOT_FOUND` (2.2).
 	 */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
+	/** The limits the kernel enforces (phase 4 specification, section 11): for tests, and the notice's seam. */
+	readonly limits: KernelLimits;
 }
 
 /** What only `replayKernel` asks of a kernel. */
@@ -289,6 +301,9 @@ export async function createKernelParts(
 	let overlays: OverlayStore | undefined;
 
 	let apps: AppsRuntime = EMPTY_APPS;
+	// The limits, enforced with their defaults from boot, whether or not `late-settings` ever reads the workspace's
+	// (phase 4 specification, section 11): a replay's refusals are its journal's, so its rate takes nothing.
+	const limits = createKernelLimits(() => internals.replaying === true);
 	let keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, []);
 	let commandSet = 0;
 
@@ -367,11 +382,21 @@ export async function createKernelParts(
 	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
 	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
 	const seqs = new Map<string, number>();
-	// One journal middleware, shared by every registry, so they share one journal sequence.
-	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
-		...kernelJournalOptions(),
-		redact: (record) => apps.redact(redactJournalRecord(record)),
-	});
+	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
+	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
+	const journal = createJournalMiddleware(
+		seqTrackingSink(options.journal, seqs, (record) =>
+			limits.bound(
+				record,
+				(entry) =>
+					(entry.context?.caller as string | undefined) ?? apps.owners.get(entry.command)?.instance
+			)
+		),
+		{
+			...kernelJournalOptions(),
+			redact: (record) => apps.redact(redactJournalRecord(record)),
+		}
+	);
 
 	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
 	let mutations: Map<string, boolean>;
@@ -453,6 +478,7 @@ export async function createKernelParts(
 			// and stage B's loader from them.
 			const parts = await createLateParts(bootCommands, {
 				...options,
+				limits,
 				viewState,
 				state,
 				overlays,
@@ -479,6 +505,7 @@ export async function createKernelParts(
 					return run('agent', name, input, made);
 				},
 				agentCommands: () => registries.agent.listCommands(),
+				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
 			contextFields = [...KERNEL_CONTEXT_FIELDS, ...parts.copilot.contextFields];
@@ -595,6 +622,7 @@ export async function createKernelParts(
 						: run('palette', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
 				scope,
+				limits,
 			});
 			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
 		} catch (cause) {
@@ -925,6 +953,7 @@ export async function createKernelParts(
 		},
 		setAppCommands,
 		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
+		limits,
 		async resetSession() {
 			// A reload forgets the overlays and the apps' session state, and signs the Mock out (`host.ts`), so
 			// the boot's `auth-session-get` reads the same: `late/`'s.

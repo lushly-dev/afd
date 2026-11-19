@@ -133,6 +133,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 				? {
 						store: createAppStore({
 							adapter: host.store,
+							quota: host.storeQuota,
 							app: record.app,
 							instance: record.instance,
 							scope,
@@ -176,6 +177,18 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 			try {
 				result = await handler(input, callContext(name, context));
 			} catch (cause) {
+				// The kernel's own refusal, thrown into the handler by a grant (the store's `QUOTA_EXCEEDED`, phase 4's section
+				// 11): answered as that refusal, its code and details, not as the handler's throw.
+				if (cause instanceof LoamKernelError) {
+					const { rpcCode: _rpc, ...details } = (cause.details ?? {}) as Record<string, unknown>;
+					return failure({
+						code: cause.code,
+						message: cause.message,
+						suggestion: cause.suggestion,
+						retryable: cause.retryable === true,
+						...(Object.keys(details).length > 0 ? { details } : {}),
+					});
+				}
 				return handlerThrew(name, cause);
 			}
 			return isCommandResult(result) ? result : resultInvalid(name);

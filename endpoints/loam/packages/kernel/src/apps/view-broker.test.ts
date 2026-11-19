@@ -1,8 +1,10 @@
 import { success } from '@lushly-dev/afd-core';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import { describe, expect, it, vi } from 'vitest';
+import { createKernelLimits, LIMIT_DEFAULTS } from '../limits.js';
 import type { LinkedCallV1 } from '../types.js';
-import { createViewBroker } from './view-broker.js';
+import { createLimitGuard } from './limit-guard.js';
+import { createViewBroker, READS_IN_FLIGHT } from './view-broker.js';
 
 const RESOURCE = 'ui://probe/main';
 /** The scope a surface was made in, and its calls ran in. */
@@ -169,5 +171,133 @@ describe('the view broker', () => {
 		// A call in Atlas reaches the surface of Atlas, and not the port's unbound broker.
 		view.notifyCall('probe-linked', {}, success({}), undefined, AT);
 		expect(heard).toEqual(['atlas']);
+	});
+});
+
+/** A guard over a fake host, whose `runAs` counts what `app-limit-refuse` would. */
+function guarded(messageBytes = 65_536) {
+	const limits = createKernelLimits();
+	limits.set({ ...LIMIT_DEFAULTS, messageBytes });
+	const runAs = vi.fn(async (_name: string, input: unknown, _options: unknown, fields: unknown) => {
+		const { limit } = input as { limit: 'messageBytes' };
+		limits.refused((fields as { caller: string }).caller, limit, 5);
+		return { success: false, error: { code: 'X', message: 'refused', suggestion: 'wait' } };
+	});
+	const guard = createLimitGuard({ limits, clock: () => 5, runAs: runAs as never }, 'probe');
+	const call = vi.fn(async () => success({ ok: true }));
+	let release: () => void = () => {};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const readResource = vi.fn(async () => {
+		await gate;
+		return '<h1>Probe</h1>';
+	});
+	const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test', guard });
+	const broker = view.brokerFor(call as never, readResource, AT);
+	return { limits, runAs, guard, call, broker, release };
+}
+
+const tokens = (limits: ReturnType<typeof createKernelLimits>) => limits.rates.get('probe')?.tokens;
+
+describe("the view broker's message bound (phase 4 specification, section 11)", () => {
+	it('drops a message over messageBytes before it reaches the port, tells the frame, journals and counts it', async () => {
+		const { limits, runAs, call, broker } = guarded();
+		const params = { name: 'probe-plain', arguments: { text: 'x'.repeat(65_536) } };
+		await expect(broker.toolsCall(params)).rejects.toMatchObject({
+			code: 'INPUT_TOO_LARGE',
+			suggestion: expect.stringContaining('loam.limits.messageBytes'),
+			details: { limit: 65_536, rpcCode: -32602 },
+		});
+		expect(runAs).toHaveBeenCalledWith(
+			'app-limit-refuse',
+			{ command: 'probe-plain', limit: 'messageBytes', bound: 65_536 },
+			undefined,
+			{ caller: 'probe' }
+		);
+		// The refused call took its place in the rate, once.
+		expect(tokens(limits)).toBe(199);
+		await expect(
+			broker.resourcesRead({ uri: RESOURCE, pad: 'x'.repeat(65_536) })
+		).rejects.toMatchObject({ code: 'INPUT_TOO_LARGE' });
+		expect(call).not.toHaveBeenCalled();
+		expect(limits.counts('probe', 5).messageBytes).toBe(2);
+		// A tools/call the port takes is charged there, not here.
+		await broker.toolsCall({ name: 'probe-plain', arguments: { text: 'small' } });
+		expect(call).toHaveBeenCalledOnce();
+		expect(tokens(limits)).toBe(199);
+	});
+
+	it('refuses a message with no JSON form as over every limit, never measuring it as 0 (R2)', async () => {
+		const { guard, broker, call, limits } = guarded();
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		expect(
+			guard.admit({ jsonrpc: '2.0', method: 'tools/call', params: { arguments: cycle } })
+		).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			rpcCode: -32602,
+		});
+		await expect(
+			broker.toolsCall({ name: 'probe-plain', arguments: { n: 1n } })
+		).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+		expect(call).not.toHaveBeenCalled();
+		expect(limits.counts('probe', 5).messageBytes).toBe(2);
+		// A notification is gated too: admit answers for any message.
+		expect(
+			guard.admit({
+				jsonrpc: '2.0',
+				method: 'ui/notifications/initialized',
+				params: { pad: 'x'.repeat(70_000) },
+			})
+		).toMatchObject({ code: 'INPUT_TOO_LARGE' });
+	});
+
+	it('charges the rate once for a tools/call the broker itself refuses', async () => {
+		const { broker, limits } = guarded();
+		await expect(broker.toolsCall({ arguments: {} })).rejects.toMatchObject({
+			code: 'VIEW_CALL_REFUSED',
+		});
+		await expect(broker.toolsCall({ name: 'probe-model' })).rejects.toMatchObject({
+			code: 'VIEW_CALL_REFUSED',
+		});
+		expect(tokens(limits)).toBe(198);
+	});
+
+	it('bounds the resource reads in flight per instance', async () => {
+		const { broker, runAs, release } = guarded();
+		const reads = Array.from({ length: READS_IN_FLIGHT }, () =>
+			broker.resourcesRead({ uri: RESOURCE })
+		);
+		await expect(broker.resourcesRead({ uri: RESOURCE })).rejects.toMatchObject({
+			code: 'RATE_LIMITED',
+			details: { limit: READS_IN_FLIGHT, retryAfterMs: 100, rpcCode: -32602 },
+		});
+		expect(runAs).toHaveBeenCalledWith(
+			'app-limit-refuse',
+			{
+				command: RESOURCE,
+				limit: 'callsPerSecond',
+				bound: READS_IN_FLIGHT,
+				reason: 'reads',
+				retryAfterMs: 100,
+			},
+			undefined,
+			{ caller: 'probe' }
+		);
+		release();
+		await Promise.all(reads);
+		await expect(broker.resourcesRead({ uri: RESOURCE })).resolves.toBeDefined();
+	});
+
+	it('holds to the default with no guard given', async () => {
+		const { broker, call } = setup();
+		await expect(
+			broker.toolsCall({
+				name: 'probe-plain',
+				arguments: { text: 'x'.repeat(LIMIT_DEFAULTS.messageBytes) },
+			})
+		).rejects.toMatchObject({ code: 'INPUT_TOO_LARGE' });
+		expect(call).not.toHaveBeenCalled();
 	});
 });

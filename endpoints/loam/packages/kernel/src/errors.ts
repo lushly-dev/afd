@@ -86,7 +86,14 @@ export type LoamKernelErrorCode =
 	// Phase 4's overlays (its section 16), from its step 3.
 	| 'OVERLAY_ANCHOR_NOT_FOUND'
 	| 'OVERLAY_ITEM_RESERVED'
+	| 'OVERLAY_LIMIT'
+	| 'OVERLAY_ELEMENT_VIEW'
 	| 'RATE_LIMITED'
+	// Phase 4's inbox (its 10.1, 16), from its step 5.
+	| 'NOTIFICATION_NOT_FOUND'
+	| 'NOTIFICATION_ACTION_FOREIGN'
+	| 'NOTIFICATION_ACTION_UNAVAILABLE'
+	| 'QUOTA_EXCEEDED'
 	| 'SCOPE_PROJECT_REQUIRED'
 	| 'SCOPE_WORKSPACE_UNKNOWN'
 	| 'SCOPE_MISMATCH'
@@ -157,7 +164,14 @@ export type LoamKernelErrorCode =
 	| 'SETTING_MUTE_SHELL'
 	| 'KEYBINDING_RESERVED'
 	| 'SHARED_RECORD_UNAVAILABLE'
-	| 'OUTPUT_BUDGET_EXCEEDED';
+	| 'OUTPUT_BUDGET_EXCEEDED'
+	// Step 8's: autonomy (4.3).
+	| 'AUTONOMY_ABOVE_CEILING'
+	| 'AUTONOMY_COMMAND_UNKNOWN'
+	// Step 10's: the limits (section 11).
+	| 'INPUT_TOO_LARGE'
+	| 'QUOTA_EXCEEDED'
+	| 'REPLAY_ENTRY_TRUNCATED';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

@@ -13,10 +13,12 @@ import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
 import { appLayoutId } from '../layout.js';
+import type { KernelLimits } from '../limits.js';
 import type { OverlayStore } from '../overlays.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { CallOptionsV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
+import type { StoreQuota } from './store.js';
 
 export interface AppsHost {
 	deployment: ProjectionV4;
@@ -47,6 +49,13 @@ export interface AppsHost {
 		unqueued?: true
 	): Promise<CommandResult<T>>;
 	clock(): number;
+	/**
+	 * The limits the kernel enforces from boot (phase 4 specification, section 11). `loadApps` makes its own with the
+	 * defaults when none is given, so an app is never unbounded.
+	 */
+	limits?: KernelLimits;
+	/** The `store` grant's quota, one per runtime, which `loadApps` makes (section 11). */
+	storeQuota?: StoreQuota;
 	/**
 	 * The kernel's scope state, read only: the active scope, for the chrome's port and its store (phase 2
 	 * specification, 3.6 and 5), the project and workspace-app records a mounted instance is checked

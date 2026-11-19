@@ -390,6 +390,25 @@ async def _record_session(*calls: tuple[str, dict[str, Any]]) -> list[JournalEnt
 
 class TestReplay:
     @pytest.mark.asyncio
+    async def test_an_app_call_is_refused_not_replayed(self):
+        # spec/command-metadata.md, "App-to-app calls": Python has no grant check yet (#1513), so a
+        # recorded app call is an error, whatever the target, and no handler runs.
+        [entry] = await _record_session(("note-add", {"text": "a"}))
+        entry.context_digest.interface = "apps"
+        ran: list[str] = []
+
+        class Counting:
+            async def execute(self, name, input, context=None):
+                ran.append(name)
+                return success({})
+
+        for target in (Counting(), _server()):
+            report = await replay_journal(target, [entry])
+            assert [item.status for item in report.entries] == ["error"]
+            assert "interface 'apps'" in report.entries[0].error
+        assert ran == []
+
+    @pytest.mark.asyncio
     async def test_replays_tape_backed_random_values(self):
         entries = await _record_session(("note-add", {"text": "a"}), ("note-add", {"text": "b"}))
         report = await replay_journal(_server(), entries)

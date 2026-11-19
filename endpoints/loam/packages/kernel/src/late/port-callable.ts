@@ -20,8 +20,13 @@ export function appCallable(
 		...base,
 		'scope-get',
 		'app-route-set',
-		// Kernel interface 4's popover (phase 4 specification, 6.1, 12): while the app is active, or owns the active tab.
+		// Kernel interface 4's overlays (phase 4 specification, 6.1, 12): while the app is active, or owns the active tab.
 		'popover-open',
+		// Kernel interface 4's inbox (phase 4 specification, 10.2, 12): a notice to the person, at the app's own rate.
+		'notification-push',
+		// And step 4's dialog and prompt (6.1), on the same terms.
+		'dialog-open',
+		'prompt-open',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
 		// Kernel interface 4's (phase 4 specification, 3.8 and 12): the app's own sections, `SETTING_NOT_OWNED` past them.
 		...(grants.has('settings') ? ['setting-get', 'setting-list'] : []),

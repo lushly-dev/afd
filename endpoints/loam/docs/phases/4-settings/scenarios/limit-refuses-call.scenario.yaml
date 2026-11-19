@@ -70,7 +70,9 @@ steps:
       error:
         code: RATE_LIMITED
         suggestion: { contains: fixed }
-  - description: "[caller: hello] The ten that fitted are all there"
+  # Amended by step 10, with step 5 merged: an app does not read the inbox (10.2's `notification-list` is no app's), so
+  # the person reads it and finds the ten.
+  - description: "The ten that fitted are all in the person's inbox"
     command: notification-list
     input: { source: hello, unread: true }
     expect:

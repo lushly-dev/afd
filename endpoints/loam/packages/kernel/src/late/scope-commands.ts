@@ -33,7 +33,7 @@ import type {
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import { canOpen, setMain } from './main-state.js';
-import { isOwner } from './owners.js';
+import { isOwner, teamListed } from './owners.js';
 import type { ShellStores } from './stores.js';
 
 /**
@@ -149,7 +149,8 @@ const scopeSetInput = z.strictObject({
 });
 const sectionInput = z.strictObject({
 	// The account section runs at workspace level and shows nothing of any project (phase 3 specification, 5.1).
-	section: z.enum(['projects', 'documents', 'account', 'settings']),
+	// The inbox, the person's notices, from phase 4's step 5 (its 10.3): `path` names a notice to open it at.
+	section: z.enum(['projects', 'documents', 'account', 'settings', 'inbox']),
 	path: z.optional(z.string()),
 	// The settings section's key or section, as a palette row names it (phase 4 specification, 3.10).
 	target: z.optional(z.string().check(z.minLength(1), z.maxLength(256))),
@@ -288,10 +289,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	}
 
 	/** Whether `slug` is one a `workspace-app` record still listed names in `projects` (7.3). */
-	const listedSlug = (slug: string): boolean =>
-		scope.workspaceApps
-			.all()
-			.some((app) => app.listed !== null && (app.projects ?? []).includes(slug));
+	const listedSlug = (slug: string): boolean => teamListed(scope.workspaceApps.all(), slug);
 	const ownerOf = (context: CommandContext): boolean =>
 		isOwner(scope.membership, personKey(context.actor));
 	/**
@@ -713,7 +711,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		name: 'section-open',
 		title: 'Open a section',
 		description:
-			'Show the projects, documents, account or settings section in main; the active app closes. For settings, target names a section or a key: loam.appearance.theme',
+			'Show the projects, documents, account, settings or inbox section in main; the active app closes. For settings, target names a section or a key: loam.appearance.theme; for the inbox, path names a notice',
 		category: 'section',
 		mutation: true,
 		executionTime: 'instant',
@@ -721,7 +719,10 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		jsonSchema: {
 			type: 'object',
 			properties: {
-				section: { type: 'string', enum: ['projects', 'documents', 'account', 'settings'] },
+				section: {
+					type: 'string',
+					enum: ['projects', 'documents', 'account', 'settings', 'inbox'],
+				},
 				path: STRING,
 				target: { type: 'string', minLength: 1, maxLength: 256 },
 			},

@@ -11,6 +11,7 @@ import type { AppStoreV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { kernelFailure, LoamKernelError, PAGE_DECIDED } from '../errors.js';
 import type { HandlerFrameV1, KernelPortsV1, McpToolCallResult } from '../types.js';
 import { visibilityOf } from './definitions.js';
+import { createLimitGuard } from './limit-guard.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
 import {
@@ -111,6 +112,8 @@ function withoutPageDecided(result: CommandResult): CommandResult {
 
 export function createFrameHost(options: FrameHostOptions): FrameHost {
 	const { record, host, ports, config, granted, commands } = options;
+	// The instance's guard at the frame's boundary (phase 4 specification, section 11).
+	const guard = createLimitGuard(host, record.instance);
 	/** Each call in flight: its context, and whether its command may write (phase 2 specification, 5). */
 	const inFlight = new Map<string, { context: CommandContext; mutation: boolean }>();
 	let calls = 0;
@@ -128,6 +131,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 	function storeFor(context: CommandContext): AppStoreV1 {
 		return createAppStore({
 			adapter: host.store,
+			quota: host.storeQuota,
 			app: record.app,
 			instance: record.instance,
 			// The call's effective scope, by `callId`, as the frame's clock is (phase 2 specification, 5).
@@ -201,6 +205,8 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		const { context: call } = callOf(meta?.[CALL_META_KEY]);
 		const { name } = params;
 		if (typeof name !== 'string') {
+			// A `tools/call` refused before the port still takes its place in the rate, once (the trust review's 8).
+			guard.charge();
 			throw refuseRequest({
 				code: 'VALIDATION_ERROR',
 				rpcCode: -32602,
@@ -209,6 +215,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 			});
 		}
 		if (commands.includes(name) && !options.visibleToApp(name)) {
+			guard.charge();
 			throw refuseRequest({
 				code: 'VIEW_CALL_REFUSED',
 				rpcCode: -32602,
@@ -218,6 +225,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		}
 		const input = asJson(params.arguments ?? {});
 		if (input === undefined) {
+			guard.charge();
 			throw refuseRequest({
 				code: 'VALIDATION_ERROR',
 				rpcCode: -32602,
@@ -234,7 +242,12 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 	}
 
 	async function open(): Promise<HandlerFrameV1> {
-		const frame = await ports.openHandlerFrame(record.instance, await options.readHandlersHtml());
+		// Every message the frame sends passes the instance's gate first (phase 4 specification, section 11).
+		const frame = await ports.openHandlerFrame(
+			record.instance,
+			await options.readHandlersHtml(),
+			guard.admit
+		);
 		frame.onRequest(async (method, params) => {
 			const fields = (params ?? {}) as Record<string, unknown>;
 			if (method === 'tools/call') return toolsCall(fields);

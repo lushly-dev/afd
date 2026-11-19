@@ -324,6 +324,91 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
  * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
  * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
+ *
+ * Phase 4's step 4 (overlays II), under D115, after its trust review (R3): `main` at `42f9e1c1` and the branch
+ * measured from clean package builds in one tree, on Windows with Node 26.13.1. `lateMinified` 93,000 to 104,500
+ * (92,316 to 103,981, +11,665: `dialog-open`, `prompt-open` and `overlay-global-set` with their written JSON Schemas,
+ * `modal-open`'s actions and element, a prompt's field schema and its value and bound checks, 6.5's answer rule, and
+ * the scope an app's question keeps; step 3's re-estimate gave this step about 6,000). `appsMinified` 417,500 to
+ * 418,500 (417,370 to 418,055, +685: a view's waiting question refused at a change of person, and its
+ * `dev.loam/overlay-result`). `viewMinified` 26,100 to 26,400 (26,043 to 26,236, +193: the view host's
+ * `dev.loam/overlay-result` and the overlay openers a leaving view may not send). `surfacesMinified` 88,200 to
+ * 93,500 (87,996 to 93,192, +5,196: `loam-modal` as the slot's renderer, with actions, an owner line, an app's
+ * element and the person's answer by a private callback, and the layer's loader). `overlaysMinified` 6,970 to
+ * 11,000 (6,608 to 10,766, +4,158: dialogs, a prompt's fields and `loam-global`, moved here from `surfaces` by R3;
+ * section 14 estimated the whole chunk at 11,000). `lateEditorMinified` 15,305 to 15,400 (15,304 to 15,336, +32).
+ * First paint 308,966 to 309,167 (+201, the answer registry the `surfaces` and `editor` chunks share) and 96,387 to
+ * 96,477 gzip, the kernel alone 118,894 to 118,973, and `editor` 35,393 to 35,361, within their rows. The first
+ * measurement of this step's `surfaces`, 96,469, read a stale chrome build; these replace it.
+ *
+ * Phase 4's step 8 (autonomy) raised two under D115, measured on its branch from `main` at `9f4bb6d2` on Windows with
+ * Node 26.13.1. `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195): the `autonomy` table, the pure
+ * `resolveAutonomy` with its ceilings and write-time bound, `autonomy-get` (single and bulk), `autonomy-list`,
+ * `autonomy-set` with its N9 check order and hand-off, and boot's `autonomy-settle`; about a third of it is the three
+ * commands' descriptions, input schemas and refusals in words. `settingsMinified` 36,000 to 40,000 (32,094 to 39,323,
+ * +7,229): `loam-autonomy-section`, its words and the tree's Autonomy entry. First paint 308,800 and 96,345 gzip,
+ * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring. After the step's
+ * trust review, with descriptions and refusal text trimmed first (-471): `lateSettingsMinified` 43,500 to 45,500 (42,595
+ * to 44,544: identity and catalog state per instance, the workspace in the row's key, `autonomy-list`'s pages, the
+ * identifier checks and the copilot's hand-off rule); `settingsMinified` 40,000 to 41,000 (39,323 to 40,198: the
+ * section's pages and the cap's link). First paint 308,836 and 96,360 gzip; `late` 83,989 of 84,000.
+ * Merged with step 3 (`main` at `9d611137`): `lateMinified` 93,000 to 94,000 (93,244 combined: step 3's overlay wiring
+ * beside step 8's autonomy deps, its settle after a refresh or `workspace-app-set`, and the copilot gate's hand-off
+ * rule); first paint 309,020 and 96,411 gzip, the kernel alone 119,000, and every other row within its ceiling.
+ * Phase 4's step 5 (the inbox), under D115, on Windows with Node 26.13.1, against the figures this file records for
+ * `main` with steps 2 and 3 merged. `jsMinified` 309,500 to 310,000 (308,966 to 309,560, +594; gzip 96,545, its row
+ * 96,500 to 96,700): the title bar's Inbox button with its count and name, the shell's `unread`, `~/inbox` in the
+ * router, and the overlay store's `land` and `openClosed` (section 14 estimated nothing for this step's first paint;
+ * the count and the announcement are kept in the `surfaces` chunk instead). `lateMinified` 93,000 to 94,000 (92,316
+ * to 93,596, +1,280): the inbox's wiring, one palette verdict shared by menus and actions, and `toast-show` wrapped.
+ * `lateSettingsMinified` 30,500 to 45,500 (28,400 to 41,258, +12,858): the five `notification-*` commands with their
+ * written JSON Schemas, the quota, the list's cursor and budget, R10's protection, and `toast-show`'s inbox half, over
+ * step 3's re-estimate of about 7,000 for them. `appsMinified` 417,500 to 418,000 (417,348 to 417,629, +281): the
+ * SDK's `NotificationV1` and `notificationsOver`. `surfacesMinified` 88,200 to 91,000 (87,943 to 90,199, +2,256): the
+ * Inbox button's count and the announcement (`apps/inbox-bell.ts`), and a toast's "Open inbox". New row:
+ * `inboxMinified`, the chrome's `inbox` chunk (`loam-inbox`), 7,809 against section 14's 10,000, at 78%, so kept at
+ * 10,000. After the step's two reviews: first paint 309,769 and 96,595 gzip (+209: the shell loads the count's own
+ * chunk, `inbox-bell`, 1,041 with `inbox-words` 266, apps or none, and the button's `99+`), within 310,000;
+ * `lateSettingsMinified` 43,941 (+2,683: admission one person at a time, the act's claim, resource links, a lookup by
+ * id, the owner line), its row tightened from 45,500 to 44,600; `late` 93,818; `surfaces` 89,549 (the count moved
+ * out); `inbox` 9,637 (clearing on a change of access, the lookup by id, the act's busy button). `editorMinified`
+ * 35,445 to 35,600 (35,393 to 35,479, +86): a failed save's toast in a module of its own, sticky when the page was
+ * hidden; the step's first commit was already over this row, which its record had not measured.
+ * Steps 5 and 8 merged (step 5's branch with `main` at `254249c3`), under D115: `lateSettingsMinified` 45,500 to 61,500
+ * (60,469 combined: step 5's inbox, 43,976 on its own, beside step 8's autonomy, 44,544 on its own, over the chunk's
+ * shared 28,400 of settings); `lateMinified` 94,000 to 95,500 (94,828: both steps' wiring in `late`). First paint 309,930
+ * and 96,671 gzip, within 310,000 and 96,700; every other row within its ceiling.
+ * Steps 4, 5 and 8 merged (step 5's branch with `main` at `03b036bb`), under D115: `jsMinified` 310,000 to 310,500
+ * (310,131; gzip 96,764 of 97,000); `lateMinified` 105,500 to 107,500 (106,836); `surfacesMinified` 93,500 to 95,500
+ * (94,868), each both steps' code together. Every other row within its ceiling.
+ *
+ * Phase 4's step 10 (limits, section 11), measured on Windows with Node 26.13.1 against `main` at `254249c3` built on
+ * the same machine (first paint 309,128 and 96,461 gzip; the kernel alone 119,119; `late` 93,244; `late-settings`
+ * 44,788; `apps` 417,370; `settings` 40,575), each raised to its measurement plus a margin under D115:
+ * `jsMinified` 309,500 to 310,600 and `jsGzip` 96,500 to 97,200 (310,360, +1,232, and 97,076, +615: the kernel's
+ * limits object, which enforces the defaults from boot, and the journal sink's bound on a whole entry, which must hold
+ * when no late chunk loads; the call rate and the hour's counting were moved out of it into `apps` and `late-settings`
+ * first, -314); `kernelMinified` 119,500 to 121,000 (120,771, +1,652); `lateMinified` 94,000 to 95,200 (94,953,
+ * +1,709: `app-limit-refuse`, the document bound read from `inputBytes` (A-P2-3) and the wiring);
+ * `lateSettingsMinified` 45,500 to 51,000 (50,583, +5,795: `loam.limits` with its five keys' words, the quarter rule,
+ * `limit-usage-get`, `store-usage-settle` and the settings' reads of the section); `appsMinified` 417,500 to 420,500
+ * (420,251, +2,881: the store quota and its `store-usage` rows, the port's rate and input checks, the view broker's
+ * message bound, and 25 for the manifest schema's reserved `limit`); `settingsMinified` 41,000 to 42,200 (41,946,
+ * +1,371: the usage beside each key).
+ * After step 10's trust review (blockers 1 to 12, R1 to R3), against the step's own figures: `jsMinified` 310,600 to
+ * 311,800 and `jsGzip` 97,200 to 97,800 (311,543, +1,183, and 97,564, +488: the journal bound that bounds every field it
+ * keeps and leaves the sink's margin, JSON measured with no value read as 0, and the refusals in per-minute buckets);
+ * `kernelMinified` 121,000 to 122,600 (122,351); `lateMinified` 95,200 to 95,800 (95,556, +603: the documents' charge
+ * and refund, the setting rows keyed by workspace, the limits read again once the host is known); `appsMinified`
+ * 420,500 to 423,000 (422,704, +2,453: the frame gate, the broker's charges and reads in flight, the port's one JSON
+ * copy, the store's charged bytes, charge and refund, and a native handler answering the kernel's refusal); `viewMinified`
+ * 26,100 to 26,600 (26,498, +455: the channel's gate before any dispatch, and a refusal's details across the frame).
+ * Step 10 merged with `main` at `cb4d5dff` (steps 4, 5 and 8 merged), measured on the combined build, under D115:
+ * `jsMinified` to 312,800 and `jsGzip` to 98,000 (312,548 and 97,875: step 10's limits and journal bound beside steps 4
+ * and 5's first paint); `lateMinified` to 109,500 (109,143); `lateSettingsMinified` to 67,500 (67,013: the inbox, autonomy
+ * and the limits over the settings); `appsMinified` to 424,000 (423,710); `viewMinified` to 26,800 (26,691: the frame
+ * gate beside step 4's overlay result). Every other row within its ceiling. Then the owners' notice through the inbox
+ * (`limit-notice-push`): `lateMinified` to 109,800 (109,503, +360) and `lateSettingsMinified` to 68,000 (67,841, +828).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -344,8 +429,14 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
-	jsMinified: 309_500,
-	jsGzip: 96_500,
+	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
+	// Steps 4, 5 and 8 together (step 5's branch with `main` at `03b036bb`): 310,131; set to 310,500 under D115.
+	jsMinified: 312_800,
+	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
+	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
+	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
+	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
+	jsGzip: 98_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -357,14 +448,21 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 119_500,
+	kernelMinified: 122_600,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
-	lateMinified: 93_000,
+	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
+	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
+	// Steps 5 and 8 together: 94,828; set to 95,500 (the header records it). Step 4 merged on top, measured from
+	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
+	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
+	// 107,500 under D115.
+	lateMinified: 109_800,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 15_305,
+	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 30_500,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
+	lateSettingsMinified: 68_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -375,15 +473,18 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
-	appsMinified: 417_500,
-	surfacesMinified: 88_200,
+	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
+	appsMinified: 424_000,
+	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
+	// set to 95,500 under D115.
+	surfacesMinified: 95_500,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
 	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
 	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
 	// comments, plus a margin.
-	viewMinified: 26_100,
+	viewMinified: 26_800,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
@@ -398,13 +499,15 @@ export const CEILINGS = Object.freeze({
 	// state is `violet-progress`, as design.md's States table asks, and no chunk loaded before the section holds
 	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
 	sectionsMinified: 51_000,
-	editorMinified: 35_445,
+	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
+	editorMinified: 35_600,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 36_000,
+	settingsMinified: 42_200,
 	editorMoveMinified: 4_205,
-	overlaysMinified: 6_970,
+	overlaysMinified: 11_000,
+	inboxMinified: 10_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -697,6 +800,9 @@ async function measurePage() {
 	const overlaysChunk = closure(/^assets\/overlays-/, afterSurfaces);
 	if (overlaysChunk.size === 0)
 		throw new Error('budget: the build has no `overlays` chunk to measure');
+	// Phase 4's inbox (its 10.3 and 14), loaded by the URL's chunk when main first shows it, after the surfaces.
+	const inboxChunk = closure(/^assets\/inbox-/, afterSurfaces);
+	if (inboxChunk.size === 0) throw new Error('budget: the build has no `inbox` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	// The copilot's panel (phase 5 specification, 16), loaded when the panel part first opens, after the surfaces:
@@ -756,6 +862,7 @@ async function measurePage() {
 		settingsMinified: sizeOf(settingsSection),
 		editorMoveMinified: sizeOf(editorMove),
 		overlaysMinified: sizeOf(overlaysChunk),
+		inboxMinified: sizeOf(inboxChunk),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -864,6 +971,7 @@ const ROWS = [
 		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
 	],
 	['overlaysMinified', "The chrome's `overlays` chunk, popovers and a toast's link, minified"],
+	['inboxMinified', "The chrome's `inbox` chunk, the inbox section, minified"],
 ];
 
 export async function measure() {

@@ -8,11 +8,15 @@ import type { AppPortV2 } from '@lushly-dev/loam-kernel';
 import {
 	type AppContextV1,
 	type CommandResult,
+	type DialogInputV1,
 	type DocumentRecordV1,
 	type DocumentsV1,
 	type LinkRowV1,
 	type ModalInputV1,
+	notificationsOver,
+	type OverlayResultV1,
 	type PopoverInputV1,
+	type PromptInputV1,
 	settingsOver,
 	type ToastInputV1,
 } from '@lushly-dev/loam-sdk';
@@ -55,8 +59,17 @@ export function documentsOver(call: AppPortV2['call']): DocumentsV1 {
 export function surfaceCalls(
 	port: Pick<AppPortV2, 'instance' | 'waitOverlay' | 'manifest'>,
 	call: AppPortV2['call']
-): Pick<AppContextV1, 'client' | 'navigate' | 'overlays' | 'documents' | 'settings'> {
+): Pick<
+	AppContextV1,
+	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications'
+> {
 	const { instance } = port;
+	/** Open a question and wait for its answer; a refusal throws, with its code. */
+	const asked = async (command: string, input: unknown, why: string): Promise<OverlayResultV1> => {
+		const opened = await call<{ overlayId: string }>(command, input);
+		if (!opened.success || !opened.data) throw refusal(opened, why);
+		return port.waitOverlay(opened.data.overlayId);
+	};
 	return {
 		client: { call },
 		// The `documents` grant's reads and open, over the same caller (documents specification, 11).
@@ -67,6 +80,8 @@ export function surfaceCalls(
 		...(port.manifest?.grants?.some((grant) => grant.name === 'settings')
 			? { settings: settingsOver({ call }) }
 			: {}),
+		// The person's inbox, every app's to push to at its own rate (phase 4 specification, 10.2, 12).
+		notifications: notificationsOver({ call }),
 		async navigate(route: string) {
 			const moved = await call('app-route-set', { instance, path: route });
 			if (!moved.success) throw refusal(moved, 'The route could not change');
@@ -74,11 +89,10 @@ export function surfaceCalls(
 		overlays: {
 			toast: (input: ToastInputV1) => call('toast-show', input),
 			popover: (input: PopoverInputV1) => call('popover-open', input),
-			async modal(input: ModalInputV1) {
-				const opened = await call<{ overlayId: string }>('modal-open', input);
-				if (!opened.success || !opened.data) throw refusal(opened, 'The modal could not open');
-				return port.waitOverlay(opened.data.overlayId);
-			},
+			modal: (input: ModalInputV1) => asked('modal-open', input, 'The modal could not open'),
+			// Phase 4's dialog and prompt (6.4): each resolves when it closes, as a modal does.
+			dialog: (input: DialogInputV1) => asked('dialog-open', input, 'The dialog could not open'),
+			prompt: (input: PromptInputV1) => asked('prompt-open', input, 'The prompt could not open'),
 		},
 	};
 }

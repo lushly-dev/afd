@@ -137,6 +137,7 @@ describe('D66: nothing an app does stops the shell', () => {
 		'hello-greet': async () => ({ success: true, data: {} }),
 		'hello-list': async () => ({ success: true, data: { items: [] } }),
 		'hello-forget': async () => ({ success: true, data: {} }),
+		'hello-guests': async () => ({ success: true, data: { guests: [] } }),
 	},
 	activate() { throw new Error('secret-activate-text'); },
 };
@@ -201,6 +202,7 @@ describe('D66: nothing an app does stops the shell', () => {
 		'hello-greet': async () => ({ success: true, data: {} }),
 		'hello-list': async () => ({ success: true, data: { items: [] } }),
 		'hello-forget': async () => ({ success: true, data: {} }),
+		'hello-guests': async () => ({ success: true, data: { guests: [] } }),
 	},
 	activate(context) { context.registry.define('x-y', class extends HTMLElement {}); },
 	deactivate() { globalThis.helloDeactivated = (globalThis.helloDeactivated ?? 0) + 1; },

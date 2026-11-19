@@ -468,6 +468,16 @@ TEST_CASE("replay restores trace ID, actor and surface, and context adjustments 
     CHECK(unknown.same == 1);
     REQUIRE(unknown.entries[0].notes.size() == 1);
     CHECK(unknown.entries[0].notes[0].find("carrier-pigeon") != std::string::npos);
+
+    // An app's call has no grant check in C++ yet (#1513): it is refused, never run unchecked.
+    seen.reset();
+    entry.context_digest.surface = "apps";
+    const auto app_call =
+        afd::replay_journal(registry, {entry}, {.ignore = std::vector<std::string>{"metadata"}});
+    CHECK(app_call.errors == 1);
+    REQUIRE(app_call.entries[0].error.has_value());
+    CHECK(app_call.entries[0].error->find("interface 'apps'") != std::string::npos);
+    CHECK_FALSE(seen.has_value());
 }
 
 TEST_CASE("middleware outside the journal does not shift the handler's tape on replay") {

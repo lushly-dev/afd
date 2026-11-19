@@ -49,7 +49,11 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 1, the settings core** ([#1533](https://github.com/lushly-dev/afd/pull/1533), 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
 - **Done, step 2, the settings section and the palette** ([#1611](https://github.com/lushly-dev/afd/pull/1611), 2026-11-18): 3.5, 3.7 (`loam.rail`, `loam.keybindings`, `loam.notifications`), 3.10, the three custom editors, hello's settings, `p4-base`'s apps, and P4-E1 but for the hand-offs of steps 8 and 9; what it decided, measured and left is in [its record](#step-2-2026-11-18), with one amendment to section 1 (step 2).
 - **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 3. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Done, step 4, overlays II** ([#1629](https://github.com/lushly-dev/afd/pull/1629), 2026-11-19): dialogs, modals' actions and elements, prompts, the slot, 6.1's path table for every kind, 6.5's answer rule with F6's cancels, `parked` and `overlay-global-set`; what it decided, measured and left, and what its trust review changed, is in [its record](#step-4-2026-11-19).
+- **Done, step 5, the inbox** ([#1630](https://github.com/lushly-dev/afd/pull/1630), 2026-11-19): section 10 without confirmations, the `notification` table and `notification-push`, `-list`, `-read`, `-archive` and `-act`, sticky toasts landing (6.1), `muted`, the `inbox` chunk, the title bar's Inbox button and the announcement, a sticky toast's **Open inbox**, the palette's row, hello's guest book, and P4-E6; what it decided, measured and left is in [its record](#step-5-2026-11-19).
+- **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
+- **Done, step 10, limits** ([#1631](https://github.com/lushly-dev/afd/pull/1631), 2026-11-19, its trust review answered): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, P4-E10's units and Chromium, and, merged with steps 4 and 5 (`main` at `cb4d5dff`), the owners' notice through the inbox and the job `limit-refuses-call`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 5, steps 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -335,7 +339,7 @@ export type SettingKeyV1 = { title: string /* 1 to 60 */; description?: string /
 
 - **The hand-off (F2).** `setting-*`, `autonomy-set` and `experiment-*` refuse a non-human caller **in their own handlers**, not through phase 3's central `HUMAN_COMMANDS` check, so the refusal is theirs: `HUMAN_REQUIRED` with `details: { route, section, key, level }`, and a suggestion naming the route. For example, `route` is `~/settings/hello.general#greeting`.
   - **For a setting,** `key` is the key.
-  - **For autonomy,** `section` is `loam.autonomy` and `key` is the row id the call would write (`workspace/-/tally/tally-reset`), or `cap`.
+  - **For autonomy,** `section` is `loam.autonomy` and `key` is the row id the call would write (`workspace/-/tally/tally-reset`), or `cap`. **Amended (step 8):** `route` is the section's, `~/settings/loam.autonomy`, since a row id holds slashes that no route's fragment may (phase 2's 6.1); the cap's is `~/settings/loam.autonomy#cap`.
   - **For an experiment,** `section` is `loam.experiments` and `key` is the experiment's `fullId`; `level` is `person` or `workspace`.
   - The agent can then tell its person exactly where to go.
   - Or it can push a notice whose `link` goes there (10.1).
@@ -363,6 +367,7 @@ For key `k` of section `s`, for person `p` in scope `{ workspace, project? }`, t
 - **Person values** are one record per person, `loam.settings`, in the view-state store's backing table. In `provider` mode it is keyed through `personalRecordId`. Its shape is `{ [sectionFullId]: { [key]: { value, updatedAt, updatedBy } } }`.
   - **`loam.settings` is not a view-state id.** `view-state-*` on it is refused with `VIEW_STATE_NOT_FOUND`, and `view-state-list` leaves it out.
 - **Shared values** are rows of the workspace store's `setting` table, `<sectionFullId>/workspace` or `<sectionFullId>/project/<projectId>`, each with per-key `updatedAt` and `updatedBy`. Project rows are archived and restored with their project.
+  - **Amended (step 10, R1; closes #1614):** each id starts with its workspace, `<workspace>/<sectionFullId>/workspace` or `<workspace>/<sectionFullId>/project/<projectId>`, as step 8 keyed the autonomy rows, so two workspaces in one browser's store never share a row. A row keyed without its workspace is not this workspace's: it is never read and never written over. Values set before this step in that shape are not migrated: they read as unset, and an owner sets them again at the new id. Until then a workspace's lowered `loam.limits` reads as its defaults (section 11).
 
 ### 3.5 The settings section
 
@@ -458,14 +463,16 @@ export interface AutonomyRowV1 {
 	project?: string;
 	instance?: string;             // an enabled instance, or 'shell'; required with `command`
 	command?: string;              // a command `instance` registers
-	mode: AutonomyModeV1;
+	app?: string;                  // step 8, R2: the identity of the app decided about, with `instance`
+	mode?: AutonomyModeV1;         // step 8: absent only on the workspace's general row holding a ceiling alone
 	ceiling?: AutonomyModeV1;      // the workspace's general row only
-	orphan?: true;                 // set by the manifest's apply when `command` or `instance` no longer exists
+	orphan?: true;                 // set when `command` or `instance` is gone or its app changed; a bound, never a mode (R1)
 	updatedAt: number; updatedBy: string;
 }
 ```
 
 - **A person's own cap** is `loam.autonomy.cap`, written only by `autonomy-set { level: 'person', cap }`.
+- **Amended (step 8):** `mode` is absent on the workspace's general row while it holds a `ceiling` alone, so an owner can let projects go further without changing the workspace's own mode from the default. `autonomy-set` with `mode: null` removes a row, keeping a general row's `ceiling`; `ceiling: null` clears it; `cap: null` clears the cap. A row is replaced whole at each write, so a field it no longer holds does not survive.
 - **D41's "approval of a plan or a capability within limits"** has no field here. Phase 5 adds the limit (a count, a budget or a plan reference) with its approvals ([section 18](#18-out-of-scope-and-the-seams-reserved)).
 
 ### 4.2 Resolution
@@ -490,7 +497,16 @@ export interface AutonomyRowV1 {
    - **a command project row** against those, the default for that command, and the workspace's rows for its instance and command.
 5. **The person's cap.** Lower the mode to it.
 
-**Orphan rows** are ignored, and flagged in `autonomy-list` and in a notice to the owners who may enter the row's project (all owners for a workspace row) (10.2).
+**Orphan rows** are ignored, and flagged in `autonomy-list` and in a notice to the owners who may enter the row's project (all owners for a workspace row) (10.2). **Amended (step 8, after its trust review):**
+
+- **R1, orphans fail safe:** an orphaned row is ignored as a mode but still applies as a bound wherever it names the command's instance, and the command or none, so flagging a restrictive row can never loosen a resolution; at write time an orphaned workspace row for the instance or the command still bounds a project row.
+- **R2, the app decided about:** a row naming an instance stores its app's identity, `app`: `loam` for the shell's (the plugin id no app may take), `plugin:<plugin id>` for a native or view app, and `mounted:<app>:<transport>:<route>` for a mounted instance, its deployment entry's name for its server, the most stable identity a browser kernel holds. Another identity orphans the row, and only the same identity backs it again; a command name alone never does.
+- **When:** boot's own `autonomy-settle { orphaned, restored }`, journaled with the row ids so a replay flags the same rows, runs after each stage B's apply and after each `app-instance-refresh` and `workspace-app-set`, whenever something changed. An instance the deployment no longer has orphans its rows; a catalog is known only for a ready, enabled instance (a mounted one once a discovery installed it, an empty catalog included), and an unknown catalog or identity leaves every flag as it is.
+- The notice is step 5's, through the seam `autonomy-settle` calls.
+- **R1's edge (the re-check):** a project row orphaned by an identity change keeps its own mode as a bound, but it decides nothing, so it no longer meets the workspace's bound as a deciding project row would. That matters only once an owner writes the workspace's row for the new app: the new workspace row then decides, and the orphaned project row lowers it, which is never looser than either. Before the owner's own write nothing loosens; after it, the owner chose the new app's mode.
+- **Old-format rows:** a row stored without its workspace's key is not read (4.4). That is safe only because step 8 never shipped before it was keyed: no browser holds such a row. A later change of the key needs a migration, not this rule.
+
+**Amended (step 8), F8 for an instance row:** a project row for an instance also meets the workspace's row for that instance at write time, which resolution would lower it to.
 
 The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' | 'ceiling' | 'cap' }> }`, with only rows of projects the caller may enter.
 
@@ -512,8 +528,10 @@ The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' 
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `autonomy-get` | query | `{ command; instance?; project? }` or `{ commands: Array<{ command; instance? }> /* 1 to 50 */; project? }` | One result, or `{ results }` in the same order. **The project:** the input's when given, otherwise the call's scope. A project the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
-| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged. A `project` the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
+| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged. A `project` the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND`. **Amended (step 8):** also `writable: { workspace; project?; cap }`, each `{ writable; reason? }` computed for the caller as `setting-list`'s (3.9), `project` for the input's project or the call's scope's |
 | `autonomy-set` | mutation, human | `{ level: 'workspace' \| 'project'; project?; instance?; command?; mode?: AutonomyModeV1 \| null; ceiling? } \| { level: 'person'; cap }` | `{ row?; cap?; previous }` |
+
+**Amended (step 8, after its trust review):** `autonomy-list` takes `limit` (1 to 200, default 100) and `cursor`, and answers `cursor` (null on the last page): rows are ordered with the general rows first, then by id, so the first page always holds them; `ceiling`, `cap` and `writable` are on every page, and `writable.project` is `PROJECT_ARCHIVED` for an archived project, as the write refuses it. `autonomy-set`'s `instance` and `command` are checked by their syntax before any key is built, never `*`, and removing a row whose target is gone needs that row, named field for field. A row is stored under `<workspace>/<row id>`, so two workspaces in one browser's store never meet; a row stored without that key is not read. **Amended (step 8):** `autonomy-get`'s result is 4.2's with `command`, `instance` and `project` (or `null`) beside it, and a command it cannot find is `AUTONOMY_COMMAND_UNKNOWN`, with `details: { index }` in bulk. `autonomy-set` at `project` level names its `project` (never the call's scope), and `ceiling` and `cap` take `null` to clear. A project row of an archived project is `PROJECT_ARCHIVED`, after the owner check. Each declares an output budget (`AUTONOMY_OUTPUT_BUDGETS`), checked for `autonomy-get` and `autonomy-list` at 64 KiB.
 
 ### 4.5 What phase 4 shows, and what phase 5 does
 
@@ -593,10 +611,10 @@ export interface ExperimentV1 {
 | --- | --- | --- | --- | --- | --- |
 | toast | `toast-show` | Timed, 1 to 30 s; `sticky` never times out | Dismissed. Sticky ones, and those `toastSticky` selects, also land in the inbox | The toast region | 5 on screen; a sixth dismisses the oldest |
 | popover | `popover-open` | Light dismiss | Closed | Anchored, top layer | One per invoker |
-| dialog | `dialog-open` | Until closed | Parked and restored; with `cancelOnLeave`, cancelled | Top layer, non-modal | 3 per instance (`OVERLAY_LIMIT`) |
+| dialog | `dialog-open` | Until closed | Parked and restored; with `cancelOnLeave`, cancelled | Non-modal (`show()`), above the parts; not the top layer, so a modal makes it inert (step 4) | 3 per instance (`OVERLAY_LIMIT`) |
 | modal | `modal-open` | Until closed | Cancelled | Top layer, the rest inert | **The overlay slot** |
 | prompt | `prompt-open`, `palette-run`, a confirmation in the slot, the close prompt | Until answered | Cancelled | As a modal, in the slot | The slot |
-| global | The internal `overlay-global-set` | Until its condition ends | Survives | Top layer, a strip under the title bar | One per id |
+| global | The internal `overlay-global-set` | Until its condition ends | Survives | A strip under the title bar, above the parts; not the top layer (step 4) | One per id |
 
 **Who may open which kind, on each path (R8):**
 
@@ -840,7 +858,8 @@ export interface NotificationV1 {
 - **Quota:**
   - 500 per person;
   - unread notices are never dropped;
-  - a push past 500 unread notices gives `QUOTA_EXCEEDED`, with `details: { kind: 'notifications', limit: 500 }`.
+  - a push past 500 unread notices gives `QUOTA_EXCEEDED`, with `details: { kind: 'notifications', limit: 500 }`;
+  - *amended by step 5's R1:* the 500 binds apps and agents together; the shell's own notices, as confirmations, count for neither side and are never refused.
 
 ### 10.2 Commands
 
@@ -895,6 +914,9 @@ export interface NotificationV1 {
   - `QuotaExceededError`.
 
   These are deferred by name, and #710 stays open.
+- **Refused calls each journal an entry** (step 10's R4): every refusal at the port and at a frame's boundary is an `app-limit-refuse` entry, so a replay and `limit-usage-get` agree. An app calling past its rate therefore grows the journal by a small entry per refused call, bounded per entry and not in total; folding the refusals of one window into one counted entry would leave a nested refused call with no entry to answer it from, so a replay could no longer re-run the handler that made it. The journal's total budget, which would bound this, is #710's.
+- **Resource reads in flight** (step 10's trust review): at most 4 per instance; the next is refused `RATE_LIMITED` with `details: { limit: 4, retryAfterMs }` and JSON-RPC `-32602`, as the frame gate answers, and counted under `callsPerSecond`, which `limit-usage-get` reports.
+- **What `messageBytes` does not reach** (step 10's trust review): the browser clones a frame's message before any script sees it, so the cost of the clone itself comes before the bound; and a value cloned in a form JSON does not show (an `ArrayBuffer`, a `Map`) is measured, and used, as its JSON form.
 
 ## 12. The kernel and the SDK
 
@@ -907,7 +929,7 @@ export interface NotificationV1 {
 - **SDK (a minor):** `SettingsV1`, `NotificationsV1`, `ConfirmationsV1 { get, withdraw }`, the widened `OverlaysV1`, and `settingsChanged`.
 - **New shell domains:** `keybinding`, `confirmation`, `limit`.
 - **New commands:** `palette-run`, `notification-act`, `notification-archive`, `confirmation-get`, `confirmation-withdraw`, `autonomy-list`, `setting-reset`, `keybinding-list`, `limit-usage-get`.
-- **Internal commands:** `overlay-global-set`, `experiment-settle`, `store-usage-settle`.
+- **Internal commands:** `overlay-global-set`, `experiment-settle`, `store-usage-settle`. **Amended (step 8):** and `autonomy-settle`, in `BOOT_ONLY` (4.2).
 
 ### 12.1 The manifest
 
@@ -968,7 +990,7 @@ These are estimates, under D115.
 | Row | Estimate |
 | --- | --- |
 | `late` | +5,000 |
-| `late-settings` (new) | 26,000 |
+| `late-settings` (new) | 26,000. **Measured (step 8):** 44,544 with the settings and autonomy, the row raised under D115. **Measured (step 10):** 50,583 with the limits (+5,795), raised to 51,000 |
 | `settings` (new), with three custom editors | 36,000 |
 | `inbox` (new) | 10,000 |
 | `overlays` (new) | 11,000 |
@@ -1011,6 +1033,7 @@ These are estimates, under D115.
 | `OVERLAY_ITEM_RESERVED` | An action or menu item that is a human or owner command | No | Let the person run it from the palette |
 | `NOTIFICATION_ACTION_FOREIGN` | An action naming another app's command | No | Use one of this app's own commands as the action |
 | `NOTIFICATION_ACTION_UNAVAILABLE` | An agent's notice with an action | No | Push it with a `link` instead, or call the command for a confirmation |
+| `NOTIFICATION_NOT_FOUND` | A notice that is not the caller's person's, is in a scope the caller may not enter, or does not exist (step 5) | No | List your notices with `notification-list` |
 | `CONFIRMATION_PENDING` | A confirmation from an agent or a background app is waiting | Yes | Tell the person it is in their inbox; read it with `confirmation-get` |
 | `CONFIRMATION_DECLINED` | Declined, or declined within 60 s for the same input | No | Ask the person before trying again; do not repeat the call |
 | `CONFIRMATION_EXPIRED` | In `confirmation-get`'s `result`, after 10 minutes unanswered | No | Ask the person, then call again to raise a new one |
@@ -1072,7 +1095,7 @@ The phase exits when all of these hold:
 | P4-E11 | Withdrawn | | Menus are deferred (section 9) |
 | P4-E12 | **Budgets** | Budget; Chromium | Section 14 |
 | P4-E13 | **Accessibility and captures** | Chromium | Section 15; **the autonomy section's advisory notice** |
-| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2 |
+| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2. **Amended (step 10):** phase 2's P2-D4 "never reads a document's content but to move it" (`kernel/src/late/documents.test.ts`) allows at most one list of `app-probe`: the store quota lists an instance's table to count its rows' sizes when it has no usage row, and at stage B's daily recount (section 11); expiry reads each expired content row's charge to refund it. **Amended (step 10, after merging steps 4 and 5):** phase 2's P2-E7 "a view's store under Atlas reads nothing of Beacon's, and a `p~` key is refused" (`web/test/browser/scope/session.test.ts`) expects `hello-greet { name: 'p~…' }` to fail with the store's `VALIDATION_ERROR`, not `HANDLER_THREW`, since the trust review's blocker 9 answers a kernel refusal thrown into a handler as that refusal; nothing stored and Beacon's data unread, as before |
 | P4-E15 | **Every new command replays** | Units | A seeded session |
 | P4-E16 | **Every scenario passes, and no job was skipped** | Units; the exit step | `scenarios.test.ts`, then `node scripts/loam-exit-check.mjs --phase 4` |
 | P4-E17 | **Hosted refusal** | Units | A hosted `provider` projection. **Refused with `SHARED_RECORD_UNAVAILABLE`,** journaled, with no table changed: `setting-set` and `setting-reset` at `workspace` and `project` level, `autonomy-set` at every level including `person`, and workspace `experiment-*`. **These succeed:** `setting-set` at `person` level, person `experiment-*`, `notification-*` and confirmations |
@@ -1455,7 +1478,7 @@ The settings section and the palette, on `lush/loam-p4-step2-settings-ui` from `
 - **What the palette searches** (3.10): a setting row's name and title, not its description, since a short query's letters are found in a sentence by accident (`board` matched `muted`'s description). Ties of score order a command, then a document, then a setting, then by name; an empty query lists no setting rows, as it lists no document rows.
 - **Where a key lives in the URL:** the hand-off's route is `~/settings/<section>#<key>` (step 1), so the key is the fragment; main's path is `<section>/<key>`, and only the settings section reads or writes a fragment.
 - **The rail order and the persona:** the person's order comes after the persona's emphasis and before the deployment's `order`. Free ids: an id names no app now (one disabled may return) and is kept.
-- **Stored now, effects later:** `loam.keybindings.overrides` is stored and checked, and the editor records a chord by 8.2's rule; no matcher applies an override until step 7. `toastSticky` and `muted` are stored and checked; their effects are steps 3 and 5.
+- **Stored now, effects later:** `loam.keybindings.overrides` is stored and checked, and the editor records a chord by 8.2's rule; no matcher applies an override until step 7. `toastSticky` and `muted` are stored and checked; their effects are step 5's. *Corrected by step 5:* this line said "steps 3 and 5", and the label this step gave `toastSticky` ("Keep toasts open", "Which toasts stay until you close them") promised toasts that stay open, which no step builds: under 6.1 the setting decides which toasts **also land in the inbox**. Step 5 reworded it "Keep toasts in the inbox".
 - **The level shown** is the section element's own state, not a command: it reads `setting-list { section, level }`, which is.
 - **A surfaces race made visible:** `app-list` now reads the person's record, which delays the surfaces' sync enough that a selection set straight after an open was forgotten as an older app's. The surfaces count selections and keep one set while the sync reads the list (`chrome/src/apps/surfaces.ts`).
 - **Settings in the rail** (section 1's `chrome` row, 3.5), by the coordinator's ruling of 2026-11-18: the rail's Settings entry, dimmed since phase 0 with "Settings arrive in phase 4", opens the settings section, is `aria-current` while it shows, and names the page "Settings"; `SETTINGS_TOOLTIP` is gone from the chrome's exports. Phase 0's accessibility test is amended to match, listed against P4-E14.
@@ -1463,7 +1486,7 @@ The settings section and the palette, on `lush/loam-p4-step2-settings-ui` from `
 
 **Left for later steps:**
 
-- **Step 3 and 5:** the effects of `toastSticky` and `muted`. **Step 7:** the overrides applied, `Mod+Alt+P`. **Step 8:** the autonomy section, and `autonomy-set`'s hand-off for E1. **Step 9:** gated sections absent (the kernel's `sections()` is the seam), the experiments list, `experiment-*`'s hand-off for E1, and hello's `hello.inspector-v2`. **Step 10:** `loam.limits` with usage beside each key.
+- **Step 5** (*corrected by step 5*, which built both; this line said "step 3 and 5"): the effects of `toastSticky` and `muted`. **Step 7:** the overrides applied, `Mod+Alt+P`. **Step 8:** the autonomy section, and `autonomy-set`'s hand-off for E1. **Step 9:** gated sections absent (the kernel's `sections()` is the seam), the experiments list, `experiment-*`'s hand-off for E1, and hello's `hello.inspector-v2`. **Step 10:** `loam.limits` with usage beside each key.
 - **E1, waiting:** the `HUMAN_REQUIRED` hand-off's `details` from `autonomy-set` (step 8) and `experiment-*` (step 9). Every other part of E1's row is a unit (step 1's and `late/settings-shell.test.ts`) or Chromium (`web/test/browser/settings.test.ts`).
 - **A tree over its budget:** superseded by the reviews' item 4: the tree reads `setting-schema-get { outline: true }` and an oversized section key by key (below).
 
@@ -1524,7 +1547,7 @@ Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` f
 **Left for later steps:**
 
 - **Step 4:** dialogs, modals' and prompts' paths, the slot, 6.5's answer rule and F6's `HUMAN_REQUIRED` cancels; the `parked` state; a modal's owner line; a view's and an editor's anchors.
-- **Step 5:** a sticky toast's notice, through `landsInInbox` and the shared push rate, with `loam.notifications.toastSticky` (3.7), which step 1 has not registered, so `landsInInbox` reads its default, `'danger'`, and registering the section is step 2's; a sticky toast's **Open inbox** (6.7).
+- **Step 5:** a sticky toast's notice, through `landsInInbox` and the shared push rate, with the person's `loam.notifications.toastSticky` (3.7); a sticky toast's **Open inbox** (6.7). *Corrected by step 5:* this line said step 1 had not registered the section and that registering it was step 2's; step 2 had registered it (with its label corrected by step 5, see step 2's record), and step 5 reads the person's value.
 
 **Measured.** D115, on Windows with Node 26.13.1: first paint 308,140 and 96,115 gzip (+184 and +46 on `main`'s 307,956 and 96,069; section 14 estimated 300 and 120), its row raised from 308,000 to 308,400, with `first-paint.test.ts`'s literal; `lateMinified` 82,000 to 88,500 (87,930, +6,558, over section 14's +5,000 for the whole phase); `surfacesMinified` 85,000 to 88,200 (87,677, +3,176). New: `overlaysMinified` 6,970 (6,336 plus 10%, at 58% of section 14's 11,000). `budget.mjs` records each.
 
@@ -1557,6 +1580,332 @@ Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` f
 
 **Verified after the reviews.** 2026-11-18, on Windows 11 with Node 26.13.1: the units with `--coverage` of the kernel (1,010), the manifest (1,083), chrome (227) and the SDK (30), and web's (53); the typecheck of every Loam package and app; chrome's `lint:tokens`, after the popover's two raw lengths became the shell's size tokens; `budget`, with `lateMinified` raised under D115 from 88,500 to 91,000 (90,158, +2,228 for these fixes; `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows); ten Chromium files (108 tests, `apps/popovers` with a change of person added; the chrome now re-reads its overlays after a sign-in, a sign-out or a settle, so a `local` page no longer keeps a closed toast on screen); `test:walk` alone, 15 of 15, after the coordinator's run had timed out seed 6221072 in `openPage` under load; and `pnpm check`. Not run: the rest of `test:browser`, `test:mounted`, `test:hosted`, the desktop suite and Cargo, which the coordinator's `pnpm verify` before these fixes passed. A Chromium check of a native editor's anchor and of a failed pick's toast is not written: both are unit-free chrome paths, for step 4's review to cover.
 
+## Step 4, 2026-11-19
+
+Overlays II, dialogs, modals, prompts, the slot and the answer rule, on `lush/loam-p4-step4-overlays` from `main` at `42f9e1c1`, before review.
+
+**Built.**
+
+- **SDK:** `OverlayKindV1` gains `dialog`, `prompt` and `global`; `OverlayActionV1 { id; label; tone?: 'primary' | 'danger'; default? }`; `DialogInputV1`, `PromptInputV1` with `PromptSchemaV1` (one `PromptFieldV1`, or an object of up to 12 of them), `GlobalInputV1`; `ModalInputV1.actions?` and `element?`; `OverlayV1.state?: 'parked'` and `for?`; `OverlayResultV1.result` is `confirm`, `cancel`, `dismissed` or an action's id, and `value` is `unknown` (a menu's index or a prompt's value); `OverlaysV1.dialog?` and `prompt?`, each resolving when it closes, as `modal` does.
+- **Kernel interface 4:** `APP_CALLABLE_SHELL_COMMANDS_V2` and the port gain `dialog-open` and `prompt-open`; a view's prompt shares its modal's one-at-a-time hold and cooldown (#1054).
+- **The store** (`kernel/src/overlays.ts`): the slot is `modalOpen()`, the open modal or prompt; `dialogsOf(owner)` counts open and parked dialogs; a switch parks the leaving app's dialogs (`park`) or, with `cancelOnLeave`, cancels them; `restore(instance)` opens them again (`restore`) when `app-open` makes the app active or its tab becomes the active one; `movesOf` keeps an overlay's moves; `for` is kept only on the shell's own prompts, whatever an option says; `setGlobal` keeps one strip per id, `replaced` by its next and `withdrawn` when its condition ends; `closeAll('person')` closes parked dialogs and strips too.
+- **The commands** (`kernel/src/late/overlay-slot.ts`, new, and `overlay-commands.ts`): `dialog-open`, `modal-open` and `prompt-open` on 6.1's table, a person's gesture the shell's, the active app's or tab owner's port the app's with its owner line, an inactive app's `OVERLAY_OWNER_INACTIVE`, and the agent interface (the copilot an agent on it) or any other path `HUMAN_REQUIRED`: **the agent's `modal-open` no longer opens as the shell's**. `OVERLAY_LIMIT` on a fourth dialog of one owner; `OVERLAY_MODAL_BUSY` from `modal-open`, `prompt-open` and `palette-open` while the slot is held, and a switch held by the shell's prompt as by its modal. `OVERLAY_ELEMENT_VIEW` for a view's `element`. The internal `overlay-global-set`, only on a person's path, never listed or served over MCP. None of the five openers is served over MCP.
+- **6.5's answer rule** in `overlay-dismiss` (`answerRule`): a person's gesture answers anything; the owning app answers its own; anyone else only cancels or dismisses an app's or an agent's overlay; **the shell's own close only by a person's gesture, or by the caller its `for.caller` names, whose cancel ends it `withdrawn`** (F6), so the agent's and an unrelated port's cancel of a shell prompt are `HUMAN_REQUIRED`, with `details: { route: 'shell', overlay }`. A result names one of the overlay's answers (its actions with `cancel`, or `confirm` and `cancel`); a prompt's confirm carries a value the kernel checks against its schema, `VALIDATION_ERROR` with the prompt left open.
+- **Chrome:** `loam-modal` renders the slot with `showModal()` and `aria-modal`, and each open dialog with `show()`, non-modal, stacked at the inline end; it shows the owner line, the actions (the default focused, cancel first on `danger`), a prompt's fields (`prompt-fields.ts`, native controls on the field tokens, labelled, `aria-required`) or a native app's element in a `loam-mount` under its registry, and what the kernel refused, in place (`role="alert"`). A parked dialog is not shown. `loam-global` holds the strips under the title bar, each a polite `status`. The chrome re-reads overlays after `dialog-*` and `prompt-*`, and a leaving view's frame may open no overlay of any kind.
+- **Architecture:** the overlay policy's dialog, modal, prompt and global rows, and "agents open toasts only", now true.
+
+**Decided while building it,** each amending the section named:
+
+- **A view anchors nothing** (6.3): its frame is another origin, so the shell can find no element in it; `OVERLAY_ANCHOR_NOT_FOUND` stays, as step 3 built it. A view that needs one uses a toast, a dialog or a prompt.
+- **`element`** (6.4) is a custom element's name, defined in the app's own registry, mounted under the body with the app's context and a surface port of the active scope, never an anchor owner; one the app did not define shows phase 1's `APP_ELEMENT_UNDEFINED`. The shell's own overlays take none (`VALIDATION_ERROR`). With `actions`, its answers are still the buttons: the element shows, and does not answer.
+- **Actions** (6.4) replace confirm; cancel stays, unless an action is `cancel`. An id is `^[a-z][a-z0-9-]{0,31}$`, unique, never `dismissed`, at most one the `default`.
+- **A prompt's `schema`** (6.4) is plain fields, `string`, `number`, `integer` or `boolean`, with `enum`, `minLength`, `maxLength`, `minimum` and `maximum`, and **no `pattern`**, since an app gives the shell no regular expression (section 17). With none, the value is one line of text of up to 1,000 characters. A value is at most 16,384 characters as JSON.
+- **The global strip** (6.1): `{ id; message?; tone? }`, no `message` closing it (`withdrawn`); no one dismisses it, `VALIDATION_ERROR`; a change of person closes it with everything else, and the condition's owner sets it again.
+- **F6's rule covers every shell overlay**, not only prompts: an agent or a port may no longer dismiss the shell's toast, popover, dialog or modal (`HUMAN_REQUIRED`, where an app's port had `OVERLAY_NOT_OWNER`).
+- **Dialogs are not in the top layer** (6.1, 6.3): `show()` leaves a dialog in the shell's tree, so it sits above the parts by `z-index.popover` and goes inert under a modal, as a non-modal surface should; 6.1's placement says so since the review.
+
+**Left for later steps:**
+
+- **Step 6:** the kernel's own prompts with `for` (7.1 to 7.3): `palette-run`, a confirmation in the slot with its header as part of its name, and the close prompt, which open through `overlays.open(SHELL, 'prompt', input, { for })` and are closed by the rule built here; `palette-run`'s `HUMAN_REQUIRED` and `CALL_NOT_GRANTED`; `OVERLAY_NOT_FOUND` from a stale `prompt`.
+- **Step 5:** a toast's inbox notice (`landsInInbox`), unchanged.
+
+**Measured.** D115, on Windows with Node 26.13.1, against `main` at `42f9e1c1`: first paint 308,987 (+21) of 309,500 and the kernel alone 118,973 (+79), within their rows; `lateMinified` 93,000 to 103,000 (92,316 to 102,425, +10,109, over the step's re-estimated 6,000: three commands' written JSON Schemas, the prompt's field schema and value check, and the answer rule); `lateEditorMinified` 15,305 to 15,400 (15,336, +32); `surfacesMinified` 88,200 to 97,000 (96,469, +8,526 on step 3's 87,943: the slot's and a dialog's renderer, the prompt's fields and `loam-global`). The `overlays` chunk is unchanged at 6,608: this step's chrome is in `surfaces`, with the modal it extends. `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1, before the reviews: `test --coverage` for the kernel (1,058, 18 of them new in `overlay-slot.test.ts`), the manifest (1,103), chrome (243) and the SDK (30), and web's (53); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; eleven Chromium files (156 tests: `apps/dialogs`, new, with `apps/overlays`, `apps/popovers`, `apps/accessibility`, `apps/view`, `apps/second-app`, `shell`, `accessibility`, `documents/editor`, `scope/first-paint` and `budget`), `apps/dialogs` covering step 3's two deferred cases, a native editor's anchor and a failed menu pick's toast; `check-doc-lines`; and `pnpm check`. Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite, Cargo, `loam.yml` and `pnpm verify`.
+
+**After the trust review,** 2026-11-19: two independent reviews of `ae831bc8` (both "revise": 3 and 9 blockers) and the coordinator's rulings R1 to R4. Each amends the section named, and supersedes what the record above says otherwise:
+
+- **R1, another app's overlay** (amends 6.5): "anyone else may only cancel or dismiss" means the shell's own non-human paths and the agent interface, never another app. An unrelated app's port gets `OVERLAY_NOT_OWNER` for any answer, cancel or dismiss of another app's overlay, as phase 1 has it. An explicit `result: 'dismissed'` is accepted wherever leaving the result out gives `dismissed` (a toast, a popover). The architecture's paragraph says the same.
+- **R2, MCP:** `overlay-dismiss` and `overlay-list` join the overlay commands no MCP caller is served, so its `none` path neither lists nor closes an overlay.
+- **R3, chunks:** dialogs, a prompt's fields and `loam-global` move into the lazy `overlays` chunk (`chrome/src/apps/questions.ts`), which loads with the first popover, dialog, prompt or strip; phase 1's modal shell stays in `surfaces`. `main` and the branch were measured again from clean builds in one tree (below).
+- **R4, gates:** the coordinator runs `pnpm verify` on the final head.
+
+**Fixed,** by the reviews' numbers:
+
+- **1, the specification:** a replacement holding `` $` `` had copied the whole specification into this record. It was rebuilt from `main`'s text with only this step's additions, and Markdown is no longer written through a string replacement.
+- **2, the answer path:** a question is answered only by a person's trusted press on a button it drew, or their Escape, through a private `onAnswer` its renderer set, with its own id; no event carries an answer or a value, so neither an app's `element` inside it nor any other element answers as the person (a forged `loam-modal-result` and a script's `click()` answer nothing, in Chromium). The editor's discard hears only what the kernel accepted (`hearAnswers`, in first paint, which the `surfaces` and `editor` chunks share). The rest of the page, which can reach `shell.kernel` itself (D54), is unchanged.
+- **3, a view's waiting question:** a view's `modal-open` or `prompt-open` held behind its open one is refused `SESSION_CHANGED` when a change of person or a reload came while it waited, and the slot stays empty. `reason: 'timeout'` is the shell's toast timer only: anyone else's, or on another kind, is `VALIDATION_ERROR`, so no view passes it to close its modal without the cooldown.
+- **4, a tab's owner:** the chrome reads overlays again after any `editor-*` call, `document-open` and a change of main, so a dialog parks and returns with its app's tab (Chromium, between a note and a checklist).
+- **5, scope** (D83): an app's dialog, modal or prompt records the scope it opened in (`OverlayV1.scope`); its element's mount takes that scope, never the active one; a change of scope cancels, `app-switch`, every app's question opened in another, parked dialogs included, so none is restored in another project. **Chosen:** cancel, not keep: a parked dialog's element and port were bound to the scope left.
+- **6, the reused `<dialog>`:** the `close` the shell's own `hide()` queued never reports, whenever it arrives, so closing one question and opening the next at once cancels nothing.
+- **7, a view's answer:** `dev.loam/overlay-result { overlayId }`, the view SDK's `overlayResult`, answers a view its own overlay's result; another owner's id is `OVERLAY_NOT_OWNER`, tested through a real view frame.
+- **8, a prompt's value:** the answer is exactly what was submitted, never the prompt's starting value: none, or `null`, fails the schema; a cleared number is left out; a schema-valid empty text is kept.
+- **10, focus:** a dialog takes no focus when it opens (`show()` would move it; it goes back). **For step 6:** a prompt with `for` must not focus confirm, but cancel or the dialog, so a person typing elsewhere cannot confirm with Enter.
+- **11 to 16:** dialogs restacked on every render; the strips one persistent polite live region whose text changes, never hidden; 6.1's placement for a dialog and the strip corrected (neither is in the top layer: `show()` keeps a dialog in the shell's tree, where a modal makes it inert, and the strip is fixed under the title bar above the parts); a schema whose bounds cross, or whose choices are not of its field's type, refused, and a `select` with no starting value picks nothing; `element` refused from any app that is not native, a mounted tool's too (`OVERLAY_ELEMENT_VIEW`); a `cancel` action may not be `danger` or the default; the overlay state between switches journaled through `overlay-list`, so a replay compares each park and restore.
+
+**Measured again,** D115, `main` at `42f9e1c1` and the branch from clean package builds in one tree, on Windows with Node 26.13.1: first paint 308,966 to 309,167 (+201) and 96,387 to 96,477 gzip, within their rows; `late` 92,316 to 103,981 (+11,665), its row 93,000 to 104,500; `apps` 417,370 to 418,055 (+685), 417,500 to 418,500; `view` 26,043 to 26,236 (+193), 26,100 to 26,400; `surfaces` 87,996 to 93,192 (+5,196), 88,200 to 93,500; `overlays` 6,608 to 10,766 (+4,158, at 98% of section 14's 11,000), 6,970 to 11,000; `late-editor` 15,304 to 15,336, within 15,400; `editor` 35,393 to 35,361. The record's first `surfaces` figure, 96,469, read a stale chrome build.
+
+**Verified after the review.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,064), chrome (243), the SDK (30), the manifest (1,103) and web (53); the typecheck of every Loam package; chrome's `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; Chromium: `apps/dialogs` (9) and `apps/view` with its new frame case, beside `apps/overlays`, `apps/popovers`, `apps/accessibility`, `apps/second-app`, `shell`, `accessibility`, `documents/editor`, `scope/first-paint` and `budget`. Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo, which the coordinator runs (R4).
+
+**After the trust re-check,** 2026-11-19, which approved `052911c0`; its three improvements:
+
+- **The chrome's re-read** follows only the calls that move the active tab's owner (`editor-activate`, `-close`, `-move`, `-pin`), `document-open` and a change of main, never a caret's `editor-selection-set`, `editor-dirty-set` or `editor-get`, each of which journaled an `overlay-list`.
+- **A view's cooldown** (#1054) begins only on a person's own close, which the store now records: an agent's or the app's own cancel starts none, so a held view modal opens after it; `surface-port.test.ts` asserts that again, beside the switch's `OVERLAY_OWNER_INACTIVE`.
+- **`SESSION_CHANGED` is `retryable: false` here,** though phase 3's table calls it retryable: there it answers a call whose session changed under it, which the same caller may send again as the new person; here the question was raised for the person who left, and opening it again for the next one is the app's decision, never an automatic retry, so the suggestion says to ask again only if the new person should answer.
+- **Headroom is tight,** for the next steps to plan for: first paint's gzip 96,477 of 96,500 (23 bytes), and with `main` at `8c3425d8` merged 96,527, its row raised under D115 to 97,000 (96,436 on that `main`, +91), and with step 8 merged (`main` at `254249c3`, 96,461) 96,551 of 97,000; `late` with step 8 merged 105,000 (93,244 on that `main`, +11,756), its row 105,500 (500 to spare); `late` 103,981 of 104,500 (519); `overlays` 10,766 of 11,000 (98%).
+
+## Step 5, 2026-11-19
+
+The inbox, on `lush/loam-p4-step5-inbox` from `main` at `42f9e1c1` (steps 1 to 3 merged), before review.
+
+**Built.**
+
+- **SDK:** `NotificationV1`, `NotificationActionV1`, `NotificationInputV1`, `NotificationsV1` and `notificationsOver`, served on a native surface's context as `notifications`; `OverlayRefV1.notification`, the notice a toast also landed as.
+- **Kernel interface 4:** `APP_CALLABLE_SHELL_COMMANDS_V2` and the port gain `notification-push`.
+- **The record and the commands** (10.1, 10.2), in `late-settings` (`kernel/src/late/notifications.ts`), as section 1 places them:
+  - the workspace store's `notification` table, listed by `person`;
+  - `notification-push`, `-list`, `-read`, `-archive` and `-act`, each decided at the call's scope (`AT_CALL_SCOPE`), so a project the caller may not enter is `PROJECT_NOT_FOUND`; none is served over MCP;
+  - `source` from step 3's `openerOf`: the port's instance, the agent interface's `agent:<id>`, `shell` for a person's own gesture, and nothing for any other path (`HUMAN_REQUIRED`);
+  - reads of the person's own notices, in scopes `decideAccess` lets the caller enter now;
+  - an action, the pushing app's own palette command (or the shell's, for a person's own notice): a human or owner command is `OVERLAY_ITEM_RESERVED`, another app's or one the palette does not list `NOTIFICATION_ACTION_FOREIGN`, an input its command's schema refuses `VALIDATION_ERROR`, one decision shared with step 3's menus; an agent's action is `NOTIFICATION_ACTION_UNAVAILABLE`, its link kept;
+  - the rates, on step 3's push rate (R-b): 10 a minute per app instance, and per person for the shell; 5 for the agent interface, its toasts and notices in one bucket; `RATE_LIMITED` with `details: { limit, retryAfterMs }`, saying the rate is fixed;
+  - the quota: `QUOTA_EXCEEDED` with `details: { kind: 'notifications', limit: 500 }` at 500 unread notices; below it, the oldest read or archived notices make room;
+  - R10's seams: a pending confirmation is refused `HUMAN_REQUIRED` alone, and skipped by `{ all: true }`, for anyone but a person's own gesture; confirmations count for neither side of the quota;
+  - `notification-act`: the action run as the person through the palette interface, nested under the call and journaled with it (phase 2's 11.1), at the notice's scope, the action checked again; then the notice is `done` and read.
+- **`toast-show`'s inbox half** (6.1, 3.7), a wrapper over step 3's command: a sticky toast, and one the person's `toastSticky` selects (`landsInInbox`), also lands as a notice, its id on the toast and in its result; a muted app's toast is never shown.
+- **Hello's guest book:** `hello-guests` lists every visitor `hello-greet { name }` greeted, so `inbox-action` runs; `agent-leaves-notice` runs too.
+- **Chrome:**
+  - the `inbox` chunk (`chrome/src/inbox/inbox.ts`): `loam-inbox` at `~/inbox[/<notice>]` (`section-open { section: 'inbox', path }`), notices newest first and a waiting confirmation first (the seam step 6 fills), each with who left it (6.6), when, its action, its link, Mark read and Archive, then "Mark all read" and "Archive all", every read and write a command;
+  - the title bar's Inbox button with the unread count, named "Inbox 3 unread", and the announcement of a new notice with the keyboard path to it, kept by `apps/inbox-bell.ts` in the `surfaces` chunk;
+  - a sticky toast's **Open inbox**, which dismisses it and opens the inbox at its notice, focused;
+  - the palette's "Open inbox" row;
+  - an unseen failed autosave, made sticky when the page is hidden, so it lands whatever `toastSticky` says.
+- **The settings label** (a reviewer's finding on steps 2 and 3): `loam.notifications.toastSticky` reads "Keep toasts in the inbox", "Which toasts are also kept in your inbox after they close. Toasts an app marks to stay are always kept."; the section, "Which toasts are kept in your inbox, and the apps whose notices stay quiet." Step 2's and step 3's records are corrected in place.
+- **Architecture:** section 5's notifications catalog row, and its minimum command list gains `notification-archive` and `notification-act`.
+
+**Decided while building it,** each a judgement a reviewer should check, amending the section named:
+
+- **When a toast lands** (6.1): when it is shown, not when a switch dismisses it. 6.7's "Open inbox opens the inbox at it" needs the notice while the toast shows, and P4-E6 says "lands and counts". `closeForSwitch`'s returned toasts are left unused.
+- **What a landed toast counts against** (10.2's "sticky toasts count"): an app's sticky toast counts against its rate of 10 and the quota, refused `RATE_LIMITED` or `QUOTA_EXCEEDED` past them. A toast only the person's `toastSticky` selects is shown whatever the rate, and lands only within it: the person's preference is no contract of the app's. An agent's toast counts once, as a toast, whether or not it lands.
+- **What muted does to a toast** (3.7): a muted app's `toast-show` succeeds and is recorded closed at once (`reason: 'inbox'` when it landed, else `'user'`), so the app learns nothing of the preference and no shown toast is pushed off for it (the overlay store's `openClosed`). The shell shows no notice as a toast for anyone; a muted app's notices are not announced.
+- **A landed toast's notice:** its message as the title, cut to 120 characters, with the whole message as the body.
+- **The list** (10.2): archived notices are not listed. `unread` is every unread notice of the person's the caller may read, whatever the filters: the Inbox button's count. Ties go by id, ascending; the cursor is `<createdAt>.<id>`; a page ends early rather than pass 32 KiB, with the cursor to the rest.
+- **Read and archive** answer how many they changed; `{ all: true }` is checked `true` in the handler, since the kit's Zod has no literal.
+- **An action's input** is an object of at most 2,048 bytes of JSON, checked against its command's schema at the push and again at the act.
+- **`notification-act`** answers `{ state: 'done', result }`, the action's data. A notice already done answers `{ state: 'done' }` and runs nothing; a confirmation is `NOTIFICATION_ACTION_UNAVAILABLE` until step 6; `answer` on a notice is `VALIDATION_ERROR`.
+- **A call with no person** (`provider` signed out) has no inbox: `HUMAN_REQUIRED`, "Sign in, then try again"; the auth gate refuses first in practice.
+- **`NOTIFICATION_NOT_FOUND`**, a code this step adds to section 16: one answer for a notice not the caller's person's, in a scope the caller may not enter, or none at all.
+- **`stores.test.ts`'s scan** exempts `notification-push`'s `action.command`, a command's name as a menu item's is (R-a), the path step 3's comment foresaw. A third named exemption, for this step's review.
+- **The scenario `agent-leaves-notice`** gave its link as `{ uri: 'loam://app/hello/guests' }`, a form no link takes; it now gives 10.1's link, a toast's (6.4): `{ kind: 'app', instance: 'hello', scope: { workspace: 'personal' } }`.
+- **Hello's guest book** is built here rather than in step 6, where the runner's table put it ("steps 5 and 6"): `hello-guests` lists every greeted name, `greeted: true`. A waiting visitor, and hello's own sticky toast and notice with an action (section 1's `apps/hello` row), are left for step 6 with hello's commands.
+- **The bell** (10.3, 15) is text, "Inbox" and the count, as the New button is: Violet's system icons draw no bell. Its name is "Inbox 3 unread", which holds the visible text (axe's label-in-name). A notice's announcement ends "Open it from Inbox in the title bar, or from the palette."; 10.3's sentence for a confirmation names the bell, and step 6 words it against this button.
+- **The palette's row** is the chrome's, as New's rows are, offered for a query that is part of "open inbox" or names the inbox or notices, rather than a row kind of the kernel's.
+- **The count and the announcement** live in the `surfaces` chunk, which loads at stage B, so first paint holds only the button.
+
+**Left for later steps:**
+
+- **Step 6:** raising and answering confirmations, Confirm and Decline naming the command, a confirmation's announcement, and hello's notices.
+- **Step 8:** an orphan autonomy row's notice to the owners who may enter its project, through `Notifications.shellNotice`, the seam built and tested here for steps 8 to 10. *Wired after step 8 merged* (`orphanRecipients` and `orphanNotice`, units, and step 8's orphans case reading the owner's inbox): in `local` mode the one person; in `provider` mode none until the owner roster is a server record (phase 5), a follow-up. Step 8's record says how.
+- **Step 9:** the experiment changes of 5.2 and a deferred unload. **Step 10:** a limit's refusal, to owners (*done by step 10* after merging this step: `limit-notice-push` through `shellNotice`, in `local` mode).
+- **Phase 3's revoked session: not built, a question for the coordinator.** The kernel hears a revoked session as a change of person to no one, settled with `reason: 'tab'`, as it hears a sign-out in another tab. Nothing tells the two apart, so a notice on it would say "you were signed out" after every sign-out elsewhere too.
+
+**Measured.** D115, on Windows with Node 26.13.1, against the figures `budget.mjs` records for `main` with steps 2 and 3 merged:
+
+- first paint 309,560 and 96,545 gzip (+594; section 14 estimated nothing for this step's first paint), its rows raised from 309,500 and 96,500 to 310,000 and 96,700, with `first-paint.test.ts`'s literal;
+- `lateMinified` 93,000 to 94,000 (93,596, +1,280);
+- `lateSettingsMinified` 30,500 to 45,500 (41,258, +12,858), over step 3's re-estimate of about 7,000 for the inbox commands: five commands with their written JSON Schemas, the quota, the cursor and budget, R10 and `toast-show`'s half;
+- `appsMinified` 417,500 to 418,000 (417,629, +281);
+- `surfacesMinified` 88,200 to 91,000 (90,199, +2,256);
+- new: `inboxMinified` at section 14's 10,000 (7,809, at 78%).
+
+`budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,069; the inbox's 27 in `late/notifications.test.ts`, and both scenarios in `scenarios.test.ts`), chrome (244), the SDK (32), web (53) and hello (8); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; and Chromium: `inbox` (4, new), with `accessibility`, `shell`, `layout`, `apps/popovers`, `apps/overlays`, `apps/accessibility`, `settings`, `scope/first-paint` and `budget`. Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
+
+**After the reviews,** 2026-11-19: two independent reviews of `98a4d523` (one with two blockers, one with ten) and the coordinator's rulings R1 to R3. Each amends the section named, and supersedes what the record above says otherwise:
+
+- **R1, the shell's notices and the quota** (amends 10.1): the shell's own notices, the person's own pushes and `shellNotice`'s (steps 8 to 10), count for neither side of the 500 and are never refused, as confirmations are not; the 500 binds apps and agents together. Whether one source can still fill the others' room is a [follow-up](#follow-ups).
+- **R2, a muted app learns nothing from its own calls** (amends 3.7 and the record's "what muted does to a toast"; as the coordinator amended it after the re-check, below): a muted app's toast is held and timed as any toast, capped among hidden toasts alone, and marked `hidden` in the shell's own list, so the chrome never draws it but runs its timer. A timed one settles `timeout` after its duration, and a sticky one stays until a switch, a change of person or its own close. The app's own `overlay-list` never carries `hidden`. A toast's result, and the app's view of it, carry `notification` only for the app's own sticky toast, so neither says what the person's `toastSticky` selected; the chrome reads the notice's id from the shell's overlay record. A unit compares everything the app reads of its own calls, muted and not, and finds it equal. What R2 does not hold, by the coordinator's ruling, three signals: other apps' toasts can reveal the mute statistically, since a hidden toast is never capped by others' activity; a shown toast's timer restarts on the person's hover or focus, which a hidden one's never does; and the person can close a shown toast, or open the inbox from it, which settles it `user`, while a hidden one never settles `user`.
+- **R3, the revoked session** (amends 10.2's list of the shell's notices): **deferred until the provider gives a signal.** The evidence:
+  - the kernel hears a revocation as the adapter's session going to none, settled as `session-settle { reason: 'tab' }` (`late/session-settle.ts`'s `heard` and `notice('tab')`), as it hears a sign-out in another tab;
+  - the web host's refresh (`web/src/auth.ts`, on `visibilitychange`, `online` and a timer) reads the session again and gets none, with no provider code saying why;
+  - `SessionSync` broadcasts `signed-out` from whichever tab saw the change first, including the tab that noticed a revocation, so the broadcast cannot tell the two apart either;
+  - phase 3's "revoked-session notice" is the signed-out main ("Sign in to …", P3-E3), not a distinct notice.
+
+  A [follow-up](#follow-ups) asks the provider for a reason on the refused session.
+
+**Fixed:**
+
+1. **Admission races:** a push is counted against its rate the moment it is admitted, with no await between check and count (a push the quota then refuses stays counted). Each person's count, eviction and insert run on one chain, and the eviction and the insert are one store batch, so a failed insert keeps what it would have evicted. Units: 11 concurrent pushes from one app give exactly one `RATE_LIMITED`; at 499 unread notices two concurrent pushes leave 500.
+2. **Act-time checks:** units act on rows written straight to the store whose action is a person's command (`OVERLAY_ITEM_RESERVED`), whose source app is gone or no longer this app, whose command is gone or not palette-listed (`NOTIFICATION_ACTION_FOREIGN`), or whose input the command now refuses (`VALIDATION_ERROR`); nothing runs.
+3. **Acting twice:** `notification-act` claims a notice before it runs. The claim is an in-page guard by id, and `state: 'acting'` with a claim token written to the store and read back, so another tab that claimed it since does not run it too. The store has no compare-and-set: two tabs that write and read back in lockstep can still both run it, within two store calls. A failed run releases the claim (the row is put back whole, since a batch `PUT` merges). A completion that cannot be written leaves the notice `acting`, which never runs again and says so. `NotificationV1.state` gains `acting`, and the claim token is never listed. The inbox's button says it is busy while the call runs, and a second press does nothing. Units: two concurrent acts run the command once; a stored `acting` notice never runs.
+4. **Stale chrome:** the inbox and the count clear on a change of person or of access (`auth-*`, `session-*`, `member-*`, `agent-member-*`, `project-update`, `-archive` and `-restore`, `workspace-app-set`) and read again. A refused read clears rather than keeps what was shown. An announcement is dropped when the mute cannot be read, or a newer read overtook it. Chromium: a sign-in clears the signed-out person's count and inbox.
+5. **A landed toast's access:** an explicitly sticky toast is admitted as a push is: its scope (`PROJECT_NOT_FOUND`), its rate, then the quota (`QUOTA_EXCEEDED`). An agent's sticky toast at the quota is refused, not shown. A toast the person's `toastSticky` selects lands only within its scope, rate and the quota, and is shown either way.
+6. **Links:** a notice's link is 10.1's `ResourceLinkV1`, an app's `route` or a document's `anchor` included. It is checked at push for this workspace, a route with no empty, `.` or `..` segment, and an anchor of at most 1 KiB (`VALIDATION_ERROR`). The renderer's guards stand. `stores.test.ts`'s exemption grows by `link.route`, for this step's re-check; its `action.command` path is kept by the coordinator (2026-11-19). `agent-leaves-notice` links to hello's `guests` route again and asserts it is listed.
+7. **"Open inbox" past page one:** `notification-list { notification }` (amends 10.2's input) finds one notice by id, filtered as every read is, and the inbox opens at it wherever it is.
+8. **No apps, no badge:** the count and its announcements are a chunk of their own (`inbox-bell`) that the shell loads after stage B, apps or none, announcing in the shell's own live region. Chromium: an empty deployment counts.
+9. **MCP:** the shell's inbox commands are left out of `mcpOptions()` by name, so an app's own command of the `notification` category stays served (a unit).
+
+**Improvements:** a single row past the list's 32 KiB answers `OUTPUT_BUDGET_EXCEEDED` with a suggestion. Each listed notice carries `from`, step 3's owner line (`ownerTitle`: same titles told apart by instance, never one that says "Loam"), which the inbox and the announcement show as a toast's line reads. `toastSticky`'s middle choice reads "Only errors", since it selects `danger`. The Inbox button names "Inbox 99+ unread" past 99, as it shows. STATUS's step 2 line is corrected.
+
+**Measured after the fixes** (`budget.mjs` records each): first paint 309,769 and 96,595 gzip (+209 on the first commit, the count's own chunk and `99+`), within 310,000; `late-settings` 43,941, its row tightened to 44,600; `late` 93,818; `surfaces` 89,549; `inbox` 9,637 of 10,000; `inbox-bell` 1,041 and `inbox-words` 266, in no row. **`editorMinified` 35,445 to 35,600** (35,479): the first commit had moved a failed save's toast into a module of its own after its last budget run, and was over this row unmeasured.
+
+**Verified after the fixes,** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,080; the inbox's 38 in `late/notifications.test.ts`, both scenarios), chrome (244), the SDK (32), web (53) and hello (8); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; and ten Chromium files, 111 tests: `inbox` (7), `scope/first-paint`, `budget`, `apps/overlays`, `apps/popovers`, `apps/second-app`, `settings`, `accessibility`, `shell` and `documents/editor`, `first-paint`'s P2-E2 timing out once at 30 s under load and passing alone (8 of 8). Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
+
+**After the re-check of `1203f5a8`** (16 of 17 resolved), 2026-11-19, and the verification of `ab2c36a8`:
+
+- **B1, R2's leak:** a muted app's timed toast started its timer at once, while a shown one's is held under any modal, so an app could open its own modal, show a timed toast and see `waitOverlay` settle `timeout` only when muted. Hidden toasts' timers are now held under any modal exactly as shown ones are, and start again in full when it closes. Chromium: with the app's modal open, a muted timed toast stays unsettled past its duration and settles `timeout` after the modal closes. The record's claim stands, as R2 now words it: what a muted app reads of its own calls alone equals what it reads unmuted.
+- **A muted app's toasts and the cap** (amends R2's "capped as any toast"): a toast is opened hidden (the store's `hideNext`, set just before `toast-show`'s original opens it), and counts toward the cap of five among hidden toasts alone. So a muted app's unseen toasts never push a shown one off, and its own are kept five at a time. **Accepted by the coordinator (option b), with R2 amended:** the muted app sees no other app's overlays, so it reads nothing of the split from its own calls; but since others' toasts never cap its own, their activity can reveal the mute statistically. A shared, age-ordered cap is a [follow-up](#follow-ups) (a unit).
+- **Act-time tests:** the case named "disabled" was a foreign command and now says so; the disabled source app's case asserts `APP_DISABLED`, that nothing ran, and that the person acts again, once, after the app is enabled.
+- **The claim's release and completion** put the row back from the row as stored after the run, not from the claim's snapshot, so a read or an archive made meanwhile in another tab stands; only `state` and the claim change.
+- **A persisted claim** reads "Running, or ran with no outcome recorded" in the inbox, the kernel's words.
+- **The `stores.test.ts` exemption** for `link.route` is kept by the coordinator (2026-11-19), and its comment says so.
+- **The verification of `ab2c36a8`:**
+  - the overlay layer's `waiting` now counts hidden toasts too, so a muted toast whose timer already runs is read again, and held, when the palette or a compact drawer opens (Chromium: it stays unsettled past its duration under the palette, and fails without the fix), and when the app's own modal opens (Chromium);
+  - the act's write-back is skipped when the row is gone after the run (evicted by the quota, or deleted): nothing writes it again. Units: a read and an archive written while the action runs survive it; a row removed while it runs stays gone, whether the action ran or failed.
+- **The verification of `2995bb7e`:** the act's read-back tells a row that is gone (`null`) from a store that could not be read (`'failed'`). A failed read after the run falls back to the claimed row, so the claim is released when the action failed and completed when it ran, at the cost of a read or an archive made meanwhile (a unit for each). A claim this call wrote but could not read back before the run stays, and the notice never runs.
+- **The coordinator's `pnpm verify` of `bfbdeaa9`:** the Inbox count's `notification-list` at stage B added an entry to an empty shell's boot, against phase 2's rule (4.3) that the shell's own stage-B reads journal nothing, as `scope-get`, `section-get` and phase 3's `persona-list` do not. By the coordinator's ruling it joins `UNJOURNALED_COMMANDS` (amends 10.2): it reads and writes nothing else, so an agent's or an app's `notification-list` is not journaled either, as with `persona-list`, and phase 0's E2 is unchanged. The replay units now show a replayed notice through journaled reads (`notification-read` and `-archive` with `all`, whose counts the replay must reproduce). The refusal fixtures list hello's `hello-guests`, so they reach the throwing `activate` and import they test.
+
+## Step 8, 2026-11-19
+
+Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after steps 1 and 2), not merged. It gets a trust review (section 20).
+
+**Built.**
+
+- **The pure rules** (`kernel/src/late/autonomy-rules.ts`): `AutonomyRowV1` and its id; the default (D156: `act` for a command that is not a mutation, `ask` for a mutation, `ask` for every mounted tool); `resolveAutonomy({ rows, command, project?, cap? })`, returning 4.2's `{ mode, from, ceilings, cap, chain }`, which ignores orphans and other projects' rows, and lowers a project row's mode to the workspace's bound (its `ceiling`, else its general mode, else the command's default) and its rows for the instance and the command, then to the cap; `writeBound`, F8's bound at write time; `orphanChanges`.
+- **The commands** (`kernel/src/late/autonomy.ts`, in the `late-settings` chunk): `autonomy-get` (one, or 1 to 50 in order; the input's project, else the call's scope; the instance found from the command when not given, `shell` for the shell's own), `autonomy-list` (the workspace's rows and those of projects the caller may enter, orphans flagged, the ceiling, the cap and `writable`), `autonomy-set` (a workspace or project row, or the person's cap) and boot's `autonomy-settle`. The rows are the workspace store's `autonomy` table, read at every call; the cap is `loam.autonomy.cap` in the person's `loam.settings`, read and written through the settings module, one write at a time with `setting-*`'s. Strict inputs; every result a detached copy; every refusal with a suggestion; the category `setting`, so `mcpOptions()` serves none of them (section 13), and a port gets `CALL_NOT_GRANTED`. `setting-*` on `loam.autonomy` stays `SETTING_USE_AUTONOMY`; `section-open`'s `target` takes `loam.autonomy` and `loam.autonomy.cap`.
+- **`autonomy-set`'s order (N9):** validation; line 0 (the scope middleware); the project's access, `PROJECT_NOT_FOUND` byte-identical to phase 2's for a project the caller may not enter or that does not exist; the agent's hand-off (`HUMAN_REQUIRED`, `details: { route, section: 'loam.autonomy', key: <row id or 'cap'>, level }`); section 13's `SHARED_RECORD_UNAVAILABLE` at every level; the owner check (D154: workspace rows an owner's; a project row an owner's or its creator's, while the creator may enter it and no team instance lists it, D87, D110; `OWNER_REQUIRED` otherwise); `PROJECT_ARCHIVED`; the instance and command (`AUTONOMY_COMMAND_UNKNOWN`, skipped for a removal, so an orphan can always go); the bounds (`AUTONOMY_ABOVE_CEILING`, naming the bound in `details` and saying an owner sets it). The membership is read again before a workspace or project row in `provider` mode (`needsMembershipRead`).
+- **Orphans:** after each stage B's apply, not in a replay, the rows whose instance the deployment no longer has, or whose command it no longer registers, are flagged by a journaled `autonomy-settle`, and rows backed again unflagged; nothing is journaled when nothing changed. The orphan notice's seam is `AutonomyDeps.orphaned`, which step 5's inbox wires.
+- **The chrome** (`chrome/src/settings/autonomy.ts`, `autonomy-words.ts`): the tree's Autonomy entry after Keybindings (3.5), at `~/settings/loam.autonomy`; `loam-autonomy-section` with the advisory notice first, exactly 4.5's text; the workspace's mode and ceiling and its rules; the active project's mode and rules; a new rule for an app or one of its commands; the person's cap, or section 13's message in its place where `autonomy-list` says the deployment cannot keep it; and "Why a command gets its mode", the chain in words. Every read and write is an `autonomy-*` command in the scope the panel shows; a part the caller may not change is disabled with the reason in words. Native controls, as the settings section's.
+- **`tally-reset`** for the jobs `autonomy-per-command` and `owner-ceiling`: first added to tally, then, by the trust review's R3, moved out of the shipped app into `p4-base`'s own fixture (below).
+- **The jobs:** `autonomy-per-command`, `know-my-mode` and `owner-ceiling` run and pass in `kernel/src/scenarios.test.ts`.
+
+**Decided while building it,** each a judgement a reviewer should check:
+
+- **`tally-reset`** was first added to tally as a plain mutation; the trust review's R3 superseded it (below).
+- **F8 for an instance row** (4.2, amended): a project row for an instance also meets the workspace's row for that instance at write time, since resolution would lower it there; the specification named only the general bound for it.
+- **A project row names its project** in the input, never the call's scope, so a write cannot land in a project other than the one named; reads take the input's, else the scope's, as 4.4 says.
+- **Who is an owner** is phase 3's `isOwner`: in `local` mode every actor, so D154's creator and team-listed rules bind in `provider` mode.
+- **An instance a new row may name** is `shell` or one the deployment has that the workspace has not disabled; a disabled instance's existing rows are not orphans.
+- **`autonomy-get` refuses an unknown command** with `AUTONOMY_COMMAND_UNKNOWN` (4.4 named it for `autonomy-set` only), rather than resolve a default for a command that is not there.
+- **The hand-off's route** for a row is the section's, not `#<row id>` (3.2, amended); the cap's is `#cap`.
+- **`autonomy-list`'s `writable`** (4.4, amended) lets the section disable what the caller may not change and show section 13's message for the cap, with no host decision of its own.
+- **Rows are replaced whole** (4.1, amended): the store's `PUT` merges into a row it holds, so a removed `mode` or an ended orphan flag would have survived; each write deletes and puts in one batch. Found by the unit for a removed mode.
+- **The workspace's general row may hold a `ceiling` alone** (4.1, amended).
+- **`autonomy-settle` runs at every stage B**, not only when the generation changes, since an app's package can drop a command under the same projection.
+- **The category is `setting`,** so the existing `mcpOptions()` filter keeps the three off MCP with nothing new to keep in step.
+
+**Left for later steps:**
+
+- **Step 5:** the orphan notice to the owners who may enter the row's project, through `AutonomyDeps.orphaned`. *Done by step 5, merged with this step:* one notice from the shell per owner per settle, through the inbox's `shellNotice` (outside the push rate and the quota, R1), naming the rows that owner may see: a project row only to an owner who may enter its project (one naming no project to no one), a workspace row to every owner. **In `local` mode the one person; in `provider` mode none until the owner roster is a server record (phase 5)**, by the coordinator's ruling after the review of `363da382`: the kernel holds only the people it has settled, and the boot settle's membership is not journaled, so a replay could not send the same. The flags are still stored and shown in `autonomy-list` and the section, and the exit is local (D126). A unit replays a local settle that sent one with no difference; another finds none sent in `provider` mode. The seam is now called in a replay too (it said "never in a replay"): the notice is a store write of the settle's own, on its clock and random, so a replay writes the same and later reads agree.
+- **Step 6:** tally's `tally-reset` with its `confirm_prompt`; `p4-base`'s fixture command can then go.
+- **Step 3's reservation, met** (after merging `main` at `9d611137`): the deployment reader refuses `shell` and `loam` as instance ids (`DEPLOYMENT_INSTANCE_RESERVED`). R4's guard is kept, not simplified: the kernel loads any projection its host gives it, which that reader never sees, and `late/autonomy.test.ts` still boots one with a mounted instance named `shell`. With both steps merged, `lateMinified` rises from 93,000 to 94,000 under D115 (93,244 combined); first paint 309,020 and 96,411 gzip.
+- **Phase 5's step 3:** enforcement through `resolveAutonomy` (D145), including a vouched server's reads at `act`.
+- **E1, waiting:** `experiment-*`'s hand-off (step 9); `autonomy-set`'s is now tested (`late/autonomy.test.ts`).
+
+**Measured.** D115, on Windows with Node 26.13.1, against step 2's figures: `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195: the table, the rules, the three commands and the settle, about a third of it descriptions, input schemas and refusals in words; section 14 estimated 26,000 for the whole chunk); `settingsMinified` 36,000 to 40,000 (32,094 to 39,323: the section, its words and the tree's entry). First paint 308,800 and 96,345 gzip, within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000; the kernel alone 118,835 of 119,500. `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (51 files, 1,045 tests), chrome (17 files, 241), `web`'s units (11 files, 53), tally (2) and hello (8); the typecheck of every Loam package and app; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and six Chromium files, 39 tests: `autonomy` (4, new: the section, the notice, the hand-off, the hosted cap's message through a stubbed answer, axe in three themes), `settings`, `apps/second-app`, `budget`, `scope/first-paint` and `accessibility`. **Not run:** the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and every Cargo gate.
+
+**After the trust review,** 2026-11-19: two independent reviews of `2a585380` (one blocker in one, nine in the other, both "revise") and the coordinator's rulings R1 to R4. Each finding and what became of it:
+
+1. **Orphans flagged and restored wrongly** (a disabled or refused mounted instance read as an empty catalog; nothing settled after a refresh): an unknown catalog is never empty, the settle runs after each catalog install and change of an instance, and R1 and R2 (4.2, amended). `late/autonomy.test.ts`: a disable, a reload while disabled and a re-enable keep the restrictive row and the tool resolves `suggest`; a refresh that drops a command flags it and one that brings it back unflags it; another server at the same instance orphans its rows, still a bound; `autonomy-rules.test.ts` holds the unknown cases.
+2. **The workspace in the store's key:** rows are `<workspace>/<row id>`, and an old-shaped row is never read nor merged into (test: two workspaces in one store; a row without the key).
+3. **D154's team-listed rule:** one function, `late/owners.ts`'s `teamListed`, now asks for `audience: 'team'`; `project-create` and `project-update { access }` had the same defect (a person's own instance listing a slug made it an owner's) and use it too (tests: a person's mount beside a team's).
+4. **The copilot's hand-off:** the copilot's gate lets a write whose own handler refuses every agent through (`Settings.refusesAgent`: `autonomy-set`, and `setting-*` of a shared value or a human key), so it answers `HUMAN_REQUIRED` with its `details`, never `AUTONOMY_UNAVAILABLE`; `autonomy-set` decides by `isHumanGesture` (`copilot/copilot.test.ts`, a scripted turn). A person-level write an agent may make for its person stays `AUTONOMY_UNAVAILABLE` until phase 5 enforces.
+5. **R4, the instance id `shell`:** the shell's commands come from the live registry, so a host's `KernelOptions.commands` are known; the shell's rows carry the identity `loam`; while an app holds the instance id `shell` (a mounted instance in a projection the deployment reader never saw can; the reader refuses the id since step 3, `DEPLOYMENT_INSTANCE_RESERVED`, and a native one cannot, `DEPLOYMENT_INSTANCE_MISMATCH`), no row or read names `shell` and its stored shell rows are orphaned, still bounds (tests: a host command; a mounted instance deployed as `shell`).
+6. **Removing an unknown target:** identifiers checked by syntax first (never `*`, `/` or a space), and a removal of a vanished target only for the row held, named exactly (tests).
+7. **The section in a large workspace:** `autonomy-list` pages; the section reads only its scope, a page at a time, "Show more rules" for the next (units: 600 rows over seven pages, the general row first; Chromium: a page of two).
+8. **R3, `tally-reset`:** removed from the shipped tally (back to `main`); `p4-base.seed.json` gives tally a `fixtureCommands` entry, a mutation that changes nothing, which `kernel/scenarios/apps.ts` adds to the manifest the runner serves, so the three autonomy jobs still run.
+9. **`writable` agrees with the write:** an archived project is `PROJECT_ARCHIVED` (test).
+10. **The cap's link:** `#cap` reveals and focuses the cap's control, or section 13's message (Chromium).
+11. **4.1's interface** shows `mode?` and `app?`; section 14 records the measurement.
+12. **"Add rule" when disabled** sends nothing, checked in its handler.
+13. **`autonomy-settle`'s JSON schema** has `maxItems` 10,000 and `maxLength` 512, as its Zod does.
+14. **Improvements from the re-check** (approved at `289193b1`): `autonomy-list` ends a page before its output budget as well as at `limit`, measured in UTF-8 bytes with 4,096 bytes left for the envelope and the cursor, and always holds a row; a row's `app` is shown cut to 256 characters, since a deployer's route is of unchecked length (the stored identity is whole). The section keeps the cap and the general controls when a page read fails, the failure beside them, controls disabled when nothing was read for the scope. Units: 150 rows with 128-character commands and 6,000-character routes page within the budget; Chromium: a failed read. R1's edge and the old-format rows are recorded in 4.2.
+15. **The budget,** re-measured after trimming the three commands' descriptions and their longest refusals (-471): `lateSettingsMinified` 43,500 to 45,500 (44,544), `settingsMinified` 40,000 to 41,000 (40,198); first paint 308,836 and 96,360 gzip; `late` 83,989 of 84,000.
+
+**Verified after the trust review,** 2026-11-19, same machine: `test --coverage` for the kernel (51 files, 1,059 tests), chrome (17 files, 241), `web`'s units (11 files, 53) and tally (2); the Loam typecheck; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and five Chromium files, 32 tests (`autonomy` 5, `settings`, `apps/second-app`, `budget`, `accessibility`). Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
+
+## Step 10, 2026-11-19
+
+Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
+
+**Built.**
+
+- **The limits object** (`kernel/src/limits.ts`, first paint): the five values with section 11's defaults, enforced from boot whether or not `late-settings` ever reads the workspace's (fail closed); each instance's refusals in the last hour, on the call's clock; the owners' notice seam `KernelLimits.notify`, told the first refusal of an instance in an hour; and the journal sink's bound, on the whole entry after the redaction: one over `journalEntryBytes` is kept with its input `{}`, its result's data and tape dropped (a failure keeps its code and the first 1,000 characters of its message), marked `unreplayable: true` with its `bytes`, and counted against the calling instance, else the command's owner.
+- **The port** (`apps/port.ts`, `apps/call-rate.ts`): before every check of phase 1's 5.3, the instance's call rate (a token bucket of `callsPerSecond` with a burst of 200, its check and its count one step) and then its input over `inputBytes` of JSON, each refused through the internal `app-limit-refuse`, journaled and counted: `RATE_LIMITED` with `details: { limit, retryAfterMs }`, retryable, and `INPUT_TOO_LARGE` with `details: { limit }`, each suggestion naming the key an owner sets. Every path of an app's call counts: the chrome's port, a surface's and a handler's nested client.
+- **The view broker** (`apps/view-broker.ts`): a `tools/call` or `resources/read` over `messageBytes` of JSON is dropped before anything reads it, and the frame is told `INPUT_TOO_LARGE` with `details: { limit }`; counted, not journaled, since nothing runs.
+- **The `store` grant** (`apps/store.ts`): one quota per apps runtime, shared by every store of an instance; each write and delete runs after the instance's last one, its check, its record and its count one store batch. A write that grows past `storeBytes` rejects `QUOTA_EXCEEDED` with `details: { kind: 'store', limit, used }`; a smaller write or a delete always lands. The count is the `store-usage` table, a row per workspace and instance (`<workspace>/<instance>`, #1614's lesson), of the UTF-8 bytes of each record's `{ key, value }` as JSON; a missing row is counted from the table. Boot's journaled `store-usage-settle` (`BOOT_ONLY`) writes the count afresh for each instance whose row differs, after stage B's apply, never in a replay.
+- **The section** (`late/setting-sections.ts`): `loam.limits`, workspace only, in the tree after Notifications; the quarter rule as the section's `relate`, checked on `setting-set` and on `setting-reset` (a reset that would break it is refused too): `VALIDATION_ERROR` with `details: { field: 'value' }` and the suggestion "Lower inputBytes before journalEntryBytes; raise journalEntryBytes before inputBytes". The workspace's values are read into the kernel's at the late load and after each write of the section; a read that fails leaves the defaults.
+- **`limit-usage-get`** (`late/limit-commands.ts`): a query of the `setting` category, so no port and no MCP client reaches it; refused in its own handler, `CALL_NOT_GRANTED` for a port, `HUMAN_REQUIRED` for anything but a human gesture (the copilot reaches the hand-off, `refusesAgent`), then `OWNER_REQUIRED`. It answers every deployed instance, ordered by id, or the one named, with `storeBytes: { used, limit }` and each limit's refusals in the hour. `limit` joins the shell's domains (`SHELL_DOMAINS_V1`).
+- **A-P2-3:** the document middleware's bound, and `document-import`'s envelope's, is `inputBytes`.
+- **Replay** (`replayKernel`): the entries before the first `unreplayable` one replay as before, then `REPLAY_ENTRY_TRUNCATED` with `details: { seq, command }` and the suggestion to replay up to the seq before it.
+- **The chrome** (`chrome/src/settings/limits-words.ts`): beside each key of the Limits section, the apps it refused in the hour, most first, and for `storeBytes` the three that store the most; for a member, why it is not shown. Each line is part of its field's description.
+
+**Decided while building it,** each a judgement a reviewer should check:
+
+- **Where the message bound sits:** the view broker, the kernel's boundary for a view (D54), measures a request's parameters; the chrome's channel is not changed, since a message is cloned before any code can measure it.
+- **What counts against the rate:** every call an app makes, refused or not, nested ones included; a replay takes nothing, since its refusals are its journal's entries. The rate and the counts are the page's memory, reset by a reload, as step 3's push rate is.
+- **The hand-off's `details`** for `limit-usage-get` are `{ route, section, level }`, with no `key`, since the read names none.
+- **The document bound keeps its code,** `DOCUMENT_CONTENT_TOO_LARGE`, for a person's or an agent's call (phase 2's exit tests); an app's own call meets the port's `INPUT_TOO_LARGE` at the same bound first. Amended in phase 2's 4.4 (A-P2-3).
+- **A stored value is its JSON form:** the grant stores what it counted, so a `Date` reads back as its string, and a value with none (a cycle, a `BigInt`) is refused with a `TypeError`.
+- **Refreshing the values:** at the late load and after this page's own writes of the section; another tab's write applies here at the next reload. Values that no longer validate read as defaults, and a stored pair breaking the quarter rule enforces `inputBytes` as a quarter of `journalEntryBytes`, never more.
+- **A hosted `provider` deployment** refuses the section's writes with step 1's `SHARED_RECORD_UNAVAILABLE`, and the defaults enforce (unit).
+- **The job `limit-refuses-call`** asserts `notification-push`'s fixed rate of 10 a minute and `notification-list`, step 5's commands, not section 11's limits: the runner's table names step 5 for it, and step 10's own refusals are P4-E10's units and Chromium.
+
+**Left for later steps:**
+
+- **Step 5:** the owners' notice through `KernelLimits.notify`, and the job `limit-refuses-call` (*both done by this step* once step 5 merged; below).
+- **Step 1's `setting` table key** (the step 8 follow-up): `loam.limits`'s row is `loam.limits/workspace`, filtered by its `workspace` field on read, as every shared row is until that follow-up keys them by workspace.
+- **#710, re-scoped:** section 11 answers a bound per message, input, call rate, store and whole entry. What stays deferred, by name: the journal's total and origin budget, retention, and the browser's `QuotaExceededError` (the store adapter's own failure when the origin is full).
+
+**Measured.** D115, on Windows with Node 26.13.1, against `main` at `254249c3` built on the same machine: first paint 310,360 and 97,076 gzip (+1,232 and +615: the limits object and the journal's bound, which must hold when no late chunk loads; the call rate and the hour's counting were moved out of first paint first, -314), `jsMinified` raised from 309,500 to 310,600 and `jsGzip` from 96,500 to 97,200 with `first-paint.test.ts`'s literal; `kernelMinified` 119,500 to 121,000 (120,771); `lateMinified` 94,000 to 95,200 (94,953, +1,709); `lateSettingsMinified` 45,500 to 51,000 (50,583, +5,795, section 14's row); `appsMinified` 417,500 to 420,500 (420,251, +2,881, of which 25 the schema's reserved `limit`); `settingsMinified` 41,000 to 42,200 (41,946, +1,371). `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1, at `5ea3aea2`: `test --coverage` for the kernel (56 files, 1,124 tests), chrome (19 files, 249), the manifest (15 files, 1,103), `web`'s units (11 files, 53), the SDK (30), `loam-host` (211), `loam-testing` (15) and the apps (hello 8, tally 2, notes 9, checklist 10, tasks 4); the typecheck of every Loam package and app; `lint:tokens` (the theme, chrome, the console and the five apps); `node --test scripts/plugin-manifest.test.mjs` (48); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and nine Chromium files, 92 tests: `limits` (4, new: the section and its usage, hello's refusals over `inputBytes` and the rate, the quarter rule, the agent's hand-off, axe in three themes), `settings`, `autonomy`, `scope/first-paint`, `budget`, `apps/view`, `apps/second-app`, `apps/native` and `accessibility`. **Not run:** `pnpm verify`, whose plan holds the whole `test:browser` (its script builds the Specimen host with Cargo), `test:walk`, `test:mounted`, `test:hosted` and the desktop's Cargo gates, none of which this machine runs; `loam.yml` is CI's.
+
+**After the trust review,** 2026-11-19: two reviews of `2d8aee91` (one "revise" with 2 blockers, one "revise" with 11) and the coordinator's rulings. The rulings on the step's two questions: the job `limit-refuses-call` stays with step 5; a stored value is its JSON form, accepted by both reviewers. And four new rulings, each built:
+
+- **R1, workspace keying (closes #1614):** step 1's shared `setting` rows are keyed `<workspace>/<section>/…` (3.4, amended); `store-usage` rows already were; the quota counts and refunds only rows its workspace wrote, or a phase 1 row with none. A store's record id has no workspace part (phase 2's D77: one workspace per deployment), so a row another workspace wrote in the same browser's `app-<instance>` table is neither charged nor refunded here.
+- **R2, values with no JSON form are over every limit:** the frame gate, the view broker and the port refuse one (`VALIDATION_ERROR` with a suggestion, journaled and counted under the limit it met); the journal bound keeps such an entry truncated; the store refuses one, `undefined` itself included, with `VALIDATION_ERROR` before any charge. The port measures and dispatches one detached JSON copy of the input.
+- **R3, hosted:** a hosted `provider` deployment, or one whose host is not known yet, enforces the defaults and never reads a stored `loam.limits` row; the values are read again once stage B knows the host.
+- **R4, journal growth from refusals:** recorded in section 11 rather than folded, since folding would break a nested refusal's replay.
+
+The blockers, and what each became:
+
+1. **`messageBytes` over the whole frame boundary:** the chrome's channel calls the kernel's `admit` (`FrameAdmitV1`, `apps/limit-guard.ts`) on every message from a view's frame and from a handler frame, before any dispatch, log, read or reply handling: a refused request is answered with the refusal, a refused reply fails its request, a refused notification is dropped. `ViewBrokerV1.admit` and `KernelPortsV1.openHandlerFrame`'s third argument carry it. What stays outside is in section 11.
+2. **Hosted:** R3; a unit starts a hosted `provider` kernel on a store a local deployment left a lower `inputBytes` in, and it enforces the default.
+3. **Documents charge the store:** `document-create` charges its template's content to the type's instance in the same batch as the record and the content (`StoreQuota.charge`), refusing `QUOTA_EXCEEDED` with nothing written; expiry refunds what each content row was charged (it reads the row's `bytes`, never the content's meaning); each record keeps the `bytes` it was charged, so an overwrite or a delete subtracts that alone. Phase 2's P2-D4 "never reads a document's content but to move it" now allows the quota's one count of the table when it has no usage row (amended, listed against P4-E14).
+4. **No refund for a non-JSON overwrite:** R2; each write sends the record whole with its `bytes`, so a store that merges a PUT into the row keeps nothing of the old charge (MemoryAdapter and IndexedDB units).
+5. **Workspace boundaries:** R1; a unit runs two workspaces on one store: settings rows, limits and usage never cross, and a row in the old shape is neither read nor overwritten.
+6. **The journal bound:** every kept field is bounded (`error.code` to 128 characters, the message to 1,000, names, the actor), the size is checked again after truncation, falling back to fewer fields, with 256 bytes left for the sink's `seq`; no entry is kept over `journalEntryBytes`.
+7. **The port's input:** measured and dispatched as one value (R2).
+8. **The rate across broker and port:** a `tools/call` refused before the port (at the gate, by the broker or by the handler frame) takes its place in the rate there; one the port takes is charged at the port; so each is charged once. At most 4 `resources/read` are in flight per instance, the next refused `RATE_LIMITED` through `app-limit-refuse`.
+9. **`QUOTA_EXCEEDED` reaches callers:** a kernel refusal thrown into a native handler answers as that refusal, code and details; the channel's `rpcErrorOf` keeps a refusal's `details` (but `rpcCode`); the SDK's frame answers the shell's refusal of its own request as that refusal. Units: hello's shipped `hello-greet` over a full store, the SDK's handler frame, the channel.
+10. **Replay before any truncated entry:** the frame gate's refusal is journaled (`app-limit-refuse`, top level, the instance its caller), so `limit-usage-get` replays (hello's view, a unit); a nested call the rate refused is answered in a replay from its recorded `app-limit-refuse`, matched by the command it names, and counted as its handler counted it live. The nested test now runs its handler: on a clock that does not move, the outer call takes the last place and both nested calls are refused, and the session replays with no difference.
+11. **Refusal accounting:** per instance, 60 per-minute buckets of five counts, O(60) per refusal, with no upper cutoff; a separate last-notified time, so the seam hears an instance at most once an hour. **A reload may notify again,** since the time is the page's, as the counts are. A unit: 100,000 refusals in well under two seconds, counted.
+12. **Read-side fail closed:** units with a stored row over its bound, one not a whole number, a pair breaking the quarter rule (clamped), and a store whose read fails.
+
+The improvements:
+
+- **13:** stage B counts an instance's table only when it has no usage row, or its last count (`countedAt`) is a day old or from a later time; a unit boots three times and counts once.
+- **14:** two tabs writing one instance's store at once can each pass the check against the same row, so the quota can be exceeded by at most one write per other tab, and the row can lose one tab's change; the daily count corrects it. Recorded, not prevented: a lock across tabs is the collaboration service's.
+- **15, declined with a reason:** an entry over `journalEntryBytes` is counted against its caller when an app made the call, else against the command's owner: the owner's command accepted the input, and `limit-usage-get` reports instances, not people.
+- **16:** `measureJson` skips the encoding when the string's length alone decides (longer than the bound, or a third of it or shorter).
+- **17:** in section 11's notes above.
+
+Also: the handler frame's gate refusal of a nested `tools/call` is journaled top level, as the instance, since the frame's message is refused before the call it would make exists; a replay that runs the handler natively makes that nested call and reports it unrecorded. Recorded, not changed: the frame must send over 1 MiB in one message for it. **A second edge, the same way:** a handler frame's reply over `messageBytes` fails the call live, while a replay that runs the handler natively, with no frame, succeeds and reports the difference.
+
+**After the re-check** of `4b52e595` (every code fix confirmed; one documentation and test blocker):
+
+- **P2-D4's amendment** is listed against P4-E14, naming both counts that list an instance's table (no usage row; the daily recount) and expiry's read of each row's charge; phase 2's spec notes it beside the test's rule; the test allows at most one `app-probe` list.
+- **3.4:** old-shape shared settings are not migrated; an owner sets them again, and a lowered `loam.limits` reads as its defaults until then.
+- **A provider boot with a loader:** a unit holds that no stored `loam.limits` row is read while the host is unknown, and that it is read once stage B learns a static host, and never for a hosted one.
+- **The frame host's gate:** a unit holds that `createFrameHost` passes its gate as `openHandlerFrame`'s third argument, with a refused notification and a refused request, each journaled for the instance; another that `webPorts` forwards it to the view chunk.
+- **Expiry's refund** after the delete has landed is caught and reported, never failing the expiry; the daily recount corrects the count.
+- **Reads in flight** answer `-32602` and are counted under `callsPerSecond` (section 11).
+- **The second replay edge** above.
+
+**Measured after the review,** against the step's figures above: first paint 311,543 and 97,564 gzip (+1,183 and +488), `jsMinified` 310,600 to 311,800 and `jsGzip` 97,200 to 97,800 with `first-paint.test.ts`'s literal; `kernelMinified` 121,000 to 122,600 (122,351); `lateMinified` 95,200 to 95,800 (95,556); `appsMinified` 420,500 to 423,000 (422,704); `viewMinified` 26,100 to 26,600 (26,498); the rest within their rows. `budget.mjs` records each.
+
+**Verified after the review,** 2026-11-19, same machine: `test --coverage` for the kernel (56 files, 1,147 tests), chrome (20 files, 252), the SDK (31), `web`'s units (53), the manifest (1,103), `loam-testing` (15), `loam-host` (211) and the apps (hello 10, tally 2, notes 9, checklist 10, tasks 4); the typecheck of every Loam package and app; `lint:tokens`; `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and sixteen Chromium files, 229 tests: `limits`, `settings`, `autonomy`, `scope/first-paint`, `budget`, `apps/view`, `apps/second-app`, `apps/native`, `apps/refusal`, `apps/overlays`, `accessibility` and the `documents` folder. `apps/view`'s "cannot lose a journal entry with a value JSON cannot hold" failed once on the gate's first JSON-RPC code, `-32600`; the gate answers `-32602`, invalid params, as the broker did, and it passes. **Not run:** `pnpm verify` and the Cargo-gated suites, the coordinator's.
+
+**Merged with steps 4 and 5** (`main` at `cb4d5dff`), 2026-11-19, as merge `d4a3c0de`, keeping both sides: step 5's inbox and settings code beside R1's keying in `late/settings.ts`, step 4's `overlay-global-set` beside `app-limit-refuse` in the internal commands, the view broker's and `ViewBrokerV1`'s additions together. Then:
+
+- **The owners' notice:** `KernelLimits.notify` runs boot's journaled `limit-notice-push` (`BOOT_ONLY`) after the call that met an instance's first refusal in an hour, and its handler pushes step 5's `shellNotice` to the person the shell is for, every person an owner in `local` mode, as the orphan notice does; in `provider` mode none, until the owner roster is a server record. Never in a replay, whose entry holds it, so a replay pushes the same notice once. A unit: two apps refused, one notice each, a second refusal in the hour none, the session replays with no difference; none in `provider` mode.
+- **The job `limit-refuses-call`** runs and passes in `kernel/src/scenarios.test.ts`. Its last step is amended: hello read its own inbox with `notification-list`, which 10.2 gives no app (`CALL_NOT_GRANTED`), so the person reads it and finds the ten.
+- **Measured on the combined build,** under D115: first paint 312,548 and 97,875 gzip, `jsMinified` to 312,800 and `jsGzip` to 98,000 with `first-paint.test.ts`'s literal; `lateMinified` to 109,500 (109,143); `lateSettingsMinified` to 67,500 (67,013); `appsMinified` to 424,000 (423,710); `viewMinified` to 26,800 (26,691). With the notice: `lateMinified` to 109,800 (109,503, +360) and `lateSettingsMinified` to 68,000 (67,841, +828); first paint 312,568 and 97,885 gzip. `budget.mjs` records each.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1576,3 +1925,15 @@ Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` f
 | 2026-11-18 | Step 2's re-check | The settings section's panel read and `show()` share one read counter, so a panel re-read during a scope change's `show()` can leave the tree and level tabs naming the old project (labels only; writes stay bound to the shown scope) | Open |
 | 2026-11-18 | Step 2's re-check | `#hashHeard` may answer the shell's own `#key` writes with a duplicate, journaled `section-open`; compare the route's path rather than the key | Open |
 | 2026-11-18 | Step 2's re-check | A Chromium case for the chrome's key-by-key fallback on an oversized section (the kernel half is tested) | Open |
+| 2026-11-19 | Step 8 | Wire the orphan notice to the owners who may enter an orphaned row's project through `AutonomyDeps.orphaned` | Done 2026-11-19 by step 5, merged with step 8, in `local` mode |
+| 2026-11-19 | Step 5's wiring of step 8's orphans (the coordinator's ruling) | The orphan notice in `provider` mode, to the owners who may enter the row's project, once the owner roster is a server record and journaled with the settle (phase 5's shell commands over MCP) | Open; phase 5 |
+| 2026-11-19 | Step 8 | Flag a mounted instance's command rows when its catalog drops a command: `autonomy-settle` runs at stage B's apply, before any catalog is read, so only a gone instance orphans them | Done 2026-11-19, after the trust review: the settle runs after each catalog install |
+| 2026-11-19 | Step 8 | The autonomy section's new-rule form lists the apps only; a rule for one of the shell's own commands is set with `autonomy-set` | Open |
+| 2026-11-19 | Step 8 | A Chromium case for the cap's message on a real hosted `provider` projection (the step's case stubs `autonomy-list`'s answer; the kernel's unit holds the rule) | Open |
+| 2026-11-19 | Step 8's trust review | Step 1's `setting` table keys a shared row by `<section>/workspace` alone, as autonomy's did: a second workspace's first write in one browser's store would replace the first's row. Key it by workspace as autonomy's now are | Done 2026-11-19 by step 10's R1 (3.4, amended; #1614) |
+| 2026-11-19 | Step 5's reviews (R1) | Per-source shares of the 500: one app or the agent interface can still fill the room the others' notices need | Open |
+| 2026-11-19 | Step 5's reviews (R3) | The revoked session's notice: the provider gives a reason on a refused session, so the kernel tells a revocation from a sign-out in another tab and notices it in the person's inbox | Open; with the provider |
+| 2026-11-19 | Step 5's verification (R2 amended) | A shared, age-ordered cap with virtual capping, and a hidden toast's timer and `user` close simulated as a shown one's are, if mute privacy needs to hold against others' activity and the person's own handling of toasts | Open |
+| 2026-11-19 | Step 5's verification of `0e2fba70` | Journal an agent's or an app's `notification-list` (a per-caller filter leaving out only the shell's own read), since `body: true` returns notice bodies and a pending confirmation's input | Open |
+| 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Done 2026-11-19, after merging step 5: `limit-notice-push` |
+| 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |

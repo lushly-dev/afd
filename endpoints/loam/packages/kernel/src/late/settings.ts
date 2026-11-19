@@ -22,15 +22,18 @@ import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { KernelLimits, LimitKeyV1 } from '../limits.js';
 import type { createPaletteIndex, PaletteIndex, PaletteItem } from '../palette-index.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ProjectV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { DocumentKit } from './document-kit.js';
+import { enforcedLimits, LIMIT_KEY_ORDER, LIMITS_SECTION_ID } from './limit-commands.js';
 import {
 	checkKnownValue,
 	isHumanGesture,
+	isHumanKey,
 	type KnownSectionV1,
 	type ResolvedSettingV1,
 	resolveSetting,
@@ -44,6 +47,10 @@ import {
 import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
 import type { SettingRows } from './shell-commands.js';
 
+export { createAutonomy } from './autonomy.js';
+export { resolveAutonomy } from './autonomy-rules.js';
+export { createLimitCommands, limitNotice } from './limit-commands.js';
+export { createNotifications, orphanNotice, orphanRecipients } from './notifications.js';
 export {
 	HUMAN_SETTING_KEYS,
 	isHumanGesture,
@@ -85,7 +92,11 @@ export const SETTING_OUTPUT_BUDGETS: Readonly<
 /** The UTF-8 bytes of a value's JSON, as an output budget counts them. */
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-/** A shared row of the `setting` table (3.4): `<section>/workspace` or `<section>/project/<project id>`. */
+/**
+ * A shared row of the `setting` table (3.4): `<workspace>/<section>/workspace` or `<workspace>/<section>/project/<project
+ * id>`, keyed by workspace since phase 4's step 10 (R1, #1614), so two workspaces in one browser's store never share a
+ * row; one keyed without its workspace is never read, and never written over.
+ */
 export interface SettingRowV1 {
 	id: string;
 	workspace: string;
@@ -142,6 +153,8 @@ export interface SettingsDeps {
 	trashDays(days: number, context: CommandContext, also: BatchOperation[]): Promise<void>;
 	/** The palette's index, given by `late/` so this chunk imports no module first paint may hold (13). */
 	paletteIndex: typeof createPaletteIndex;
+	/** The limits the kernel enforces, which `loam.limits` sets once read (section 11); absent, nothing is set. */
+	limits?: KernelLimits;
 	kit: SettingsKit;
 }
 
@@ -167,10 +180,47 @@ export interface Settings {
 	/** The person's own rail order, `loam.rail.order`, for the call (3.7; R8): instance ids, first to last. */
 	railOrder(context: CommandContext): Promise<readonly string[]>;
 	/**
+	 * The call's person's `loam.notifications` (3.7): which toasts also land in the inbox, and the apps whose notices are
+	 * kept quiet. Read from the store at each call; a value that does not read is its default.
+	 */
+	notificationPrefs(context: CommandContext): Promise<NotificationPrefsV1>;
+	/**
 	 * `section-open { section: 'settings', target }`'s place (3.5, 3.10): `target` is `<section>` or `<section>.<key>`, a
 	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
 	 */
 	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
+	/**
+	 * A key of the person's own record that only its own command writes, as `loam.autonomy.cap` (4.1): read from the
+	 * store at each call, and written one at a time with the `setting-*` writes, so neither loses the other's.
+	 */
+	/**
+	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (3.2, F2):
+	 * `autonomy-set` at every level, and `setting-set` or `setting-reset` of a shared value or a human key. The copilot's
+	 * gate lets these through, so they answer `HUMAN_REQUIRED` from their handlers.
+	 */
+	refusesAgent(name: string, input: unknown): boolean;
+	/**
+	 * Read the workspace's `loam.limits` into the kernel's limits (section 11): at the late load and after each write of
+	 * the section. A read that fails leaves what the kernel enforces, the defaults from boot or the last values read.
+	 */
+	readLimits(): Promise<void>;
+	ownValue(
+		section: string,
+		key: string,
+		context: CommandContext
+	): Promise<StoredSettingV1 | undefined>;
+	writeOwn(
+		section: string,
+		key: string,
+		entry: StoredSettingV1 | undefined,
+		context: CommandContext
+	): Promise<StoredSettingV1 | undefined>;
+}
+
+/** The person's `loam.notifications` (3.7), as the inbox reads it. */
+export interface NotificationPrefsV1 {
+	toastSticky: 'never' | 'danger' | 'always';
+	muted: readonly string[];
 }
 
 const LEVELS = ['person', 'workspace', 'project'] as const;
@@ -229,7 +279,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 	}
 
 	const rowId = (fullId: string, level: 'workspace' | 'project', project?: string) =>
-		level === 'workspace' ? `${fullId}/workspace` : `${fullId}/project/${project}`;
+		level === 'workspace'
+			? `${scope.workspace.id}/${fullId}/workspace`
+			: `${scope.workspace.id}/${fullId}/project/${project}`;
 
 	async function readRow(id: string): Promise<SettingRowV1 | undefined> {
 		const row = await store.get<SettingRowV1>(SETTING_TABLE, id).catch(() => null);
@@ -559,9 +611,66 @@ export function createSettings(deps: SettingsDeps): Settings {
 		return previous;
 	}
 
-	/** What follows a write: appearance applied, and the event's sections (3.6, 3.8). */
+	/**
+	 * Why the section's values as a write would leave them at `level` break a rule between its keys (section 11's quarter
+	 * rule), or undefined: `VALIDATION_ERROR`, whose suggestion names the order to write them in.
+	 */
+	async function relationRefusal(
+		known: KnownSectionV1,
+		key: string,
+		next: unknown,
+		level: SettingLevelV1,
+		context: CommandContext
+	): Promise<CommandResult<never> | undefined> {
+		if (!known.relate) return undefined;
+		const inProject = (context as KernelFieldContext).scope?.project !== undefined;
+		const values: Record<string, unknown> = {};
+		for (const name of Object.keys(known.section.schema.properties)) {
+			values[name] =
+				name === key
+					? next
+					: resolveFrom(known, name, await storedFor(known, name, context), inProject, level).value;
+		}
+		const wrong = known.relate(values);
+		return wrong
+			? fail(
+					'VALIDATION_ERROR',
+					`The value of '${known.fullId}.${key}' ${wrong.problem}`,
+					wrong.suggestion,
+					{ field: 'value' }
+				)
+			: undefined;
+	}
+
+	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
+	async function readLimits(): Promise<void> {
+		if (!deps.limits) return;
+		// A hosted `provider` deployment, or one whose host is not known yet, enforces the defaults alone: it keeps no
+		// shared record (section 13), so a row a local deployment left in this store is never read (the trust review's R3).
+
+		const known = SHELL_SECTIONS.find(
+			(entry) => entry.fullId === LIMITS_SECTION_ID
+		) as KnownSectionV1;
+		// `readRow` answers undefined for a read that fails, so the defaults hold: never no limit at all.
+		const row = deps.hosted() ? undefined : await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
+		const resolved = {} as Record<LimitKeyV1, number>;
+		for (const key of LIMIT_KEY_ORDER) {
+			const stored = storedOf(row?.values[key]);
+			resolved[key] = resolveFrom(
+				known,
+				key,
+				stored ? { workspace: stored } : {},
+				false,
+				'workspace'
+			).value as number;
+		}
+		deps.limits.set(enforcedLimits(resolved));
+	}
+
+	/** What follows a write: appearance applied, the limits read again, and the event's sections (3.6, 3.8, 11). */
 	async function afterWrite(known: KnownSectionV1, _key: string, context: CommandContext) {
 		if (known.fullId === 'loam.appearance') await applyAppearance();
+		if (known.fullId === LIMITS_SECTION_ID) await readLimits();
 		scope.note(context.traceId, { settings: [known.fullId] });
 	}
 
@@ -947,6 +1056,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 					{ field: 'value' }
 				);
 			}
+			const related = await relationRefusal(known, input.key, input.value, input.level, context);
+			if (related) return related;
 			const inProject = (context as KernelFieldContext).scope?.project !== undefined;
 			const before = await storedFor(known, input.key, context);
 			if (input.expected !== undefined) {
@@ -1029,6 +1140,16 @@ export function createSettings(deps: SettingsDeps): Settings {
 					const shown = resolveFrom(known, input.key, before, inProject, input.level).value;
 					if (!sameValue(shown, input.expected)) return conflict(shown, input.expected);
 				}
+				// What the level shows once its own value is gone, against the rules between the keys (section 11).
+				const { [input.level]: _cleared, ...rest } = before;
+				const related = await relationRefusal(
+					known,
+					input.key,
+					resolveFrom(known, input.key, rest, inProject, input.level).value,
+					input.level,
+					context
+				);
+				if (related) return related;
 				const previous = await store1(known, input.key, input.level, undefined, context);
 				if (previous) await afterWrite(known, input.key, context);
 				const after = await storedFor(known, input.key, context);
@@ -1178,6 +1299,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 	};
 
 	function target(to: string, context: CommandContext): { path: string } | CommandResult<never> {
+		// The autonomy section (4.5), whose own commands write it: its route, and the cap's key (3.2's hand-off).
+		if (to === 'loam.autonomy' || to === 'loam.autonomy.cap')
+			return { path: to === 'loam.autonomy' ? to : 'loam.autonomy/cap' };
 		const known = sections().find(
 			(entry) => to === entry.fullId || to.startsWith(`${entry.fullId}.`)
 		);
@@ -1210,7 +1334,50 @@ export function createSettings(deps: SettingsDeps): Settings {
 			);
 			return Array.isArray(value) ? (value as string[]) : [];
 		},
+		async notificationPrefs(context) {
+			const known = SHELL_SECTIONS.find(
+				(entry) => entry.fullId === 'loam.notifications'
+			) as KnownSectionV1;
+			const read = async (key: string) =>
+				resolveFrom(known, key, await storedFor(known, key, context), false).value;
+			const sticky = await read('toastSticky');
+			const muted = await read('muted');
+			return {
+				toastSticky: sticky === 'never' || sticky === 'always' ? sticky : 'danger',
+				muted: Array.isArray(muted) ? muted.filter((id) => typeof id === 'string') : [],
+			};
+		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
+		readLimits,
+		refusesAgent(name, input) {
+			if (name === 'autonomy-set' || name === 'limit-usage-get') return true;
+			if (name !== 'setting-set' && name !== 'setting-reset') return false;
+			const asked =
+				typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+			if (asked.level === 'workspace' || asked.level === 'project') return true;
+			return (
+				asked.level === 'person' &&
+				typeof asked.section === 'string' &&
+				typeof asked.key === 'string' &&
+				isHumanKey(asked.section, asked.key)
+			);
+		},
+		async ownValue(section, key, context) {
+			return storedOf((await readRecord(deps.recordId(personKeyOf(context))))[section]?.[key]);
+		},
+		writeOwn: (section, key, entry, context) =>
+			serial(async () => {
+				const id = deps.recordId(personKeyOf(context));
+				const record = await readRecord(id);
+				const held = record[section] ?? {};
+				const previous = storedOf(held[key]);
+				if (entry) held[key] = entry;
+				else delete held[key];
+				if (Object.keys(held).length === 0) delete record[section];
+				else record[section] = held;
+				await writeRecord(id, record, kit.callNow(context));
+				return previous;
+			}),
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);

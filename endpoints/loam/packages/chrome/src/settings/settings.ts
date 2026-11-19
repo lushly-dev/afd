@@ -10,12 +10,18 @@
  *   (`editors.ts`) for the shell's keys the form cannot show.
  *
  * Every read and write is a command: `setting-schema-get`, `setting-list`, `setting-set` with `expected`, and
- * `setting-reset`. No app code runs here: an app's section is its manifest's schema, rendered by the shell.
+ * `setting-reset`; the Limits section's usage beside each key is `limit-usage-get` (section 11). No app code runs here:
+ * an app's section is its manifest's schema, rendered by the shell.
  */
 
 import type { AppSummaryV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { type SettingKeySchema, settingField } from '../forms/setting-field.js';
+import {
+	AUTONOMY_SECTION_ELEMENT,
+	defineAutonomySection,
+	type LoamAutonomySection,
+} from './autonomy.js';
 import {
 	CUSTOM_EDITORS,
 	defineEditors,
@@ -23,6 +29,13 @@ import {
 	type LoamKeybindingEditor,
 	type LoamRailOrderEditor,
 } from './editors.js';
+import {
+	LIMIT_KEYS,
+	type LimitKey,
+	type LimitUsageRow,
+	usageLine,
+	usageUnavailable,
+} from './limits-words.js';
 import { button, dateText, el, SettingsElement } from './parts.js';
 
 type Level = 'person' | 'workspace' | 'project';
@@ -66,6 +79,27 @@ interface ValueRow {
 }
 
 const LEVEL_ORDER: readonly Level[] = ['person', 'workspace', 'project'];
+
+/**
+ * The autonomy section (4.5), the shell's, after Keybindings as 3.5 orders the tree: its own commands write it, so it
+ * is no section `setting-schema-get` lists, and its panel is `loam-autonomy-section`, not fields.
+ */
+const AUTONOMY: SectionOutline = {
+	section: 'loam.autonomy',
+	title: 'Autonomy',
+	description: 'How far agents act on their own for you: act, ask first, or only suggest.',
+	levels: [],
+	keys: [],
+};
+
+/** The Limits section (3.7, section 11), whose fields show what each app uses of them. */
+const LIMITS = 'loam.limits';
+
+/** What the panel's fields are given besides their rows: the keybinding editor's commands, the Limits' usage. */
+interface PanelExtra {
+	commands: Array<{ name: string; title?: string }>;
+	usage?: Partial<Record<string, string>>;
+}
 
 /** Where a value comes from, in words (3.5). */
 const FROM_WORDS: Record<ValueRow['from'], string> = {
@@ -119,6 +153,8 @@ export class LoamSettingsSection extends SettingsElement {
 	 * control left from before a change of scope writes where it shows, never in the new scope.
 	 */
 	#current = new Map<string, { row: ValueRow; level: Level; scope: PanelScope }>();
+	/** Whether the route's key is still to be given to the autonomy section, once per navigation (`#cap`). */
+	#targetPending = false;
 	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5). */
 	#hashHeard = () => {
 		const key = decodeURIComponent(location.hash.slice(1));
@@ -212,18 +248,28 @@ export class LoamSettingsSection extends SettingsElement {
 			this.#panel?.replaceChildren(el('p', {}, failed(answer)));
 		};
 		if (!read.success || !read.data) return failedRead(read);
-		this.#sections = read.data.sections;
+		this.#sections = [...read.data.sections];
+		const keybindings = this.#sections.findIndex(
+			(section) => section.section === 'loam.keybindings'
+		);
+		this.#sections.splice(keybindings + 1, 0, AUTONOMY);
 		const [id = '', key] = path.split('/');
 		const outline = this.#sections.find((section) => section.section === id) ?? this.#sections[0];
 		const target = outline?.section === id ? key : undefined;
 		if (id !== '' && outline?.section !== id) {
 			this.#say(`There is no section ${id} here. Showing ${outline?.title ?? 'none'}.`);
 		}
-		const selected = outline ? await this.#schemaOf(outline) : undefined;
+		const selected =
+			outline === AUTONOMY
+				? { ...AUTONOMY, schema: { properties: {} } }
+				: outline
+					? await this.#schemaOf(outline)
+					: undefined;
 		if (generation !== this.#reads) return;
 		if (selected && 'success' in selected) return failedRead(selected);
 		this.#selected = selected;
 		this.#target = target;
+		this.#targetPending = target !== undefined;
 		// A key named by the link chooses the level: the narrowest its own levels allow here (3.5).
 		const levels = outline?.keys.find((each) => each.key === target)?.levels;
 		if (levels) this.level = this.#narrowest(levels) ?? null;
@@ -424,6 +470,15 @@ export class LoamSettingsSection extends SettingsElement {
 			header.replaceChildren(el('p', { class: 'note' }, 'No settings to show.'));
 			return;
 		}
+		if (section.section === AUTONOMY.section) {
+			// Its levels are its own panel's parts, so no switcher.
+			header.replaceChildren(
+				el('h2', { id: 'settings-section-title' }, section.title),
+				el('p', { class: 'note' }, section.description as string)
+			);
+			this.#panel?.setAttribute('aria-labelledby', 'settings-section-title');
+			return;
+		}
 		const levels = this.levels;
 		const shown = this.shownLevel;
 		const names: Record<Level, string> = {
@@ -503,6 +558,24 @@ export class LoamSettingsSection extends SettingsElement {
 		const section = this.#selected;
 		const level = this.shownLevel;
 		if (!kernel || !panel) return;
+		if (section?.section === AUTONOMY.section) {
+			defineAutonomySection();
+			const held = panel.querySelector<LoamAutonomySection>(AUTONOMY_SECTION_ELEMENT);
+			const shown =
+				held ?? (document.createElement(AUTONOMY_SECTION_ELEMENT) as LoamAutonomySection);
+			shown.kernel = kernel;
+			shown.scope = this.scope;
+			shown.project = this.project;
+			shown.apps = this.apps.map(({ instance, title }) => ({ instance, title }));
+			if (this.#targetPending) {
+				this.#targetPending = false;
+				shown.target = this.#target;
+			}
+			if (!held) panel.replaceChildren(shown);
+			this.#current.clear();
+			await shown.read();
+			return;
+		}
 		if (!section || !level) {
 			panel.replaceChildren();
 			return;
@@ -564,10 +637,24 @@ export class LoamSettingsSection extends SettingsElement {
 		}
 	}
 
-	/** What the custom editors list: the apps, and for the keybinding editor the commands. */
-	async #editorData(
-		section: SectionSchema
-	): Promise<{ commands: Array<{ name: string; title?: string }> }> {
+	/**
+	 * What the fields are given besides their rows: for the keybinding editor the commands; for the Limits section the
+	 * words beside each key from `limit-usage-get`, or, when it is refused, why no usage is shown (section 11).
+	 */
+	async #editorData(section: SectionSchema): Promise<PanelExtra> {
+		if (section.section === LIMITS && this.kernel) {
+			const read = await this.#call<{ instances: LimitUsageRow[] }>('limit-usage-get', {});
+			const titles = new Map(this.apps.map((app) => [app.instance, app.title]));
+			const titleOf = (instance: string) => titles.get(instance) ?? instance;
+			const rows = read.data?.instances;
+			const usage: Partial<Record<string, string>> = {};
+			for (const key of LIMIT_KEYS) {
+				usage[key] = rows
+					? usageLine(key as LimitKey, rows, titleOf)
+					: usageUnavailable(read.error?.code);
+			}
+			return { commands: [], usage };
+		}
 		if (section.section !== 'loam.keybindings' || !this.kernel) return { commands: [] };
 		const found = await this.#call<{ items: Array<{ name: string; title?: string }> }>(
 			'palette-search',
@@ -608,12 +695,7 @@ export class LoamSettingsSection extends SettingsElement {
 		await this.#readPanel();
 	}
 
-	#field(
-		section: SectionSchema,
-		level: Level,
-		row: ValueRow,
-		extra: { commands: Array<{ name: string; title?: string }> }
-	): HTMLElement {
+	#field(section: SectionSchema, level: Level, row: ValueRow, extra: PanelExtra): HTMLElement {
 		const schema = section.schema.properties[row.key] as SettingKeySchema;
 		const title = schema.title;
 		const box = el('div', {
@@ -653,6 +735,11 @@ export class LoamSettingsSection extends SettingsElement {
 		} else {
 			const field = settingField(row.key, schema, row.value);
 			field.disabled = !row.writable;
+			// The usage beside a limit is part of its description (3.7).
+			if (extra.usage?.[row.key]) {
+				const described = field.control.getAttribute('aria-describedby') ?? '';
+				field.control.setAttribute('aria-describedby', `${described} usage-${row.key}`.trim());
+			}
 			field.control.addEventListener('change', () => {
 				const read = field.read();
 				if (!read.ok) {
@@ -678,8 +765,11 @@ export class LoamSettingsSection extends SettingsElement {
 			// Only a value set at this level can be reset here.
 			...(row.from !== level || !row.writable ? { 'aria-disabled': 'true' } : {}),
 		});
+		const usage = extra.usage?.[row.key];
 		box.append(
 			control,
+			// What each app uses of a limit, beside its key (3.7).
+			...(usage ? [el('p', { class: 'note usage', id: `usage-${row.key}` }, usage)] : []),
 			el(
 				'div',
 				{ class: 'row' },

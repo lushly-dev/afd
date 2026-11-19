@@ -29,6 +29,57 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### The lane works behind a merge queue, 2026-11-19
+
+Pull request #1627, for the merge-conflicts plan's item 5
+([#1598](https://github.com/lushly-dev/afd/issues/1598)). The owner will require GitHub's merge
+queue on `main`. A required queue answers the lane's `gh pr merge` by queueing the pull request
+and exiting 0, and the lane took that for a merge: it recorded the landing, removed the cell and
+deleted the queue ref while the pull request was still open.
+
+- The lane reads the pull request before and after asking (`merge_progress`, one GraphQL
+  read). Where its base has a queue it asks with `enqueuePullRequest` bound to the validated head,
+  never `gh pr merge`, which sets auto-merge there when a check has not finished. Merged: it
+  lands, as before. Queued: the entry waits at the front as `merge-queued` and is read again each
+  step until GitHub says `MERGED` or it left the queue.
+- A pull request out of the queue and still open a minute after it was first read so is ejected:
+  `ci-failed` (counted) when GitHub's reason is `failed_checks` or the required check failed on
+  the commit the queue built, `merge-failed` (excused) otherwise. A `Co-authored-by:` line in the
+  queue's squash is quoted, read from the removal event's `beforeCommit`, which is that squash
+  (read on #1621). GitHub logs a merge as a removal too, a second before the pull request reads
+  as merged: one whose reason is `merged` is never ejected, and still open five minutes on it
+  pauses the lane.
+- A read that fails after the request leaves the entry `merge-queued`, never `merging`, so the
+  same head is not asked for twice. A pull request found queued at a head the lane did not
+  validate pauses the lane. Auto-merge set by someone else changes nothing until the lane asks.
+- While queued: GitHub locks the branch, so nothing is pushed and the base is not followed (the
+  queue checks what lands); nothing behind it is pushed; the wait is bounded by
+  `lane.checkTimeoutMinutes`; `lane-drop` and `lane-enqueue` refuse `MERGE_QUEUED`; a restart
+  resumes the wait.
+- The lane authors its merges of the base as the branch's own author, the author of its newest
+  commit that is not a merge (it still commits them as `botcore-factory <factory@localhost>`),
+  with `--author`, so neither `GIT_AUTHOR_*` nor the host's git configuration decides it. A
+  branch that already holds a merge an older lane authored is still ejected for it: its cell
+  rebuilds the branch. The queue's squash credits every commit author who is
+  not the pull request's as a co-author, and `ci-ok` then fails the group: the second trial
+  (#1621) saw exactly that. A cell whose own commits are not authored as the account that opens
+  the pull request (the lane host's `gh` sign-in) is ejected the same way, as `ci-failed` naming
+  the line.
+- A pull request that merged at a head other than the one the lane validated lands with
+  `headMoved` and `mergedHead`, counted as merged without the check (`merged-without-check`).
+- An open pull request whose last removal from a queue says `merged` is in the second before it
+  reads as merged, whatever the entry's state: the lane waits for `MERGED` and never asks again.
+- Limit, host recovery: `lane-host-set` with `recover` rebuilds every queue ref as `queued`. A
+  pull request in GitHub's queue is then validated again and its push refused by the branch lock;
+  one the queue already merged is never recorded as landed. Recover only with none queued.
+- Limit, a lane killed between its request and the record of it: it asks once more for the same
+  head, and only if the queue has let that head go for a reason other than a merge. Queued,
+  merged or about to read as merged, the pull request is taken up instead.
+- The queue is found in GitHub's answer, never in configuration, so the lane host takes this
+  change before the queue is turned on. Not run against a live queue. Not established by any
+  trial: what `mergeQueueEntry.headCommit` names (used only when a removal names no commit), and
+  what a cell's git identity is on the lane host.
+
 ### Cells, plans and the foreman
 
 What a cell may take, which plan it runs on, the foreman's commands and `run-fleet`.

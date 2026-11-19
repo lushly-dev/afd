@@ -13,6 +13,7 @@ import {
 	type DocumentChangeV1,
 	type DocumentRefV1,
 	type LoamClientV1,
+	type OverlayResultV1,
 	projectsOver,
 	type ScopeV1,
 	settingsOver,
@@ -59,6 +60,11 @@ export interface ViewConnectionV1 {
 	onSave(listener: () => void | Promise<void>): () => void;
 	/** `dev.loam/document-changed`: another call changed the document, so re-read it (5.7). */
 	onDocumentChanged(listener: (change: DocumentChangeV1) => void): () => void;
+	/**
+	 * `dev.loam/overlay-result`: the answer to this view's own modal, dialog or prompt, once it closes (phase 4
+	 * specification, 6.4). Another owner's id rejects with `OVERLAY_NOT_OWNER`.
+	 */
+	overlayResult(overlayId: string): Promise<OverlayResultV1>;
 	/** `dev.loam/editor-dirty`, on each edit, not only on a change (5.6). */
 	reportDirty(dirty: boolean): void;
 	/** `dev.loam/editor-selection`, `{ selection }`: the selection in the type's binding, or null. */
@@ -80,7 +86,10 @@ function isCommandResult(value: unknown): value is CommandResult {
 
 /** A host that refuses a call by JSON-RPC names the code in `data.code`, as the handler frame does. */
 function refusal(cause: RpcFailure): CommandError {
-	const data = cause.data as { code?: unknown; suggestion?: unknown } | undefined;
+	const data = cause.data as
+		| { code?: unknown; suggestion?: unknown; details?: unknown }
+		| undefined;
+	const details = data?.details;
 	return {
 		code: typeof data?.code === 'string' ? data.code : 'VIEW_CALL_REFUSED',
 		message: cause.message,
@@ -88,6 +97,9 @@ function refusal(cause: RpcFailure): CommandError {
 			typeof data?.suggestion === 'string'
 				? data.suggestion
 				: 'The shell answers only commands of this app and the shell commands an app may call.',
+		...(typeof details === 'object' && details !== null && !Array.isArray(details)
+			? { details: details as Record<string, unknown> }
+			: {}),
 	};
 }
 
@@ -257,6 +269,8 @@ export async function connectView(info?: {
 			};
 		},
 		onDocumentChanged: changes.listen,
+		overlayResult: async (overlayId) =>
+			(await peer.request('dev.loam/overlay-result', { overlayId })) as OverlayResultV1,
 		reportDirty: (dirty) => peer.notify('dev.loam/editor-dirty', { dirty: dirty === true }),
 		// Wrapped, as JSON-RPC's params are an object, so a cleared selection arrives as null.
 		reportSelection: (selection) =>
@@ -352,6 +366,13 @@ export function serveHandlers(definition: AppDefinitionV1): void {
 		try {
 			return await handler(call.input as never, callContext(peer, call));
 		} catch (cause) {
+			// The shell's own refusal of a request the handler made, as its store's `QUOTA_EXCEEDED`: the refusal itself,
+			// with its code and details, as a native handler's is (phase 4 specification, section 11).
+			if (
+				cause instanceof RpcFailure &&
+				typeof (cause.data as { code?: unknown })?.code === 'string'
+			)
+				return failure(refusal(cause));
 			// To the frame's console and not the result, which is journaled: what a thrown error says is
 			// not an app's answer, and may hold what a log should not, as for a native handler (9.6).
 			(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);

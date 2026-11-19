@@ -218,6 +218,7 @@
     - **The count is said after following a row link** (item 3). `syncSection` tells `show()` that it will move focus to the heading. If the read ends first, `focusHeading()` says the count, once.
     - **The ledger** (item 4): step 7 at its real figure, 87,998 gzip at the final head, carried down to 88,098 and 88,348, leaving 2,652 gzip. It was 87,998 at `7fb49e43`. The minified bytes are the same; gzip moves a byte with the chunk hashes in the entry's import paths.
     - **E7's `p~` sentence** (item 5) says `VALIDATION_ERROR` (`-32602`) in a frame. The test-only view's `scoped-store` reads the store's own reply, so no other throw passes the case.
+    - **Amended (phase 4's step 10, listed against its P4-E14):** in `session.test.ts`'s "a view's store under Atlas reads nothing of Beacon's, and a `p~` key is refused", hello's `hello-greet { name: 'p~…' }` now fails with the store's own `VALIDATION_ERROR`, not `HANDLER_THREW`: a kernel refusal thrown into a handler, native or in a frame, answers as that refusal with its code and details (phase 4's section 11, so an app's caller learns `QUOTA_EXCEEDED`). Nothing is stored and Beacon's data stays unread, as before; a handler's own throw is still `HANDLER_THREW`.
     - **The status and alert lines sit beside the busy region, not inside it** (item 6). `aria-busy` stays on the region.
     - **A summary whose result throws when read has no nested entry** (item 7). It is recorded in the N5 note above, with a follow-up.
     - **Nits:**

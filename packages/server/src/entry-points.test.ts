@@ -228,17 +228,24 @@ const HOST_IMPORTS =
  *   Raised to 39,400 by `JournalRange.last` (#663, 2026-11-18): measured 39,099 bytes on `main` at
  *   `626187de` and 39,315 after, with esbuild 0.28.2; `MemoryJournalSink` reads through
  *   `selectJournalRange`, which now checks `last` and takes the range's tail.
+ *   Raised to 39,500 by app-to-app calls (Loam phase 5 step 0b, under D115's rule that a step
+ *   raises the limit it exceeds): measured 39,315 bytes on `main` at `5e219704` and 39,419 after. The check
+ *   itself is in `createAppCallRegistry`'s own module, which this host does not bundle (asserted
+ *   below); `createDirectRegistry` only throws for `apps` unless that registry built it, through
+ *   a module-private symbol, which adds 104. Putting the check here cost 772.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
  * - 103.7 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool
- *   surface and approvals joined the entry; it is now 113 KB.
+ *   surface and approvals joined the entry; it was 113 KB, and app-to-app calls raised it to 114 KB
+ *   (Loam phase 5 step 0b, D115): 111,851 measured on `main`, 113,133 with `createAppCallRegistry`;
+ *   113,432 with `main` at `5e219704` merged in.
  */
 const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_400,
+		bytes: 39_500,
 	},
 	{
 		what: 'the same host with the approval middleware',
@@ -250,7 +257,7 @@ const DIRECT_BUDGETS = [
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 74_000,
 	},
-	{ what: 'every export', imports: undefined, bytes: 113_000 },
+	{ what: 'every export', imports: undefined, bytes: 114_000 },
 ];
 
 /** The modules only the tool surface needs. */
@@ -323,6 +330,8 @@ describe('@lushly-dev/afd-server/direct', () => {
 		const host = modulesInOutput(hostBundle);
 		expect(host.some((path) => path.endsWith('src/direct-registry.ts'))).toBe(true);
 		expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
+		// App-to-app calls (spec/command-metadata.md) cost a host only when it imports their registry.
+		expect(host.filter((path) => /src\/app-call(s|-registry)\.(ts|js)$/.test(path))).toEqual([]);
 
 		// The router and the tool list load no Node.js built-in since the confirmation gate moved
 		// out of confirmations.ts, so the surface bundles for the browser too.

@@ -5,12 +5,16 @@
 
 import type { ExposeOptions } from '@lushly-dev/afd-server/define';
 
-/** Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. */
+/**
+ * Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. Never `apps`:
+ * an app reaches a shell command only through its port's own list (phase 1 specification, 5.3).
+ */
 export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
 	palette: true,
 	agent: true,
 	mcp: false,
 	cli: false,
+	apps: false,
 });
 
 /**
@@ -31,6 +35,12 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'agent-member-settle',
 	// The kernel's record of how a copilot turn ended (phase 5 specification, 3.4).
 	'copilot-turn-settle',
+	// The autonomy rows a manifest's apply orphaned, flagged (phase 4 specification, 4.2).
+	'autonomy-settle',
+	// Each app's stored bytes counted afresh (phase 4 specification, section 11).
+	'store-usage-settle',
+	// The owners' notice of an app's first refusal by a limit in an hour (phase 4 specification, section 11).
+	'limit-notice-push',
 ]);
 
 /**
@@ -43,8 +53,12 @@ export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-nested-refuse',
 	'app-scope-refuse',
 	'app-embed-refuse',
+	// A call over one of the limits the port enforces (phase 4 specification, section 11).
+	'app-limit-refuse',
 	// The copilot's agent port refusing a message (phase 5 specification, 3.2).
 	'copilot-port-refuse',
+	// The shell's strip under the title bar (phase 4 specification, 6.1): the kernel's own, never listed.
+	'overlay-global-set',
 	...BOOT_ONLY,
 ]);
 

@@ -8,7 +8,7 @@ import {
 	probeDeployment,
 	probeViewManifest,
 } from '../testing.js';
-import type { HandlerFrameV1, KernelPortsV1, LoamKernelV5 } from '../types.js';
+import type { FrameAdmitV1, HandlerFrameV1, KernelPortsV1, LoamKernelV5 } from '../types.js';
 import { HANDLER_CALL_TIMEOUT_MS, HANDLER_READY_TIMEOUT_MS } from './index.js';
 
 const kernels: LoamKernelV5[] = [];
@@ -93,6 +93,49 @@ describe('the handler frame (6.3, D61)', () => {
 		expect(listed.data?.items).toHaveLength(1);
 		expect(given.framesOpened).toEqual(['probev']);
 		expect(html).toEqual([HANDLERS]);
+	});
+
+	it("passes the instance's gate as openHandlerFrame's third argument, refusing notifications and requests (phase 4's section 11)", async () => {
+		const given = ports();
+		const opener = given.openHandlerFrame;
+		const admits: Array<FrameAdmitV1 | undefined> = [];
+		given.openHandlerFrame = (instance, text, admit) => {
+			admits.push(admit);
+			return opener(instance, text, admit);
+		};
+		const { kernel, journal } = await boot(given);
+		expect((await kernel.call('probev-list')).success).toBe(true);
+		const admit = admits[0] as FrameAdmitV1;
+		expect(typeof admit).toBe('function');
+		expect(admit({ jsonrpc: '2.0', method: 'notifications/message', params: { data: 'hi' } })).toBe(
+			undefined
+		);
+		const pad = 'x'.repeat(1_048_576);
+		// A notification over messageBytes: refused, so the channel drops it, and counted.
+		expect(
+			admit({ jsonrpc: '2.0', method: 'notifications/message', params: { data: pad } })
+		).toMatchObject({ code: 'INPUT_TOO_LARGE', rpcCode: -32602, details: { limit: 1_048_576 } });
+		// A request over it, refused, and a value with no JSON form, over every limit.
+		expect(
+			admit({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'probev-list', pad } })
+		).toMatchObject({ code: 'INPUT_TOO_LARGE' });
+		expect(
+			admit({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'probev-list', n: 1n } })
+		).toMatchObject({ code: 'VALIDATION_ERROR', rpcCode: -32602 });
+		await expect
+			.poll(async () =>
+				(await journal.read())
+					.filter((entry) => entry.command === 'app-limit-refuse')
+					.map((entry) => [entry.input, entry.context?.caller])
+			)
+			.toEqual([
+				[{ command: 'notifications/message', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
+				[{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
+				[
+					{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576, reason: 'json' },
+					'probev',
+				],
+			]);
 	});
 
 	it('gives a frame one clock reading and one random seed, on the tape', async () => {

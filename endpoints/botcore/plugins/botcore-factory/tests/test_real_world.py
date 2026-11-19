@@ -31,6 +31,8 @@ from botcore_factory.real_world import (
 )
 from botcore_factory.world import World, WorldError
 
+AUTHOR = "The Owner\nowner@example.org\n"
+
 
 class FakeRun:
     """Answers argument lists from a table; records every call."""
@@ -577,12 +579,19 @@ def test_a_merge_that_did_not_happen_is_an_error_not_a_clean_merge():
             self.calls.append((list(args), stdin))
             if "merge-base" in args:
                 raise WorldError("exit 1")
+            if "log" in args:
+                return AUTHOR  # The branch's author, whom the lane's merge is authored as.
             return "head1\n" if "rev-parse" in args else ""  # No unmerged paths.
 
     with pytest.raises(WorldError, match="did not happen"):
         CliGit(Unmerged()).merge_main("slot", "main1")
 
-    merged = FakeRun()
+    class Merged(FakeRun):
+        def __call__(self, args, stdin=None, check=True):
+            self.calls.append((list(args), stdin))
+            return AUTHOR if "log" in args else ""
+
+    merged = Merged()
     assert CliGit(merged).merge_main("slot", "main1").clean is True
     assert ["git", "-C", "slot", "merge-base", "--is-ancestor", "main1", "HEAD"] in [
         args for args, _ in merged.calls
@@ -658,7 +667,7 @@ def test_git_prepares_a_slot_merges_main_and_reports_a_conflict(tmp_path):
             self.calls.append((list(args), stdin))
             if args[3:5] == ["diff", "--name-only"]:
                 return "src/a.ts\n"
-            return ""
+            return AUTHOR if "log" in args else ""
 
     conflicted = Conflicted()
     outcome = CliGit(conflicted).merge_main("slot", "main1")

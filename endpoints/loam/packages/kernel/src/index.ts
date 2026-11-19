@@ -120,6 +120,8 @@ export {
 	type CallOptionsV5,
 	type CommandSummaryV0,
 	type CommandSummaryV1,
+	type FrameAdmitV1,
+	type FrameRefusalV1,
 	type HandlerFrameV1,
 	type IdentityV1,
 	KERNEL_INTERFACE_VERSION,
