@@ -312,7 +312,11 @@ export const CEILINGS = Object.freeze({
 	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
 	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
 	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
-	jsMinified: 308_000,
+	// Raised again under D115 by phase 5's step 0b (AFD's `apps` exposure flag, #1591), measured with `main` at
+	// `29c86386` merged in: first paint 307,956 to 308,064 (+108: `createDirectRegistry`'s refusal of the `apps`
+	// interface and the replay guard; the check itself is in `createAppCallRegistry`, which Loam does not load
+	// yet), set to 308,500. Gzip, 96,114 of 96,500, holds.
+	jsMinified: 308_500,
 	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
