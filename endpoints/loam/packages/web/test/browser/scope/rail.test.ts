@@ -754,7 +754,8 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	it('P2-E11: loads hello and tally as version 1 and tasks as version 2, side by side', async () => {
+	// Hello's manifest is version 2 since phase 4's step 2, for its settings (`ui.settings` is a key of version 2).
+	it('P2-E11: loads tally as version 1, and hello and tasks as version 2, side by side', async () => {
 		const opened = await openShell(browser, site.root);
 		const versions = await opened.page.evaluate(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {
@@ -768,7 +769,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 				(instance) => shell.kernel.appPort(instance).manifest.manifest_version
 			);
 		});
-		expect(versions).toEqual([1, 1, 2]);
+		expect(versions).toEqual([2, 1, 2]);
 		await opened.context.close();
 	});
 });

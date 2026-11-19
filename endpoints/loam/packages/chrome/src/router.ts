@@ -24,7 +24,7 @@ const WORKSPACE = /^(?!(apps|assets|mounts|sandbox|p)$)[a-z0-9][a-z0-9-]{0,62}$/
 const PROJECT = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 /** An instance id, less `p`, which reads as a project's segment (4.2). */
 const INSTANCE = /^(?!p$)[a-z][a-z0-9]{0,31}$/;
-const SECTION = /^(projects|documents|account)$/;
+const SECTION = /^(projects|documents|account|settings)$/;
 const NOT_FOUND: RouteV1 = { kind: 'not-found' };
 
 /**
@@ -72,8 +72,15 @@ export function parseRoute(url: string, base: string): RouteV1 {
 	const scoped = project === undefined ? {} : { project };
 	if (head === '~') {
 		const [section = '', ...tail] = rest;
+		// A setting's key is the fragment of `~/settings/<section>#<key>` (phase 4 specification, 3.5), its path's last segment.
+		let key = '';
+		try {
+			key =
+				section === 'settings' && tail.length === 1 ? decodeURIComponent(target.hash.slice(1)) : '';
+		} catch {}
+		if (key) tail.push(key);
 		// The account section is the workspace's (phase 3 specification, 5.1): never under a project.
-		return SECTION.test(section) && !(project && section === 'account')
+		return SECTION.test(section) && !(project && section === 'account') && !(key && unsafe(key))
 			? { kind: 'section', workspace, ...scoped, section, rest: tail }
 			: NOT_FOUND;
 	}

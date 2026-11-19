@@ -84,6 +84,45 @@ describe('hello', () => {
 		expect(result.data?.at).toBeNull();
 	});
 
+	it("greets with the greeting that applies: the project's, else the workspace's, else Hello (phase 4's 3.8)", async () => {
+		const { kernel, replay } = await createAppTestKernel({
+			manifest: await readAppManifest(ROOT, MANIFEST),
+			definition: () => import('../src/native.js'),
+			scope: { project: 'atlas' },
+		});
+		const greet = async () =>
+			(await kernel.call<{ greeting: string }>('hello-greet', { name: 'Ada' })).data?.greeting;
+		expect(await greet()).toBe('Hello, Ada!');
+		const set = (value: string, level: 'workspace' | 'project') =>
+			kernel.call('setting-set', { section: 'hello.general', key: 'greeting', value, level });
+		expect((await set('Hi team', 'workspace')).success).toBe(true);
+		expect(await greet()).toBe('Hi team, Ada!');
+		expect((await set('Hi Atlas', 'project')).success).toBe(true);
+		expect(await greet()).toBe('Hi Atlas, Ada!');
+		// The board is a project's alone (`hello.project`), with its default.
+		expect(
+			(await kernel.call('setting-get', { section: 'hello.project', key: 'board' })).data
+		).toMatchObject({ value: 'Guests', from: 'default' });
+		const { report } = await replay();
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('greets with Hello without the settings grant', async () => {
+		const { kernel } = await createAppTestKernel({
+			manifest: await readAppManifest(ROOT, MANIFEST),
+			definition: () => import('../src/native.js'),
+			grants: ['store', 'clock'],
+		});
+		await kernel.call('setting-set', {
+			section: 'hello.general',
+			key: 'greeting',
+			value: 'Hi team',
+			level: 'workspace',
+		});
+		const result = await kernel.call<{ greeting: string }>('hello-greet', { name: 'Ada' });
+		expect(result.data?.greeting).toBe('Hello, Ada!');
+	});
+
 	it('is trusted, not sandboxed, in app check', async () => {
 		const report = await appCheck({ dir: ROOT, manifest: MANIFEST });
 		expect(report.refusals).toEqual([]);

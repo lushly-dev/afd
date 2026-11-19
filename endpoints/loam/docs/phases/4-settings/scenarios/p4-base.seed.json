@@ -1,0 +1,34 @@
+{
+	"$comment": "What the seed p4-base holds beyond its workspace, person and projects (the specification's Jobs and scenarios), read by Loam's runner, kernel/scenarios/seeds.ts, which names no app itself. Each app is loaded from its own source (dir, manifest, module, relative to endpoints/loam); console is the runner's fixture app. Each document is written to the store before the kernel starts, so its id is fixed; each call runs after sign-in; each check is what the seed's own test asserts.",
+	"apps": [
+		{
+			"instance": "hello",
+			"dir": "apps/hello",
+			"manifest": "manifests/native.toml",
+			"module": "src/native.ts"
+		},
+		{ "instance": "tally", "dir": "apps/tally", "module": "src/native.ts" },
+		{ "instance": "checklist", "dir": "apps/checklist", "module": "src/app.ts" },
+		{ "instance": "console", "fixture": "console" }
+	],
+	"documents": [
+		{
+			"id": "doc_checklist0000001",
+			"instance": "checklist",
+			"type": "checklist",
+			"title": "Launch checklist",
+			"project": "prj_atlas",
+			"content": { "items": [] }
+		}
+	],
+	"calls": [{ "command": "tally-add", "input": { "by": 3 } }],
+	"checks": [
+		{ "command": "tally-get", "input": {}, "data": { "total": 3 } },
+		{
+			"command": "checklist-get",
+			"input": { "document": "doc_checklist0000001" },
+			"project": "prj_atlas",
+			"data": { "items": [] }
+		}
+	]
+}

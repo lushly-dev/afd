@@ -290,7 +290,9 @@ function compared(name: string, answer: unknown): unknown {
 	);
 }
 
-describe('P4-E2: settings grant nothing', () => {
+// Each test runs every registered command against twin kernels; the count grows with every step, and a loaded
+// machine running all packages at once (a pre-push over a tooling change) took them past vitest's 5 s default.
+describe('P4-E2: settings grant nothing', { timeout: 30_000 }, () => {
 	it.each(PATHS)(
 		'P4-E2: every command answers alike with and without settings, in %s mode, through %s',
 		async (mode, _path, call) => {
