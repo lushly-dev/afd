@@ -412,7 +412,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 
 **How the work has run:**
 
-- **One step, one pull request.** Each is written in its own worktree by a delegate, which can't wait on CI, so the coordinator watches the pull request and squash-merges with `--match-head-commit`.
+- **One step, one pull request.** Each is written in its own worktree by a delegate, which can't wait on CI, so the coordinator watches the pull request and enqueues its verified head (`prepare-pr`'s step 9).
 - **Accepting a green:** read `skipping` in `gh pr checks`. "All passed" hid a `mounted` job that never ran ([#705](https://github.com/lushly-dev/afd/pull/705)).
 - **After a rebase:** re-read `pnpm verify --list`, run `pnpm install --frozen-lockfile`, rebuild with `pnpm -F "@lushly-dev/loam-web..." build`, and test every replayed commit.
 - **Commits:** Conventional Commits, subjects of at most 72 characters, no `loam` scope. Never skip a hook.

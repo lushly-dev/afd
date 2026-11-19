@@ -88,18 +88,32 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Enqueue only when authorized.** `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would enqueue whatever head is there when `ci-ok` passes, not the one you reviewed, and `gh pr merge` enables it by itself when the checks have not finished, so enqueue only after step 8 reads every check green. Never merge with `--admin`, which bypasses the queue and `ci-ok`. With the user's authorization, bind the enqueue to the head you verified:
+9. **Enqueue only when authorized.** `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` on a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With the user's authorization and every check on the exact head green, enqueue that head and nothing else:
 
    ```bash
-   gh pr merge <n> --match-head-commit <full headRefOid verified in step 8>
+   gh api graphql -f id="$(gh pr view <n> --json id --jq .id)" -f oid=<full headRefOid verified in step 8> -f query='
+     mutation($id: ID!, $oid: GitObjectID!) {
+       enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $oid}) {
+         mergeQueueEntry { state position }
+       }
+     }'
    ```
 
-   - **The queue writes the squash message; no body can be passed.** A pull request of one commit keeps that commit's message. With more, the subject is the pull request's title and each commit's message follows as a bullet, merges of `main` left out. So the title is the commit subject on `main`: keep it in step 7's `<type>(scope): description` form, and the commits' own `Assisted-by:` trailers carry the credit.
-   - **A `Co-authored-by:` line fails the queue.** GitHub adds one for a commit author whose address isn't the pull request author's account. `ci-ok` reads the queue's commit and refuses it, so the pull request leaves the queue instead of crediting a retired address or an agent on `main`. Re-author those commits with the owner's identity, push, and go back to step 8.
-   - **Wait for it to land.** The pull request stays `OPEN` while queued (minutes for a docs change, as long as its suites for a unit). Read `gh pr view <n> --json state,mergedAt`; where the harness can watch a pull request, watch it and end the turn. `MERGED` is the only success.
-   - **Removed from the queue**, it is open and no longer queued: its group failed, it conflicted with a pull request ahead of it, or it was pushed to (a push to a queued pull request removes it). Read the failed run (`gh run list --event merge_group`, the branch `gh-readonly-queue/main/pr-<n>-…`), fix it, and return to step 8 before enqueueing again. Never re-enqueue a failure unread.
-   - A short SHA is rejected; re-reading the head at enqueue time would bind whatever is there now. A mismatch sends you back to step 8.
-   - A pull request that changes `pnpm-lock.yaml` needs no turn of its own: the queue tests each one on top of those ahead of it.
+   It answers `QUEUED`, or an error and nothing has changed: "expected head oid does not match" means the head moved, so go back to step 8. It never enables auto-merge.
+
+   - **GitHub writes the squash; no body can be passed.** A pull request of one commit lands as that commit's message. With more, the subject is the pull request's title and each commit's message follows as a bullet, merges of `main` left out. Both gain ` (#n)`. So the title must be a commit subject in step 7's form. (The repository's `squash_merge_commit_title` and `squash_merge_commit_message` settings decide this.)
+   - **A `Co-authored-by:` line fails the queue**, whether a commit's message carries it or GitHub adds it for a commit whose author is not the pull request's. `ci-ok` reads the queue's commit, so the pull request leaves the queue and `main` never receives the line. Read which commit it names, correct that commit's author or remove its trailer, push, and go back to step 8.
+   - **Wait until it is `MERGED`.** A queued pull request is still `OPEN`, and so is one the queue removed, so read the queue as well:
+
+     ```bash
+     gh api graphql -F n=<n> -f query='query($n: Int!) { repository(owner: "lushly-dev", name: "afd") {
+       pullRequest(number: $n) { state isInMergeQueue mergeQueueEntry { state position } autoMergeRequest { enabledAt } } } }'
+     ```
+
+     `MERGED` is the only success. `OPEN` with `isInMergeQueue: true` is waiting: watch the pull request where the harness can, and end the turn. `OPEN` and not in the queue is removed. An `autoMergeRequest` means something enabled auto-merge: `gh pr merge <n> --disable-auto`, then step 8.
+   - **Removed from the queue:** its group failed, which can be on the squash of a pull request ahead of it; its checks timed out; it conflicted with one ahead; or someone removed it. Find the group's runs with `gh run list --event merge_group --limit 100 --json name,conclusion,headBranch,url --jq '.[] | select(.headBranch | startswith("gh-readonly-queue/main/pr-<n>-"))'`. No failed run means a timeout, a conflict or a removal by hand. Fix what failed, return to step 8 and enqueue again; never re-enqueue a failure unread.
+   - **A queued pull request's branch is locked:** a push to it is refused. To change it, remove it from the queue first ("Remove from queue" on the pull request, or the `dequeuePullRequest` mutation, which no session has exercised yet), then push and return to step 8.
+   - A pull request that changes `pnpm-lock.yaml` needs no turn of its own; [gates.md](references/gates.md) says what to do when the queue refuses one.
 
    After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 

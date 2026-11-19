@@ -82,16 +82,25 @@ mergeability, and it would duplicate content in the one-line cells.
    merge: CI ready for `merge_group` (#1615), the factory's lane and gateway able to enqueue, then
    the queue itself with `prepare-pr`'s step 9.
 
-   **Trial, 2026-11-19 UTC.** A ruleset required the queue on a throwaway branch cut from
-   `main`, and three pull requests went through it (#1617 to #1619); the ruleset and the branch
-   are deleted. Two queued together merged 8 minutes after they were enqueued, a third alone in
-   under 4. For a docs-only change every path-filtered workflow skipped its real jobs; for a
-   one-line change in `python/`, the Python, Alfred, Botcore, Botcore factory and Health
-   workflows and the TypeScript and Python conformance leg ran. The queue's squash kept a
-   single commit's message; for two commits and a merge of the base it wrote the pull request's
-   title and one bullet per commit, without the merge. No `Co-authored-by:` line appeared for
-   commits authored with the owner's address. Not exercised: a group that fails, and a commit
-   by a second author.
+   **Trials, 2026-11-19 UTC.** A ruleset required the queue on a throwaway branch cut from
+   `main`, twice; the rulesets and the branches are deleted, and the pull requests are the
+   record.
+
+   - *First, #1617 to #1619.* Two enqueued two seconds apart merged 2 min 51 s and 7 min 37 s
+     later, a third alone in 3 min 31 s. For a docs-only change every path-filtered workflow
+     skipped its real jobs; for a one-line change in `python/`, the Python, Alfred, Botcore,
+     Botcore factory and Health workflows and the TypeScript and Python conformance leg ran.
+     The queue's squash kept a single commit's message; for two commits and a merge of the
+     base it wrote the pull request's title and one bullet per commit, without the merge.
+   - *Second, #1620 and #1621.* `enqueuePullRequest` with a wrong expected head was refused
+     ("expected head oid does not match") and changed nothing; with the verified head it
+     queued, and auto-merge was never enabled. A push to the queued pull request was refused
+     by GitHub (its branch is locked while queued), and it merged at its old head. A pull
+     request holding a commit by a second author got `Co-authored-by:` for that author in the
+     queue's squash; `ci-ok` failed the group at its credit check and the pull request left
+     the queue, still open, 50 seconds after it was enqueued.
+   - *Not exercised:* a group failing in a suite, a timeout, a conflict with a pull request
+     ahead, `dequeuePullRequest`, two lockfile changes, and the factory lane.
 
 Order: 1, 2 and 3 are independent and start together; 4 follows 1; 5 is last. [STATUS.md](STATUS.md)
 arrives with pull request 1, so 2 and 3 mark their own rows after they merge `main` with it.
@@ -100,8 +109,7 @@ arrives with pull request 1, so 2 and 3 mark their own rows after they merge `ma
 
 - Merge only when CI is green and an independent review has approved that exact head:
   `gh pr merge --squash --match-head-commit <full sha>`, never GitHub auto-merge, until pull
-  request 5 replaces this with the queue (then `gh pr merge --match-head-commit <full sha>`
-  enqueues that head).
+  request 5 replaces this with the queue (then `prepare-pr`'s step 9 enqueues that head).
 - After each merge, confirm it landed on `main` by content.
 - Other sessions edit the same files while this lands. Pull requests 1 and 4 put their branches
   in conflict once; neither rewrites what their rows mean.

@@ -62,11 +62,11 @@ Every session PR ends merged, or closed with a recorded reason.
 - **Check for supersession before waiting.** A parallel session may have landed an
   equivalent change; close a redundant PR as superseded.
 - **Red CI** goes back through `prepare-pr`, which owns push and update.
-- **Enqueue only when the user authorized it**, through `prepare-pr`'s step 9: `main`
-  merges through the merge queue. `ci-ok` also passes on a newer green head, so bind the
-  enqueue to the head whose checks you verified: `gh pr merge <n> --match-head-commit <sha>`,
-  with the full 40-character SHA (a short one is rejected). The pull request has landed only
-  when its state is `MERGED`; one the queue removed is still open.
+- **Enqueue only when the user authorized it**, with `prepare-pr`'s step 9 and no other
+  command: `main` merges through the merge queue, and step 9 binds the enqueue to the head
+  whose checks you verified. The pull request has landed only when its state is `MERGED`; a
+  queued one and one the queue removed are both still open, and step 9 says how to tell them
+  apart.
 - **A wait that would block the close-out indefinitely** switches to `park`.
 
 **Park** describes a stopped owner, not merely unfinished work. Finish or stop this
