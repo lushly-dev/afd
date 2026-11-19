@@ -31,7 +31,7 @@ The queue, validation, base moves, merges, ejections and repairs.
 
 #### The lane works behind a merge queue, 2026-11-19
 
-Pull request #PRNUM, for the merge-conflicts plan's item 5
+Pull request #1627, for the merge-conflicts plan's item 5
 ([#1598](https://github.com/lushly-dev/afd/issues/1598)). The owner will require GitHub's merge
 queue on `main`. A required queue answers the lane's `gh pr merge` by queueing the pull request
 and exiting 0, and the lane took that for a merge: it recorded the landing, removed the cell and

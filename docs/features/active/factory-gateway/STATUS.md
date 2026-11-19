@@ -175,7 +175,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
-- 2026-11-19: `pr-merge` queues instead of merging behind a merge queue on `main` (#PRNUM, for
+- 2026-11-19: `pr-merge` queues instead of merging behind a merge queue on `main` (#1627, for
   [#1598](https://github.com/lushly-dev/afd/issues/1598)). A required queue refuses the REST merge.
   Where a pull request's base has one (GitHub's `isMergeQueueEnabled`, no configuration), nothing
   merges at once: `enqueuePullRequest` with the expected head when the required check passed, and
