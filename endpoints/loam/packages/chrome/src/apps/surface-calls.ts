@@ -12,6 +12,7 @@ import {
 	type DocumentsV1,
 	type LinkRowV1,
 	type ModalInputV1,
+	notificationsOver,
 	type PopoverInputV1,
 	settingsOver,
 	type ToastInputV1,
@@ -55,7 +56,10 @@ export function documentsOver(call: AppPortV2['call']): DocumentsV1 {
 export function surfaceCalls(
 	port: Pick<AppPortV2, 'instance' | 'waitOverlay' | 'manifest'>,
 	call: AppPortV2['call']
-): Pick<AppContextV1, 'client' | 'navigate' | 'overlays' | 'documents' | 'settings'> {
+): Pick<
+	AppContextV1,
+	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications'
+> {
 	const { instance } = port;
 	return {
 		client: { call },
@@ -67,6 +71,8 @@ export function surfaceCalls(
 		...(port.manifest?.grants?.some((grant) => grant.name === 'settings')
 			? { settings: settingsOver({ call }) }
 			: {}),
+		// The person's inbox, every app's to push to at its own rate (phase 4 specification, 10.2, 12).
+		notifications: notificationsOver({ call }),
 		async navigate(route: string) {
 			const moved = await call('app-route-set', { instance, path: route });
 			if (!moved.success) throw refusal(moved, 'The route could not change');

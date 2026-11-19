@@ -243,7 +243,7 @@ for what happens when the active app changes.
 | palette | Commands with `expose.palette`; quick picks with a schema | Shell | Filtered by active app and scope |
 | settings | Sections: id, title, JSON Schema, scope | Shell | Stays |
 | experiments | Flags: id, title, what may change, graduation date, audience | Shell | Stays |
-| notifications | Items: source, resource link, read state, action | Shell | Stays |
+| notifications | Items per person, filtered by scope: a source derived from the path that pushed it, a resource link, read and archived state, and an action, the source app's own palette command, never an agent's ([phase 4](phases/4-settings/spec.md), 10) | Shell | Stays |
 | overlays | Opened through `toast-show`, `dialog-open`, `modal-open`, `popover-open`, `prompt-open` | App session or shell | Per the [overlay policy](#overlay-policy) |
 | agent | AFD contexts, skills, prompts, specialist agent records, agent packs | Shell | Contexts follow the active app and document |
 | automations | Triggers from the app's events and actions from its commands: event pattern or schedule, command, input mapping | Shell | Stays |
@@ -378,7 +378,8 @@ sequenceDiagram
   `overlay-list`, `overlay-dismiss`; `setting-get`, `setting-set`,
   `setting-list`, `setting-schema-get`; `experiment-list`,
   `experiment-enable`, `experiment-disable`, `experiment-check`;
-  `notification-list`, `notification-push`, `notification-read`;
+  `notification-list`, `notification-push`, `notification-read`, `notification-archive`,
+  `notification-act`;
   phase 3's identity commands (its [specification](phases/3-identity/spec.md), sections 4 to 8:
   `auth-sign-in` with passkeys; `session-list`, `session-revoke`; `account-get`, `account-update`,
   `account-passkey-*`, `account-invitation-*`, `account-agent-list`, `account-agent-disconnect`;

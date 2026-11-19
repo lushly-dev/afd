@@ -38,6 +38,7 @@ import { type AnchorOwner, findAnchor, nestedSurface } from './anchors.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback, focusMainHeading } from './focus-fallback.js';
+import { watchInbox } from './inbox-bell.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
 import { type Parked, park, restore } from './parking.js';
@@ -143,6 +144,8 @@ export class AppSurfaces implements ShellApps {
 			this.#findAnchor(owner, anchor)
 		);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
+		// The title bar's inbox button and the announcement of a new notice (phase 4 specification, 10.3).
+		this.#cleanup.push(watchInbox(shell, kernel, (text) => this.#overlays.announce(text)));
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
 			void kernel.call('app-open', { instance });
 		});

@@ -27,6 +27,7 @@ import {
 	type LoamToast,
 	type LoamToastRegion,
 	TOAST_DISMISS_EVENT,
+	TOAST_INBOX_EVENT,
 	type ToastTone,
 } from '../elements/toast.js';
 import { type AnchorOwner, anchorOwnerOf } from './anchors.js';
@@ -66,6 +67,18 @@ export class OverlaySurfaces {
 	#onDismiss = (event: Event) => {
 		const { overlayId } = (event as CustomEvent<{ overlayId: string }>).detail;
 		void this.#kernel.call('overlay-dismiss', { overlayId, reason: 'user' });
+	};
+
+	/** A sticky toast's "Open inbox" (6.7): dismissed as the person's, then the inbox opened at its notice. */
+	#onInbox = (event: Event) => {
+		const { overlayId, notification } = (
+			event as CustomEvent<{ overlayId: string; notification: string }>
+		).detail;
+		// Focus leaves the toast first, so its removal sends it nowhere: the inbox takes it, at the notice.
+		(deepActiveElement(this.#shell.ownerDocument) as HTMLElement | null)?.blur();
+		void this.#kernel
+			.call('overlay-dismiss', { overlayId, reason: 'user' })
+			.then(() => this.#kernel.call('section-open', { section: 'inbox', path: notification }));
 	};
 
 	#onAnswer = (event: Event) => {
@@ -111,6 +124,7 @@ export class OverlaySurfaces {
 		this.#modal = doc.createElement('loam-modal') as LoamModal;
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
+		this.#shell.addEventListener(TOAST_INBOX_EVENT, this.#onInbox);
 		this.#shell.addEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
 		const anchors = this.#shell.overlayAnchors;
 		if (anchors) anchors.resolve = (owner, anchor) => this.#find(owner, anchor) !== null;
@@ -120,6 +134,7 @@ export class OverlaySurfaces {
 		for (const timer of this.#timers.values()) clearTimeout(timer);
 		this.#timers.clear();
 		this.#shell.removeEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
+		this.#shell.removeEventListener(TOAST_INBOX_EVENT, this.#onInbox);
 		this.#shell.removeEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
 		this.#region?.remove();
 		this.#modal?.remove();
@@ -173,7 +188,7 @@ export class OverlaySurfaces {
 		}
 		const held = this.#anyModal;
 		this.#waiting = false;
-		for (const { overlayId, input, from } of toasts) {
+		for (const { overlayId, input, from, notification } of toasts) {
 			if (shown.has(overlayId)) continue;
 			if (held) {
 				this.#waiting = true;
@@ -185,6 +200,8 @@ export class OverlaySurfaces {
 			toast.message = message;
 			toast.tone = (tone ?? 'info') as ToastTone;
 			toast.from = ownerLine(from);
+			// A toast that also landed in the inbox offers "Open inbox" (phase 4 specification, 6.7).
+			toast.notification = notification ?? '';
 			if (link) void this.#linkOf(toast, link);
 			region.append(toast);
 			// A sticky toast has no timer: it stays until a person dismisses it (6.1).

@@ -89,6 +89,16 @@ export interface OverlayStore {
 		input: ToastInputV1,
 		options?: OverlayOpenOptions
 	): OverlayRefV1 | undefined;
+	/**
+	 * A toast that also landed in the inbox (6.1): its notice's id on the open record, so a sticky toast's "Open inbox"
+	 * opens the inbox at it (6.7). Nothing for an overlay that is not an open toast.
+	 */
+	land(overlayId: string, notification: string): void;
+	/**
+	 * A toast never shown (3.7's `muted`): its id and owner recorded as closed at once with `reason`, so `waitOverlay`
+	 * answers and the region holds nothing of it, and no toast on screen is pushed off for it.
+	 */
+	openClosed(owner: OverlayOwner, input: ToastInputV1, reason: OverlayReasonV1): OverlayRefV1;
 	get(overlayId: string): OverlayV1 | undefined;
 	/** When an open toast opened, on the call's clock, for a full region's `retryAfterMs`. */
 	openedAt(overlayId: string): number | undefined;
@@ -102,8 +112,8 @@ export interface OverlayStore {
 	reset(): void;
 	/**
 	 * Close the app instance `instance`'s overlays on an app switch: its toasts dismissed, its modal cancelled; and
-	 * every popover, whoever owns it, since a popover closes on a switch (6.1). The toasts it dismissed, for the inbox's
-	 * seam (step 5).
+	 * every popover, whoever owns it, since a popover closes on a switch (6.1). The toasts it dismissed; those that land
+	 * in the inbox did so when they were shown (step 5), so a switch adds none.
 	 */
 	closeForSwitch(instance: string | null): OverlayV1[];
 	/** Close every overlay, sticky toasts included, with `reason`: a change of person's `person` (6.2). */
@@ -193,6 +203,15 @@ export function createOverlayStore(): OverlayStore {
 			}
 			return add(owner, 'toast', input, options);
 		},
+		land(overlayId, notification) {
+			const overlay = open.get(overlayId);
+			if (overlay?.kind === 'toast') overlay.notification = notification;
+		},
+		openClosed(owner, input, reason) {
+			const ref = add(owner, 'toast', input);
+			store.close(ref.overlayId, 'dismissed', reason);
+			return ref;
+		},
 		get(overlayId) {
 			const overlay = open.get(overlayId);
 			return overlay && detached(overlay);
@@ -266,8 +285,8 @@ export function createOverlayStore(): OverlayStore {
 
 /**
  * Whether a toast also lands in the inbox (6.1, 3.7's `loam.notifications.toastSticky`): a sticky one always; else
- * every toast with `'always'`, a `danger` one with `'danger'`, the default, and none with `'never'`. The seam the
- * inbox (step 5) pushes through; nothing calls it before then.
+ * every toast with `'always'`, a `danger` one with `'danger'`, the default, and none with `'never'`. The inbox's
+ * `toast-show` (step 5, `late/notifications.ts`) decides by it.
  */
 export function landsInInbox(
 	input: Pick<ToastInputV1, 'sticky' | 'tone'>,

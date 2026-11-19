@@ -58,13 +58,22 @@ const DEPLOYER_KEYS = [
 ];
 
 /**
- * Two named exemptions. Phase 4's step 3 adds `popover-open`'s menu item `command`, a command's name (its 6.4),
- * kept by the coordinator on 2026-11-18 (that step's record, R-a). The first (phase 3 specification, Status, step 6,
+ * Three named exemptions. Phase 4's step 5 adds `notification-push`'s `action.command`, a command's name (its 10.1),
+ * the path step 3's comment below foresaw; it waits for the step's review. Phase 4's step 3 adds `popover-open`'s menu
+ * item `command`, a command's name (its 6.4), kept by the coordinator on 2026-11-18 (that step's record, R-a). The first (phase 3 specification, Status, step 6,
  * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
  * `projects` anywhere else in their input, is still scanned.
  */
 function exempted(name: string, schema: unknown): unknown {
+	if (name === 'notification-push') {
+		// A notice's action names one of the pushing app's own palette commands (10.1), as a menu item does.
+		const copy = structuredClone(schema) as {
+			properties?: { action?: { properties?: Record<string, unknown> } };
+		};
+		delete copy.properties?.action?.properties?.command;
+		return copy;
+	}
 	if (name === 'popover-open') {
 		// A menu item's `command` names one of the owner's own palette commands (phase 4 specification, 6.4), as a
 		// notice's action will (10.1): a command's name, never a mount's executable, and no projection entry holds it.

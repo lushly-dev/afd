@@ -163,19 +163,7 @@ export const discardModal = (title: string) => ({
 });
 
 /** A rejected save's `danger` toast, with its code and suggestion (5.5). */
-export function notSaved(title: string, cause: unknown) {
-	const { code, suggestion } = (cause ?? {}) as { code?: string; suggestion?: string };
-	const message = cause instanceof Error ? cause.message : String(cause);
-	return {
-		message:
-			`${title} was not saved: ${message}${code ? ` (${code})` : ''}${suggestion ? `. ${suggestion}` : ''}`.slice(
-				0,
-				200
-			),
-		tone: 'danger',
-		durationMs: 30_000,
-	};
-}
+export { notSaved } from './not-saved.js';
 
 /** Open a tab's frame on its record: the type's native or view editor, or a notice saying why there is none. */
 export async function openFrame(

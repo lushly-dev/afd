@@ -44,6 +44,7 @@ import {
 import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
 import type { SettingRows } from './shell-commands.js';
 
+export { createNotifications } from './notifications.js';
 export {
 	HUMAN_SETTING_KEYS,
 	isHumanGesture,
@@ -167,10 +168,21 @@ export interface Settings {
 	/** The person's own rail order, `loam.rail.order`, for the call (3.7; R8): instance ids, first to last. */
 	railOrder(context: CommandContext): Promise<readonly string[]>;
 	/**
+	 * The call's person's `loam.notifications` (3.7): which toasts also land in the inbox, and the apps whose notices are
+	 * kept quiet. Read from the store at each call; a value that does not read is its default.
+	 */
+	notificationPrefs(context: CommandContext): Promise<NotificationPrefsV1>;
+	/**
 	 * `section-open { section: 'settings', target }`'s place (3.5, 3.10): `target` is `<section>` or `<section>.<key>`, a
 	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
 	 */
 	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
+}
+
+/** The person's `loam.notifications` (3.7), as the inbox reads it. */
+export interface NotificationPrefsV1 {
+	toastSticky: 'never' | 'danger' | 'always';
+	muted: readonly string[];
 }
 
 const LEVELS = ['person', 'workspace', 'project'] as const;
@@ -1209,6 +1221,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 				inProject
 			);
 			return Array.isArray(value) ? (value as string[]) : [];
+		},
+		async notificationPrefs(context) {
+			const known = SHELL_SECTIONS.find(
+				(entry) => entry.fullId === 'loam.notifications'
+			) as KnownSectionV1;
+			const read = async (key: string) =>
+				resolveFrom(known, key, await storedFor(known, key, context), false).value;
+			const sticky = await read('toastSticky');
+			const muted = await read('muted');
+			return {
+				toastSticky: sticky === 'never' || sticky === 'always' ? sticky : 'danger',
+				muted: Array.isArray(muted) ? muted.filter((id) => typeof id === 'string') : [],
+			};
 		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
 		async follow() {

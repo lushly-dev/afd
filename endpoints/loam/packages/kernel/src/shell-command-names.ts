@@ -121,4 +121,9 @@ export const SHELL_COMMAND_NAMES = [
 	'setting-get',
 	'setting-set',
 	'setting-reset',
+	'notification-push',
+	'notification-list',
+	'notification-read',
+	'notification-archive',
+	'notification-act',
 ] as const;

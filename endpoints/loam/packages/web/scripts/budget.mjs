@@ -324,6 +324,19 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
  * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
  * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
+ * Phase 4's step 5 (the inbox), under D115, on Windows with Node 26.13.1, against the figures this file records for
+ * `main` with steps 2 and 3 merged. `jsMinified` 309,500 to 310,000 (308,966 to 309,560, +594; gzip 96,545, its row
+ * 96,500 to 96,700): the title bar's Inbox button with its count and name, the shell's `unread`, `~/inbox` in the
+ * router, and the overlay store's `land` and `openClosed` (section 14 estimated nothing for this step's first paint;
+ * the count and the announcement are kept in the `surfaces` chunk instead). `lateMinified` 93,000 to 94,000 (92,316
+ * to 93,596, +1,280): the inbox's wiring, one palette verdict shared by menus and actions, and `toast-show` wrapped.
+ * `lateSettingsMinified` 30,500 to 45,500 (28,400 to 41,258, +12,858): the five `notification-*` commands with their
+ * written JSON Schemas, the quota, the list's cursor and budget, R10's protection, and `toast-show`'s inbox half, over
+ * step 3's re-estimate of about 7,000 for them. `appsMinified` 417,500 to 418,000 (417,348 to 417,629, +281): the
+ * SDK's `NotificationV1` and `notificationsOver`. `surfacesMinified` 88,200 to 91,000 (87,943 to 90,199, +2,256): the
+ * Inbox button's count and the announcement (`apps/inbox-bell.ts`), and a toast's "Open inbox". New row:
+ * `inboxMinified`, the chrome's `inbox` chunk (`loam-inbox`), 7,809 against section 14's 10,000, at 78%, so kept at
+ * 10,000.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -344,8 +357,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
-	jsMinified: 309_500,
-	jsGzip: 96_500,
+	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
+	jsMinified: 310_000,
+	jsGzip: 96_700,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -359,12 +373,13 @@ export const CEILINGS = Object.freeze({
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
-	lateMinified: 93_000,
+	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
+	lateMinified: 94_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 30_500,
+	lateSettingsMinified: 45_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -375,8 +390,9 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
-	appsMinified: 417_500,
-	surfacesMinified: 88_200,
+	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000.
+	appsMinified: 418_000,
+	surfacesMinified: 91_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -405,6 +421,7 @@ export const CEILINGS = Object.freeze({
 	settingsMinified: 36_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 6_970,
+	inboxMinified: 10_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -697,6 +714,9 @@ async function measurePage() {
 	const overlaysChunk = closure(/^assets\/overlays-/, afterSurfaces);
 	if (overlaysChunk.size === 0)
 		throw new Error('budget: the build has no `overlays` chunk to measure');
+	// Phase 4's inbox (its 10.3 and 14), loaded by the URL's chunk when main first shows it, after the surfaces.
+	const inboxChunk = closure(/^assets\/inbox-/, afterSurfaces);
+	if (inboxChunk.size === 0) throw new Error('budget: the build has no `inbox` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	// The copilot's panel (phase 5 specification, 16), loaded when the panel part first opens, after the surfaces:
@@ -756,6 +776,7 @@ async function measurePage() {
 		settingsMinified: sizeOf(settingsSection),
 		editorMoveMinified: sizeOf(editorMove),
 		overlaysMinified: sizeOf(overlaysChunk),
+		inboxMinified: sizeOf(inboxChunk),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -864,6 +885,7 @@ const ROWS = [
 		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
 	],
 	['overlaysMinified', "The chrome's `overlays` chunk, popovers and a toast's link, minified"],
+	['inboxMinified', "The chrome's `inbox` chunk, the inbox section, minified"],
 ];
 
 export async function measure() {

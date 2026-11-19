@@ -59,6 +59,21 @@ export const handlers = {
 		const stored = await context.store.list();
 		return success({ items: stored.map(({ key }) => ({ id: key, title: key })) });
 	},
+	/**
+	 * The guest book (phase 4 specification, section 1's `apps/hello` row): every visitor Hello has met, by name, with
+	 * whether it greeted them. A visitor joins it when `hello-greet` greets them, an inbox action among the ways.
+	 */
+	async 'hello-guests'(_input: Record<string, never>, context: AppCallContextV1) {
+		if (!context.store) return failure(STORE_MISSING);
+		const stored = await context.store.list();
+		return success({
+			guests: stored.map(({ key, value }) => ({
+				name: key,
+				greeted: true,
+				at: (value as { at?: number | null } | undefined)?.at ?? null,
+			})),
+		});
+	},
 	async 'hello-forget'(input: { name: string }, context: AppCallContextV1) {
 		if (!context.store) return failure(STORE_MISSING);
 		await context.store.delete(input.name);
