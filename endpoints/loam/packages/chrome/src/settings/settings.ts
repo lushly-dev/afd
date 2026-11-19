@@ -17,6 +17,11 @@ import type { AppSummaryV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { type SettingKeySchema, settingField } from '../forms/setting-field.js';
 import {
+	AUTONOMY_SECTION_ELEMENT,
+	defineAutonomySection,
+	type LoamAutonomySection,
+} from './autonomy.js';
+import {
 	CUSTOM_EDITORS,
 	defineEditors,
 	type LoamInstancePicker,
@@ -66,6 +71,18 @@ interface ValueRow {
 }
 
 const LEVEL_ORDER: readonly Level[] = ['person', 'workspace', 'project'];
+
+/**
+ * The autonomy section (4.5), the shell's, after Keybindings as 3.5 orders the tree: its own commands write it, so it
+ * is no section `setting-schema-get` lists, and its panel is `loam-autonomy-section`, not fields.
+ */
+const AUTONOMY: SectionOutline = {
+	section: 'loam.autonomy',
+	title: 'Autonomy',
+	description: 'How far agents act on their own for you: act, ask first, or only suggest.',
+	levels: [],
+	keys: [],
+};
 
 /** Where a value comes from, in words (3.5). */
 const FROM_WORDS: Record<ValueRow['from'], string> = {
@@ -119,6 +136,8 @@ export class LoamSettingsSection extends SettingsElement {
 	 * control left from before a change of scope writes where it shows, never in the new scope.
 	 */
 	#current = new Map<string, { row: ValueRow; level: Level; scope: PanelScope }>();
+	/** Whether the route's key is still to be given to the autonomy section, once per navigation (`#cap`). */
+	#targetPending = false;
 	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5). */
 	#hashHeard = () => {
 		const key = decodeURIComponent(location.hash.slice(1));
@@ -212,18 +231,28 @@ export class LoamSettingsSection extends SettingsElement {
 			this.#panel?.replaceChildren(el('p', {}, failed(answer)));
 		};
 		if (!read.success || !read.data) return failedRead(read);
-		this.#sections = read.data.sections;
+		this.#sections = [...read.data.sections];
+		const keybindings = this.#sections.findIndex(
+			(section) => section.section === 'loam.keybindings'
+		);
+		this.#sections.splice(keybindings + 1, 0, AUTONOMY);
 		const [id = '', key] = path.split('/');
 		const outline = this.#sections.find((section) => section.section === id) ?? this.#sections[0];
 		const target = outline?.section === id ? key : undefined;
 		if (id !== '' && outline?.section !== id) {
 			this.#say(`There is no section ${id} here. Showing ${outline?.title ?? 'none'}.`);
 		}
-		const selected = outline ? await this.#schemaOf(outline) : undefined;
+		const selected =
+			outline === AUTONOMY
+				? { ...AUTONOMY, schema: { properties: {} } }
+				: outline
+					? await this.#schemaOf(outline)
+					: undefined;
 		if (generation !== this.#reads) return;
 		if (selected && 'success' in selected) return failedRead(selected);
 		this.#selected = selected;
 		this.#target = target;
+		this.#targetPending = target !== undefined;
 		// A key named by the link chooses the level: the narrowest its own levels allow here (3.5).
 		const levels = outline?.keys.find((each) => each.key === target)?.levels;
 		if (levels) this.level = this.#narrowest(levels) ?? null;
@@ -424,6 +453,15 @@ export class LoamSettingsSection extends SettingsElement {
 			header.replaceChildren(el('p', { class: 'note' }, 'No settings to show.'));
 			return;
 		}
+		if (section.section === AUTONOMY.section) {
+			// Its levels are its own panel's parts, so no switcher.
+			header.replaceChildren(
+				el('h2', { id: 'settings-section-title' }, section.title),
+				el('p', { class: 'note' }, section.description as string)
+			);
+			this.#panel?.setAttribute('aria-labelledby', 'settings-section-title');
+			return;
+		}
 		const levels = this.levels;
 		const shown = this.shownLevel;
 		const names: Record<Level, string> = {
@@ -503,6 +541,24 @@ export class LoamSettingsSection extends SettingsElement {
 		const section = this.#selected;
 		const level = this.shownLevel;
 		if (!kernel || !panel) return;
+		if (section?.section === AUTONOMY.section) {
+			defineAutonomySection();
+			const held = panel.querySelector<LoamAutonomySection>(AUTONOMY_SECTION_ELEMENT);
+			const shown =
+				held ?? (document.createElement(AUTONOMY_SECTION_ELEMENT) as LoamAutonomySection);
+			shown.kernel = kernel;
+			shown.scope = this.scope;
+			shown.project = this.project;
+			shown.apps = this.apps.map(({ instance, title }) => ({ instance, title }));
+			if (this.#targetPending) {
+				this.#targetPending = false;
+				shown.target = this.#target;
+			}
+			if (!held) panel.replaceChildren(shown);
+			this.#current.clear();
+			await shown.read();
+			return;
+		}
 		if (!section || !level) {
 			panel.replaceChildren();
 			return;

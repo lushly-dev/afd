@@ -324,6 +324,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
  * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
  * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
+ * Phase 4's step 8 (autonomy) raised two under D115, measured on its branch from `main` at `9f4bb6d2` on Windows with
+ * Node 26.13.1. `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195): the `autonomy` table, the pure
+ * `resolveAutonomy` with its ceilings and write-time bound, `autonomy-get` (single and bulk), `autonomy-list`,
+ * `autonomy-set` with its N9 check order and hand-off, and boot's `autonomy-settle`; about a third of it is the three
+ * commands' descriptions, input schemas and refusals in words. `settingsMinified` 36,000 to 40,000 (32,094 to 39,323,
+ * +7,229): `loam-autonomy-section`, its words and the tree's Autonomy entry. First paint 308,800 and 96,345 gzip,
+ * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring. After the step's
+ * trust review, with descriptions and refusal text trimmed first (-471): `lateSettingsMinified` 43,500 to 45,500 (42,595
+ * to 44,544: identity and catalog state per instance, the workspace in the row's key, `autonomy-list`'s pages, the
+ * identifier checks and the copilot's hand-off rule); `settingsMinified` 40,000 to 41,000 (39,323 to 40,198: the
+ * section's pages and the cap's link). First paint 308,836 and 96,360 gzip; `late` 83,989 of 84,000.
+ * Merged with step 3 (`main` at `9d611137`): `lateMinified` 93,000 to 94,000 (93,244 combined: step 3's overlay wiring
+ * beside step 8's autonomy deps, its settle after a refresh or `workspace-app-set`, and the copilot gate's hand-off
+ * rule); first paint 309,020 and 96,411 gzip, the kernel alone 119,000, and every other row within its ceiling.
  * Phase 4's step 5 (the inbox), under D115, on Windows with Node 26.13.1, against the figures this file records for
  * `main` with steps 2 and 3 merged. `jsMinified` 309,500 to 310,000 (308,966 to 309,560, +594; gzip 96,545, its row
  * 96,500 to 96,700): the title bar's Inbox button with its count and name, the shell's `unread`, `~/inbox` in the
@@ -343,6 +357,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * out); `inbox` 9,637 (clearing on a change of access, the lookup by id, the act's busy button). `editorMinified`
  * 35,445 to 35,600 (35,393 to 35,479, +86): a failed save's toast in a module of its own, sticky when the page was
  * hidden; the step's first commit was already over this row, which its record had not measured.
+ * Steps 5 and 8 merged (step 5's branch with `main` at `254249c3`), under D115: `lateSettingsMinified` 45,500 to 61,500
+ * (60,469 combined: step 5's inbox, 43,976 on its own, beside step 8's autonomy, 44,544 on its own, over the chunk's
+ * shared 28,400 of settings); `lateMinified` 94,000 to 95,500 (94,828: both steps' wiring in `late`). First paint 309,930
+ * and 96,671 gzip, within 310,000 and 96,700; every other row within its ceiling.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -380,12 +398,15 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 119_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
-	lateMinified: 94_000,
+	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
+	// Steps 5 and 8 together: 94,828; set to 95,500 (the header records it).
+	lateMinified: 95_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 44_600,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
+	lateSettingsMinified: 61_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -425,7 +446,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 36_000,
+	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 6_970,
 	inboxMinified: 10_000,

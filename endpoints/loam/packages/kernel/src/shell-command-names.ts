@@ -126,4 +126,8 @@ export const SHELL_COMMAND_NAMES = [
 	'notification-read',
 	'notification-archive',
 	'notification-act',
+	// Phase 4's step 8 (its 4.4): autonomy.
+	'autonomy-get',
+	'autonomy-list',
+	'autonomy-set',
 ] as const;

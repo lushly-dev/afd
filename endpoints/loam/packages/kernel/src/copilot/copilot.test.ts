@@ -237,6 +237,66 @@ describe('the copilot commands (3.5)', () => {
 		expect(health.totals.acted).toBe(1);
 	});
 
+	it("hands a person's own writes back with HUMAN_REQUIRED from their handlers, never AUTONOMY_UNAVAILABLE (phase 4's 3.2)", async () => {
+		const { kernel, journal } = await setup({
+			scripts: {
+				writes: [
+					{ tools: [{ name: 'autonomy-set', input: { level: 'workspace', mode: 'act' } }] },
+					{ tools: [{ name: 'autonomy-set', input: { level: 'person', cap: 'act' } }] },
+					{
+						tools: [
+							{
+								name: 'setting-set',
+								input: {
+									section: 'loam.documents',
+									key: 'trashDays',
+									value: 3,
+									level: 'workspace',
+								},
+							},
+						],
+					},
+					{
+						tools: [
+							{
+								name: 'setting-set',
+								input: { section: 'loam.appearance', key: 'theme', value: 'dark', level: 'person' },
+							},
+						],
+					},
+					{ text: 'Done.' },
+				],
+			},
+		});
+		const session = await startSession(kernel);
+		const { turn } = data<{ turn: CopilotTurnV1 }>(
+			await kernel.call('copilot-message-send', { session, text: 'script:writes' })
+		);
+		expect(turn.calls.map((call) => [call.command, call.code])).toEqual([
+			['autonomy-set', 'HUMAN_REQUIRED'],
+			['autonomy-set', 'HUMAN_REQUIRED'],
+			['setting-set', 'HUMAN_REQUIRED'],
+			// A person-level write an agent may make for its person stays closed until autonomy is enforced.
+			['setting-set', 'AUTONOMY_UNAVAILABLE'],
+		]);
+		const handed = (await entries(journal)).filter((entry) => entry.command === 'autonomy-set');
+		expect(handed.map((entry) => entry.result.error?.details)).toEqual([
+			{
+				route: '~/settings/loam.autonomy',
+				section: 'loam.autonomy',
+				key: 'workspace/-/*/*',
+				level: 'workspace',
+			},
+			{
+				route: '~/settings/loam.autonomy#cap',
+				section: 'loam.autonomy',
+				key: 'cap',
+				level: 'person',
+			},
+		]);
+		expect(data<{ rows: unknown[] }>(await kernel.call('autonomy-list', {})).rows).toEqual([]);
+	});
+
 	it('refuses a second message while a turn runs, a person-only provider check, and another session', async () => {
 		const { kernel, providers } = await setup({ scripts: { hang: [{ hang: true }] } });
 		const session = await startSession(kernel);

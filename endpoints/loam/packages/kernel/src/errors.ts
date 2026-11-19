@@ -162,7 +162,10 @@ export type LoamKernelErrorCode =
 	| 'SETTING_MUTE_SHELL'
 	| 'KEYBINDING_RESERVED'
 	| 'SHARED_RECORD_UNAVAILABLE'
-	| 'OUTPUT_BUDGET_EXCEEDED';
+	| 'OUTPUT_BUDGET_EXCEEDED'
+	// Step 8's: autonomy (4.3).
+	| 'AUTONOMY_ABOVE_CEILING'
+	| 'AUTONOMY_COMMAND_UNKNOWN';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

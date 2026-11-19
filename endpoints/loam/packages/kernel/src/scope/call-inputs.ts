@@ -143,6 +143,10 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'notification-read': { all: true },
 	'notification-archive': { all: true },
 	'notification-act': { notification: 'ntf_0000000000000000' },
+	// Phase 4's step 8: autonomy, each naming the twin's project, which no caller here may enter (4.3, 4.4).
+	'autonomy-get': { command: 'project-get', instance: 'shell', project: PROJECT },
+	'autonomy-list': { project: PROJECT },
+	'autonomy-set': { level: 'project', project: PROJECT, mode: 'ask' },
 };
 
 /**

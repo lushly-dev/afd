@@ -36,16 +36,16 @@ const PHASE_5 = fileURLToPath(
 /**
  * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 built the settings core and
  * `p4-base`; step 2 the settings section, the palette's setting rows, hello's sections and `p4-base`'s apps, so the
- * three settings jobs run; step 5 the inbox and hello's guest book, so its two jobs run. The rest need a later step's
- * commands.
+ * three settings jobs run; step 5 the inbox and hello's guest book, so its two jobs run; step 8 autonomy, with the
+ * second app's reset command, so the three autonomy jobs run. The rest need a later step's commands.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'setting-per-project': 'now',
 	'setting-from-palette': 'now',
 	'agent-changes-setting': 'now',
-	'autonomy-per-command': 'step 8: autonomy',
-	'know-my-mode': 'step 8: autonomy',
-	'owner-ceiling': 'step 8: autonomy',
+	'autonomy-per-command': 'now',
+	'know-my-mode': 'now',
+	'owner-ceiling': 'now',
 	'opt-into-experiment': "step 9: experiments and hello's `hello.inspector-v2`",
 	'workspace-experiment-opt-out': 'step 9: experiments',
 	'decline-confirmation':
