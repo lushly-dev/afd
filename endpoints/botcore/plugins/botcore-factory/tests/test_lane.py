@@ -7,6 +7,7 @@ import json
 
 import pytest
 
+from botcore_factory.events import lane_resume
 from botcore_factory.lane import first_lines, log_path, step
 
 
@@ -973,7 +974,18 @@ def test_a_short_disk_pauses_the_lane_before_validating(lane):
     [error] = events(lane, "lane-error")
     assert "host.minFreeDiskGb is 20" in error["detail"] and "slots" in error["detail"]
     assert lane.state()["lane"]["paused"] is True
-    with lane.store.update("room again") as state:
-        state["lane"]["paused"] = False
+    factory = lane.factory()
+    lane_resume(factory, "freed some disk")  # Not enough: it pauses again, ejecting nothing.
+    run_steps(lane)
+    assert lane.state()["lane"]["paused"] is True and len(events(lane, "lane-error")) == 2
+    assert not events(lane, "ejected")
     lane.change_world(host={"freeDiskGb": 200})
+    lane_resume(lane.factory(), "freed enough")
     assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+
+
+def test_an_unreadable_disk_pauses_the_lane_with_the_way_out(lane):
+    lane.change_world(host={"freeMemoryGb": 40}, machines=[], thisMachine="nowhere")
+    run_steps(lane)
+    assert "Cannot read free disk" in lane.state()["lane"]["pauseReason"]
+    assert "host.minFreeDiskGb" in lane.state()["lane"]["pauseReason"]

@@ -78,7 +78,10 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
             "canStartCell": False,
             "reason": f"The host is loaded: {free:g} GB free, host.minFreeGb is {floor:g}",
         }
-    short = disk_short(factory, overrides)
+    try:
+        short = disk_short(factory, overrides)
+    except Refusal as refusal:
+        return {"canStartCell": False, "reason": refusal.message}
     if short is not None:
         return {"canStartCell": False, "reason": f"The disk is short: {short.message}"}
     if not ready:
@@ -157,7 +160,10 @@ def compact_status(factory: Factory) -> dict:
         backlog = read_backlog(factory)
     except (Refusal, WorldError) as exc:
         return {**compact, "unavailable": str(exc)}
-    start = can_start(factory, state, dispatchable(backlog))
+    try:
+        start = can_start(factory, state, dispatchable(backlog))
+    except (Refusal, WorldError) as exc:  # Delivered events are never lost to a failed read.
+        return {**compact, "unavailable": str(exc)}
     return {**compact, **start, "waitingOnOwner": waiting_on_owner(state, backlog)}
 
 

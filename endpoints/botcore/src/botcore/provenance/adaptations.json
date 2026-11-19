@@ -1313,7 +1313,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3bf36b1de2e580c0700faeb1e796a70337817cf52c8daaf6da9e363ded3c0b85",
+      "current_import_sha256": "d26eb82e5b3b88435a7470f192034ed4fe609003fc85db9210b8c6fab671c147",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1346,7 +1346,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "684051ea1d1394a2d73df5dcd3f829e3d73da7e32e55127d76861ae682dd93ca",
+      "current_import_sha256": "626a58d94eed6ee7665ce45d5fd1081b1ba3ca44984e3c3dd2995a7467abdd67",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1379,7 +1379,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4eb145331e88fe992173a385848177deb41ab245c5c46b8d1c932cf51c787764",
+      "current_import_sha256": "ae1c19f40e26a01a13cb885b465c3c58160b77e0709530d1763ec34f134c8dfe",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1467,7 +1467,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2e4ded9c77807cbf5f20de4355597e1611e296561ca605fe0d27ef1c4c022c13",
+      "current_import_sha256": "2e03ed3d2b0ccb83156c5612443427dcee1322eb6fcfae87dd32107bbea3250c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1588,7 +1588,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f3bdb41e3e2796d21ebe3d2718abe45e65b5c322c22f67bb412d9ae12a6bfb9e",
+      "current_import_sha256": "b093de6d09ca1f03620d5bd7a7db97c5dec22c373d5ed406a8a7ad8885ab0d4b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1610,7 +1610,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ee4805b1e960a32cd7cabefe94e0b7eee8646565f9f9101164de2d926a5a3c55",
+      "current_import_sha256": "a29f5296c5cff622839d5dfc9fbead900cab90507167abc5363932886179dd85",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1621,7 +1621,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8bb0e358179e7580c341ad92404e372aaaa4d0878e66262fcece7bb8b218ca64",
+      "current_import_sha256": "15c86d289fd2cdeb8c92f9b3009af4049b7666364f6b2903c5053d53acedea6a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1632,7 +1632,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fdf86a818692d9b04babb2aee9b9132340166f5adf0404ace52fcb0792b3dfe1",
+      "current_import_sha256": "44d1cf1221660009f9c91eab892a6fd987ca9c26bd49b48fbd69bda07b7d2e57",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
@@ -1665,7 +1665,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1d82f259018682a7477bbb937624d41622e555a70a1ec58b829c3acf83feecde",
+      "current_import_sha256": "14af41a0371820bb4ceb45ee546b293ac25626599232c6759a2826eb35914353",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"

@@ -188,11 +188,23 @@ class DiskShort:
 
 def disk_short(factory: Factory, overrides: dict) -> DiskShort | None:
     """Whether free disk where the lane's slots build is below ``host.minFreeDiskGb``: a full
-    disk ejected a good branch mid-build (lushly-dev/afd#1565), so it refuses work instead."""
+    disk ejected a good branch mid-build (lushly-dev/afd#1565), so it refuses work instead.
+    A floor of 0 reads nothing; a failed read refuses ``DISK_UNREADABLE``."""
     floor = dials.value(overrides, "host.minFreeDiskGb")
+    if floor <= 0:
+        return None
     world = factory.world
-    where = world.git.slots_dir()
-    free = world.machine.free_disk_gb(where)
+    try:
+        where = world.git.slots_dir()
+        free = world.machine.free_disk_gb(where)
+    except WorldError as exc:
+        raise Refusal(
+            "DISK_UNREADABLE",
+            f"Cannot read free disk where the lane's slots build: {exc}",
+            "Fix what the message names (the lane's slots go beside the checkout, so a checkout "
+            "at a filesystem root or inside a submodule has none), or set host.minFreeDiskGb to "
+            "0 with dial-set to skip the check",
+        ) from exc
     if free >= floor:
         return None
     return DiskShort(round(free, 1), floor, where, world.machine.id())

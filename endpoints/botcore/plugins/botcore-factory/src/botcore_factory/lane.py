@@ -49,7 +49,7 @@ from botcore_factory.lane_base import (
 )
 from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
-from botcore_factory.runtime import Factory
+from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import MergeOutcome, WorldError
 
 __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
@@ -166,7 +166,10 @@ class Step(Merging, Coverage):
             if not self.config.validate_command:
                 raise LaneTrouble("The repository adapter names no validate command")
             # A full disk mid-build ejects a good branch (lushly-dev/afd#1565): pause instead.
-            short = disk_short(self.factory, self.state["dials"])
+            try:
+                short = disk_short(self.factory, self.state["dials"])
+            except Refusal as refusal:
+                raise LaneTrouble(f"{refusal.message}. {refusal.suggestion}") from refusal
             if short is not None:
                 raise LaneTrouble(
                     f"Validating {entry['branch']} waits: {short.message}. {short.suggestion}; "

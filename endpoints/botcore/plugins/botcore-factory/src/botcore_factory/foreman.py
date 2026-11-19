@@ -28,8 +28,8 @@ from botcore_factory.claims import format_time, parse_time
 from botcore_factory.runtime import Factory, Refusal
 
 LEASE_DIAL = "foreman.leaseMinutes"
-#: Superseded sessions kept; the oldest are forgotten first.
-SUPERSEDED_KEPT = 50
+#: Superseded sessions kept; the longest superseded are forgotten first.
+SUPERSEDED_KEPT = 500
 
 
 def _live(lease: dict | None, now) -> bool:
@@ -69,8 +69,9 @@ def _supersede(lane: dict, previous: str | None, session: str, at: str) -> None:
     superseded = lane.setdefault("supersededForemen", {})
     if previous and previous != session:
         superseded[previous] = {"by": session, "at": at}
+        # By time, not by key order: the state file is written with its keys sorted.
         while len(superseded) > SUPERSEDED_KEPT:
-            superseded.pop(next(iter(superseded)))
+            superseded.pop(min(superseded, key=lambda key: superseded[key]["at"]))
 
 
 def hold(

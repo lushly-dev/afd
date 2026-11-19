@@ -159,3 +159,12 @@ async def test_a_handoff_supersedes_the_session_that_handed_over(make_run):
     assert (
         await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
     ).success
+
+
+def test_the_longest_superseded_sessions_are_forgotten_first(monkeypatch):
+    monkeypatch.setattr(foreman, "SUPERSEDED_KEPT", 2)
+    lane: dict = {}
+    # Keys sort in the opposite order to time, as the state file writes them.
+    for previous, session, at in [("z", "y", "1"), ("y", "b", "2"), ("b", "a", "3")]:
+        foreman._supersede(lane, previous, session, at)
+    assert set(lane["supersededForemen"]) == {"y", "b"}

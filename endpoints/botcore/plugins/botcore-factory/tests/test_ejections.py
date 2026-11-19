@@ -12,6 +12,13 @@ from botcore_factory.report import lane_report
 
 BRANCH = "feat/export-csv"
 CI_FAILED = {"checks": {BRANCH: "failure"}}
+DISPATCHABLE = {
+    "number": 190,
+    "labels": ["status:planned", "execution:bounded", "area:core"],
+    "assignees": [],
+    "openPrs": [],
+    "createdAt": "2030-01-01T09:00:00Z",
+}
 
 
 def cell_of(run) -> dict:
@@ -156,8 +163,9 @@ async def test_an_ejected_cell_at_the_limit_waits_on_the_owner_and_frees_its_sea
     assert BRANCH not in [c["branch"] for c in holding_seats(run.state())]
     [room] = events(run, "queue-room")
     assert room["detail"] == f"A seat is free: {BRANCH} waits on the owner"
+    run.change_world(issues=[*run.world_data()["issues"], DISPATCHABLE])
     status = (await run.call("lane_status")).data
-    assert "seat" not in (status.get("reason") or "")
+    assert status["canStartCell"] is True, status.get("reason")
     assert status["waitingOnOwner"] >= 1
 
     excused = await run.call("ejection_excuse", branch=BRANCH, reason="#1565: the disk filled up")

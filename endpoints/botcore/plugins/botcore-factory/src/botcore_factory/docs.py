@@ -55,7 +55,8 @@ limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open, a pull request still in the
 merge queue after as long, left there; free disk at the lane's slots below
-`host.minFreeDiskGb` before a validation starts; it paused and ejected nothing;
+`host.minFreeDiskGb` before a validation starts (the paused lane merges nothing either, and
+pauses again on resuming while the disk is still short); it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
 `merged` (`detail` ends `through the merge queue` when it went through one),
 `merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
@@ -136,16 +137,19 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   lane from this one), `FOREMAN_BUSY` (another session holds the
   lane; the lease is taken before the checks below), `VALIDATION_ERROR`,
   `TOO_MANY_ISSUES` (over `cells.issuesMax`, or a package without `related_because`),
-  `ALREADY_EXISTS` (the branch has a cell), `ALREADY_CLAIMED` (names the holding branch),
-  `NOT_DISPATCHABLE` (triage has not planned it, or a rule holds it), `CELLS_FULL`
+  `ALREADY_EXISTS` (the branch has a cell), `CELLS_FULL`
   (`cells.max`; a cell holds a seat from registration until it merges, is dropped or parks,
   and an ejected cell keeps it while its foreman repairs it, but not once its own failures
   reach `cells.maxEjections` and it waits on the owner: an excuse that brings it under the
-  limit seats it again), `PLAN_ABOVE_CEILING` (every plan a cell may take at or above
+  limit seats it again, even past `cells.max`, which then refuses until enough seats free),
+  `PLAN_ABOVE_CEILING` (every plan a cell may take at or above
   `plans.ceiling`; names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while
   `cells.claudeOnly` is on),
   `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`), `DISK_LOW` (free
   disk where the lane's slots build below `host.minFreeDiskGb`; names that directory),
+  `DISK_UNREADABLE` (that free disk could not be read; 0 turns the check off),
+  `ALREADY_CLAIMED` (names the holding branch), `NOT_DISPATCHABLE` (triage has not planned it,
+  or a rule holds it),
   `WRITE_FAILED` (a claim write failed; the claims it wrote are put back, and it names any it
   could not). A refusal writes nothing.
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
