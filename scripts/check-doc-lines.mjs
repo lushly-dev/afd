@@ -5,8 +5,8 @@
  * A table cell or sentence that every pull request adds to is one line that every open branch
  * edits, so each merge to `main` puts the others in conflict. Loam's decision-log cell reached
  * 2,049 characters and the parity page's "Updated" cell 2,126 that way
- * (docs/features/active/merge-conflicts/). Such a line names no entry, or only the latest, and
- * links to the rest; this check refuses one that grows back.
+ * (docs/features/active/merge-conflicts/). Such a line names no entry and links to where each has
+ * its own line; this check refuses one that grows back, and a line too long to be one entry.
  *
  * Policy: scripts/policy/doc-line-limits.json
  *   limit          the longest line allowed, in characters
@@ -144,7 +144,7 @@ function check(policy) {
 			const length = lengthOf(lines[index]);
 			if (length > entry.max)
 				fail(
-					`${file}:${index + 1}: ${length} characters, over this line's cap of ${entry.max}. It is a summary: name no entry, or only the latest, and link to the rest. A line every pull request edits conflicts with every open branch`
+					`${file}:${index + 1}: ${length} characters, over this line's cap of ${entry.max}. It is a summary: name no entry, and link to where each has its own line. A line every pull request edits conflicts with every open branch`
 				);
 		}
 
@@ -177,7 +177,7 @@ function check(policy) {
 			const length = lengthOf(line);
 			if (length > limit)
 				fail(
-					`${file}:${index + 1}: ${length} characters, over the limit of ${limit}. A line every pull request adds to conflicts with every open branch: name only the latest entry and link to the rest, or give the new entry its own line`
+					`${file}:${index + 1}: ${length} characters, over the limit of ${limit}. A line every pull request adds to conflicts with every open branch: give the new entry its own line, and put a record that needs more room in the specification, linked from its line`
 				);
 		}
 	}
