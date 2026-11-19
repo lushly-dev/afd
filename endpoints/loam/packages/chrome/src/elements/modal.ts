@@ -406,7 +406,11 @@ export class LoamModal extends FASTElement {
 
 	handleCancel(event: Event): void {
 		event.preventDefault();
-		if (event.isTrusted) this.#answer('cancel');
+		if (!event.isTrusted) return;
+		// Its Escape is handled here, the dialog kept open: a later close with no gesture is not theirs (third round, F;
+		// Opus 5). One the browser will not let be kept (Chromium's second Escape) is handled by the close that follows.
+		if (event.cancelable) this.#escaped = false;
+		this.#answer('cancel');
 	}
 
 	/**
@@ -421,8 +425,11 @@ export class LoamModal extends FASTElement {
 		}
 		// The browser closed it on a person's Escape: their cancel. Closed with no gesture of theirs, as a script's
 		// `close()` does: the question ends `withdrawn`, which never counts as the person's decline (second round, 6).
-		if (this.overlayId !== '' && !this.dialog.open)
-			this.#answer('cancel', this.#escaped ? undefined : 'withdrawn');
+		if (this.overlayId !== '' && !this.dialog.open) {
+			const escaped = this.#escaped;
+			this.#escaped = false;
+			this.#answer('cancel', escaped ? undefined : 'withdrawn');
+		}
 	}
 
 	handleKeydown(event: KeyboardEvent): boolean {
@@ -431,6 +438,7 @@ export class LoamModal extends FASTElement {
 			// A non-modal dialog has no cancel event of its own: a person's Escape cancels it here.
 			if (event.key === 'Escape' && !event.defaultPrevented && event.isTrusted) {
 				event.preventDefault();
+				this.#escaped = false;
 				this.#answer('cancel');
 			}
 			return true;

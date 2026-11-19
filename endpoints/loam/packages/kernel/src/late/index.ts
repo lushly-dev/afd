@@ -55,7 +55,7 @@ import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { AGENT_PUSH_RATE, APP_PUSH_RATE, createPushRate } from './push-rate.js';
-import { createLateScope, type LateScopeDeps } from './scope-change.js';
+import { createLateScope, documentChainOf, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
 import type { Settings } from './settings.js';
@@ -808,6 +808,7 @@ export async function createLateParts(
 			scope.project !== undefined &&
 			deps.scope.projects.get(scope.project)?.status === 'archived' &&
 			deps.isMutation(command),
+		chainOf: documentChainOf,
 		releaseQueue: (context) =>
 			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
 		digest: async (value) => {

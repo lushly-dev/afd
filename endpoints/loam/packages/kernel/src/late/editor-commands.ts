@@ -487,7 +487,12 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		jsonSchema: tabWith('discard', { type: 'boolean' }, false),
 		handler: (input, context) =>
 			read(context, (before, project) => {
-				if (editors.dirty(project, input.tab) && input.discard !== true) {
+				// The tab as shown, whose document the close prompt names: a dirty mark a closed tab kept asks nothing, and the
+				// close answers EDITOR_TAB_UNKNOWN (step 6's third round, H).
+				const shown = before.groups
+					.flatMap((group) => group.tabs)
+					.find((tab) => tab.id === input.tab);
+				if (shown && editors.dirty(project, input.tab) && input.discard !== true) {
 					const refused = unsavedTab(input.tab, true);
 					// Only the person's own close opens the close prompt (phase 4 specification, 7.3; A-P2-1): an agent's or a
 					// port's gets `EDITOR_TAB_DIRTY` alone, with no modal. Its answers are the person's: save, discard, cancel.
@@ -513,10 +518,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 								kind: 'close',
 								tab: input.tab,
 								scope: here(context),
-								...((document) => (document ? { document } : {}))(
-									before.groups.flatMap((group) => group.tabs).find((tab) => tab.id === input.tab)
-										?.document
-								),
+								document: shown.document,
 							},
 						}
 					);

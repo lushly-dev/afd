@@ -23,9 +23,7 @@ import type {
 	ConfirmationV1,
 	NotificationV1,
 	OverlayRefV1,
-	PromptFieldV1,
 	PromptInputV1,
-	PromptSchemaV1,
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { KernelFieldContext } from '../context-fields.js';
@@ -34,103 +32,47 @@ import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ContextFieldV2 } from '../types.js';
+import {
+	type AskedFor,
+	bucketOf,
+	CONFIRMATION_TTL_MS,
+	DECLINE_WINDOW_MS,
+	ENDED_KEPT,
+	ID,
+	jsonOf,
+	outcomeOf,
+	ownedBy,
+	PENDING_LIMIT,
+	PERSON_LIMIT,
+	promptSchemaOf,
+	REPLACES,
+	SLOT_KEPT,
+	type StoredConfirmation,
+	stateNow,
+	summaryOf,
+	TABLE,
+} from './confirmation-parts.js';
 import type { Opener } from './overlay-commands.js';
 import type { SettingsKit } from './settings.js';
 
-/** The workspace store's table the inbox keeps its rows in (10.1): a pending confirmation is one of them. */
-const TABLE = 'notification';
-
-/** A pending confirmation expires after 10 minutes (7.2). */
-export const CONFIRMATION_TTL_MS = 600_000;
-/** After a decline, a call on the same key is refused without asking for 60 seconds (R16). */
-export const DECLINE_WINDOW_MS = 60_000;
-/** At most 5 pending per caller (7.2). */
-export const PENDING_LIMIT = 5;
-/** Ended confirmations kept per person past their key's life, the newest; older ones go when a new one is raised. */
-export const ENDED_KEPT = 50;
-/**
- * At most this many confirmations a person holds within their 10-minute life, from every caller together (the trust
- * review's R3): no set of callers fills the person's inbox, which confirmations do not count against.
- */
-export const PERSON_LIMIT = 50;
-/** At most this many live slot declines a person's store keeps (step 6's second round, 9), the newest. */
-export const SLOT_KEPT = 20;
-
-const ID = /^ntf_[a-z0-9]{16}$/;
-
-/** A confirmation's row as the store keeps it: the record, and what the kernel alone reads, never listed. */
-export type StoredConfirmation = NotificationV1 & {
-	kind: 'confirmation';
-	confirmation: ConfirmationRecordV1;
-	/** The key (F4): the caller, the command, the input's digest and the scope, of one person in one workspace. */
-	ckey: string;
-	/** The actor that asked, and the interface it asked through: the shell's run is the same call (7.2). */
-	cactor?: Actor;
-	ciface: 'palette' | 'agent';
-	/**
-	 * Who raised it, as the kernel tells callers apart (the trust review's R1): an app's instance, or the agent
-	 * interface's bucket, one per person (the copilot apart), since an agent's name is the caller's own choice. The key,
-	 * the limits and who reads or withdraws it go by it; `source` and `confirmation.caller` only say who asked.
-	 */
-	cbucket: string;
-	/** A decline in the slot, kept so the window holds across a reload and the inbox's path (blocker 6). */
-	cslot?: true;
-	/** The act's claim, as a notice's (step 5): a confirm runs once. */
-	claim?: string;
-};
-
-/** The fields a row carries that no list shows (10.2). */
-export const KERNEL_ONLY_FIELDS = [
-	'ckey',
-	'cactor',
-	'ciface',
-	'cbucket',
-	'cslot',
-	'claim',
-] as const;
-
-/**
- * Who a caller is to its confirmations (R1), each in a namespace of its own (step 6's second round, 5), so an instance
- * named `person` or `agents` is never the shell's or an agent's: `app:<instance>`, the agent interface's `agents:<person>`
- * or `copilot:<person>`, or `person` for a person's own gesture.
- */
-export const bucketOf = (opener: Opener): string | undefined =>
-	opener.kind === 'app'
-		? `app:${opener.owner.id}`
-		: opener.kind === 'agent'
-			? opener.bucket
-			: opener.kind === 'shell'
-				? 'person'
-				: undefined;
-
-/**
- * The one ownership rule (R1; second round, 5): whether `bucket` raised `row`, so it may `confirmation-get` it,
- * `confirmation-withdraw` it, and see its stored result in a list. A person's own gesture owns none.
- */
-export const ownedBy = (
-	row: { cbucket?: unknown; cslot?: unknown },
-	bucket: string | undefined
-): boolean =>
-	bucket !== undefined && bucket !== 'person' && row.cslot === undefined && row.cbucket === bucket;
-
-/** The state a row stands in now: a pending one past its `expiresAt` has expired (7.2), which no write records. */
-export function stateNow(record: ConfirmationRecordV1, now: number): ConfirmationStateV1 {
-	return record.state === 'pending' && now >= record.expiresAt ? 'expired' : record.state;
-}
-
-/** What a command's `confirm_prompt` asks, as the gate needs it. */
-export interface AskedFor {
-	/** The app's text, shown beneath the shell's header. */
-	prompt: string;
-	/** The instance whose command it is. */
-	instance: string;
-	/** The command's title, which Confirm and Decline name (15). */
-	title: string;
-	danger: boolean;
-}
-
-/** The kernel's own field on a call `palette-run` makes: the input prompt its confirmation replaces (R15). */
-export const REPLACES = Symbol('replaces');
+export {
+	type AskedFor,
+	bucketOf,
+	CONFIRMATION_TTL_MS,
+	DECLINE_WINDOW_MS,
+	ENDED_KEPT,
+	KERNEL_ONLY_FIELDS,
+	LISTED_INPUT_BYTES,
+	ownedBy,
+	PENDING_LIMIT,
+	PERSON_LIMIT,
+	promptSchemaOf,
+	REPLACES,
+	SLOT_KEPT,
+	type StoredConfirmation,
+	stateNow,
+	summaryOf,
+} from './confirmation-parts.js';
 
 export interface ConfirmationDeps {
 	store: DataAdapter;
@@ -180,6 +122,15 @@ export interface ConfirmationDeps {
 	archived(command: string, scope: ScopeV1): boolean;
 	/** Release the queue a queued call holds, as it starts waiting on a person (7.2; step 6's second round, 3). */
 	releaseQueue(context: CommandContext): void;
+	/**
+	 * The document chain a chained call holds (the scope middleware's): given up while it waits on a person, and taken
+	 * back, its resource checks repeated, before it runs (step 6's third round, A). Undefined for a call it chains to none.
+	 */
+	chainOf(
+		context: CommandContext
+	):
+		| { release(): void; again(run: () => Promise<CommandResult>): Promise<CommandResult> }
+		| undefined;
 	/** Mark the call's kernel event: its inbox changed, though the call may have failed (`CONFIRMATION_PENDING`). */
 	noteInbox(context: CommandContext): void;
 	/** SHA-256 of canonical JSON, as the copilot's input digest (phase 5's 3.4). */
@@ -234,87 +185,6 @@ interface SlotRecord {
 	command: string;
 	/** The overlay's answer once it closed: its result and reason. */
 	answer?: { result: string; reason: string };
-}
-
-/** `value` as JSON: a value with no JSON form is stored as `null`. */
-const jsonOf = (value: unknown): unknown => {
-	const text = JSON.stringify(value);
-	return text === undefined ? null : JSON.parse(text);
-};
-
-/** A list's bound on a confirmation's input (blocker 9): past it, a list shows its size, and a read by id the whole. */
-export const LISTED_INPUT_BYTES = 2_048;
-
-/** A confirmation's input as a list shows it: whole when small, else `{ truncated: true, bytes }`. */
-export const summaryOf = (input: unknown): unknown => {
-	const bytes = new TextEncoder().encode(JSON.stringify(input) ?? 'null').length;
-	return bytes <= LISTED_INPUT_BYTES ? input : { truncated: true, bytes };
-};
-
-/** A run's outcome as a confirmation keeps it: its success, data and error, never its timing (a replay's differs). */
-const outcomeOf = (result: CommandResult): unknown =>
-	jsonOf({
-		success: result.success,
-		...(result.data !== undefined ? { data: result.data } : {}),
-		...(result.error !== undefined ? { error: result.error } : {}),
-	});
-
-/** What makes a schema more than plain fields: the palette's prompt cannot ask for it. */
-const COMPOSED = ['oneOf', 'anyOf', 'allOf', 'not', 'if', '$ref', 'patternProperties'] as const;
-
-/** The keywords a plain field may carry (6.4): no `pattern`, since an app gives the shell no regular expression. */
-const FIELD_KEYS = [
-	'title',
-	'description',
-	'enum',
-	'minLength',
-	'maxLength',
-	'minimum',
-	'maximum',
-] as const;
-
-/**
- * A prompt's fields for a command's input (7.1, 6.4): an object of at most 12 plain fields, `string`, `number`,
- * `integer` or `boolean`, each with its title, description, choices and bounds; none at all for a command that takes
- * none. Undefined for any other input, which the palette cannot ask for. A field's `pattern` and `format` are left to
- * the command's own schema, which checks the input when it runs.
- */
-export function promptSchemaOf(json: unknown): PromptSchemaV1 | undefined {
-	const schema = json as { type?: unknown; properties?: unknown; required?: unknown } | undefined;
-	if (schema?.type !== 'object') return undefined;
-	// A choice of shapes, a reference or a condition is no form of plain fields (blocker 4: a top-level `oneOf`).
-	if (COMPOSED.some((word) => word in (schema as object))) return undefined;
-	const properties = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
-	if (typeof properties !== 'object' || Array.isArray(properties)) return undefined;
-	const keys = Object.keys(properties);
-	if (keys.length > 12 || !keys.every((key) => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(key)))
-		return undefined;
-	const fields: Record<string, PromptFieldV1> = {};
-	for (const key of keys) {
-		const property = properties[key] ?? {};
-		if (COMPOSED.some((word) => word in property)) return undefined;
-		const type = property.type;
-		if (type !== 'string' && type !== 'number' && type !== 'integer' && type !== 'boolean')
-			return undefined;
-		const field: Record<string, unknown> = { type };
-		for (const name of FIELD_KEYS) {
-			const value = property[name];
-			if (value === undefined) continue;
-			if ((name === 'title' || name === 'description') && typeof value === 'string')
-				field[name] = value.slice(0, name === 'title' ? 80 : 200);
-			else if (name === 'enum' && Array.isArray(value) && value.length <= 50) field[name] = value;
-			else if (typeof value === 'number') field[name] = value;
-		}
-		fields[key] = field as unknown as PromptFieldV1;
-	}
-	const required = Array.isArray(schema.required)
-		? schema.required.filter((key): key is string => typeof key === 'string' && keys.includes(key))
-		: [];
-	return {
-		type: 'object',
-		properties: fields,
-		...(required.length > 0 ? { required } : {}),
-	} as PromptSchemaV1;
 }
 
 export function createConfirmations(deps: ConfirmationDeps): Confirmations {
@@ -409,11 +279,24 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				: 'Ask the person before trying again; do not repeat the call',
 			details ? { details } : {}
 		);
+	const asking = (command: string, overlay: string | undefined) =>
+		fail(
+			'CONFIRMATION_PENDING',
+			`'${command}' waits for the person to answer it in the shell`,
+			'Wait for their answer; do not repeat the call',
+			{ retryable: true, details: overlay !== undefined ? { overlay } : {} }
+		);
 	const expired = (command: string) =>
 		fail(
 			'CONFIRMATION_EXPIRED',
 			`No one confirmed '${command}' within 10 minutes`,
 			'Ask the person, then call again to raise a new one'
+		);
+	const closedPrompt = (prompt: string) =>
+		fail(
+			'OVERLAY_NOT_FOUND',
+			`The input prompt '${prompt}' closed before it was answered, so nothing ran`,
+			'Open it again with palette-run { command }'
 		);
 	const noPerson = () =>
 		fail(
@@ -463,6 +346,12 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 
 	/** Slot confirmations, by id: opened by `prompt-settle`, answered in the slot. */
 	const slots = new Map<string, SlotRecord>();
+	/**
+	 * The keys a question in the slot holds, from the moment the call asks until it settles, with its overlay once open
+	 * (step 6's third round, D): a repeat of the same key from any path, the inbox's among them after its app stopped
+	 * being active, gets `CONFIRMATION_PENDING` with the question already asked, never a second one.
+	 */
+	const reserved = new Map<string, { overlay?: string }>();
 	/**
 	 * The confirmations a person confirmed whose run this page is making now, by id (live only), with the claim this page
 	 * wrote: the run is allowed only while the stored row still holds that claim (R2).
@@ -546,7 +435,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		key: string,
 		opener: Opener,
 		asked: AskedFor,
-		input: unknown
+		input: unknown,
+		hold: { overlay?: string }
 	): Promise<CommandResult> {
 		let id = call.confirmation;
 		if (id === undefined || !deps.replaying()) {
@@ -558,6 +448,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				overlays.ownerOf(replaces)?.kind === 'shell' &&
 				overlays.forOf(replaces)?.kind === 'input' &&
 				overlays.forOf(replaces)?.command === name;
+			// A fill's input prompt the person closed before its confirmation could replace it ends the fill (third round, D).
+			if (replaces !== undefined && !replaceable) return closedPrompt(replaces);
 			if (held && !replaceable) {
 				return fail(
 					'OVERLAY_MODAL_BUSY',
@@ -584,9 +476,13 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				},
 			});
 			if (!opened.success) return opened;
+			hold.overlay = (opened.data as { overlay?: OverlayRefV1 } | undefined)?.overlay?.overlayId;
 		}
-		// From here it waits on the person: the calls behind it go on (step 6's second round, 3).
+		// From here it waits on the person: the calls behind it go on (step 6's second round, 3), and so do the changes to
+		// its document behind it, which it waits for again before it runs (third round, A).
 		deps.releaseQueue(call);
+		const chain = deps.chainOf(call);
+		chain?.release();
 		const record = slots.get(id);
 		if (!record) {
 			return fail(
@@ -602,86 +498,139 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				return closed ? { result: closed.result, reason: closed.reason } : undefined;
 			})());
 		slots.delete(id);
+		// Settled: a repeat of the key is a new call from here (third round, D).
+		if (reserved.get(key) === hold) reserved.delete(key);
 		const scope = scopeOf(call);
+		/**
+		 * A call that waited and ended without running its handler answers from its record in a replay (step 6's third
+		 * round, C): it is journaled after the answer, so a replay would start it in what the calls made while it waited
+		 * left (an archived project), and the gates before this one would answer differently.
+		 */
+		const unrun = (result: CommandResult): CommandResult => {
+			call.replay = 'recorded';
+			return result;
+		};
 		if (answer?.result === 'confirm') {
 			// Re-checked just before the run, as the inbox's path is (blocker 5): the app may have gone while the slot waited.
 			if (
 				refusedAccess(call.actor, name, opener.kind === 'app' ? opener.owner.id : undefined, scope)
 			)
-				return declined(name, { reason: 'access' });
-			return next();
+				return unrun(declined(name, { reason: 'access' }));
+			if (!chain) return next();
+			let ran = false;
+			const result = await chain.again(() => {
+				ran = true;
+				return next();
+			});
+			return ran ? result : unrun(result);
 		}
 		if (answer?.reason === 'person') {
-			return fail(
-				'SESSION_CHANGED',
-				'The person changed while this waited for a confirmation, so it did not run',
-				'Ask again only if the new person should answer it'
+			return unrun(
+				fail(
+					'SESSION_CHANGED',
+					'The person changed while this waited for a confirmation, so it did not run',
+					'Ask again only if the new person should answer it'
+				)
 			);
 		}
 		// The raising app's own cancel is `withdrawn` (6.5, F6), which never opens the window.
-		if (answer?.reason === 'withdrawn') return declined(name, { reason: 'withdrawn' });
+		if (answer?.reason === 'withdrawn') return unrun(declined(name, { reason: 'withdrawn' }));
 		// Only a person's own decline opens the window: a prompt closed for any other reason, the shell's switch or a close
 		// with no gesture of theirs among them, ends `withdrawn`, never their decline (second round, 6 and 11).
 		if (answer?.reason !== 'user' || !overlays.closedByPerson(record.overlayId))
-			return declined(name, { reason: 'withdrawn', closed: answer?.reason ?? 'closed' });
+			return unrun(declined(name, { reason: 'withdrawn', closed: answer?.reason ?? 'closed' }));
 		// A person's gesture is exempt from the window (N8); the active app's port is held by it, kept in the store (blocker
-		// 6), so a reload and the inbox's path see it.
+		// 6), so a reload and the inbox's path see it. Written by `prompt-settle`, journaled as its own entry, so a replay
+		// that answers this call from its record writes it all the same (third round, C).
 		const person = personOf(call);
 		if (opener.kind === 'app' && person !== undefined) {
-			await serial(person, async () => {
-				const now = kit.callNow(call);
-				const row: StoredConfirmation = {
+			const written = await deps.runBoot('prompt-settle', {
+				decline: {
 					id: newId(call, 'ntf'),
-					workspace: deps.workspace(),
 					person,
-					source: opener.owner.id,
-					kind: 'confirmation',
+					key,
+					command: name,
+					caller: opener.owner.id,
+					header: headerOf(opener, asked.title, scope, call).slice(0, 200),
 					title: asked.title.slice(0, 120),
-					tone: asked.danger ? 'danger' : 'warning',
-					confirmation: {
-						command: name,
-						caller: opener.owner.id,
-						input: summaryOf(jsonOf(input)),
-						header: headerOf(opener, asked.title, scope, call).slice(0, 200),
-						prompt: asked.prompt,
-						title: asked.title,
-						...(asked.danger ? { danger: true } : {}),
-						expiresAt: now + DECLINE_WINDOW_MS,
-						state: 'declined',
-						reason: 'person',
-						answeredAt: now,
-					},
+					prompt: asked.prompt,
+					danger: asked.danger,
 					scope,
-					createdAt: now,
-					// Not news: the person answered it in the slot.
-					readAt: now,
-					ckey: key,
-					ciface: 'palette',
-					cbucket: bucketOf(opener) as string,
-					cslot: true,
-				};
-				// Bounded (step 6's second round, 9): a window that ended goes, and at most SLOT_KEPT live ones stay, the
-				// newest, written with this one in one batch.
-				const slotted = (await rowsOf(person))
-					.filter((each) => each.cslot === true)
-					.sort((a, b) => b.createdAt - a.createdAt);
-				const gone = [
-					...slotted.filter((each) => each.confirmation.expiresAt <= now),
-					...slotted.filter((each) => each.confirmation.expiresAt > now).slice(SLOT_KEPT - 1),
-				];
-				const { summary } = await store.batch([
-					...gone.map((each) => ({
-						method: 'DELETE' as const,
-						path: `/${TABLE}/${encodeURIComponent(each.id)}`,
-					})),
-					{ method: 'PUT', path: `/${TABLE}/${encodeURIComponent(row.id)}`, body: row },
-				]);
-				if (summary.failed > 0)
-					throw new Error(`The store could not write the confirmation '${row.id}'`);
+					input: summaryOf(jsonOf(input)),
+				},
 			});
 			deps.noteInbox(call);
+			if (!written.success) return unrun(written);
 		}
-		return declined(name);
+		return unrun(declined(name));
+	}
+
+	/**
+	 * A slot decline's row (blocker 6), written by `prompt-settle`: a window that ended goes, and a live one never does
+	 * (third round, E: a new request at capacity is refused before it asks instead).
+	 */
+	async function writeDecline(
+		decline: {
+			id: string;
+			person: string;
+			key: string;
+			command: string;
+			caller: string;
+			header: string;
+			title: string;
+			prompt: string;
+			danger: boolean;
+			scope: ScopeV1;
+			input: unknown;
+		},
+		context: CommandContext
+	): Promise<void> {
+		const { person } = decline;
+		await serial(person, async () => {
+			const now = kit.callNow(context);
+			const row: StoredConfirmation = {
+				id: decline.id,
+				workspace: deps.workspace(),
+				person,
+				source: decline.caller,
+				kind: 'confirmation',
+				title: decline.title,
+				tone: decline.danger ? 'danger' : 'warning',
+				confirmation: {
+					command: decline.command,
+					caller: decline.caller,
+					input: decline.input,
+					header: decline.header,
+					prompt: decline.prompt,
+					title: decline.title,
+					...(decline.danger ? { danger: true } : {}),
+					expiresAt: now + DECLINE_WINDOW_MS,
+					state: 'declined',
+					reason: 'person',
+					answeredAt: now,
+				},
+				scope: decline.scope,
+				createdAt: now,
+				// Not news: the person answered it in the slot.
+				readAt: now,
+				ckey: decline.key,
+				ciface: 'palette',
+				cbucket: `app:${decline.caller}`,
+				cslot: true,
+			};
+			const ended = (await rowsOf(person)).filter(
+				(each) => each.cslot === true && each.confirmation.expiresAt <= now
+			);
+			const { summary } = await store.batch([
+				...ended.map((each) => ({
+					method: 'DELETE' as const,
+					path: `/${TABLE}/${encodeURIComponent(each.id)}`,
+				})),
+				{ method: 'PUT', path: `/${TABLE}/${encodeURIComponent(row.id)}`, body: row },
+			]);
+			if (summary.failed > 0)
+				throw new Error(`The store could not write the confirmation '${row.id}'`);
+		});
 	}
 
 	// ─── The inbox (an agent, an app that is not active) ───────────────────────────
@@ -797,19 +746,55 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.group);
 		const slot =
 			opener.kind === 'shell' || (opener.kind === 'app' && (await deps.isActive(opener.owner.id)));
+		// Not in a replay, whose waiting call's entry already asked. A refusal decided by what this page holds in memory is
+		// answered from its record in a replay.
+		const replayed = call.confirmation !== undefined && deps.replaying();
+		// Checked, and for the slot reserved below, with no await between (third round, D).
+		const holding = reserved.get(key);
+		if (holding && !replayed) {
+			call.replay = 'recorded';
+			deps.noteInbox(call);
+			return asking(name, holding.overlay);
+		}
 		if (slot) {
-			// The window and the key's live row (F9's step 4, F5) hold an active app's port too, whatever path raised the row
-			// (blocker 6); only a person's gesture is exempt (N8). Not in a replay, whose entry already asked.
-			if (opener.kind === 'app' && !(call.confirmation !== undefined && deps.replaying())) {
-				const prior = await serial(person, async () =>
-					priorAnswer(await rowsOf(person), key, name, kit.callNow(call))
-				);
-				if (prior) {
-					deps.noteInbox(call);
-					return prior;
+			const hold: { overlay?: string } = {};
+			reserved.set(key, hold);
+			try {
+				// The window and the key's live row (F9's step 4, F5) hold an active app's port too, whatever path raised the row
+				// (blocker 6); only a person's gesture is exempt (N8). Not in a replay, whose entry already asked.
+				if (opener.kind === 'app' && !replayed) {
+					const prior = await serial(person, async () => {
+						const now = kit.callNow(call);
+						const rows = await rowsOf(person);
+						const answered = await priorAnswer(rows, key, name, now);
+						if (answered) return answered;
+						// At most SLOT_KEPT live declines per person and app (third round, E): a live window is never evicted, so a
+						// new question at capacity is refused until the earliest window ends, and one app's never touch another's.
+						const windows = rows.filter(
+							(row) =>
+								row.cslot === true && row.cbucket === caller && row.confirmation.expiresAt > now
+						);
+						if (windows.length < SLOT_KEPT) return undefined;
+						const soonest = Math.min(...windows.map((row) => row.confirmation.expiresAt));
+						return fail(
+							'RATE_LIMITED',
+							`At most ${SLOT_KEPT} declined questions from one app stay refused at once`,
+							'Wait for the earliest decline window to end, then ask again; do not repeat a declined call',
+							{
+								retryable: true,
+								details: { limit: SLOT_KEPT, retryAfterMs: Math.max(1, soonest - now) },
+							}
+						);
+					});
+					if (prior) {
+						deps.noteInbox(call);
+						return prior;
+					}
 				}
+				return await inSlot(name, call, next, key, opener, asked, input, hold);
+			} finally {
+				if (reserved.get(key) === hold) reserved.delete(key);
 			}
-			return inSlot(name, call, next, key, opener, asked, input);
 		}
 		return inInbox(
 			name,
@@ -909,6 +894,25 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	const settleInput = z.strictObject({
 		close: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
 		reason: z.optional(z.enum(['user', 'replaced'])),
+		settle: z.optional(z.unknown()),
+		decline: z.optional(
+			z.strictObject({
+				id: z.string().check(z.minLength(1), z.maxLength(64)),
+				person: z.string().check(z.minLength(1), z.maxLength(256)),
+				key: z.string().check(z.minLength(1), z.maxLength(128)),
+				command: z.string().check(z.minLength(1), z.maxLength(128)),
+				caller: z.string().check(z.minLength(1), z.maxLength(160)),
+				header: z.string().check(z.minLength(1), z.maxLength(200)),
+				title: z.string().check(z.minLength(1), z.maxLength(120)),
+				prompt: z.string().check(z.minLength(1), z.maxLength(200)),
+				danger: z.boolean(),
+				scope: z.strictObject({
+					workspace: z.string().check(z.minLength(1), z.maxLength(128)),
+					project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
+				}),
+				input: z.unknown(),
+			})
+		),
 		open: z.optional(
 			z.strictObject({
 				id: z.string().check(z.minLength(1), z.maxLength(64)),
@@ -925,17 +929,44 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	const settle = kit.define<typeof settleInput, { overlay?: OverlayRefV1 }>({
 		name: 'prompt-settle',
 		description:
-			"The shell's own prompts in the slot: close the palette's input prompt, open a confirmation (7.1, 7.2). Boot's alone",
+			"The shell's own prompts in the slot: close the palette's input prompt, open a confirmation, keep a decline (7.1, 7.2). Boot's alone",
 		category: 'prompt',
 		mutation: true,
 		executionTime: 'instant',
 		input: settleInput,
 		jsonSchema: { type: 'object', additionalProperties: true } as JsonSchema,
-		async handler(input) {
+		async handler(input, context) {
 			const { open } = input;
+			if (input.decline) await writeDecline(input.decline as never, context);
+			if (input.settle) {
+				const row = input.settle as StoredConfirmation;
+				if (
+					typeof row !== 'object' ||
+					row === null ||
+					row.kind !== 'confirmation' ||
+					!ID.test(String(row.id)) ||
+					typeof row.person !== 'string' ||
+					row.workspace !== deps.workspace()
+				) {
+					return fail(
+						'VALIDATION_ERROR',
+						'settle is a confirmation of this workspace, as the act leaves it',
+						'None: only the kernel settles one'
+					);
+				}
+				await serial(row.person, () => putBack(row));
+			}
 			// Checked and reserved in one step, with no await between (blocker 7): the slot is free once the prompt this
 			// replaces closes, or nothing opens.
 			const held = overlays.modalOpen();
+			// The prompt a confirmation replaces must still be open (third round, D): one the person closed meanwhile ends it.
+			if (
+				open &&
+				input.reason === 'replaced' &&
+				input.close !== undefined &&
+				held?.overlayId !== input.close
+			)
+				return closedPrompt(input.close);
 			if (open && held && held.overlayId !== input.close) {
 				return fail(
 					'OVERLAY_MODAL_BUSY',
@@ -1343,28 +1374,37 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 			);
 			approved.delete(row.id);
-			return await serial(person, async () => {
+			const ended = await serial(person, async () => {
 				const after = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
 				const { claim: _gone, ...kept } = after ?? row;
 				if (after?.confirmation.state === 'confirmed') {
-					await putBack({ ...kept, ...(kept.readAt === undefined ? { readAt: now } : {}) });
-					return kit.success({ state: 'confirmed' as const });
+					return {
+						final: { ...kept, ...(kept.readAt === undefined ? { readAt: now } : {}) },
+						said: kit.success({ state: 'confirmed' as const }),
+					};
 				}
 				// The chain refused the run before the shell could record it (the person changed, or access went): nothing
 				// ran.
-				await putBack({
-					...kept,
-					confirmation: {
-						...kept.confirmation,
-						state: 'declined',
-						reason: 'access',
-						answeredAt: now,
-						result: outcomeOf(result),
+				return {
+					final: {
+						...kept,
+						confirmation: {
+							...kept.confirmation,
+							state: 'declined' as const,
+							reason: 'access' as const,
+							answeredAt: now,
+							result: outcomeOf(result),
+						},
+						...(kept.readAt === undefined ? { readAt: now } : {}),
 					},
-					...(kept.readAt === undefined ? { readAt: now } : {}),
-				});
-				return kit.success({ state: 'declined' as const, reason: 'access' as const });
+					said: kit.success({ state: 'declined' as const, reason: 'access' as const }),
+				};
 			});
+			// The row as the act leaves it, written by `prompt-settle`, journaled as its own entry (step 6's third round, G): a
+			// replay that answers this act and its run from their records, a run the page decided among them, writes it all
+			// the same.
+			const written = await deps.runBoot('prompt-settle', { settle: ended.final });
+			return written.success ? ended.said : written;
 		} finally {
 			approved.delete(row.id);
 			acting.delete(row.id);

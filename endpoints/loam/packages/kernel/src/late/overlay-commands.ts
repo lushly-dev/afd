@@ -575,12 +575,15 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				);
 			}
 			// `withdrawn` is the shell's word for its own question closed with no person's gesture (step 6's second round, 6):
-			// a cancel that is never the person's decline, so it opens no window.
+			// a cancel that is never the person's decline, so it opens no window. The renderer's alone: never through the
+			// palette (a call `palette-run` made carries its `origin`; third round, F). The kernel cannot tell the renderer
+			// from the person's own console, so the most it spares is the person's own decline window, on their own question.
 			if (
 				input.reason === 'withdrawn' &&
 				(opener.kind !== 'shell' ||
 					owner.kind !== 'shell' ||
 					overlays.forOf(input.overlayId) === undefined ||
+					(context as { origin?: unknown }).origin !== undefined ||
 					answers)
 			) {
 				return kernelFailure(

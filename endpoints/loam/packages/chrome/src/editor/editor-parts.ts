@@ -7,10 +7,12 @@
 import { css, type FASTElement } from '@lushly-dev/fast-element';
 import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import type { AskedClose } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { editorAreaDefinition, LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, LoamEditorFrame, type SurfaceHostV1 } from './editor-frame.js';
 import { editorGroupDefinition, LoamEditorGroup } from './editor-group.js';
+import { type ShownClose, sameClose } from './same-close.js';
 
 /** `editor-get`'s answer (5.4): the call's scope's state, with `dirty` per tab. */
 export interface EditorReadV1 {
@@ -306,23 +308,31 @@ export const CLOSE_PROMPT = {
  */
 export async function askClose(
 	kernel: LoamKernelV5,
-	modals: Map<string, (result: string) => void>,
+	modals: Map<string, (result: string, asked?: AskedClose) => void>,
 	tab: string,
-	scope: { scope: ScopeOf } | undefined
+	scope: { scope: ScopeOf } | undefined,
+	shown: ShownClose
 ): Promise<'save' | 'discard' | 'cancel' | 'closed'> {
 	const asked = await kernel.call('editor-close', { tab }, scope);
 	if (asked.success) return 'closed';
 	let prompt = (asked.error?.details as { prompt?: { overlayId: string } } | undefined)?.prompt;
 	// Only a tab the kernel no longer holds is asked in the shell's own modal; any other refusal keeps the tab.
 	if (!prompt && asked.error?.code !== 'EDITOR_TAB_UNKNOWN') return 'cancel';
+	// The kernel's prompt names its tab, scope and document; the page's own modal, for a draft the kernel no longer holds,
+	// names none, and asks of this page's draft alone.
+	const own = !prompt;
 	if (!prompt) {
 		const opened = await kernel.call<{ overlayId: string }>('modal-open', CLOSE_PROMPT);
 		prompt = opened.data;
 	}
 	if (!prompt) return 'cancel';
 	const { overlayId } = prompt;
-	const result = await new Promise<string>((resolve) => modals.set(overlayId, resolve));
-	return result === 'save' || result === 'discard' ? result : 'cancel';
+	const [result, about] = await new Promise<[string, AskedClose | undefined]>((resolve) =>
+		modals.set(overlayId, (answer, closing) => resolve([answer, closing]))
+	);
+	if (result !== 'save' && result !== 'discard') return 'cancel';
+	// Saved or discarded only where what it asked about is the tab this close holds (step 6's third round, H).
+	return own || (about !== undefined && sameClose(about, shown)) ? result : 'cancel';
 }
 
 /**

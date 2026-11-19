@@ -157,7 +157,9 @@ export class OverlaySurfaces {
 				const answered = await this.#kernel.call<OverlayResultV1>('overlay-dismiss', {
 					overlayId,
 					result,
-					reason: reason ?? 'user',
+					// `withdrawn` for the shell's own questions alone (third round, F): an app's modal a script closed is an
+					// ordinary cancel, as before, which the kernel takes, so the page and the kernel never disagree.
+					reason: reason === 'withdrawn' && asked !== undefined ? 'withdrawn' : 'user',
 					...(value !== undefined ? { value } : {}),
 				});
 				if (answered.success && answered.data) {

@@ -83,13 +83,14 @@ export function settleFocus(
  */
 export function hearModals(
 	shell: LoamShell,
-	modals: Map<string, (result: string) => void>,
+	modals: Map<string, (result: string, asked?: AskedClose) => void>,
 	orphan: (asked: AskedClose, result: string) => void
 ): void {
 	hearAnswers(shell, (overlayId, result, asked) => {
 		const waiting = modals.get(overlayId);
 		modals.delete(overlayId);
-		if (waiting) waiting(result);
+		// With what it asked about, which the waiting close checks against its own tab (step 6's third round, H).
+		if (waiting) waiting(result, asked);
 		// A close prompt no close of this page waits for: the person's own `editor-close`, from the palette (7.3).
 		else if (asked !== undefined) orphan(asked, result);
 	});

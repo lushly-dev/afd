@@ -14,6 +14,7 @@
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import type { AskedClose } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { hearModals, keyFrame, saveAll, saveOnce, settleFocus } from './editor-actions.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
@@ -54,6 +55,7 @@ import {
 	shows,
 	tabIn,
 } from './editor-parts.js';
+import { sameClose } from './same-close.js';
 
 export { defineEditorElements, type EditorReadV1, PARKED_PER_GROUP } from './editor-parts.js';
 
@@ -105,7 +107,7 @@ export class EditorController implements FrameListener {
 	readonly #stalled = new Set<string>();
 	/** The pass of `#marks` queued and not yet begun, which any later change shares. */
 	#marking: Promise<void> | undefined;
-	readonly #modals = new Map<string, (result: string) => void>();
+	readonly #modals = new Map<string, (result: string, asked?: AskedClose) => void>();
 	#queue: Promise<void> = Promise.resolve();
 	#scopeKey: string | null = null;
 	/** The scope rendered, and its visit: each change of scope is a new one, so a return is not the same visit. */
@@ -148,9 +150,13 @@ export class EditorController implements FrameListener {
 			// A person's `editor-close` from the palette: its prompt's Save or Discard closes the tab here (7.3), only
 			// where its scope and document are the ones shown, since a tab id repeats per project (second round, 2).
 			if (result !== 'save' && result !== 'discard') return;
-			const here = keyOf(this.#at) === keyOf(asked.scope);
-			const document = tabIn(this.#state, asked.tab)?.document;
-			if (!here || (asked.document !== undefined && document !== asked.document)) {
+			if (
+				!sameClose(asked, {
+					tab: asked.tab,
+					scope: this.#at,
+					document: tabIn(this.#state, asked.tab)?.document,
+				})
+			) {
 				void this.#kernel.call('toast-show', {
 					message: 'That close was asked for a tab that is not shown here, so nothing was closed',
 					tone: 'warning',
@@ -667,7 +673,12 @@ export class EditorController implements FrameListener {
 					// The Discard is of the draft as the prompt found it, wherever it is by then; typed into after, kept.
 					const edits = life?.edits;
 					const answer =
-						answered ?? (await askClose(this.#kernel, this.#modals, tab, at && { scope: at }));
+						answered ??
+						(await askClose(this.#kernel, this.#modals, tab, at && { scope: at }, {
+							tab,
+							scope: at,
+							document: tabIn(this.#state, tab)?.document,
+						}));
 					if (answer === 'cancel') return false;
 					if (answer === 'save') {
 						if (!frame) return false;

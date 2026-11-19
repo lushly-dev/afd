@@ -300,6 +300,35 @@ describe('P4-E8: confirmations', () => {
 		await page.context().close();
 	});
 
+	it("third round's F: a script's close of an app's own modal is an ordinary cancel the kernel takes", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		const opened = (await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: {
+					appPort(instance: string): { call(name: string, input: unknown): Promise<unknown> };
+				};
+			};
+			return shell.kernel
+				.appPort('hello')
+				.call('modal-open', { title: 'Keep?', body: 'An app asks.' });
+		})) as Result & { data?: { overlayId?: string } };
+		expect(opened.success).toBe(true);
+		await expect.poll(() => slot(page).count()).toBe(1);
+		await page.evaluate(() => {
+			const modal = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-modal');
+			const dialog = modal?.shadowRoot?.querySelector('dialog');
+			if (!dialog) throw new Error('No dialog');
+			dialog.close();
+		});
+		// Closed in the kernel too, never left open there while the page shows nothing.
+		await expect
+			.poll(async () => ((await kernelCall(page, 'overlay-list')) as Result).data?.overlays)
+			.toEqual([]);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
 	it("second round's 10: a long input is shown whole before Confirm is offered", async () => {
 		// Tally's package with one more command, a long note under a `confirm_prompt`: raising and listing it calls no
 		// handler.

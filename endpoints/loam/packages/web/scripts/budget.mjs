@@ -413,6 +413,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * namespace wired. `lateSettingsMinified` 81,000 to 81,500 (80,506 to 81,152, +646): namespaced buckets with one
  * ownership rule, the bounded slot declines, a listed result bounded, and the archive re-check. `editorMinified`
  * 36,000 to 36,500 (35,912 to 36,153, +241): the close prompt's answer acting only where its scope and document match.
+ * Step 6's third round, under D115, the same machine, `redactWrapped` cut first (-330): `jsMinified` 311,000 to 312,000
+ * (310,909 to 311,462, +553; gzip 97,256 of 97,500): the redaction of every input another command carries, a notice's
+ * action, a menu's items and `overlay-list`'s projection among them, with an unknown command's dropped.
+ * `kernelMinified` 120,500 to 121,500 (120,034 to 121,058): that, and the document chain a waiting call gives up.
+ * `lateSettingsMinified` 81,500 to 84,500 (81,152 to 83,751, +2,599): the waiting call's chain released and retaken, a
+ * call that never ran answered from its record, the slot's decline and the act's end written by `prompt-settle`, the
+ * key held across the slot and the inbox, and the per-app bound that never evicts a live window. `surfacesMinified`
+ * 96,500 to 97,000 (96,544): `withdrawn` sent for the shell's own questions alone.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -436,7 +444,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
 	// Steps 4, 5 and 8 together (step 5's branch with `main` at `03b036bb`): 310,131; set to 310,500 under D115.
 	// Step 6's trust review: 310,720 (the header records it); set to 311,000 under D115.
-	jsMinified: 311_000,
+	// Step 6's third round: 311,462 (the header records it); set to 312,000 under D115.
+	jsMinified: 312_000,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -453,7 +462,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 120_500,
+	kernelMinified: 121_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -466,8 +475,8 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500.
-	lateSettingsMinified: 81_500,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,751, set to 84,500.
+	lateSettingsMinified: 84_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -482,7 +491,7 @@ export const CEILINGS = Object.freeze({
 	appsMinified: 421_000,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
-	surfacesMinified: 96_500,
+	surfacesMinified: 97_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's

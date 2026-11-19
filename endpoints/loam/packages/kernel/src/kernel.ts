@@ -123,36 +123,84 @@ export function kernelJournalOptions(
 	};
 }
 
+/** An object, never an array or null; undefined for anything else. */
+const objectOf = (value: unknown): Record<string, unknown> | undefined =>
+	typeof value === 'object' && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+
+/** `holder` with its `key` replaced by `change` of it, when that is an object. */
+const changed = (
+	holder: Record<string, unknown> | undefined,
+	key: string,
+	change: (value: Record<string, unknown>) => unknown
+): Record<string, unknown> | undefined => {
+	const value = objectOf(holder?.[key]);
+	return value ? { ...holder, [key]: change(value) } : holder;
+};
+
 /**
- * `palette-run`'s target input redacted as the target's own entry is (phase 4's 7.1, the trust review's R4): `redact`
- * applied to `{ command, input }` of the call it runs, so no secret reaches the journal through the wrapper.
+ * Every input a record carries for another command, redacted as that command's own entry is (phase 4's 7.1 and 7.2; the
+ * trust review's R4; step 6's third round, B): `redact` applied to each `{ command, input }` inside it, through every
+ * wrapper, and an input dropped where no command `known` names it, since no rule can say what it holds. The shapes:
+ * `palette-run`'s target; `prompt-settle`'s `open`, `decline` and `settle`; a notice's `action` (`notification-push`, its
+ * input and result); a popover menu's `items` (`popover-open`); and `overlay-list`'s projection of each overlay's `for`
+ * and items, which a replay answers the same, since the overlays it opens hold what the redacted entries gave them.
  */
 export function redactWrapped(
 	record: JournalRecord,
-	redact: (record: JournalRecord) => JournalRecord
+	redact: (record: JournalRecord) => JournalRecord,
+	known: (command: string) => boolean = () => true
 ): JournalRecord {
-	/**
-	 * `holder`'s `input`, redacted as `holder.command`'s own entry would be, through every wrapper inside it (step 6's
-	 * second round, 1); dropped when no command names it, since no rule can say what it holds.
-	 */
+	/** `holder`'s `input`, redacted as `holder.command`'s own entry would be, or dropped. */
 	const within = (holder: Record<string, unknown>): Record<string, unknown> => {
-		const { input: inner, ...rest } = holder;
 		if (!('input' in holder)) return holder;
-		if (typeof holder.command !== 'string') return rest;
-		const done = redactWrapped(
-			redact({ ...record, command: holder.command, input: inner }),
-			redact
-		);
-		return { ...rest, input: done.input };
+		const { input: inner, ...rest } = holder;
+		const { command } = holder;
+		if (typeof command !== 'string' || !known(command)) return rest;
+		return {
+			...rest,
+			input: redactWrapped(redact({ ...record, command, input: inner }), redact, known).input,
+		};
 	};
-	const input = record.input as Record<string, unknown> | null;
-	if (typeof input !== 'object' || input === null) return record;
-	if (record.command === 'palette-run') return { ...record, input: within(input) };
-	// A confirmation the slot opens journals the input it asks about (7.2): redacted as its command's own.
-	const open = input.open as Record<string, unknown> | null | undefined;
-	if (record.command === 'prompt-settle' && typeof open === 'object' && open !== null)
-		return { ...record, input: { ...input, open: within(open) } };
-	return record;
+	const items = (holder: Record<string, unknown>) =>
+		Array.isArray(holder.items)
+			? { ...holder, items: holder.items.map((item) => (objectOf(item) ? within(item) : item)) }
+			: holder;
+	const { command } = record;
+	let input = objectOf(record.input);
+	if (input) {
+		if (command === 'palette-run') input = within(input);
+		else if (command === 'prompt-settle')
+			input = changed(changed(changed(input, 'open', within), 'decline', within), 'settle', (row) =>
+				changed(row, 'confirmation', within)
+			);
+		else if (command === 'notification-push') input = changed(input, 'action', within);
+		else if (command === 'popover-open') input = items(input);
+	}
+	let data = objectOf(record.result?.data);
+	if (data) {
+		if (command === 'notification-push')
+			data = changed(data, 'notification', (notice) => changed(notice, 'action', within));
+		else if (command === 'overlay-list' && Array.isArray(data.overlays))
+			data = {
+				...data,
+				overlays: data.overlays.map((each) => {
+					const overlay = objectOf(each);
+					if (!overlay) return each;
+					return changed(
+						overlay.kind === 'popover' ? changed(overlay, 'input', items) : overlay,
+						'for',
+						within
+					);
+				}),
+			};
+	}
+	return {
+		...record,
+		...(input ? { input } : {}),
+		...(data ? { result: { ...record.result, data } } : {}),
+	};
 }
 
 /** Remove `input.password` from an `auth-sign-in` record. */
@@ -409,7 +457,8 @@ export async function createKernelParts(
 		...kernelJournalOptions(),
 		redact: (record) => {
 			const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
-			return redactWrapped(own(record), own);
+			// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
+			return redactWrapped(own(record), own, (command) => mutations?.has(command) === true);
 		},
 	});
 

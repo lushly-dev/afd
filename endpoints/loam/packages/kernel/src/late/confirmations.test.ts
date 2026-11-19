@@ -26,6 +26,7 @@ import { createOverlayStore } from '../overlays.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
 import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
 import type { LoamKernelV5 } from '../types.js';
 import {
 	bucketOf,
@@ -36,6 +37,7 @@ import {
 	PENDING_LIMIT,
 	PERSON_LIMIT,
 	promptSchemaOf,
+	REPLACES,
 	SLOT_KEPT,
 } from './confirmations.js';
 import { DOCUMENT_KIT } from './document-kit.js';
@@ -491,6 +493,7 @@ describe('the pending path (R9)', () => {
 			replaying: () => false,
 			noteInbox: () => {},
 			releaseQueue: () => {},
+			chainOf: () => undefined,
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -862,6 +865,7 @@ describe('the run a person confirmed', () => {
 			replaying: () => false,
 			noteInbox: () => {},
 			releaseQueue: () => {},
+			chainOf: () => undefined,
 			archived: () => false,
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		} as never);
@@ -963,6 +967,7 @@ describe('after the trust review', () => {
 			replaying: () => false,
 			noteInbox: () => {},
 			releaseQueue: () => {},
+			chainOf: () => undefined,
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -1032,8 +1037,8 @@ describe('after the trust review', () => {
 		expect(await count(kernel)).toBe(0);
 	});
 
-	it("second round's 4: a project archived while the slot waits takes no run", async () => {
-		const { kernel, scopes } = await boot();
+	it("second round's 4: a project archived while the slot waits takes no run, and replays the same (third round, C)", async () => {
+		const { kernel, scopes, journal } = await boot();
 		const waiting = kernel.call('keeper-bump', {}, { scope: scopes.atlas });
 		const prompt = await slotPrompt(kernel);
 		expect((await kernel.call('project-archive', { project: 'atlas' })).success).toBe(true);
@@ -1043,6 +1048,11 @@ describe('after the trust review', () => {
 			details: { reason: 'access' },
 		});
 		expect(await count(kernel)).toBe(0);
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
 	it('blocker 6: an app raised inactive, then active, finds its row in each state, and a slot decline survives a reload', async () => {
@@ -1254,7 +1264,7 @@ describe('after the trust review', () => {
 		expect(one?.confirmation?.result).toMatchObject({ success: true, data: { text } });
 	});
 
-	it("second round's 9: a person's slot declines are bounded, and ended windows go", async () => {
+	it("second round's 9, third round's E: at capacity a new question is refused, a live window is never evicted, and ended ones go", async () => {
 		const { kernel, store, advance } = await boot();
 		await kernel.call('app-open', { instance: 'keeper' });
 		const keeper = kernel.appPort('keeper');
@@ -1262,7 +1272,46 @@ describe('after the trust review', () => {
 			(await store.list<{ cslot?: true; kind: string }>('notification')).data.filter(
 				(row) => row.cslot === true
 			).length;
-		for (let value = 0; value < SLOT_KEPT + 3; value++) {
+		// Another app's live declines, as many as the bound: they never count against keeper's (Opus 4).
+		for (let index = 0; index < SLOT_KEPT; index++) {
+			const now = 1_800_000_000_000;
+			const id = `ntf_other${String(index).padStart(11, '0')}`;
+			await store.batch([
+				{
+					method: 'PUT',
+					path: `/notification/${id}`,
+					body: {
+						id,
+						workspace: 'personal',
+						person: 'local',
+						source: 'other',
+						kind: 'confirmation',
+						title: 'Other',
+						tone: 'warning',
+						confirmation: {
+							command: 'other-run',
+							caller: 'other',
+							input: { index },
+							header: 'Other asks',
+							prompt: 'Run?',
+							title: 'Other',
+							expiresAt: now + DECLINE_WINDOW_MS,
+							state: 'declined',
+							reason: 'person',
+							answeredAt: now,
+						},
+						scope: { workspace: 'personal' },
+						createdAt: now,
+						readAt: now,
+						ckey: `other-${index}`,
+						ciface: 'palette',
+						cbucket: 'app:other',
+						cslot: true,
+					} as never,
+				},
+			]);
+		}
+		for (let value = 0; value < SLOT_KEPT; value++) {
 			const waiting = keeper.call('keeper-set', { value });
 			await kernel.call('overlay-dismiss', {
 				overlayId: (await slotPrompt(kernel)).overlayId,
@@ -1270,7 +1319,20 @@ describe('after the trust review', () => {
 			});
 			expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
 		}
-		expect(await slotted()).toBe(SLOT_KEPT);
+		expect(await slotted()).toBe(2 * SLOT_KEPT);
+		// At capacity: a new question is refused before it asks, until the earliest window ends.
+		advance(1_000);
+		const refused = await keeper.call('keeper-set', { value: 99 });
+		expect(refused.error).toMatchObject({ code: 'RATE_LIMITED', retryable: true });
+		const after = (refused.error?.details as { retryAfterMs?: number } | undefined)?.retryAfterMs;
+		expect(after).toBeGreaterThan(0);
+		expect(after).toBeLessThanOrEqual(DECLINE_WINDOW_MS);
+		expect((await overlays(kernel)).some((each) => each.for?.kind === 'confirmation')).toBe(false);
+		// The oldest key's window still holds: refused without asking, never asked again.
+		const oldest = await keeper.call('keeper-set', { value: 0 });
+		expect(oldest.error?.code).toBe('CONFIRMATION_DECLINED');
+		expect(oldest.error?.details).toBeUndefined();
+		// Once every window ends, the next decline's write removes the ended ones.
 		advance(DECLINE_WINDOW_MS + 1);
 		const waiting = keeper.call('keeper-set', { value: 99 });
 		await kernel.call('overlay-dismiss', {
@@ -1370,6 +1432,7 @@ describe('after the trust review', () => {
 			runBoot: async () => success({}),
 			replaying: () => false,
 			releaseQueue: () => {},
+			chainOf: () => undefined,
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1413,6 +1476,7 @@ describe('after the trust review', () => {
 			replaying: () => false,
 			noteInbox: () => {},
 			releaseQueue: () => {},
+			chainOf: () => undefined,
 			archived: () => false,
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1446,5 +1510,497 @@ describe('after the trust review', () => {
 			details: { reason: 'access' },
 		});
 		expect(again.error?.message).toContain('access');
+	});
+});
+
+/** `probe` with its content write asking for a confirmation: an instance mutation, chained to its document. */
+const CONFIRMED_PROBE = {
+	...PROBE_DOCUMENTS_MANIFEST,
+	commands: (PROBE_DOCUMENTS_MANIFEST.commands as Array<{ name: string }>).map((each) =>
+		each.name === 'probe-content-set' ? { ...each, confirm_prompt: 'Replace the text?' } : each
+	),
+} as unknown as ManifestV2;
+const probeDeployment = () => {
+	const held = deployment();
+	return {
+		...held,
+		apps: [...held.apps, { instance: 'probe', app: 'probe', package: 'fixtures/probe/' }],
+	};
+};
+const probePorts = () =>
+	createFixturePorts({
+		...scopedPackages(),
+		'fixtures/keeper/': { manifest: KEEPER_MANIFEST, definition: KEEPER },
+		'fixtures/probe/': { manifest: CONFIRMED_PROBE, definition: PROBE_DOCUMENTS_DEFINITION },
+	});
+const textOf = async (kernel: LoamKernelV5, document: string) =>
+	(
+		(await kernel.call<{ content: { text: string } | null }>('probe-content-get', { document }))
+			.data as { content: { text: string } | null }
+	).content?.text;
+
+describe('the third round', () => {
+	it('A: during stage B, a confirmed write to a document gives its chain up while it waits, and the next write goes on', async () => {
+		const store = new MemoryAdapter();
+		const first = await createScopedWorkspace({
+			store,
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		const made = await first.kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (made.data as { id: string }).id;
+		await first.kernel.dispose();
+		const ports_ = probePorts();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: readBoot(probeDeployment()) as BootProjectionV2,
+			appsLoader: async () => ({ deployment: probeDeployment(), ports: ports_ }),
+		});
+		kernels.push(kernel);
+		// Both queue behind stage B. The first asks in the slot and releases the queue; the second, of the same document,
+		// must not wait on the first's chain while the answer queues behind it.
+		const waiting = kernel.call('probe-content-set', { document, text: 'confirmed' });
+		const behind = kernel.call('probe-import', { document, content: { text: 'imported' } });
+		await kernel.appsReady;
+		const prompt = await slotPrompt(kernel);
+		expect((await behind).success).toBe(true);
+		expect(await textOf(kernel, document)).toBe('imported');
+		// Answered through the shell's own path, queued like any call.
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect((await waiting).success).toBe(true);
+		expect(await textOf(kernel, document)).toBe('confirmed');
+	});
+
+	it('A: the confirmed write takes its chain back and checks again: a document trashed meanwhile takes no write', async () => {
+		const { kernel } = await createScopedWorkspace({
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		kernels.push(kernel);
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (made.data as { id: string }).id;
+		await kernel.call('probe-import', { document, content: { text: 'kept' } });
+		const waiting = kernel.call('probe-content-set', { document, text: 'confirmed' });
+		const prompt = await slotPrompt(kernel);
+		// A change to the record while the write waits goes on at once, as it would with no question open.
+		expect((await kernel.call('document-trash', { document })).success).toBe(true);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		const ended = await waiting;
+		expect(ended.success).toBe(false);
+		expect(ended.error?.code).toMatch(/^DOCUMENT_/);
+		expect((await kernel.call('document-restore', { document })).success).toBe(true);
+		expect(await textOf(kernel, document)).toBe('kept');
+	});
+
+	it("B: every shape that carries another command's input is redacted by that command's rule; an unknown one's dropped", () => {
+		const rule = (record: Parameters<typeof redactJournalRecord>[0]) => redactJournalRecord(record);
+		const known = (command: string) => command !== 'gone-command';
+		const sign = { method: 'credentials', email: 'a@b.c', password: 'hunter4' };
+		const item = { command: 'auth-sign-in', label: 'Go', input: sign };
+		const shapes = [
+			{
+				command: 'notification-push',
+				input: { title: 'Hi', action: item },
+				result: { success: true, data: { notification: { id: 'ntf_1', action: item } } },
+			},
+			{
+				command: 'popover-open',
+				input: { anchor: { surface: 'main', anchor: 'a' }, kind: 'menu', items: [item] },
+				result: { success: false },
+			},
+			{
+				command: 'overlay-list',
+				input: {},
+				result: {
+					success: true,
+					data: {
+						overlays: [
+							{
+								overlayId: 'ovl-1',
+								kind: 'prompt',
+								for: { command: 'auth-sign-in', kind: 'confirmation', input: sign },
+							},
+							{ overlayId: 'ovl-2', kind: 'popover', input: { kind: 'menu', items: [item] } },
+						],
+					},
+				},
+			},
+			{
+				command: 'prompt-settle',
+				input: { open: { id: 'cnf_1', command: 'auth-sign-in', input: sign } },
+				result: { success: true },
+			},
+		];
+		for (const shape of shapes) {
+			const text = JSON.stringify(redactWrapped(shape as never, rule, known));
+			expect(text, shape.command).not.toContain('hunter4');
+			// Only what the rule removes goes.
+			expect(text, shape.command).toContain('a@b.c');
+		}
+		const gone = { command: 'gone-command', label: 'Go', input: { secret: 'hunter4' } };
+		for (const shape of [
+			{
+				command: 'palette-run',
+				input: { command: 'gone-command', prompt: 'p', input: gone.input },
+			},
+			{ command: 'notification-push', input: { title: 'Hi', action: gone } },
+			{ command: 'popover-open', input: { kind: 'menu', items: [gone] } },
+		]) {
+			const done = redactWrapped({ ...shape, result: { success: false } } as never, rule, known);
+			expect(JSON.stringify(done), shape.command).not.toContain('hunter4');
+			expect(JSON.stringify(done), shape.command).toContain('gone-command');
+		}
+	});
+
+	it('B: an app’s refused notice and menu of a command no one registered journal no input, and the session replays the same', async () => {
+		const { kernel, journal } = await boot();
+		await kernel.call('app-open', { instance: 'keeper' });
+		const keeper = kernel.appPort('keeper');
+		const secret = { secret: 'hunter5' };
+		const pushed = await keeper.call('notification-push', {
+			title: 'Hi',
+			action: { command: 'gone-command', label: 'Go', input: secret },
+		});
+		const menu = await keeper.call('popover-open', {
+			anchor: { surface: 'main', anchor: 'here' },
+			kind: 'menu',
+			items: [{ command: 'gone-command', label: 'Go', input: secret }],
+		});
+		expect(pushed.success).toBe(false);
+		expect(menu.success).toBe(false);
+		// And a confirmation in the slot, which overlay-list's journaled result shows with its input.
+		const waiting = keeper.call('keeper-set', { value: 7 });
+		const prompt = await slotPrompt(kernel);
+		expect(prompt.for?.input).toEqual({ value: 7 });
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect((await waiting).success).toBe(true);
+		const entries = await journal.read();
+		expect(JSON.stringify(entries)).not.toContain('hunter5');
+		expect(entries.some((entry) => entry.command === 'overlay-list')).toBe(true);
+		const { report } = await replayKernel(entries, { deployment: deployment(), ports: ports() });
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it("C: an app's call the person declined after its app was disabled replays the same, its window with it", async () => {
+		const { kernel, journal } = await boot();
+		await kernel.call('app-open', { instance: 'keeper' });
+		const keeper = kernel.appPort('keeper');
+		const waiting = keeper.call('keeper-set', { value: 3 });
+		const prompt = await slotPrompt(kernel);
+		// A replay starts the waiting call after this, where the gates before the confirmation's would refuse it.
+		expect(
+			(await kernel.call('workspace-app-set', { instance: 'keeper', enabled: false })).success
+		).toBe(true);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'cancel' });
+		expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: null });
+		await kernel.call('app-open', { instance: 'keeper' });
+		// The window the decline opened holds the same call, live and in the replay.
+		const again = await keeper.call('keeper-set', { value: 3 });
+		expect(again.error?.code).toBe('CONFIRMATION_DECLINED');
+		const entries = await journal.read();
+		const waited = entries.find(
+			(entry) => entry.command === 'keeper-set' && entry.context?.confirmation !== undefined
+		);
+		expect(waited?.context?.replay).toBe('recorded');
+		const { report, kernel: replayed } = await replayKernel(entries, {
+			keep: true,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		if (!replayed) throw new Error('replayKernel kept no kernel');
+		try {
+			expect(await confirmations(replayed)).toEqual(await confirmations(kernel));
+		} finally {
+			await replayed.dispose();
+		}
+	});
+
+	it('D: a key the slot asks is held on every path until it settles: the port, no longer active, repeats it', async () => {
+		const store = new MemoryAdapter();
+		const overlayStore = createOverlayStore();
+		let active = true;
+		let ran = 0;
+		const made = createConfirmations({
+			store,
+			workspace: () => 'personal',
+			provider: false,
+			overlays: overlayStore,
+			openerOf: () => ({ kind: 'app', owner: { kind: 'app', id: 'keeper' } }),
+			// The active editor tab's owner, which a change of tab moves while the shell's question stays open.
+			isActive: async () => active,
+			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Bump', danger: false }),
+			paletteCommand: () => undefined,
+			inputFault: () => undefined,
+			journaled: () => true,
+			allows: () => true,
+			served: () => undefined,
+			archived: () => false,
+			appTitle: (instance: string) => instance,
+			projectName: () => undefined,
+			personLabel: () => null,
+			runNow: async () => success({}),
+			runBoot: async (_name: string, input: unknown) =>
+				(made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>)(
+					input,
+					{}
+				),
+			replaying: () => false,
+			releaseQueue: () => {},
+			chainOf: () => undefined,
+			noteInbox: () => {},
+			digest: async (value: unknown) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey },
+		} as never);
+		const port = () => ({ interface: 'palette', caller: 'keeper' }) as never;
+		const run = async () => {
+			ran++;
+			return success({ ran });
+		};
+		const waiting = made.gate('keeper-bump', {}, port(), run);
+		for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++)
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		const question = overlayStore.modalOpen();
+		expect(question).toBeDefined();
+		// The owner moved: the same port's repeat would take the inbox's path, which must not raise a second question.
+		active = false;
+		const repeat = await made.gate('keeper-bump', {}, port(), run);
+		expect(repeat.error).toMatchObject({
+			code: 'CONFIRMATION_PENDING',
+			details: { overlay: question?.overlayId },
+		});
+		expect((await store.list('notification')).data).toHaveLength(0);
+		overlayStore.close(question?.overlayId as string, 'confirm', 'user');
+		expect(await waiting).toMatchObject({ success: true, data: { ran: 1 } });
+		// Settled: the key is free, and an inactive port's repeat now waits in the inbox, once.
+		expect((await made.gate('keeper-bump', {}, port(), run)).error?.code).toBe(
+			'CONFIRMATION_PENDING'
+		);
+		expect((await store.list('notification')).data).toHaveLength(1);
+		expect(ran).toBe(1);
+	});
+
+	it("D: a fill's input prompt the person closed before its confirmation replaced it ends the fill, asking nothing", async () => {
+		const overlayStore = createOverlayStore();
+		let ran = false;
+		const made = createConfirmations({
+			store: new MemoryAdapter(),
+			workspace: () => 'personal',
+			provider: false,
+			overlays: overlayStore,
+			openerOf: () => ({ kind: 'shell', owner: { kind: 'shell', id: 'shell' } }),
+			isActive: async () => false,
+			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Set', danger: false }),
+			allows: () => true,
+			served: () => undefined,
+			archived: () => false,
+			appTitle: (instance: string) => instance,
+			projectName: () => undefined,
+			personLabel: () => null,
+			runBoot: async (_name: string, input: unknown) =>
+				(made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>)(
+					input,
+					{}
+				),
+			replaying: () => false,
+			releaseQueue: () => {},
+			chainOf: () => undefined,
+			noteInbox: () => {},
+			digest: async (value: unknown) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey },
+		} as never);
+		const shell = { kind: 'shell', id: 'shell' } as const;
+		const inputPrompt = () =>
+			overlayStore.open(shell, 'prompt', { title: 'Set the value', confirmLabel: 'Run' } as never, {
+				for: { command: 'keeper-set', kind: 'input' },
+			}).overlayId;
+		// The interval a fill releases its queue in, before its confirmation replaces the prompt: the person closes it.
+		const closed = inputPrompt();
+		overlayStore.close(closed, 'cancel', 'user');
+		const fill = await made.gate(
+			'keeper-set',
+			{ value: 1 },
+			{ interface: 'palette', [REPLACES]: closed } as never,
+			async () => {
+				ran = true;
+				return success({});
+			}
+		);
+		expect(fill.error?.code).toBe('OVERLAY_NOT_FOUND');
+		expect(overlayStore.modalOpen()).toBeUndefined();
+		// And `prompt-settle` itself, checked where it opens: a replaced prompt that is gone opens nothing.
+		const settled = await (
+			made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>
+		)(
+			{
+				close: closed,
+				reason: 'replaced',
+				open: {
+					id: 'cnf_x',
+					key: 'k',
+					command: 'keeper-set',
+					header: 'Run Set the value?',
+					prompt: 'Sure?',
+					danger: false,
+					input: { value: 1 },
+				},
+			},
+			{}
+		);
+		expect(settled.error?.code).toBe('OVERLAY_NOT_FOUND');
+		expect(overlayStore.modalOpen()).toBeUndefined();
+		expect(ran).toBe(false);
+		// One still open is replaced, as before.
+		const open = inputPrompt();
+		const asking = made.gate(
+			'keeper-set',
+			{ value: 2 },
+			{ interface: 'palette', [REPLACES]: open } as never,
+			async () => {
+				ran = true;
+				return success({});
+			}
+		);
+		for (let tries = 0; tries < 100 && overlayStore.modalOpen()?.overlayId === open; tries++)
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		const question = overlayStore.modalOpen();
+		expect(overlayStore.forOf(question?.overlayId as string)?.kind).toBe('confirmation');
+		overlayStore.close(question?.overlayId as string, 'confirm', 'user');
+		expect((await asking).success).toBe(true);
+		expect(ran).toBe(true);
+	});
+
+	it("F: withdrawn is the renderer's word on the shell's own question alone: never on another overlay, with an answer, or through the palette", async () => {
+		const { kernel } = await boot();
+		// A shell overlay that asks nothing (no `for`): a person's own toast.
+		const toast = await kernel.call<OverlayRefV1>('toast-show', { message: 'Saved' });
+		expect(
+			(
+				await kernel.call('overlay-dismiss', {
+					overlayId: toast.data?.overlayId,
+					reason: 'withdrawn',
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+		const waiting = kernel.call('keeper-bump');
+		const prompt = await slotPrompt(kernel);
+		// With an answer: withdrawn is never a confirm.
+		expect(
+			(
+				await kernel.call('overlay-dismiss', {
+					overlayId: prompt.overlayId,
+					result: 'confirm',
+					reason: 'withdrawn',
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+		// The palette cannot fill overlay-dismiss at all (its `value` is no plain field), so no typed call says withdrawn;
+		// a call palette-run made would carry its `origin`, which the guard refuses too.
+		expect((await kernel.call('palette-run', { command: 'overlay-dismiss' })).error?.code).toBe(
+			'OVERLAY_MODAL_BUSY'
+		);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'cancel' });
+		expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
+		expect((await kernel.call('palette-run', { command: 'overlay-dismiss' })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+	});
+
+	it('G: an act whose confirmed run the replay answers from its record leaves the row as it was live', async () => {
+		// An app whose module fails to import: its run's refusal is decided by the page, so a replay answers it from its
+		// record, and the act that ran it too.
+		const broken = {
+			...KEEPER_MANIFEST,
+			plugin: { ...KEEPER_MANIFEST.plugin, id: 'broken', title: 'Broken', domains: ['broken'] },
+			commands: [
+				{
+					name: 'broken-run',
+					title: 'Run it',
+					description: 'Run it.',
+					effects: ['store-write'],
+					confirm_prompt: 'Run it?',
+					input_schema: EMPTY,
+				},
+			],
+			ui: { surfaces: { main: { element: 'broken-main' } } },
+		} as unknown as ManifestV2;
+		const brokenDeployment = () => {
+			const held = deployment();
+			return {
+				...held,
+				apps: [...held.apps, { instance: 'broken', app: 'broken', package: 'fixtures/broken/' }],
+			};
+		};
+		const brokenPorts = () =>
+			createFixturePorts({
+				...scopedPackages(),
+				'fixtures/keeper/': { manifest: KEEPER_MANIFEST, definition: KEEPER },
+				'fixtures/broken/': { manifest: broken, importError: new Error('Boom') },
+			});
+		const journal = new MemoryJournalSink();
+		const { kernel } = await createScopedWorkspace({
+			journal,
+			deployment: brokenDeployment(),
+			ports: brokenPorts(),
+		});
+		kernels.push(kernel);
+		const asked = await kernel.agent.call('broken-run');
+		const notification = idOf(asked);
+		const acted = await kernel.call('notification-act', { notification, answer: 'confirm' });
+		expect(acted.success).toBe(true);
+		const live = await kernel.agent.call('confirmation-get', { notification });
+		expect(live.data).toMatchObject({
+			state: 'confirmed',
+			result: { error: { code: 'APP_ACTIVATION_FAILED' } },
+		});
+		const { report, kernel: replayed } = await replayKernel(await journal.read(), {
+			keep: true,
+			deployment: brokenDeployment(),
+			ports: brokenPorts(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		if (!replayed) throw new Error('replayKernel kept no kernel');
+		try {
+			expect((await replayed.agent.call('confirmation-get', { notification })).data).toEqual(
+				live.data
+			);
+		} finally {
+			await replayed.dispose();
+		}
+	});
+
+	it("H: a dirty mark a closed tab kept asks nothing: the person's close answers EDITOR_TAB_UNKNOWN, with no prompt", async () => {
+		const { kernel } = await createScopedWorkspace({
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		kernels.push(kernel);
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (made.data as { id: string }).id;
+		expect((await kernel.call('document-open', { document })).success).toBe(true);
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(true);
+		// An agent's discard closes the tab, and keeps the mark until the chrome's save clears it (deviation 16).
+		expect((await kernel.agent.call('editor-close', { tab: 't1', discard: true })).success).toBe(
+			true
+		);
+		const closed = await kernel.call('editor-close', { tab: 't1' });
+		expect(closed.error?.code).toBe('EDITOR_TAB_UNKNOWN');
+		expect((await overlays(kernel)).some((each) => each.for?.kind === 'close')).toBe(false);
+		// A tab that is shown names its document in the prompt.
+		await kernel.call('document-open', { document });
+		await kernel.call('editor-dirty-set', { tab: 't2', dirty: true });
+		const asked = await kernel.call('editor-close', { tab: 't2' });
+		expect(asked.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect((await overlays(kernel)).find((each) => each.for?.kind === 'close')?.for).toMatchObject({
+			tab: 't2',
+			document,
+			scope: { workspace: 'personal' },
+		});
 	});
 });
