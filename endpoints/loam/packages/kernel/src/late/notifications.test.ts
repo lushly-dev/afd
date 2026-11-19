@@ -762,15 +762,22 @@ describe('replay (P4-E15)', () => {
 		await kernel.agent.call('notification-push', { title: 'From the agent' });
 		await probe.call('toast-show', { message: 'Stays', sticky: true });
 		await kernel.call('notification-act', { notification: pushed.data?.notification.id });
-		await kernel.call('notification-read', { all: true });
-		await kernel.call('notification-archive', { all: true, source: 'probe' });
-		await kernel.call('notification-list', { body: true });
+		// `notification-list` is not journaled (as `persona-list`): read and archive answer counts, which the replay must
+		// reproduce, so they hold only if every notice was written again.
+		expect((await kernel.call('notification-read', { all: true })).data).toEqual({ read: 2 });
+		expect(
+			(await kernel.call('notification-archive', { all: true, source: 'probe' })).data
+		).toEqual({ archived: 2 });
 		const { report } = await replayKernel(await journal.read(), {
 			deployment: probeDeployment([entry('probe'), entry('sums')]),
 			ports: ports(),
 		});
 		expect(report.diverged).toBe(false);
 		expect(report.same).toBe(report.entries.length);
+		const replayed = report.entries.map(({ command }) => command);
+		expect(replayed).toContain('notification-read');
+		expect(replayed).toContain('notification-archive');
+		expect(replayed).not.toContain('notification-list');
 	});
 });
 

@@ -90,7 +90,8 @@ export const NEEDS_STAGE_B: readonly string[] = [
  * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
  * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
  * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
- * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3).
+ * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3), and
+ * `notification-list` the Inbox count's (phase 4 specification, 10.3).
  */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	'palette-search',
@@ -100,6 +101,10 @@ export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	// The shell reads it at stage B, at each change of person and at each switch (phase 3 specification, 6.3), as it
 	// reads `scope-get`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing else.
 	'persona-list',
+	// The Inbox count reads it at stage B and after each call that may change it (phase 4 specification, 10.3, step 5),
+	// as the shell reads `persona-list`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing
+	// else, so an agent's or an app's read of it is not journaled either.
+	'notification-list',
 ]);
 
 /**

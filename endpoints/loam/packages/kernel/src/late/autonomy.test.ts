@@ -919,6 +919,9 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 				title: 'An autonomy rule no longer matches an app or command',
 			}),
 		]);
+		// `notification-list` is not journaled (as `persona-list`): a journaled read of the notice, whose answer the
+		// replay must reproduce, so it holds only if the replayed settle wrote the same notice.
+		expect((await kernel.call('notification-read', { all: true })).data).toEqual({ read: 1 });
 		const { report } = await replayKernel(await journal.read(), {
 			deployment: {
 				deployment_version: 2,
@@ -944,6 +947,8 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 		expect(report.entries.some(({ command }) => command === 'autonomy-settle')).toBe(true);
+		expect(report.entries.some(({ command }) => command === 'notification-read')).toBe(true);
+		expect(report.entries.some(({ command }) => command === 'notification-list')).toBe(false);
 	});
 
 	it('orphans a row whose instance now names another server, and the command name alone never backs it (R2)', async () => {
