@@ -28,11 +28,12 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-15 (dates in this file are Pacific time) against `main` at
-  `a81e8d44`: `gh pr view` reads #1230, #1232, #1265, #1267 and #1271 as `MERGED`, and
-  `uv run --frozen pytest tests/test_gateway_scenarios.py` in `botcore-factory` ran all fifteen
-  jobs against the fake GitHub before #1232 merged. No gateway runs as a service yet, and no
-  real GitHub write has been made through it.
+- **Last verified:** 2026-11-19 (dates in this file are Pacific time) against `main` at
+  `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
+  tailnet with the owner's token, `factory-gateway call gateway-status` answered as
+  `lushly-factory-gateway[bot]` for both repositories with a rate limit of 5000, and `issue-get`
+  (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub. No real GitHub write has
+  been made through it yet.
 - **Done:** the proposal, jobs and manifest (#1222); botcore's host changes 1, 2, 5 and 6
   ([#1230](https://github.com/lushly-dev/afd/pull/1230), merged 2026-11-15); the G1 command
   skeleton in `botcore-factory` against a fake GitHub, all fifteen jobs passing
@@ -59,16 +60,30 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `factory-gateway` for callers) with bundle uploads read by git into a bare mirror per
   repository ([#1271](https://github.com/lushly-dev/afd/pull/1271), merged 2026-11-15 as
   `270f4450`). Security passes (Opus 5.5) found three blockers across #1267 and #1271, all fixed
-  with tests. `serve` still runs only against a fake GitHub.
+  with tests.
+- **Done since:** the App-backed adapter, `serve --app-key` and pushes leased on the head they
+  read, which closes the queue-ref overwrite gap
+  ([#1290](https://github.com/lushly-dev/afd/pull/1290), merged 2026-11-15 as `396e61b9`); the
+  key's permission check on Windows ([#1360](https://github.com/lushly-dev/afd/pull/1360)); an
+  explicit body on every squash merge ([#1520](https://github.com/lushly-dev/afd/pull/1520)); the
+  lane and gateway behind a merge queue ([#1627](https://github.com/lushly-dev/afd/pull/1627),
+  merged 2026-11-19).
 - **The App (G0):** created and installed by the owner on 2026-11-15: `lushly-factory-gateway`,
   App ID `5777732`, installation `182417554` on `lushly-dev`, limited to `lushly-dev/afd` and
   `lushly-dev/lushly`, with the proposal's permissions (actions and metadata read; actions
-  variables, checks, contents, issues, pull requests and workflows read and write). No private
-  key or client secret exists yet; the key is generated when the adapter is ready to run on
-  `random` and goes straight to the service user, never through chat.
-- **Next, in order:** the App-backed adapter; the fix for queue refs (a session or cell can
-  overwrite another branch's queue ref, since the fast-forward rule covers only `refs/heads/`);
-  change 3 redesigned so the host is the only validator (held on
+  variables, checks, contents, issues, pull requests and workflows read and write). The owner
+  generated its private key on 2026-11-19 (no client secret exists); it went through the secure
+  prompt straight to the service user, never through chat.
+- **The service on `random` (G0):** installed 2026-11-19 as the launch daemon
+  `dev.lushly.factory-gateway`, running as the hidden account `_factorygw` (no login). The app
+  and its Python live root-owned in `/Library/FactoryGateway/app`; state in `data` (service
+  only), the configuration and key in `etc` (the key mode 0600, the service's), the log in `log`.
+  It listens on `random`'s tailnet address, port 8787. The owner's token is in
+  `~/.config/factory-gateway/owner.token` on `random`. Not yet checked: that the mirrors primed
+  at startup (the log is readable by the service only) and that it survives a restart.
+- **Next, in order:** G0's remaining checks (a restart of `random`, one test write per
+  permission, how an App's squash merge is credited in Lushly, the runbook
+  `docs/operations/factory-gateway.md`); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
@@ -79,7 +94,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; open: the adapter, the key on `random`, the service user, start on boot, the runbook, the test writes and squash-credit check | — | — |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; open: surviving a restart, the runbook, the test writes and squash-credit check | — | — |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |

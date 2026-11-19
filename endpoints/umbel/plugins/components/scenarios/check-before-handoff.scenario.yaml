@@ -1,0 +1,59 @@
+{
+  "name": "Check written markup for undeclared tags and attributes before handing it off",
+  "job": "check-before-handoff",
+  "description": "When I have written markup with a library's components, I want to check it, as text, for tags no catalog has and attributes the components do not declare, so that a name the component ignores does not fail silently after I hand the change off. The answer must say that it rendered nothing and that Specimen's story checks are the real check.",
+  "steps": [
+    {
+      "command": "components-check",
+      "description": "Markup that binds an attribute the field does not declare, and misspells a tag: both are found, with their lines and the nearest declared names, and the answer says it read text only.",
+      "input": {
+        "source": "<example-field label=\"Email\" error-text=\"Required\"></example-field>\n<example-selct label=\"Size\"></example-selct>"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "read": "text",
+          "rendered": false,
+          "note": {
+            "contains": "pnpm test:stories"
+          },
+          "count": 2,
+          "findings": {
+            "length": 2
+          }
+        }
+      }
+    },
+    {
+      "command": "components-check",
+      "description": "The same markup after the fix: no findings, and still no claim that the page works.",
+      "input": {
+        "source": "<example-field label=\"Email\" invalid></example-field>\n<example-select label=\"Size\"></example-select>"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "rendered": false,
+          "count": 0,
+          "findings": {
+            "length": 0
+          }
+        }
+      }
+    },
+    {
+      "command": "components-check",
+      "description": "A library the pack does not hold is refused, with a suggestion naming the libraries it does.",
+      "input": {
+        "source": "<example-field label=\"Email\"></example-field>",
+        "library": "missing"
+      },
+      "expect": {
+        "success": false,
+        "error": {
+          "code": "LIBRARY_NOT_FOUND"
+        }
+      }
+    }
+  ]
+}

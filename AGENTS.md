@@ -32,7 +32,7 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 | Change CI, a hook, `scripts/affected` or a dependency | [gates.md](.claude/skills/prepare-pr/references/gates.md): what each gate covers, the scope rules, the dependency age limit |
 | Edit a skill | `manage-skills`. The Botcore-sourced skills are generated: edit the source in `endpoints/botcore/src/botcore/skills/` and run `pnpm skills:sync` |
 | Delegate work or choose a model | [Model routing](docs/operations/model-routing.md), which is separate from the models an application built with AFD selects |
-| Push, open a pull request or merge | `prepare-pr`: review, changeset, gates, the pull request, and lockfile changes merged one at a time |
+| Push, open a pull request or merge | `prepare-pr`: review, changeset, gates, the pull request, and the merge queue, which is the only way into `main` |
 | Triage issues, plan factory work, or open an epic or file work under one | `triage-issues`: the label rules in `.github/labels.json` and `scripts/issue-labels.mjs`, `dispatch` for what a cell may take, and [epics](.claude/skills/triage-issues/references/epics.md) (type `Epic`, real sub-issues, the `Epic:` line in `STATUS.md`) |
 | End a session | `end-session`: what landed, what to file, what to record |
 | Cut a release | `cut-release` |
@@ -41,7 +41,7 @@ The harness lists every skill with its description. The others cover each langua
 
 **Credit goes to the owner.** Commits are authored by the owner, never by an agent. An agent that helped is listed with an email-free trailer, `Assisted-by: Claude Code`, never `Co-authored-by:`, which GitHub counts as a full contributor. `scripts/commit-credit.mjs` refuses either in the commit-msg hook and in `ci-ok`.
 
-**Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
+**Publishing is the maintainer's.** Do not push a tag, create a release, merge or enqueue the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
 ## Ending a turn
 
