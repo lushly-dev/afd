@@ -1697,6 +1697,37 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 		expect(
 			other.answer('outer-1', 'work-a-save', { ...big, document: 'doc-2' }, named('work-a-save'))
 		).toBeUndefined();
+		// A mounted server's own refusal of `{ document }` is marked untrusted, and matched whole.
+		const untrusted = {
+			...refused,
+			metadata: { 'dev.loam/trust': 'untrusted', 'dev.loam/replay': 'recorded' },
+		};
+		const mountedId = nestedReplay([
+			entry('work-a-save', { document: 'doc-1' }, untrusted, { replay: 'recorded' }),
+		]);
+		expect(mountedId.answer('outer-1', 'work-a-save', small, named('work-a-save'))).toEqual(
+			untrusted
+		);
+		// `document-import` is measured by its envelope, as the live check measures it.
+		const imported = () => nestedReplay([entry('document-import', {}, refused, marked)]);
+		const envelope = { content: 'x'.repeat(256 * 1024) };
+		expect(
+			imported().answer(
+				'outer-1',
+				'document-import',
+				{ type: 'probe', envelope },
+				named('document-import')
+			)
+		).toEqual(refused);
+		const nearly = { content: 'x'.repeat(256 * 1024 - 64) };
+		expect(
+			imported().answer(
+				'outer-1',
+				'document-import',
+				{ type: 'probe', envelope: nearly, title: 't'.repeat(200) },
+				named('document-import')
+			)
+		).toBeUndefined();
 		// An entry from before the mark that may be what was left of a larger call answers nothing, either way.
 		const older = () =>
 			nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, { replay: 'recorded' })]);

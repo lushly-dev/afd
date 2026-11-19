@@ -462,7 +462,7 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		expect(report.diverged).toBe(false);
 	});
 
-	it("#861: a change the store did not save is the call's failure, and the next flush saves it", async () => {
+	it('#861: a change the store did not save is warned of and journaled, and written again until it is', async () => {
 		const store = new GatedStore();
 		const { kernel, journal } = await createTestKernel({
 			...probeOptions(),
@@ -471,25 +471,30 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		});
 		store.refuse = true;
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const opened = await kernel.call('app-open', { instance: 'probe' });
-		expect(opened.error).toMatchObject({
-			code: 'VIEW_STATE_NOT_SAVED',
-			retryable: true,
-			details: { records: ['loam.apps'] },
-		});
-		expect(opened.error?.suggestion).toBeTruthy();
-		// The journal says what a reload finds: the call failed, and the store holds no active app.
-		const entry = (await journal.read()).at(-1);
-		expect(entry?.command).toBe('app-open');
-		expect(entry?.result.success).toBe(false);
-		expect(await store.get('settings', 'loam.apps')).toBeNull();
-		// Kept: once the store takes writes again, the next flush saves the change.
-		store.refuse = false;
-		await kernel.flush();
-		expect(
+		const stored = async () =>
 			((await store.get('settings', 'loam.apps')) as { value?: { active?: unknown } } | null)?.value
-				?.active
-		).toBe('probe');
+				?.active;
+		// The app is open in memory, so the call succeeded; its warning says a reload would not find it.
+		const opened = await kernel.call('app-open', { instance: 'probe' });
+		expect(opened.success).toBe(true);
+		expect(opened.warnings).toEqual([
+			expect.objectContaining({
+				code: 'VIEW_STATE_NOT_SAVED',
+				details: { records: ['loam.apps'] },
+			}),
+		]);
+		expect((await journal.read()).at(-1)?.result.warnings?.[0]?.code).toBe('VIEW_STATE_NOT_SAVED');
+		expect(await stored()).toBeUndefined();
+		// A call that changed nothing writes it again, and is not blamed for it.
+		const again = await kernel.call('app-open', { instance: 'probe' });
+		expect(again.success).toBe(true);
+		expect(again.warnings ?? []).toEqual([]);
+		expect(await stored()).toBeUndefined();
+		// Once the store takes writes, the next call saves it, with no flush of its own.
+		store.refuse = false;
+		const read = await kernel.call('layout-get');
+		expect(read.warnings ?? []).toEqual([]);
+		expect(await stored()).toBe('probe');
 		warn.mockRestore();
 		await kernel.dispose();
 	});

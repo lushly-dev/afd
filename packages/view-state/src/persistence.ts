@@ -74,6 +74,11 @@ export class DebouncedPersistence {
 		return run;
 	}
 
+	/** Forget a write not yet made for `id`, as a hydrate that applied the stored state does. */
+	discard(id: string): void {
+		this.pending.delete(id);
+	}
+
 	async destroy(): Promise<ViewStateFlushResult> {
 		this.destroyed = true;
 		return this.flush();

@@ -228,8 +228,9 @@ function validatedInput(
  * the kernel's input bound refused (`oversized`, which only the kernel sets) keeps its document's id alone, so it is
  * matched by that id and by `given` being over `inputBytes`, the replay kernel's bound, as it would be refused live: a
  * small call to the same document is not it, and runs (#859). An app's own `DOCUMENT_CONTENT_TOO_LARGE` keeps its whole
- * input and no mark, so it compares whole. An entry from before the mark that has that refusal, `replay: 'recorded'` and
- * an input no more than a document's id is ambiguous, what was left of a larger call or the whole of a small one, so it
+ * input and no mark, so it compares whole, a mounted server's too (its result is marked untrusted). Any other entry
+ * from before the mark that has that refusal, `replay: 'recorded'` and an input no more than a document's id is
+ * ambiguous, what was left of a larger call or the whole of a small one, so it
  * answers nothing: the call runs, and the replay reports any difference.
  * The journal records the input after the handler ran, so a handler that changes its own input is recorded changed,
  * and a nested call into it no longer matches: the replay reports it diverged rather than answer the wrong entry.
@@ -242,12 +243,17 @@ function sameCall(recorded: JournalEntry, given: unknown, inputBytes: number): b
 		input: given,
 	} as JournalRecord).input;
 	if (recorded.context?.oversized === true) {
-		const over = new TextEncoder().encode(JSON.stringify(given) ?? '').length > inputBytes;
+		// What the live check measures: `document-import`'s envelope, every other command's whole input.
+		const measured =
+			recorded.command === 'document-import' ? (given as { envelope?: unknown })?.envelope : given;
+		const over = new TextEncoder().encode(JSON.stringify(measured) ?? '').length > inputBytes;
 		return over && sameJson(recorded.input, oversizedInput(journaled));
 	}
+	// A mounted server's result is marked untrusted, and the kernel's own refusal never is: that one is never ambiguous.
 	const ambiguous =
 		recorded.context?.replay === 'recorded' &&
 		recorded.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE' &&
+		recorded.result.metadata?.['dev.loam/trust'] !== 'untrusted' &&
 		sameJson(recorded.input, oversizedInput(recorded.input));
 	return !ambiguous && sameJson(recorded.input, journaled);
 }

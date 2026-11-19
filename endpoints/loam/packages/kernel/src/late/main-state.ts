@@ -36,18 +36,25 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * why it sits right inside the journal. The store may then hold a change a moment before the journal holds its entry;
  * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
  *
- * - **Every call waits for a write in flight**, its own or another's, so one that saw a change before the store held it,
- *   as a second `app-open` of the same app does, is never journaled before the call that made it.
+ * - **A call that ends while a write is in flight waits for it**, so one that saw a change after the handler that made
+ *   it returned, as a second `app-open` of the same app does, is not journaled before that call. A change made before
+ *   a handler awaits more work, as `project-archive`'s scope move before its record's write, is seen by calls that end
+ *   meanwhile as it was before. The wait has no time limit: the store's write is what every such call waits for.
  * - **A handler that throws after a change** is written through all the same, and its error is the call's.
- * - **A write that fails** is the call's failure, `VIEW_STATE_NOT_SAVED`, retryable: the journal never records as done
- *   what a reload would not find. The change stays in memory, and the next flush writes it again.
+ * - **A write that fails** leaves the call as it was, since the change is in memory and the shell runs on it, with a
+ *   `VIEW_STATE_NOT_SAVED` warning naming the records it changed, which the journal keeps: a reload would not find
+ *   them. They stay unsaved until a write of them succeeds, and every call writes them again until one does.
  */
 export function writeThrough(
 	viewState: ViewStateRegistry,
 	state: Pick<ShellState, 'main' | 'scopeProject'>
 ): CommandMiddleware {
-	const read = () => JSON.stringify([state.main(), state.scopeProject()]);
-	const records = new Set([APPS_VIEW_STATE_ID, SCOPE_VIEW_STATE_ID]);
+	const records: ReadonlyArray<readonly [string, () => string]> = [
+		[APPS_VIEW_STATE_ID, () => JSON.stringify(state.main())],
+		[SCOPE_VIEW_STATE_ID, () => JSON.stringify(state.scopeProject())],
+	];
+	/** The records whose last write failed: every call writes them again until one succeeds. */
+	const unsaved = new Set<string>();
 	/** The last write-through started, until it settles. */
 	let inFlight: Promise<ViewStateFlushResult> | undefined;
 	const start = (): Promise<ViewStateFlushResult> => {
@@ -59,25 +66,39 @@ export function writeThrough(
 		return flush;
 	};
 	return async (name, _input, _context, next) => {
-		const before = read();
+		const before = records.map(([, read]) => read());
 		let outcome: { result: CommandResult } | { thrown: unknown };
 		try {
 			outcome = { result: await next() };
 		} catch (thrown) {
 			outcome = { thrown };
 		}
-		const mine = read() !== before ? start() : undefined;
+		const changed = records.filter(([, read], i) => read() !== before[i]).map(([id]) => id);
+		const mine = changed.length > 0 || unsaved.size > 0 ? start() : undefined;
 		const waited = mine ?? inFlight;
-		const flushed = waited ? await waited : undefined;
+		if (waited) {
+			const { failed } = await waited;
+			// A record that was waiting is written by every flush, so one not failed is saved.
+			if (mine) {
+				unsaved.clear();
+				for (const [id] of records) if (failed.includes(id)) unsaved.add(id);
+			}
+		}
 		if ('thrown' in outcome) throw outcome.thrown;
-		const unsaved = mine ? (flushed?.failed ?? []).filter((id) => records.has(id)) : [];
-		if (unsaved.length === 0) return outcome.result;
-		return kernelFailure(
-			'VIEW_STATE_NOT_SAVED',
-			`\`${name}\` changed ${unsaved.join(' and ')}, but the store did not save it`,
-			'Check that this site may store data, then run it again',
-			{ retryable: true, details: { records: unsaved } }
-		);
+		const lost = changed.filter((id) => unsaved.has(id));
+		if (lost.length === 0) return outcome.result;
+		return {
+			...outcome.result,
+			warnings: [
+				...(outcome.result.warnings ?? []),
+				{
+					code: 'VIEW_STATE_NOT_SAVED',
+					message: `\`${name}\` changed ${lost.join(' and ')}, but the store did not save it; a reload would not find it`,
+					severity: 'warning',
+					details: { records: lost },
+				},
+			],
+		};
 	};
 }
 

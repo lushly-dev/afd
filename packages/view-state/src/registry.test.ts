@@ -154,6 +154,29 @@ describe('ViewStateRegistry', () => {
 			expect(handler.state).toEqual({ open: true });
 		});
 
+		it('drops a write kept from a failed flush once hydrate applies the stored state', async () => {
+			const adapter = mockAdapter();
+			const update = adapter.update as ReturnType<typeof vi.fn>;
+			update.mockRejectedValueOnce(new Error('HTTP 500: locked'));
+			(adapter.get as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'panel' });
+			const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const reg = new ViewStateRegistry({ adapter });
+			const handler = createHandler({ open: false });
+			reg.register('panel', handler);
+			reg.set('panel', { open: true });
+			expect(await reg.flush()).toEqual({ failed: ['panel'] });
+			(adapter.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+				data: [{ id: 'panel', category: 'view-state', value: { open: false, from: 'store' } }],
+				total: 1,
+			});
+			await reg.hydrate();
+			expect(handler.state).toEqual({ open: false, from: 'store' });
+			// Nothing is written over what the store holds.
+			expect(await reg.flush()).toEqual({ failed: [] });
+			expect(update).toHaveBeenCalledTimes(1);
+			warn.mockRestore();
+		});
+
 		it('set triggers debounced persistence', async () => {
 			const adapter = mockAdapter();
 			const reg = new ViewStateRegistry({ adapter, debounceMs: 50 });

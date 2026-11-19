@@ -142,7 +142,7 @@ reads `ViewStateRegistryOptions['adapter']` remain compatible.
 | `list()` | List all registered states |
 | `hydrate()` | Load persisted states and apply to handlers |
 | `hydrateOne(id)` | The same for one registered ID, leaving the other handlers as they are. An unregistered ID, a missing record or one in another category is ignored. Await it before any `set` or `replace` on that ID |
-| `flush()` | Write all pending persistence immediately. Resolves with `{ failed }`, the IDs whose write failed; each is kept and written again by the next flush, unless a newer state replaced it. Never rejects |
+| `flush()` | Write all pending persistence immediately. Resolves with `{ failed }`, the IDs whose write failed; each is kept and written again by the next flush, unless a newer state or a hydrate replaced it. Never rejects |
 | `destroy()` | Flush + clear all handlers |
 
 ## License

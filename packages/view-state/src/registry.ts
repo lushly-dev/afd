@@ -204,6 +204,8 @@ export class ViewStateRegistry {
 				const handler = this.handlers.get(record.id);
 				if (handler && record.value) {
 					handler.set(cloneState(record.value));
+					// The store's state is now the handler's: a write kept from a failed flush would overwrite it.
+					this.persistence?.discard(record.id);
 				}
 			}
 		} catch (err) {

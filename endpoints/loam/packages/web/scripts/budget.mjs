@@ -431,7 +431,10 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
 	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
 	// Steps 4, 5 and 8 together (step 5's branch with `main` at `03b036bb`): 310,131; set to 310,500 under D115.
-	jsMinified: 312_800,
+	// Raised from 312,800 to 313,300 under D115 by the second review of #1604 (#859, #861, #663), measured in one tree
+	// against `main` at `4c6e0237`: 312,568 to 312,844 (+276). `afd-view-state` reporting, keeping and dropping on
+	// hydrate a failed write, and the kernel's `oversized` journal mark and nested-call exposure check.
+	jsMinified: 313_300,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -449,7 +452,7 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	// Raised from 122,600 to 123,000 under D115 by the second review of #1604 (#859, #861, #663), measured in one tree
-	// against `main` at `dcabc87a`: 122,588 to 122,844 (+256). The `oversized` journal mark a replay matches a refused
+	// against `main` at `dcabc87a`: 122,588 to 122,844 (+256); 122,922 with the review's fixes (`main` at `4c6e0237` unchanged). The `oversized` journal mark a replay matches a refused
 	// input by, the nested-call exposure check, and `afd-view-state` reporting and keeping a failed write.
 	kernelMinified: 123_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
@@ -459,7 +462,7 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	// Raised from 109,800 to 110,300 under D115 by the same review: 109,503 to 109,952 (+449), `late`'s write-through
+	// Raised from 109,800 to 110,300 under D115 by the same review: 109,503 to 109,952 (+449), 110,131 with the review's fixes, `late`'s write-through
 	// waiting for a write in flight, writing through a handler that throws, and `VIEW_STATE_NOT_SAVED`.
 	lateMinified: 110_300,
 	lateDocumentsMinified: 13_218,
