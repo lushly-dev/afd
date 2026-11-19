@@ -8,8 +8,9 @@ owner to approve the domain and the budget before any session runs. Read
 ## Status
 
 - **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the
-  held material is written, the runner is written without its walks, readers and statistics
-  ([STATUS.md](STATUS.md#the-runner)), and the reference build is written and reviewed
+  held material is written and frozen, the runner is written without its walks, readers and
+  statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
+  reviewed and approved by the owner, and a copy of it holds the faults
   ([STATUS.md](STATUS.md#the-reference-build)); no building session has run.
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
@@ -33,12 +34,14 @@ owner to approve the domain and the budget before any session runs. Read
   owner decided. They are committed after the last run as the record, as Component Briefs did
   with its tasks and checks. This file gives their shape and their counts.
 - **They are frozen in two stages.** The checks and the held-back jobs were frozen on
-  2026-11-15, before any build. The faults, the persona cards and the walk scripts are frozen
-  before the first counted walk: a fault names elements of the reference build, which does not
-  exist yet. The two pilot walks run on the clean build with the drafts, and what they change
-  is recorded with the freeze. Each stage has a manifest of SHA-256 hashes, and the hash of
-  each manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked
-  against what the runs used.
+  2026-11-15, before any build. The faults, the persona cards and the walk scripts were frozen
+  on 2026-11-18, before any walk, the pilots' included: a fault names elements of the reference
+  build, so they waited for it and for the owner's look. Each fault was planted in a copy of the
+  build and its proof run on both builds before the freeze. What the pilot walks show is
+  recorded in a file of its own beside the frozen ones. It may change the runner, the walk's
+  cap or the budget's figures; the frozen files stay as they were. Each stage has a manifest of SHA-256 hashes, and the hash of each
+  manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked against
+  what the runs used.
 
 ## What it has to do
 
@@ -157,8 +160,9 @@ Which task needs which pattern:
   installs as a Claude Code plugin. A session has no Skill tool, so that no skill built into
   Claude Code reaches any arm, and arm 1 is given the plugin's `SKILL.md`, at a recorded version
   and hash, as a file to read and follow.
-- **Arm 2's patterns do not exist yet.** Patterns is a proposal. A throwaway script adds the
-  statements to the brief's text. They are written after step 0.1, from the faults the owner
+- **Arm 2's patterns do not exist yet.** Patterns is a proposal. Umbel's components plugin
+  serves them: a consumer profile's statements go once into every brief for that consumer, and
+  are never shed when a brief is cut to size (#1394). They are written after step 0.1, from the faults the owner
   names on T1 to T3 and from no other source, and the owner approves them before step 0.2.
 - **Arm 3's skill** is a draft written for the run and deleted if step 0.5 says so.
 - **A reference build** of the whole application, running on the commands with a journal, is
