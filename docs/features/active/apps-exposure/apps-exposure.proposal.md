@@ -102,7 +102,7 @@ registry, since their `allow` option, middleware and `tools/list` answer before 
 refusal; and `replayJournal` replays an app call only on a target whose interface is `apps`, where
 the grant is checked again. The cost on `/direct`'s smallest host is 104 bytes, and its budget
 rises from 39,400 to 39,500 under D115; Loam's first paint grows about 110 bytes and its kernel
-about 80, within their limits.
+about 110, within their limits.
 
 ### The manifest
 
