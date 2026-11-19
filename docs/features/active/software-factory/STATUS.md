@@ -87,7 +87,7 @@ What a cell may take, which plan it runs on, the foreman's commands and `run-fle
 #### Answered events no longer wake a new foreman, 2026-11-19
 
 Run 8 woke the foreman for two events an earlier session had resolved (#1608).
-`lane-wait` now checks that each event is open when recording delivery. The runbook shows
+PR #1632 checks that each event is open when `lane-wait` records delivery. The runbook shows
 how to record a decision with `event-resolve` and its `note` argument.
 
 ### Hosts and toolchains
