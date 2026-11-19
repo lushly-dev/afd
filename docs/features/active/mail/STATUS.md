@@ -129,7 +129,7 @@ waits for Gmail has a line of its own.
 
 - E3: Reply sets. Not started.
 
-- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is drafted and revised after two reviews, for review, on `lush/mail-f-spec`. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
+- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is reviewed and merged as [#1652](https://github.com/lushly-dev/afd/pull/1652), not approved: the owner's answers to its Q1 to Q5 are open. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
 - G: Composition with a connected Umbel. Not started.
 
