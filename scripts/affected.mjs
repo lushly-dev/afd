@@ -9,6 +9,9 @@
  *   node scripts/affected.mjs gate [--package <name>...] [--path <prefix>...] [--except <prefix>...]
  *                                                     CI: write run=true|false to $GITHUB_OUTPUT;
  *                                                     a file under an --except prefix opens no --path
+ *   node scripts/affected.mjs trigger <workflow.yml>   CI, on a merge group: write run=true|false to
+ *                                                     $GITHUB_OUTPUT, true when a changed file
+ *                                                     matches the workflow's own pull_request.paths
  *   node scripts/affected.mjs check [--all]           run the lefthook `check` gate over the scope
  *   node scripts/affected.mjs verify [--list] [--skip-check] [--keep-going]
  *                                                     run `check`, then the local equivalent of every
@@ -118,6 +121,25 @@ export function gate(scope, { packages, paths, except = [] }) {
 	return {
 		run: false,
 		reason: `none of ${[...packages, ...paths].join(', ')} is affected or changed`,
+	};
+}
+
+/**
+ * Whether a change starts a workflow by its own `pull_request.paths`. A merge group starts every
+ * workflow whatever its paths, so each asks this of itself. A scope with no file list (no base to
+ * diff against, or the whole workspace asked for) runs it: unknown is not unaffected.
+ * @param {ReturnType<typeof import('./affected/suites.mjs').readTrigger>} trigger
+ */
+export function workflowTrigger(scope, trigger) {
+	if (!trigger) throw new Error('the workflow has no pull_request trigger to read paths from');
+	if (trigger.paths === null)
+		return { run: true, reason: 'its pull_request trigger has no path filter' };
+	if (scope.mode === 'all' && scope.files.length === 0) return { run: true, reason: scope.reason };
+	const file = scope.files.find((candidate) => matchesFilters(trigger.paths, candidate));
+	if (file) return { run: true, reason: `${file} changed` };
+	return {
+		run: false,
+		reason: `none of the ${scope.files.length} changed file(s) matches its pull_request.paths`,
 	};
 }
 
@@ -315,6 +337,18 @@ function main(argv) {
 				appendFileSync(process.env.GITHUB_OUTPUT, `run=${result.run}\n`);
 			return;
 		}
+		case 'trigger': {
+			const [workflow] = options.positional;
+			if (!/^[\w.-]+\.ya?ml$/.test(workflow ?? ''))
+				throw new Error('trigger needs a workflow file name, such as rust.yml');
+			const trigger = readSuiteTrigger(root, { workflow });
+			if (!trigger) throw new Error(`${workflow} has no pull_request trigger`);
+			const result = workflowTrigger(scope, trigger);
+			console.log(`run=${result.run}: ${result.reason}`);
+			if (process.env.GITHUB_OUTPUT)
+				appendFileSync(process.env.GITHUB_OUTPUT, `run=${result.run}\n`);
+			return;
+		}
 		case 'check': {
 			console.error(`[affected] check: ${describe(scope, scope.affected)}`);
 			runCheck(options.all);
@@ -324,7 +358,7 @@ function main(argv) {
 			verify(scope, options);
 			return;
 		default:
-			throw new Error('expected list, run, gate, check or verify');
+			throw new Error('expected list, run, gate, trigger, check or verify');
 	}
 }
 

@@ -2330,7 +2330,7 @@
 			"accepted": false,
 			"key": "commands[].expose.apps",
 			"pointer": "/apps",
-			"suggestion": "apps is reserved until core version 2; remove it."
+			"suggestion": "apps is reserved in core version 1; remove it, or adopt core version 2, which defines it."
 		},
 		{
 			"id": "expose-flag-string",

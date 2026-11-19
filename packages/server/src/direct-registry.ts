@@ -48,7 +48,13 @@ import type { McpToolDefinition } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ContextConfig, ToolStrategy } from './server-types.js';
 
-/** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`). */
+/**
+ * The options key only `createAppCallRegistry` sets, which checks every call first. Neither entry
+ * exports it, so no other code can serve the `apps` interface without the grant check.
+ */
+export const APP_CALLS = Symbol();
+
+/** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`, `apps`). */
 export type ExposeInterface = keyof ExposeOptions;
 
 /**
@@ -58,8 +64,11 @@ export interface DirectRegistryOptions {
 	/**
 	 * The interface this registry serves. Only commands exposed to it are
 	 * listed and executable. Default: `'agent'`, the in-app AI assistant.
+	 *
+	 * Not `'apps'`, which throws: app-to-app calls need the host's grant check, so they have their
+	 * own registry, `createAppCallRegistry` (`spec/command-metadata.md`, "App-to-app calls").
 	 */
-	interface?: ExposeInterface;
+	interface?: Exclude<ExposeInterface, 'apps'>;
 
 	/** Middleware applied to every command, in onion order (same as `createMcpServer`). */
 	middleware?: CommandMiddleware[];
@@ -338,7 +347,11 @@ export function createDirectRegistry(
 	commands: ZodCommandDefinition[],
 	options: DirectRegistryOptions = {}
 ): DirectCommandRegistry {
-	const iface = options.interface ?? 'agent';
+	const iface = (options.interface ?? 'agent') as ExposeInterface;
+	// An app's calls need the grant check only `createAppCallRegistry` adds (fail closed).
+	if (iface === 'apps' && !(options as Record<symbol, unknown>)[APP_CALLS]) {
+		throw new TypeError('Use createAppCallRegistry for apps');
+	}
 	const contexts = [...(options.contexts ?? [])];
 	const contextNames = new Set(contexts.map((context) => context.name));
 	const contextFields = checkContextFields(options.contextFields);

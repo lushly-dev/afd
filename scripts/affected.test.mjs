@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import test from 'node:test';
 import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
-import { OWN_TESTS, resolveScope } from './affected/scope.mjs';
+import { gitPath, OWN_TESTS, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
 import {
@@ -15,6 +15,7 @@ import {
 	plannedTools,
 	planSuites,
 	pnpmArgs,
+	workflowTrigger,
 } from './affected.mjs';
 import { execTool } from './release/exec-tool.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
@@ -497,8 +498,108 @@ test('a pull request is compared with main as merged, not with the base it recor
 	for (const base of bases)
 		assert.equal(
 			base.trim(),
-			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}"
+			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}"
 		);
+});
+
+test('a merge group is compared with the commit the queue built it on', (t) => {
+	const { root, write } = fixture(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (args) =>
+		execFileSync('git', ['-c', 'user.name=F', '-c', 'user.email=f@example.invalid', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+			env,
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	const commit = (message) => {
+		git(['add', '.']);
+		git(['commit', '-m', message]);
+	};
+	git(['init', '-b', 'main']);
+	commit('base');
+	// The queue's branch: the squash of one pull request, then of the next.
+	git(['switch', '-c', 'queue']);
+	write('packages/core/src/index.ts', 'export const first = 1;');
+	commit('first in the queue (#1)');
+	const base = git(['rev-parse', 'HEAD']).trim();
+	write('docs/guide.md', 'guide');
+	commit('second in the queue (#2)');
+
+	// The second group changes the guide alone, though its commit holds the first's code too.
+	const group = resolveScope({ root, bases: [base], git });
+	assert.deepEqual(group.files, ['docs/guide.md']);
+	assert.deepEqual(group.affected, []);
+	const trigger = (scope, paths) => workflowTrigger(scope, { paths, gates: new Map() });
+	assert.deepEqual(trigger(group, ['packages/**', 'spec/**']), {
+		run: false,
+		reason: 'none of the 1 changed file(s) matches its pull_request.paths',
+	});
+	assert.deepEqual(trigger(group, ['packages/**', 'docs/**']), {
+		run: true,
+		reason: 'docs/guide.md changed',
+	});
+	assert.equal(trigger(group, ['docs/**', '!docs/guide.md']).run, false);
+	// No path filter: every pull request starts it, so every merge group does.
+	assert.equal(trigger(group, null).run, true);
+	// Against main, the group would show both pull requests: the base is what narrows it.
+	assert.deepEqual(resolveScope({ root, bases: ['main'], git }).files, [
+		'docs/guide.md',
+		'packages/core/src/index.ts',
+	]);
+	// A base that cannot be found is unknown, not unaffected: the workflow runs.
+	const unknown = resolveScope({ root, bases: ['f'.repeat(40)], git });
+	assert.deepEqual(unknown.files, []);
+	assert.equal(trigger(unknown, ['packages/**']).run, true);
+	assert.equal(trigger(resolveScope({ root, all: true, git }), ['x/**']).run, true);
+	// A whole-workspace scope that still lists its files is matched by them (ci.yml selects it).
+	write('lefthook.yml', 'changed');
+	commit('third in the queue (#3)');
+	const whole = resolveScope({ root, bases: ['HEAD^1'], git });
+	assert.equal(whole.mode, 'all');
+	assert.equal(trigger(whole, ['packages/**']).run, false);
+	assert.equal(trigger(whole, ['lefthook.yml']).run, true);
+	assert.throws(() => workflowTrigger(group, null), /no pull_request trigger/);
+});
+
+test('the trigger command answers for a workflow by its own pull_request.paths', () => {
+	const script = join(import.meta.dirname, 'affected.mjs');
+	const run = (...args) => {
+		const output = join(mkdtempSync(join(tmpdir(), 'affected-trigger-')), 'output');
+		writeFileSync(output, '');
+		const { GITHUB_OUTPUT, AFD_BASE, AFD_SCOPE, ...environment } = process.env;
+		const done = spawnSync(process.execPath, [script, 'trigger', ...args], {
+			encoding: 'utf8',
+			env: { ...environment, GITHUB_OUTPUT: output },
+		});
+		const written = readFileSync(output, 'utf8');
+		rmSync(dirname(output), { recursive: true, force: true });
+		return { status: done.status, stdout: done.stdout, stderr: done.stderr, written };
+	};
+	const off = run('rust.yml', '--files', 'docs/guide.md');
+	assert.equal(off.status, 0, off.stderr);
+	assert.equal(off.written, 'run=false\n');
+	assert.match(off.stdout, /^run=false: none of the 1 changed file\(s\) matches/);
+	const on = run('rust.yml', '--files', 'docs/guide.md', 'packages/rust/src/lib.rs');
+	assert.equal(on.written, 'run=true\n');
+	assert.match(on.stdout, /^run=true: packages\/rust\/src\/lib\.rs changed/);
+	// Its own file is one of its paths, so a change to the workflow runs it.
+	assert.equal(run('rust.yml', '--files', '.github/workflows/rust.yml').written, 'run=true\n');
+	assert.equal(run('ci.yml', '--files', 'docs/guide.md').written, 'run=true\n');
+	// Nothing is written for a workflow it cannot answer for, and the job fails.
+	for (const [args, message] of [
+		[['release.yml'], /release\.yml has no pull_request trigger/],
+		[['absent.yml'], /ENOENT/],
+		[['../ci.yml'], /needs a workflow file name/],
+		[[], /needs a workflow file name/],
+	]) {
+		const refused = run(...args, '--files', 'docs/guide.md');
+		assert.equal(refused.status, 1, args.join(' '));
+		assert.match(refused.stderr, message);
+		assert.equal(refused.written, '');
+	}
 });
 
 test('pnpm arguments, gates and options follow the scope', (t) => {
@@ -720,5 +821,96 @@ test('the check gate runs even where LEFTHOOK=0 turns the git hooks off', () => 
 		silent.trim(),
 		'',
 		'LEFTHOOK=0 no longer silences lefthook; revisit checkEnvironment'
+	);
+});
+
+test('a path git quotes is read as the file it names', (t) => {
+	assert.equal(gitPath('packages/rust/src/lib.rs'), 'packages/rust/src/lib.rs');
+	assert.equal(gitPath('"packages/rust/tests/caf\\303\\251.rs"'), 'packages/rust/tests/café.rs');
+	assert.equal(gitPath('"docs/a \\"b\\"\\\\c\\td.md"'), 'docs/a "b"\\c\td.md');
+	assert.equal(gitPath('"docs/\\346\\227\\245\\346\\234\\254.md"'), 'docs/日本.md');
+	// Not a quoted path: a lone quote, or a name that only starts with one.
+	// With core.quotepath off git still quotes a name holding a quote, and leaves the rest raw.
+	assert.equal(gitPath('"docs/\\"🙂\\".md"'), 'docs/"🙂".md');
+	assert.equal(gitPath('"'), '"');
+	assert.equal(gitPath('"half'), '"half');
+
+	// With git itself, quoting as it does by default whatever this machine's configuration says.
+	const { root, write } = fixture(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (args) =>
+		execFileSync(
+			'git',
+			[
+				'-c',
+				'user.name=F',
+				'-c',
+				'user.email=f@example.invalid',
+				'-c',
+				'core.quotepath=true',
+				...args,
+			],
+			{
+				cwd: root,
+				encoding: 'utf8',
+				env,
+				stdio: ['ignore', 'pipe', 'ignore'],
+			}
+		);
+	git(['init', '-b', 'main']);
+	git(['add', '.']);
+	git(['commit', '-m', 'base']);
+	const base = git(['rev-parse', 'HEAD']).trim();
+	write('packages/core/tests/café.ts', 'export {};');
+	git(['add', '.']);
+	git(['commit', '-m', 'queued (#1)']);
+	assert.match(git(['diff', '--name-only', base]), /^"packages\/core\/tests\/caf\\303\\251\.ts"$/m);
+	write('docs/日本.md', 'untracked');
+	const scope = resolveScope({ root, bases: [base], git });
+	assert.deepEqual(scope.files, ['docs/日本.md', 'packages/core/tests/café.ts']);
+	assert.deepEqual(scope.changed, ['@x/core']);
+	const trigger = (paths) => workflowTrigger(scope, { paths, gates: new Map() }).run;
+	assert.equal(trigger(['packages/core/**']), true);
+	assert.equal(trigger(['packages/server/**']), false);
+});
+
+test('`**/` matches no directory as well as many, and a list survives a blank line', () => {
+	for (const [filter, file, expected] of [
+		['docs/**/*.md', 'docs/guide.md', true],
+		['docs/**/*.md', 'docs/a/b/guide.md', true],
+		['docs/**/*.md', 'docs/guide.txt', false],
+		['docs/**/*.md', 'other/docs/guide.md', false],
+		['**/README.md', 'README.md', true],
+		['**/README.md', 'packages/core/README.md', true],
+		['**/README.md', 'packages/core/NOTREADME.md', false],
+		['docs/**', 'docs/a/b.md', true],
+		['docs/**', 'docs', false],
+		['scripts/release*/**', 'scripts/release/claim.mjs', true],
+		['a**/b', 'ax/y/b', true],
+	])
+		assert.equal(matchesFilters([filter], file), expected, `${filter} against ${file}`);
+
+	const block = `on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'a/**'
+
+      # the rest
+      - 'docs/**'
+  workflow_dispatch:
+jobs:
+  a:
+    runs-on: x
+`;
+	assert.deepEqual(readTrigger(block).paths, ['a/**', 'docs/**']);
+	// The list ends where the trigger does, not at the next list in the file.
+	assert.deepEqual(
+		readTrigger(
+			block.replace('  workflow_dispatch:\n', "\n  push:\n    paths:\n      - 'other/**'\n")
+		).paths,
+		['a/**', 'docs/**']
 	);
 });

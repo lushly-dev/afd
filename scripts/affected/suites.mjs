@@ -462,8 +462,10 @@ export function filterPattern(glob) {
 	for (let index = 0; index < glob.length; index++) {
 		const char = glob[index];
 		if (char === '*' && glob[index + 1] === '*') {
-			source += '.*';
-			index++;
+			// `**/` also matches no directory at all: `docs/**/*.md` matches docs/guide.md.
+			const directories = glob[index + 2] === '/' && (index === 0 || glob[index - 1] === '/');
+			source += directories ? '(?:.*/)?' : '.*';
+			index += directories ? 2 : 1;
 		} else if (char === '*') source += '[^/]*';
 		else if (char === '?') source += '[^/]';
 		else source += char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -496,7 +498,8 @@ export function readTrigger(text) {
 		const unquote = (value) => value.trim().replace(/^(['"])(.*)\1$/, '$2');
 		const flow = /^\s*\[(.*)\]\s*$/.exec(key[1]);
 		paths = flow ? flow[1].split(',').map(unquote) : [];
-		for (let item = index + 1; !flow && /^ {6}(- |#)/.test(lines[item] ?? ''); item++)
+		// A blank line or a comment inside the list does not end it.
+		for (let item = index + 1; !flow && /^( {6}(- |#)|\s*$)/.test(lines[item] ?? '-'); item++)
 			if (lines[item].startsWith('      - '))
 				paths.push(unquote(lines[item].replace(/^ {6}- /, '').replace(/\s+#.*$/, '')));
 		if (paths.length === 0) throw new Error(`unreadable pull_request.paths: ${lines[index]}`);
