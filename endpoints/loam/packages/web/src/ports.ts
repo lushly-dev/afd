@@ -6,7 +6,12 @@
  * deployment's mounted instance is discovered, after first paint (7.3).
  */
 
-import type { HandlerFrameV1, KernelPortsV1, MountTransportV2 } from '@lushly-dev/loam-kernel';
+import type {
+	FrameAdmitV1,
+	HandlerFrameV1,
+	KernelPortsV1,
+	MountTransportV2,
+} from '@lushly-dev/loam-kernel';
 
 /** What the chrome's view chunk gives this port. */
 export interface ViewChunk {
@@ -15,6 +20,7 @@ export interface ViewChunk {
 		sandboxOrigin: string;
 		title: string;
 		html: string;
+		admit?: FrameAdmitV1;
 	}): HandlerFrameV1;
 }
 
@@ -50,10 +56,16 @@ export function webPorts(
 			};
 			return module.default;
 		},
-		async openHandlerFrame(instance, html) {
+		async openHandlerFrame(instance, html, admit) {
 			if (!sandboxOrigin) throw new Error('This deployment has no sandbox origin');
 			const { openHandlerFrame } = await loadView();
-			return openHandlerFrame({ document, sandboxOrigin, title: `${instance} handlers`, html });
+			return openHandlerFrame({
+				document,
+				sandboxOrigin,
+				title: `${instance} handlers`,
+				html,
+				...(admit ? { admit } : {}),
+			});
 		},
 		async mountTransport(entry, url) {
 			const chunk = await loadMount();

@@ -379,7 +379,8 @@ sequenceDiagram
   `palette-search`; `shell-info-get`;
   `toast-show`, `dialog-open`, `modal-open`, `popover-open`, `prompt-open`,
   `overlay-list`, `overlay-dismiss`; `setting-get`, `setting-set`,
-  `setting-list`, `setting-schema-get`; `experiment-list`,
+  `setting-list`, `setting-schema-get`; `limit-usage-get`, with `limit` among the shell's
+  domains (phase 4's section 11); `experiment-list`,
   `experiment-enable`, `experiment-disable`, `experiment-check`;
   `notification-list`, `notification-push`, `notification-read`, `notification-archive`,
   `notification-act`;

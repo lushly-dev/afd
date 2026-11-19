@@ -149,6 +149,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'autonomy-get': { command: 'project-get', instance: 'shell', project: PROJECT },
 	'autonomy-list': { project: PROJECT },
 	'autonomy-set': { level: 'project', project: PROJECT, mode: 'ask' },
+	// Phase 4's step 10: the limits' usage, an owner's read of the workspace (section 11).
+	'limit-usage-get': {},
 };
 
 /**
@@ -165,6 +167,8 @@ export const NOT_CALLED: Readonly<Record<string, string>> = {
 	'app-scope-refuse':
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
 	'app-embed-refuse':
+		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
+	'app-limit-refuse':
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
 	'overlay-global-set':
 		'Internal: only the shell sets its strip under the title bar (INTERNAL_COMMANDS)',

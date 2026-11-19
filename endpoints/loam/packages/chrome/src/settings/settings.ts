@@ -10,7 +10,8 @@
  *   (`editors.ts`) for the shell's keys the form cannot show.
  *
  * Every read and write is a command: `setting-schema-get`, `setting-list`, `setting-set` with `expected`, and
- * `setting-reset`. No app code runs here: an app's section is its manifest's schema, rendered by the shell.
+ * `setting-reset`; the Limits section's usage beside each key is `limit-usage-get` (section 11). No app code runs here:
+ * an app's section is its manifest's schema, rendered by the shell.
  */
 
 import type { AppSummaryV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
@@ -28,6 +29,13 @@ import {
 	type LoamKeybindingEditor,
 	type LoamRailOrderEditor,
 } from './editors.js';
+import {
+	LIMIT_KEYS,
+	type LimitKey,
+	type LimitUsageRow,
+	usageLine,
+	usageUnavailable,
+} from './limits-words.js';
 import { button, dateText, el, SettingsElement } from './parts.js';
 
 type Level = 'person' | 'workspace' | 'project';
@@ -83,6 +91,15 @@ const AUTONOMY: SectionOutline = {
 	levels: [],
 	keys: [],
 };
+
+/** The Limits section (3.7, section 11), whose fields show what each app uses of them. */
+const LIMITS = 'loam.limits';
+
+/** What the panel's fields are given besides their rows: the keybinding editor's commands, the Limits' usage. */
+interface PanelExtra {
+	commands: Array<{ name: string; title?: string }>;
+	usage?: Partial<Record<string, string>>;
+}
 
 /** Where a value comes from, in words (3.5). */
 const FROM_WORDS: Record<ValueRow['from'], string> = {
@@ -620,10 +637,24 @@ export class LoamSettingsSection extends SettingsElement {
 		}
 	}
 
-	/** What the custom editors list: the apps, and for the keybinding editor the commands. */
-	async #editorData(
-		section: SectionSchema
-	): Promise<{ commands: Array<{ name: string; title?: string }> }> {
+	/**
+	 * What the fields are given besides their rows: for the keybinding editor the commands; for the Limits section the
+	 * words beside each key from `limit-usage-get`, or, when it is refused, why no usage is shown (section 11).
+	 */
+	async #editorData(section: SectionSchema): Promise<PanelExtra> {
+		if (section.section === LIMITS && this.kernel) {
+			const read = await this.#call<{ instances: LimitUsageRow[] }>('limit-usage-get', {});
+			const titles = new Map(this.apps.map((app) => [app.instance, app.title]));
+			const titleOf = (instance: string) => titles.get(instance) ?? instance;
+			const rows = read.data?.instances;
+			const usage: Partial<Record<string, string>> = {};
+			for (const key of LIMIT_KEYS) {
+				usage[key] = rows
+					? usageLine(key as LimitKey, rows, titleOf)
+					: usageUnavailable(read.error?.code);
+			}
+			return { commands: [], usage };
+		}
 		if (section.section !== 'loam.keybindings' || !this.kernel) return { commands: [] };
 		const found = await this.#call<{ items: Array<{ name: string; title?: string }> }>(
 			'palette-search',
@@ -664,12 +695,7 @@ export class LoamSettingsSection extends SettingsElement {
 		await this.#readPanel();
 	}
 
-	#field(
-		section: SectionSchema,
-		level: Level,
-		row: ValueRow,
-		extra: { commands: Array<{ name: string; title?: string }> }
-	): HTMLElement {
+	#field(section: SectionSchema, level: Level, row: ValueRow, extra: PanelExtra): HTMLElement {
 		const schema = section.schema.properties[row.key] as SettingKeySchema;
 		const title = schema.title;
 		const box = el('div', {
@@ -709,6 +735,11 @@ export class LoamSettingsSection extends SettingsElement {
 		} else {
 			const field = settingField(row.key, schema, row.value);
 			field.disabled = !row.writable;
+			// The usage beside a limit is part of its description (3.7).
+			if (extra.usage?.[row.key]) {
+				const described = field.control.getAttribute('aria-describedby') ?? '';
+				field.control.setAttribute('aria-describedby', `${described} usage-${row.key}`.trim());
+			}
 			field.control.addEventListener('change', () => {
 				const read = field.read();
 				if (!read.ok) {
@@ -734,8 +765,11 @@ export class LoamSettingsSection extends SettingsElement {
 			// Only a value set at this level can be reset here.
 			...(row.from !== level || !row.writable ? { 'aria-disabled': 'true' } : {}),
 		});
+		const usage = extra.usage?.[row.key];
 		box.append(
 			control,
+			// What each app uses of a limit, beside its key (3.7).
+			...(usage ? [el('p', { class: 'note usage', id: `usage-${row.key}` }, usage)] : []),
 			el(
 				'div',
 				{ class: 'row' },

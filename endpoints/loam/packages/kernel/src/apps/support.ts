@@ -93,8 +93,9 @@ export function refuseRequest({
 	rpcCode,
 	message,
 	suggestion,
-}: HandlerRefusal): LoamKernelError {
-	return new LoamKernelError({ code, message, suggestion, details: { rpcCode } });
+	details,
+}: HandlerRefusal & { details?: Record<string, unknown> }): LoamKernelError {
+	return new LoamKernelError({ code, message, suggestion, details: { ...details, rpcCode } });
 }
 
 /** The call's effective scope, which the scope middleware always sets (phase 2 specification, 3.4). */

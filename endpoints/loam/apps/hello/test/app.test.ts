@@ -35,6 +35,27 @@ describe('hello as a view', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
+	it("drops a message over messageBytes at its broker, journaled, so limit-usage-get replays (phase 4's section 11)", async () => {
+		const { kernel, port, replay } = await createAppTestKernel({
+			manifest: await readAppManifest(ROOT, VIEW_MANIFEST),
+			definition: () => import('../src/native.js'),
+		});
+		await expect(
+			port.view?.toolsCall({ name: 'hello-list', arguments: { pad: 'x'.repeat(1_048_576) } })
+		).rejects.toMatchObject({ code: 'INPUT_TOO_LARGE', details: { limit: 1_048_576 } });
+		// The refusal is journaled as it is answered; read once it has landed.
+		await expect
+			.poll(async () => {
+				const read = await kernel.call<{
+					instances: Array<{ refusals: { messageBytes: number } }>;
+				}>('limit-usage-get', { instance: 'hello' });
+				return read.data?.instances[0]?.refusals.messageBytes;
+			})
+			.toBe(1);
+		const { report } = await replay();
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
 	it('is sandboxed in app check, with its pages one file each', async () => {
 		const report = await appCheck({ dir: ROOT, manifest: VIEW_MANIFEST });
 		expect(report.refusals).toEqual([]);
@@ -130,6 +151,28 @@ describe('hello', () => {
 		});
 		const result = await kernel.call<{ greeting: string }>('hello-greet', { name: 'Ada' });
 		expect(result.data?.greeting).toBe('Hello, Ada!');
+	});
+
+	it("answers its store's QUOTA_EXCEEDED as the refusal, with its details (phase 4's section 11)", async () => {
+		const { kernel, port } = await boot();
+		expect(
+			(
+				await kernel.call('setting-set', {
+					section: 'loam.limits',
+					key: 'storeBytes',
+					value: 1_048_576,
+					level: 'workspace',
+				})
+			).success
+		).toBe(true);
+		// Filled to the limit through hello's own store, then hello's own handler writes one more record.
+		await port.store?.put('fill', 'x'.repeat(1_048_541));
+		const refused = await kernel.call('hello-greet', { name: 'Ada' });
+		expect(refused.error).toMatchObject({
+			code: 'QUOTA_EXCEEDED',
+			details: { kind: 'store', limit: 1_048_576 },
+		});
+		expect(refused.error?.suggestion).toContain('loam.limits.storeBytes');
 	});
 
 	it('is trusted, not sandboxed, in app check', async () => {

@@ -4,7 +4,7 @@
  * only carries messages.
  */
 
-import type { HandlerFrameV1 } from '@lushly-dev/loam-kernel';
+import type { FrameAdmitV1, HandlerFrameV1 } from '@lushly-dev/loam-kernel';
 import { ChannelError, ProxyChannel } from './channel.js';
 
 type HandlerResult = Awaited<ReturnType<HandlerFrameV1['call']>>;
@@ -14,6 +14,8 @@ export interface HandlerFrameOptions {
 	sandboxOrigin: string;
 	title: string;
 	html: string;
+	/** The kernel's gate on every message the frame sends (phase 4 specification, section 11). */
+	admit?: FrameAdmitV1;
 }
 
 export function openHandlerFrame(options: HandlerFrameOptions): HandlerFrameV1 {

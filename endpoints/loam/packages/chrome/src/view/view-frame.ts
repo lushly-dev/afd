@@ -298,6 +298,7 @@ export class LoamViewFrame extends FASTElement {
 			sandboxOrigin,
 			title: options.heading,
 			html: source.html,
+			...(broker.admit ? { admit: broker.admit } : {}),
 		});
 		this.#channel = channel;
 		this.#readDimensions();
