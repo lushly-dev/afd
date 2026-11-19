@@ -159,6 +159,25 @@ async def test_a_stage_that_cannot_run_did_not_pass(make_run):
     assert result.error.code == "PREQUEUE_FAILED" and result.error.details["stage"] == "typecheck"
 
 
+async def test_a_failed_stage_names_the_install_a_new_worktree_needs(make_run):
+    run = make_run("ejected")
+    plain = await run.call("lane_enqueue", worktree="wt/type-slip")
+    assert "install" not in plain.error.details
+    assert plain.error.suggestion.startswith("Fix what typecheck reports")
+    config = run.target / "botcore.toml"
+    config.write_text(
+        config.read_text().replace(
+            "[plugins.factory]\n",
+            '[plugins.factory]\ninstall = ["pnpm", "install", "--frozen-lockfile"]\n',
+        )
+    )
+    result = await run.call("lane_enqueue", run.host(target=run.target), worktree="wt/type-slip")
+    assert result.error.code == "PREQUEUE_FAILED"
+    assert result.error.details["install"] == ["pnpm", "install", "--frozen-lockfile"]
+    assert "run `pnpm install --frozen-lockfile` in it" in result.error.suggestion
+    assert "Otherwise fix what typecheck reports" in result.error.suggestion
+
+
 async def test_without_review_evidence_in_the_adapter_nothing_can_be_queued(make_run, tmp_path):
     run = make_run("running")
     bare = tmp_path / "no-review"
