@@ -601,7 +601,32 @@ impl CommandHandler for Undo {
                 )));
             }
             let done = store.operation_done_items(id)?;
-            let (action, items) = inverse(&row, &done);
+            let (action, mut items) = inverse(&row, &done);
+            // A message a later change moved away and back has a new id
+            // where it was: it is undone from where the store shows it now.
+            // A place another item holds already is not taken twice; that
+            // item stays where it was recorded, and is found missing.
+            let mut taken: std::collections::HashSet<(i64, String, String)> = items
+                .iter()
+                .map(|item| (item.mailbox, item.validity.clone(), item.provider_id.clone()))
+                .collect();
+            for item in &mut items {
+                let Some(message) = item.message else {
+                    continue;
+                };
+                let Some((validity, provider_id)) =
+                    store.place_now(message, item.mailbox, &item.validity, &item.provider_id)?
+                else {
+                    continue;
+                };
+                if validity == item.validity && provider_id == item.provider_id {
+                    continue;
+                }
+                if taken.insert((item.mailbox, validity.clone(), provider_id.clone())) {
+                    item.validity = validity;
+                    item.provider_id = provider_id;
+                }
+            }
             let messages = items.len() as u64;
             // An undo that moves mail into the trash, or junk, counts as
             // trash.

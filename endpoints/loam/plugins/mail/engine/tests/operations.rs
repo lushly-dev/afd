@@ -374,6 +374,56 @@ fn label_copies_and_undo_removes_only_a_copy_whose_original_is_still_there() {
     assert_eq!(subjects(&fixture, "Receipts"), ["About s1"]);
 }
 
+/// Found by step D2's run: undone in the reverse order of the changes, a
+/// move is undone though a later change moved its messages away and back,
+/// which gave them new ids where the move put them.
+#[test]
+fn undone_in_reverse_order_a_move_follows_its_messages_to_their_new_ids() {
+    let fixture = Fixture::new(|world_| {
+        world(world_);
+        world_.add("Receipts", mail(NEWS, "r0", ""), &[]);
+        world_.add("Receipts", mail(NEWS, "r1", ""), &["\\Seen"]);
+    });
+    let inbox = fixture.mailbox_id("inbox");
+    let ids = [fixture.message("r0"), fixture.message("r1")];
+    let before = fixture.server.world().contents("Receipts");
+    let moved = fixture.changed("mail-label", json!({ "messages": ids, "mailbox": inbox }));
+    assert_eq!(moved["changed"], 2);
+    let marked = fixture.changed("mail-mark", json!({ "messages": ids, "flagged": true }));
+    let archived = fixture.changed("mail-archive", json!({ "messages": ids }));
+    assert_eq!(archived["changed"], 2);
+    let back = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": archived["operation"] }),
+    );
+    assert_eq!(back["changed"], 2);
+    // The archive's undo gave them new ids in the inbox: the mark's undo
+    // and the move's find them there.
+    let unmarked = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": marked["operation"] }),
+    );
+    assert_eq!(unmarked["changed"], 2, "{unmarked}");
+    let returned = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": moved["operation"] }),
+    );
+    assert_eq!(returned["changed"], 2, "{returned}");
+    assert_eq!(returned["missing"], 0);
+    assert_eq!(subjects(&fixture, "Receipts"), ["About r0", "About r1"]);
+    let flags = |contents: Vec<(u32, Vec<String>)>| -> Vec<Vec<String>> {
+        let mut flags: Vec<_> = contents.into_iter().map(|(_, flags)| flags).collect();
+        flags.sort();
+        flags
+    };
+    assert_eq!(
+        flags(fixture.server.world().contents("Receipts")),
+        flags(before),
+        "each message's flags as they were"
+    );
+    fixture.shown_as_synced();
+}
+
 #[test]
 fn label_moves_within_its_account_and_refuses_a_mailbox_that_is_not_there() {
     let fixture = Fixture::new(world);

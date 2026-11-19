@@ -1683,6 +1683,16 @@ after which its trash may be emptied, so none is recorded; a message the provide
 holds is reported `missing` rather than failing the undo. Gmail's date, and
 `UNDO_NOT_POSSIBLE` with it, arrive with step B6.
 
+**As step D2 built it** (its iCloud half): an undo acts on each message where the store shows it
+now. A later change that moved a message away and back (an archive and its undo) leaves it in the
+same mailbox under a new id, so undoing the changes in reverse order found each earlier one
+`missing`. Each place an undo would act on, when the store no longer shows the message there, is
+taken from the one place the store shows that message in the same mailbox, by its identity
+([4.2](#42-what-makes-two-messages-the-same)). A message with two places there, a place another
+of the undo's items holds already, and a message the provider never returned, which has no
+identity, are not guessed at: they are `missing`, as before. Found by the run on the scripted
+server that the owner's run repeats on iCloud.
+
 ### 9.4 The policy
 
 The person's policy says what each kind of actor may change without them. It is data, changed

@@ -680,6 +680,44 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Where message `message` is now in mailbox `mailbox`, for an undo whose
+    /// recorded place, `validity` and `provider_id`, may have gone since: a
+    /// later change moved it away and back, and the provider gave it a new
+    /// id. The recorded place while the store still shows it there; else the
+    /// one place the store shows the message in that mailbox; else `None`,
+    /// and the undo finds it missing. Two places of the same message are not
+    /// chosen between.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn place_now(
+        &self,
+        message: i64,
+        mailbox: i64,
+        validity: &str,
+        provider_id: &str,
+    ) -> Result<Option<(String, String)>, StoreError> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT validity, provider_id FROM observation
+             WHERE message_id = ?1 AND mailbox_id = ?2 AND ended_at IS NULL",
+        )?;
+        let places: Vec<(String, String)> = statement
+            .query_map(params![message, mailbox], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        if places
+            .iter()
+            .any(|(v, id)| v == validity && id == provider_id)
+        {
+            return Ok(Some((validity.to_string(), provider_id.to_string())));
+        }
+        Ok(match places.as_slice() {
+            [one] => Some(one.clone()),
+            _ => None,
+        })
+    }
+
     /// How many messages `creator` set out to move to the trash since
     /// `since`, in operations it made: not in its proposals, approved or not
     /// (9.4).
