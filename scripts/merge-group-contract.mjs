@@ -67,9 +67,14 @@ const VERDICT = 'ci-ok.yml';
 const UNSUPPORTED = /[?+[\]{}\\]/;
 /** Comparisons that are false for a pull request and for its merge group alike. */
 const BOTH_ALIKE = /github\.event_name\s*==\s*'(schedule|workflow_dispatch)'/g;
-/** What can tell a pull request from its merge group: the event's name, or what only one has. */
+/**
+ * What can tell a pull request from its merge group: the event's name, action or payload, what
+ * only one has, and the ref, which is `refs/pull/…` for the one and the queue's branch for the
+ * other. A reading through an expression this does not spell (a script that parses the event
+ * file under another name) is not seen.
+ */
 const SETS_APART =
-	/event_name|EVENT_NAME|github\.event\.pull_request\b|github\.(head|base)_ref\b|GITHUB_(HEAD|BASE)_REF/;
+	/event_name|EVENT_NAME|github\.event\.(pull_request|number|action)\b|github\[|github\.(head_|base_)?ref(_name)?\b|GITHUB_(HEAD_|BASE_)?REF(_NAME)?\b|GITHUB_EVENT_PATH|refs\/pull\//;
 /** The lines of a job that can tell a pull request from its merge group. */
 const settingApart = (block) =>
 	block
@@ -95,7 +100,7 @@ export const PULL_REQUEST_ONLY = {
 };
 
 /** A status function in a job's `if` runs it although a job it needs was skipped. */
-const STATUS_FUNCTION = /\b(always|cancelled|failure|success)\s*\(/;
+const STATUS_FUNCTION = /\b(always|cancelled|failure|success)\s*\(/i;
 
 /** A value without the comment that trails it; a value that is only a comment is empty. */
 function uncommented(value) {
@@ -225,8 +230,12 @@ function narrows(rest) {
 	if (!rest.includes('||')) return true;
 	if (!rest.startsWith('(')) return false;
 	let depth = 0;
+	let quoted = false;
 	for (let index = 0; index < rest.length; index++) {
-		if (rest[index] === '(') depth++;
+		// A parenthesis inside a string literal groups nothing.
+		if (rest[index] === "'") quoted = !quoted;
+		else if (quoted) continue;
+		else if (rest[index] === '(') depth++;
 		else if (rest[index] === ')' && --depth === 0) return index === rest.length - 1;
 	}
 	return false;
@@ -325,6 +334,15 @@ export function mergeGroupProblems(workflows) {
 			for (const line of rest.filter((candidate) => candidate.includes('merge_group')))
 				say(`names the merge_group event outside its queue job: "${line.trim()}"`);
 		}
+		// The verdict reads the event in its steps, to know which commits and runs to check, so the
+		// rule below cannot hold it. It is the required check: nothing in it may be conditional, or a
+		// merge group could pass it without the credit check or the wait having run.
+		if (file === VERDICT)
+			for (const [id, job] of jobs)
+				for (const line of job.block.split('\n').filter((each) => /^\s*(- )?if:/.test(each)))
+					say(
+						`job ${id} of the verdict has a condition: "${line.trim()}". The required check runs every step for a pull request and for its merge group`
+					);
 		const allowed = file === VERDICT ? {} : (PULL_REQUEST_ONLY[file] ?? {});
 		for (const [id, job] of jobs) {
 			if (id === 'queue' || file === VERDICT) continue;

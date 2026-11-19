@@ -630,3 +630,95 @@ describe('what the contract cannot read, or reads two ways', () => {
 		);
 	});
 });
+
+describe('the merge-group contract, after the review of its last fix', () => {
+	const suite = "    needs: scope\n    if: needs.scope.outputs.run == 'true'";
+
+	it('refuses any condition in the verdict, on a job or on a step', () => {
+		const verdict = (text) => problems(text, 'ci-ok.yml');
+		// The verdict may read the event in a step: that is how it knows which commits to check.
+		const reads = edit(
+			unfiltered,
+			'      - run: make check',
+			"      - run: node check.mjs ${{ github.event_name == 'merge_group' && '--merge-group' || '' }}"
+		);
+		assert.deepEqual(verdict(reads), []);
+		assert.deepEqual(
+			verdict(
+				edit(
+					unfiltered,
+					'  check:\n    runs-on',
+					"  check:\n    if: github.event_name == 'pull_request'\n    runs-on"
+				)
+			),
+			[
+				'ci-ok.yml: job check of the verdict has a condition: "if: github.event_name == \'pull_request\'". The required check runs every step for a pull request and for its merge group',
+			]
+		);
+		const [step] = verdict(
+			edit(
+				unfiltered,
+				'      - run: make check',
+				"      - if: github.event_name != 'merge_group'\n        run: make check"
+			)
+		);
+		assert.match(
+			step,
+			/job check of the verdict has a condition: "- if: github\.event_name != 'merge_group'"/
+		);
+	});
+
+	it('names the other readings that tell a pull request from its merge group', () => {
+		const told = (text) =>
+			problems(text).filter((problem) =>
+				/can tell a pull request from its merge group/.test(problem)
+			);
+		for (const extra of [
+			'github.event.number',
+			"startsWith(github.ref, 'refs/pull/')",
+			"github.event.action != 'checks_requested'",
+			"github['event']['pull_request']",
+			"github.ref_name != 'main'",
+		]) {
+			const found = told(edit(filtered(), suite, `${suite} && ${extra}`));
+			assert.equal(found.length, 1, `${extra}: ${found.join('\n')}`);
+		}
+		for (const run of [
+			'jq .pull_request "$GITHUB_EVENT_PATH"',
+			'test "$GITHUB_REF" = refs/heads/main',
+		])
+			assert.equal(
+				told(edit(filtered(), '      - run: make test', `      - run: ${run}`)).length,
+				1,
+				run
+			);
+		// The control: the same fixture, unedited, tells nothing apart.
+		assert.deepEqual(told(filtered()), []);
+	});
+
+	it('does not count a parenthesis inside a string as closing the group beside the gate', () => {
+		const ungated = (text) =>
+			problems(text).map((problem) => /job (\S+) runs for every merge group/.exec(problem)?.[1]);
+		const nightly = `    if: ${GATE} && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')`;
+		// GitHub reads this as (gate && false) || true.
+		assert.deepEqual(
+			ungated(edit(filtered(), nightly, `    if: ${GATE} && (github.sha == '(') || ('x' != ')')`)),
+			['nightly']
+		);
+		// A string holding a parenthesis inside one group is still one group.
+		assert.deepEqual(
+			ungated(
+				edit(filtered(), nightly, `    if: ${GATE} && (github.sha == ')' || github.sha == '(')`)
+			),
+			[]
+		);
+	});
+
+	it('reads a status function whatever its case', () => {
+		const found = problems(edit(filtered(), suite, '    needs: scope\n    if: Always()'));
+		assert.ok(
+			found.some((problem) => /job suite runs for every merge group/.test(problem)),
+			found.join('\n')
+		);
+	});
+});
