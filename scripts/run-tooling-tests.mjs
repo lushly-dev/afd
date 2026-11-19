@@ -57,6 +57,7 @@ export const testFiles = [
 	'scripts/base-sync.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
+	'scripts/issue-claim.test.mjs',
 	'scripts/release/exec-tool.test.mjs',
 ];
 
