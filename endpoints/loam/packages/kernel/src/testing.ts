@@ -222,6 +222,8 @@ function validatedInput(
  * `replay: 'recorded'`, kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
  * The journal records the input after the handler ran, so a handler that changes its own input is recorded changed,
  * and a nested call into it no longer matches: the replay reports it diverged rather than answer the wrong entry.
+ * So would a schema default that is not deterministic (one read from the clock or a random source), which the kernel's
+ * schemas do not have.
  */
 function sameCall(recorded: JournalEntry, given: unknown): boolean {
 	let journaled = redactJournalRecord({
