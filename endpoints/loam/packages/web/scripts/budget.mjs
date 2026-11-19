@@ -319,7 +319,10 @@ export const CEILINGS = Object.freeze({
 	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
 	fontsBytes: 116_000,
 	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
-	kernelMinified: 118_000,
+	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
+	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
+	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
+	kernelMinified: 119_500,
 	lateMinified: 82_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
