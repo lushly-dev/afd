@@ -20,6 +20,10 @@ NVMRC_DELETED = (
     "NODE_MISSING: the branch deletes .nvmrc, where the repository pins its Node: keep the "
     "base's .nvmrc, so the lane validates on the pinned Node, not the lane host's default"
 )
+NVMRC_BLANK = (
+    "NODE_MISSING: the branch leaves .nvmrc blank, where the repository pins its Node: pin a "
+    "version number there (such as 26), so the lane validates on it, not the lane host's default"
+)
 
 
 class NodeUnavailable(LaneTrouble):

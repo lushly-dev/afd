@@ -606,6 +606,20 @@ def test_a_branch_that_deletes_nvmrc_is_ejected_not_run_on_the_host_s_node(lane)
     assert [s["path"] for s in job["steps"]] == [[NODE_26]] * 2  # Main's Node for the next.
 
 
+def test_a_branch_that_blanks_nvmrc_is_ejected_and_told_to_pin_a_version(lane):
+    lane.change_world(
+        slotFiles={".nvmrc": "26\n"},
+        nodes={"26": NODE_26},
+        branchSlotFiles={"feat/export-csv": {".nvmrc": " \n"}},
+        outcomes={"changed": {"feat/export-csv": [".nvmrc", "src/export.ts"]}},
+    )
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    detail = events(lane, "ejected")[0]["detail"]
+    assert detail.startswith("NODE_MISSING: the branch leaves .nvmrc blank")
+    assert "pin a version number" in detail and "deletes" not in detail
+
+
 def test_without_nvmrc_in_base_or_branch_a_branch_validates_as_before(lane):
     lane.change_world(outcomes={"changed": {"feat/export-csv": ["src/export.ts"]}})
     assert run_steps(lane) == ["validating feat/export-csv in slot 1"]

@@ -59,7 +59,8 @@ The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purp
 - **A branch that deletes `.nvmrc` is ejected too** ([#1505](https://github.com/lushly-dev/afd/issues/1505),
   on `lush/fleet-1505-nvmrc-deleted-node-missing`). Without `.nvmrc` its slot validated on the
   host's default Node; when `.nvmrc` is among its changes against the base and the slot has none,
-  it is ejected as `node-missing`, its detail saying the repository pins its Node there.
+  it is ejected as `node-missing`, its detail saying the repository pins its Node there. A
+  branch that leaves `.nvmrc` blank is ejected the same way and told to pin a version number.
 
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 

@@ -550,3 +550,10 @@ def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeyp
     assert git.merge_main(slot, bumped_main).clean
     assert git.read_file(slot, ".nvmrc") == "28\n"  # Main's Node, which no branch answers for.
     assert ".nvmrc" not in git.changed_files(slot, bumped_main)
+
+    run(["git", "rm", "-q", ".nvmrc"])
+    dropped_main = commit({}, "main deletes .nvmrc")  # Main's choice: no branch answers for it.
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, dropped_main).clean
+    assert git.read_file(slot, ".nvmrc") is None
+    assert ".nvmrc" not in git.changed_files(slot, dropped_main)

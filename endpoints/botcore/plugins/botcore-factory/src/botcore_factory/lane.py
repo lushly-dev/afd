@@ -18,7 +18,8 @@ a fixture world and a fake clock. Each step, in order:
    merge committed: lushly-dev/afd#1410), then runs one background
    job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
    ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
-   ``.nvmrc`` or deleted it, and is the lane's trouble when the ``.nvmrc`` is the base's own);
+   ``.nvmrc``, deleted it or left it blank, and is the lane's trouble when the ``.nvmrc`` is
+   the base's own);
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -43,7 +44,7 @@ from botcore_factory.lane_base import (
     first_lines,
     log_path,
 )
-from botcore_factory.lane_coverage import NVMRC_DELETED, Coverage, NodeUnavailable
+from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
 from botcore_factory.runtime import Factory
 from botcore_factory.world import MergeOutcome, WorldError
@@ -279,7 +280,8 @@ class Step(Merging, Coverage):
         missing ejects the branch as ``node-missing`` when the branch changed ``.nvmrc``; when
         the ``.nvmrc`` is the base's own, no branch is to blame, and the lane pauses
         (lushly-dev/afd#1352). A branch that deletes ``.nvmrc`` is ejected the same way, never
-        validated on the host's default Node (lushly-dev/afd#1505). None when the branch was
+        validated on the host's default Node, and so is one that leaves it blank
+        (lushly-dev/afd#1505). None when the branch was
         ejected."""
         try:
             steps = self.job_steps("validate", self.config.validate_command, path)
@@ -288,10 +290,9 @@ class Step(Merging, Coverage):
                 raise
             self.eject(entry, "node-missing", unavailable.for_branch())
             return None
-        if not (self.world.git.read_file(path, ".nvmrc") or "").strip() and (
-            ".nvmrc" in self.world.git.changed_files(path, base)
-        ):
-            self.eject(entry, "node-missing", NVMRC_DELETED)
+        kept = self.world.git.read_file(path, ".nvmrc")
+        if not (kept or "").strip() and ".nvmrc" in self.world.git.changed_files(path, base):
+            self.eject(entry, "node-missing", NVMRC_DELETED if kept is None else NVMRC_BLANK)
             return None
         return steps
 
