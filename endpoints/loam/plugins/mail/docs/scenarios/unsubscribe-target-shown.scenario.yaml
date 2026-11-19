@@ -25,6 +25,13 @@ steps:
           method: one-click
           content: { trust: content, target: https://lists.example.com/u/41 }
           digest: { matches: '^[A-Za-z0-9_-]{43}$' }
+  - description: A preview asked for another digest shows nothing
+    command: mail-unsubscribe-show
+    input: { message: 41, digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
   - description: An unsubscribe naming another digest is refused before it is held
     command: mail-unsubscribe
     input: { message: 41, digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }

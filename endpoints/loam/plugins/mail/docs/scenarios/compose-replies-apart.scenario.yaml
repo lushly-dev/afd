@@ -10,7 +10,8 @@
 # result repeats them (`unit`, `claim`); that the stored unit equals the one handed out, since
 # expectations are not resolved against earlier steps (F-T9 checks it); that the unit's parts
 # hold only Ada's message and the answers to her (F-T10); and that Loam composes the unit in a
-# fresh context (Loam's P5-A7). The set's send is held for every caller the runner can be.
+# fresh context (Loam's P5-A7). The set's send is held for every caller the runner can be; a set
+# with a reply that has no text is refused before the hold, so both replies are written first.
 name: Hand out each reply with only its own inputs
 description: >-
   When an agent writes the replies of a reply set, I want each handed out with only its own
@@ -75,7 +76,19 @@ steps:
       success: false
       error:
         code: UNIT_NOT_OPEN
-  - description: The set shows Ada's reply with what it was written from, and Bea's as not written yet
+  - description: Bea's reply is submitted with her own unit's claim
+    command: mail-replyset-submit
+    input:
+      replyset: 3
+      reply: 2
+      unit: "${{ steps[3].data.unit }}"
+      claim: "${{ steps[3].data.claim }}"
+      text: "Dear Bea, the invoice is attached."
+    expect:
+      success: true
+      data:
+        reply: { reply: 2, source: submitted }
+  - description: The set shows each reply with what it was written from
     command: mail-replyset-show
     input: { replyset: 3 }
     expect:
@@ -91,10 +104,18 @@ steps:
               content: { trust: content, recipient: { address: ada@example.com }, text: "Dear Ada, Thursday works." }
             '1':
               reply: 2
-              content: { text: { notExists: true } }
-  - description: Sending the set is held for the person
+              source: submitted
+              content: { trust: content, recipient: { address: bea@example.com }, text: "Dear Bea, the invoice is attached." }
+  - description: A preview asked for a revision the set is not at shows nothing
+    command: mail-replyset-show
+    input: { replyset: 3, revision: 999 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: Sending the set at the revision shown is held for the person
     command: mail-replyset-send
-    input: { replyset: 3, revision: "${{ steps[5].data.replyset.revision }}" }
+    input: { replyset: 3, revision: "${{ steps[6].data.replyset.revision }}" }
     expect:
       success: false
       error:

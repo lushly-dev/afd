@@ -51,13 +51,20 @@ steps:
           revision: 2
   - description: The preview now shows the new revision and the new text
     command: mail-draft-show
-    input: { draft: "${{ steps[0].data.draft.id }}" }
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 2 }
     expect:
       success: true
       data:
         draft:
           revision: 2
           content: { body: { contains: invoice } }
+  - description: A preview asked for the revision before the change shows nothing
+    command: mail-draft-show
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
   - description: A send naming the revision before the change is refused before it is held
     command: mail-draft-send
     input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }

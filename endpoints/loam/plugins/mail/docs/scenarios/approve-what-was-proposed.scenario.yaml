@@ -39,6 +39,21 @@ steps:
           byAccount: { '0': { account: 1, places: 120 } }
           proposal: 1
           digest: { matches: '^[A-Za-z0-9_-]{43}$' }
+  - description: Asked as a preview with that digest, it gives the preview alone, with no page of items
+    command: mail-operation-show
+    input: { operation: "${{ steps[1].data.operation }}", digest: "${{ steps[2].data.preview.digest }}" }
+    expect:
+      success: true
+      data:
+        preview: { approvable: true, proposal: 1 }
+        items: { notExists: true }
+  - description: Asked as a preview with another digest, it shows nothing
+    command: mail-operation-show
+    input: { operation: "${{ steps[1].data.operation }}", digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
   - description: An approval naming another digest is refused before it is held
     command: mail-operation-approve
     input: { operation: "${{ steps[1].data.operation }}", digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
