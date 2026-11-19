@@ -304,6 +304,8 @@ export class LoamShell extends FASTElement {
 	 * host's side it hears. Null: the panel part keeps its empty state.
 	 */
 	copilot: { host?: import('../copilot/panel.js').CopilotPanelHostV1 } | null = null;
+	/** The page's answer to `popover-open`'s anchors, which the kernel was given (phase 4 specification, 6.3). */
+	overlayAnchors: import('@lushly-dev/loam-kernel').OverlayAnchorsV1 | null = null;
 	#copilot: Promise<void> | undefined;
 	readonly mac: boolean;
 	/** The deployment's root, absolute: the router's base, which `mountShell`'s `base` sets (6.2). */

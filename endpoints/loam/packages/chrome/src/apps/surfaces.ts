@@ -21,7 +21,7 @@ import type {
 	LoamKernelV5,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
-import type { AppContextV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1, OverlayAnchorV1 } from '@lushly-dev/loam-sdk';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
@@ -34,6 +34,7 @@ import { STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { AppListV2 } from '../rail/rail-bands.js';
 import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
+import { findAnchor } from './anchors.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback, focusMainHeading } from './focus-fallback.js';
@@ -132,11 +133,15 @@ export class AppSurfaces implements ShellApps {
 	#inspectorElements: HTMLElement[] = [];
 	readonly #status = new StatusItems();
 	readonly #overlays: OverlaySurfaces;
+	/** Whose each native mount is, for a popover's anchor (phase 4 specification, 6.3). */
+	readonly #mountOwners = new WeakMap<Element, string>();
 
 	constructor(shell: LoamShell, kernel: LoamKernelV5) {
 		this.#shell = shell;
 		this.#kernel = kernel;
-		this.#overlays = new OverlaySurfaces(shell, kernel);
+		this.#overlays = new OverlaySurfaces(shell, kernel, (owner, anchor) =>
+			this.#findAnchor(owner, anchor)
+		);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
 			void kernel.call('app-open', { instance });
@@ -348,7 +353,7 @@ export class AppSurfaces implements ShellApps {
 			// A change of scope cancels a shell modal or closes a left app's overlays, even under a call
 			// that then failed (3.4).
 			rescoped ||
-			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
+			(event.mutation && /^(toast|modal|popover|overlay)-/.test(command)) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
 			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))
 		) {
@@ -897,8 +902,35 @@ export class AppSurfaces implements ShellApps {
 		return new Map(this.#kernel.listCommands().map(({ name, needsInput }) => [name, needsInput]));
 	}
 
+	/**
+	 * A popover's anchor (6.3): the shell's in its own chrome, outside every app's mount and frame; an app's in its own
+	 * native mounts of the part the surface names, while it is the app shown. A view's frame is another origin, which
+	 * the shell cannot read, so a view anchors nothing yet.
+	 */
+	#findAnchor(owner: string, anchor: OverlayAnchorV1): HTMLElement | null {
+		const root = this.#shell.shadowRoot;
+		if (!root) return null;
+		if (anchor.surface === 'shell') {
+			if (owner !== 'shell') return null;
+			return findAnchor(root, anchor.anchor, (element) =>
+				['loam-mount', 'loam-view-frame', 'loam-toast-region', 'loam-popover'].includes(
+					element.localName
+				)
+			);
+		}
+		if (owner === 'shell' || owner !== this.#showing) return null;
+		const part = this.#part<HTMLElement>(anchor.surface) as HTMLElement | null;
+		for (const mount of part?.querySelectorAll('loam-mount') ?? []) {
+			if (this.#mountOwners.get(mount) !== owner || !mount.shadowRoot) continue;
+			const found = findAnchor(mount.shadowRoot, anchor.anchor);
+			if (found) return found;
+		}
+		return null;
+	}
+
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {
 		const mount = this.#create<LoamMount>('loam-mount');
+		this.#mountOwners.set(mount, held.instance);
 		// A native surface's client is its own port's: a contract, as all of a native app is (D54).
 		const scope = this.#surfaceScope;
 		const surface = held.port.surface({ scope });

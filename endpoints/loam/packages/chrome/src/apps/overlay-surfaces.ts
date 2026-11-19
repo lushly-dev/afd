@@ -5,11 +5,21 @@
  *
  * A modal makes everything outside it inert, the top layer too, so a toast could neither be read out nor
  * dismissed behind one: while any modal is open, a new toast waits and a shown one's timer stops.
+ *
+ * Phase 4 (its 6.1 to 6.7): a toast shows the owner line the kernel set, its link, and never times out when sticky;
+ * the region is an F6 stop while it holds a toast; and popovers render from the `overlays` chunk, loaded with the
+ * first. The page's anchors answer the kernel's `overlayAnchors` once this attaches.
  */
 
 import { Updates } from '@lushly-dev/fast-element';
 import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
-import type { ModalInputV1, OverlayV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
+import type {
+	ModalInputV1,
+	OverlayAnchorV1,
+	OverlayFromV1,
+	OverlayV1,
+	ToastInputV1,
+} from '@lushly-dev/loam-sdk';
 import { deepActiveElement } from '../elements/events.js';
 import { type LoamModal, MODAL_RESULT_EVENT } from '../elements/modal.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -20,10 +30,30 @@ import {
 	type ToastTone,
 } from '../elements/toast.js';
 import { focusFallback } from './focus-fallback.js';
+import type { PopoverLayer } from './overlays.js';
+
+/** Finds a popover's anchor on the page, or null (6.3). */
+export type AnchorFinder = (owner: string, anchor: OverlayAnchorV1) => HTMLElement | null;
+
+/** What the `overlays` chunk takes from this one, passed rather than imported, so neither parts a chunk of its own. */
+export interface LayerHelpers {
+	ownerLine: typeof ownerLine;
+	focusFallback: typeof focusFallback;
+}
+
+/** The owner line the shell shows (6.6): none for the shell's own. */
+export function ownerLine(from: OverlayFromV1 | undefined): string {
+	if (!from) return '';
+	return from.kind === 'app'
+		? `From ${from.title}`
+		: `From ${from.agent}, for ${from.person ?? 'you'}`;
+}
 
 export class OverlaySurfaces {
 	readonly #shell: LoamShell;
 	readonly #kernel: LoamKernelV5;
+	readonly #find: AnchorFinder;
+	#popovers: Promise<PopoverLayer> | undefined;
 	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #durations = new Map<string, number>();
 	#waiting = false;
@@ -42,9 +72,10 @@ export class OverlaySurfaces {
 		void this.#kernel.call('overlay-dismiss', { overlayId, result, reason: 'user' });
 	};
 
-	constructor(shell: LoamShell, kernel: LoamKernelV5) {
+	constructor(shell: LoamShell, kernel: LoamKernelV5, find: AnchorFinder = () => null) {
 		this.#shell = shell;
 		this.#kernel = kernel;
+		this.#find = find;
 	}
 
 	get modalOpen(): boolean {
@@ -79,6 +110,8 @@ export class OverlaySurfaces {
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.addEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
+		const anchors = this.#shell.overlayAnchors;
+		if (anchors) anchors.resolve = (owner, anchor) => this.#find(owner, anchor) !== null;
 	}
 
 	dispose(): void {
@@ -90,6 +123,10 @@ export class OverlaySurfaces {
 		this.#modal?.remove();
 		this.#region = null;
 		this.#modal = null;
+		const anchors = this.#shell.overlayAnchors;
+		if (anchors) delete anchors.resolve;
+		void this.#popovers?.then((layer) => layer.dispose());
+		this.#popovers = undefined;
 	}
 
 	async read(): Promise<void> {
@@ -99,6 +136,18 @@ export class OverlaySurfaces {
 		const { overlays } = result.data;
 		await this.#renderModal(overlays.find(({ kind }) => kind === 'modal'));
 		this.#renderToasts(overlays.filter(({ kind }) => kind === 'toast'));
+		const popovers = overlays.filter(({ kind }) => kind === 'popover');
+		if (popovers.length === 0 && !this.#popovers) return;
+		this.#popovers ??= import('./overlays.js').then(
+			({ createPopoverLayer }) =>
+				createPopoverLayer(this.#shell, this.#kernel, this.#find, { ownerLine, focusFallback }),
+			(cause) => {
+				this.#popovers = undefined;
+				throw cause;
+			}
+		);
+		const layer = await this.#popovers;
+		if (read === this.#reads) layer.render(popovers);
 	}
 
 	#renderToasts(toasts: OverlayV1[]): void {
@@ -118,19 +167,22 @@ export class OverlaySurfaces {
 		}
 		const held = this.#anyModal;
 		this.#waiting = false;
-		for (const { overlayId, input } of toasts) {
+		for (const { overlayId, input, from } of toasts) {
 			if (shown.has(overlayId)) continue;
 			if (held) {
 				this.#waiting = true;
 				continue;
 			}
-			const { message, tone, durationMs } = input as ToastInputV1;
+			const { message, tone, durationMs, sticky, link } = input as ToastInputV1;
 			const toast = this.#shell.ownerDocument.createElement('loam-toast') as LoamToast;
 			toast.overlayId = overlayId;
 			toast.message = message;
 			toast.tone = (tone ?? 'info') as ToastTone;
+			toast.from = ownerLine(from);
+			if (link) void this.#linkOf(toast, link);
 			region.append(toast);
-			this.#durations.set(overlayId, durationMs ?? 5000);
+			// A sticky toast has no timer: it stays until a person dismisses it (6.1).
+			if (!sticky) this.#durations.set(overlayId, durationMs ?? 5000);
 			// A person reading or reaching for it keeps it there (WCAG 2.2.1).
 			toast.addEventListener('mouseenter', () => this.#stopTimer(overlayId));
 			toast.addEventListener('focusin', () => this.#stopTimer(overlayId));
@@ -143,6 +195,15 @@ export class OverlaySurfaces {
 			if (held) this.#stopTimer(toast.overlayId);
 			else if (!this.#timers.has(toast.overlayId)) this.#resume(toast);
 		}
+		// An F6 stop while it holds a toast (6.7).
+		if (region.childElementCount > 0) region.dataset.part = 'toasts';
+		else delete region.dataset.part;
+	}
+
+	/** A toast's link (6.4), formed in the `overlays` chunk, which holds the URL scheme's formatting. */
+	async #linkOf(toast: LoamToast, link: NonNullable<ToastInputV1['link']>): Promise<void> {
+		const { toastHref } = await import('./overlays.js');
+		toast.href = await toastHref(this.#kernel, this.#shell.base, link);
 	}
 
 	#resume(toast: LoamToast): void {

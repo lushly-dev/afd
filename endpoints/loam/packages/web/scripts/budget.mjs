@@ -299,6 +299,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * phase 5's step 2 had raised `kernelMinified` to 118,000 and `appsMinified` to 397,000 for its own code and the
  * Refined design first paint and CSS: the kernel 118,693, raised to 119,500; `late` 81,372 of 82,000; `apps` 417,099
  * of 417,500; first paint 307,956 and 96,069 gzip, within phase 5's rows.
+ * Phase 4's step 3 (overlays I: toasts, popovers, the F6 stop), under D115, on Windows with Node 26.13.1: `jsMinified`
+ * 308,000 to 308,400 (308,140, +184: the toast region's F6 stop, `PART_ORDER`'s `toasts`, and the shell's
+ * `overlayAnchors`; section 14 estimated 300 and 120, and gzip stays 96,115 of 96,500). `lateMinified` 82,000 to 88,500
+ * (87,930, +6,558): `popover-open` and its menu, anchor and path rules, the toast's `sticky` and `link`, agent toasts and
+ * the push rate, each with its written JSON Schema, over section 14's +5,000 for the whole phase. `surfacesMinified`
+ * 85,000 to 88,200 (87,677, +3,176): the toast's owner line, link and sticky timer, the region's F6 stop, the anchor
+ * finder the kernel's `overlayAnchors` asks, and the `overlays` chunk's loader. New row: `overlaysMinified`, the
+ * chrome's `overlays` chunk (`loam-popover`, its layer and a toast's link), 6,336 against section 14's 11,000, at 58%,
+ * so lowered by phase 0's rule to its measurement plus 10%, 6,970; step 4's dialogs raise it.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -312,7 +321,7 @@ export const CEILINGS = Object.freeze({
 	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
 	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
 	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
-	jsMinified: 308_000,
+	jsMinified: 308_400,
 	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
@@ -326,7 +335,7 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
-	lateMinified: 82_000,
+	lateMinified: 88_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
@@ -343,7 +352,7 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	appsMinified: 417_500,
-	surfacesMinified: 85_000,
+	surfacesMinified: 88_200,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -370,6 +379,7 @@ export const CEILINGS = Object.freeze({
 	newMinified: 17_366,
 	embedMinified: 6_096,
 	editorMoveMinified: 4_205,
+	overlaysMinified: 6_970,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -653,6 +663,10 @@ async function measurePage() {
 	// embeds, since the `editor` chunk is at its ceiling: after the surfaces, which hold the kit's loader.
 	const embed = closure(/^assets\/embed-/, afterSurfaces);
 	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
+	// Phase 4's overlay renderer (its 14): popovers, and a toast's link, loaded with the first, after the surfaces.
+	const overlaysChunk = closure(/^assets\/overlays-/, afterSurfaces);
+	if (overlaysChunk.size === 0)
+		throw new Error('budget: the build has no `overlays` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	// The copilot's panel (phase 5 specification, 16), loaded when the panel part first opens, after the surfaces:
@@ -710,6 +724,7 @@ async function measurePage() {
 		newMinified: sizeOf(newMenu),
 		embedMinified: sizeOf(embed),
 		editorMoveMinified: sizeOf(editorMove),
+		overlaysMinified: sizeOf(overlaysChunk),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -813,6 +828,7 @@ const ROWS = [
 		'editorMoveMinified',
 		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
 	],
+	['overlaysMinified', "The chrome's `overlays` chunk, popovers and a toast's link, minified"],
 ];
 
 export async function measure() {

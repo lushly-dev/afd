@@ -117,6 +117,8 @@ export interface MountShellOptions {
 	 * specification, 3.2). Absent: the panel part keeps its empty state.
 	 */
 	copilot?: { host?: import('./copilot/panel.js').CopilotPanelHostV1 };
+	/** The object the kernel was given as `overlayAnchors`: the shell answers it once it renders (phase 4's 6.3). */
+	overlayAnchors?: import('@lushly-dev/loam-kernel').OverlayAnchorsV1;
 }
 
 /** Apply the theme, define the chrome and mount `loam-shell` into `container`. */
@@ -134,6 +136,7 @@ export async function mountShell(
 	if (options.listsApps) shell.listsApps = true;
 	if (options.identity) shell.identity = options.identity;
 	if (options.copilot) shell.copilot = options.copilot;
+	if (options.overlayAnchors) shell.overlayAnchors = options.overlayAnchors;
 	container.append(shell);
 	await shell.ready;
 	return shell;
