@@ -179,8 +179,9 @@ describe('P2-E1: one first paint', () => {
 		const javascript = Object.entries(assets[0] as Record<string, number>)
 			.filter(([path]) => path.endsWith('.js'))
 			.reduce((sum, [, size]) => sum + size, 0);
-		// `budget.mjs`'s `jsMinified`, raised under D115 by phase 5's step 2.
-		expect(javascript).toBeLessThanOrEqual(308_000);
+		// `budget.mjs`'s `jsMinified`, raised under D115 by phase 5's step 2, then by the replay and journal
+		// follow-ups (#663's IndexedDB `last` read).
+		expect(javascript).toBeLessThanOrEqual(309_500);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

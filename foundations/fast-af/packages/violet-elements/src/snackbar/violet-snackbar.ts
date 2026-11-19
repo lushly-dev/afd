@@ -135,6 +135,20 @@ const styles = css`
     }
 
     @media (forced-colors: active) {
+        /*
+         * The card's slots let what is slotted into a card take the system colours; what this
+         * component puts in its card it paints itself, so it opts out again.
+         */
+        .frame > * {
+            forced-color-adjust: none;
+        }
+
+        /* What is slotted into this component takes the system colours. */
+        slot {
+            forced-color-adjust: auto;
+            color: CanvasText;
+        }
+
         .frame::part(root) {
             forced-color-adjust: none;
             border-color: ButtonText;
