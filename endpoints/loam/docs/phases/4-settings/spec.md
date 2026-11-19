@@ -50,7 +50,8 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 2, the settings section and the palette** ([#1611](https://github.com/lushly-dev/afd/pull/1611), 2026-11-18): 3.5, 3.7 (`loam.rail`, `loam.keybindings`, `loam.notifications`), 3.10, the three custom editors, hello's settings, `p4-base`'s apps, and P4-E1 but for the hand-offs of steps 8 and 9; what it decided, measured and left is in [its record](#step-2-2026-11-18), with one amendment to section 1 (step 2).
 - **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
 - **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 3, step 8 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Done, step 10, limits** (on `lush/loam-p4-step10-limits`, 2026-11-19, before its trust review, not merged): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, and P4-E10's units and Chromium but the job `limit-refuses-call`, which waits on step 5's `notification-push`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 3, steps 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -982,7 +983,7 @@ These are estimates, under D115.
 | Row | Estimate |
 | --- | --- |
 | `late` | +5,000 |
-| `late-settings` (new) | 26,000. **Measured (step 8):** 44,544 with the settings and autonomy, the row raised under D115 |
+| `late-settings` (new) | 26,000. **Measured (step 8):** 44,544 with the settings and autonomy, the row raised under D115. **Measured (step 10):** 50,583 with the limits (+5,795), raised to 51,000 |
 | `settings` (new), with three custom editors | 36,000 |
 | `inbox` (new) | 10,000 |
 | `overlays` (new) | 11,000 |
@@ -1632,6 +1633,41 @@ Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after step
 
 **Verified after the trust review,** 2026-11-19, same machine: `test --coverage` for the kernel (51 files, 1,059 tests), chrome (17 files, 241), `web`'s units (11 files, 53) and tally (2); the Loam typecheck; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and five Chromium files, 32 tests (`autonomy` 5, `settings`, `apps/second-app`, `budget`, `accessibility`). Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
 
+## Step 10, 2026-11-19
+
+Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
+
+**Built.**
+
+- **The limits object** (`kernel/src/limits.ts`, first paint): the five values with section 11's defaults, enforced from boot whether or not `late-settings` ever reads the workspace's (fail closed); each instance's refusals in the last hour, on the call's clock; the owners' notice seam `KernelLimits.notify`, told the first refusal of an instance in an hour; and the journal sink's bound, on the whole entry after the redaction: one over `journalEntryBytes` is kept with its input `{}`, its result's data and tape dropped (a failure keeps its code and the first 1,000 characters of its message), marked `unreplayable: true` with its `bytes`, and counted against the calling instance, else the command's owner.
+- **The port** (`apps/port.ts`, `apps/call-rate.ts`): before every check of phase 1's 5.3, the instance's call rate (a token bucket of `callsPerSecond` with a burst of 200, its check and its count one step) and then its input over `inputBytes` of JSON, each refused through the internal `app-limit-refuse`, journaled and counted: `RATE_LIMITED` with `details: { limit, retryAfterMs }`, retryable, and `INPUT_TOO_LARGE` with `details: { limit }`, each suggestion naming the key an owner sets. Every path of an app's call counts: the chrome's port, a surface's and a handler's nested client.
+- **The view broker** (`apps/view-broker.ts`): a `tools/call` or `resources/read` over `messageBytes` of JSON is dropped before anything reads it, and the frame is told `INPUT_TOO_LARGE` with `details: { limit }`; counted, not journaled, since nothing runs.
+- **The `store` grant** (`apps/store.ts`): one quota per apps runtime, shared by every store of an instance; each write and delete runs after the instance's last one, its check, its record and its count one store batch. A write that grows past `storeBytes` rejects `QUOTA_EXCEEDED` with `details: { kind: 'store', limit, used }`; a smaller write or a delete always lands. The count is the `store-usage` table, a row per workspace and instance (`<workspace>/<instance>`, #1614's lesson), of the UTF-8 bytes of each record's `{ key, value }` as JSON; a missing row is counted from the table. Boot's journaled `store-usage-settle` (`BOOT_ONLY`) writes the count afresh for each instance whose row differs, after stage B's apply, never in a replay.
+- **The section** (`late/setting-sections.ts`): `loam.limits`, workspace only, in the tree after Notifications; the quarter rule as the section's `relate`, checked on `setting-set` and on `setting-reset` (a reset that would break it is refused too): `VALIDATION_ERROR` with `details: { field: 'value' }` and the suggestion "Lower inputBytes before journalEntryBytes; raise journalEntryBytes before inputBytes". The workspace's values are read into the kernel's at the late load and after each write of the section; a read that fails leaves the defaults.
+- **`limit-usage-get`** (`late/limit-commands.ts`): a query of the `setting` category, so no port and no MCP client reaches it; refused in its own handler, `CALL_NOT_GRANTED` for a port, `HUMAN_REQUIRED` for anything but a human gesture (the copilot reaches the hand-off, `refusesAgent`), then `OWNER_REQUIRED`. It answers every deployed instance, ordered by id, or the one named, with `storeBytes: { used, limit }` and each limit's refusals in the hour. `limit` joins the shell's domains (`SHELL_DOMAINS_V1`).
+- **A-P2-3:** the document middleware's bound, and `document-import`'s envelope's, is `inputBytes`.
+- **Replay** (`replayKernel`): the entries before the first `unreplayable` one replay as before, then `REPLAY_ENTRY_TRUNCATED` with `details: { seq, command }` and the suggestion to replay up to the seq before it.
+- **The chrome** (`chrome/src/settings/limits-words.ts`): beside each key of the Limits section, the apps it refused in the hour, most first, and for `storeBytes` the three that store the most; for a member, why it is not shown. Each line is part of its field's description.
+
+**Decided while building it,** each a judgement a reviewer should check:
+
+- **Where the message bound sits:** the view broker, the kernel's boundary for a view (D54), measures a request's parameters; the chrome's channel is not changed, since a message is cloned before any code can measure it.
+- **What counts against the rate:** every call an app makes, refused or not, nested ones included; a replay takes nothing, since its refusals are its journal's entries. The rate and the counts are the page's memory, reset by a reload, as step 3's push rate is.
+- **The hand-off's `details`** for `limit-usage-get` are `{ route, section, level }`, with no `key`, since the read names none.
+- **The document bound keeps its code,** `DOCUMENT_CONTENT_TOO_LARGE`, for a person's or an agent's call (phase 2's exit tests); an app's own call meets the port's `INPUT_TOO_LARGE` at the same bound first. Amended in phase 2's 4.4 (A-P2-3).
+- **A stored value is its JSON form:** the grant stores what it counted, so a `Date` reads back as its string, and a value with none (a cycle, a `BigInt`) is refused with a `TypeError`.
+- **Refreshing the values:** at the late load and after this page's own writes of the section; another tab's write applies here at the next reload. Values that no longer validate read as defaults, and a stored pair breaking the quarter rule enforces `inputBytes` as a quarter of `journalEntryBytes`, never more.
+- **A hosted `provider` deployment** refuses the section's writes with step 1's `SHARED_RECORD_UNAVAILABLE`, and the defaults enforce (unit).
+- **The job `limit-refuses-call`** asserts `notification-push`'s fixed rate of 10 a minute and `notification-list`, step 5's commands, not section 11's limits: the runner's table names step 5 for it, and step 10's own refusals are P4-E10's units and Chromium.
+
+**Left for later steps:**
+
+- **Step 5:** the owners' notice through `KernelLimits.notify` (nothing wires it yet), and the job `limit-refuses-call`.
+- **Step 1's `setting` table key** (the step 8 follow-up): `loam.limits`'s row is `loam.limits/workspace`, filtered by its `workspace` field on read, as every shared row is until that follow-up keys them by workspace.
+- **#710, re-scoped:** section 11 answers a bound per message, input, call rate, store and whole entry. What stays deferred, by name: the journal's total and origin budget, retention, and the browser's `QuotaExceededError` (the store adapter's own failure when the origin is full).
+
+**Measured.** D115, on Windows with Node 26.13.1, against `main` at `254249c3` built on the same machine: first paint 310,360 and 97,076 gzip (+1,232 and +615: the limits object and the journal's bound, which must hold when no late chunk loads; the call rate and the hour's counting were moved out of first paint first, -314), `jsMinified` raised from 309,500 to 310,600 and `jsGzip` from 96,500 to 97,200 with `first-paint.test.ts`'s literal; `kernelMinified` 119,500 to 121,000 (120,771); `lateMinified` 94,000 to 95,200 (94,953, +1,709); `lateSettingsMinified` 45,500 to 51,000 (50,583, +5,795, section 14's row); `appsMinified` 417,500 to 420,500 (420,251, +2,881, of which 25 the schema's reserved `limit`); `settingsMinified` 41,000 to 42,200 (41,946, +1,371). `budget.mjs` records each.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1656,3 +1692,5 @@ Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after step
 | 2026-11-19 | Step 8 | The autonomy section's new-rule form lists the apps only; a rule for one of the shell's own commands is set with `autonomy-set` | Open |
 | 2026-11-19 | Step 8 | A Chromium case for the cap's message on a real hosted `provider` projection (the step's case stubs `autonomy-list`'s answer; the kernel's unit holds the rule) | Open |
 | 2026-11-19 | Step 8's trust review | Step 1's `setting` table keys a shared row by `<section>/workspace` alone, as autonomy's did: a second workspace's first write in one browser's store would replace the first's row. Key it by workspace as autonomy's now are | Open; step 1's table |
+| 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Open; step 5 |
+| 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |

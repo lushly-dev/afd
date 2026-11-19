@@ -16,6 +16,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
+import type { KernelLimits } from '../limits.js';
 import { createPaletteIndex } from '../palette-index.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
@@ -80,6 +81,8 @@ export { withBootActions } from './boot-actions.js';
 export type LateCommandDeps = ShellCommandDeps &
 	AppCommandDeps & {
 		auth: AuthAdapter;
+		/** The limits the kernel enforces from boot, which `late-settings` reads into (phase 4 specification, section 11). */
+		limits?: KernelLimits;
 		store: DataAdapter;
 		/** The projection's generation this page booted with. */
 		generation(): string;
@@ -308,7 +311,7 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings, createAutonomy, isHumanGesture },
+		{ createSettings, createAutonomy, createLimitCommands, isHumanGesture },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -553,7 +556,19 @@ export async function createLateParts(
 			);
 		},
 		paletteIndex: createPaletteIndex,
+		...(deps.limits ? { limits: deps.limits } : {}),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
+	});
+	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
+	await settings.readLimits();
+	// `limit-usage-get` and boot's `store-usage-settle` (section 11), in `late-settings` beside the settings.
+	const limitCommands = createLimitCommands({
+		scope: deps.scope,
+		apps: deps.apps,
+		...(deps.limits ? { limits: deps.limits } : {}),
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		provider,
+		kit: { ...DOCUMENT_KIT, personKey },
 	});
 	// Phase 4's autonomy (its section 4), in `late-settings` beside the settings: stored, resolved and shown, never
 	// enforced here (D41), so it is an input to no access decision (P4-E2).
@@ -691,6 +706,8 @@ export async function createLateParts(
 			...settings.commands,
 			...autonomy.commands,
 			autonomy.settleCommand,
+			...limitCommands.commands,
+			limitCommands.settleCommand,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -783,7 +800,7 @@ export async function createLateParts(
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
-		internal: [...createPortRefusals(), ...copilot.internal],
+		internal: [...createPortRefusals(deps.limits), ...copilot.internal],
 		copilot,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
@@ -929,6 +946,14 @@ export async function createLateParts(
 			} catch (cause) {
 				reportLate(cause);
 			}
+			// Then each app's stored bytes counted afresh where its row differs, journaled, and only when one does, so an
+			// unchanged workspace's journal is unchanged (section 11).
+			try {
+				const usage = replaying ? [] : await limitCommands.usageChanges();
+				if (usage.length > 0) await run('store-usage-settle', { usage });
+			} catch (cause) {
+				reportLate(cause);
+			}
 			if (settle) await parts.settle(run);
 		},
 		async settle(run) {
@@ -945,6 +970,8 @@ export async function createLateParts(
 			// (`host.ts`), so the boot's `auth-session-get` reads the same.
 			deps.overlays.reset();
 			pushRate.reset();
+			// The call rates and the hour's refusals are the page's, as the push rate is (section 11).
+			deps.limits?.reset();
 			deps.apps().resetSession();
 			await deps.auth.signOut();
 			// A replay's page starts as the person its first settle names, as the original's stage A did (4.4).

@@ -125,4 +125,6 @@ export const SHELL_COMMAND_NAMES = [
 	'autonomy-get',
 	'autonomy-list',
 	'autonomy-set',
+	// Phase 4's step 10 (its section 11): the limits' usage, owners only.
+	'limit-usage-get',
 ] as const;

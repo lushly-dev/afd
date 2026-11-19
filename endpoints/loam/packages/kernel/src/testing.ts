@@ -365,14 +365,21 @@ function withNestedProblems(
  *
  * @throws LoamKernelError `REPLAY_START_INVALID` when the journal does not start at `seq` 1, since
  *   the state it starts from is not in it; `REPLAY_DIVERGED`, with the report and the first
- *   difference in `details`, when any entry differs
+ *   difference in `details`, when any entry differs; `REPLAY_ENTRY_TRUNCATED`, naming the entry, once the entries
+ *   before the first one the journal kept truncated and `unreplayable` have replayed (phase 4 specification, 11)
  */
 export async function replayKernel(
 	entries: readonly JournalEntry[],
 	options: ReplayKernelOptions = {}
 ): Promise<ReplayKernelResult> {
-	const ordered = [...entries].sort((a, b) => a.seq - b.seq);
-	const first = ordered[0];
+	const sorted = [...entries].sort((a, b) => a.seq - b.seq);
+	// A replay stops at the first entry kept truncated (section 11): what it did is not in the journal.
+	const cut = sorted.findIndex(
+		(entry) => (entry as JournalEntry & { unreplayable?: unknown }).unreplayable === true
+	);
+	const ordered = cut === -1 ? sorted : sorted.slice(0, cut);
+	const truncated = cut === -1 ? undefined : (sorted[cut] as JournalEntry);
+	const first = sorted[0];
 	if (first !== undefined && first.seq !== 1) {
 		throw new LoamKernelError({
 			code: 'REPLAY_START_INVALID',
@@ -509,6 +516,14 @@ export async function replayKernel(
 				}`,
 				suggestion: 'Read details.report for every entry that differs',
 				details: { report, firstDifference: divergence },
+			});
+		}
+		if (truncated) {
+			throw new LoamKernelError({
+				code: 'REPLAY_ENTRY_TRUNCATED',
+				message: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
+				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
+				details: { seq: truncated.seq, command: truncated.command },
 			});
 		}
 		const layout = await kernel.call<LayoutStateV0>('layout-get');

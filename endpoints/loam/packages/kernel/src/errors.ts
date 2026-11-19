@@ -160,7 +160,11 @@ export type LoamKernelErrorCode =
 	| 'OUTPUT_BUDGET_EXCEEDED'
 	// Step 8's: autonomy (4.3).
 	| 'AUTONOMY_ABOVE_CEILING'
-	| 'AUTONOMY_COMMAND_UNKNOWN';
+	| 'AUTONOMY_COMMAND_UNKNOWN'
+	// Step 10's: the limits (section 11).
+	| 'INPUT_TOO_LARGE'
+	| 'QUOTA_EXCEEDED'
+	| 'REPLAY_ENTRY_TRUNCATED';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

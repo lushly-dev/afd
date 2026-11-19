@@ -1097,6 +1097,29 @@ describe('P2-D10: an instance command’s input is bounded at 256 KiB, before it
 		expect(content?.value).toEqual({ text: '' });
 	});
 
+	it('bounds it at loam.limits.inputBytes since phase 4’s step 10 (A-P2-3)', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const record = await created(workspace);
+		expect(
+			(
+				await kernel.call('setting-set', {
+					section: 'loam.limits',
+					key: 'inputBytes',
+					value: 16_384,
+					level: 'workspace',
+				})
+			).success
+		).toBe(true);
+		const text = 'x'.repeat(20_000);
+		const refused = await kernel.call('probe-content-set', { document: record.id, text });
+		expect(refused.error?.code).toBe('DOCUMENT_CONTENT_TOO_LARGE');
+		expect(refused.error?.message).toContain('16384 bytes');
+		const envelope = { loam_document: 1, content_version: 1, content: { text } };
+		const imported = await kernel.call('document-import', { type: 'probe', envelope });
+		expect(imported.error?.code).toBe('DOCUMENT_CONTENT_TOO_LARGE');
+	});
+
 	it('journals the kernel’s own refusal without its input, by its mark, and a replay answers it from the record', async () => {
 		const workspace = await documents();
 		const { kernel } = workspace;

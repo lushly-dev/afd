@@ -133,6 +133,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 				? {
 						store: createAppStore({
 							adapter: host.store,
+							quota: host.storeQuota,
 							app: record.app,
 							instance: record.instance,
 							scope,

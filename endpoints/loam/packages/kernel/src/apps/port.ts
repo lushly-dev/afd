@@ -11,6 +11,7 @@ import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sd
 import { BOOT_ONLY } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
+import { jsonBytes } from '../limits.js';
 import {
 	APP_CALLABLE_SHELL_COMMANDS_V1,
 	type AppPortV2,
@@ -20,6 +21,7 @@ import {
 	type SurfacePortV2,
 	type ViewBrokerV1,
 } from '../types.js';
+import { takeCall } from './call-rate.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
 import type { AppsHost } from './types.js';
@@ -109,6 +111,10 @@ export function createAppPort(options: AppPortOptions): {
 	 * 6. An embed's mutation: `EMBED_READ_ONLY`.
 	 * 7. A view's modal within the cooldown, checked once its earlier modal has closed: `OVERLAY_COOLDOWN`.
 	 *
+	 * Before all of them, the limits the port enforces (phase 4 specification, section 11): the instance's call rate,
+	 * `RATE_LIMITED`, every call taking its place whatever answers it; then its input, over `inputBytes` of JSON,
+	 * `INPUT_TOO_LARGE`. Each through `app-limit-refuse`, so it is journaled and counted for `limit-usage-get`.
+	 *
 	 * It then runs bound to the surface's scope, the handler's, or the active scope; a workspace-only app's
 	 * call always at the workspace. The scope middleware's own lines follow (3.4).
 	 */
@@ -134,6 +140,36 @@ export function createAppPort(options: AppPortOptions): {
 		};
 		const refuse = (internal: string): Promise<CommandResult<T>> =>
 			host.runAs<T>(internal, { command: command.slice(0, 256) }, rest, fields);
+		const limits = host.limits;
+		const refuseLimit = (
+			limit: 'inputBytes' | 'callsPerSecond',
+			bound: number,
+			retryAfterMs?: number
+		): Promise<CommandResult<T>> =>
+			host.runAs<T>(
+				'app-limit-refuse',
+				{
+					command: command.slice(0, 256),
+					limit,
+					bound,
+					...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+				},
+				rest,
+				fields
+			);
+		if (limits) {
+			const { callsPerSecond, inputBytes } = limits.values();
+			// The check and its count in one step, with no await between them (section 11).
+			const wait = takeCall(limits, instance, host.clock());
+			if (wait !== undefined) return refuseLimit('callsPerSecond', callsPerSecond, wait);
+			let bytes = 0;
+			try {
+				bytes = jsonBytes(input);
+			} catch {
+				// No JSON form (a cycle, a BigInt): the registry's validation refuses it.
+			}
+			if (bytes > inputBytes) return refuseLimit('inputBytes', inputBytes);
+		}
 		if (
 			(callOptions !== undefined && 'scope' in callOptions) ||
 			(level !== undefined && level !== 'workspace')
@@ -270,6 +306,7 @@ export function createAppPort(options: AppPortOptions): {
 			? {
 					store: createAppStore({
 						adapter: host.store,
+						quota: host.storeQuota,
 						app: record.app,
 						instance,
 						// The active scope at each operation; a workspace-only app's is the workspace, as its calls'.

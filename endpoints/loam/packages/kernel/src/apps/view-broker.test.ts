@@ -1,6 +1,8 @@
 import { success } from '@lushly-dev/afd-core';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import { describe, expect, it, vi } from 'vitest';
+import { countRefusals } from '../late/limit-commands.js';
+import { createKernelLimits, LIMIT_DEFAULTS } from '../limits.js';
 import type { LinkedCallV1 } from '../types.js';
 import { createViewBroker } from './view-broker.js';
 
@@ -169,5 +171,45 @@ describe('the view broker', () => {
 		// A call in Atlas reaches the surface of Atlas, and not the port's unbound broker.
 		view.notifyCall('probe-linked', {}, success({}), undefined, AT);
 		expect(heard).toEqual(['atlas']);
+	});
+});
+
+describe("the view broker's message bound (phase 4 specification, section 11)", () => {
+	it('drops a message over messageBytes before it reaches the port, tells the frame, and counts it', async () => {
+		const limits = createKernelLimits();
+		limits.set({ ...LIMIT_DEFAULTS, messageBytes: 65_536 });
+		const call = vi.fn(async () => success({ ok: true }));
+		const view = createViewBroker({
+			manifest,
+			sandboxOrigin: 'https://s.test',
+			instance: 'probe',
+			limits,
+			clock: () => 5,
+		});
+		const broker = view.brokerFor(call as never, async () => '<h1>Probe</h1>', AT);
+		const params = { name: 'probe-plain', arguments: { text: 'x'.repeat(65_536) } };
+		await expect(broker.toolsCall(params)).rejects.toMatchObject({
+			code: 'INPUT_TOO_LARGE',
+			suggestion: expect.stringContaining('loam.limits.messageBytes'),
+			details: { limit: 65_536, rpcCode: -32602 },
+		});
+		await expect(
+			broker.resourcesRead({ uri: RESOURCE, pad: 'x'.repeat(65_536) })
+		).rejects.toMatchObject({ code: 'INPUT_TOO_LARGE' });
+		expect(call).not.toHaveBeenCalled();
+		expect(countRefusals(limits.recent('probe', 5)).messageBytes).toBe(2);
+		await broker.toolsCall({ name: 'probe-plain', arguments: { text: 'small' } });
+		expect(call).toHaveBeenCalledOnce();
+	});
+
+	it('holds to the default with no limits given', async () => {
+		const { broker, call } = setup();
+		await expect(
+			broker.toolsCall({
+				name: 'probe-plain',
+				arguments: { text: 'x'.repeat(LIMIT_DEFAULTS.messageBytes) },
+			})
+		).rejects.toMatchObject({ code: 'INPUT_TOO_LARGE' });
+		expect(call).not.toHaveBeenCalled();
 	});
 });

@@ -54,7 +54,9 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'inbox-action': "steps 5 and 6: the inbox and hello's guest book",
 	'agent-leaves-notice': 'step 5: the inbox',
 	'rebind-a-chord': 'step 7: keybindings',
-	'limit-refuses-call': 'step 10: limits',
+	// Its steps push notices: the fixed rate of `notification-push` and `notification-list`, step 5's inbox. Step 10's
+	// limits are P4-E10's units and Chromium (`late/limits.test.ts`, `web/test/browser/limits.test.ts`).
+	'limit-refuses-call': "step 5: the inbox's `notification-push` and `notification-list`",
 });
 
 /**

@@ -128,6 +128,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 	function storeFor(context: CommandContext): AppStoreV1 {
 		return createAppStore({
 			adapter: host.store,
+			quota: host.storeQuota,
 			app: record.app,
 			instance: record.instance,
 			// The call's effective scope, by `callId`, as the frame's clock is (phase 2 specification, 5).

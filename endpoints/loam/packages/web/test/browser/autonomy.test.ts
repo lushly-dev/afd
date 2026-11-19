@@ -70,7 +70,15 @@ describe('P4-E4: the autonomy section', () => {
 			await view
 				.locator('[role="treeitem"][data-group="shell"] [role="treeitem"]')
 				.allTextContents()
-		).toEqual(['Appearance', 'Rail', 'Keybindings', 'Autonomy', 'Notifications', 'Documents']);
+		).toEqual([
+			'Appearance',
+			'Rail',
+			'Keybindings',
+			'Autonomy',
+			'Notifications',
+			'Limits',
+			'Documents',
+		]);
 		expect(await view.locator('[role="treeitem"][aria-selected="true"]').textContent()).toBe(
 			'Autonomy'
 		);

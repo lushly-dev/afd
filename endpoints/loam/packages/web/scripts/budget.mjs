@@ -338,6 +338,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Merged with step 3 (`main` at `9d611137`): `lateMinified` 93,000 to 94,000 (93,244 combined: step 3's overlay wiring
  * beside step 8's autonomy deps, its settle after a refresh or `workspace-app-set`, and the copilot gate's hand-off
  * rule); first paint 309,020 and 96,411 gzip, the kernel alone 119,000, and every other row within its ceiling.
+ *
+ * Phase 4's step 10 (limits, section 11), measured on Windows with Node 26.13.1 against `main` at `254249c3` built on
+ * the same machine (first paint 309,128 and 96,461 gzip; the kernel alone 119,119; `late` 93,244; `late-settings`
+ * 44,788; `apps` 417,370; `settings` 40,575), each raised to its measurement plus a margin under D115:
+ * `jsMinified` 309,500 to 310,600 and `jsGzip` 96,500 to 97,200 (310,360, +1,232, and 97,076, +615: the kernel's
+ * limits object, which enforces the defaults from boot, and the journal sink's bound on a whole entry, which must hold
+ * when no late chunk loads; the call rate and the hour's counting were moved out of it into `apps` and `late-settings`
+ * first, -314); `kernelMinified` 119,500 to 121,000 (120,771, +1,652); `lateMinified` 94,000 to 95,200 (94,953,
+ * +1,709: `app-limit-refuse`, the document bound read from `inputBytes` (A-P2-3) and the wiring);
+ * `lateSettingsMinified` 45,500 to 51,000 (50,583, +5,795: `loam.limits` with its five keys' words, the quarter rule,
+ * `limit-usage-get`, `store-usage-settle` and the settings' reads of the section); `appsMinified` 417,500 to 420,500
+ * (420,251, +2,881: the store quota and its `store-usage` rows, the port's rate and input checks, the view broker's
+ * message bound, and 25 for the manifest schema's reserved `limit`); `settingsMinified` 41,000 to 42,200 (41,946,
+ * +1,371: the usage beside each key).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -358,8 +372,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
-	jsMinified: 309_500,
-	jsGzip: 96_500,
+	jsMinified: 310_600,
+	jsGzip: 97_200,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -371,15 +385,15 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 119_500,
+	kernelMinified: 121_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
-	lateMinified: 94_000,
+	lateMinified: 95_200,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 45_500,
+	lateSettingsMinified: 51_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -390,7 +404,7 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
-	appsMinified: 417_500,
+	appsMinified: 420_500,
 	surfacesMinified: 88_200,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
@@ -417,7 +431,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 41_000,
+	settingsMinified: 42_200,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 6_970,
 });

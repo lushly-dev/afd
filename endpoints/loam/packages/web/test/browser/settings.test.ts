@@ -185,7 +185,15 @@ describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
 			await view
 				.locator('[role="treeitem"][data-group="shell"] [role="treeitem"]')
 				.allTextContents()
-		).toEqual(['Appearance', 'Rail', 'Keybindings', 'Autonomy', 'Notifications', 'Documents']);
+		).toEqual([
+			'Appearance',
+			'Rail',
+			'Keybindings',
+			'Autonomy',
+			'Notifications',
+			'Limits',
+			'Documents',
+		]);
 		await view.locator('[role="treeitem"][aria-selected="true"]').focus();
 		await page.keyboard.press('ArrowDown');
 		expect((await focused(page)).label).toBe('Rail');

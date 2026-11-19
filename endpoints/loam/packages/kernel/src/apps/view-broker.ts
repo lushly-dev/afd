@@ -7,6 +7,7 @@
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import { jsonBytes, type KernelLimits, LIMIT_DEFAULTS } from '../limits.js';
 import type { LinkedCallV1, ViewBrokerV1 } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
 import { asJson, refuseRequest } from './support.js';
@@ -17,6 +18,11 @@ const RESOURCE_MIME = 'text/html;profile=mcp-app';
 export interface ViewBrokerOptions {
 	manifest: ManifestV2;
 	sandboxOrigin: string | null;
+	/** The view's instance, whose refusals `limit-usage-get` counts (phase 4 specification, section 11). */
+	instance?: string;
+	/** The limits; absent, the defaults, so a message is never unbounded. */
+	limits?: KernelLimits;
+	clock?: () => number;
 }
 
 export interface ViewHost {
@@ -49,7 +55,35 @@ function linkedResource(manifest: ManifestV2, name: string): string | undefined 
 	return typeof uri === 'string' ? uri : undefined;
 }
 
-export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions): ViewHost {
+export function createViewBroker({
+	manifest,
+	sandboxOrigin,
+	instance,
+	limits,
+	clock = Date.now,
+}: ViewBrokerOptions): ViewHost {
+	/**
+	 * A request over `loam.limits.messageBytes` of JSON is dropped before anything reads it, and the frame is told
+	 * `INPUT_TOO_LARGE` (section 11). Counted for the instance; nothing runs, so nothing is journaled.
+	 */
+	const bounded = (method: string, params: unknown): void => {
+		const limit = (limits?.values() ?? LIMIT_DEFAULTS).messageBytes;
+		let bytes = 0;
+		try {
+			bytes = jsonBytes(params);
+		} catch {
+			// No JSON form: `asJson` refuses it below.
+		}
+		if (bytes <= limit) return;
+		if (instance !== undefined) limits?.refused(instance, 'messageBytes', clock());
+		throw refuseRequest({
+			code: 'INPUT_TOO_LARGE',
+			rpcCode: -32602,
+			message: `A ${method} message is over ${limit} bytes of JSON, so it was dropped`,
+			suggestion: 'Send less, or ask an owner to raise loam.limits.messageBytes',
+			details: { limit },
+		});
+	};
 	const listeners = new Map<string, Set<(call: LinkedCallV1, scope?: ScopeV1) => void>>();
 	const own = new Set((manifest.commands ?? []).map((command) => command.name));
 	const refuse = (message: string, suggestion: string) =>
@@ -59,6 +93,7 @@ export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions)
 		brokerFor: (call, readResource, bound) => ({
 			sandboxOrigin,
 			async toolsCall(params) {
+				bounded('tools/call', params);
 				const { name, arguments: input } = (params ?? {}) as {
 					name?: unknown;
 					arguments?: unknown;
@@ -87,6 +122,7 @@ export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions)
 				);
 			},
 			async resourcesRead(params) {
+				bounded('resources/read', params);
 				const { uri } = (params ?? {}) as { uri?: unknown };
 				const declared = manifest.ui?.resources?.some((resource) => resource.uri === uri);
 				if (typeof uri !== 'string' || !declared) {

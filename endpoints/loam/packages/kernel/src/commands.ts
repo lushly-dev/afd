@@ -37,6 +37,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'copilot-turn-settle',
 	// The autonomy rows a manifest's apply orphaned, flagged (phase 4 specification, 4.2).
 	'autonomy-settle',
+	// Each app's stored bytes counted afresh (phase 4 specification, section 11).
+	'store-usage-settle',
 ]);
 
 /**
@@ -49,6 +51,8 @@ export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-nested-refuse',
 	'app-scope-refuse',
 	'app-embed-refuse',
+	// A call over one of the limits the port enforces (phase 4 specification, section 11).
+	'app-limit-refuse',
 	// The copilot's agent port refusing a message (phase 5 specification, 3.2).
 	'copilot-port-refuse',
 	...BOOT_ONLY,
