@@ -234,7 +234,7 @@ export class IndexedDbJournalSink implements JournalSink {
 
 	/**
 	 * Entries in `range`, in `seq` order, once every append started before this call is done. With
-	 * `range.last`, the cursor walks back from `to` and reads no more entries than it returns.
+	 * `range.last`, a key cursor walks back from the end and only the entries returned are read.
 	 */
 	async read(range: JournalRange = {}): Promise<JournalEntry[]> {
 		const last = journalRangeLast(range);
@@ -245,29 +245,54 @@ export class IndexedDbJournalSink implements JournalSink {
 		try {
 			const db = await this.open();
 			const transaction = transact(db, 'readonly');
-			const entries = await new Promise<JournalEntry[]>((resolve, reject) => {
-				const found: JournalEntry[] = [];
-				const backward = last !== undefined;
-				const request = transaction.store.openCursor(null, backward ? 'prev' : 'next');
-				request.onsuccess = () => {
-					const cursor = request.result;
-					if (!cursor) return resolve(backward ? found.reverse() : found);
-					const seq = cursor.key as number;
-					if (backward) {
-						// Backward, `continue(key)` moves to the greatest key at or below it.
-						if (seq > to) return cursor.continue(to);
-						if (seq < from) return resolve(found.reverse());
-						found.push(cursor.value as JournalEntry);
-						if (found.length === last) return resolve(found.reverse());
-						return cursor.continue();
-					}
-					if (seq < from) return cursor.continue(from);
-					if (seq > to) return resolve(found);
-					found.push(cursor.value as JournalEntry);
-					cursor.continue();
-				};
-				request.onerror = () => reject(storageError(request.error, 'read entries'));
-			});
+			const entries =
+				last === undefined
+					? await new Promise<JournalEntry[]>((resolve, reject) => {
+							const found: JournalEntry[] = [];
+							const request = transaction.store.openCursor();
+							request.onsuccess = () => {
+								const cursor = request.result;
+								if (!cursor) return resolve(found);
+								const seq = cursor.key as number;
+								if (seq < from) return cursor.continue(from);
+								if (seq > to) return resolve(found);
+								found.push(cursor.value as JournalEntry);
+								cursor.continue();
+							};
+							request.onerror = () => reject(storageError(request.error, 'read entries'));
+						})
+					: await Promise.all(
+							await new Promise<Promise<JournalEntry>[]>((resolve, reject) => {
+								// Keys alone, back from the end; then a `get` for each one kept, made in this callback
+								// so the transaction is still active.
+								const keys: number[] = [];
+								const done = () =>
+									resolve(
+										keys
+											.reverse()
+											.map(
+												(key) =>
+													settle(
+														transaction.store.get(key),
+														'read entries'
+													) as Promise<JournalEntry>
+											)
+									);
+								const request = transaction.store.openKeyCursor(null, 'prev');
+								request.onsuccess = () => {
+									const cursor = request.result;
+									if (!cursor) return done();
+									const seq = cursor.key as number;
+									// Backward, `continue(key)` moves to the greatest key at or below it.
+									if (seq > to) return cursor.continue(to);
+									if (seq < from) return done();
+									keys.push(seq);
+									if (keys.length === last) return done();
+									cursor.continue();
+								};
+								request.onerror = () => reject(storageError(request.error, 'read entries'));
+							})
+						);
 			await transaction.done;
 			return entries;
 		} catch (error) {

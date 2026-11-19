@@ -217,9 +217,11 @@ function validatedInput(
 }
 
 /**
- * Whether `given`, validated by the command's schema, is the call `recorded` journals:
- * the whole input, after the journal's own redactions (`input.password` removed; an input the 256 KiB bound
- * refused kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
+ * Whether `given`, validated by the command's schema, is the call `recorded` journals: the whole input, after the
+ * journal's own redactions (`input.password` removed; an input the kernel's 256 KiB bound refused, which it marks
+ * `replay: 'recorded'`, kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
+ * The journal records the input after the handler ran, so a handler that changes its own input is recorded changed,
+ * and a nested call into it no longer matches: the replay reports it diverged rather than answer the wrong entry.
  */
 function sameCall(recorded: JournalEntry, given: unknown): boolean {
 	let journaled = redactJournalRecord({
@@ -227,6 +229,7 @@ function sameCall(recorded: JournalEntry, given: unknown): boolean {
 		input: given,
 	} as JournalRecord).input;
 	if (
+		recorded.context?.replay === 'recorded' &&
 		recorded.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE' &&
 		new TextEncoder().encode(JSON.stringify(journaled) ?? '').length > DOCUMENT_INPUT_MAX_BYTES
 	) {

@@ -1,4 +1,4 @@
-import { IDBCursor, IDBFactory } from 'fake-indexeddb';
+import { IDBCursor, IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { wrapError } from './errors.js';
 import type { JournalRecord } from './journal.js';
@@ -125,13 +125,18 @@ describe('IndexedDbJournalSink', () => {
 		await expect(sink.read({ last: -1 })).rejects.toThrow(RangeError);
 		await expect(sink.read({ last: 1.5 })).rejects.toThrow(RangeError);
 
-		// The last entry alone costs one cursor step, however long the journal.
+		// Only the entries returned are read: keys alone are walked, however long the journal.
 		const steps = vi.spyOn(IDBCursor.prototype, 'continue');
+		const values = vi.spyOn(IDBObjectStore.prototype, 'openCursor');
+		const gets = vi.spyOn(IDBObjectStore.prototype, 'get');
 		expect((await sink.read({ last: 1 }))[0]?.seq).toBe(5);
 		expect(steps).not.toHaveBeenCalled();
+		expect((await sink.read({ last: 2, to: 3 })).map((entry) => entry.seq)).toEqual([2, 3]);
+		expect(values).not.toHaveBeenCalled();
+		expect(gets).toHaveBeenCalledTimes(3);
 		await sink.read();
-		expect(steps).toHaveBeenCalledTimes(5);
-		steps.mockRestore();
+		expect(steps).toHaveBeenCalledTimes(7);
+		for (const spy of [steps, values, gets]) spy.mockRestore();
 	});
 
 	it('stores entries as JSON values, as the file sink writes them', async () => {

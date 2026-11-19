@@ -663,6 +663,27 @@ describe('#861: loam.scope survives a reload made at once', () => {
 		await second.kernel.dispose();
 		await first.kernel.dispose();
 	});
+
+	it('writes through the scope a sign-out leaves, which the scope middleware moves after the handler', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		const vault = await enterRestricted(first);
+		const stored = async () =>
+			((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value;
+		expect(await stored()).toEqual({ project: vault.id });
+		expect((await first.kernel.call('auth-sign-out')).success).toBe(true);
+		// The person may no longer enter Vault: the store holds the workspace as soon as the call resolves.
+		expect(await stored()).toEqual({ project: null });
+		const second = await scoped({
+			store,
+			journal,
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+		});
+		expect((await second.kernel.call('scope-get')).data).toMatchObject({ scope: WORKSPACE });
+		await second.kernel.dispose();
+		await first.kernel.dispose();
+	});
 });
 
 describe("P2-E8: stage A's scope from the URL (6.3)", () => {

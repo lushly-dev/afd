@@ -398,9 +398,11 @@ export async function createKernelParts(
 		lateParts?.authGate(held) ??
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
+		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
+		...(lateParts ? [lateParts.writeThrough] : []),
 		scopeMiddleware,
-		// `late/`'s own, inside the journal and after access, once it has loaded (#861; phase 5 specification, 6.1).
-		...(lateParts?.middleware ?? []),
+		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
+		...(lateParts ? [lateParts.copilot.gate] : []),
 	];
 	const build = (
 		iface: KernelInterfaceV0,

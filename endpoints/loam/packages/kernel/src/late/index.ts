@@ -205,16 +205,15 @@ export interface LateParts {
 	/** The agent interface's actor for `options.agent`, or its refusal (phase 3 specification, 3.1). */
 	agentActor: typeof agentActor;
 	/**
-	 * The copilot's context fields, declared on both registries from stage B, and its stop of every running turn
-	 * (phase 5 specification, 3.2).
+	 * The copilot's gate, last in the kernel's chain; its context fields, declared on both registries from stage B; and
+	 * its stop of every running turn (phase 5 specification, 3.2, 6.1).
 	 */
-	copilot: Pick<CopilotParts, 'contextFields' | 'stopAll'>;
+	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
 	/**
-	 * The end of the kernel's chain, inside the journal and after the scope middleware: `loam.apps` and `loam.scope`
-	 * written through before the journal records the call that changed them (#861), then the copilot's gate, last
-	 * (phase 5 specification, 6.1).
+	 * Right inside the journal, before the scope middleware, whose own changes of person and scope it must see too:
+	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
 	 */
-	middleware: readonly CommandMiddleware[];
+	writeThrough: CommandMiddleware;
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
@@ -673,7 +672,7 @@ export async function createLateParts(
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: [...createPortRefusals(), ...copilot.internal],
 		copilot,
-		middleware: [writeThrough(deps.viewState, deps.state), copilot.gate],
+		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,

@@ -1636,6 +1636,42 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 		expect(nested.answer('outer-1', 'work-a-read', { n: 1 }, withDefault)?.data).toBe('one');
 	});
 
+	it('#859: compares the input as the journal redacts it', () => {
+		const entry = (command: string, input: unknown, result: unknown, context = {}) =>
+			({
+				seq: 1,
+				traceId: 'loam-mgw0-1',
+				command,
+				input,
+				context: { parent: 'outer-1', ...context },
+				result,
+			}) as unknown as JournalEntry;
+		const named = (name: string) => ({ ...READ, name }) as ZodCommandDefinition;
+		// `auth-sign-in` is journaled without its password.
+		const signIn = nestedReplay([entry('auth-sign-in', { email: 'a@b.c' }, { success: true })]);
+		expect(
+			signIn.answer(
+				'outer-1',
+				'auth-sign-in',
+				{ email: 'a@b.c', password: 'x' },
+				named('auth-sign-in')
+			)
+		).toEqual({ success: true });
+		// The kernel's own 256 KiB refusal, marked `recorded`, keeps the document's id alone.
+		const big = { document: 'doc-1', content: 'x'.repeat(256 * 1024) };
+		const refused = {
+			success: false,
+			error: { code: 'DOCUMENT_CONTENT_TOO_LARGE', message: 'm', suggestion: 's' },
+		};
+		const kernel = nestedReplay([
+			entry('work-a-save', { document: 'doc-1' }, refused, { replay: 'recorded' }),
+		]);
+		expect(kernel.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toEqual(refused);
+		// An app's own refusal with that code keeps its whole input, so it is never cut down.
+		const app = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused)]);
+		expect(app.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toBeUndefined();
+	});
+
 	it('answers two nested calls a handler made together, recorded in the other order', () => {
 		// The journal gives a call its seq when it finishes, so the second call made can finish first; its
 		// trace ID's number says the order the calls were made in.
