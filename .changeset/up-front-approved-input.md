@@ -1,0 +1,5 @@
+---
+'@lushly-dev/afd-server': patch
+---
+
+A gated step of an `afd-batch` or `afd-pipe` whose schema default is random or reads the clock (`.default(() => randomUUID())`) now runs on the input the human approved up front (#1414). With `relay: 'mcp-elicitation'`, a step was validated up front, for the question, and again when it ran; a second validation gave such a schema another input, so the step matched no approval and was asked about again on every retry, or failed with `APPROVAL_REQUIRED` after earlier steps had run. A step whose command has an approval policy now runs on the input validated up front (it is still validated as sent when it runs, so a schema that checks live state fails it as before), and the signed `requestState` keeps each gated step's canonical validated input (at most 32,768 characters for one question) beside a digest of the request, so the retry runs exactly what was shown. A step whose kept input the schema does not read back unchanged is validated as sent, as before.

@@ -70,6 +70,16 @@ export interface ExecutionDeps {
 	hidden?: (name: string, context: CommandContext) => boolean;
 	/** The commands the caller of `context` may be shown, for suggestions (M6). */
 	shown?: (commands: ZodCommandDefinition[], context: CommandContext) => ZodCommandDefinition[];
+	/**
+	 * The validation of this run of `name` on `input`, when something other than the schema
+	 * alone decides its data. The MCP server answers for a step of an `afd-batch` or `afd-pipe`
+	 * approved up front, which runs on the input the human was shown (#1414).
+	 */
+	validated?: (
+		name: string,
+		input: unknown,
+		context: CommandContext
+	) => Promise<EnhancedValidationResult<unknown> | undefined> | undefined;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -159,7 +169,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		// becomes a VALIDATION_ERROR result instead of rejecting.
 		let validation: EnhancedValidationResult<unknown>;
 		try {
-			validation = validateInputEnhanced(command.inputSchema, input);
+			// The MCP server validates a step of an afd-batch or afd-pipe approved up front itself,
+			// to run it on the input the human was shown (#1414).
+			validation =
+				(await deps.validated?.(commandName, input, context)) ??
+				validateInputEnhanced(command.inputSchema, input);
 		} catch (error) {
 			const err = toError(error);
 			reportError(err);

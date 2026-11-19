@@ -20,11 +20,13 @@ when a gated pipeline step's input comes from an earlier step.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Optional, Protocol
 
 from afd.core.commands import CommandContext
@@ -60,6 +62,22 @@ _MAX_DEPTH = 64
 
 
 @dataclass(frozen=True)
+class ApprovedStep:
+    """The step of an ``afd-batch`` or ``afd-pipe`` an up-front approval was asked for, kept with
+    the question in the sealed ``requestState`` (#1414). The attempt that brings the answer runs
+    the step on this input instead of validating what was sent again, so a schema whose defaults
+    differ from one validation to the next (a random id, the time) still runs exactly what the
+    human approved."""
+
+    index: int
+    """The step's position in the request, 0-based."""
+    input: str
+    """The canonical JSON of the step's validated input, as the human was shown it."""
+    call: str
+    """A digest of the whole request as sent: the input serves that request and no other."""
+
+
+@dataclass(frozen=True)
 class ApprovalQuestion:
     """One approval asked of the human: a command, its validated input and the actor."""
 
@@ -73,6 +91,9 @@ class ApprovalQuestion:
     """Expiry of the approval, epoch milliseconds on the middleware's clock."""
     mac: str
     """MAC of the binding, nonce and expiry under the approval secret."""
+    step: Optional[ApprovedStep] = None
+    """For an up-front approval, the step asked about (left out when its input is too long to
+    keep)."""
 
 
 @dataclass(frozen=True)
@@ -93,6 +114,8 @@ class AcceptedApproval:
     nonce: str
     expires_at: int
     mac: str
+    step: Optional[ApprovedStep] = None
+    """The step the approval was asked for, when the question kept it."""
 
 
 @dataclass(frozen=True)
@@ -112,6 +135,11 @@ class ApprovalAnswers:
 
 
 MISSING = ApprovalAnswer("missing")
+
+MAX_KEPT_INPUT = 32_768
+"""The most characters (code points) of approved input one question keeps in the ``requestState``, over all
+its steps. A step past it is validated again by the attempt that brings the answer, as every step
+was before #1414."""
 
 
 class ApprovalRelay(Protocol):
@@ -217,6 +245,9 @@ class UpFrontStep:
     valid: bool = False
     """Whether :attr:`input` holds the validated input."""
     input: Any = None
+    sent: Optional[str] = None
+    """The input as sent (after ``$input`` references are resolved), as canonical JSON: how the
+    server finds the step it is about to run. ``None`` unless :attr:`valid`."""
 
 
 StepValidator = Callable[[str, Any], tuple[bool, Any]]
@@ -313,18 +344,60 @@ class UpFrontApproval:
         """Set when nothing may run (a gated step whose input is not known up front, a
         decline, or a pending question): the router answers with it instead of the run."""
         self._steps: Optional[list[UpFrontStep]] = None
+        # Positions in ``_steps`` whose validated input the server already took.
+        self._taken: set[int] = set()
         # One plan per approval middleware, shared by the call's steps (concurrent ones too).
         self._plans: dict[int, asyncio.Future[_Plan]] = {}
         self._tags: dict[int, list[str]] = {}
 
-    def steps(self) -> list[UpFrontStep]:
+    async def steps(self) -> list[UpFrontStep]:
+        """The call's steps, worked out once. A step the human already approved in an earlier
+        round of this request has the input approved then; any other is validated now."""
         if self._steps is None:
-            self._steps = (
-                _pipeline_steps(self._request, self._can_run, self._validate)
-                if self.tool == "afd-pipe"
-                else _batch_steps(self._request, self._validate)
-            )
+            approved = await self._approved_inputs()
+            # Nothing awaits between the check and the assignment, so concurrent steps share one.
+            if self._steps is None:
+                self._steps = (
+                    _pipeline_steps(self._request, self._can_run, self._validate, approved)
+                    if self.tool == "afd-pipe"
+                    else _batch_steps(self._request, self._validate, approved)
+                )
         return self._steps
+
+    async def _approved_inputs(self) -> dict[int, str]:
+        """The inputs the human approved for this request's steps in an earlier round; the
+        latest answer wins. None when the answers cannot be read: the middleware reports that."""
+        try:
+            answers = await self.relay.answers()
+        except Exception:
+            return {}
+        call = _call_digest(self.call)
+        return {
+            answer.step.index: answer.step.input
+            for answer in answers.accepted
+            if answer.step is not None and answer.step.call == call
+        }
+
+    async def validated(self, command: str, input: Any) -> Optional[tuple[Any]]:
+        """The input validated up front for a step that runs ``command`` on ``input`` as sent,
+        in a 1-tuple, handed out once per step so two steps sent alike take one each (#1414). The
+        server runs the step on it instead of on a second validation's result: the input that
+        runs is the one the human was shown. ``None`` for a step that is not known up front or
+        did not validate; it runs on its own validation, as usual."""
+        sent = _sent_key(input)
+        if sent is None:
+            return None
+        try:
+            steps = await self.steps()
+        except Exception:
+            # The step runs on its own validation, and the middleware reports what failed.
+            return None
+        # No await between finding a step and taking it, so concurrent steps take one each.
+        for at, step in enumerate(steps):
+            if step.valid and step.command == command and step.sent == sent and at not in self._taken:
+                self._taken.add(at)
+                return (step.input,)
+        return None
 
     def _call_tags(self, deps: UpFrontDeps) -> list[str]:
         tags = self._tags.get(id(deps))
@@ -368,7 +441,7 @@ class UpFrontApproval:
         return failure(_unplanned_error(self.tool, command))
 
     async def _decide(self, deps: UpFrontDeps, context: CommandContext) -> _Plan:
-        steps = self.steps()
+        steps = await self.steps()
         late = next(
             (step for step in steps if step.dynamic and deps.may_require_approval(step.command)),
             None,
@@ -430,7 +503,17 @@ class UpFrontApproval:
                 return _Plan("run", approved=[_Approved(answer.binding) for answer in matched])
 
         # Ask once for every gated step, saying why when earlier approvals did not hold.
-        questions = tuple(deps.question(step.bindings, now) for step in gated)
+        # Each question keeps its step's input, so the attempt that brings the answer runs it.
+        call = _call_digest(self.call)
+        room = MAX_KEPT_INPUT
+        kept: list[ApprovalQuestion] = []
+        for step in gated:
+            question = deps.question(step.bindings, now)
+            room -= len(step.input)
+            if room >= 0:
+                question = replace(question, step=ApprovedStep(step.index, step.input, call))
+            kept.append(question)
+        questions = tuple(kept)
         self.relay.hold(
             StepsHold(
                 questions=questions,
@@ -483,28 +566,78 @@ def reads_step_data(value: Any, depth: int = 0) -> bool:
     return False
 
 
-def _validated(validate: StepValidator, index: int, command: str, input: Any) -> UpFrontStep:
+def _call_digest(call: str) -> str:
+    """A digest of the request as sent: an approved input serves the request it was validated
+    for."""
+    return base64.urlsafe_b64encode(hashlib.sha256(call.encode()).digest()).rstrip(b"=").decode()
+
+
+def _sent_key(input: Any) -> Optional[str]:
+    """What a step's input was before validation, as canonical JSON (no input is ``{}``, as
+    validation reads it). ``None`` for an input canonical JSON cannot spell, which matches no
+    step."""
+    from afd.server.approval import _canonical_json
+
+    try:
+        return _canonical_json({} if input is None else input)
+    except (TypeError, ValueError, RecursionError):
+        return None
+
+
+def _restored(validate: StepValidator, command: str, approved: str) -> Optional[tuple[Any]]:
+    """The input approved earlier, as the schema reads it back, in a 1-tuple: the same value (so
+    what runs is what was approved), as the type the handler takes. ``None`` when the schema does
+    not read it back unchanged; the step is then validated as sent."""
+    from afd.server.approval import _canonical_json, _plain_input
+
+    try:
+        valid, data = validate(command, json.loads(approved))
+        if valid and _canonical_json(_plain_input(data)) == approved:
+            return (data,)
+    except Exception:
+        pass
+    return None
+
+
+def _validated(
+    validate: StepValidator, index: int, command: str, input: Any, approved: Optional[str] = None
+) -> UpFrontStep:
+    kept = None if approved is None else _restored(validate, command, approved)
+    if kept is not None:
+        return UpFrontStep(
+            index, command, dynamic=False, valid=True, input=kept[0], sent=_sent_key(input)
+        )
     try:
         valid, data = validate(command, input)
     except Exception:
         # The step fails validation when it runs too.
         return UpFrontStep(index, command, dynamic=False)
-    return UpFrontStep(index, command, dynamic=False, valid=valid, input=data if valid else None)
+    if not valid:
+        return UpFrontStep(index, command, dynamic=False)
+    return UpFrontStep(index, command, dynamic=False, valid=True, input=data, sent=_sent_key(input))
 
 
-def _batch_steps(request: Any, validate: StepValidator) -> list[UpFrontStep]:
+def _batch_steps(
+    request: Any, validate: StepValidator, approved: Optional[dict[int, str]] = None
+) -> list[UpFrontStep]:
     """The steps of an ``afd-batch``: every item's input is known up front."""
     items = request.get("commands") if isinstance(request, dict) else None
     if not isinstance(items, list):
         return []
+    approved = approved or {}
     return [
-        _validated(validate, index, item["command"], item.get("input", {}))
+        _validated(validate, index, item["command"], item.get("input", {}), approved.get(index))
         for index, item in enumerate(items)
         if isinstance(item, dict) and isinstance(item.get("command"), str)
     ]
 
 
-def _pipeline_steps(request: Any, can_run: CanRun, validate: StepValidator) -> list[UpFrontStep]:
+def _pipeline_steps(
+    request: Any,
+    can_run: CanRun,
+    validate: StepValidator,
+    approved: Optional[dict[int, str]] = None,
+) -> list[UpFrontStep]:
     """The steps of an ``afd-pipe``: a step whose input reads an earlier step's data is not known
     up front; any other has its ``$input`` references resolved, as the pipeline will."""
     items = request.get("steps") if isinstance(request, dict) else None
@@ -532,7 +665,7 @@ def _pipeline_steps(request: Any, can_run: CanRun, validate: StepValidator) -> l
         except Exception:
             steps.append(UpFrontStep(index, command, dynamic=False))
             continue
-        steps.append(_validated(validate, index, command, resolved))
+        steps.append(_validated(validate, index, command, resolved, (approved or {}).get(index)))
     return steps
 
 
@@ -652,6 +785,7 @@ __all__ = [
     "ApprovalAnswers",
     "ApprovalQuestion",
     "ApprovalRelay",
+    "ApprovedStep",
     "StepsHold",
     "UpFrontApproval",
     "UpFrontDeps",
