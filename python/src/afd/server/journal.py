@@ -706,6 +706,17 @@ async def replay_journal(
                     clock.end()
                 random.end()
 
+            # An app's call (spec/command-metadata.md, "App-to-app calls") needs the grant check
+            # Python does not have yet (#1513), and a target such as SimpleRegistry ignores the
+            # interface, so it is refused rather than run unchecked.
+            if (entry.context_digest and entry.context_digest.interface == "apps") or (
+                call_context.extra.get("interface") == "apps"
+            ):
+                raise ValueError(
+                    "the entry is an app's call (interface 'apps'), which Python cannot check "
+                    "against a grant yet; not replayed"
+                )
+
             marker = _Marker(rewind, end)
             token = _JOURNAL_REPLAY.set(marker)
             try:

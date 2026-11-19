@@ -137,6 +137,10 @@ export class DirectClient {
 		private readonly registry: DirectRegistry,
 		options: DirectClientOptions = {}
 	) {
+		// Its allow option, middleware and name check would answer an app before the grant check.
+		if ((registry as { interface?: unknown }).interface === 'apps') {
+			throw new TypeError('An app-call registry is called through its own execute');
+		}
 		this.options = {
 			source: options.source,
 			debug: options.debug ?? false,

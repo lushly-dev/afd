@@ -2,6 +2,7 @@ afd_fetch_doctest()
 
 add_executable(
     afd_tests
+    app_calls_vectors_test.cpp
     approval_test.cpp
     approval_vectors_test.cpp
     approver_client_vectors_test.cpp

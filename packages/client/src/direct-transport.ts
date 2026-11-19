@@ -68,7 +68,12 @@ export class DirectTransport implements Transport {
 	private requestIdCounter = 0;
 	private activeControllers = new Set<AbortController>();
 
-	constructor(private readonly registry: DirectRegistry) {}
+	constructor(private readonly registry: DirectRegistry) {
+		// Its tools/list and name check would answer an app before the grant check.
+		if ((registry as { interface?: unknown }).interface === 'apps') {
+			throw new TypeError('An app-call registry is called through its own execute');
+		}
+	}
 
 	/**
 	 * Connect (no-op for direct transport, always succeeds immediately).

@@ -7,7 +7,13 @@
 
 import { createServer, type Server as HttpServer, type IncomingMessage } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
-import { type CommandMiddleware, failure, isMcpExposed } from '@lushly-dev/afd-core';
+import {
+	type CommandMiddleware,
+	executePipeline as executeCorePipeline,
+	failure,
+	isMcpExposed,
+} from '@lushly-dev/afd-core';
+import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
 import { upFrontApproval } from './approval-relay.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
@@ -480,7 +486,14 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			return resolvedTransport;
 		},
 
-		execute: sharedRuntime.engine.executeCommand,
-		executePipeline: sharedRuntime.engine.executePipeline,
+		// An app's call needs a grant check this server does not have (`createAppCallRegistry`).
+		execute: (name, input, context) =>
+			context?.interface === 'apps'
+				? Promise.resolve(failure(callNotGranted()))
+				: sharedRuntime.engine.executeCommand(name, input, context),
+		executePipeline: (request, context) =>
+			context?.interface === 'apps'
+				? executeCorePipeline(request, async () => failure(callNotGranted()))
+				: sharedRuntime.engine.executePipeline(request, context),
 	};
 }
