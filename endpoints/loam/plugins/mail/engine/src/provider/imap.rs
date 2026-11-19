@@ -613,13 +613,15 @@ impl Provider for Imap {
                 (Gone::Named(vanished), flags)
             }
             (Some(modseq), Some(_)) if covered => {
+                // Up to the mailbox's next id now, as with QRESYNC.
+                let bound = examined.uid_next.unwrap_or(next).max(next);
                 let flags = self
                     .changed_flags(
                         &format!(
                             "UID FETCH 1:{} (UID FLAGS) (CHANGEDSINCE {modseq})",
-                            next - 1
+                            bound - 1
                         ),
-                        next,
+                        bound,
                     )
                     .await?;
                 // What remains is every UID the mailbox holds.
@@ -633,10 +635,11 @@ impl Provider for Imap {
                 // No mod-sequences: read every message's flags. What remains
                 // is what a search lists: a message the server lists and
                 // never returns is missing from a FETCH, and has not left.
+                let bound = examined.uid_next.unwrap_or(next).max(next);
                 let flags = self.flags().await?;
                 let flags = flags
                     .into_iter()
-                    .filter(|seen| seen.provider_id.parse::<u32>().is_ok_and(|uid| uid < next))
+                    .filter(|seen| seen.provider_id.parse::<u32>().is_ok_and(|uid| uid < bound))
                     .collect();
                 let remaining = self.search("ALL").await?;
                 (

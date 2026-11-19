@@ -1700,7 +1700,7 @@ the run on the scripted server that the owner's run repeats on iCloud.
 **Found with it** (5.2): a change records the copy it made at an id at or past the mailbox's
 cursor, before a pass covers it, and a pass with QRESYNC took what vanished, and flags that
 changed, only below the cursor. A copy that another client removed or marked before the next pass
-stayed in the store as it was, for good. Both are now read up to the mailbox's next id.
+stayed in the store as it was, for good. Both are now read up to the mailbox's next id, and so are the flags read without QRESYNC.
 
 ### 9.4 The policy
 

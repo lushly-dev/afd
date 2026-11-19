@@ -499,6 +499,13 @@ fn an_undo_never_takes_a_copy_that_was_there_before_for_its_own() {
         .next_back()
         .unwrap();
     fixture.server.world().expunge("Receipts", made);
+    // The copy from before is marked meanwhile, which the store records as
+    // a new observation of its place: it was still first seen before.
+    let before = fixture.server.world().contents("Receipts")[0].0;
+    fixture
+        .server
+        .world()
+        .set_flags("Receipts", before, &["\\Seen"]);
     fixture.sync();
     let undone = fixture.changed(
         "mail-operation-undo",

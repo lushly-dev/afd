@@ -700,9 +700,19 @@ impl Store {
         provider_id: &str,
         after: i64,
     ) -> Result<Option<(String, String)>, StoreError> {
+        // When the store first saw each place: a place's observation is
+        // ended and made again when its flags change, so its current row's
+        // time is not when it was first seen.
         let mut statement = self.connection.prepare_cached(
-            "SELECT validity, provider_id, seen_at FROM observation
-             WHERE message_id = ?1 AND mailbox_id = ?2 AND ended_at IS NULL",
+            "SELECT current.validity, current.provider_id,
+                    (SELECT min(first.seen_at) FROM observation AS first
+                     WHERE first.mailbox_id = current.mailbox_id
+                       AND first.validity = current.validity
+                       AND first.provider_id = current.provider_id
+                       AND first.message_id = current.message_id)
+             FROM observation AS current
+             WHERE current.message_id = ?1 AND current.mailbox_id = ?2
+               AND current.ended_at IS NULL",
         )?;
         let places: Vec<(String, String, i64)> = statement
             .query_map(params![message, mailbox], |row| {

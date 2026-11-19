@@ -196,8 +196,9 @@ struct Run {
     database: std::path::PathBuf,
     runtime: tokio::runtime::Runtime,
     steps: Vec<Value>,
-    /// The operations made and not undone yet, oldest first.
-    open: Vec<i64>,
+    /// The operations made and not undone yet, oldest first, each with the
+    /// undo of it that stopped part-way, if one did.
+    open: Vec<(i64, Option<i64>)>,
 }
 
 impl Run {
@@ -282,12 +283,19 @@ impl Run {
     /// Finishes and undoes, newest first, each operation the run made and
     /// did not undo; prints how each went.
     fn put_back(&mut self) {
-        while let Some(id) = self.open.pop() {
-            self.finish(&json!(id));
-            let mut outcome = self.call("mail-operation-undo", json!({ "operation": id }));
-            if outcome["success"] == true && outcome["data"]["state"] != "done" {
-                outcome = self.finish(&outcome["data"]["operation"]);
-            }
+        while let Some((id, stopped_undo)) = self.open.pop() {
+            let outcome = if let Some(undo) = stopped_undo {
+                // Its undo began: finishing that undo puts it back.
+                self.finish(&json!(undo))
+            } else {
+                self.finish(&json!(id));
+                let outcome = self.call("mail-operation-undo", json!({ "operation": id }));
+                if outcome["success"] == true && outcome["data"]["state"] != "done" {
+                    self.finish(&outcome["data"]["operation"])
+                } else {
+                    outcome
+                }
+            };
             eprintln!(
                 "{}",
                 json!({
@@ -338,15 +346,34 @@ impl Run {
             );
         }
         let started = Instant::now();
-        let data = self.person(name, input);
+        let result = self.call(name, input);
         let seconds = started.elapsed().as_secs_f64();
-        if let Some(id) = data["operation"].as_i64() {
+        let data = result["data"].clone();
+        // An operation that failed part-way names itself in its failure's
+        // details: it is put back as one that ran.
+        let made = data["operation"]
+            .as_i64()
+            .or_else(|| result["error"]["details"]["operation"].as_i64());
+        let done = result["success"] == true && data["state"] == "done";
+        if let Some(id) = made {
             match undoing {
-                Some(undone) => self.open.retain(|open| *open != undone),
-                None => self.open.push(id),
+                Some(undone) if done => self.open.retain(|(open, _)| *open != undone),
+                Some(undone) => {
+                    for open in &mut self.open {
+                        if open.0 == undone {
+                            open.1 = Some(id);
+                        }
+                    }
+                }
+                None => self.open.push((id, None)),
             }
             eprintln!("{label}: operation {id}");
         }
+        assert_eq!(
+            result["success"], true,
+            "{label}: failed, {}",
+            result["error"]["code"]
+        );
         assert_eq!(data["state"], "done", "{label}: {}", data["state"]);
         let shown = self.places(messages);
         let pass = self.sync();
@@ -545,6 +572,51 @@ fn a_failed_run_puts_back_what_it_changed() {
     assert!(server.world().subjects("Archive").is_empty());
 }
 
+/// A change that fails part-way, here an archive whose connection drops
+/// after its delete flags are set, is put back with the rest: the run's
+/// mailbox ends with its messages unflagged and nothing left in the archive.
+#[test]
+fn a_change_that_fails_part_way_is_put_back_too() {
+    let server = scripted();
+    let before = server.world().contents("Loam run");
+    let directory = tempfile::tempdir().unwrap();
+    let Ready {
+        mut run,
+        messages,
+        inbox,
+        ..
+    } = ready(scripted_live(&server), directory.path());
+    let ids = json!(messages);
+    run.step(
+        "move",
+        "mail-label",
+        json!({ "messages": ids, "mailbox": inbox }),
+        &messages,
+        |_| true,
+    );
+    server.world().drop_after_doing = Some("STORE".to_string());
+    let archived = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run.step(
+            "archive",
+            "mail-archive",
+            json!({ "messages": ids }),
+            &messages,
+            |_| true,
+        );
+    }));
+    assert!(archived.is_err(), "the archive failed part-way");
+    assert_eq!(run.open.len(), 2, "the stopped archive is put back too");
+    run.put_back();
+    let flags = |contents: Vec<(u32, Vec<String>)>| -> Vec<Vec<String>> {
+        let mut flags: Vec<Vec<String>> = contents.into_iter().map(|(_, flags)| flags).collect();
+        flags.sort();
+        flags
+    };
+    assert_eq!(flags(server.world().contents("Loam run")), flags(before));
+    assert!(server.world().subjects("Archive").is_empty());
+    assert_eq!(server.world().subjects("INBOX"), ["About i0"]);
+}
+
 /// A copy of a run's message that arrives in the inbox while the run's copy
 /// is there is never archived with it: the run stops before the change.
 #[test]
@@ -698,6 +770,13 @@ fn ready(connector: Live, directory: &std::path::Path) -> Ready {
         "the run's mailbox holds a message twice"
     );
     let start = run.places(&messages);
+    let roles: Vec<&str> = start.iter().map(|(role, _, _, _)| role.as_str()).collect();
+    assert!(
+        roles
+            .iter()
+            .all(|role| !matches!(*role, "inbox" | "archive" | "trash")),
+        "the run's mailbox is not the inbox, the archive or the trash"
+    );
     assert!(
         start.iter().all(|(_, run_mailbox, _, _)| *run_mailbox),
         "each of the run's messages is in the run's mailbox alone"
