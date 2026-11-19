@@ -4,10 +4,11 @@
  * the controller passes. In the `editor` chunk.
  */
 
+import { hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
-import { focusMain, isSave, MODAL_RESULT_EVENT } from './editor-parts.js';
+import { focusMain, isSave } from './editor-parts.js';
 
 /**
  * The editor Mod+S saves, its default prevented, or undefined to leave the chord to the browser (5.5): the one
@@ -76,16 +77,16 @@ export function settleFocus(
 	}
 }
 
-/** The phase 1 modal's answer, to the close that waits for it (5.5). */
+/**
+ * The phase 1 modal's answer, to the close that waits for it (5.5): only what the kernel accepted, told by the shell's
+ * renderer, never an event a page's element could send (phase 4's step 4 review).
+ */
 export function hearModals(
 	shell: LoamShell,
 	modals: Map<string, (result: 'confirm' | 'cancel') => void>
 ): void {
-	shell.addEventListener(MODAL_RESULT_EVENT, (event) => {
-		const { overlayId, result } = (
-			event as CustomEvent<{ overlayId: string; result: 'confirm' | 'cancel' }>
-		).detail;
-		modals.get(overlayId)?.(result);
+	hearAnswers(shell, (overlayId, result) => {
+		modals.get(overlayId)?.(result === 'confirm' ? 'confirm' : 'cancel');
 		modals.delete(overlayId);
 	});
 }

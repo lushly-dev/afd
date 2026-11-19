@@ -51,6 +51,8 @@ export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-embed-refuse',
 	// The copilot's agent port refusing a message (phase 5 specification, 3.2).
 	'copilot-port-refuse',
+	// The shell's strip under the title bar (phase 4 specification, 6.1): the kernel's own, never listed.
+	'overlay-global-set',
 	...BOOT_ONLY,
 ]);
 

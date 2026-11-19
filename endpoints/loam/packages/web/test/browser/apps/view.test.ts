@@ -296,6 +296,31 @@ describe('P2-E13: E2: a view in real frames', () => {
 		await opened.context.close();
 	});
 
+	it("answers a view its own prompt through dev.loam/overlay-result, and refuses another owner's (phase 4, 6.4)", async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		const asked = await rpc(inner, 'tools/call', {
+			name: 'prompt-open',
+			arguments: { title: 'Your name?' },
+		});
+		const overlayId = (asked.result?.structuredContent?.data as { overlayId?: string } | undefined)
+			?.overlayId;
+		expect(overlayId).toMatch(/^ovl-/);
+		const waiting = rpc(inner, 'dev.loam/overlay-result', { overlayId });
+		await kernelCall(page, 'overlay-dismiss', { overlayId, result: 'confirm', value: 'Ada' });
+		expect((await waiting).result).toMatchObject({ result: 'confirm', value: 'Ada' });
+		const shells = (await kernelCall(page, 'dialog-open', { title: 'The shell' })) as {
+			data: { overlayId: string };
+		};
+		const refused = await rpc(inner, 'dev.loam/overlay-result', {
+			overlayId: shells.data.overlayId,
+		});
+		expect(refused.error?.data?.code).toBe('OVERLAY_NOT_OWNER');
+		await opened.context.close();
+	});
+
 	it('does not switch to a linked call whose view is not open', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

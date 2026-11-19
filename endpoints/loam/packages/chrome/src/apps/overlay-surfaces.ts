@@ -9,19 +9,27 @@
  * Phase 4 (its 6.1 to 6.7): a toast shows the owner line the kernel set, its link, and never times out when sticky;
  * the region is an F6 stop while it holds a toast; and popovers render from the `overlays` chunk, loaded with the
  * first. The page's anchors answer the kernel's `overlayAnchors` once this attaches.
+ *
+ * Step 4: the slot's modal or prompt is the one `loam-modal` here, `showModal()`; each open dialog, `show()`, a prompt's
+ * fields and the global strips render from the `overlays` chunk (its review's R3). A question shows the owner line and
+ * an app's own element, mounted in the scope the overlay was opened in (D83). A person's answer reaches the kernel
+ * through the question's private callback, never an event; what the kernel accepted is told to `hearAnswers`, and
+ * what it refused shows in the question, which stays open.
  */
 
 import { Updates } from '@lushly-dev/fast-element';
 import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type {
-	ModalInputV1,
 	OverlayAnchorV1,
 	OverlayFromV1,
+	OverlayResultV1,
 	OverlayV1,
+	PromptInputV1,
+	ScopeV1,
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
-import { deepActiveElement } from '../elements/events.js';
-import { type LoamModal, MODAL_RESULT_EVENT } from '../elements/modal.js';
+import { deepActiveElement, tellAnswered } from '../elements/events.js';
+import type { LoamModal, QuestionInput, QuestionOptions } from '../elements/modal.js';
 import type { LoamShell } from '../elements/shell.js';
 import {
 	type LoamToast,
@@ -32,16 +40,29 @@ import {
 } from '../elements/toast.js';
 import { type AnchorOwner, anchorOwnerOf } from './anchors.js';
 import { focusFallback } from './focus-fallback.js';
-import type { PopoverLayer } from './overlays.js';
+import type { OverlayLayer } from './overlays.js';
 
 /** Finds a popover's anchor on the page, or null (6.3). */
 export type AnchorFinder = (owner: AnchorOwner, anchor: OverlayAnchorV1) => HTMLElement | null;
+
+/**
+ * An app's own element for a question (6.4), mounted in its registry with a surface port of `scope`, the scope the
+ * overlay was opened in (D83); null when it has none here.
+ */
+export type OverlayMounter = (
+	instance: string,
+	element: string,
+	scope: ScopeV1 | undefined
+) => HTMLElement | null;
 
 /** What the `overlays` chunk takes from this one, passed rather than imported, so neither parts a chunk of its own. */
 export interface LayerHelpers {
 	ownerLine: typeof ownerLine;
 	focusFallback: typeof focusFallback;
 	anchorOwnerOf: typeof anchorOwnerOf;
+	/** How a question shows, and its private answer callback (step 4). */
+	optionsOf(overlay: OverlayV1): QuestionOptions;
+	answerFor(question: LoamModal): LoamModal['onAnswer'];
 }
 
 /** The owner line the shell shows (6.6): none for the shell's own. */
@@ -56,7 +77,8 @@ export class OverlaySurfaces {
 	readonly #shell: LoamShell;
 	readonly #kernel: LoamKernelV5;
 	readonly #find: AnchorFinder;
-	#popovers: Promise<PopoverLayer> | undefined;
+	readonly #mountOf: OverlayMounter;
+	#layer: Promise<OverlayLayer> | undefined;
 	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #durations = new Map<string, number>();
 	#waiting = false;
@@ -81,16 +103,39 @@ export class OverlaySurfaces {
 			.then(() => this.#kernel.call('section-open', { section: 'inbox', path: notification }));
 	};
 
-	#onAnswer = (event: Event) => {
-		const { overlayId, result } = (event as CustomEvent<{ overlayId: string; result: string }>)
-			.detail;
-		void this.#kernel.call('overlay-dismiss', { overlayId, result, reason: 'user' });
-	};
+	/**
+	 * A person's answer to `question`, as its private callback (the review's 2): its own id, then the kernel's word.
+	 * What the kernel accepted is told to `hearAnswers`; what it refused shows in that question, which stays open.
+	 */
+	#answerFor(question: LoamModal): LoamModal['onAnswer'] {
+		return (overlayId, result, value) =>
+			void (async () => {
+				const answered = await this.#kernel.call<OverlayResultV1>('overlay-dismiss', {
+					overlayId,
+					result,
+					reason: 'user',
+					...(value !== undefined ? { value } : {}),
+				});
+				if (answered.success && answered.data) {
+					tellAnswered(this.#shell, overlayId, answered.data.result);
+					return;
+				}
+				if (!answered.error || question.overlayId !== overlayId) return;
+				const { message, suggestion } = answered.error;
+				question.refuse(suggestion ? `${message}. ${suggestion}` : message);
+			})();
+	}
 
-	constructor(shell: LoamShell, kernel: LoamKernelV5, find: AnchorFinder = () => null) {
+	constructor(
+		shell: LoamShell,
+		kernel: LoamKernelV5,
+		find: AnchorFinder = () => null,
+		mountOf: OverlayMounter = () => null
+	) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 		this.#find = find;
+		this.#mountOf = mountOf;
 	}
 
 	get modalOpen(): boolean {
@@ -123,10 +168,10 @@ export class OverlaySurfaces {
 		const { ownerDocument: doc, shadowRoot } = this.#shell;
 		this.#region = doc.createElement('loam-toast-region') as LoamToastRegion;
 		this.#modal = doc.createElement('loam-modal') as LoamModal;
+		this.#modal.onAnswer = this.#answerFor(this.#modal);
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.addEventListener(TOAST_INBOX_EVENT, this.#onInbox);
-		this.#shell.addEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
 		const anchors = this.#shell.overlayAnchors;
 		if (anchors) anchors.resolve = (owner, anchor) => this.#find(owner, anchor) !== null;
 	}
@@ -138,15 +183,33 @@ export class OverlaySurfaces {
 		this.#hidden.clear();
 		this.#shell.removeEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.removeEventListener(TOAST_INBOX_EVENT, this.#onInbox);
-		this.#shell.removeEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
 		this.#region?.remove();
 		this.#modal?.remove();
 		this.#region = null;
 		this.#modal = null;
 		const anchors = this.#shell.overlayAnchors;
 		if (anchors) delete anchors.resolve;
-		void this.#popovers?.then((layer) => layer.dispose());
-		this.#popovers = undefined;
+		void this.#layer?.then((layer) => layer.dispose());
+		this.#layer = undefined;
+	}
+
+	/** The `overlays` chunk, loaded with the first popover, dialog, prompt or strip, and kept. */
+	#loadLayer(): Promise<OverlayLayer> {
+		this.#layer ??= import('./overlays.js').then(
+			({ createPopoverLayer }) =>
+				createPopoverLayer(this.#shell, this.#kernel, this.#find, {
+					ownerLine,
+					focusFallback,
+					anchorOwnerOf,
+					optionsOf: (overlay) => this.#optionsOf(overlay),
+					answerFor: (question) => this.#answerFor(question),
+				}),
+			(cause) => {
+				this.#layer = undefined;
+				throw cause;
+			}
+		);
+		return this.#layer;
 	}
 
 	async read(): Promise<void> {
@@ -154,26 +217,23 @@ export class OverlaySurfaces {
 		const result = await this.#kernel.call<{ overlays: OverlayV1[] }>('overlay-list');
 		if (read !== this.#reads || !result.success || !result.data) return;
 		const { overlays } = result.data;
-		await this.#renderModal(overlays.find(({ kind }) => kind === 'modal'));
+		const slot = overlays.find(({ kind }) => kind === 'modal' || kind === 'prompt');
+		const dialogs = overlays.filter((each) => each.kind === 'dialog' && !each.state);
+		const strips = overlays.filter(({ kind }) => kind === 'global');
+		const popovers = overlays.filter(({ kind }) => kind === 'popover');
+		const wanted = slot?.kind === 'prompt' || dialogs.length + strips.length + popovers.length > 0;
+		const layer = wanted || this.#layer ? await this.#loadLayer() : undefined;
+		if (read !== this.#reads) return;
+		await this.#renderModal(slot, layer);
+		if (read !== this.#reads) return;
+		// Shown toasts, then a muted app's hidden ones, whose timers are held under the same modals (step 5's R2).
 		const toasts = overlays.filter(({ kind }) => kind === 'toast');
 		this.#renderToasts(toasts.filter(({ hidden }) => !hidden));
 		this.#runHidden(toasts.filter(({ hidden }) => hidden));
-		const popovers = overlays.filter(({ kind }) => kind === 'popover');
-		if (popovers.length === 0 && !this.#popovers) return;
-		this.#popovers ??= import('./overlays.js').then(
-			({ createPopoverLayer }) =>
-				createPopoverLayer(this.#shell, this.#kernel, this.#find, {
-					ownerLine,
-					focusFallback,
-					anchorOwnerOf,
-				}),
-			(cause) => {
-				this.#popovers = undefined;
-				throw cause;
-			}
-		);
-		const layer = await this.#popovers;
-		if (read === this.#reads) layer.render(popovers);
+		if (!layer) return;
+		layer.render(popovers);
+		await layer.renderDialogs(dialogs);
+		layer.renderGlobals(strips);
 	}
 
 	/** The hidden toasts' timers, by id: a muted app's (3.7), never shown. */
@@ -291,7 +351,7 @@ export class OverlaySurfaces {
 		this.#timers.delete(overlayId);
 	}
 
-	async #renderModal(overlay: OverlayV1 | undefined): Promise<void> {
+	async #renderModal(overlay: OverlayV1 | undefined, layer?: OverlayLayer): Promise<void> {
 		const modal = this.#modal;
 		if (!modal) return;
 		if (!overlay) {
@@ -299,6 +359,8 @@ export class OverlaySurfaces {
 			return;
 		}
 		if (modal.overlayId === overlay.overlayId) return;
+		// Another question replaced the one shown: the old one closes first.
+		if (modal.overlayId !== '') modal.hide();
 		// At most one modal (section 8): the palette and a compact drawer close first.
 		if (customElements.get('loam-palette') && this.#shell.palette?.isOpen) {
 			await this.#kernel.call('palette-close');
@@ -308,6 +370,24 @@ export class OverlaySurfaces {
 			await this.#shell.readLayout();
 			await Updates.next();
 		}
-		await modal.show(overlay.overlayId, overlay.input as ModalInputV1);
+		const options = this.#optionsOf(overlay);
+		if (overlay.kind === 'prompt' && layer) {
+			const prompt = overlay.input as PromptInputV1;
+			options.fields = layer.promptFields(this.#shell.ownerDocument, prompt.schema, prompt.value);
+		}
+		await modal.show(overlay.overlayId, overlay.input as QuestionInput, options);
+	}
+
+	/** How a question shows: its kind, its owner line, and an app's own element, mounted for it (6.4, 6.6). */
+	#optionsOf(overlay: OverlayV1): QuestionOptions {
+		const { element } = overlay.input as { element?: string };
+		return {
+			kind: overlay.kind as 'modal' | 'dialog' | 'prompt',
+			from: ownerLine(overlay.from),
+			element:
+				element !== undefined && overlay.from?.kind === 'app'
+					? this.#mountOf(overlay.owner, element, overlay.scope)
+					: null,
+		};
 	}
 }

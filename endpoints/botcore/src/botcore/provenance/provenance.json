@@ -14,7 +14,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "f71faa51b9ca7db580cdad5950418c6967f18d73b93ce6e1da1c374ba861e946"
+      "sha256": "7c3813a4b9236bb81622cad81cc35d281b1f0114a67a5b00190ba659f903fa95"
     }
   },
   "interpretation": "Only upstream-selected.json describes upstream bytes. The exact frozen staged input includes adaptations/additions; its revision is context, not upstream hash identity. adaptations.json records both transitions.",

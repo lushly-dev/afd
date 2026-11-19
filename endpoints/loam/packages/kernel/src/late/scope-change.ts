@@ -174,6 +174,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		if (left !== undefined) land(left);
 		else setMain(deps.viewState, { path: '' });
 		deps.apps().clearSelections();
+		// An app's question opened in another scope closes, parked dialogs too: its element was bound there (D83).
+		overlays.closeOutOfScope(to);
 		setScopeProject(deps.viewState, to.project ?? null);
 		scope.setActive(to);
 		scope.note(context.traceId, {

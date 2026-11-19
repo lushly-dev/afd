@@ -1,8 +1,8 @@
 /**
  * @fileoverview The overlay commands; the store they run on is in `overlays.ts` (phase 1 specification, section 8;
  * phase 4 specification, 6). Phase 4's step 3 adds the toast's `sticky` and `link`, the owner line, agent toasts and
- * `popover-open`, with 6.1's path table for toasts and popovers; dialogs, modals' paths, prompts and the slot are
- * step 4's.
+ * `popover-open`, with 6.1's path table for toasts and popovers; step 4 adds dialogs, modals' paths, prompts and the
+ * slot (`overlay-slot.ts`), and 6.5's answer rule, here in `overlay-dismiss`.
  */
 
 import { type CommandContext, type CommandResult, success } from '@lushly-dev/afd-core';
@@ -13,13 +13,14 @@ import {
 } from '@lushly-dev/afd-server/define';
 import { saysShellName } from '@lushly-dev/loam-manifest';
 import type {
-	ModalInputV1,
+	OverlayActionV1,
 	OverlayAnchorV1,
 	OverlayFromV1,
 	OverlayRefV1,
 	OverlayResultV1,
 	OverlayV1,
 	PopoverInputV1,
+	PromptInputV1,
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 import * as z from 'zod/mini';
@@ -33,7 +34,9 @@ import {
 	type OverlayStore,
 	SHELL,
 	TOAST_CAP,
+	unanswered,
 } from '../overlays.js';
+import { ACTION_ID, createOverlaySlotCommands, promptValueFault } from './overlay-slot.js';
 import { AGENT_PUSH_RATE, type PushRate } from './push-rate.js';
 
 /** A toast's duration when it names none, in milliseconds. */
@@ -60,14 +63,6 @@ const toastInput = z.strictObject({
 	durationMs: z.optional(z.number().check(z.int(), z.minimum(1000), z.maximum(30000))),
 	sticky: z.optional(z.boolean()),
 	link: z.optional(linkInput),
-});
-
-const modalInput = z.strictObject({
-	title: text(80),
-	body: text(1000).check(z.describe(PLAIN_TEXT)),
-	confirmLabel: z.optional(text(40)),
-	cancelLabel: z.optional(text(40)),
-	danger: z.optional(z.boolean()),
 });
 
 /** A `data-loam-anchor` value: what a CSS attribute selector can name without escaping. */
@@ -98,10 +93,13 @@ const popoverInput = z.union([
 
 const dismissInput = z.strictObject({
 	overlayId: text(64),
-	result: z.optional(z.enum(['confirm', 'cancel'])),
+	/** `confirm`, `cancel`, or the id of one of the overlay's actions (6.4). */
+	result: z.optional(z.string().check(z.regex(ACTION_ID))),
 	reason: z.optional(z.enum(['timeout', 'user', 'anchor'])),
 	/** A menu popover's picked item (6.4), with `result: 'confirm'`. */
 	item: z.optional(z.number().check(z.int(), z.minimum(0), z.maximum(POPOVER_MENU_ITEMS - 1))),
+	/** A prompt's answer (6.4), with `result: 'confirm'`. */
+	value: z.optional(z.unknown()),
 });
 
 const textJson = (maxLength: number): JsonSchema => ({ type: 'string', minLength: 1, maxLength });
@@ -173,6 +171,8 @@ export interface OverlayCommandDeps {
 	pushRate?: PushRate;
 	/** An instance's owner line title, unique and never "Loam" (6.6). */
 	appTitle?(instance: string): string | undefined;
+	/** Whether the instance is a native app, whose overlays alone show an element (6.4). Absent: none is. */
+	isNative?(instance: string): boolean;
 	/** The signed-in person's name, never an email, for an agent's "for <person>"; null for none (6.6). */
 	personLabel?(): string | null;
 	/** A menu item's verdict for its owner (6.4). Absent: every item is refused. */
@@ -219,7 +219,40 @@ const noOpener = (): CommandResult<never> =>
 		'Open it from the shell, an app, or the agent interface'
 	);
 
-/** `toast-show`, `modal-open`, `popover-open`, `overlay-dismiss` and `overlay-list`. */
+/**
+ * 6.5's answer rule: whether `opener` may close an overlay of `owner` with an answer (`confirm` or an action) or only
+ * with a cancel. A person's gesture answers anything; an app answers its own. Anyone else may only cancel or dismiss,
+ * but for the shell's own overlays (F6), which only a person closes, or the caller a kernel prompt names in its `for`
+ * (an app cancelling the confirmation it raised: `withdrawn`). Undefined when the close goes ahead as asked.
+ */
+export function answerRule(
+	opener: Opener,
+	caller: string | undefined,
+	owner: OverlayOwner,
+	raisedBy: string | undefined,
+	answers: boolean
+): undefined | 'withdrawn' | 'HUMAN_REQUIRED' | 'OVERLAY_NOT_OWNER' {
+	if (opener.kind === 'shell') return undefined;
+	if (owner.kind === 'shell') {
+		return caller !== undefined && raisedBy === caller && !answers ? 'withdrawn' : 'HUMAN_REQUIRED';
+	}
+	if (opener.kind === 'app') {
+		return owner.kind === 'app' && owner.id === opener.owner.id ? undefined : 'OVERLAY_NOT_OWNER';
+	}
+	return answers ? 'HUMAN_REQUIRED' : undefined;
+}
+
+/**
+ * The answers an overlay offers (6.4): its actions' ids, or `confirm` when it has none; `cancel` always; and
+ * `dismissed`, said outright, wherever leaving the result out gives it (R1).
+ */
+function answersOf(overlay: OverlayV1): string[] {
+	const actions = (overlay.input as { actions?: OverlayActionV1[] }).actions;
+	const given = actions ? [...actions.map((action) => action.id), 'cancel'] : ['confirm', 'cancel'];
+	return unanswered(overlay.kind) === 'dismissed' ? [...given, 'dismissed'] : given;
+}
+
+/** `toast-show`, `popover-open`, `overlay-dismiss` and `overlay-list`, with `overlay-slot.ts`'s. */
 export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefinition[] {
 	const { overlays } = deps;
 	const now = (context: CommandContext): number => context.clock?.now() ?? Date.now();
@@ -344,48 +377,12 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		},
 	});
 
-	const modalOpen = defineCommandWithSchema<typeof modalInput, OverlayRefV1>({
-		name: 'modal-open',
-		title: 'Open a modal',
-		description: 'Ask a question in a modal dialog with a confirm and a cancel button, as text',
-		category: 'overlay',
-		mutation: true,
-		executionTime: 'instant',
-		input: modalInput,
-		jsonSchema: {
-			type: 'object',
-			properties: {
-				title: textJson(80),
-				body: { ...textJson(1000), description: PLAIN_TEXT },
-				confirmLabel: textJson(40),
-				cancelLabel: textJson(40),
-				danger: { type: 'boolean' },
-			},
-			required: ['title', 'body'],
-			additionalProperties: false,
-		},
-		async handler(input, context) {
-			// The agent interface's modal is step 4's (6.1's modal column); until then it opens as the shell's.
-			const { caller } = context as KernelFieldContext;
-			const owner = caller === undefined ? SHELL : appOwner(caller);
-			if (owner.kind === 'app' && !(await isActive(owner))) {
-				return kernelFailure(
-					'OVERLAY_OWNER_INACTIVE',
-					`The app '${owner.id}' is not active, so it cannot open a modal`,
-					'Show a toast instead, or open the modal when the app is active'
-				);
-			}
-			if (overlays.modalOpen()) {
-				return kernelFailure(
-					'OVERLAY_MODAL_BUSY',
-					'A modal is already open',
-					'Wait for it to close, or dismiss it with overlay-dismiss',
-					{ retryable: true }
-				);
-			}
-			// A modal's owner line is step 4's, with the slot (6.6).
-			return success(overlays.open(owner, 'modal', input as ModalInputV1));
-		},
+	const slot = createOverlaySlotCommands({
+		overlays,
+		openerOf: (context) => openerOf(context, human),
+		isActive,
+		appLine,
+		isNative: (instance) => deps.isNative?.(instance) ?? false,
 	});
 
 	const popoverOpen = defineCommandWithSchema<typeof popoverInput, OverlayRefV1>({
@@ -501,7 +498,8 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 	const overlayDismiss = defineCommandWithSchema<typeof dismissInput, OverlayResultV1>({
 		name: 'overlay-dismiss',
 		title: 'Dismiss an overlay',
-		description: 'Close an open toast, modal or popover; a modal defaults to cancel',
+		description:
+			"Close an open overlay: a question defaults to cancel; confirm, or an action's id, is a person's answer or its own app's",
 		category: 'overlay',
 		mutation: true,
 		executionTime: 'instant',
@@ -510,9 +508,10 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			type: 'object',
 			properties: {
 				overlayId: textJson(64),
-				result: { type: 'string', enum: ['confirm', 'cancel'] },
+				result: { type: 'string', pattern: ACTION_ID.source },
 				reason: { type: 'string', enum: ['timeout', 'user', 'anchor'] },
 				item: { type: 'integer', minimum: 0, maximum: POPOVER_MENU_ITEMS - 1 },
+				value: {} as JsonSchema,
 			},
 			required: ['overlayId'],
 			additionalProperties: false,
@@ -527,31 +526,67 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				);
 			}
 			const { caller } = context as KernelFieldContext;
-			const owner = overlays.ownerOf(input.overlayId);
-			if (caller !== undefined && (owner?.kind !== 'app' || owner.id !== caller)) {
+			const owner = overlays.ownerOf(input.overlayId) as OverlayOwner;
+			const opener = openerOf(context, human);
+			const result = input.result ?? unanswered(overlay.kind);
+			const answers = result !== 'cancel' && result !== 'dismissed';
+			// 6.5: who may answer and who may only cancel; the shell's own closes only by a person or its raiser (F6).
+			const rule = answerRule(
+				opener,
+				caller,
+				owner,
+				overlays.forOf(input.overlayId)?.caller,
+				answers
+			);
+			if (rule === 'OVERLAY_NOT_OWNER') {
 				return kernelFailure(
 					'OVERLAY_NOT_OWNER',
 					`Overlay '${input.overlayId}' belongs to another app`,
 					'Dismiss only overlays this app opened'
 				);
 			}
+			if (rule === 'HUMAN_REQUIRED') {
+				const shells = owner.kind === 'shell';
+				return kernelFailure(
+					'HUMAN_REQUIRED',
+					shells
+						? "Only the person closes the shell's own overlay"
+						: 'Only the person, or the app that opened it, answers an overlay',
+					shells
+						? 'Ask the person to answer it in the shell'
+						: 'Cancel or dismiss it, or ask the person to answer it in the shell',
+					{ details: { route: 'shell', overlay: input.overlayId } }
+				);
+			}
+			// The global strip ends with its condition (6.1), never by a dismissal.
+			if (overlay.kind === 'global') {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					'The global strip closes when its condition ends',
+					'Leave it; the shell closes it'
+				);
+			}
 			// `anchor` is the page's word that a popover's anchor left it: the chrome's, a human gesture's, alone.
-			if (
-				input.reason === 'anchor' &&
-				(overlay.kind !== 'popover' || openerOf(context, human).kind !== 'shell')
-			) {
+			if (input.reason === 'anchor' && (overlay.kind !== 'popover' || opener.kind !== 'shell')) {
 				return kernelFailure(
 					'VALIDATION_ERROR',
 					"reason 'anchor' closes a popover whose anchor left the page, and only the shell says so",
 					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}
-			// An agent cancels or dismisses only, never confirms (6.5; F6's cancels are step 4's).
-			if (input.result === 'confirm' && openerOf(context, human).kind === 'agent') {
+			// `timeout` is the shell's timer on a toast, never a caller's way past a view's cooldown (the review's 3).
+			if (input.reason === 'timeout' && (overlay.kind !== 'toast' || opener.kind !== 'shell')) {
 				return kernelFailure(
-					'HUMAN_REQUIRED',
-					'Only a person confirms an overlay',
-					'Ask the person to answer it in the shell'
+					'VALIDATION_ERROR',
+					"reason 'timeout' is the shell's own, for a toast its timer closed",
+					"Dismiss it with reason 'user', or leave reason out"
+				);
+			}
+			if (input.result !== undefined && !answersOf(overlay).includes(input.result)) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					`'${input.result}' is not one of this overlay's answers`,
+					`Answer with one of: ${answersOf(overlay).join(', ')}`
 				);
 			}
 			if (input.item !== undefined) {
@@ -567,11 +602,32 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					);
 				}
 			}
+			// A prompt's answer carries its value, checked against its schema; the prompt stays open when it fails.
+			if (input.value !== undefined && (overlay.kind !== 'prompt' || !answers)) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"value is a prompt's answer, with result confirm",
+					'Leave value out'
+				);
+			}
+			let value: unknown = input.item;
+			if (overlay.kind === 'prompt' && answers) {
+				const prompt = overlay.input as PromptInputV1;
+				// Exactly what was submitted, never the prompt's starting value (the review's 8).
+				value = input.value;
+				const fault = promptValueFault(prompt.schema, value);
+				if (fault) {
+					return kernelFailure('VALIDATION_ERROR', fault, 'Correct the value, then confirm again', {
+						details: { overlay: input.overlayId },
+					});
+				}
+			}
 			const outcome = overlays.close(
 				input.overlayId,
-				input.result ?? (overlay.kind === 'modal' ? 'cancel' : 'dismissed'),
-				input.reason ?? 'user',
-				input.item
+				result,
+				rule === 'withdrawn' ? 'withdrawn' : (input.reason ?? 'user'),
+				value,
+				opener.kind === 'shell'
 			);
 			return success(outcome as OverlayResultV1);
 		},
@@ -592,10 +648,13 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 
 	return [
 		toastShow,
-		modalOpen,
+		slot.modalOpen,
 		popoverOpen,
+		slot.dialogOpen,
+		slot.promptOpen,
 		overlayDismiss,
 		overlayList,
+		slot.globalSet,
 	] as unknown as ZodCommandDefinition[];
 }
 

@@ -453,6 +453,13 @@ export interface OverlaysV1 {
 	popover?(input: PopoverInputV1): Promise<CommandResult<OverlayRefV1>>;
 	/** Resolves when the modal closes, for whatever reason. */
 	modal(input: ModalInputV1): Promise<OverlayResultV1>;
+	/**
+	 * A non-modal dialog (phase 4 specification, 6.1, 6.4): parked while another app is active and restored when this
+	 * one is again, or cancelled on leaving with `cancelOnLeave`; at most three per instance. Resolves when it closes.
+	 */
+	dialog?(input: DialogInputV1): Promise<OverlayResultV1>;
+	/** A prompt in the overlay slot (6.1, 6.4): resolves when it is answered, a confirm with the person's `value`. */
+	prompt?(input: PromptInputV1): Promise<OverlayResultV1>;
 }
 
 /** What a surface's element receives. Assigned before it connects. */
@@ -522,7 +529,7 @@ export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
 /** What an editor dispatches, bubbling and composed, from its element: `detail` is the selection, or null. */
 export const EDITOR_SELECTION_EVENT = 'loam-editor-selection';
 
-export type OverlayKindV1 = 'toast' | 'modal' | 'popover';
+export type OverlayKindV1 = 'toast' | 'modal' | 'popover' | 'dialog' | 'prompt' | 'global';
 
 export interface OverlayRefV1 {
 	overlayId: string;
@@ -555,6 +562,78 @@ export interface ModalInputV1 {
 	confirmLabel?: string;
 	cancelLabel?: string;
 	danger?: boolean;
+	/** Up to three answers in place of confirm (phase 4 specification, 6.4); cancel stays. */
+	actions?: OverlayActionV1[];
+	/** A native app's own element, defined in its registry, shown under the body; never a view's (6.4). */
+	element?: string;
+}
+
+/**
+ * An answer an overlay offers (6.4): its `id` is the result it closes with. One may be the `default`, focused first;
+ * `danger` marks a destructive one. An `id` of `cancel` is a cancel.
+ */
+export interface OverlayActionV1 {
+	id: string;
+	label: string;
+	tone?: 'primary' | 'danger';
+	default?: boolean;
+}
+
+/** A non-modal dialog (6.4). */
+export interface DialogInputV1 {
+	title: string;
+	body?: string;
+	actions?: OverlayActionV1[];
+	/** As a modal's: a native app's own element. */
+	element?: string;
+	/** Cancelled, not parked, when its app stops being active (6.1). */
+	cancelOnLeave?: boolean;
+}
+
+/**
+ * A field of a prompt's value (6.4): text, a number, a choice or a switch. No pattern: an app gives the shell no regular
+ * expression (section 17).
+ */
+export interface PromptFieldV1 {
+	type: 'string' | 'number' | 'integer' | 'boolean';
+	title?: string;
+	description?: string;
+	enum?: Array<string | number>;
+	minLength?: number;
+	maxLength?: number;
+	minimum?: number;
+	maximum?: number;
+}
+
+/** What a prompt asks for: one field, or an object of named fields with the ones it requires. */
+export type PromptSchemaV1 =
+	| PromptFieldV1
+	| {
+			type: 'object';
+			properties: Record<string, PromptFieldV1>;
+			required?: string[];
+	  };
+
+/**
+ * A prompt in the slot (6.4). With no `schema`, it asks for one line of text. The input has no `for`: the kernel alone
+ * sets that on its own prompts.
+ */
+export interface PromptInputV1 {
+	title: string;
+	body?: string;
+	schema?: PromptSchemaV1;
+	/** The value it starts with. */
+	value?: unknown;
+	confirmLabel?: string;
+	cancelLabel?: string;
+	danger?: boolean;
+}
+
+/** The shell's strip under the title bar (6.1), set by the kernel alone, one per id. */
+export interface GlobalInputV1 {
+	id: string;
+	message: string;
+	tone?: 'info' | 'warning' | 'danger';
 }
 
 /** A toast's link (6.4): a resource link with no document `anchor` and no app `route`. */
@@ -590,7 +669,13 @@ export type OverlayFromV1 =
 	| { kind: 'agent'; agent: string; person: string | null };
 
 export interface OverlayV1 extends OverlayRefV1 {
-	input: ToastInputV1 | ModalInputV1 | PopoverInputV1;
+	input:
+		| ToastInputV1
+		| ModalInputV1
+		| PopoverInputV1
+		| DialogInputV1
+		| PromptInputV1
+		| GlobalInputV1;
 	/** Absent on the shell's own (6.6). */
 	from?: OverlayFromV1;
 	/**
@@ -598,6 +683,12 @@ export interface OverlayV1 extends OverlayRefV1 {
 	 * own list says so; the app's never does.
 	 */
 	hidden?: true;
+	/** `parked` for a dialog whose app is not active (6.2); absent while open. */
+	state?: 'parked';
+	/** On the kernel's own prompts only (6.1): the command it asks for, and the caller that raised it. */
+	for?: { command: string; caller?: string };
+	/** On an app's dialog, modal or prompt: the scope it was opened in, which its element's mount keeps (D83). */
+	scope?: ScopeV1;
 }
 
 /**
@@ -620,8 +711,9 @@ export type OverlayReasonV1 =
 
 export interface OverlayResultV1 {
 	overlayId: string;
-	result: 'confirm' | 'cancel' | 'dismissed';
+	/** `confirm`, `cancel`, `dismissed`, or the `id` of the action the person chose (6.4). */
+	result: 'confirm' | 'cancel' | 'dismissed' | (string & {});
 	reason: OverlayReasonV1;
-	/** A menu popover's picked item, by index (6.4). */
-	value?: number;
+	/** A menu popover's picked item, by index, or a prompt's value (6.4). */
+	value?: unknown;
 }

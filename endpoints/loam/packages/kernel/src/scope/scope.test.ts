@@ -1251,3 +1251,26 @@ describe('P2-E3: (kernel unit) a persisted active app that cannot open in the re
 		expect((await kept.journal.read()).some((entry) => entry.command === 'app-settle')).toBe(false);
 	});
 });
+
+describe("phase 4's step 4 review: an app's question keeps the scope it opened in (D83)", () => {
+	it('closes a dialog opened in one project when the scope moves to another, parked or open', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('app-open', { instance: 'dual' });
+		const port = kernel.appPort('dual').surface({ scope: workspace.scopes.atlas });
+		const opened = await port.call<{ overlayId: string }>('dialog-open', { title: 'In Atlas' });
+		expect(opened.success).toBe(true);
+		const list = async () =>
+			(
+				await kernel.call<{ overlays: Array<{ overlayId: string; scope?: ScopeV1 }> }>(
+					'overlay-list'
+				)
+			).data?.overlays ?? [];
+		expect((await list())[0]?.scope).toEqual(workspace.scopes.atlas);
+		const closed = kernel.appPort('dual').waitOverlay(opened.data?.overlayId as string);
+		await kernel.call('scope-set', { project: 'beacon' });
+		await expect(closed).resolves.toMatchObject({ result: 'cancel', reason: 'app-switch' });
+		expect(await list()).toEqual([]);
+	});
+});

@@ -41,7 +41,10 @@ kind                    required fields                                     writ
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed | pr-closed |
-                        review-unverified | node-missing); optional
+                        review-unverified | node-missing; a pull request
+                        that left a merge queue unmerged is ci-failed
+                        when the required check failed on the queue's
+                        commit and merge-failed otherwise); optional
                         head, logPath, counted (false: not the branch's
                         own failure, so it does not count toward
                         cells.maxEjections), excuse (why not)
@@ -51,11 +54,15 @@ kind                    required fields                                     writ
                         gave its slot to the front of the queue and keeps
                         its validation in the checkout moved to path
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
-                        withoutCheck, advanced (merged after a
+                        withoutCheck, headMoved with mergedHead (it
+                        merged at a head the lane did not validate;
+                        withoutCheck is then true), advanced (merged after a
                         base-advanced, without a new validation),
                         checkStoodIn (after a rerun-limit advance, with
                         checkBase, the base at the push, which its check
-                        ran onto or past, and base)
+                        ran onto or past, and base), mergeQueue (true:
+                        it merged through GitHub's merge queue) with
+                        queueMinutes (how long it waited there)
 ``dropped``             branch, reason                                      lane-drop
 ``coverage``            main, outcome (passed | failed), minutes;           the lane loop
                         optional logPath, after (the PRs since the last)

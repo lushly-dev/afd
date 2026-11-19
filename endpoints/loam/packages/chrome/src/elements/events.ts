@@ -33,3 +33,22 @@ export function deepActiveElement(doc: Document = document): Element | null {
 	while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
 	return active;
 }
+
+/** An answer the kernel accepted: the overlay and the result it closed with. */
+export type AnsweredListener = (overlayId: string, result: string) => void;
+
+const answered = new WeakMap<object, Set<AnsweredListener>>();
+
+/** Hear the answers the kernel accepted for the shell `host`'s questions, as the editor's discard waits for its own. In
+ * first paint, so neither the `surfaces` nor the `editor` chunk imports the other's (phase 4's step 4 review). */
+export function hearAnswers(host: object, listener: AnsweredListener): () => void {
+	const held = answered.get(host) ?? new Set();
+	answered.set(host, held);
+	held.add(listener);
+	return () => held.delete(listener);
+}
+
+/** Tell `host`'s listeners an answer the kernel accepted; only the renderer, from `overlay-dismiss`'s result, does. */
+export function tellAnswered(host: object, overlayId: string, result: string): void {
+	for (const listener of [...(answered.get(host) ?? [])]) listener(overlayId, result);
+}

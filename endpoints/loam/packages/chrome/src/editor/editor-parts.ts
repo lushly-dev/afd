@@ -32,9 +32,6 @@ export interface EditorReadV1 {
 /** How many native editors a group keeps parked, its oldest dropped through `dispose` (5.6). */
 export const PARKED_PER_GROUP = 10;
 
-/** The phase 1 modal's `MODAL_RESULT_EVENT`, named here so this chunk imports no element of `surfaces`. */
-export const MODAL_RESULT_EVENT = 'loam-modal-result';
-
 /** How long the area waits for the app surfaces, which load beside stage B, before a frame fails. */
 export const SURFACES_WAIT_MS = 15_000;
 
