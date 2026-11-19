@@ -7929,11 +7929,11 @@
       "upstream_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
       "staged_path": "packages/violet-elements/src/foundations/violet-foundations.stories.ts",
       "staged_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
-      "current_import_sha256": "6cddf85cf78c5c3a81c65c188f570312dd433acdb72ecbf4051e5927dacdd5a2",
+      "current_import_sha256": "af15a35d219a1f13dd0c0d8037908630cc6e76436dcb570c6597e65482e8a983",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450"
+      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450; Replace undeclared attributes in a violet-elements spec and story with declared ones (found by components-check, #1154)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/violet-safe-url.ts",
@@ -11865,11 +11865,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "71cb0c8420a5ca9e5df3247c9bda1606bf8e06a092485bfe8bc945c16dff93ee",
+      "current_import_sha256": "7408560d040f36513152741076a267dfe6748d55cd0c1076d5bf6f457f283569",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "form control hosts (#1385): re-recorded after the Refined default theme"
+      "import_reason": "form control hosts (#1385): re-recorded after the Refined default theme; Replace undeclared attributes in a violet-elements spec and story with declared ones (found by components-check, #1154)"
     }
   ]
 }
