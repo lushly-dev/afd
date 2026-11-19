@@ -956,7 +956,9 @@ export class EditorController implements FrameListener {
 			await frame.save();
 			return true;
 		} catch (cause) {
-			await this.#kernel.call('toast-show', notSaved(frame.title, cause));
+			// An autosave that failed while the page was hidden is unseen: it stays, and lands in the inbox (10.2).
+			const unseen = this.#area.ownerDocument.visibilityState === 'hidden';
+			await this.#kernel.call('toast-show', notSaved(frame.title, cause, unseen));
 			return false;
 		}
 	}

@@ -48,6 +48,14 @@ effects = ["inspect"]
 input_schema = { type = "object", properties = {}, additionalProperties = false }
 
 [[commands]]
+name = "hello-guests"
+title = "List the guest book"
+description = "List the visitors at the guest book, each with whether Hello has greeted them."
+category = "hello"
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[[commands]]
 name = "hello-forget"
 title = "Forget a name"
 description = "Remove a greeted name from the list; the undo of hello-greet."

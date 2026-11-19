@@ -131,6 +131,7 @@ const template = html<LoamShell>`
 				shortcut="${(x) => x.shortcut}"
 				key-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
 				shown-parts="${(x) => x.shownParts}"
+				unread="${(x) => x.unread}"
 			></loam-titlebar>
 			<loam-rail
 				data-part="rail"
@@ -278,6 +279,8 @@ export class LoamShell extends FASTElement {
 	declare projectName: string;
 	/** The live region's text: a change of scope, and what it left (phase 2 specification, 7.8). */
 	declare announcement: string;
+	/** The person's unread notices, for the title bar's inbox button; the `apps` chunk keeps it (10.3). */
+	declare unread: number;
 	/** The active persona's title beside the name, empty for `default` (phase 3 specification, 6.3). */
 	declare persona: string;
 	/** The rail's and the tab bar's entries, in first paint (7.2). */
@@ -353,6 +356,7 @@ export class LoamShell extends FASTElement {
 		this.workspaceName = '';
 		this.projectName = '';
 		this.announcement = '';
+		this.unread = 0;
 		this.persona = '';
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.base = new URL('./', globalThis.location?.href ?? 'http://localhost/').href;
@@ -545,6 +549,12 @@ export class LoamShell extends FASTElement {
 			await this.rail.refresh();
 			return;
 		}
+		// The title bar's inbox count and its announcements, a chunk of its own, apps or none (phase 4's 10.3).
+		void import('../apps/inbox-bell.js')
+			.then(({ watchInbox }) => {
+				if (this.kernel === kernel) this.#cleanup.push(watchInbox(this, kernel));
+			})
+			.catch(reportError);
 		const listed = this.listsApps || this.appCount > 0;
 		// Stage B's list corrects what the boot records said (2.2), placed by the active persona's emphasis (6.2).
 		await this.#readPersona();
@@ -989,6 +999,9 @@ export class LoamShell extends FASTElement {
 			case 'sign-out':
 				void this.kernel?.call('auth-sign-out');
 				break;
+			case 'inbox':
+				void this.kernel?.call('section-open', { section: 'inbox' });
+				break;
 		}
 	}
 
@@ -1097,6 +1110,7 @@ observable(LoamShell.prototype, 'mainBusy');
 observable(LoamShell.prototype, 'workspaceName');
 observable(LoamShell.prototype, 'projectName');
 observable(LoamShell.prototype, 'announcement');
+observable(LoamShell.prototype, 'unread');
 observable(LoamShell.prototype, 'persona');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;

@@ -24,7 +24,7 @@ const WORKSPACE = /^(?!(apps|assets|mounts|sandbox|p)$)[a-z0-9][a-z0-9-]{0,62}$/
 const PROJECT = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 /** An instance id, less `p`, which reads as a project's segment (4.2). */
 const INSTANCE = /^(?!p$)[a-z][a-z0-9]{0,31}$/;
-const SECTION = /^(projects|documents|account|settings)$/;
+const SECTION = /^(projects|documents|account|settings|inbox)$/;
 const NOT_FOUND: RouteV1 = { kind: 'not-found' };
 
 /**

@@ -94,7 +94,11 @@ export interface OverlayOpenOptions {
 
 /** The overlays and their waiters, the kernel's own state. */
 export interface OverlayStore {
-	/** Every open or parked overlay, or only those of the app instance `instance`. */
+	/**
+	 * Every open or parked overlay, or only those of the app instance `instance`. An app's view never says what the
+	 * person's settings made of its overlays (step 5's R2): no `hidden`, and a toast's `notification` only on its own
+	 * sticky one.
+	 */
 	list(instance?: string): OverlayV1[];
 	/** What holds the slot: the open modal or prompt (6.1). */
 	modalOpen(): OverlayV1 | undefined;
@@ -121,6 +125,17 @@ export interface OverlayStore {
 		input: ToastInputV1,
 		options?: OverlayOpenOptions
 	): OverlayRefV1 | undefined;
+	/**
+	 * A toast that also landed in the inbox (6.1): its notice's id on the open record, so a sticky toast's "Open inbox"
+	 * opens the inbox at it (6.7). Nothing for an overlay that is not an open toast.
+	 */
+	land(overlayId: string, notification: string): void;
+	/**
+	 * The next toast `open` makes is a muted app's (3.7; step 5's R2): held and timed as any toast, so the app sees the
+	 * same course, but the shell does not show it. The shell's list marks it `hidden`; the app's never does. Set at
+	 * once before the call that opens it and cleared after; `open` takes it.
+	 */
+	hideNext(on: boolean): void;
 	get(overlayId: string): OverlayV1 | undefined;
 	/** When an open toast opened, on the call's clock, for a full region's `retryAfterMs`. */
 	openedAt(overlayId: string): number | undefined;
@@ -139,7 +154,8 @@ export interface OverlayStore {
 	/**
 	 * Close the app instance `instance`'s overlays on an app switch: its toasts dismissed, its modal and prompt
 	 * cancelled, its dialogs parked (`park`) or, with `cancelOnLeave`, cancelled; and every popover, whoever owns it,
-	 * since a popover closes on a switch (6.1). The toasts it dismissed, for the inbox's seam (step 5).
+	 * since a popover closes on a switch (6.1). The toasts it dismissed; those that land in the inbox did so when they
+	 * were shown (step 5), so a switch adds none.
 	 */
 	closeForSwitch(instance: string | null): OverlayV1[];
 	/** Open the app instance `instance`'s parked dialogs again (`restore`), as it becomes active (6.1, 6.2). */
@@ -189,7 +205,16 @@ export function createOverlayStore(): OverlayStore {
 	const waiters = new Map<string, Array<(result: OverlayResultV1) => void>>();
 	let counter = 0;
 
-	const toasts = () => [...open.values()].filter((overlay) => overlay.kind === 'toast');
+	/**
+	 * The toasts a new one counts against for the cap (6.1): the shown ones for a shown toast, the hidden for a hidden
+	 * one, so a muted app's unseen toasts never push a shown one off (step 5's re-check, improvement 1). The muted app
+	 * sees no other app's overlays, so the split is nothing it can read from its own calls.
+	 */
+	const toasts = (hidden = false) =>
+		[...open.values()].filter(
+			(overlay) => overlay.kind === 'toast' && (overlay.hidden === true) === hidden
+		);
+	let nextHidden = false;
 	const move = (overlayId: string, reason: OverlayReasonV1) =>
 		moves.set(overlayId, [...(moves.get(overlayId) ?? []), reason]);
 	/** A detached copy with its state and `for`, as the list shows it. */
@@ -234,9 +259,14 @@ export function createOverlayStore(): OverlayStore {
 	const store: OverlayStore = {
 		list(instance) {
 			const all = [...open.values()].map(shown);
-			return instance === undefined
-				? all
-				: all.filter((overlay) => isApp(owners.get(overlay.overlayId), instance));
+			if (instance === undefined) return all;
+			return all
+				.filter((overlay) => isApp(owners.get(overlay.overlayId), instance))
+				.map((overlay) => {
+					delete overlay.hidden;
+					if (!(overlay.input as ToastInputV1).sticky) delete overlay.notification;
+					return overlay;
+				});
 		},
 		modalOpen() {
 			const held = [...open.values()].find((overlay) => SLOT_KINDS.has(overlay.kind));
@@ -266,8 +296,10 @@ export function createOverlayStore(): OverlayStore {
 			return owner && { ...owner };
 		},
 		open(owner, kind, input, options) {
+			const hidden = kind === 'toast' && nextHidden;
+			nextHidden = false;
 			if (kind === 'toast') {
-				const shownToasts = toasts();
+				const shownToasts = toasts(hidden);
 				const oldest = shownToasts.length >= TOAST_CAP ? shownToasts[0] : undefined;
 				if (oldest) store.close(oldest.overlayId, 'dismissed', 'cap');
 			}
@@ -278,7 +310,9 @@ export function createOverlayStore(): OverlayStore {
 					if (overlay.kind === 'popover') store.close(overlay.overlayId, 'dismissed', 'replaced');
 				}
 			}
-			return add(owner, kind, input, options);
+			const ref = add(owner, kind, input, options);
+			if (hidden) (open.get(ref.overlayId) as OverlayV1).hidden = true;
+			return ref;
 		},
 		openAgentToast(owner, input, options) {
 			const shownToasts = toasts();
@@ -292,6 +326,13 @@ export function createOverlayStore(): OverlayStore {
 				store.close(evictable.overlayId, 'dismissed', 'cap');
 			}
 			return add(owner, 'toast', input, options);
+		},
+		land(overlayId, notification) {
+			const overlay = open.get(overlayId);
+			if (overlay?.kind === 'toast') overlay.notification = notification;
+		},
+		hideNext(on) {
+			nextHidden = on;
 		},
 		get(overlayId) {
 			const overlay = open.get(overlayId);
@@ -416,8 +457,8 @@ export function createOverlayStore(): OverlayStore {
 
 /**
  * Whether a toast also lands in the inbox (6.1, 3.7's `loam.notifications.toastSticky`): a sticky one always; else
- * every toast with `'always'`, a `danger` one with `'danger'`, the default, and none with `'never'`. The seam the
- * inbox (step 5) pushes through; nothing calls it before then.
+ * every toast with `'always'`, a `danger` one with `'danger'`, the default, and none with `'never'`. The inbox's
+ * `toast-show` (step 5, `late/notifications.ts`) decides by it.
  */
 export function landsInInbox(
 	input: Pick<ToastInputV1, 'sticky' | 'tone'>,

@@ -109,6 +109,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	let account = false;
 	/** Whether the settings section has been shown, so the `settings` chunk follows every later state (phase 4's 3.5). */
 	let settings = false;
+	/** Whether the inbox has been shown, so the `inbox` chunk follows every later state (phase 4's 10.3). */
+	let inbox = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -320,6 +322,18 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				({ syncSettings }) => syncSettings(host as unknown as LoamShell),
 				(cause) => {
 					settings = false;
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+					reportError(cause);
+				}
+			);
+		}
+		// The inbox, from the `inbox` chunk, loaded once it shows (phase 4 specification, 10.3).
+		if (inbox || (state.section === 'inbox' && state.active === null)) {
+			inbox = true;
+			void import('./inbox/inbox.js').then(
+				({ syncInbox }) => syncInbox(host as unknown as LoamShell),
+				(cause) => {
+					inbox = false;
 					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 					reportError(cause);
 				}

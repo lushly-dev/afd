@@ -17,7 +17,9 @@ export type ChromeAction =
 	| { action: 'sign-out' }
 	| { action: 'invitations' }
 	/** A `provider` deployment's account button: the account menu (phase 3 specification, 5.1). */
-	| { action: 'account-menu' };
+	| { action: 'account-menu' }
+	/** The title bar's inbox button: the inbox section (phase 4 specification, 10.3). */
+	| { action: 'inbox' };
 
 export const ACTION_EVENT = 'loam-action';
 

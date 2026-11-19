@@ -5,7 +5,8 @@
  * 2.4). A document's row, `palette-search`'s `kind: 'document'`, opens it with `document-open`; a setting's,
  * `kind: 'setting'`, opens the settings section at its key with `section-open` (phase 4 specification, 3.10); a query that
  * starts `new` lists what New creates, as `New: <title>`, from the `new` chunk, loaded on that first query
- * (documents specification, 7 and 8.2).
+ * (documents specification, 7 and 8.2). A query for the inbox lists "Open inbox" first, `section-open { section:
+ * 'inbox' }` (phase 4 specification, 7.1 and 10.3).
  */
 
 import type { CommandSummaryV0, LoamKernelV5, PaletteItem } from '@lushly-dev/loam-kernel';
@@ -19,8 +20,17 @@ interface PaletteShell extends NewHost {
 	readonly palette: LoamPalette;
 }
 
-/** A row that is not a command: a document to open, a setting to show, or what New creates. */
-type Row = { document: string } | { setting: string } | { item: NewItemV1 };
+/** A row that is not a command: a document to open, a setting to show, what New creates, or the inbox. */
+type Row = { document: string } | { setting: string } | { item: NewItemV1 } | { inbox: true };
+
+/** The "Open inbox" row's name, no command's (a command's name has no colon). */
+const OPEN_INBOX = 'inbox:open';
+
+/** Whether a query asks for the inbox: a part of "Open inbox", or a word for what it holds. */
+const asksInbox = (query: string): boolean => {
+	const wanted = query.trim().toLowerCase();
+	return wanted.length > 1 && ('open inbox'.includes(wanted) || /inbox|notif|notice/.test(wanted));
+};
 
 export class ShellPalette {
 	readonly #shell: PaletteShell;
@@ -95,6 +105,15 @@ export class ShellPalette {
 					disabled: false,
 				};
 			});
+		if (asksInbox(query)) {
+			this.#rows.set(OPEN_INBOX, { inbox: true });
+			rows.unshift({
+				name: OPEN_INBOX,
+				title: 'Open inbox',
+				description: 'Your notices, and what is waiting for you',
+				disabled: false,
+			});
+		}
 		if (!result?.success) return rows;
 		// The rows' flags from the commands as they are now: stage B adds more.
 		const commands = new Map<string, CommandSummaryV0>(
@@ -147,9 +166,11 @@ export class ShellPalette {
 		}
 		const result = !row
 			? await kernel.call(name, {})
-			: 'setting' in row
-				? await kernel.call('section-open', { section: 'settings', target: row.setting })
-				: await kernel.call('document-open', { document: row.document, preview: false });
+			: 'inbox' in row
+				? await kernel.call('section-open', { section: 'inbox' })
+				: 'setting' in row
+					? await kernel.call('section-open', { section: 'settings', target: row.setting })
+					: await kernel.call('document-open', { document: row.document, preview: false });
 		if (!result.success) {
 			return {
 				message: result.error?.message ?? `${name} failed`,

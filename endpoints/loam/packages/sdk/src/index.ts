@@ -119,6 +119,87 @@ export function settingsOver(client: LoamClientV1): SettingsV1 {
 }
 
 /**
+ * A notice in the person's inbox (phase 4 specification, 10.1). `source` is derived from the path that pushed it,
+ * never given: the pushing app's instance, `agent:<id>`, or `shell`. A confirmation (`kind: 'confirmation'`) is raised
+ * by the kernel alone.
+ */
+export interface NotificationV1 {
+	/** `ntf_` and 16 of `[a-z0-9]`. */
+	id: string;
+	workspace: string;
+	person: string;
+	source: string;
+	kind: 'notice' | 'confirmation';
+	/** 1 to 120 characters, plain text. */
+	title: string;
+	/** 1 to 1,000 characters, plain text; `notification-list` gives it only with `body: true`. */
+	body?: string;
+	tone: 'info' | 'success' | 'warning' | 'danger';
+	/** Where the notice leads: navigation, never execution (10.1), in this workspace. */
+	link?: ResourceLinkV1;
+	/** One of the source app's own palette commands, which the person runs with `notification-act`. */
+	action?: NotificationActionV1;
+	/**
+	 * A notice whose action ran (`done`), or is running or ran with no outcome recorded (`acting`): claimed before it
+	 * runs, so it never runs twice.
+	 */
+	state?: 'acting' | 'done';
+	/** Phase 4's step 6 fills it, the kernel alone. */
+	confirmation?: Record<string, unknown>;
+	scope: ScopeV1;
+	createdAt: number;
+	readAt?: number;
+	archivedAt?: number;
+	/** Whose it is, as the shell shows it (6.6), set by the kernel when it lists the notice; never stored. */
+	from?: OverlayFromV1;
+}
+
+/** A notice's action (10.1): one of the pushing app's own palette commands, never a human or owner command. */
+export interface NotificationActionV1 {
+	command: string;
+	label: string;
+	input?: Record<string, unknown>;
+}
+
+/** What `notification-push` takes (10.2). An agent's notice carries no `action`, but may carry a `link`. */
+export interface NotificationInputV1 {
+	title: string;
+	body?: string;
+	tone?: NotificationV1['tone'];
+	link?: ResourceLinkV1;
+	action?: NotificationActionV1;
+}
+
+/**
+ * The inbox, as an app reaches it (phase 4 specification, 12): it pushes notices to the person, at its own rate of 10
+ * a minute, and never reads them, which are the person's and their agents'.
+ */
+export interface NotificationsV1 {
+	/** Rejects with the refusal's code: `RATE_LIMITED`, `QUOTA_EXCEEDED`, `NOTIFICATION_ACTION_FOREIGN` among them. */
+	push(input: NotificationInputV1): Promise<NotificationV1>;
+}
+
+/** {@link NotificationsV1} over a caller that may call `notification-push`, as every app may (12). */
+export function notificationsOver(client: LoamClientV1): NotificationsV1 {
+	return {
+		async push(input) {
+			const result = await client.call<{ notification: NotificationV1 }>(
+				'notification-push',
+				input
+			);
+			if (!result.success || !result.data) {
+				const error = result.error;
+				throw Object.assign(new Error(error?.message ?? 'The notice was not pushed'), {
+					code: error?.code,
+					suggestion: error?.suggestion,
+				});
+			}
+			return result.data.notification;
+		},
+	};
+}
+
+/**
  * A link to a resource (documents specification, 9.1): navigation, never execution, so it names no command.
  * An app gives one as data, as in a project summary, and it does nothing until a person follows it.
  */
@@ -310,6 +391,8 @@ export interface AppContextV1 {
 	readonly documents?: DocumentsV1;
 	/** With the `settings` grant: this app's own sections (phase 4 specification, 3.8). */
 	readonly settings?: SettingsV1;
+	/** The person's inbox, to push a notice to (phase 4 specification, 10.2). */
+	readonly notifications?: NotificationsV1;
 	/**
 	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
 	 * only: a view calls `app-route-set` through its client.
@@ -453,6 +536,11 @@ export interface OverlayRefV1 {
 	owner: string;
 	kind: OverlayKindV1;
 	lifetime: 'transient' | 'session';
+	/**
+	 * A toast that also landed in the inbox, as a sticky one does (phase 4 specification, 6.1): the notice's id, so a
+	 * sticky toast's "Open inbox" opens the inbox at it (6.7).
+	 */
+	notification?: string;
 }
 
 export interface ToastInputV1 {
@@ -590,6 +678,11 @@ export interface OverlayV1 extends OverlayRefV1 {
 		| GlobalInputV1;
 	/** Absent on the shell's own (6.6). */
 	from?: OverlayFromV1;
+	/**
+	 * A muted app's toast (phase 4 specification, 3.7): the shell runs its timer and never shows it. Only the shell's
+	 * own list says so; the app's never does.
+	 */
+	hidden?: true;
 	/** `parked` for a dialog whose app is not active (6.2); absent while open. */
 	state?: 'parked';
 	/** On the kernel's own prompts only (6.1): the command it asks for, and the caller that raised it. */

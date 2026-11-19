@@ -224,21 +224,25 @@ export const KEYBINDINGS_SECTION: SettingSectionV1 = Object.freeze({
 	},
 }) as unknown as SettingSectionV1;
 
-/** `loam.notifications` (3.7): which toasts stay, and the apps whose notices stay quiet. */
+/**
+ * `loam.notifications` (3.7): which toasts also land in the inbox (6.1; a sticky one always does), and the apps whose
+ * notices stay quiet. A toast still dismisses itself on its timer whatever `toastSticky` says (step 5's correction).
+ */
 export const NOTIFICATIONS_SECTION: SettingSectionV1 = Object.freeze({
 	id: 'notifications',
 	title: 'Notifications',
-	description: 'Which toasts stay until you close them, and the apps whose notices stay quiet.',
+	description: 'Which toasts are kept in your inbox, and the apps whose notices stay quiet.',
 	levels: ['person'],
 	schema: {
 		type: 'object',
 		properties: {
 			toastSticky: {
 				type: 'string',
-				title: 'Keep toasts open',
-				description: 'Which toasts stay until you close them.',
+				title: 'Keep toasts in the inbox',
+				description:
+					'Which toasts are also kept in your inbox after they close. Toasts an app marks to stay are always kept.',
 				enum: ['never', 'danger', 'always'],
-				enumTitles: ['Never', 'Only warnings', 'Always'],
+				enumTitles: ['Never', 'Only errors', 'Always'],
 				default: 'danger',
 			},
 			muted: {

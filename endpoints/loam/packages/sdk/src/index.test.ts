@@ -5,6 +5,7 @@ import {
 	failure,
 	KIT_ELEMENT_NAMES_V1,
 	type LoamClientV1,
+	notificationsOver,
 	projectsOver,
 	SDK_VERSION,
 	settingsOver,
@@ -136,5 +137,34 @@ describe('projectsOver: the projects grant (phase 2 specification, 5)', () => {
 		expect(await projects.active()).toBeNull();
 		expect(await projects.get('gone')).toBeNull();
 		expect(await projects.list()).toEqual([]);
+	});
+});
+
+describe('notificationsOver: the inbox, as an app reaches it (phase 4 specification, 10.2, 12)', () => {
+	it('pushes a notice and answers it', async () => {
+		const notice = { id: 'ntf_0000000000000001', title: 'Ada is waiting', source: 'hello' };
+		const { client, call } = clientOf({ 'notification-push': success({ notification: notice }) });
+		const notifications = notificationsOver(client);
+		expect(await notifications.push({ title: 'Ada is waiting' })).toEqual(notice);
+		expect(call.mock.calls).toEqual([['notification-push', { title: 'Ada is waiting' }]]);
+	});
+
+	it("rejects with the refusal's code and suggestion, or in its own words", async () => {
+		const refused = failure({
+			code: 'RATE_LIMITED',
+			message: 'An app pushes at most 10 notices a minute',
+			suggestion: 'Wait for retryAfterMs; the rate is fixed',
+		});
+		await expect(
+			notificationsOver(clientOf({ 'notification-push': refused }).client).push({ title: 'x' })
+		).rejects.toMatchObject({
+			code: 'RATE_LIMITED',
+			suggestion: 'Wait for retryAfterMs; the rate is fixed',
+		});
+		await expect(
+			notificationsOver(clientOf({ 'notification-push': { success: false } }).client).push({
+				title: 'x',
+			})
+		).rejects.toThrow('The notice was not pushed');
 	});
 });

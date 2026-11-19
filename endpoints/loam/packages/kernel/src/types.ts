@@ -623,9 +623,10 @@ export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
 
 /**
  * What an app may call besides its own commands from kernel interface 4 (phase 4 specification, 12): version 1's,
- * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, and `popover-open` (step 3).
- * The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add `dialog-open`, `prompt-open`,
- * `experiment-check`, `notification-push`, `confirmation-get` and `confirmation-withdraw` here with their commands.
+ * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, `popover-open` (step 3) and
+ * `notification-push` (step 5). The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add
+ * `dialog-open`, `prompt-open`, `experiment-check`, `confirmation-get` and `confirmation-withdraw` here with their
+ * commands.
  */
 export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	...APP_CALLABLE_SHELL_COMMANDS_V1,
@@ -634,6 +635,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	'popover-open',
 	'dialog-open',
 	'prompt-open',
+	// Step 5's inbox (10.2): an app pushes a notice to the person, at its own rate.
+	'notification-push',
 ] as const;
 
 /**

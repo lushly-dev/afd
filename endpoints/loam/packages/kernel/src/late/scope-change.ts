@@ -90,10 +90,11 @@ export interface LateScopeDeps {
  * The shell commands that read or write at the call's scope, naming no project (3.4): the documents
  * specification's commands, which check a record on top, and the `app-*` commands that keep a value per
  * project, the status values, the selection; and phase 4's `setting-*`, whose project is the call's scope's alone
- * (its 3.9). `layout-*` is first paint's own. Boot's own work is not one.
+ * (its 3.9), and `notification-*`, whose notice keeps the call's scope and whose reads are filtered by it (10.1).
+ * `layout-*` is first paint's own. Boot's own work is not one.
  */
 const AT_CALL_SCOPE =
-	/^(document-|editor-|new-list$|app-get$|app-selection-|status-item-set$|setting-)/;
+	/^(document-|editor-|new-list$|app-get$|app-selection-|status-item-set$|setting-|notification-)/;
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
 	a.workspace === b.workspace && a.project === b.project;

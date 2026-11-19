@@ -6,12 +6,15 @@
  * `role="alert"`. A state's background may be translucent, so each sits on the floating surface.
  *
  * Phase 4 (its 6.4, 6.6 and 6.7): an app's or an agent's toast leads with its owner line, which the kernel sets and
- * the shell's own never has; a toast with a link offers it; and while the region holds a toast it is an F6 stop.
+ * the shell's own never has; a toast with a link offers it; and while the region holds a toast it is an F6 stop. A
+ * toast that also landed in the inbox, as a sticky one does, offers "Open inbox", which opens the inbox at it (step 5).
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
 
 export const TOAST_DISMISS_EVENT = 'loam-toast-dismiss';
+/** A toast that also landed in the inbox, asked to open the inbox at its notice (phase 4 specification, 6.7). */
+export const TOAST_INBOX_EVENT = 'loam-toast-inbox';
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger';
 
@@ -91,6 +94,14 @@ const toastTemplate = html<LoamToast>`
 		<span class="message">${(x) => x.message}</span>
 	</span>
 	<a class="link" href="${(x) => x.href}" ?hidden="${(x) => !x.href}">Open</a>
+	<button
+		class="inbox"
+		type="button"
+		?hidden="${(x) => !x.notification}"
+		@click="${(x) => x.openInbox()}"
+	>
+		Open inbox
+	</button>
 	<button
 		class="dismiss"
 		type="button"
@@ -191,6 +202,22 @@ const toastStyles = [
 			color: inherit;
 			font-weight: var(--weight-semibold);
 		}
+		.inbox {
+			flex: none;
+			min-block-size: var(--size-target-natural);
+			padding-inline: var(--size-space-sm);
+			border: 1px solid currentColor;
+			border-radius: var(--radius-md);
+			background: transparent;
+			color: inherit;
+			font: inherit;
+			font-weight: var(--weight-semibold);
+			cursor: pointer;
+		}
+		.inbox:hover {
+			background: var(--color-action-secondary-hover);
+		}
+		.inbox:focus-visible,
 		.link:focus-visible {
 			outline: var(--shell-size-focus) solid var(--color-focus-ring);
 			outline-offset: var(--shell-size-focus);
@@ -263,6 +290,8 @@ export class LoamToast extends FASTElement {
 	declare from: string;
 	/** Where the toast's link leads, or empty. */
 	declare href: string;
+	/** The notice this toast also landed as, or empty (6.1, 6.7). */
+	declare notification: string;
 
 	constructor() {
 		super();
@@ -271,11 +300,23 @@ export class LoamToast extends FASTElement {
 		this.tone = 'info';
 		this.from = '';
 		this.href = '';
+		this.notification = '';
 	}
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 		if (this.tone === 'danger') this.setAttribute('role', 'alert');
+	}
+
+	/** "Open inbox" (6.7): the shell dismisses the toast and opens the inbox at its notice. */
+	openInbox(): void {
+		this.dispatchEvent(
+			new CustomEvent(TOAST_INBOX_EVENT, {
+				detail: { overlayId: this.overlayId, notification: this.notification },
+				bubbles: true,
+				composed: true,
+			})
+		);
 	}
 
 	dismiss(): void {
@@ -293,6 +334,7 @@ attr(LoamToast.prototype, 'message');
 attr(LoamToast.prototype, 'tone');
 attr(LoamToast.prototype, 'from');
 attr(LoamToast.prototype, 'href');
+attr(LoamToast.prototype, 'notification');
 
 export const toastRegionDefinition = {
 	name: 'loam-toast-region',

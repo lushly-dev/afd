@@ -35,6 +35,7 @@ import {
 	type LoamToast,
 	type LoamToastRegion,
 	TOAST_DISMISS_EVENT,
+	TOAST_INBOX_EVENT,
 	type ToastTone,
 } from '../elements/toast.js';
 import { type AnchorOwner, anchorOwnerOf } from './anchors.js';
@@ -90,6 +91,18 @@ export class OverlaySurfaces {
 		void this.#kernel.call('overlay-dismiss', { overlayId, reason: 'user' });
 	};
 
+	/** A sticky toast's "Open inbox" (6.7): dismissed as the person's, then the inbox opened at its notice. */
+	#onInbox = (event: Event) => {
+		const { overlayId, notification } = (
+			event as CustomEvent<{ overlayId: string; notification: string }>
+		).detail;
+		// Focus leaves the toast first, so its removal sends it nowhere: the inbox takes it, at the notice.
+		(deepActiveElement(this.#shell.ownerDocument) as HTMLElement | null)?.blur();
+		void this.#kernel
+			.call('overlay-dismiss', { overlayId, reason: 'user' })
+			.then(() => this.#kernel.call('section-open', { section: 'inbox', path: notification }));
+	};
+
 	/**
 	 * A person's answer to `question`, as its private callback (the review's 2): its own id, then the kernel's word.
 	 * What the kernel accepted is told to `hearAnswers`; what it refused shows in that question, which stays open.
@@ -131,7 +144,8 @@ export class OverlaySurfaces {
 
 	/** Whether a modal's closing should read again: a toast waits, or a shown one's timer stopped. */
 	get waiting(): boolean {
-		return this.#waiting || (this.#region?.childElementCount ?? 0) > 0;
+		// A hidden toast's timer is a toast's too: held under a modal, and read again when one opens or closes (B1).
+		return this.#waiting || (this.#region?.childElementCount ?? 0) > 0 || this.#hidden.size > 0;
 	}
 
 	/** Any modal: this one, the palette, or a compact drawer. */
@@ -157,6 +171,7 @@ export class OverlaySurfaces {
 		this.#modal.onAnswer = this.#answerFor(this.#modal);
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
+		this.#shell.addEventListener(TOAST_INBOX_EVENT, this.#onInbox);
 		const anchors = this.#shell.overlayAnchors;
 		if (anchors) anchors.resolve = (owner, anchor) => this.#find(owner, anchor) !== null;
 	}
@@ -164,7 +179,10 @@ export class OverlaySurfaces {
 	dispose(): void {
 		for (const timer of this.#timers.values()) clearTimeout(timer);
 		this.#timers.clear();
+		for (const timer of this.#hidden.values()) clearTimeout(timer);
+		this.#hidden.clear();
 		this.#shell.removeEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
+		this.#shell.removeEventListener(TOAST_INBOX_EVENT, this.#onInbox);
 		this.#region?.remove();
 		this.#modal?.remove();
 		this.#region = null;
@@ -208,11 +226,48 @@ export class OverlaySurfaces {
 		if (read !== this.#reads) return;
 		await this.#renderModal(slot, layer);
 		if (read !== this.#reads) return;
-		this.#renderToasts(overlays.filter(({ kind }) => kind === 'toast'));
+		// Shown toasts, then a muted app's hidden ones, whose timers are held under the same modals (step 5's R2).
+		const toasts = overlays.filter(({ kind }) => kind === 'toast');
+		this.#renderToasts(toasts.filter(({ hidden }) => !hidden));
+		this.#runHidden(toasts.filter(({ hidden }) => hidden));
 		if (!layer) return;
 		layer.render(popovers);
 		await layer.renderDialogs(dialogs);
 		layer.renderGlobals(strips);
+	}
+
+	/** The hidden toasts' timers, by id: a muted app's (3.7), never shown. */
+	readonly #hidden = new Map<string, ReturnType<typeof setTimeout>>();
+
+	/**
+	 * A muted app's toasts (3.7; step 5's R2): never drawn, but a timed one times out as a shown one does, so the app
+	 * reads the same course of its toast; a sticky one stays until a switch, a change of person or its own close. Under
+	 * any modal its timer is held, as a shown toast's is, and starts again in full once the modal closes (the re-check's
+	 * B1: else an app's own modal would tell it it is muted). Run after the shown toasts, whose pass resets `waiting`.
+	 */
+	#runHidden(toasts: OverlayV1[]): void {
+		const held = this.#anyModal;
+		for (const [id, timer] of this.#hidden) {
+			if (!held && toasts.some(({ overlayId }) => overlayId === id)) continue;
+			clearTimeout(timer);
+			this.#hidden.delete(id);
+		}
+		if (held) {
+			// A modal's close reads again, and the timers start then.
+			if (toasts.some(({ input }) => !(input as ToastInputV1).sticky)) this.#waiting = true;
+			return;
+		}
+		for (const { overlayId, input } of toasts) {
+			const { sticky, durationMs } = input as ToastInputV1;
+			if (sticky || this.#hidden.has(overlayId)) continue;
+			this.#hidden.set(
+				overlayId,
+				setTimeout(() => {
+					this.#hidden.delete(overlayId);
+					void this.#kernel.call('overlay-dismiss', { overlayId, reason: 'timeout' });
+				}, durationMs ?? 5000)
+			);
+		}
 	}
 
 	#renderToasts(toasts: OverlayV1[]): void {
@@ -232,7 +287,7 @@ export class OverlaySurfaces {
 		}
 		const held = this.#anyModal;
 		this.#waiting = false;
-		for (const { overlayId, input, from } of toasts) {
+		for (const { overlayId, input, from, notification } of toasts) {
 			if (shown.has(overlayId)) continue;
 			if (held) {
 				this.#waiting = true;
@@ -244,6 +299,8 @@ export class OverlaySurfaces {
 			toast.message = message;
 			toast.tone = (tone ?? 'info') as ToastTone;
 			toast.from = ownerLine(from);
+			// A toast that also landed in the inbox offers "Open inbox" (phase 4 specification, 6.7).
+			toast.notification = notification ?? '';
 			if (link) void this.#linkOf(toast, link);
 			region.append(toast);
 			// A sticky toast has no timer: it stays until a person dismisses it (6.1).
