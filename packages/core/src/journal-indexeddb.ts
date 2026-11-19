@@ -10,6 +10,7 @@ import {
 	type JournalRange,
 	type JournalRecord,
 	type JournalSink,
+	journalRangeLast,
 	serializeJournalEntry,
 } from './journal.js';
 
@@ -231,22 +232,35 @@ export class IndexedDbJournalSink implements JournalSink {
 		return appended;
 	}
 
-	/** Entries in `range`, in `seq` order, once every append started before this call is done. */
+	/**
+	 * Entries in `range`, in `seq` order, once every append started before this call is done. With
+	 * `range.last`, the cursor walks back from `to` and reads no more entries than it returns.
+	 */
 	async read(range: JournalRange = {}): Promise<JournalEntry[]> {
+		const last = journalRangeLast(range);
 		await this.appending;
 		const from = range.from ?? Number.NEGATIVE_INFINITY;
 		const to = range.to ?? Number.POSITIVE_INFINITY;
-		if (Number.isNaN(from) || Number.isNaN(to) || from > to) return [];
+		if (Number.isNaN(from) || Number.isNaN(to) || from > to || last === 0) return [];
 		try {
 			const db = await this.open();
 			const transaction = transact(db, 'readonly');
 			const entries = await new Promise<JournalEntry[]>((resolve, reject) => {
 				const found: JournalEntry[] = [];
-				const request = transaction.store.openCursor();
+				const backward = last !== undefined;
+				const request = transaction.store.openCursor(null, backward ? 'prev' : 'next');
 				request.onsuccess = () => {
 					const cursor = request.result;
-					if (!cursor) return resolve(found);
+					if (!cursor) return resolve(backward ? found.reverse() : found);
 					const seq = cursor.key as number;
+					if (backward) {
+						// Backward, `continue(key)` moves to the greatest key at or below it.
+						if (seq > to) return cursor.continue(to);
+						if (seq < from) return resolve(found.reverse());
+						found.push(cursor.value as JournalEntry);
+						if (found.length === last) return resolve(found.reverse());
+						return cursor.continue();
+					}
 					if (seq < from) return cursor.continue(from);
 					if (seq > to) return resolve(found);
 					found.push(cursor.value as JournalEntry);

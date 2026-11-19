@@ -53,6 +53,12 @@ JSON Lines helpers (`serializeJournal`, `parseJournal`) are in the root entry. T
 import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
 ```
 
+Every sink's `read(range)` takes an inclusive `seq` range (`from`, `to`) and `last`, at most that
+many entries from the end of the range, still in `seq` order: `read({ last: 1 })` is the last
+entry, which gives the last `seq` without reading the rest. The IndexedDB sink walks back from the
+end for it; the file sink still reads the file. A custom sink written before `last` returns the
+whole range, so take its tail with `.slice(-n)` when the sink is not yours.
+
 In a browser, web worker or webview, `IndexedDbJournalSink` keeps the journal in IndexedDB:
 
 ```typescript
