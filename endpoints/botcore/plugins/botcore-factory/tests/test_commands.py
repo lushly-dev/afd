@@ -249,6 +249,13 @@ REFUSALS = [
     ),
     (
         "fresh",
+        {"host": {"freeMemoryGb": 40, "freeDiskGb": 12}},
+        {"branch": "fix/disk", "issues": [101]},
+        "DISK_LOW",
+        "host.minFreeDiskGb",
+    ),
+    (
+        "fresh",
         {"plansUnreadable": True},
         {"branch": "fix/e", "issues": [101]},
         "PLANS_UNREADABLE",
@@ -372,6 +379,10 @@ async def test_status_says_why_not_and_when_room_returns(make_run):
     assert "seat" in full["reason"]
     unreadable = (await make_run(plansUnreadable=True).call("lane_status")).data
     assert unreadable["canStartCell"] is False and "plans" in unreadable["reason"]
+    short = (await make_run(host={"freeDiskGb": 12}).call("lane_status")).data
+    assert short["canStartCell"] is False and "host.minFreeDiskGb is 20" in short["reason"]
+    blind = (await make_run(thisMachine="nowhere").call("lane_status")).data
+    assert blind["canStartCell"] is False and "Cannot read free disk" in blind["reason"]
     empty = (await make_run(issues=[]).call("lane_status")).data
     assert "triage-issues" in empty["reason"]
 

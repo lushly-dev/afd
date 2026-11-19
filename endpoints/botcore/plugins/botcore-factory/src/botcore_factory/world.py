@@ -342,6 +342,11 @@ class Git(Protocol):
         trouble."""
         ...
 
+    def slots_dir(self) -> str:
+        """The directory that holds the lane's slot checkouts and their build output (it may
+        not exist yet); free disk is measured there."""
+        ...
+
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         """Check ``head`` out, detached and clean, in the lane's worktree for ``slot``; its path.
 
