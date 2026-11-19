@@ -74,7 +74,8 @@ Every session PR ends merged, closed with a recorded reason, or left open with t
 session's own background waits and child processes before reporting parked, and
 never stop another session's. A session still running or awaiting live CI is in
 flight, not parked. A draft awaiting human validation can close out as not ready,
-naming the PR, who validates it and what they check.
+naming the PR, who validates it and what they check. So can a pull request left open
+for `prepare-pr`'s step 9 reason, naming that reason.
 
 ## 3. Capture
 

@@ -3,7 +3,8 @@ name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
   PR and readiness, then the merge queue. `inspect` changes nothing; `quick`
-  reruns gates and the PR; `lane` hands a factory cell to the merge lane. Use when the user says ship it or open a PR.
+  reruns gates and the PR; `lane` hands a factory cell to the merge lane. Use
+  when the user says ship it or open a PR.
 argument-hint: inspect | quick | lane
 ---
 
@@ -86,9 +87,9 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - `UNKNOWN`: not computed yet. Read again; don't infer a conflict.
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
-   - A head change of your own after the review (a fix, a conflict resolution) is reviewed before the enqueue: step 2's focused pass on the new diff, which the PR's Review section records.
+   - A head change of your own after the review (a fix, a conflict resolution) is reviewed before the enqueue by a focused pass on the new diff, outside step 2's pass limit, which the PR's Review section records. Step 7's status-number edit is exempt.
 
-9. **Enqueue once reviewed and green.** AGENTS.md authorizes a session to enqueue the pull request it opened or resumed when step 2's review covers the head with no blocker unresolved; no human review follows. A second-provider reviewer that could not start, recorded in the PR as step 2 says, does not hold it; no independent review at all does. Leave it open and report when a decision is the owner's: publishing, a UI change held for the owner's look, or a change that loosens a gate or the factory's measures ([maintain-gates](../maintain-gates/SKILL.md)). `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With that authorization and every check on the exact head green, `gh pr ready <n>` if it is a draft (the queue refuses drafts), then enqueue that head and nothing else:
+9. **Enqueue once reviewed and green.** AGENTS.md authorizes a session to enqueue the pull request it opened or resumed when step 2's review covers the head with no blocker unresolved; no human review follows. A second-provider reviewer that could not start, recorded in the PR as step 2 says, does not hold it; no independent review at all does. Leave it open and report when a decision is the owner's: publishing, a UI change held for the owner's look, or a change to the factory's own measures ([software-factory](../../../docs/features/active/software-factory/software-factory.proposal.md)). A gate change the rules already let a session make, such as step 5's ceiling raise or a test change step 2's review settled, is not one. `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With that authorization and every check on the exact head green, `gh pr ready <n>` if it is a draft (the queue refuses drafts), then enqueue that head and nothing else:
 
    ```bash
    gh api graphql -f id="$(gh pr view <n> --json id --jq .id)" -f oid=<full headRefOid verified in step 8> -f query='
