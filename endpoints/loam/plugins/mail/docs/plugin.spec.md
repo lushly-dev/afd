@@ -340,7 +340,8 @@ value from mail in a part labelled `"trust": "content"`.
 **The preview names what the call names.** Each preview's input includes the revision or digest the
 released command's input names (section 7), and **a preview refuses a value that is not current with
 `PREVIEW_CHANGED`**. Loam builds the preview's input from the held call's input, so what Loam shows
-is exactly the revision or target the approval token will bind, or nothing is shown at all. This
+is exactly the revision or target the approval token will bind, or, provided Loam shows nothing
+for a failed preview (section 20, item 14, which phase 5 does not yet say), nothing at all. This
 closes the gap that the check before the hold alone leaves: Loam's hold blocks only Loam's own
 callers, so another token can change a draft between Loam's last re-read and its call; without the
 revision in the preview's input, a call naming the next revision would pass every check.
@@ -353,15 +354,18 @@ so the first answer is all the person sees. A preview is therefore never paged o
   `OPEN_BUDGET` (64 KiB), which would cut a preview Loam calls without a budget. Step D3's
   `mail-draft-show` declares a default of 512 KiB; F2b raises it to the maximum;
 - **called as a preview** (with the digest in its input), `mail-operation-show` returns what a
-  person approves from and nothing that changes on its own: `operation`; `command` (the verb:
-  archive, label, mark, trash, move, copy); `asked` (its arguments, such as the label or the mark);
-  `query`, labelled as content; the proposal with its proposer, generation and times; and `preview`
-  with `digest`. It leaves out `items`, `nextCursor` and `refused` (whose message counts messages
-  waiting to be derived). It declares the same budget as the other previews. Called as now, without
-  a digest, it is unchanged;
+  person approves from and nothing that changes on its own: `operation`; `command`, the change's own
+  command as the engine records it (`mail-archive`, `mail-label`, `mail-mark`, `mail-trash`, or
+  `mail-operation-undo` for an undo); `asked`, its input as stored (the label or the mark, and for
+  `mail-archive` whether it moves or copies, `asked.copy`); `query`, labelled as content; the
+  proposal with its proposer and times; and `preview`, holding the proposal's generation as
+  `preview.proposal` and the `digest`. It leaves out `items`, `nextCursor` and `refused` (whose
+  message counts messages waiting to be derived). Called as now, without a digest, it is unchanged
+  but for its budget: **its default output budget becomes `MOST_BUDGET` in both forms**, on purpose,
+  so a caller with no budget never gets a cut page either;
 - a preview that does not fit fails with **`PREVIEW_TOO_LARGE`**, never the generic
-  `OUTPUT_BUDGET_EXCEEDED`, and Loam then has no preview and releases nothing (phase 5's
-  `MOUNT_APPROVAL_UNAVAILABLE`).
+  `OUTPUT_BUDGET_EXCEEDED`, and Loam then shows nothing and releases nothing, under section 20,
+  item 14.
 
 **Sized when the target is built.** So that a preview never fails in practice, every command that
 changes a draft or a reply set (create, update, adding a recipient, a submit, an edit) renders the
@@ -420,7 +424,7 @@ does not cover them (section 7).
 | `mail-draft-send` | `{ draft, revision }` | The draft's revision | The draft's current `revision` |
 | `mail-replyset-send` | `{ replyset, revision }` | The set's revision | The set's current `revision` |
 | `mail-unsubscribe` | `{ message, digest }` | The digest of the target shown | The digest of `{ message, account, method, target }` as `mail-unsubscribe-show` derives it now |
-| `mail-operation-approve` | `{ operation, digest }` | The digest of the proposal | The digest of `{ operation, proposal, proposer, command, arguments, query, items }` now, where `items` is the digest of the frozen set's places in order |
+| `mail-operation-approve` | `{ operation, digest }` | The digest of the proposal | The digest of `{ operation, proposal, proposer, command, asked, query, items }` now, where `items` is the digest of the frozen set's places in order |
 
 - **Drafts,** as step D3 is building them: a draft carries an integer `revision`, from 1, raised by
   every `mail-draft-update`, returned by `mail-draft-show`, and `mail-draft-send` takes
@@ -434,7 +438,8 @@ does not cover them (section 7).
   so re-deriving a message changes no reply's recipient.
 - **Ids are never reused.** A token binds an id with a revision, so a draft or reply set removed and
   another made could otherwise match an old token. Drafts and reply sets take their ids from
-  `AUTOINCREMENT` tables, as D3's draft table already does, so an id is never given twice.
+  `AUTOINCREMENT` tables, as D3's draft table already does (its migration 15, on
+  `lush/mail-d3-drafts`), so an id is never given twice.
 - **A proposal's generation.** A proposal is an operation in the state `proposed`, and a proposed
   resume keeps its operation's id: dismissed and proposed again, by the same caller or another, it
   is the same id with the same aggregates (`tests/proposals.rs`). So the operation gains
@@ -455,9 +460,9 @@ does not cover them (section 7).
 - **When it is checked: three times.**
   1. **By the preview,** which takes the same revision or digest (section 6). Loam shows the
      preview, and re-reads it under its hold, with the value the held call names, so a call naming
-     a revision the person was not shown gets no preview and no confirmation: a caller that names
-     the next revision and has another token raise the draft to it after Loam's last re-read is
-     refused before the person is asked.
+     a revision the person was not shown gets no preview, and so, under section 20's item 14, no
+     confirmation: a caller that names the next revision and has another token raise the draft to it
+     after Loam's last re-read is refused before the person is asked.
   2. **Before the call is held.** A middleware that runs before the approval middleware reads the
      target and refuses a call whose revision or digest is not current with `PREVIEW_CHANGED`, so
      no approval token is ever issued for a value that is not current. For `mail-replyset-send` it
@@ -811,33 +816,51 @@ So F-T12, phase 5's P5-A9 and this document's scenarios need all three answered.
   `secrets.set` would put in the keychain, so `mail-account-add` works unchanged. The file is
   created private to the person, as `--out`'s is.
 - **The provider's address from a file.** With `LOAM_MAIL_TEST_ENDPOINTS` set to a file, the IMAP
-  and SMTP endpoints are its host and port, over plain TCP. A host that is not a loopback address
-  is refused at start, so a test build never sends a password in clear over a network.
+  and SMTP endpoints, and the HTTPS unsubscribe target's host, are its host and port, over plain TCP.
+  The host must be an IP literal in `127.0.0.0/8` or `::1`; a name, even `localhost`, or any other
+  address is refused at start, so a test build never sends a password in clear over a network.
+- **Both or neither.** A test build with one of `LOAM_MAIL_TEST_SECRETS` and
+  `LOAM_MAIL_TEST_ENDPOINTS` set and not the other refuses to start, so the keychain's real password
+  is never sent in clear to a loopback port, and a made-up password is never sent to a real
+  provider.
 - **The scripted servers as a program.** The scripted IMAP server moves from `tests/support/` into
   the crate under the feature, beside D3's scripted SMTP server, and `loam-mail` gains, in a test
   build only, `loam-mail test-world --seed <name> --home <dir> --out <dir>`. It starts both
   servers on loopback ports, writes the endpoints file and the secrets file into `--out` with the
   made-up accounts' passwords, creates the data directory at `--home`, adds each account through
-  `mail-account-add` as the person, syncs once, builds the seed's records (drafts, a reply set with
-  the person's answers, the policy) through the registry as the person, prints the files' paths,
-  and keeps serving the scripted servers until it is stopped. Seeds are code in the crate:
-  `mail-f-base` is the one section 3 describes. The engine's own tests keep starting the servers
-  in process, from the same code.
+  `mail-account-add` as the person, syncs once, and builds the seed's records (drafts, a reply set
+  with the person's answers, the policy) through the registry as the person. **It makes two tokens
+  the same way:** an agent's token and an approver token, each by `mail-token-create` run in
+  process as the person, approving its own hold, and writes each to a new file in `--out` under
+  `--out`'s private-file rule (section 4.1); the command line cannot, since without a terminal it
+  runs as a script, which cannot approve. It then **releases the store** (its lock and the
+  database), so `serve` on the same `--home` does not fail with `STORE_IN_USE`, prints the files'
+  paths, and keeps serving the scripted servers until it is stopped. The scripted SMTP server and
+  the scripted HTTPS target append every message and request they receive to `received.jsonl` in
+  `--out` (envelope, recipients and the body's digest), so a test can count what was sent. Seeds
+  are code in the crate: `mail-f-base` is the one the scenario files' headers describe. The
+  engine's own tests keep starting the servers in process, from the same code.
 - **How a run goes:** `loam-mail test-world --seed mail-f-base --home <h> --out <o>`; then
   `loam-mail serve --port <p>` with `LOAM_MAIL_HOME=<h>` and `LOAM_MAIL_TEST_SECRETS` and
   `LOAM_MAIL_TEST_ENDPOINTS` naming `<o>`'s files; then the scenarios with
-  `afd scenario run <dir> --server http://127.0.0.1:<p>/mcp` and an agent's token, or Loam's
-  desktop suite with 12.3's entry.
+  `afd scenario run <dir> --server http://127.0.0.1:<p>/mcp` and the agent's token from `<o>`, or
+  Loam's desktop suite with 12.3's entry, its `bearer_file` the approver token's file in `<o>`.
 - **A test build says so.** `loam-mail serve` prints "test build: scripted servers and file
   sign-ins are available" on standard error when it starts, and `mail-status` gives
   `build: { testDoubles: true }`. With neither variable set, a test build uses the keychain and the
   real providers, as a release build does.
 - **Kept out of what people run.** The feature is never in the engine's default features or any
-  artifact step 9 installs. `loam-mail --version` names the features it was built with.
-  `loam-plugins.yml` runs clippy and the tests both without and with `--features test-doubles`, and
-  builds the release profile and fails if `test-doubles` is among its features; step 9's install
-  repeats that check on the artifact it installs. `loam-desktop.yml`'s paths gain
-  `endpoints/loam/plugins/mail/engine/**`, since its suite builds the engine.
+  artifact step 9 installs. **It does not compile without debug assertions:** the crate has
+  `#[cfg(all(feature = "test-doubles", not(debug_assertions)))] compile_error!(…)`, and Loam's
+  desktop suite builds the engine in the debug profile, so a release build with the feature cannot
+  exist. Besides, `loam-mail --version` names the features it was built with; `loam-plugins.yml`
+  runs clippy and the tests both without and with `--features test-doubles`, and builds the
+  release profile and fails if `test-doubles` is among its features; and step 9's install repeats
+  that check on the artifact it installs.
+- **Loam's desktop workflow sees the engine.** `loam-desktop.yml`'s path filters, on push and on
+  pull request, exclude `endpoints/loam/plugins/**` today. F5 adds, after that exclusion so that
+  they apply, `endpoints/loam/plugins/mail/engine/**` and `packages/rust/**` (`.cargo/config.toml`
+  is already listed), and the same paths to the desktop lane's gate in `scripts/affected.mjs`.
 - **Not chosen:** a Linux store (Secret Service) before step 7, which people on Linux need anyway
   and stays in section 14, but which needs a session keyring the CI runner does not have and would
   still leave the endpoints and the servers; and running P5-A9's sends on macOS by hand, which would
@@ -975,7 +998,7 @@ wrote.
 | F1 | To send, unsubscribe or approve as an agent | Calling a released command over MCP | Held for every caller; a non-approver gets no token, and its `_meta` is ignored | F-T3, F-T4 |
 | F2 | To become an approver | `mail-token-create` over MCP | Not listed; made only at the terminal, with a summary that names the power | F-T1 |
 | F3 | To redeem another caller's token | A token from a log or another approver | Bound to the approver's actor, single use, 30 minutes; removed from the journal and from every non-approver's result | F-T3, F-T4 |
-| F4 | To send what the person did not see | A change to the draft, the set, the target or the proposal after the preview, or a call naming a revision ahead of the draft's | The revision or digest, checked before the hold and again in the act's transaction; a proposal's generation; `PREVIEW_CHANGED`; Loam's hold and re-read besides | F-T7 |
+| F4 | To send what the person did not see | A change to the draft, the set, the target or the proposal after the preview, or a call naming a revision ahead of the draft's | The revision or digest, checked before the hold and again in the act's transaction; a proposal's generation; `PREVIEW_CHANGED`; Loam's hold and re-read besides, and Loam showing nothing for a failed preview, provided phase 5 adopts section 20's item 14 | F-T7 |
 | F5 | To add a stranger's address to a send | Content steering the copilot to edit a draft | A `new` address is refused through Loam until Q2 is answered; a `thread` address a stranger forged into the thread is shown, labelled, in the preview the person approves | F-T8, Q2 |
 | F6 | To carry one sender's text into another's reply | A reply set | Each unit holds one reply's inputs; a submit needs the reply's current unit and its claim, which the parent never sees; an edit or a submit spends it; the preview marks replies that differ | F-T9, F-T10 |
 | F7 | To change the guarded account through content from the other | The copilot under taint from one account | With Q1's (c): per-account agent limits and no change across accounts; with (a) or (d): separate instances | F-T11 |
@@ -990,17 +1013,19 @@ specification (section 15) and adds its own line to the status file before it st
 
 | PR | Contents | Needs |
 | --- | --- | --- |
-| F0 | **Test doubles as a program** (section 12.4). The `test-doubles` feature: the file store for sign-ins, the endpoints file with its loopback-only rule, the scripted IMAP server moved into the crate, `loam-mail test-world` with the `mail-f-base` seed so far as the engine has its records, the start-up line and `mail-status`'s `build`, `--version`'s features, and `loam-plugins.yml`'s runs with and without the feature and its release check. F2b adds D3's scripted SMTP server and the drafts to the seed; F3 adds the reply set | Step B5 only |
+| F0 | **Test doubles as a program** (section 12.4). The `test-doubles` feature and its `compile_error!` without debug assertions: the file store for sign-ins, the endpoints file with its rule of loopback IP literals, both variables or neither, the scripted IMAP server moved into the crate, `loam-mail test-world` with the `mail-f-base` seed so far as the engine has its records, its agent's and approver tokens in `--out` (F1's roles; until F1 merges, the agent's token alone), its release of the store and `received.jsonl`, the start-up line and `mail-status`'s `build`, `--version`'s features, and `loam-plugins.yml`'s runs with and without the feature and its release check. F2b adds D3's scripted SMTP server and the drafts to the seed; F3 adds the reply set | Step B5 only |
 | F1 | **Approver tokens and discovery.** The `role` column (the next free migration); `mail-token-create`'s `role` and summary; `--out`, refused on Windows; `mail-token-list`'s role; `mail-status`'s token counts; `with_approver`; the middleware that strips a held result's token for a non-approver over MCP and gives the engine's suggestion; AFD's bootstrap commands and `rules.rs`'s exemption for them; an AFD issue for `include_token`'s default (section 20, item 6). Tests F-T1 to F-T4 on a held test command listed over MCP, in a test registry built without `rules::check`, since `rules.rs` refuses such a command until F2a changes the rule; and F-T13 | Step B5 only |
 | F2a | **Approving proposals released.** `mail-operation-approve` listed over MCP; the proposal's generation (a migration); `mail-operation-show`'s `proposal` and `digest`, and its preview-only form; the check before the hold and in the transaction; `PREVIEW_CHANGED`; the command line filling the digest; M18 and the phase B exit test amended; the new registry rule of section 5.1. Scenario file 3 with the `mail-f-base` seed, run in the workflow. Tests F-T5 to F-T7 for it. This proves the approval path before any send exists | F1; D1 (merged) |
 | F2b | **Sends and unsubscribes released.** `mail-draft-send` and `mail-unsubscribe` listed; `mail-unsubscribe-show`; the draft's revision checks, recipients' `basis` and size cap; `PREVIEW_TOO_LARGE`; `new` recipients as Q2 is answered. Scenario files 1, 2 and 4. Tests F-T3 to F-T8 for both | F2a; **D3** (drafts, send, unsubscribe) |
 | F3 | **Reply sets released, and units.** `mail-replyset-send` listed, with the set's revision, size cap and stored recipients; `mail-replyset-show` as the preview; `mail-replyset-next` as a read returning the unit and its claim; `mail-replyset-submit`; the claim's key; the per-reply records (migration); `UNIT_NOT_OPEN`. Scenario file 5. Tests F-T3, F-T4, F-T6 and F-T7 rerun for the set's send; F-T9 and F-T10 | F2a; **E3** (reply sets) |
 | F4 | **Taint per account,** as the owner answers Q1. For (c): per-account agent limits (migration), `mail-policy-set`'s `account`, `SELECTION_SPANS_ACCOUNTS`; F-T11. For (a): documentation of two instances, and step 9's amendment notes an install per account. For (b) or (d): this specification is amended first | D1 (merged); Q1's answer |
-| F5 | **The mount package.** `endpoints/loam/plugins/mail/mount/` with its manifest, and the plugin's README section with section 12's steps; `loam-desktop.yml`'s paths gain the engine | F1; Loam's phase 5 steps 4 and 5, for `labels`, `approvals`, `preview` and `expose.apps` in the entry |
+| F5 | **The mount package.** `endpoints/loam/plugins/mail/mount/` with its manifest, and the plugin's README section with section 12's steps; `loam-desktop.yml`'s paths and `scripts/affected.mjs`'s desktop gate gain the engine and `packages/rust/**` (section 12.4) | F1; Loam's phase 5 steps 4 and 5, for `labels`, `approvals`, `preview` and `expose.apps` in the entry |
 | F6 | **`mailapp`'s send slice** (section 13.1) | F2b, F5; Loam's phase 5 step 4 (`calls` grants to mounts) |
 
 **Order.** F0 and F1 now; F2a after F1; F4 once Q1 is answered; F2b after D3; F3 after E3; F5 when Loam's
-step 5 merges; F6 after F2b and F5. Loam's step 7 (P5-A9) mounts the engine after F3, F5 and F6,
+step 5 merges; F6 after F2b and F5. Loam's step 7 (P5-A9) mounts the engine after F3, F5 and F6, and
+needs phase 5 amended by section 20's items 14 (a failed preview shows nothing) and 15 (a preview
+takes the held call's revision or digest), and
 and needs Loam's desktop transport on MCP 2026-07-28 (F-T12). **Trust review** for F1, F2a, F2b
 and F3, which change who can send.
 
@@ -1022,9 +1047,9 @@ Loam's step 7.
 | F-T9 | Units | `mail-replyset-next` is a read and not journaled; its result has the marker with `submit.command` `mail-replyset-submit`, `field` `text`, the claim in `submit.input` and instructions within 4,096 characters; the returned `unit` and `claim` equal the marker's exactly, and the unit stored with a submission equals the one handed out; `mail-replyset-submit` is a non-destructive mutation with no approval; a guessed claim, another reply's claim, a spent claim, a claim from before the reply's answers changed and a composer's late result after a person's edit are each `UNIT_NOT_OPEN`; a text over 32,768 characters is refused; the input cannot set a recipient; each submission is recorded with its inputs; the set's revision rises |
 | F-T10 | Units hold one reply's inputs | In a set of two senders, each unit's parts hold only its own sender's message and the answers to their questions, by search of the result for the other sender's text and address |
 | F-T11 | Per account (Q1's (c)) | An agent's limits of 0 on one account make its change there a proposal while the other account keeps the default; an agent's selection over two accounts cannot be changed, guarded or not; the person's can |
-| F-T12 | One real confirmation, one send | In Loam's desktop suite (phase 5's step 7), with the real engine mounted by section 12's entry: on Linux, with the engine built with `test-doubles` (section 12.4), a person's confirmation of a send produces exactly one message at the scripted SMTP server; Loam's transport on MCP 2025-06-18 cannot redeem the token, and the engine refuses it |
+| F-T12 | One real confirmation, one send | In Loam's desktop suite (phase 5's step 7), with the real engine mounted by section 12's entry: on Linux, with the engine built with `test-doubles` (section 12.4), a person's confirmation of a send produces exactly one line in `received.jsonl` (section 12.4); Loam's transport on MCP 2025-06-18 cannot redeem the token, and the engine refuses it |
 | F-T13 | Discovery | Loam's `discoverInstance` against `loam-mail serve`, with an ordinary token and with an approver token, lists the engine's commands with the four released ones and no terminal-only one; `rules.rs` passes with the bootstrap commands registered |
-| F-T14 | Test doubles | A build without `test-doubles` has no `test-world`, ignores both variables and reports no feature; a test build with an endpoints file naming a host that is not loopback refuses to start; with neither variable it uses the keychain; `mail-account-add` writes the file store; `test-world` builds `mail-f-base` and `serve` reads it; the release profile's check fails when the feature is on |
+| F-T14 | Test doubles | A build without `test-doubles` has no `test-world`, ignores both variables and reports no feature; a release build with it fails to compile; a test build with an endpoints file naming `localhost`, a name, or an address outside `127.0.0.0/8` and `::1` refuses to start, and so does one with only one of the two variables; with neither it uses the keychain; `test-world` writes an agent's token and an approver token to new private files in `--out`, the first refused as an approver and the second marked one, both listed by `mail-token-list` with their roles; `test-world` releases the store, so `serve` starts on its `--home`; a message sent through the scripted SMTP server appears once in `received.jsonl`; `mail-account-add` writes the file store; `test-world` builds `mail-f-base` and `serve` reads it; the release profile's check fails when the feature is on |
 | Scenarios | The five files | Each passes against `loam-mail serve` on `mail-f-base` in the workflow, from F2a (file 3), F2b (files 1, 2 and 4) and F3 (file 5) |
 
 Loam's side, the mount on the desktop with its confirmation, hold and units, is phase 5's P5-A6,
@@ -1083,7 +1108,8 @@ owner can confirm or amend them.
     draft to the revision the call names before step 4 would have it sent. So: **any preview
     failure, `PREVIEW_CHANGED`, `PREVIEW_TOO_LARGE` or another, means no confirmation is shown and
     nothing is released, and a failed re-read under the hold runs nothing.** Phase 5's P5-A6
-    should test it with `mailfix`, whose preview fails on a stale revision as the engine's does.
+    should test it with `mailfix`, once item 15 gives `mailfix`'s preview the held call's revision,
+    so that it fails on a stale revision as the engine's does.
 15. **A preview's input.** 7.2's sketch and phase 5's `mailfix` fixture give the send's preview
     `input = ["draft"]`. With the draft alone, Loam's last re-read can match while another token
     raises the draft to the revision the held call names, which is then sent. Each preview here
@@ -1124,7 +1150,7 @@ in scenario 5; the draft's authorship in 8.3; the status file's lines.
 | Finding | Held? | What changed |
 | --- | --- | --- |
 | N1: B1 narrowed: Loam's hold blocks only its callers, so a call naming the next revision passes once another token reaches it after Loam's last re-read | Yes | The revision or digest is part of each preview's input, and a preview refuses a value that is not current (sections 6 and 7); F-T7; scenarios 2 to 5 |
-| N2: the engine's sign-ins are macOS-only, Loam's desktop suite runs on Linux, and `serve` has no in-memory store | Yes (`secrets.rs`, `loam-desktop.yml`) | Section 12.4's `test-doubles` feature, excluded from releases; F5; F-T12 |
+| N2: the engine's sign-ins are macOS-only, Loam's desktop suite runs on Linux, and `serve` has no in-memory store | Yes (`secrets.rs`, `loam-desktop.yml`) | Section 12.4's `test-doubles` feature, excluded from releases; F0 (originally F5); F-T12 |
 | N3: Loam sets no output budget and open reads default to 64 KiB; byte caps miss the escaping that budgets and MCP replies count | Yes (`read.rs`, `lib.rs`'s `reply_size`) | Each preview's default budget is its largest; targets are refused when built unless their rendered preview fits, measured both ways; M39; F-T6 with worst-case text |
 
 Improvements taken: the bootstrap commands' real exposure and their registration on the `Arc`;
@@ -1148,6 +1174,19 @@ checked against the code:
 Improvements taken: unsubscribe and operation previews measured when read, and the target's length
 bounded; ids never reused; clippy and tests with the feature, `loam-desktop.yml`'s paths and step
 9's release check; a test build saying so; how sign-ins and the seed get in.
+
+**A confirming pass on `56172fb6`,** the same day: the operation's preview form and section 20's
+item 14 confirmed, and one blocker: the run sequence of 12.4 had no way to make tokens on Linux CI,
+since `mail-token-create` is a person's command and the command line without a terminal runs as a
+script, which cannot approve (`main.rs`, `cli.rs`). Held: `test-world` now makes an agent's token and
+an approver token as the person, in process, into private files in `--out`; F-T14 asserts both.
+Improvements taken: `received.jsonl` for the scripted SMTP server and HTTPS target; the store
+released before `test-world` prints; loopback as IP literals only; both variables or neither;
+`compile_error!` without debug assertions; the desktop workflow's and gate's paths; item 14's test
+resting on item 15; Loam showing nothing on a failed preview cited as section 20's condition, and
+items 14 and 15 among step 7's needs; the operation's real command names, `asked` throughout, and
+the generation in `preview.proposal`; the raised budget of `mail-operation-show`'s paged form; the
+seed's description and F0 named in the N2 row.
 
 ## Questions for the owner
 
