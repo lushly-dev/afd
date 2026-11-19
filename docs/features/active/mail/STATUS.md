@@ -129,7 +129,7 @@ waits for Gmail has a line of its own.
 
 - E3: Reply sets. Not started.
 
-- F: The Loam plugin: the mount and the native app. Not started; needs Loam's phase 5 and phase 6's desktop lane, M3, where it runs (Loam's D132, 2026-11-16).
+- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is drafted, for review, on `lush/mail-f-spec`; the engine's changes it plans wait for D3 and E3, and the native app waits for Loam's phase 5 (D132).
 
 - G: Composition with a connected Umbel. Not started.
 
@@ -279,6 +279,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-19 | Step F's specification drafted | [`plugin.spec.md`](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) written against `main` at `d890d02d`, with five scenario files checked by AFD's parser and coverage report: an approver role on tokens, the four commands released over MCP with previews, revisions and digests (`PREVIEW_CHANGED`), units from reply sets, taint per account, the hand mount and the native app's shape. Three questions for the owner. Not reviewed; nothing built. |
 
 ### Sessions: phase G, composition with a connected Umbel
 

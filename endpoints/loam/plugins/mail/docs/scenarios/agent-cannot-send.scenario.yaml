@@ -1,0 +1,56 @@
+# Draft JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
+# `loam-mail serve` on the scripted IMAP server, seeded as `mail-f-base`, with
+# `afd scenario run <dir> --server <url>` and an ordinary agent's token: not an approver. The
+# data is invented. mail-f-base holds the person's account 1 (me@example.com) and thread 7, in
+# which ada@example.com asks whether Thursday works. The draft commands' keys are step D3's; the
+# first step F pull request aligns this file with D3 as merged.
+# What a scenario cannot show: that the held result carries no `details.approvalToken` (an
+# error's details cannot be asserted), and that an approver's evidence releases the send (every
+# step runs as one caller, and the runner cannot set `_meta`). Both are the engine's tests F-T3
+# and F-T5.
+name: An agent cannot send, though it can see the command
+description: >-
+  When an agent connected over MCP asks the mail engine to send, I want the send held for me
+  whatever the agent does, so that nothing leaves my account unless I decided it.
+job: agent-cannot-send
+tags: [slice, mail-engine]
+steps:
+  - description: The agent drafts a reply to Ada
+    command: mail-draft-create
+    input: { thread: 7, body: Thursday works for me. }
+    expect:
+      success: true
+      data:
+        draft:
+          revision: 1
+  - description: The agent asks to send it; the engine holds the send for the person
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+        suggestion: { contains: terminal }
+  - description: The draft is still a draft
+    command: mail-draft-show
+    input: { draft: "${{ steps[0].data.draft.id }}" }
+    expect:
+      success: true
+      data:
+        draft:
+          state: draft
+          revision: 1
+  - description: The agent cannot make itself an approver
+    command: mail-token-create
+    input: { name: Helper, role: approver }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_FOUND
+  - description: The agent cannot change the rules it works under
+    command: mail-policy-set
+    input: { changePerCall: 1000 }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_FOUND
