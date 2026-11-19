@@ -60,6 +60,13 @@ describe('FileJournalSink', () => {
 		await reopened.append(record('c'));
 
 		expect((await reopened.read({ from: 2, to: 2 })).map((entry) => entry.command)).toEqual(['b']);
+		// #663: the last entries of a range.
+		expect((await reopened.read({ last: 1 })).map((entry) => entry.command)).toEqual(['c']);
+		expect((await reopened.read({ last: 2, to: 2 })).map((entry) => entry.command)).toEqual([
+			'a',
+			'b',
+		]);
+		await expect(reopened.read({ last: -1 })).rejects.toThrow(RangeError);
 	});
 
 	it('reads a missing file as empty and rejects a corrupt one', async () => {
