@@ -54,7 +54,13 @@ const PHASE_5_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 /** What would show over the next app, from a view already on its way out. */
-const OVERLAY_COMMANDS: ReadonlySet<unknown> = new Set(['toast-show', 'modal-open']);
+const OVERLAY_COMMANDS: ReadonlySet<unknown> = new Set([
+	'toast-show',
+	'modal-open',
+	'popover-open',
+	'dialog-open',
+	'prompt-open',
+]);
 
 const refusal = (rpcCode: number, message: string, suggestion: string) => ({
 	code: 'VIEW_CALL_REFUSED',

@@ -262,20 +262,22 @@ Catalog version 1 and what phase 1 serves of it are in the
 | --- | --- | --- | --- | --- |
 | toast | transient, timed, 1 to 30 s; `sticky` never times out | dismissed; sticky ones, and those `loam.notifications.toastSticky` selects, also land in the inbox | the shell's toast region, an F6 stop while it holds one | 5 on screen, a sixth dismisses the oldest; an agent's never pushes off a shell or `danger` toast |
 | popover | transient, light-dismiss | closed | anchored to a `data-loam-anchor` in the owner's surface, top layer | one per invoker |
-| dialog | session | parked and restored; `cancel-on-leave` cancels | top layer, non-modal | per app |
-| modal | session | cancelled, result reported to the owner | top layer, rest of the shell inert | one shell-wide |
-| prompt | session | cancelled | the agent's confirmation and input-required flow | one per agent turn |
-| global | shell | survives | top layer | shell only |
+| dialog | session | parked and restored with its app; `cancelOnLeave` cancels | non-modal (`show()`), above the parts at the inline end; text, up to 3 actions, a native app's own element | 3 per owner, parked ones counted (`OVERLAY_LIMIT`) |
+| modal | session | cancelled, result reported to the owner | top layer, rest of the shell inert, `aria-modal`; text, up to 3 actions, a native app's own element | the slot: one modal or prompt shell-wide (`OVERLAY_MODAL_BUSY`, the palette too) |
+| prompt | session | cancelled | as a modal, in the slot: a value of plain fields, checked by the kernel; the kernel's own carry `for: { command, caller }` | the slot |
+| global | until its condition ends | survives | a strip under the title bar, a polite status | one per id; the shell's alone (`overlay-global-set`, internal) |
 
 Focus returns to the invoker; modals trap focus; every overlay carries its
 owner id, and the overlay manager refuses an open from an app that is not
 active unless the kind is `toast` or the call is a `global` from the shell.
-**Agents open toasts only** (phase 4, D121), the target phase 4 reaches with
-its step 4: the agent interface's toast is `agent:<id>`'s, at most 5 a minute
-for the agent interface per person (the copilot apart), and its popover is
-`HUMAN_REQUIRED`; until step 4 its `modal-open` still opens as the shell's,
-and its dialogs, prompts and `palette-run` arrive refused with their steps. An
-agent cancels or dismisses an overlay but never confirms one. An app's or an
+**Agents open toasts only** (phase 4, D121, since its step 4): the agent
+interface's toast is `agent:<id>`'s, at most 5 a minute for the agent
+interface per person (the copilot apart), and its popover, dialog, modal and
+prompt are `HUMAN_REQUIRED` (`palette-run` joins them with step 6). An agent,
+like any caller but a person's gesture or the owning app, cancels or dismisses
+an app's overlay but never confirms or acts on one; the shell's own close only
+by a person's gesture, or by the caller a kernel prompt names in its `for`,
+whose cancel ends it `withdrawn` (F6). An app's or an
 agent's overlay shows whose it is ("From <app>"; "From <agent>, for
 <person>"), set by the kernel from the owner's kind, never its id; the shell's
 own carries none, and no app title says "Loam".

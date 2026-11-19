@@ -1,18 +1,37 @@
 /**
- * @fileoverview `loam-modal`: an overlay's modal (phase 1 specification, section 8), a native `<dialog>`
- * opened with `showModal()`, holding a title, a body and two buttons, as text. Focus starts on cancel when
- * it is `danger`, otherwise on confirm. Escape cancels, Tab wraps as the drawers do, and focus returns to
- * the invoker. It closes when the kernel's state says so: a press is an event, and the shell runs
- * `overlay-dismiss`.
+ * @fileoverview `loam-modal`: an overlay's question (phase 1 specification, section 8; phase 4 specification, 6.3 to
+ * 6.7), a native `<dialog>` holding an owner line, a title, a body, an app's own element or a prompt's fields, and its
+ * answers, as text. In the slot (a modal or a prompt) it opens with `showModal()`, `aria-modal`, and Tab wraps; as a
+ * dialog it opens with `show()`, non-modal. Focus starts on the default answer, on cancel when it is `danger`, or on a
+ * prompt's first field, and returns to the invoker. Escape cancels. It closes when the kernel's state says so: a press
+ * is an event, and the shell runs `overlay-dismiss`, showing what the kernel refused.
  */
 
 import { css, FASTElement, html, observable, ref, Updates } from '@lushly-dev/fast-element';
-import type { ModalInputV1 } from '@lushly-dev/loam-sdk';
+import type {
+	DialogInputV1,
+	ModalInputV1,
+	OverlayActionV1,
+	PromptInputV1,
+} from '@lushly-dev/loam-sdk';
 import { actionButton } from '../apps/action-styles.js';
 import { deepActiveElement } from './events.js';
 import { trapTab } from './focus.js';
+import { type PromptFields, promptFields } from './prompt-fields.js';
 
 export const MODAL_RESULT_EVENT = 'loam-modal-result';
+
+/** What the shell shows: a modal's, a dialog's or a prompt's input. */
+export type QuestionInput = ModalInputV1 | DialogInputV1 | PromptInputV1;
+
+/** How it shows: in the slot, or as a non-modal dialog. */
+export interface QuestionOptions {
+	kind: 'modal' | 'dialog' | 'prompt';
+	/** The owner line (6.6), empty for the shell's own. */
+	from?: string;
+	/** An app's own element, mounted for it (6.4). */
+	element?: HTMLElement | null;
+}
 
 const template = html<LoamModal>`
 	<dialog
@@ -23,20 +42,12 @@ const template = html<LoamModal>`
 		@close="${(x) => x.handleClosed()}"
 		@keydown="${(x, c) => x.handleKeydown(c.event as KeyboardEvent)}"
 	>
+		<p class="from" ?hidden="${(x) => !x.from}">${(x) => x.from}</p>
 		<h2 id="modal-title">${(x) => x.input?.title ?? ''}</h2>
-		<p id="modal-body">${(x) => x.input?.body ?? ''}</p>
-		<div class="buttons">
-			<button class="action cancel" type="button" @click="${(x) => x.answer('cancel')}">
-				${(x) => x.input?.cancelLabel ?? 'Cancel'}
-			</button>
-			<button
-				class="${(x) => (x.input?.danger ? 'action danger confirm' : 'action primary confirm')}"
-				type="button"
-				@click="${(x) => x.answer('confirm')}"
-			>
-				${(x) => x.input?.confirmLabel ?? 'OK'}
-			</button>
-		</div>
+		<p id="modal-body" ?hidden="${(x) => !x.input?.body}">${(x) => x.input?.body ?? ''}</p>
+		<div class="content" ${ref('content')}></div>
+		<p class="error" role="alert" ?hidden="${(x) => !x.error}">${(x) => x.error}</p>
+		<div class="buttons" ${ref('buttons')}></div>
 	</dialog>
 `;
 
@@ -45,6 +56,9 @@ const styles = [
 	css`
 		:host {
 			display: contents;
+		}
+		[hidden] {
+			display: none;
 		}
 		dialog {
 			box-sizing: border-box;
@@ -62,6 +76,24 @@ const styles = [
 				opacity var(--duration-fast) var(--easing-standard),
 				display var(--duration-fast) var(--easing-standard) allow-discrete,
 				overlay var(--duration-fast) var(--easing-standard) allow-discrete;
+		}
+		/* A dialog sits at the inline end, above the parts; the next ones above it (data-stack, its place). */
+		dialog:not(:modal) {
+			position: fixed;
+			inset: auto var(--space-layout-md) var(--space-layout-md) auto;
+			z-index: var(--z-index-popover);
+			margin: 0;
+			inline-size: min(92vw, var(--shell-size-sidebar-max));
+			border: 1px solid var(--color-border-strong);
+		}
+		:host([data-stack='1']) dialog:not(:modal) {
+			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 2);
+		}
+		:host([data-stack='2']) dialog:not(:modal) {
+			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 4);
+		}
+		:host([data-stack='3']) dialog:not(:modal) {
+			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 6);
 		}
 		dialog[open] {
 			opacity: 1;
@@ -91,6 +123,64 @@ const styles = [
 			line-height: var(--type-body-md-line);
 			overflow-wrap: anywhere;
 		}
+		.from {
+			margin-block-end: var(--space-stack-xs);
+			font-size: var(--type-label-sm-size);
+			line-height: var(--type-label-sm-line);
+		}
+		.error {
+			color: var(--color-state-danger-text);
+		}
+		.content:empty {
+			display: none;
+		}
+		.content {
+			margin-block-end: var(--space-stack-md);
+		}
+		.field {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-stack-xs);
+			margin-block-end: var(--space-stack-sm);
+			font-size: var(--type-label-sm-size);
+			line-height: var(--type-label-sm-line);
+			font-weight: var(--type-label-sm-weight);
+		}
+		.field.check {
+			flex-direction: row-reverse;
+			justify-content: flex-end;
+			align-items: center;
+		}
+		.field .hint {
+			margin: 0;
+			font-weight: var(--type-body-md-weight);
+		}
+		input:not([type='checkbox']),
+		select {
+			box-sizing: border-box;
+			min-block-size: var(--size-target-natural);
+			padding-inline: var(--size-space-sm);
+			border: 1px solid var(--color-field-border);
+			border-radius: var(--radius-md);
+			background: var(--color-field-background);
+			color: var(--color-field-text);
+			font: inherit;
+			font-weight: var(--type-body-md-weight);
+		}
+		input[type='checkbox'] {
+			inline-size: var(--size-target-compact);
+			block-size: var(--size-target-compact);
+			margin: 0;
+		}
+		input:focus-visible,
+		select:focus-visible {
+			outline: var(--shell-size-focus) solid var(--color-focus-ring);
+			outline-offset: var(--size-space-xs);
+			border-color: var(--color-field-border-focus);
+		}
+		input[aria-invalid='true'] {
+			border-color: var(--color-field-border-invalid);
+		}
 		.buttons {
 			display: flex;
 			flex-wrap: wrap;
@@ -109,48 +199,128 @@ const styles = [
 				background: Canvas;
 				color: CanvasText;
 			}
-			p {
+			p,
+			.error {
 				color: CanvasText;
 			}
 		}
 	`,
 ];
 
+/** The answers a question offers (6.4): its actions with cancel, or cancel and confirm. */
+function answersOf(input: QuestionInput): OverlayActionV1[] {
+	const given = input as {
+		actions?: OverlayActionV1[];
+		confirmLabel?: string;
+		cancelLabel?: string;
+		danger?: boolean;
+	};
+	const cancel: OverlayActionV1 = { id: 'cancel', label: given.cancelLabel ?? 'Cancel' };
+	if (given.actions) {
+		return given.actions.some((action) => action.id === 'cancel')
+			? given.actions
+			: [cancel, ...given.actions];
+	}
+	return [
+		cancel,
+		{ id: 'confirm', label: given.confirmLabel ?? 'OK', tone: given.danger ? 'danger' : 'primary' },
+	];
+}
+
 export class LoamModal extends FASTElement {
-	declare input: ModalInputV1 | null;
+	declare input: QuestionInput | null;
+	declare from: string;
+	declare error: string;
 	declare dialog: HTMLDialogElement;
+	declare content: HTMLElement;
+	declare buttons: HTMLElement;
 	overlayId = '';
+	kind: QuestionOptions['kind'] = 'modal';
+	#fields: PromptFields | null = null;
 	#opener: Element | null = null;
 
 	constructor() {
 		super();
 		this.input = null;
+		this.from = '';
+		this.error = '';
 	}
 
 	get isOpen(): boolean {
 		return this.dialog?.open === true;
 	}
 
-	/** Show the modal, once its text is in, with focus on its first answer. */
-	async show(overlayId: string, input: ModalInputV1): Promise<void> {
+	/** Show it, once its text is in, with focus on its first answer or field. */
+	async show(
+		overlayId: string,
+		input: QuestionInput,
+		options: QuestionOptions = { kind: 'modal' }
+	): Promise<void> {
 		this.overlayId = overlayId;
+		this.kind = options.kind;
 		this.input = input;
+		this.from = options.from ?? '';
+		this.error = '';
 		await Updates.next();
 		if (this.overlayId !== overlayId) return;
-		this.#opener = deepActiveElement(this.ownerDocument);
-		this.dialog.showModal();
-		this.shadowRoot
-			?.querySelector<HTMLElement>(input.danger ? 'button.cancel' : 'button.confirm')
-			?.focus();
+		const doc = this.ownerDocument;
+		this.content.replaceChildren();
+		this.#fields = null;
+		if (options.kind === 'prompt') {
+			const prompt = input as PromptInputV1;
+			this.#fields = promptFields(doc, prompt.schema, prompt.value);
+			this.content.append(this.#fields.element);
+		} else if (options.element) this.content.append(options.element);
+		this.buttons.replaceChildren();
+		const answers = answersOf(input);
+		let first: HTMLElement | null = null;
+		for (const answer of answers) {
+			const button = doc.createElement('button');
+			button.type = 'button';
+			const tone =
+				answer.tone === 'danger'
+					? 'danger'
+					: answer.tone === 'primary' || answer.default
+						? 'primary'
+						: '';
+			// `cancel` and `confirm` keep phase 1's classes, which the shell's own tests press.
+			const which = answer.id === 'cancel' || answer.id === 'confirm' ? answer.id : '';
+			button.className = ['action', tone, which].filter(Boolean).join(' ');
+			button.textContent = answer.label;
+			button.dataset.answer = answer.id;
+			button.addEventListener('click', () => this.answer(answer.id));
+			this.buttons.append(button);
+			if (answer.default) first = button;
+		}
+		const danger = (input as { danger?: boolean }).danger === true;
+		first ??= this.buttons.querySelector<HTMLElement>(
+			`[data-answer="${danger ? 'cancel' : answers.some((each) => each.id === 'confirm') ? 'confirm' : 'cancel'}"]`
+		);
+		this.#opener = deepActiveElement(doc);
+		if (options.kind === 'dialog') {
+			this.dialog.removeAttribute('aria-modal');
+			this.dialog.show();
+		} else {
+			// A modal and a prompt are modal (section 15), whatever an assistive technology makes of `showModal`.
+			this.dialog.setAttribute('aria-modal', 'true');
+			this.dialog.showModal();
+		}
+		(this.#fields?.first ?? first)?.focus();
 	}
 
 	/** Close it, returning focus to the invoker. False when the invoker has gone, as a switch removes it. */
 	hide(): boolean {
 		this.overlayId = '';
-		if (!this.dialog.open) return true;
+		if (!this.dialog?.open) return true;
+		const inside =
+			this.contains(deepActiveElement(this.ownerDocument)) ||
+			this.shadowRoot?.activeElement != null;
 		this.dialog.close();
+		this.content.replaceChildren();
 		const opener = this.#opener;
 		this.#opener = null;
+		// A non-modal dialog the person was not in leaves focus where it is.
+		if (this.kind === 'dialog' && !inside) return true;
 		if (opener instanceof HTMLElement && opener.isConnected && !opener.closest('[inert]')) {
 			opener.focus();
 			return true;
@@ -158,11 +328,18 @@ export class LoamModal extends FASTElement {
 		return false;
 	}
 
-	answer(result: 'confirm' | 'cancel'): void {
+	/** What the kernel refused of an answer, shown in place, the prompt kept open. */
+	refuse(message: string): void {
+		this.error = message;
+		this.#fields?.first?.setAttribute('aria-invalid', 'true');
+	}
+
+	answer(result: string): void {
 		if (this.overlayId === '') return;
+		const value = result !== 'cancel' && this.#fields ? this.#fields.read() : undefined;
 		this.dispatchEvent(
 			new CustomEvent(MODAL_RESULT_EVENT, {
-				detail: { overlayId: this.overlayId, result },
+				detail: { overlayId: this.overlayId, result, ...(value !== undefined ? { value } : {}) },
 				bubbles: true,
 				composed: true,
 			})
@@ -180,10 +357,18 @@ export class LoamModal extends FASTElement {
 	}
 
 	handleKeydown(event: KeyboardEvent): boolean {
+		if (this.kind === 'dialog') {
+			// A non-modal dialog has no cancel event of its own: Escape cancels it here.
+			if (event.key === 'Escape' && !event.defaultPrevented) {
+				event.preventDefault();
+				this.answer('cancel');
+			}
+			return true;
+		}
 		trapTab(event, this.dialog);
 		return true;
 	}
 }
-observable(LoamModal.prototype, 'input');
+for (const name of ['input', 'from', 'error'] as const) observable(LoamModal.prototype, name);
 
 export const modalDefinition = { name: 'loam-modal', template, styles } as const;

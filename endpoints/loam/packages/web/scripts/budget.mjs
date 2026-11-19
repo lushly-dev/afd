@@ -324,6 +324,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
  * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
  * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
+ *
+ * Phase 4's step 4 (overlays II), under D115, measured on Windows with Node 26.13.1 against `main` at `42f9e1c1`:
+ * `lateMinified` 93,000 to 103,000 (92,316 to 102,425, +10,109: `dialog-open`, `prompt-open` and `overlay-global-set`
+ * with their written JSON Schemas, `modal-open`'s actions and element, a prompt's field schema and its value check,
+ * and 6.5's answer rule; step 3's re-estimate gave this step about 6,000); `lateEditorMinified` 15,305 to 15,400
+ * (15,336, +32: a tab owner's parked dialogs restored with its tab); `surfacesMinified` 88,200 to 97,000 (96,469,
+ * from step 3's 87,943, +8,526: `loam-modal` as the slot's and a dialog's renderer, with actions, an owner line, an
+ * app's element and a prompt's fields, and `loam-global`). First paint 308,987 (+21), the kernel alone 118,973 (+79),
+ * `apps` 417,404 and `overlays` 6,608 within their rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -359,9 +368,9 @@ export const CEILINGS = Object.freeze({
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
-	lateMinified: 93_000,
+	lateMinified: 103_000,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 15_305,
+	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
 	lateSettingsMinified: 30_500,
@@ -376,7 +385,7 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	appsMinified: 417_500,
-	surfacesMinified: 88_200,
+	surfacesMinified: 97_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
