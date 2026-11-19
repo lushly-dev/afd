@@ -1,7 +1,7 @@
 //! The Rust server's protocol criteria over Streamable HTTP (specification section 10), against a
 //! sealed Umbel host with zero plugins: discovery, the tool list, calls, header and body checks,
 //! Host and Origin validation, the body cap, and the bearer layer. Each test names the AFD test
-//! (`server_http.rs`, `server_hybrid.rs`) whose criterion it covers.
+//! (`server_http.rs`, `tool_strategies_vectors.rs`) whose criterion it covers.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -55,7 +55,7 @@ async fn discover_names_umbel_with_the_default_hybrid_instructions() {
     assert_eq!(result["capabilities"]["tools"]["listChanged"], false);
 }
 
-// server_http.rs: tools_list_shows_exposed_commands_with_cache_hints; server_hybrid.rs: the lists
+// server_http.rs: tools_list_shows_exposed_commands_with_cache_hints; tool_strategies_vectors.rs: the lists
 #[tokio::test]
 async fn tools_list_is_the_meta_tools_then_the_first_class_tools() {
     let (_dir, host) = server();

@@ -109,18 +109,18 @@ describe('P2-E13: E8: grants', () => {
 
 	it('refuses a required grant phase 1 does not serve, naming its phase', async () => {
 		const { kernel } = await boot([entry('bad')], {
-			'apps/bad/': { manifest: manifest('bad', { grants: [{ name: 'settings', reason: 'r' }] }) },
+			'apps/bad/': { manifest: manifest('bad', { grants: [{ name: 'events', reason: 'r' }] }) },
 		});
 		const bad = await statusOf(kernel, 'bad');
 		expect(bad?.error?.code).toBe('GRANT_UNAVAILABLE');
-		expect(`${bad?.error?.message} ${bad?.error?.suggestion}`).toMatch(/phase 4/i);
+		expect(`${bad?.error?.message} ${bad?.error?.suggestion}`).toMatch(/phase 5/i);
 	});
 
 	it('loads an optional unserved grant without its API, and app-get says so', async () => {
 		const seen: Record<string, unknown> = {};
 		const app = manifest('opt', {
-			// `settings` is served from phase 4; `documents`, which this used, from step 9.
-			grants: [{ name: 'settings', required: false, reason: 'Later.' }],
+			// `events` is served from phase 5; `settings`, which this used, from phase 4's step 1.
+			grants: [{ name: 'events', required: false, reason: 'Later.' }],
 			commands: [
 				{
 					name: 'opt-read',
@@ -147,7 +147,7 @@ describe('P2-E13: E8: grants', () => {
 		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'opt' })).data;
 		expect(detail?.state).toBe('ready');
 		expect(detail?.grants).toEqual([
-			{ name: 'settings', required: false, served: false, reason: 'Later.' },
+			{ name: 'events', required: false, served: false, reason: 'Later.' },
 		]);
 		expect((await kernel.call('opt-read')).success).toBe(true);
 		// No grant: no store, no clock and no random reach the handler.

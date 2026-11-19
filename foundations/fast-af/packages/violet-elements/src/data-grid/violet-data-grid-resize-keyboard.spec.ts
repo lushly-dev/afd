@@ -88,7 +88,10 @@ describe("violet-data-grid column resizer keyboard support", () => {
         });
 
         const resizer = resizerFor(grid, "name");
-        const startWidth = resizer.closest("th")?.getBoundingClientRect().width ?? 0;
+        // Steps start from the column's own 200px, not its drawn width: two narrow columns are stretched to
+        // fill the grid, and stepping from the stretched width would add more than a step.
+        const startWidth = 200;
+        expect(resizer.closest("th")?.getBoundingClientRect().width ?? 0).toBeGreaterThan(startWidth);
 
         const grow = press(resizer, "ArrowRight");
         await nextFrame();
@@ -143,12 +146,12 @@ describe("violet-data-grid column resizer keyboard support", () => {
         });
 
         const resizer = resizerFor(grid, "name");
-        const startWidth = Math.round(resizer.closest("th")?.getBoundingClientRect().width ?? 0);
 
         press(resizer, "ArrowLeft");
         await nextFrame();
 
-        expect(details.at(-1)).toBe(`${startWidth + 8}px`);
+        // From the column's own 200px, as in the left-to-right case.
+        expect(details.at(-1)).toBe("208px");
     });
 
     it("ignores arrows combined with Ctrl, Alt or Meta", async () => {

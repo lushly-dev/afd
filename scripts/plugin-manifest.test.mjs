@@ -895,7 +895,15 @@ test("P2-E11: Loam's profile closes every object it admits, by P1's shape", () =
 			assert.equal(node[keyword], undefined, `${at} holds ${keyword} beside its closing`);
 		for (const [key, value] of Object.entries(node)) {
 			// A conditional's branches only narrow; the object they sit in closes it.
-			if (key !== 'allOf') walk(value, `${at}/${key}`);
+			if (key === 'allOf') continue;
+			// `properties` maps names to subschemas: each value is walked as a schema, never the map itself, so a
+			// property named `properties` (a settings section's key map) is not read as the keyword.
+			if (key === 'properties' && typeof value === 'object' && value !== null) {
+				for (const [name, schema] of Object.entries(value))
+					walk(schema, `${at}/properties/${name}`);
+				continue;
+			}
+			walk(value, `${at}/${key}`);
 		}
 	};
 	const { $defs, ...root } = loamProfile;
@@ -906,6 +914,9 @@ test("P2-E11: Loam's profile closes every object it admits, by P1's shape", () =
 		assert.equal(loamProfile.$defs[definition].$ref, `${core.$id}#/$defs/${definition}`);
 		assert.equal(loamProfile.$defs[definition].unevaluatedProperties, false);
 	}
+	// A settings section's schema and each of its keys are closed objects, walked as such (phase 4's 3.1).
+	for (const name of ['settingSection', 'settingSchema', 'settingKey', 'settingItems'])
+		assert.equal($defs[name].unevaluatedProperties, false, name);
 	// Every core object the profile admits is closed, or refused with false.
 	assert.equal(loamProfile.properties.pipelines, false);
 	assert.equal(loamProfile.$defs.command.properties.output_budget, false);

@@ -4,7 +4,7 @@
  * them is refused (architecture section 7). Each writes through to the first-paint cache.
  */
 
-import type { DataAdapter } from '@lushly-dev/local-db';
+import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import { LoamKernelError } from '../errors.js';
 import { createRecordCache, type RecordCache } from '../scope/cache.js';
 import {
@@ -49,7 +49,8 @@ export function checkStamped(table: string, record: Stamped): void {
 export interface ShellStores {
 	/** The workspace row, read once from the store: only late commands use it, so first paint holds none. */
 	workspace(): Promise<WorkspaceV1 | undefined>;
-	putWorkspace(record: WorkspaceV1): Promise<void>;
+	/** With `also`, those operations in the same batch, so both are written or neither (phase 4's A-P2-2). */
+	putWorkspace(record: WorkspaceV1, also?: BatchOperation[]): Promise<void>;
 	putWorkspaceApp(record: WorkspaceAppV1): Promise<void>;
 	putProject(record: ProjectV1): Promise<void>;
 }
@@ -60,11 +61,13 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 	async function put<T extends Stamped>(
 		table: string,
 		record: T,
-		cache: RecordCache<T>
+		cache: RecordCache<T>,
+		also: BatchOperation[] = []
 	): Promise<void> {
 		checkStamped(table, record);
 		// A batch's PUT upserts; `update` does so only in the adapter's named tables.
 		const { summary } = await store.batch([
+			...also,
 			{ method: 'PUT', path: `/${table}/${encodeURIComponent(record.id)}`, body: record },
 		]);
 		if (summary.failed > 0) throw new Error(`The store could not write '${record.id}'`);
@@ -76,7 +79,7 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 			await loading;
 			return workspaces.get(scope.workspace.id);
 		},
-		putWorkspace: (record) => put(WORKSPACE_TABLE, record, workspaces),
+		putWorkspace: (record, also) => put(WORKSPACE_TABLE, record, workspaces, also),
 		putWorkspaceApp: (record) => put(WORKSPACE_APP_TABLE, record, scope.workspaceApps),
 		putProject: (record) => put(PROJECT_TABLE, record, scope.projects),
 	};

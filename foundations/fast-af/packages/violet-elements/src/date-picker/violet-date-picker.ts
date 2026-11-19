@@ -506,6 +506,8 @@ export class VioletDatePicker extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
         this.#syncFormState();
@@ -725,5 +727,8 @@ if (!customElements.get("violet-date-picker")) {
         name: "violet-date-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

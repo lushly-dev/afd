@@ -30,15 +30,15 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
-| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | `StdioServerOptions::tool_strategy`: `ToolStrategy::individual \| grouped \| lazy` |
+| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | `StdioServerOptions::tool_strategy`: `ToolStrategy::individual \| grouped \| lazy \| hybrid` |
 | Default | `grouped` | `grouped` | `Grouped` | `grouped` |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | `StdioServerOptions::group_by` |
 | Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
 | Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
-| Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
+| Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | `StdioServerOptions::first_class_tools` |
 
-C++'s `afd::mcp_stdio` serves the individual, grouped and lazy strategies; the hybrid strategy is [#1202](https://github.com/lushly-dev/afd/issues/1202).
+C++'s `afd::mcp_stdio` serves all four strategies.
 
 ## Tool lists
 
@@ -78,7 +78,7 @@ are not listed; `afd-discover` reports them and `afd-call` runs them.
 ### `hybrid`
 
 Specified in [Hybrid](#h3-the-tool-list-and-its-order): the meta-tools, then the context tools when
-contexts are configured, then the configured first-class command tools. TypeScript, Python and Rust serve it; see
+contexts are configured, then the configured first-class command tools. All four languages serve it; see
 [Implementation status](#implementation-status).
 
 ## Routing
@@ -184,7 +184,7 @@ deployer's choice, and the list's order and cap need one owner.
 | TypeScript | `toolStrategy: 'hybrid'` with `firstClassTools: string[]`, on `createMcpServer` and `createMcpHandler` |
 | Python | `tool_strategy="hybrid"` with `first_class_tools: list[str]`, on `create_server` and `ServerConfig` |
 | Rust | `with_tool_strategy(ToolStrategy::Hybrid)` with `with_first_class_tools(...)`. `ToolStrategy` is `Copy`, so the variant carries no list. `McpServer` registers commands and contexts after the strategy is chosen, so it checks the set when it starts: `McpServer::validate`, called by `serve_stdio` and `try_streamable_http_service` (`streamable_http_service` panics), and by every request over another transport, which answers `-32603` with the message |
-| C++ | `first_class_tools` on the `afd::mcp_stdio` options, once D2 lands |
+| C++ | `ToolStrategy::hybrid` with `StdioServerOptions::first_class_tools`, checked by `StdioServer::create` |
 
 A server MUST fail at construction when:
 
@@ -307,15 +307,10 @@ strategy, and a call through a meta-tool exactly as under the lazy strategy.
 
 ## Conformance
 
-[`tool-strategies.json`](./tool-strategies.json) pins the hybrid strategy. It is written by hand
-from this page, before any implementation served the strategy; each language's hybrid step adds
-its loader. It covers only the hybrid strategy; the todo conformance case `tool_list_grouped`
-checks the default grouped list against every backend.
-
-It sits beside [`meta-tools.json`](./meta-tools.json) rather than in [`vectors/`](./vectors/README.md)
-because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It
-moves to `vectors/` in the pull request that makes the fourth language load it (C++, after parity
-D2).
+[`vectors/tool-strategies.json`](./vectors/tool-strategies.json) pins the hybrid strategy. It was
+written by hand from this page, before any implementation served the strategy, and every language
+loads it. It covers only the hybrid strategy; the todo conformance case `tool_list_grouped` checks
+the default grouped list against every backend.
 
 Build every server from the file's `commands` and `contexts`:
 
@@ -354,8 +349,8 @@ name, which every strategy serves, so it does not change.
 | `individual` | Yes | Yes | Yes | Yes |
 | `grouped` | Yes (the default) | Yes (the default) | Yes (the default) | Yes (the default) |
 | `lazy` | Yes | Yes | Yes | Yes |
-| `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
-| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | `toolStrategy` only; the hybrid fields with #1202 |
-| Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |
+| `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Yes (`ToolStrategy::hybrid` and `StdioServerOptions::first_class_tools`) |
+| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | Yes |
+| Loads [`vectors/tool-strategies.json`](./vectors/tool-strategies.json) | Yes (`tool-strategies-vectors.test.ts`) | Yes (`python/tests/test_tool_strategies_vectors.py`) | Yes (`packages/rust/tests/tool_strategies_vectors.rs`) | Yes (`packages/cpp/tests/tool_strategies_vectors_test.cpp`) |
 
 Progress is recorded in the [hybrid tool strategy status](../docs/features/complete/hybrid-tool-strategy/STATUS.md).

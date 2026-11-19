@@ -117,7 +117,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"resources",
 			"project_summary",
 			"documents",
-			"new"
+			"new",
+			"settings"
 		],
 		"/ui/surfaces": [
 			"rail",
@@ -283,6 +284,44 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"scope_levels"
 		],
 		"/ui/new/*/scope_levels": [],
+		"/ui/settings": [],
+		"/ui/settings/*": [
+			"id",
+			"title",
+			"description",
+			"levels",
+			"schema"
+		],
+		"/ui/settings/*/levels": [],
+		"/ui/settings/*/schema": [
+			"type",
+			"properties",
+			"additionalProperties"
+		],
+		"/ui/settings/*/schema/properties": [],
+		"/ui/settings/*/schema/properties/*": [
+			"type",
+			"title",
+			"description",
+			"levels",
+			"default",
+			"enum",
+			"enumTitles",
+			"maxLength",
+			"minimum",
+			"maximum",
+			"items",
+			"maxItems",
+			"uniqueItems"
+		],
+		"/ui/settings/*/schema/properties/*/levels": [],
+		"/ui/settings/*/schema/properties/*/enum": [],
+		"/ui/settings/*/schema/properties/*/enumTitles": [],
+		"/ui/settings/*/schema/properties/*/items": [
+			"type",
+			"enum"
+		],
+		"/ui/settings/*/schema/properties/*/items/enum": [],
 		"/native": [
 			"entry"
 		],

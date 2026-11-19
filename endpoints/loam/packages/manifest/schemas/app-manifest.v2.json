@@ -173,7 +173,8 @@
 							"new",
 							"member",
 							"afd",
-							"p"
+							"p",
+							"loam"
 						]
 					}
 				},
@@ -355,8 +356,156 @@
 					"items": {
 						"$ref": "#/$defs/newItem"
 					}
+				},
+				"settings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/settingSection"
+					}
 				}
 			},
+			"unevaluatedProperties": false
+		},
+		"settingSection": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 40
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"levels": {
+					"$ref": "#/$defs/settingLevels"
+				},
+				"schema": {
+					"$ref": "#/$defs/settingSchema"
+				}
+			},
+			"required": ["id", "title", "levels", "schema"],
+			"unevaluatedProperties": false
+		},
+		"settingLevels": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"enum": ["person", "workspace", "project"]
+			}
+		},
+		"settingSchema": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"const": "object"
+				},
+				"properties": {
+					"type": "object",
+					"minProperties": 1,
+					"maxProperties": 32,
+					"propertyNames": {
+						"pattern": "^[a-z][a-zA-Z0-9]{0,39}$"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/settingKey"
+					}
+				},
+				"additionalProperties": {
+					"const": false
+				}
+			},
+			"required": ["type", "properties", "additionalProperties"],
+			"unevaluatedProperties": false
+		},
+		"settingKey": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": ["boolean", "string", "integer", "number", "array"]
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 60
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"levels": {
+					"$ref": "#/$defs/settingLevels"
+				},
+				"default": true,
+				"enum": {
+					"$ref": "#/$defs/settingChoices"
+				},
+				"enumTitles": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 60
+					}
+				},
+				"maxLength": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1000
+				},
+				"minimum": {
+					"type": "number"
+				},
+				"maximum": {
+					"type": "number"
+				},
+				"items": {
+					"$ref": "#/$defs/settingItems"
+				},
+				"maxItems": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 32
+				},
+				"uniqueItems": {
+					"const": true
+				}
+			},
+			"required": ["type", "title"],
+			"unevaluatedProperties": false
+		},
+		"settingChoices": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 60
+			}
+		},
+		"settingItems": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"const": "string"
+				},
+				"enum": {
+					"$ref": "#/$defs/settingChoices"
+				}
+			},
+			"required": ["type", "enum"],
 			"unevaluatedProperties": false
 		},
 		"projectSummary": {

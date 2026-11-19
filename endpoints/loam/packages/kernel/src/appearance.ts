@@ -57,6 +57,22 @@ export function resolveTheme(
 	return environment.matches(APPEARANCE_QUERIES.dark) ? 'dark' : 'light';
 }
 
+/**
+ * The appearance a stored record holds, each key only if valid (phase 4 specification, 3.6): with `entries`, the
+ * person's `loam.settings` (`{ "loam.appearance": { theme: { value } } }`); without, `loam.appearance.last`.
+ */
+export function appearanceFrom(record: unknown, entries: boolean): Partial<AppearanceStateV0> {
+	const held = (entries ? (record as Record<string, unknown>)?.['loam.appearance'] : record) as
+		| Record<string, unknown>
+		| undefined;
+	const out: Record<string, string> = {};
+	for (const [key, allowed] of Object.entries(FIELDS)) {
+		const value = entries ? (held?.[key] as { value?: unknown } | undefined)?.value : held?.[key];
+		if (typeof value === 'string' && allowed.includes(value)) out[key] = value;
+	}
+	return out;
+}
+
 export type AppearanceValidation =
 	| { valid: true; state: AppearanceStateV0 }
 	| { valid: false; error: CommandError };

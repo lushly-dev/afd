@@ -12,10 +12,10 @@ on:
       # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
       # tests/authorization_cases.rs loads every case (the `server-auth` feature), and the server
-      # suites load the meta-tool, tool-strategy, resource and output-budget cases.
+      # suites load the meta-tool, resource and output-budget cases (the tool-strategy cases are in
+      # spec/vectors).
       - 'spec/authorization.json'
       - 'spec/meta-tools.json'
-      - 'spec/tool-strategies.json'
       - 'spec/mcp-resources.json'
       - 'spec/output-budgets.json'
       - '.cargo/config.toml'
@@ -29,7 +29,6 @@ on:
       - 'spec/VERSION'
       - 'spec/authorization.json'
       - 'spec/meta-tools.json'
-      - 'spec/tool-strategies.json'
       - 'spec/mcp-resources.json'
       - 'spec/output-budgets.json'
       - '.cargo/config.toml'

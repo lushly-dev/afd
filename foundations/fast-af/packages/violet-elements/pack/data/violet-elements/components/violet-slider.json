@@ -294,7 +294,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.aria-label",
 		"field.input-change",
 		"field.label",

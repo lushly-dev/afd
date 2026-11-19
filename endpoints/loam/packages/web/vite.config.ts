@@ -40,7 +40,7 @@ export default defineConfig({
 				// bundler parts the chunks as it would.
 				chunkFileNames: (chunk) => {
 					const late =
-						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle)\.js$/.exec(
+						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle|settings)\.js$/.exec(
 							chunk.facadeModuleId ?? ''
 						)?.[1];
 					// The copilot's panel, which the shell loads when its panel part first opens (phase 5 specification, 16).
@@ -49,6 +49,8 @@ export default defineConfig({
 					// The copilot's records and commands, which `late` loads in stage B (phase 5 specification, 2).
 					if (/kernel[/]dist[/]copilot[/]commands\.js$/.test(chunk.facadeModuleId ?? ''))
 						return 'assets/late-copilot-[hash].js';
+					// Phase 4's settings commands and their rules (phase 4 specification, 1): `late-settings`.
+					if (late === 'settings') return 'assets/late-settings-[hash].js';
 					return late === 'documents'
 						? 'assets/late-documents-[hash].js'
 						: late === 'session-settle'

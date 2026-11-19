@@ -90,7 +90,7 @@ should never have to scan the codebase to learn what is current.
 - **Done:** the hybrid tool strategy (D27) in Rust,
   `ToolStrategy::Hybrid` with `McpServer::with_first_class_tools`, merged in
   [#560](https://github.com/lushly-dev/afd/pull/560) as `57c731d2` with all 25
-  checks green; `tests/server_hybrid.rs` runs every case of
+  checks green; `tests/tool_strategies_vectors.rs` runs every case of
   `spec/tool-strategies.json` over stdio and Streamable HTTP in both MCP eras.
   Python ([#555](https://github.com/lushly-dev/afd/pull/555), `51f8d9d8`) and
   TypeScript ([#556](https://github.com/lushly-dev/afd/pull/556), `0d9720a1`)

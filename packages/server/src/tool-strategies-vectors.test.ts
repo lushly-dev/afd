@@ -1,6 +1,6 @@
 /**
  * The hybrid tool strategy (`spec/tool-strategies.md`, H1 to H8): every case of the shared
- * `spec/tool-strategies.json`, over both MCP eras and through `createMcpHandler`, plus the checks
+ * `spec/vectors/tool-strategies.json`, over both MCP eras and through `createMcpHandler`, plus the checks
  * the spec asks of each implementation (a first-class tool equals the individual strategy's tool,
  * a 101st command leaves `tools/list` untouched, `afd-help` reports the strategy).
  */
@@ -60,7 +60,7 @@ interface StrategyFile {
 }
 
 const spec: StrategyFile = JSON.parse(
-	readFileSync(new URL('../../../spec/tool-strategies.json', import.meta.url), 'utf8')
+	readFileSync(new URL('../../../spec/vectors/tool-strategies.json', import.meta.url), 'utf8')
 );
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -212,10 +212,10 @@ async function legacySession(base: string) {
 const names = (tools: Tool[]) => tools.map((tool) => tool.name);
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// spec/tool-strategies.json
+// spec/vectors/tool-strategies.json
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
-describe('spec/tool-strategies.json: servers', () => {
+describe('spec/vectors/tool-strategies.json: servers', () => {
 	it('is the file this implementation understands', () => {
 		expect(spec.cap).toBe(8);
 		expect(spec.metaTools).toHaveLength(5);
@@ -265,7 +265,7 @@ describe('spec/tool-strategies.json: servers', () => {
 	});
 });
 
-describe('spec/tool-strategies.json: construction failures', () => {
+describe('spec/vectors/tool-strategies.json: construction failures', () => {
 	describe.each(spec.constructionFailures)('$id', (failureCase) => {
 		const build = (create: (options: McpHandlerOptions) => unknown) => () =>
 			create(optionsFor(failureCase.config));

@@ -538,5 +538,8 @@ if (!customElements.get("violet-date-range-picker")) {
         name: "violet-date-range-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

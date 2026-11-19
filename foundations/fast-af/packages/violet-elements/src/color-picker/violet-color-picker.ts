@@ -859,6 +859,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleHexInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         this.hexDraft = input.value;
 
@@ -895,6 +897,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleChannelInput(channel: "h" | "s" | "l", event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         const nextValue = Number(input.value);
         this.updateChannel(channel, nextValue);
@@ -1147,5 +1151,8 @@ if (!customElements.get("violet-color-picker")) {
         name: "violet-color-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

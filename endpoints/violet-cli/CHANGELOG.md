@@ -1,5 +1,19 @@
 # @lushly-dev/violet-cli
 
+## 0.3.0-preview.1
+
+### Minor Changes
+
+- [#1422](https://github.com/lushly-dev/afd/pull/1422) [`1e2f231`](https://github.com/lushly-dev/afd/commit/1e2f2312ec4049fce354f1077d151a0cdbf56b50) Thanks [@Falkicon](https://github.com/Falkicon)! - Add a daily snapshot workflow template for a self-hosted runner's persistent SQLite database. Reject file-driven snapshot recording with an actionable error and document setup, verification and indefinite snapshot retention.
+
+### Patch Changes
+
+- [#1423](https://github.com/lushly-dev/afd/pull/1423) [`599be24`](https://github.com/lushly-dev/afd/commit/599be24536a5bb87c60264bd187cd698991fbc39) Thanks [@Falkicon](https://github.com/Falkicon)! - Deprecate `compare.nodes` in favour of `tokens.compare` ([#500](https://github.com/lushly-dev/afd/issues/500)), which compares two to four nodes and also counts absent and subtracted tokens; `violet compare` already runs it. `compare.nodes` will be removed in `@lushly-dev/violet-afd` 0.5.0. Until then it still works: its description starts with "Deprecated", a successful result carries a `DEPRECATED_COMMAND` warning, a `deprecated` metadata flag and a note in `reasoning`, and the HTTP API answers it with `Deprecation: true` and a `Link: </api/v1/tokens/compare>; rel="successor-version"` header, and lists it with `deprecated: true` in `GET /api/commands`. `CommandDefinition` gains an optional `deprecated` field (`{ replacement, removal }`) for other commands to use. The hosted OpenAPI document never described `compare.nodes`, so it has nothing to mark.
+- Updated dependencies [[`599be24`](https://github.com/lushly-dev/afd/commit/599be24536a5bb87c60264bd187cd698991fbc39), [`8b54f66`](https://github.com/lushly-dev/afd/commit/8b54f6664d478695eb368236c48f5d740d5ee31d)]:
+  - @lushly-dev/violet-afd@0.3.0-preview.1
+  - @lushly-dev/violet-server@0.3.0-preview.1
+  - @lushly-dev/violet-core@0.3.0-preview.1
+
 ## 0.3.0-preview.0
 
 ### Minor Changes

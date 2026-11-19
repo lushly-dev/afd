@@ -28,8 +28,8 @@ export const PERSONA_LIMIT = 8;
 /** Most apps a persona emphasizes (6.1). */
 export const EMPHASIS_APPS_MAX = 12;
 
-/** The sections a persona may emphasize (6.1). */
-export const PERSONA_SECTIONS = ['projects', 'documents', 'account'] as const;
+/** The sections a persona may emphasize (6.1), with phase 4's `settings` and `inbox` (its A-P3-1). */
+export const PERSONA_SECTIONS = ['projects', 'documents', 'account', 'settings', 'inbox'] as const;
 
 /**
  * The palette's sections, by command category: a command of an emphasized section ranks first (6.2). A
@@ -39,6 +39,9 @@ const SECTION_OF: Readonly<Record<string, string>> = {
 	project: 'projects',
 	document: 'documents',
 	account: 'account',
+	// Phase 4's (its A-P3-1): the settings commands, and from its step 5 the inbox's.
+	setting: 'settings',
+	notification: 'inbox',
 };
 
 /** The view-state table and category, where `loam.persona~<person>` is kept as a record of its own (6.1). */
