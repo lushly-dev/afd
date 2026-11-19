@@ -7,6 +7,7 @@ import json
 
 import pytest
 
+from botcore_factory.events import lane_resume
 from botcore_factory.lane import first_lines, log_path, step
 
 
@@ -961,3 +962,30 @@ def test_paths_left_unmerged_after_regenerating_eject(lane):
 def test_without_regenerate_a_records_conflict_ejects_as_before(lane):
     lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
     assert "ejected feat/export-csv (conflict)" in run_steps(lane)
+
+
+def test_a_short_disk_pauses_the_lane_before_validating(lane):
+    """lushly-dev/afd#1565: a full disk mid-build ejected a good branch; now the lane pauses
+    first, names the dial and where the slots build, and ejects nothing."""
+    lane.change_world(host={"freeDiskGb": 12})
+    run_steps(lane, 2)
+    assert "validation-started" not in kinds(lane) and not events(lane, "ejected")
+    assert queue(lane)[0] == ("feat/export-csv", "queued")
+    [error] = events(lane, "lane-error")
+    assert "host.minFreeDiskGb is 20" in error["detail"] and "slots" in error["detail"]
+    assert lane.state()["lane"]["paused"] is True
+    factory = lane.factory()
+    lane_resume(factory, "freed some disk")  # Not enough: it pauses again, ejecting nothing.
+    run_steps(lane)
+    assert lane.state()["lane"]["paused"] is True and len(events(lane, "lane-error")) == 2
+    assert not events(lane, "ejected")
+    lane.change_world(host={"freeDiskGb": 200})
+    lane_resume(lane.factory(), "freed enough")
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+
+
+def test_an_unreadable_disk_pauses_the_lane_with_the_way_out(lane):
+    lane.change_world(host={"freeMemoryGb": 40}, machines=[], thisMachine="nowhere")
+    run_steps(lane)
+    assert "Cannot read free disk" in lane.state()["lane"]["pauseReason"]
+    assert "host.minFreeDiskGb" in lane.state()["lane"]["pauseReason"]
