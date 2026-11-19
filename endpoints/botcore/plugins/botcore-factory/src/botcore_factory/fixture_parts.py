@@ -10,8 +10,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from botcore_factory.claims import parse_time
+from botcore_factory.failures import failing_tests
 from botcore_factory.world import (
     LANE_HOST_VARIABLE,
+    TAIL_LINES,
     Comment,
     Completed,
     HostRecord,
@@ -345,6 +347,9 @@ class FixtureGit:
     def _slots(self) -> dict:
         return self.store.data.setdefault("checkouts", {})
 
+    def slots_dir(self) -> str:
+        return "slots"
+
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         _fail(self.store, "prepare", branch)
         self._slots()[slot] = {"branch": branch, "head": head}
@@ -479,7 +484,17 @@ class FixtureMachine:
         return float(host["freeMemoryGb"])
 
     def free_disk_gb(self, path: str) -> float:
-        return float(self.store.this_machine().get("freeDiskGb", 0))
+        """``host.freeDiskGb``, else this machine's record's ``freeDiskGb``."""
+        host = self.store.data.get("host", {})
+        if "freeDiskGb" in host:
+            return float(host["freeDiskGb"])
+        record = self.store.this_machine()
+        if "freeDiskGb" not in record:
+            raise WorldError(
+                "The fixture does not say how much disk is free (host.freeDiskGb, or this "
+                "machine's freeDiskGb)"
+            )
+        return float(record["freeDiskGb"])
 
     def has_program(self, name: str) -> bool:
         return name not in self.store.this_machine().get("missing", [])
@@ -572,7 +587,10 @@ class FixtureProcesses:
                 del self._processes()["running"][handle]
                 self.store.save()
                 output = result.removeprefix("fail").lstrip(": ")
-                return Completed(tuple(step["args"]), 1, output, "", step["label"])
+                # As the real world does: the log's tail, and every failing test in all of it.
+                tail = "\n".join(output.splitlines()[-TAIL_LINES:])
+                tests = tuple(failing_tests(output))
+                return Completed(tuple(step["args"]), 1, tail, "", step["label"], tests)
         del self._processes()["running"][handle]
         self.store.save()
         return Completed(tuple(run["steps"][-1]["args"]), 0, "ok", "")

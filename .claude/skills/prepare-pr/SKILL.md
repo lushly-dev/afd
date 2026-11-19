@@ -2,9 +2,9 @@
 name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
-  PR and readiness, merging only when separately authorized. `inspect` changes
-  nothing; `quick` reruns gates and the PR; `lane` hands a factory cell to the
-  merge lane. Use when the user says ship it or open a PR.
+  PR and readiness, then the merge queue. `inspect` changes nothing; `quick`
+  reruns gates and the PR; `lane` hands a factory cell to the merge lane. Use
+  when the user says ship it or open a PR.
 argument-hint: inspect | quick | lane
 ---
 
@@ -78,7 +78,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
 6. **Push.** `git push -u origin <branch>`; on a hook failure, fix and push again. Never `--no-verify` without the user's explicit approval and separate gate evidence for that exact commit.
 
 7. **Create or update the PR.**
-   - **New:** `gh pr create --base main --title "<type>(scope): description"`, body **Summary** (why, and the behaviour change), **Changes**, **Scope notes** (deliberately not done, parity follow-ups, why a changeset or not), **Review** (passes, dispositions), **Test changes** (the report above with each item's reason; omitted when it lists nothing) and **Test plan** (exact commands and results, and what was not run). No filler or restated diff. `--draft` when someone else owns the ship decision. Straight after creating it, fill the PR's number into any status entry from step 3 ("merged in #N"), commit and push before reading readiness. That one-line edit needs no re-review and no local gate rerun (`pnpm verify --list --files <status file>` confirms nothing is triggered); step 8 reads the new head's checks.
+   - **New:** `gh pr create --base main --title "<type>(scope): description"`, body **Summary** (why, and the behaviour change), **Changes**, **Scope notes** (deliberately not done, parity follow-ups, why a changeset or not), **Review** (passes, dispositions), **Test changes** (the report above with each item's reason; omitted when it lists nothing) and **Test plan** (exact commands and results, and what was not run). No filler or restated diff. `--draft` only while a decision is the owner's (step 9). Straight after creating it, fill the PR's number into any status entry from step 3 ("merged in #N"), commit and push before reading readiness. That one-line edit needs no re-review and no local gate rerun (`pnpm verify --list --files <status file>` confirms nothing is triggered); step 8 reads the new head's checks.
    - **Existing:** the push updates it; `gh pr edit` the title and body if scope changed. Never open a second PR for the same work.
    - **Closing an issue:** confirm `gh pr view <n> --json closingIssuesReferences` lists it; a keyword inside a code span looks right and does nothing.
 
@@ -87,21 +87,36 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - `UNKNOWN`: not computed yet. Read again; don't infer a conflict.
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
+   - A head change of your own after the review (a fix, a conflict resolution) is reviewed before the enqueue by a focused pass on the new diff, outside step 2's pass limit, which the PR's Review section records. Step 7's status-number edit is exempt.
 
-9. **Merge only when authorized.** `main`'s one required check is `ci-ok`, the verdict that every workflow on the head passed ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would merge whatever head is there when `ci-ok` passes, not the one you reviewed (the factory lane's pinned auto-merge is the exception, because the lane owns every push). Never merge with `--admin`, which skips `ci-ok`. With the user's authorization and every check on the exact head green, bind the merge to that head and give it the branch's commit messages as its body:
+9. **Enqueue once reviewed and green.** AGENTS.md authorizes a session to enqueue the pull request it opened or resumed when step 2's review covers the head with no blocker unresolved; no human review follows. A second-provider reviewer that could not start, recorded in the PR as step 2 says, does not hold it; no independent review at all does. Leave it open and report when a decision is the owner's: publishing, a UI change held for the owner's look, or a change to the factory's own measures ([software-factory](../../../docs/features/active/software-factory/software-factory.proposal.md)). A gate change the rules already let a session make, such as step 5's ceiling raise or a test change step 2's review settled, is not one. `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With that authorization and every check on the exact head green, `gh pr ready <n>` if it is a draft (the queue refuses drafts), then enqueue that head and nothing else:
 
    ```bash
-   body="$(mktemp)"
-   gh pr view <n> --json commits --jq '.commits[]
-       | select(.messageHeadline | test("^Merge (remote-tracking )?(branch|commit) ") | not)
-       | .messageHeadline + "\n\n" + .messageBody + "\n"' \
-     | grep -viE '^[[:space:]]*co-authored-by[[:space:]]*:' > "$body"
-   gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8> --body-file "$body"
+   gh api graphql -f id="$(gh pr view <n> --json id --jq .id)" -f oid=<full headRefOid verified in step 8> -f query='
+     mutation($id: ID!, $oid: GitObjectID!) {
+       enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $oid}) {
+         mergeQueueEntry { state position }
+       }
+     }'
    ```
 
-   Without `--body-file`, GitHub writes its default squash message, which adds a `Co-authored-by:` line for every commit author whose address isn't the merging account's. That credits a retired address or an agent as a co-author on `main`. `ci-ok` can't see it, because it checks only the branch's commits. `main-credit.yml` flags it after the merge, when `main` can no longer be changed. The body keeps each commit's own `Assisted-by:` trailers.
+   It answers with a `mergeQueueEntry` (its state is `QUEUED` at first), or with an error and nothing has changed: "expected head oid does not match" means the head moved, so go back to step 8. It never enables auto-merge.
 
-   A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   - **GitHub writes the squash; no body can be passed.** A pull request of one commit lands as that commit's message. With more, the subject is the pull request's title and each commit's message follows as a bullet, merges of `main` left out. Both gain ` (#n)`. So the title must be a commit subject in step 7's form. (The repository's `squash_merge_commit_title` and `squash_merge_commit_message` settings decide this.)
+   - **A `Co-authored-by:` line fails the queue**, whether a commit's message carries it or GitHub adds it for a commit whose author is not the pull request's. `ci-ok` reads the queue's commit, so the pull request leaves the queue and `main` never receives the line. Read which commit it names, correct that commit's author or remove its trailer, push, and go back to step 8.
+   - **Wait until it is `MERGED`.** A queued pull request is still `OPEN`, and so is one the queue removed, so read the queue as well:
+
+     ```bash
+     gh api graphql -F n=<n> -f query='query($n: Int!) { repository(owner: "lushly-dev", name: "afd") {
+       pullRequest(number: $n) { state isInMergeQueue mergeQueueEntry { state position } autoMergeRequest { enabledAt } } } }'
+     ```
+
+     `MERGED` is the only success. `OPEN` with `isInMergeQueue: true` is waiting: watch the pull request where the harness can, and end the turn. `OPEN` and not in the queue is removed, once a second read a few seconds later agrees: GitHub takes a pull request out of the queue a moment before it marks it merged. An `autoMergeRequest` means something enabled auto-merge: `gh pr merge <n> --disable-auto`, then step 8.
+   - **Removed from the queue:** its group failed, which can be on the squash of a pull request ahead of it; its checks timed out; it conflicted with one ahead; or someone removed it. Find its verdict, one run per group, with `gh run list --workflow ci-ok.yml --event merge_group --limit 100 --json conclusion,headBranch,url --jq '.[] | select(.headBranch | startswith("gh-readonly-queue/main/pr-<n>-"))'`; a failed one names the workflow or the commit it refused. A verdict that passed, or none, means a timeout, a conflict or a removal by hand. Fix what failed, return to step 8 and enqueue again; never re-enqueue a failure unread.
+   - **A queued pull request's branch is locked:** a push to it is refused. To change it, remove it from the queue first ("Remove from queue" on the pull request, or the `dequeuePullRequest` mutation, which no session has exercised yet), then push and return to step 8.
+   - A pull request that changes `pnpm-lock.yaml` needs no turn of its own; [gates.md](references/gates.md) says what to do when the queue refuses one.
+
+   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. When step 9 says to leave it open, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Lane mode
 
@@ -115,7 +130,7 @@ For a cell of the software factory (`docs/features/active/software-factory/`). T
    ```
 
    On Windows, write the JSON to a file outside the tree and pass `--lanes-file <path>`, since PowerShell strips the quotes. One entry per review lane, with the reviewer's actual model and effort; `fixed` and `deferred` count its findings. A lane with an unresolved blocker is `"fail"`, and a failing review is recorded but not accepted. The record lives in the worktree's git directory and covers only that commit: any later commit, a base merge included, needs the review re-checked and recorded again. `node scripts/review-record.mjs verify --head "$(git rev-parse HEAD)"` checks it as `lane-enqueue` does. The lane checks it again before each validation with `main`'s copy of the script, so leave the worktree at that commit until the branch merges or is ejected.
-3. **Enqueue:** write the PR body (full mode's step 7 sections) to `.factory/pr-body.md`, which git ignores, then from the worktree root run `uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory-cell call lane-enqueue '{"worktree": ".", "title": "<type>(scope): description", "body_file": ".factory/pr-body.md"}'` and end the turn. On Windows PowerShell put that JSON in `.factory/enqueue.json` and pass `--args-file .factory/enqueue.json`. `REVIEW_MISSING` names why the record was refused; `PREQUEUE_FAILED` names the stage: fix, commit, record again and enqueue again.
+3. **Enqueue:** write the PR body (full mode's step 7 sections) to `.factory/pr-body.md`, which git ignores, then from the worktree root run `uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory-cell call lane-enqueue '{"worktree": ".", "title": "<type>(scope): description", "body_file": ".factory/pr-body.md"}'` and end the turn. On Windows PowerShell put that JSON in `.factory/enqueue.json` and pass `--args-file .factory/enqueue.json`. `REVIEW_MISSING` names why the record was refused; `PREQUEUE_FAILED` names the stage: fix, commit, record again and enqueue again. If it failed because the worktree is new or rebased and not installed since (a tool or module the install provides is missing), run the install the refusal names, build what the stage imports and enqueue again, with nothing to commit.
 
 ## Report
 

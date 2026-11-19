@@ -29,7 +29,7 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
     assert matches("scripts/check-file-size.mjs", adapter.gate_paths)
     assert matches(".github/workflows/ci.yml", adapter.gate_paths)
     assert not matches("packages/core/src/index.ts", adapter.gate_paths)
-    assert adapter.validate_command == ["pnpm", "verify"]
+    assert adapter.validate_command == ["pnpm", "verify", "--keep-going"]
     assert (adapter.required_check, adapter.coverage) == ("ci-ok", ["pnpm", "check:all"])
     assert (REPO_ROOT / "scripts/verify-record.mjs").is_file()  # What pre-push accepts.
     assert adapter.review_evidence == [

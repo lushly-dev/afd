@@ -14,9 +14,11 @@ from botcore_factory.cells import (
     cell_plans,
     choose_plan,
     describe_plan,
+    disk_short,
+    holding_seats,
     no_plan_reason,
     read_plans,
-    seated,
+    waits_on_owner,
 )
 from botcore_factory.events import open_events, view
 from botcore_factory.intake import dispatchable, read_backlog
@@ -56,7 +58,7 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
     if state["lane"].get("draining"):
         return {"canStartCell": False, "reason": "The lane is draining to move hosts: no new cells"}
     most = dials.value(overrides, "cells.max")
-    if len(seated(state)) >= most:
+    if len(holding_seats(state)) >= most:
         return {"canStartCell": False, "reason": f"Every seat is taken (cells.max is {most})"}
     try:
         plans = cell_plans(read_plans(factory), overrides)
@@ -76,6 +78,12 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
             "canStartCell": False,
             "reason": f"The host is loaded: {free:g} GB free, host.minFreeGb is {floor:g}",
         }
+    try:
+        short = disk_short(factory, overrides)
+    except Refusal as refusal:
+        return {"canStartCell": False, "reason": refusal.message}
+    if short is not None:
+        return {"canStartCell": False, "reason": f"The disk is short: {short.message}"}
     if not ready:
         return {"canStartCell": False, "reason": "Nothing is dispatchable: run triage-issues"}
     return {
@@ -87,14 +95,18 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
 
 def waiting_on_owner(state: dict, backlog) -> int:
     """Items only the owner can answer: decision and operator issues (a parked cell's issue
-    among them), parked cells, and open events that need the owner (a sign-in)."""
+    among them), parked cells and ejected cells at ``cells.maxEjections``, and open events
+    that need the owner (a sign-in)."""
     issues = {
         issue.number
         for issue in backlog.open_issues()
         if any(label in issue.labels for label in NEEDS_OWNER)
     }
     issues |= {
-        n for cell in state["cells"] if cell.get("state") == "parked" for n in cell["issues"]
+        n
+        for cell in state["cells"]
+        if cell.get("state") == "parked" or waits_on_owner(cell, state["dials"])
+        for n in cell["issues"]
     }
     return len(issues) + sum(1 for event in open_events(state) if event.get("needsOwner"))
 
@@ -148,7 +160,10 @@ def compact_status(factory: Factory) -> dict:
         backlog = read_backlog(factory)
     except (Refusal, WorldError) as exc:
         return {**compact, "unavailable": str(exc)}
-    start = can_start(factory, state, dispatchable(backlog))
+    try:
+        start = can_start(factory, state, dispatchable(backlog))
+    except (Refusal, WorldError) as exc:  # Delivered events are never lost to a failed read.
+        return {**compact, "unavailable": str(exc)}
     return {**compact, **start, "waitingOnOwner": waiting_on_owner(state, backlog)}
 
 

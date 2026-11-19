@@ -95,12 +95,12 @@ export function mainProblems(commit) {
 
 export const MAIN_FIX = [
 	'A commit on main credits a co-author. Main is not rewritten, so fix the path that wrote it:',
-	"  a squash merge given no body: GitHub's default message adds a Co-authored-by line for every",
-	"  commit author whose address isn't the merging account's. Merge with --body-file as",
-	"  prepare-pr's step 9 does (the Factory's merges use botcore_factory/squash.py), and correct",
-	'  that author address',
+	'  a squash GitHub wrote: it adds a Co-authored-by line for a commit whose author is not the',
+	"  pull request's. The merge queue's ci-ok refuses such a squash before it lands (prepare-pr's",
+	'  step 9), so this one went around the queue or landed while the queue was off: correct that',
+	"  author's identity, and never merge with --admin",
 	'  a merge commit or a rebase merge: it carries the branch commits onto main as they are, so',
-	'  squash instead, with that body',
+	'  squash instead, through the queue',
 	'  a commit made with the line: replace it with an email-free "Assisted-by: <agent>" trailer',
 ].join('\n');
 

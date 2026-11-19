@@ -22,7 +22,9 @@
   time, and the committed `tests/fast_af/library.json` is gone. Amended by
   [A28](#amendment-a28-a-deployments-own-guidance) (the owner's decision of 2026-11-16): a consumer
   profile states the deployment's own guidance, and `default_consumer` applies a profile to calls
-  that name none.
+  that name none. Amended by [A30](#amendment-a30-components-check-step-d1-1154) (D199, the owner's decision of
+  2026-11-19): `components-check` reads a page's source as text for undeclared tags and attributes only, and
+  says it rendered nothing.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
 - **Last verified:** 2026-11-17 for amendment A28, on `0f625e26`: `cargo test --locked -p umbel-plugin-components`
@@ -345,6 +347,187 @@ Tests: the host's `tests/component_components.rs` boots the component beside the
 - It holds the README's `[plugins.components.journal]` block equal to those declarations. CI builds the `.wasm` with hello and the
 fixtures, and lints it for the target with the feature.
 
+### Amendment A30: `components-check` (step D1, #1154)
+
+The owner reopened proposal step D1 on 2026-11-19, narrowly ([D199](../../decisions.md)). A consumer application
+bound `error-text` on `violet-text-field`, which declares no such attribute, so every failed save showed nothing, and
+a person found it, not a check. A one-off scan of that application and Loam, reading source as text against the
+manifest on `main`, found 2 undeclared attributes in 1 295 `violet-*` uses in 155 files (`size` on `violet-button`,
+`label` on `violet-checkbox`). The mistake is rare and silent, and the pack already holds what a check needs.
+
+The job, written first as `plugins/components/scenarios/check-before-handoff.scenario.yaml` and run by
+`tests/check.rs`: *when I have written markup with a library's components, I want to check it, as text, for tags no
+catalog has and attributes the components do not declare, so that a name the component ignores does not fail
+silently after I hand the change off.* The answer says that it rendered nothing and that Specimen's story checks are
+the real check.
+
+**What it flags, and only this:**
+
+1. `unknown-tag`: a name in element position (directly after `<`) that starts with a touched library's prefix and is
+   in no touched catalog.
+2. `unknown-attribute`: an attribute on a start tag of a known component that the component's record does not
+   declare and that is not a global attribute.
+
+**Input.** `schemas/components-check.input.json`, `additionalProperties: false`. The fields are the brief's (6.1)
+where they mean the same; the handler checks what the schema subset cannot.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `space` | string | The space; default: the workspace's default space |
+| `source` | string, required, at most 262 144 UTF-8 bytes | The markup or code to check, read as text |
+| `library` | library id | Check only against this library |
+| `versions` | object of at most 32 entries, npm package name to version | As 6.5: `LIBRARY_VERSION_MISMATCH` once per library whose package differs |
+
+There is no `tags`, `detail`, `sections`, `consumer`, `known`, `render` or `maxBytes`: the check serves no facts, so
+none of them has anything to choose.
+
+**Reading source.** Still text, still one forward pass with no regular expression over the source, bounded by the
+cap (section 7). The pass looks only for `<`:
+
+- **Comments.** `<!--` skips to the next `-->`. A name in a script comment (`// <x-y>`) is read like any other text.
+- **Element position.** `<` followed by a run of the tag alphabet `[a-z0-9._-]` that starts with a letter, holds a
+  hyphen, is at most 100 bytes long, and ends at whitespace, `>`, `/` or the end of the source. Closing tags (`</`)
+  are not read: every element has its start tag. A name with an uppercase letter (`<X-FIELD>`, `<x-Field>`) is not
+  read either: HTML folds a tag name's case, but JSX and the frameworks read a capitalised name as their own
+  component, so it is neither checked nor unknown.
+- **A known tag** has its start tag tokenized, from after the name to its `>`:
+  - whitespace, `/` and a stray `=` between attributes are skipped;
+  - a name runs to whitespace, `=`, `>`, `/`, a quote, `<`, `{` or `${`;
+  - after `=` comes a value in `"…"` or `'…'` (the other quote is text, and a `${…}` inside is skipped whole, so
+    `label="${a ? "x" : 'y'}"` is one value), a template literal's `${…}`, JSX's `{…}`, or an unquoted value up to
+    whitespace or `>`;
+  - `${…}` or `{…}` where a name would be (a spread, a directive) is skipped whole;
+  - an expression is skipped by counting braces, past script strings in `"…"` or `'…'` (a backslash escapes; a line
+    end also ends one), template literals with their own `${…}`, regular expression literals, and `//` and `/* */`
+    comments, on an explicit stack, so no source can exhaust the call stack. A `/` starts a regular expression when
+    the last significant byte of code before it is one of `(` `,` `=` `:` `[` `!` `&` `|` `?` `{` `}` `;` `>` (so
+    after `=>`), or nothing yet; the literal runs to its closing `/`, past backslash escapes and `[…]` classes, or to
+    a line end. After anything else a `/` is a division.
+
+  The text between tags is never tokenized, so an apostrophe in it (`It's saved`) cannot put the pass out of step.
+  The pass resumes after the start tag's `>`: markup inside one of its expressions is not checked.
+- **An unclosed start tag.** When the source ends before a known tag's `>`, or a `<` comes where a name would, the
+  tag's attributes are not checked: such a tag is a fragment or prose, and its words are not attributes. It is
+  counted in `checked.unclosed`. At a `<` the pass resumes at that `<`; at the end of the source the pass ends,
+  since the tokenizer has already read everything after the tag. So no byte is read twice, and repeated unclosed tags
+  (`<x-field a=${` over and over, to the cap) cost one pass, not one pass each.
+- **An unknown tag** is a finding, with up to three `nearest` tags from the touched catalogs (6.2's distance). Its
+  attributes are not checked. One the identifier scan reads as an instruction is counted in `elements` and
+  `skipped`, and never echoed.
+
+**How a name is checked.** In this order:
+
+1. A name joined to an expression (`name${…}`) is skipped.
+2. A leading `?` is removed: FAST's and Lit's boolean attribute binding sets the attribute, so `?disabled` is
+   checked as `disabled`.
+3. The name is lowercased by ASCII rules, as HTML does. One that is then not `^[a-z][a-z0-9_.-]*$` of at most 100
+   bytes is skipped: that is every property binding (FAST's `:value`, Lit's `.value`), event binding (`@change`),
+   Angular's `[x]`, `(x)`, `*x` and `#x`, and any name with a `:` (`v-on:click`, `on:click`, `xlink:href`).
+4. A name the record declares is fine, whatever its basis.
+5. A global attribute is fine: `accesskey`, `autocapitalize`, `autocorrect`, `autofocus`, `class`,
+   `contenteditable`, `dir`, `draggable`, `enterkeyhint`, `exportparts`, `hidden`, `id`, `inert`, `inputmode`, `is`,
+   `itemid`, `itemprop`, `itemref`, `itemscope`, `itemtype`, `lang`, `nonce`, `part`, `popover`, `role`, `slot`,
+   `spellcheck`, `style`, `tabindex`, `title`, `translate`, `writingsuggestions`, and every `aria-*`, `data-*`, and
+   `on` followed by a letter (an event handler; `on` alone is not one).
+6. A framework's own name is skipped: React's `key`, `ref`, `className`, `htmlFor`, `dangerouslySetInnerHTML` and
+   `suppressHydrationWarning` (lowercased), and Vue's `v-*` directives.
+7. A name the identifier scan reads as an instruction (3.2) is skipped and never echoed, as section 7 drops such a tag.
+8. Anything else is an `unknown-attribute` finding.
+
+Why property and event bindings are skipped, not checked: the pack's `attributes` hold the reflected properties
+only (`property` beside each name), and a component has more. On `violet-elements`' manifest, 182 public, writable
+fields that are not attributes (`violet-calendar`'s `disabledDates`, for one) are absent from the pack, so checking
+`:name` or `.name` against `property` would flag correct bindings. The pack's `events` likewise list a component's
+own events, not the DOM's (`click`, `input`, `focus`), so checking `@name` would too. Both wait for a pack that holds
+them (below).
+
+**Which record.** A known tag in one touched library is checked against that record. A tag in several is checked
+against `default_library`'s record when that library holds it, else against the union of every holder's attributes,
+so a name any holder declares is never flagged. A check never fails for an undecided tag. `nearest` names only the
+attributes `minimum_basis` serves (5.5); a weaker attribute still counts as declared, since the library declares it.
+
+**The answer.**
+
+```jsonc
+{
+  "read": "text",
+  "rendered": false,
+  "note": "Read as text: nothing was rendered or run. This compares tag and attribute names with the pack's declarations and nothing more, so a clean answer does not mean the page works. Specimen's story checks (`pnpm test:stories`) render the components and are the real check.",
+  "libraries": [ { "library": "violet-elements", "package": "@lushly-dev/violet-elements", "version": "…",
+                   "digest": "sha256:…", "prefix": "violet-" } ],
+  "checked": { "elements": 3, "attributes": 9, "skipped": 2, "unclosed": 0 },
+  "findings": [
+    { "reason": "unknown-attribute", "tag": "violet-text-field", "attribute": "error-text", "line": 6, "nearest": [] },
+    { "reason": "unknown-attribute", "tag": "violet-button", "attribute": "size", "line": 10, "nearest": ["type"] },
+    { "reason": "unknown-tag", "tag": "violet-buton", "line": 12, "nearest": ["violet-button"] }
+  ],
+  "count": 3,
+  "truncated": false
+}
+```
+
+- **`read`, `rendered` and `note`** are fixed: the same values and the same English sentence on every answer, and
+  the reasoning begins "Read the source as text and rendered nothing" and ends by naming Specimen's story checks.
+- **`checked`** counts what the pass compared: `elements`, the start tags of a touched prefix, known or not;
+  `attributes`, the names compared; `skipped`, the names steps 1, 3, 6 and 7 left uncompared and the unknown tags
+  the scan dropped; `unclosed`, the known
+  start tags whose attributes were not checked. A clean answer with a large `skipped` says how much it did not see.
+- **`findings`** are in source order. `line` is 1-based: the line of the `<` for a tag, of the name's first byte for
+  an attribute. `attribute` is the lowercased name, and only on `unknown-attribute`. `nearest` is up to three names
+  within an edit distance of 3, nearest first, then by name (6.2's banded distance): declared attributes of that
+  record for an attribute, catalog tags for a tag. Each occurrence is its own finding.
+- **No content part.** Every value is a checked identifier: library ids, packages, versions, digests and prefixes
+  from catalogs; tags and attribute names from records, checked and scanned when read (3.2); and the caller's own
+  tags and names, which passed the tag pattern or the shape above and the identifier scan (5.1, section 7). No summary,
+  description or other pack text is served, so the answer has no `content` and nothing to flag.
+
+**Limits.**
+
+| Limit | Value | Then |
+| --- | --- | --- |
+| `source` | 262 144 UTF-8 bytes, as 6.1 | `COMPONENTS_INVALID` |
+| Findings kept | 256 | The pass goes on counting: `count` is every finding, and `truncated` is true |
+| Output | The call's budget: 16 000 bytes by default, at most 64 000 | The first findings that fit are kept, as `components-list` pages (8.1), with `truncated` true; when not even none fits, `OUTPUT_BUDGET_EXCEEDED` |
+
+Reading the pack is every command's (3.1): every touched library whole, and refused whole.
+
+**Failures.** Section 9's codes, each with its suggestion: `COMPONENTS_INVALID` for a `source` that is missing or too
+long, a `library` outside its pattern or bad `versions`; `LIBRARY_NOT_FOUND`; `PACK_EMPTY`, `PACK_INVALID`,
+`PACK_INCONSISTENT`, `PACK_TOO_LARGE` and `PACK_UNREADABLE` as 9.1 gives them; `OUTPUT_BUDGET_EXCEEDED`. No refusal
+holds the source or pack text.
+
+**Deferred, not failures.** These are the rest of the proposal's D1. They wait until a real miss calls for them,
+each its own decision:
+
+- a value outside a finite set (an attribute's `values`);
+- a missing required slot or accessible name;
+- a deprecated component;
+- property and event bindings, which need the pack to hold every public property and the DOM's events;
+- markup inside an expression of a checked start tag, and in a closing tag;
+- a regular expression literal after a keyword (`return /'/`), which is read as a division, so a quote in it can
+  leave the tag unclosed and unchecked.
+
+**Manifest and surfaces.** `components-check` is in both manifests, `effects = ["inspect"]`, version `1.0.0`, with
+the budget above, and not first-class: the first-class set does not change, and an agent finds the command
+through `afd-discover` and runs it with `afd-call`, as `components-list` and `components-open` are reached (H7).
+The compiled build journals it as `digest`, keeping `space` and `library`; the component's deployer gets the same from
+the README's block, whose instance mode is that already. `COMMAND_NOT_FOUND` names the four commands. The skill
+says when to call it: after writing markup, before handing it off, and that it reads text only. No host code, grant,
+hook or AFD type changes, and the plugin still depends on no other plugin (D3).
+
+Tests: `src/check.rs`'s unit tests (the tokenizer on both quotes and an apostrophe in a value and in text, `${…}`
+with nested braces, strings and backticks, comments and regular expression literals in an expression, a division,
+JSX's braces and spread, self-closing and multi-line tags, the `?`, `:`, `.`, `@` and other bindings, every global,
+uppercase attribute names, a capitalised tag name left unread, an unclosed tag at the end and before a `<`, unknown
+tags and HTML comments, the cap, a scan hit on an attribute and on a tag, a declared name that is also a framework's,
+an expression nested 50 000 deep, and repeated unclosed tags of four kinds at the source cap read in one pass under
+a generous time bound);
+`tests/check.rs` (the default pack, a clean page, no pack text in the answer, FAST-AF's real pack flagging `error-text`
+on `violet-text-field`, `size` on `violet-button` and `label` on `violet-checkbox`, a clean FAST-AF page, the
+refusals, the cap, the budget, `versions`, `minimum_basis`, and the scenario); `tests/surfaces.rs` (listed, not
+first-class, callable by name on every lane); and the host's `tests/component_components.rs` (the compiled and
+component builds answer the same checks).
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -354,7 +537,7 @@ know named as unknown, and for every statement how it is known.
 | Principle | How the plugin serves it |
 | --- | --- |
 | 1. Empty host | A plugin crate, compiled into `umbel-first-party` only; the stock `umbel` compiles in nothing (D48). The host gains no code for this plugin: no grant, no store, nothing in `plugin-show` (D151). The doctor's `plugins.pack_checks` is a generic hook any compiled plugin may answer (D172, A23) |
-| 3. Everything is a command | Three commands, the same over MCP and the CLI |
+| 3. Everything is a command | Four commands, the same over MCP and the CLI: three serve the pack, and `components-check` (A30) checks source against it |
 | 4. No model in the request path | Selection, fitting and rendering are deterministic code; the source is read for names, not interpreted |
 | 5. Content lives in the workspace | A library's pack is the deployer's: a space override, written by Specimen's export. The plugin ships only a four-component example (D152) |
 | 6. Deterministic core | The same pack and input give the same bytes; every list has a fixed order |
@@ -1045,8 +1228,10 @@ A profile's statements are served once in every brief as `content.guidance` (6.3
 
 ## 7. Reading source
 
-The plugin reads names, not code. It never parses the source and never judges it (that is step D1's
-`components-check`).
+The brief reads names, not code. It never parses the source and never judges it. Since amendment
+[A30](#amendment-a30-components-check-step-d1-1154), step D1's `components-check` judges it, narrowly: it tokenizes
+the start tags of known components, as text, for undeclared tags and attributes only, and still renders and runs
+nothing.
 
 1. **Runs.** The source is split into maximal runs of the tag alphabet `[a-z0-9._-]`. A run is a candidate when it
    matches the tag pattern. When a candidate is not a known tag, its trailing `.`, `_` and `-` characters are removed
@@ -1213,6 +1398,7 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
 | `tests/fast_af.rs` | Step C4's end-to-end test (A17, A27): FAST-AF's export, its catalog derived at run time and held to Specimen's exported fixture, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
 | `tests/consumers.rs`, `tests/guidance.rs` | Consumer profiles (6.7): A25's exclusions and both jobs' scenarios; A28's guidance in every detail and render, unchanged without it, the default, the budget and `fits`, each limit on the call and in the doctor, `minimum_basis` and spaces |
+| `tests/check.rs` | `components-check` (A30): undeclared tags and attributes on the default pack and on FAST-AF's real pack, a clean page, no pack text, the answer's fixed note, the refusals, the cap, the budget, `versions`, `minimum_basis` and the job's scenario |
 | `tests/facts.rs` | Proposal criterion 3: every fact in `tests/fast_af/facts.json` is in one brief or in the `components-open` call its `omitted` names, and every tag that does not exist is in `unknown` (A19) |
 
 The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components
