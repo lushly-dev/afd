@@ -2,7 +2,7 @@
 name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
-  PR and readiness, then the merge queue once reviewed and green. `inspect` changes
+  PR and readiness, then the merge queue. `inspect` changes
   nothing; `quick` reruns gates and the PR; `lane` hands a factory cell to the
   merge lane. Use when the user says ship it or open a PR.
 argument-hint: inspect | quick | lane
