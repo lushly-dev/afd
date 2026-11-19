@@ -290,4 +290,67 @@ describe('P4-E6: the inbox, after the reviews', () => {
 		expect(errors).toEqual([]);
 		await page.context().close();
 	});
+
+	/** Mute hello, show its timed toast, and watch whether it settles, as the app would through its port. */
+	async function mutedRunning(page: Page, durationMs: number): Promise<() => Promise<unknown>> {
+		await kernelCall(page, 'setting-set', {
+			section: 'loam.notifications',
+			key: 'muted',
+			value: ['hello'],
+			level: 'person',
+		});
+		const shown = await helloCall(page, 'toast-show', { message: 'Quiet', durationMs });
+		await page.evaluate((overlayId) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { appPort(instance: string): { waitOverlay(id: string): Promise<unknown> } };
+			};
+			const box = window as unknown as { settledRunning?: unknown };
+			void shell.kernel
+				.appPort('hello')
+				.waitOverlay(overlayId)
+				.then((result) => {
+					box.settledRunning = result;
+				});
+		}, shown.data?.overlayId as string);
+		return () =>
+			page.evaluate(
+				() => (window as unknown as { settledRunning?: unknown }).settledRunning ?? null
+			);
+	}
+
+	it("holds a muted toast whose timer already runs when the palette opens (the verification's 1)", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		const settled = await mutedRunning(page, 2000);
+		await page.waitForTimeout(300);
+		await page.keyboard.press('ControlOrMeta+K');
+		await page.locator('loam-palette input').waitFor();
+		await page.waitForTimeout(3000);
+		expect(await settled()).toBeNull();
+		await page.keyboard.press('Escape');
+		await expect
+			.poll(settled, { timeout: 8000 })
+			.toMatchObject({ result: 'dismissed', reason: 'timeout' });
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it("holds a muted toast whose timer already runs when the app's own modal opens", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		const settled = await mutedRunning(page, 2000);
+		await page.waitForTimeout(300);
+		const modal = await helloCall(page, 'modal-open', { title: 'Sure?', body: 'Say so.' });
+		await page.waitForTimeout(3000);
+		expect(await settled()).toBeNull();
+		await kernelCall(page, 'overlay-dismiss', {
+			overlayId: modal.data?.overlayId,
+			result: 'cancel',
+		});
+		await expect
+			.poll(settled, { timeout: 8000 })
+			.toMatchObject({ result: 'dismissed', reason: 'timeout' });
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
 });

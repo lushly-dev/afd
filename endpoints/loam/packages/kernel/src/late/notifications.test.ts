@@ -1044,3 +1044,64 @@ describe("a muted app's toasts and the cap (the re-check's improvement 1)", () =
 		expect(all.filter((each) => each.hidden)).toHaveLength(5);
 	});
 });
+
+describe('the act while it runs (the verification of ab2c36a8)', () => {
+	/** The inbox alone over a store, with an action `run` the test drives. */
+	function inboxOver(store: MemoryAdapter, run: () => Promise<{ success: boolean }>) {
+		const notifications = createNotifications({
+			store,
+			workspace: () => 'personal',
+			provider: false,
+			allows: () => true,
+			sourceOf: () => ({ kind: 'shell', bucket: 'shell:local' }),
+			humanGesture: () => true,
+			actionCheck: () => ({ kind: 'own' }),
+			pushRate: createPushRate(),
+			limits: { agent: 5, app: 10 },
+			prefs: async () => ({ toastSticky: 'danger', muted: [] }),
+			landsInInbox: () => false,
+			overlays: { land: () => undefined, hideNext: () => undefined },
+			fromOf: () => undefined,
+			run,
+			kit: { ...DOCUMENT_KIT, archivedRefusal: () => undefined, personKey } as never,
+		});
+		const act = notifications.commands.find((command) => command.name === 'notification-act');
+		if (!act) throw new Error('No notification-act');
+		const context = { traceId: 't', clock: { now: () => 9 } } as never;
+		return (id: string) =>
+			(act.handler as (input: unknown, context: unknown) => Promise<{ success: boolean }>)(
+				{ notification: id },
+				context
+			);
+	}
+	const action = { action: { command: 'probe-note', label: 'Note', input: { text: 'x' } } };
+
+	it('keeps a read or an archive made while the action ran', async () => {
+		const store = new MemoryAdapter();
+		await store.create(NOTIFICATION_TABLE, row(1, action) as never);
+		const act = inboxOver(store, async () => {
+			await store.update(NOTIFICATION_TABLE, row(1).id, { readAt: 3, archivedAt: 4 } as never);
+			return { success: true };
+		});
+		expect((await act(row(1).id)).success).toBe(true);
+		expect(await store.get(NOTIFICATION_TABLE, row(1).id)).toMatchObject({
+			readAt: 3,
+			archivedAt: 4,
+			state: 'done',
+		});
+		expect(await store.get(NOTIFICATION_TABLE, row(1).id)).not.toHaveProperty('claim');
+	});
+
+	it('never writes back a row evicted or deleted while the action ran, whether it ran or failed', async () => {
+		for (const ran of [true, false]) {
+			const store = new MemoryAdapter();
+			await store.create(NOTIFICATION_TABLE, row(1, action) as never);
+			const act = inboxOver(store, async () => {
+				await store.remove(NOTIFICATION_TABLE, row(1).id);
+				return { success: ran };
+			});
+			expect((await act(row(1).id)).success, String(ran)).toBe(ran);
+			expect(await store.get(NOTIFICATION_TABLE, row(1).id), String(ran)).toBeNull();
+		}
+	});
+});

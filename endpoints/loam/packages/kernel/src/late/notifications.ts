@@ -850,20 +850,23 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					...(context.actor ? { actor: context.actor } : {}),
 				});
 				// Put back from the row as stored now, not the claim's snapshot, so a read or an archive made meanwhile (in
-				// another tab) stands; only the claim's fields change.
-				const { state: _state, claim: _claim, ...kept } = (await reread(row.id)) ?? claimed;
+				// another tab) stands; only the claim's fields change. A row gone meanwhile (evicted by the quota, or deleted)
+				// stays gone: nothing writes it again past the quota.
+				const now = await reread(row.id);
+				const { state: _state, claim: _claim, ...kept } = now ?? claimed;
 				if (!result.success) {
 					// Nothing ran: the claim goes, so the person may try again.
-					await putBack(kept);
+					if (now) await putBack(kept);
 					return result as CommandResult<never>;
 				}
 				const at = kit.callNow(context);
 				try {
-					await putBack({
-						...kept,
-						state: 'done',
-						...(kept.readAt === undefined ? { readAt: at } : {}),
-					});
+					if (now)
+						await putBack({
+							...kept,
+							state: 'done',
+							...(kept.readAt === undefined ? { readAt: at } : {}),
+						});
 				} catch {
 					// The action ran; the notice stays `acting`, which never runs it again.
 				}

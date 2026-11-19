@@ -99,7 +99,8 @@ export class OverlaySurfaces {
 
 	/** Whether a modal's closing should read again: a toast waits, or a shown one's timer stopped. */
 	get waiting(): boolean {
-		return this.#waiting || (this.#region?.childElementCount ?? 0) > 0;
+		// A hidden toast's timer is a toast's too: held under a modal, and read again when one opens or closes (B1).
+		return this.#waiting || (this.#region?.childElementCount ?? 0) > 0 || this.#hidden.size > 0;
 	}
 
 	/** Any modal: this one, the palette, or a compact drawer. */
