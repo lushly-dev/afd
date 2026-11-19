@@ -40,6 +40,7 @@ export const testFiles = [
 	'scripts/release-native.test.mjs',
 	'scripts/release-finalize.test.mjs',
 	'scripts/release-claim.test.mjs',
+	'scripts/release-pr-author.test.mjs',
 	'scripts/release-readback.test.mjs',
 	'scripts/registry-readback.test.mjs',
 	'scripts/release-recovery-approval.test.mjs',

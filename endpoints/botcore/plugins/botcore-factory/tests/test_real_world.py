@@ -708,6 +708,26 @@ def test_a_job_runs_its_steps_in_order_and_names_the_one_that_failed(tmp_path):
     assert (done.returncode, done.step) == (0, None)
 
 
+def test_a_failed_job_names_every_failing_test_in_its_own_output_not_only_the_tail(tmp_path):
+    """lushly-dev/afd#1607: a failure far above the tail is still named; an earlier job's
+    output in the same log is not."""
+    log = tmp_path / "f.log"
+    log.write_text("test stale ... FAILED\n")  # An earlier attempt's job wrote this.
+    code = (
+        "import sys; print('test early ... FAILED'); "
+        "[print(f'test p{n} ... ok') for n in range(500)]; "
+        "print('test late ... FAILED'); sys.exit(101)"
+    )
+    steps = [{"label": "validate", "args": python(code)}]
+    processes = OsProcesses()
+    handle = processes.start_job(steps, str(tmp_path), str(log), label="validate")
+    done = wait_for(lambda: processes.poll(handle))
+    assert done.returncode == 101
+    assert "test early" not in done.stdout  # Out of the tail.
+    assert "test stale" not in done.stdout  # The earlier job's, in neither.
+    assert done.failures == ("early", "late")
+
+
 def test_an_install_that_hangs_times_out_as_the_job_s_failure(tmp_path):
     """S4: install never blocks the lane: it runs in the job, bounded by its timeout."""
     processes = OsProcesses()

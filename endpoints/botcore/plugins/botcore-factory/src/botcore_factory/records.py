@@ -47,7 +47,9 @@ kind                    required fields                                     writ
                         commit and merge-failed otherwise); optional
                         head, logPath, counted (false: not the branch's
                         own failure, so it does not count toward
-                        cells.maxEjections), excuse (why not)
+                        cells.maxEjections), excuse (why not), failures
+                        and failureCount (every failing test the job's
+                        log names, lushly-dev/afd#1607)
 ``ejection-excused``    branch, attempt, cause, reason: the foreman found   ejection-excuse
                         the latest ejection was not the branch's fault
 ``slot-released``       branch, attempt, slot, path: a validated branch     the lane loop

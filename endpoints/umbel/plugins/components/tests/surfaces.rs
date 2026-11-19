@@ -120,6 +120,7 @@ async fn plugin_show_reports_the_plugin_and_the_default_pack_in_every_space() {
             ("components-brief", true),
             ("components-list", false),
             ("components-open", false),
+            ("components-check", false),
         ]
     );
     // The default pack carries its own version from its pack.toml, in both spaces.
@@ -207,7 +208,7 @@ async fn the_doctor_passes_the_plugin_and_counts_only_the_override_as_a_pack_dir
         ),
         (
             "plugins.loaded",
-            "1 instance(s) loaded: components (compiled, 3 command(s)); compiled instance(s) \
+            "1 instance(s) loaded: components (compiled, 4 command(s)); compiled instance(s) \
              components are trusted, not sandboxed: grants are a declaration, not a sandbox",
         ),
         (
@@ -305,6 +306,11 @@ async fn components_brief_is_the_one_first_class_suggestion_on_every_lane() {
         for (name, input) in [
             ("components-list", json!({})),
             ("components-open", json!({ "tag": "example-select" })),
+            // Not first-class: found through afd-discover and run by name (amendment A30).
+            (
+                "components-check",
+                json!({ "source": "<example-select label=\"Size\"></example-select>" }),
+            ),
         ] {
             assert!(!listed.contains(&name.to_owned()), "{lane}: {listed:?}");
             // Not listed, and still callable by name (H7).
