@@ -9801,7 +9801,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "89dcfb3b611028b23bf0029b5774b72c9b02f9ae07e58e981b32a215c7187af0",
+      "current_import_sha256": "99d0a68db183d78943b75206d842811548685bd7367a01cff830ccf1afccfe35",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",

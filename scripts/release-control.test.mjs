@@ -1245,12 +1245,17 @@ test('packed provenance records must carry the stamped digest of what they pack 
 	// Over the default 1 MB output buffer, as FAST-AF's adaptations.json is.
 	const adaptations = `${JSON.stringify({ files: [], pad: 'x'.repeat(1_200_000) })}\n`;
 	const envelope = (adaptationsSha) =>
-		JSON.stringify({
-			records: {
-				upstream: { manifest: 'upstream-selected.json', sha256: sha(upstream) },
-				adaptations: { manifest: 'adaptations.json', ...adaptationsSha },
+		`${JSON.stringify(
+			{
+				family: 'fast-af',
+				records: {
+					upstream: { manifest: 'upstream-selected.json', sha256: sha(upstream) },
+					adaptations: { manifest: 'adaptations.json', ...adaptationsSha },
+				},
 			},
-		});
+			null,
+			2
+		)}\n`;
 	const pack = (name, files) => {
 		const root = join(base, name, 'package');
 		for (const [file, text] of Object.entries({ 'package.json': '{}', ...files })) {
@@ -1288,5 +1293,21 @@ test('packed provenance records must carry the stamped digest of what they pack 
 	assert.throws(
 		() => assertPackedProvenance(pack('partial', partial), '@f/x'),
 		/Packed @f\/x lacks its provenance record upstream-selected\.json/
+	);
+	// With the repository, the packed records must be the family's committed ones: records an
+	// earlier local pack left behind agree with themselves but not with the repository.
+	const repo = join(base, 'repo');
+	const committed = join(repo, 'foundations/fast-af/provenance');
+	mkdirSync(committed, { recursive: true });
+	writeFileSync(join(committed, 'provenance.json'), envelope({}));
+	writeFileSync(join(committed, 'upstream-selected.json'), upstream);
+	writeFileSync(join(committed, 'adaptations.json'), adaptations);
+	const current = pack('current', records({ sha256: sha(adaptations) }));
+	assert.equal(assertPackedProvenance(current, '@f/x', repo), true);
+	const older = `${adaptations.slice(0, -2)} }\n`;
+	assert.throws(
+		() =>
+			assertPackedProvenance(pack('older', records({ sha256: sha(older) }, older)), '@f/x', repo),
+		/Packed @f\/x adaptations\.json is not foundations\/fast-af\/provenance's; pack it again/
 	);
 });

@@ -126,7 +126,7 @@ assert.match(license(componentName), /Copyright \(c\) 2026 Lushly Dev/);
 passed('packed manifests: identities, 38 runtime exports, portable ranges, licenses, no hooks');
 // prepack stamps adaptations.json's digest, which the repository does not commit (#1610).
 for (const name of [runtimeName, componentName])
-	assert(assertPackedProvenance(packs[name], name), `${name} packs no provenance records`);
+	assert(assertPackedProvenance(packs[name], name, repository), `${name} packs no provenance`);
 passed('packed provenance: each tarball carries its records, stamped with their digests');
 
 async function install(name, dependencies, { expected = true } = {}) {
