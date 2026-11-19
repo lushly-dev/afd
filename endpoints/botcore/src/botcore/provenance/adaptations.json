@@ -1319,6 +1319,17 @@
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/claims.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8e30a6f5124b1557cd53eebd9139d566e20e6d41f3371ac7dc3295642c2d550a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Let a release end only its own branch's claim, so a session that loses a claim race leaves the winner's claim standing"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/commands.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -1592,6 +1603,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_claims.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "08a7a8ec4c042fc543979ea7691123cd00b50b3fc48ba744005ae34a5fe49b1d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Let a release end only its own branch's claim, so a session that loses a claim race leaves the winner's claim standing"
     },
     {
       "path": "plugins/botcore-factory/tests/test_commands.py",

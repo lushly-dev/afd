@@ -90,7 +90,9 @@ naming the PR, who validates it and what they check.
   Capture only what a future session cannot cheaply re-derive.
 - **Close the task.** Verify that the PR itself updated the `docs/features/` plan or
   moved it to `complete/`; don't assume it. Close or comment on the claimed issue if
-  the PR did not close it.
+  the PR did not close it. An issue you claimed and are leaving unfinished with no open
+  PR: `node scripts/issue-claim.mjs release <n> --reason "<where it stands>"`, so
+  another session can take it. One with an open PR stays claimed through the PR.
 - **Close-out edits ship through a new PR.** Never push onto an already-merged
   branch; those commits would not reach `main`.
 

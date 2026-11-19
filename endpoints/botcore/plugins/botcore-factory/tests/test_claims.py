@@ -35,6 +35,22 @@ def test_the_latest_claim_wins_and_a_release_ends_it():
     assert current_claim(comments(claim_body(CLAIM), release_body("fix/z", "x"))) == CLAIM
 
 
+def test_a_release_leaves_an_earlier_claim_standing():
+    # A session lost the race to CLAIM and released its own claim: CLAIM still holds.
+    rival = Claim("t3/a", "hero", "2030-01-05T00:00:00Z")
+    assert (
+        current_claim(comments(claim_body(CLAIM), claim_body(rival), release_body("t3/a", "lost")))
+        == CLAIM
+    )
+    # A release naming no branch ends every claim.
+    assert (
+        current_claim(
+            comments(claim_body(CLAIM), claim_body(rival), "<!-- botcore-factory:release {} -->")
+        )
+        is None
+    )
+
+
 def test_markers_this_plugin_did_not_write_are_not_claims():
     assert current_claim(comments("no marker")) is None
     assert current_claim(comments("<!-- botcore-factory:claim {not json} -->")) is None
