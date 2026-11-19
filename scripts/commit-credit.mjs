@@ -201,6 +201,7 @@ export async function mergeGroupCommits({
 		throw new Error("HEAD_SHA must be a 40-character commit, the merge group's");
 	const commits = [];
 	let total = null;
+	let compared = null;
 	for (let page = 1; page <= 30; page++) {
 		const url = `${api}/repos/${repository}/compare/${encodeURIComponent(branch)}...${head}?per_page=100&page=${page}`;
 		const response = await fetchImpl(url, {
@@ -213,6 +214,14 @@ export async function mergeGroupCommits({
 			throw new Error(
 				`the merge group ${head} is not ${branch} plus commits (status ${body.status}): check the range by hand with git log`
 			);
+		// Every page compares with the branch afresh. If the branch moved between two pages,
+		// the pages are of different comparisons and commits could fall between them.
+		const mergeBase = body.merge_base_commit?.sha;
+		if (!mergeBase || (page > 1 && mergeBase !== compared))
+			throw new Error(
+				`${branch} moved while the merge group ${head} was being read (${compared} then ${mergeBase}): run the check again`
+			);
+		compared = mergeBase;
 		total = body.total_commits;
 		const batch = body.commits ?? [];
 		for (const item of batch) {

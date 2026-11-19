@@ -820,21 +820,35 @@ test('a path git quotes is read as the file it names', (t) => {
 	assert.equal(gitPath('"docs/a \\"b\\"\\\\c\\td.md"'), 'docs/a "b"\\c\td.md');
 	assert.equal(gitPath('"docs/\\346\\227\\245\\346\\234\\254.md"'), 'docs/日本.md');
 	// Not a quoted path: a lone quote, or a name that only starts with one.
+	// With core.quotepath off git still quotes a name holding a quote, and leaves the rest raw.
+	assert.equal(gitPath('"docs/\\"🙂\\".md"'), 'docs/"🙂".md');
 	assert.equal(gitPath('"'), '"');
 	assert.equal(gitPath('"half'), '"half');
 
-	// With git itself, and no setting changed: the default quotes the path, and the scope reads it.
+	// With git itself, quoting as it does by default whatever this machine's configuration says.
 	const { root, write } = fixture(t);
 	const env = Object.fromEntries(
 		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
 	);
 	const git = (args) =>
-		execFileSync('git', ['-c', 'user.name=F', '-c', 'user.email=f@example.invalid', ...args], {
-			cwd: root,
-			encoding: 'utf8',
-			env,
-			stdio: ['ignore', 'pipe', 'ignore'],
-		});
+		execFileSync(
+			'git',
+			[
+				'-c',
+				'user.name=F',
+				'-c',
+				'user.email=f@example.invalid',
+				'-c',
+				'core.quotepath=true',
+				...args,
+			],
+			{
+				cwd: root,
+				encoding: 'utf8',
+				env,
+				stdio: ['ignore', 'pipe', 'ignore'],
+			}
+		);
 	git(['init', '-b', 'main']);
 	git(['add', '.']);
 	git(['commit', '-m', 'base']);

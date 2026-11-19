@@ -163,6 +163,7 @@ describe('--merge-group', () => {
 		commit: { message, author, committer: { name: 'GitHub', email: 'noreply@github.com' } },
 	});
 	const comparison = (commits, extra = {}) => ({
+		merge_base_commit: { sha: 'b'.repeat(40) },
 		status: 'ahead',
 		behind_by: 0,
 		total_commits: commits.length,
@@ -237,6 +238,15 @@ describe('--merge-group', () => {
 		const whole = read(pages);
 		assert.equal((await whole.commits).length, 101);
 		assert.match(whole.fake.urls[1], /&page=2$/);
+		// The branch moved between the pages: they are pages of two comparisons.
+		await assert.rejects(
+			read([pages[0], { ...pages[1], merge_base_commit: { sha: 'e'.repeat(40) } }]).commits,
+			/main moved while the merge group c{40} was being read \(b{40} then e{40}\)/
+		);
+		await assert.rejects(
+			read([{ ...pages[0], merge_base_commit: undefined }]).commits,
+			/main moved while the merge group/
+		);
 		// The second page comes back empty: 100 of 101 is not the group.
 		await assert.rejects(
 			read([pages[0], comparison([], { total_commits: 101 })]).commits,

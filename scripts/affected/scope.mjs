@@ -124,7 +124,10 @@ export function gitPath(line) {
 	const bytes = [];
 	for (let index = 0; index < body.length; index++) {
 		if (body[index] !== '\\') {
-			bytes.push(...Buffer.from(body[index], 'utf8'));
+			// A whole code point: half of a surrogate pair is not a character.
+			const char = String.fromCodePoint(body.codePointAt(index));
+			bytes.push(...Buffer.from(char, 'utf8'));
+			index += char.length - 1;
 			continue;
 		}
 		const octal = /^[0-7]{3}/.exec(body.slice(index + 1));

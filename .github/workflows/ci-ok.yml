@@ -6,8 +6,8 @@ name: CI verdict
 # finishes last. Re-running a failed workflow does not re-run this one: re-run it afterwards.
 #
 # A merge queue asks for the same check on the commit it built (`merge_group`). There it reads the
-# commits the group holds that main does not, the squash GitHub wrote among them, and waits for a run of
-# every workflow that has the `merge_group` trigger: none may be missing.
+# commits the group holds that main does not, the squash GitHub wrote among them, and waits for a
+# run of every workflow that has the `merge_group` trigger: none may be missing.
 on:
   pull_request:
     branches: [main]

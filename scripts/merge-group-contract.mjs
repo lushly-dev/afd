@@ -12,8 +12,9 @@
  *     other job runs only when `queue` says so: it needs `queue` and its `if` opens with the
  *     gate, or it needs a job that does and has no status function to run past a skipped one;
  *   - without `paths` it has no `queue` job;
- *   - past that gate nothing names the `merge_group` event, and a job that runs for a pull request
- *     alone is listed in PULL_REQUEST_ONLY with its reason;
+ *   - past that gate nothing names the `merge_group` event, and a job that can tell a pull
+ *     request from its merge group (the event's name, the pull request's own fields) is listed
+ *     in PULL_REQUEST_ONLY with its reason;
  *   - its paths use only the pattern syntax the queue job implements, and read the same two ways;
  *   - its concurrency group does not collide between merge groups, which have no pull request
  *     number;
@@ -62,16 +63,34 @@ export const queueJob = (file) => `  queue:
 
 /** The verdict's own workflow, which reads the event to know which commits and runs to check. */
 const VERDICT = 'ci-ok.yml';
-/** A condition that sets a pull request apart from its merge group. */
-const EVENT_ONLY = /github\.event_name\s*(==\s*'pull_request'|!=)/;
+/** Pattern syntax GitHub reads in a path or branch filter that `filterPattern` does not. */
+const UNSUPPORTED = /[?+[\]{}\\]/;
+/** Comparisons that are false for a pull request and for its merge group alike. */
+const BOTH_ALIKE = /github\.event_name\s*==\s*'(schedule|workflow_dispatch)'/g;
+/** What can tell a pull request from its merge group: the event's name, or what only one has. */
+const SETS_APART =
+	/event_name|EVENT_NAME|github\.event\.pull_request\b|github\.(head|base)_ref\b|GITHUB_(HEAD|BASE)_REF/;
+/** The lines of a job that can tell a pull request from its merge group. */
+const settingApart = (block) =>
+	block
+		.split('\n')
+		// AFD_BASE and AFD_SCOPE name the events to give a merge group its base; their own rule
+		// holds them word for word.
+		.filter((line) => !/^\s*(#|AFD_(BASE|SCOPE): )/.test(line))
+		.filter((line) => SETS_APART.test(line.replace(BOTH_ALIKE, '')))
+		.map((line) => line.trim());
 /**
- * Jobs that run for a pull request and cannot run for its merge group, by workflow, each with the
- * reason. An entry whose job is gone, or has lost the condition, fails.
+ * Jobs that run for a pull request and cannot run for its merge group, by workflow: the reason,
+ * and the expression in the job that makes it so (`reads`). An entry fails once its job is gone,
+ * no longer tells the two events apart, or no longer reads that.
  */
 export const PULL_REQUEST_ONLY = {
 	'umbel.yml': {
-		'plugin-isolation':
-			'reads the pull request body for its isolation statement; a merge group has no body, and the statement was checked on the pull request',
+		'plugin-isolation': {
+			reason:
+				'checks the isolation statement in the pull request body; a merge group has no body, and the statement was checked on the pull request',
+			reads: 'github.event.pull_request.body',
+		},
 	},
 };
 
@@ -79,7 +98,19 @@ export const PULL_REQUEST_ONLY = {
 const STATUS_FUNCTION = /\b(always|cancelled|failure|success)\s*\(/;
 
 /** A value without the comment that trails it; a value that is only a comment is empty. */
-const uncommented = (value) => value.trim().replace(/(^|\s+)#[^'"]*$/, '');
+function uncommented(value) {
+	let quote = null;
+	for (let index = 0; index < value.length; index++) {
+		const char = value[index];
+		if (quote) {
+			if (char === quote) quote = null;
+		} else if (char === "'" || char === '"') quote = char;
+		// A comment starts at a # that opens the value or follows white space, outside quotes.
+		else if (char === '#' && (index === 0 || /\s/.test(value[index - 1])))
+			return value.slice(0, index).trim();
+	}
+	return value.trim();
+}
 
 /**
  * A block's keys at `indent` spaces, each with its own line's value and the lines under it. A line
@@ -95,22 +126,33 @@ function entries(lines, indent) {
 		if (match) found.push({ key: match[1], value: uncommented(match[2] ?? ''), lines: [] });
 		else if (sibling.test(line)) throw new Error(`a key this check cannot read: "${line.trim()}"`);
 		else if (found.length > 0) found.at(-1).lines.push(line);
+		// Content before the first key sits at a depth this check does not read: keys indented
+		// four spaces where it looks for two would all go unseen.
+		else if (!/^\s*(#.*)?$/.test(line))
+			throw new Error(`content this check cannot place: "${line.trim()}"`);
 	}
 	return found;
 }
 
 /** A YAML list written `[a, b]`, as one scalar, or as `- a` lines under the key. */
 function list(entry) {
-	const unquote = (value) => value.trim().replace(/^(['"])(.*)\1$/, '$2');
+	// An alias or an anchor names a value written elsewhere, and a scalar holding white space is
+	// more than one item: neither is the list it appears to be.
+	const item = (value) => {
+		const raw = value.trim();
+		if (/^[*&]/.test(raw) || (!/^(['"]).*\1$/.test(raw) && /\s/.test(raw)))
+			throw new Error(`a list item this check cannot read: "${raw}"`);
+		return raw.replace(/^(['"])(.*)\1$/, '$2');
+	};
 	const flow = /^\[(.*)\]$/.exec(entry.value);
-	if (flow) return flow[1].split(',').map(unquote).filter(Boolean);
-	if (entry.value) return [unquote(entry.value)];
+	if (flow) return flow[1].split(',').map(item).filter(Boolean);
+	if (entry.value) return [item(entry.value)];
 	const items = [];
 	for (const line of entry.lines) {
 		if (/^\s*(#.*)?$/.test(line)) continue;
-		const item = /^\s+- (.*)$/.exec(line);
-		if (!item) throw new Error(`a list this check cannot read: "${line.trim()}"`);
-		items.push(unquote(uncommented(item[1])));
+		const listed = /^\s+- (.*)$/.exec(line);
+		if (!listed) throw new Error(`a list this check cannot read: "${line.trim()}"`);
+		items.push(item(uncommented(listed[1])));
 	}
 	return items;
 }
@@ -166,6 +208,9 @@ function pullRequest(triggers) {
 	const keys = new Map(entries(trigger.lines, 4).map((entry) => [entry.key, entry]));
 	const branches = keys.has('branches') ? list(keys.get('branches')) : null;
 	if (branches?.length === 0) throw new Error('pull_request.branches lists nothing');
+	for (const pattern of branches ?? [])
+		if (UNSUPPORTED.test(pattern))
+			throw new Error(`the branch pattern ${pattern} uses syntax this check does not implement`);
 	return {
 		// A branch filter is a list of patterns, as a path filter is: `'**'` and `'mai*'` reach main.
 		main: branches === null || matchesFilters(branches, 'main'),
@@ -255,7 +300,7 @@ export function mergeGroupProblems(workflows) {
 				say(
 					`its pull_request.paths read two ways differ: ${read.length} by the queue job's reader, ${pull.paths.length} listed`
 				);
-			for (const pattern of pull.paths.filter((candidate) => /[?+[\]{}\\]/.test(candidate)))
+			for (const pattern of pull.paths.filter((candidate) => UNSUPPORTED.test(candidate)))
 				say(
 					`its path ${pattern} uses pattern syntax the queue job does not implement: only *, ** and a leading !`
 				);
@@ -280,22 +325,20 @@ export function mergeGroupProblems(workflows) {
 			for (const line of rest.filter((candidate) => candidate.includes('merge_group')))
 				say(`names the merge_group event outside its queue job: "${line.trim()}"`);
 		}
-		const allowed = PULL_REQUEST_ONLY[file] ?? {};
+		const allowed = file === VERDICT ? {} : (PULL_REQUEST_ONLY[file] ?? {});
 		for (const [id, job] of jobs) {
-			const only = EVENT_ONLY.test(job.if ?? '');
-			if (only && !allowed[id])
-				say(
-					`job ${id} runs for a pull request and not for its merge group: list it in PULL_REQUEST_ONLY with the reason, or drop the condition`
-				);
-			if (!only && allowed[id])
-				say(
-					`job ${id} is listed in PULL_REQUEST_ONLY but no longer has the condition: remove the entry`
-				);
-			for (const line of job.block.split('\n'))
-				if (/^ {6,}(- )?if:/.test(line) && EVENT_ONLY.test(line))
+			if (id === 'queue' || file === VERDICT) continue;
+			const apart = settingApart(job.block);
+			const entry = allowed[id];
+			if (!entry)
+				for (const line of apart)
 					say(
-						`a step of job ${id} runs for a pull request and not for its merge group: "${line.trim()}"`
+						`job ${id} can tell a pull request from its merge group: "${line}". Drop that, or list the job in PULL_REQUEST_ONLY with its reason`
 					);
+			else if (apart.length === 0 || !job.block.includes(entry.reads))
+				say(
+					`job ${id} is listed in PULL_REQUEST_ONLY but no longer reads ${entry.reads}: remove the entry`
+				);
 		}
 		for (const id of Object.keys(allowed))
 			if (!jobs.has(id))
