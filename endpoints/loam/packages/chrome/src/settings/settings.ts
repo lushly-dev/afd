@@ -103,6 +103,8 @@ export class LoamSettingsSection extends SettingsElement {
 	#header: HTMLElement | undefined;
 	#panel: HTMLElement | undefined;
 	#unsubscribe: (() => void) | null = null;
+	/** Each shown key's row and the level it was read at: what a write's `expected` and level are. */
+	#current = new Map<string, { row: ValueRow; level: Level }>();
 
 	connectedCallback(): void {
 		const root = this.shadowRoot as ShadowRoot;
@@ -405,8 +407,12 @@ export class LoamSettingsSection extends SettingsElement {
 
 	// ─── The fields ────────────────────────────────────────────────────────────
 
-	/** Read the shown section's values at the shown level and render a field for each key set there. */
-	async #readPanel(focusKey?: string): Promise<void> {
+	/**
+	 * Read the shown section's values at the shown level and render a field for each key set there. A custom editor
+	 * already showing for the same key is kept and given the new value, so focus inside it stays; every other field is
+	 * rebuilt, and focus returns to the element it was on, by its id.
+	 */
+	async #readPanel(): Promise<void> {
 		const kernel = this.kernel;
 		const panel = this.#panel;
 		const section = this.#selected;
@@ -426,20 +432,49 @@ export class LoamSettingsSection extends SettingsElement {
 			panel.replaceChildren(el('p', {}, failed(listed)));
 			return;
 		}
-		const focused =
-			focusKey ??
-			(this.shadowRoot?.activeElement?.closest?.('.field') as HTMLElement | null)?.dataset.key;
 		const extra = await this.#editorData(section);
 		if (generation !== this.#reads) return;
-		const rows = listed.data.values.map((row) => this.#field(section, level, row, extra));
-		panel.replaceChildren(
-			...(rows.length > 0
-				? rows
-				: [el('p', { class: 'note' }, 'Nothing in this section is set at this level.')])
-		);
-		if (focused) {
-			const field = panel.querySelector<HTMLElement>(`.field[data-key="${CSS.escape(focused)}"]`);
-			field?.querySelector<HTMLElement>('[data-control]')?.focus();
+		const active = this.shadowRoot?.activeElement;
+		const focusedId = active?.id;
+		this.#current = new Map(listed.data.values.map((row) => [row.key, { row, level }]));
+		const boxes = listed.data.values.map((row) => {
+			const box = this.#field(section, level, row, extra);
+			const old = panel.querySelector<HTMLElement>(
+				`.field[data-section="${CSS.escape(section.section)}"][data-key="${CSS.escape(row.key)}"]`
+			);
+			const editor = old?.firstElementChild as (HTMLElement & Record<string, unknown>) | null;
+			const made = box.firstElementChild as (HTMLElement & Record<string, unknown>) | null;
+			if (
+				!old ||
+				!editor ||
+				!made ||
+				!editor.hasAttribute('data-editor') ||
+				editor.localName !== made.localName
+			)
+				return box;
+			for (const name of ['label', 'disabled', 'apps', 'commands', 'value'])
+				editor[name] = made[name];
+			while (editor.nextSibling) editor.nextSibling.remove();
+			editor.after(...[...box.childNodes].slice(1));
+			return old;
+		});
+		if (boxes.length === 0) {
+			panel.replaceChildren(
+				el('p', { class: 'note' }, 'Nothing in this section is set at this level.')
+			);
+			return;
+		}
+		// Kept boxes stay in place, never detached, so focus inside them stays too.
+		for (const child of [...panel.children]) {
+			if (!boxes.includes(child as HTMLElement)) child.remove();
+		}
+		let before: ChildNode | null = panel.firstChild;
+		for (const box of boxes) {
+			if (box.parentNode === panel) before = box.nextSibling;
+			else panel.insertBefore(box, before);
+		}
+		if (focusedId && active && !active.isConnected) {
+			this.shadowRoot?.querySelector<HTMLElement>(`#${CSS.escape(focusedId)}`)?.focus();
 		}
 	}
 
@@ -456,6 +491,44 @@ export class LoamSettingsSection extends SettingsElement {
 		return { commands: found.data?.items ?? [] };
 	}
 
+	/** Write a key's new value at the level shown now, `expected` the value it showed (3.2), and say how it went. */
+	async #write(section: SectionSchema, key: string, value: unknown, title: string): Promise<void> {
+		const current = this.#current.get(key);
+		if (!current) return;
+		const done = (await this.kernel?.call('setting-set', {
+			section: section.section,
+			key,
+			value,
+			level: current.level,
+			expected: current.row.value,
+		})) as Answer | undefined;
+		if (!done) return;
+		const error = this.shadowRoot?.querySelector(`#error-${CSS.escape(key)}`);
+		if (done.success) {
+			if (error) error.textContent = '';
+			this.#say(`${title} is saved.`);
+			await this.#readPanel();
+		} else {
+			if (error) error.textContent = failed(done);
+			this.#say(`${title} was not saved. ${failed(done)}`);
+		}
+	}
+
+	/** Reset a key at the level shown now, `expected` the value it showed. */
+	async #reset(section: SectionSchema, key: string, title: string): Promise<void> {
+		const current = this.#current.get(key);
+		if (!current) return;
+		const done = (await this.kernel?.call('setting-reset', {
+			section: section.section,
+			key,
+			level: current.level,
+			expected: current.row.value,
+		})) as Answer | undefined;
+		if (!done) return;
+		this.#say(done.success ? `${title} is reset.` : `${title} was not reset. ${failed(done)}`);
+		if (done.success) await this.#readPanel();
+	}
+
 	#field(
 		section: SectionSchema,
 		level: Level,
@@ -467,27 +540,10 @@ export class LoamSettingsSection extends SettingsElement {
 		const box = el('div', {
 			class: 'field',
 			id: `key-${row.key}`,
+			'data-section': section.section,
 			'data-key': row.key,
 			...(row.key === this.#target ? { 'data-target': '' } : {}),
 		});
-		const error = el('p', { class: 'note', id: `error-${row.key}`, role: 'status' });
-		const write = async (value: unknown) => {
-			const done = (await this.kernel?.call('setting-set', {
-				section: section.section,
-				key: row.key,
-				value,
-				level,
-				expected: row.value,
-			})) as Answer | undefined;
-			if (!done) return;
-			if (done.success) {
-				this.#say(`${title} is saved.`);
-				await this.#readPanel(row.key);
-			} else {
-				error.textContent = failed(done);
-				this.#say(`${title} was not saved. ${failed(done)}`);
-			}
-		};
 		const editor = CUSTOM_EDITORS[`${section.section}.${row.key}`];
 		let control: HTMLElement;
 		if (editor) {
@@ -497,6 +553,8 @@ export class LoamSettingsSection extends SettingsElement {
 				| LoamInstancePicker
 				| LoamKeybindingEditor
 			) & { label: string; disabled: boolean };
+			made.id = `field-${row.key}`;
+			made.setAttribute('data-editor', '');
 			made.label = title;
 			made.disabled = !row.writable;
 			if (editor === 'loam-keybinding-editor') {
@@ -507,7 +565,11 @@ export class LoamSettingsSection extends SettingsElement {
 					.map(({ instance, title: name }) => ({ instance, title: name }));
 			}
 			(made as { value: unknown }).value = structuredClone(row.value);
-			made.addEventListener('change', (event) => void write((event as CustomEvent).detail.value));
+			// The level and `expected` are read when the change comes, since a kept editor outlives this row.
+			made.addEventListener(
+				'change',
+				(event) => void this.#write(section, row.key, (event as CustomEvent).detail.value, title)
+			);
 			control = made;
 		} else {
 			const field = settingField(row.key, schema, row.value);
@@ -519,12 +581,10 @@ export class LoamSettingsSection extends SettingsElement {
 					return;
 				}
 				field.showError(null);
-				void write(read.value);
+				void this.#write(section, row.key, read.value, title);
 			});
-			field.control.setAttribute('data-control', '');
 			control = field.element;
 		}
-		if (editor) control.setAttribute('data-control', '');
 		const from = [
 			FROM_WORDS[row.from],
 			row.updatedBy ? `by ${whoSet(row.updatedBy)}` : '',
@@ -532,26 +592,13 @@ export class LoamSettingsSection extends SettingsElement {
 		]
 			.filter(Boolean)
 			.join(', ');
-		const reset = button(
-			'Reset',
-			async () => {
-				const done = (await this.kernel?.call('setting-reset', {
-					section: section.section,
-					key: row.key,
-					level,
-					expected: row.value,
-				})) as Answer | undefined;
-				if (!done) return;
-				this.#say(done.success ? `${title} is reset.` : `${title} was not reset. ${failed(done)}`);
-				if (done.success) await this.#readPanel(row.key);
-			},
-			{
-				'aria-label': `Reset ${title}`,
-				'aria-describedby': `from-${row.key}`,
-				// Only a value set at this level can be reset here.
-				...(row.from !== level || !row.writable ? { 'aria-disabled': 'true' } : {}),
-			}
-		);
+		const reset = button('Reset', () => this.#reset(section, row.key, title), {
+			id: `reset-${row.key}`,
+			'aria-label': `Reset ${title}`,
+			'aria-describedby': `from-${row.key}`,
+			// Only a value set at this level can be reset here.
+			...(row.from !== level || !row.writable ? { 'aria-disabled': 'true' } : {}),
+		});
 		box.append(
 			control,
 			el(
@@ -569,7 +616,7 @@ export class LoamSettingsSection extends SettingsElement {
 							REASON_WORDS[row.reason ?? ''] ?? 'You cannot change this here.'
 						),
 					]),
-			error
+			el('p', { class: 'error', id: `error-${row.key}`, role: 'status' })
 		);
 		return box;
 	}

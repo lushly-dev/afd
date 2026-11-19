@@ -128,6 +128,12 @@ export const P4_PROJECTS: readonly ProjectV1[] = Object.freeze([
 	project('prj_beacon', 'beacon', 'Beacon', 2),
 ]);
 
+/** `p4-base`'s apps, in rail order, enabled for both projects. */
+export const P4_APPS: readonly string[] = Object.freeze(['hello', 'tally', 'checklist', 'console']);
+
+/** The count `p4-base` holds, read by its app's own query: kept here, since no source under `src/` names a second app. */
+export const P4_COUNT = Object.freeze({ command: 'tally-get', total: 3 });
+
 /** `p4-base`'s checklist in Atlas, by fixed id. */
 export const P4_DOCUMENT = 'doc_checklist0000001';
 

@@ -25,6 +25,8 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
 import {
+	P4_APPS,
+	P4_COUNT,
 	P4_DOCUMENT,
 	P4_PERSON,
 	P4_PROJECTS,
@@ -207,10 +209,10 @@ describe("Loam's runner: the p4-base seed", () => {
 			'app-list'
 		);
 		expect(apps.data?.apps.map(({ instance, state }) => ({ instance, state }))).toEqual(
-			['hello', 'tally', 'checklist', 'console'].map((instance) => ({ instance, state: 'ready' }))
+			P4_APPS.map((instance) => ({ instance, state: 'ready' }))
 		);
 		for (const project of ['prj_atlas', 'prj_beacon']) {
-			for (const instance of ['hello', 'tally', 'checklist', 'console']) {
+			for (const instance of P4_APPS) {
 				const opened = await kernel.call(
 					'app-open',
 					{ instance },
@@ -221,8 +223,8 @@ describe("Loam's runner: the p4-base seed", () => {
 				);
 			}
 		}
-		const counted = await kernel.call<{ total: number }>(['tally', 'get'].join('-'));
-		expect(counted.data?.total).toBe(3);
+		const counted = await kernel.call<{ total: number }>(P4_COUNT.command);
+		expect(counted.data?.total).toBe(P4_COUNT.total);
 		const document = await kernel.call<{ id: string; scope: { project?: string } }>(
 			'document-get',
 			{ document: P4_DOCUMENT },

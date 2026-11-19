@@ -308,7 +308,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * order. `lateSettingsMinified` 22,800 to 30,500 (22,217 to 27,782, +5,565): the shell's `loam.rail`,
  * `loam.keybindings` and `loam.notifications` with their checks, the palette's setting index, `section-open`'s target
  * and the rail order. `urlMinified` 5,700 to 6,400 (6,077): the settings section's sync and its fragment. New row:
- * `settingsMinified` 36,000, section 14's estimate (29,409: the section, the console's form model with native
+ * `settingsMinified` 36,000, section 14's estimate (30,242: the section, the console's form model with native
  * controls, and the three custom editors; with the console's Violet controls it measured 75,453, so the section's
  * fields are native, as the account and documents sections' are). The manifest's settings checks, shared by
  * `late-settings` and `apps`, are named `setting-checks` so they never read as the `settings` chunk; `apps` 417,105.
