@@ -217,7 +217,9 @@ describe('diffJournals (A3)', () => {
 	});
 });
 
-describe('createReferenceWorkspace (D37)', () => {
+// Each test runs every registered command against twin kernels; the count grows with every step, and a loaded
+// machine running all packages at once (a pre-push over a tooling change) took them past vitest's 5 s default.
+describe('createReferenceWorkspace (D37)', { timeout: 30_000 }, () => {
 	it('is deterministic for a seed', () => {
 		const a = createReferenceWorkspace({ seed: 'phase-0', size: 500 });
 		const b = createReferenceWorkspace({ seed: 'phase-0', size: 500 });
