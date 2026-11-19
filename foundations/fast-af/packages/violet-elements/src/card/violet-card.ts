@@ -109,11 +109,17 @@ const styles = css`
     }
 
     @media (forced-colors: active) {
+        /* The frame paints itself; what is slotted into it takes the system colours. */
         .root {
             forced-color-adjust: none;
             border: var(--_card-border-width) solid ButtonText;
             background: Canvas;
             box-shadow: none;
+            color: CanvasText;
+        }
+
+        slot {
+            forced-color-adjust: auto;
         }
 
         .header,
