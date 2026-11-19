@@ -586,15 +586,11 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
     ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
 
-    ``$defs`` and ``definitions`` move from ``data`` to the envelope, because ``#/$defs/...``
-    references resolve against the document root. The wire format omits a model field set to
+    Definitions move to the envelope unless ``data`` has its own ``$id``, which makes it
+    the root for local references. The wire format omits a model field set to
     ``None``, so a property that accepts ``null`` is not listed as required."""
-    data_schema = _optional_nullable_properties(data_schema)
-    data = {
-        key: value
-        for key, value in data_schema.items()
-        if key not in ("$schema", "$defs", "definitions")
-    }
+    data = _optional_nullable_properties(data_schema)
+    data.pop("$schema", None)
     envelope: Dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -605,9 +601,10 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "required": ["success"],
     }
-    for key in ("$defs", "definitions"):
-        if key in data_schema:
-            envelope[key] = data_schema[key]
+    if "$id" not in data:
+        for key in ("$defs", "definitions"):
+            if key in data:
+                envelope[key] = data.pop(key)
     return envelope
 
 

@@ -431,6 +431,21 @@ impl CommandHandler for Tagged {
     }
 }
 
+#[test]
+fn definitions_stay_with_data_when_it_has_its_own_id() {
+    let data = json!({
+        "$id": "https://example.com/item",
+        "type": "object",
+        "properties": { "tag": { "type": "string", "$ref": "#/$defs/Tag" } },
+        "$defs": { "Tag": { "$ref": "#/definitions/Name" } },
+        "definitions": { "Name": { "minLength": 1 } },
+    });
+    let schema = command_result_output_schema(&data);
+    assert_eq!(schema["properties"]["data"], data);
+    assert!(schema.get("$defs").is_none());
+    assert!(schema.get("definitions").is_none());
+}
+
 /// A schema generated with nested types (schemars, for one) keeps them in `$defs` or
 /// `definitions`; their references resolve against the envelope, so both move there.
 /// `returns` (a [`JsonSchema`]) cannot carry `$ref` or `$defs`, so the server never emits them

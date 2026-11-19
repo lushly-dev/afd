@@ -115,6 +115,18 @@ TEST_CASE("command_result_output_schema wraps data in the CommandResult envelope
     CHECK_FALSE(compiled->validate(Json{{"success", true}, {"data", {{"p", "one"}}}}));
 }
 
+TEST_CASE("command_result_output_schema keeps definitions with data when it has its own $id") {
+    const Json data{{"$id", "https://example.com/item"},
+                    {"type", "object"},
+                    {"properties", {{"tag", {{"type", "string"}, {"$ref", "#/$defs/Tag"}}}}},
+                    {"$defs", {{"Tag", {{"$ref", "#/definitions/Name"}}}}},
+                    {"definitions", {{"Name", {{"minLength", 1}}}}}};
+    const Json schema = afd::command_result_output_schema(data);
+    CHECK(schema["properties"]["data"] == data);
+    CHECK_FALSE(schema.contains("$defs"));
+    CHECK_FALSE(schema.contains("definitions"));
+}
+
 TEST_CASE("commands_to_mcp_tools keeps only commands exposed to MCP, in order") {
     afd::CommandDefinition hidden{.name = "note-hide", .description = "Hidden", .handler = ok};
     afd::CommandDefinition first = full_command();

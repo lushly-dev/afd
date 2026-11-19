@@ -98,4 +98,18 @@ describe('commandResultOutputSchema', () => {
 		// The caller's schema is not changed.
 		expect(data.$defs).toEqual({ Tag: tag });
 	});
+
+	it('keeps definitions with data when it has its own $id', () => {
+		const data = {
+			$id: 'https://example.com/item',
+			type: 'object',
+			properties: { tag: { type: 'string', $ref: '#/$defs/Tag' } },
+			$defs: { Tag: { $ref: '#/definitions/Name' } },
+			definitions: { Name: { minLength: 1 } },
+		} as const;
+		const schema = commandResultOutputSchema(data);
+		expect(schema.properties?.data).toEqual(data);
+		expect(schema).not.toHaveProperty('$defs');
+		expect(schema).not.toHaveProperty('definitions');
+	});
 });

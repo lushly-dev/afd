@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 pytest.importorskip("mcp")
 
+from jsonschema import Draft202012Validator  # noqa: E402
 from mcp import Client  # noqa: E402
 
 from afd import ExposeOptions, command_result_output_schema, failure, success  # noqa: E402
@@ -183,6 +184,22 @@ def test_envelope_keeps_a_schema_without_defs_unchanged():
     )
     assert schema["properties"]["data"] == {"type": "object"}
     assert "$defs" not in schema
+
+
+def test_envelope_keeps_definitions_with_data_when_it_has_its_own_id():
+    data = {
+        "$id": "https://example.com/item",
+        "type": "object",
+        "properties": {"tag": {"type": "string", "$ref": "#/$defs/Tag"}},
+        "$defs": {"Tag": {"$ref": "#/definitions/Name"}},
+        "definitions": {"Name": {"minLength": 1}},
+    }
+    schema = command_result_output_schema(data)
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid({"success": True, "data": {"tag": "home"}})
+    assert not validator.is_valid({"success": True, "data": {"tag": ""}})
+    assert schema["properties"]["data"] == data
+    assert "$defs" not in schema and "definitions" not in schema
 
 
 def test_envelope_moves_definitions_and_relaxes_nullable_requirements():

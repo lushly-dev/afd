@@ -98,10 +98,12 @@ Json command_result_output_schema(const Json& data_schema) {
     Json envelope{{"type", "object"}};
     if (data.is_object()) {
         data.erase("$schema");
-        for (const char* key : {"$defs", "definitions"}) {
-            if (const auto defs = data.find(key); defs != data.end()) {
-                envelope[key] = std::move(*defs);
-                data.erase(key);
+        if (!data.contains("$id")) {
+            for (const char* key : {"$defs", "definitions"}) {
+                if (const auto defs = data.find(key); defs != data.end()) {
+                    envelope[key] = std::move(*defs);
+                    data.erase(key);
+                }
             }
         }
     }

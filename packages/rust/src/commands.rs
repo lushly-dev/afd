@@ -1916,16 +1916,18 @@ pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_jso
 /// The MCP `outputSchema` of a command tool: the CommandResult envelope, with `data` typed by
 /// `data_schema` (`spec/command-metadata.md`, "Structured results").
 ///
-/// `$defs` and `definitions` move from `data` to the envelope, because `#/$defs/...` and
-/// `#/definitions/...` references resolve against the document root. `$schema` is dropped.
+/// `$schema` is dropped. Definitions move to the envelope unless `data` has its own `$id`,
+/// which makes it the root for local references.
 pub fn command_result_output_schema(data_schema: &serde_json::Value) -> serde_json::Value {
     let mut data = data_schema.clone();
     let mut hoisted = serde_json::Map::new();
     if let Some(object) = data.as_object_mut() {
         object.remove("$schema");
-        for key in ["$defs", "definitions"] {
-            if let Some(definitions) = object.remove(key) {
-                hoisted.insert(key.to_owned(), definitions);
+        if !object.contains_key("$id") {
+            for key in ["$defs", "definitions"] {
+                if let Some(definitions) = object.remove(key) {
+                    hoisted.insert(key.to_owned(), definitions);
+                }
             }
         }
     }
