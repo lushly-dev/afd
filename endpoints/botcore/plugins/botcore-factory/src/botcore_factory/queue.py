@@ -20,7 +20,7 @@ from botcore_factory import dials, records
 from botcore_factory.adapter import matches
 from botcore_factory.claims import format_time
 from botcore_factory.events import answer
-from botcore_factory.lane_base import open_index
+from botcore_factory.lane_base import MERGE_QUEUED, open_index
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
@@ -241,6 +241,15 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
     profile = _profile(factory, cell.get("issues", []))
     with factory.store.update(f"lane-enqueue {branch}") as state:
         cell = _find_cell(state, branch)
+        waiting = next((e for e in state["queue"] if e.get("branch") == branch), None)
+        if waiting is not None and waiting.get("state") == MERGE_QUEUED:
+            raise Refusal(
+                "MERGE_QUEUED",
+                f"{branch} is in GitHub's merge queue as PR {waiting.get('pr')}, which locks "
+                "the branch: nothing can be pushed to it",
+                "Wait: the lane lands it when it merges, and ejects it when it leaves the "
+                "queue, after which lane-enqueue takes the new head",
+            )
         if factory.world.git.head(worktree) != head or factory.world.git.uncommitted(worktree):
             raise Refusal(
                 "HEAD_MOVED",
