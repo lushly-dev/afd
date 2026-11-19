@@ -107,8 +107,10 @@ describe('commandResultOutputSchema', () => {
 			$defs: { Tag: { $ref: '#/definitions/Name' } },
 			definitions: { Name: { minLength: 1 } },
 		} as const;
+		const original = structuredClone(data);
 		const schema = commandResultOutputSchema(data);
-		expect(schema.properties?.data).toEqual(data);
+		expect(data).toEqual(original);
+		expect(schema.properties?.data).toEqual(original);
 		expect(schema).not.toHaveProperty('$defs');
 		expect(schema).not.toHaveProperty('definitions');
 	});

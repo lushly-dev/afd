@@ -125,6 +125,12 @@ TEST_CASE("command_result_output_schema keeps definitions with data when it has 
     CHECK(schema["properties"]["data"] == data);
     CHECK_FALSE(schema.contains("$defs"));
     CHECK_FALSE(schema.contains("definitions"));
+    // CompiledSchema resolves local references from its input root. Here the $id makes
+    // the emitted data schema the resource root for both references.
+    const auto compiled = afd::CompiledSchema::compile(schema["properties"]["data"]);
+    REQUIRE(compiled);
+    CHECK(compiled->validate(Json{{"tag", "home"}}));
+    CHECK_FALSE(compiled->validate(Json{{"tag", ""}}));
 }
 
 TEST_CASE("commands_to_mcp_tools keeps only commands exposed to MCP, in order") {

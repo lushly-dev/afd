@@ -431,8 +431,8 @@ impl CommandHandler for Tagged {
     }
 }
 
-#[test]
-fn definitions_stay_with_data_when_it_has_its_own_id() {
+#[tokio::test]
+async fn definitions_stay_with_data_when_it_has_its_own_id() {
     let data = json!({
         "$id": "https://example.com/item",
         "type": "object",
@@ -444,6 +444,11 @@ fn definitions_stay_with_data_when_it_has_its_own_id() {
     assert_eq!(schema["properties"]["data"], data);
     assert!(schema.get("$defs").is_none());
     assert!(schema.get("definitions").is_none());
+    // The registry resolves local references from the schema passed to it. The $id makes
+    // the emitted data schema the resource root for both references.
+    let resource = &schema["properties"]["data"];
+    assert!(validates(resource, &json!({ "tag": "home" })).await);
+    assert!(!validates(resource, &json!({ "tag": "" })).await);
 }
 
 /// A schema generated with nested types (schemars, for one) keeps them in `$defs` or
