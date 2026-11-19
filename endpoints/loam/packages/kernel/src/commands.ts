@@ -35,6 +35,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'agent-member-settle',
 	// The kernel's record of how a copilot turn ended (phase 5 specification, 3.4).
 	'copilot-turn-settle',
+	// The autonomy rows a manifest's apply orphaned, flagged (phase 4 specification, 4.2).
+	'autonomy-settle',
 ]);
 
 /**

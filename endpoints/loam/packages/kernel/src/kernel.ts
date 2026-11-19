@@ -479,6 +479,7 @@ export async function createKernelParts(
 					return run('agent', name, input, made);
 				},
 				agentCommands: () => registries.agent.listCommands(),
+				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
 			contextFields = [...KERNEL_CONTEXT_FIELDS, ...parts.copilot.contextFields];

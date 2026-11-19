@@ -27,7 +27,18 @@ const load = <T>(path: string): Promise<T> => import(pathToFileURL(join(LOAM, pa
 
 /** One app a seed file lists: from its source, or the runner's fixture by name. */
 export type SeedAppV1 =
-	| { instance: string; dir: string; manifest?: string; module: string }
+	| {
+			instance: string;
+			dir: string;
+			manifest?: string;
+			module: string;
+			/**
+			 * Commands the seed adds to the app's manifest for the scenarios alone, each a mutation that changes nothing and
+			 * answers `{ fixture: true }`: a job may name a command the app does not ship yet (phase 4's step 8, R3: `-reset`
+			 * ships with its `confirm_prompt` in step 6), and no shipped app gains a command without its confirmation.
+			 */
+			fixtureCommands?: Array<{ name: string; title: string; description: string }>;
+	  }
 	| { instance: string; fixture: 'console' };
 
 /**
@@ -85,8 +96,38 @@ export async function seedApps(listed: readonly SeedAppV1[]): Promise<SeedDeploy
 			packages[directory] = { manifest: CONSOLE_MANIFEST, definition: CONSOLE_DEFINITION };
 			manifests[app.instance] = CONSOLE_MANIFEST;
 		} else {
-			const manifest = await readAppManifest(join(LOAM, app.dir), app.manifest);
+			const read = await readAppManifest(join(LOAM, app.dir), app.manifest);
 			const imported = await load<{ default: AppDefinitionV1 }>(`${app.dir}/${app.module}`);
+			const extra = app.fixtureCommands ?? [];
+			const manifest = (
+				extra.length === 0
+					? read
+					: {
+							...read,
+							commands: [
+								...(read.commands ?? []),
+								...extra.map(({ name, title, description }) => ({
+									name,
+									title,
+									description,
+									effects: ['store-write'],
+									input_schema: { type: 'object', properties: {}, additionalProperties: false },
+								})),
+							],
+						}
+			) as ManifestV2;
+			const definition: AppDefinitionV1 =
+				extra.length === 0
+					? imported.default
+					: {
+							...imported.default,
+							handlers: {
+								...imported.default.handlers,
+								...Object.fromEntries(
+									extra.map(({ name }) => [name, async () => success({ fixture: true })])
+								),
+							},
+						};
 			const files = Object.fromEntries(
 				[
 					manifest.view?.handlers,
@@ -95,7 +136,7 @@ export async function seedApps(listed: readonly SeedAppV1[]): Promise<SeedDeploy
 					.filter((path): path is string => path !== undefined)
 					.map((path) => [path, '<!doctype html>'])
 			);
-			packages[directory] = { manifest, definition: imported.default, files };
+			packages[directory] = { manifest, definition, files };
 			manifests[app.instance] = manifest;
 		}
 		apps.push({

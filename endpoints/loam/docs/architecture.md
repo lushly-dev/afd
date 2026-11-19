@@ -401,7 +401,7 @@ sequenceDiagram
   `copilot-session-list`, `copilot-session-open`, `copilot-session-resume`;
   `run-list`, `run-get`, `run-pause`, `run-resume`, `run-redirect`,
   `run-stop`, `run-share`; `automation-create`, `automation-list`,
-  `automation-delete`; `autonomy-get`, `autonomy-set`,
+  `automation-delete`; `autonomy-get`, `autonomy-list`, `autonomy-set`,
   `approval-metrics-get`; `pack-install`, `pack-list`, `pack-remove`;
   `app-create`, `app-draft-write`, `app-check`, `app-preview`,
   `app-publish`, `app-version-list`, `app-export`, `app-usage-get`.

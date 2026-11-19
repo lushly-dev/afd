@@ -48,7 +48,7 @@ import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands, ownerTitle } from './overlay-commands.js';
-import { isOwner } from './owners.js';
+import { isOwner, teamListed } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
@@ -115,6 +115,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		): Promise<CommandResult>;
 		/** The agent registry's commands, with their input schemas (4.5). */
 		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
+		/** Every registered command's name, the live registry's (phase 4's step 8, R4). */
+		commandNames?(): readonly string[];
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -318,7 +320,7 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings, isHumanGesture },
+		{ createSettings, createAutonomy, isHumanGesture },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -348,6 +350,8 @@ export async function createLateParts(
 			),
 		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
 		humanOnly: (name) => HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name),
+		// A write whose own handler refuses every agent with its hand-off reaches that handler (phase 4's 3.2, F2).
+		handlerRefuses: (name, input) => settings?.refusesAgent(name, input) === true,
 		internal: (name) => INTERNAL_COMMANDS.includes(name),
 		digest: async (value) => {
 			const bytes = new TextEncoder().encode(canonical(value));
@@ -563,6 +567,33 @@ export async function createLateParts(
 		paletteIndex: createPaletteIndex,
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// Phase 4's autonomy (its section 4), in `late-settings` beside the settings: stored, resolved and shown, never
+	// enforced here (D41), so it is an input to no access decision (P4-E2).
+	const autonomy = createAutonomy({
+		store: deps.store,
+		scope: deps.scope,
+		apps: deps.apps,
+		// The live registry's names (R4), so a host's own commands are the shell's too.
+		commandNames: () => deps.commandNames?.() ?? SHELL_COMMAND_NAMES,
+		internal: (name) => INTERNAL_COMMANDS.includes(name),
+		isMutation: deps.isMutation,
+		hosted,
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		// The rule `project-update { access }` decides by (D87, D110): a `team` instance still listed names it.
+		teamListed: (project) => teamListed(deps.scope.workspaceApps.all(), project.slug),
+		ownValue: (section, key, context) => (settings as Settings).ownValue(section, key, context),
+		writeOwn: (section, key, entry, context) =>
+			(settings as Settings).writeOwn(section, key, entry, context),
+		replaying: () => deps.internals?.replaying === true,
+		kit: { ...DOCUMENT_KIT, personKey },
+	});
+	/** The autonomy rows the apps no longer back, or back again, flagged by boot's journaled settle; never in a replay. */
+	const settleAutonomy = async (): Promise<void> => {
+		if (deps.internals?.replaying === true) return;
+		const changed = await autonomy.orphanChanges();
+		if (changed.orphaned.length > 0 || changed.restored.length > 0)
+			await deps.runBoot('autonomy-settle', changed);
+	};
 	const scoped = createScopeCommands({
 		...deps,
 		stores,
@@ -672,6 +703,8 @@ export async function createLateParts(
 			...copilot.commands,
 			...copilot.bootOnly,
 			...settings.commands,
+			...autonomy.commands,
+			autonomy.settleCommand,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -786,6 +819,10 @@ export async function createLateParts(
 					// A sponsor a call found no member, as `member-remove`'s: their agent members are suspended by a
 					// top-level `agent-member-settle` after its entry, and the next call waits for it (4.4, 8.3).
 					if (agentMembers.pending()) sessions?.follow(() => agentMembers.flush());
+					// A catalog installed or an instance changed: the autonomy rows it no longer backs, or backs again, are
+					// settled by a top-level `autonomy-settle` after its entry (phase 4's 4.2; step 8's blocker 1).
+					if (name === 'app-instance-refresh' || name === 'workspace-app-set')
+						sessions?.follow(() => settleAutonomy());
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
@@ -898,6 +935,15 @@ export async function createLateParts(
 							deps.clock?.now() ?? Date.now()
 						);
 				if (before !== undefined) await run('document-trash-expire', { before });
+			} catch (cause) {
+				reportLate(cause);
+			}
+			// Then the autonomy rows the apps no longer back, flagged, and those backed again, unflagged: journaled, and
+			// only when there is some, so an unchanged workspace's journal is unchanged (phase 4 specification, 4.2).
+			try {
+				const changed = replaying ? undefined : await autonomy.orphanChanges();
+				if (changed && (changed.orphaned.length > 0 || changed.restored.length > 0))
+					await run('autonomy-settle', changed);
 			} catch (cause) {
 				reportLate(cause);
 			}

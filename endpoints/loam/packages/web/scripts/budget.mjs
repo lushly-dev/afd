@@ -340,6 +340,21 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * First paint 308,966 to 309,167 (+201, the answer registry the `surfaces` and `editor` chunks share) and 96,387 to
  * 96,477 gzip, the kernel alone 118,894 to 118,973, and `editor` 35,393 to 35,361, within their rows. The first
  * measurement of this step's `surfaces`, 96,469, read a stale chrome build; these replace it.
+ *
+ * Phase 4's step 8 (autonomy) raised two under D115, measured on its branch from `main` at `9f4bb6d2` on Windows with
+ * Node 26.13.1. `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195): the `autonomy` table, the pure
+ * `resolveAutonomy` with its ceilings and write-time bound, `autonomy-get` (single and bulk), `autonomy-list`,
+ * `autonomy-set` with its N9 check order and hand-off, and boot's `autonomy-settle`; about a third of it is the three
+ * commands' descriptions, input schemas and refusals in words. `settingsMinified` 36,000 to 40,000 (32,094 to 39,323,
+ * +7,229): `loam-autonomy-section`, its words and the tree's Autonomy entry. First paint 308,800 and 96,345 gzip,
+ * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring. After the step's
+ * trust review, with descriptions and refusal text trimmed first (-471): `lateSettingsMinified` 43,500 to 45,500 (42,595
+ * to 44,544: identity and catalog state per instance, the workspace in the row's key, `autonomy-list`'s pages, the
+ * identifier checks and the copilot's hand-off rule); `settingsMinified` 40,000 to 41,000 (39,323 to 40,198: the
+ * section's pages and the cap's link). First paint 308,836 and 96,360 gzip; `late` 83,989 of 84,000.
+ * Merged with step 3 (`main` at `9d611137`): `lateMinified` 93,000 to 94,000 (93,244 combined: step 3's overlay wiring
+ * beside step 8's autonomy deps, its settle after a refresh or `workspace-app-set`, and the copilot gate's hand-off
+ * rule); first paint 309,020 and 96,411 gzip, the kernel alone 119,000, and every other row within its ceiling.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -377,14 +392,15 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
-	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged, set to 93,000; step 4
-	// raised it to 104,500 (103,981, the note above).
-	lateMinified: 104_500,
+	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
+	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it). Step 4 merged on top:
+	// 105,000 combined, set to 105,500 under D115 (step 4's own +11,665 is in its header note).
+	lateMinified: 105_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 30_500,
+	lateSettingsMinified: 45_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -422,7 +438,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 36_000,
+	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 });
