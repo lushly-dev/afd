@@ -105,6 +105,11 @@ jobs:
       - name: Build package
         run: python -m build
 
+      # The repository does not commit adaptations.json's digest; hatch_build.py stamps it into the
+      # packaged provenance.json. Refuse a wheel or sdist that lacks it or disagrees with its records.
+      - name: Check the packaged provenance records
+        run: python scripts/verify_provenance.py --artifacts dist
+
       - name: Inspect built distribution identities and hashes
         run: >-
           python ../../scripts/release-native.py --root ../..

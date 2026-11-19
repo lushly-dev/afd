@@ -18,7 +18,7 @@ import {
 	planRelease,
 	releaseChannel,
 } from '../release/control.mjs';
-import { tarCommand } from '../release/exec-tool.mjs';
+import { execTool, tarCommand } from '../release/exec-tool.mjs';
 import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
 import {
@@ -85,6 +85,35 @@ export function assertPackedContents(file, metadata) {
 		throw new Error(
 			`Packed ${metadata.name} lacks what its manifest promises: ${[...new Set(missing)].join(', ')}. Build it before planning`
 		);
+}
+/**
+ * Provenance records a tarball packs (`package/provenance/`, FAST-AF's) are whole and agree with
+ * themselves: every manifest the envelope names is packed with its digest. The repository does not
+ * commit the digest of `adaptations.json`, which packing stamps (lushly-dev/afd#1610), so a pack
+ * that skipped the stamp, or stamped other bytes, is refused here. A tarball without the records
+ * is the manifest's business: one that lists `provenance` in `files` fails `assertPackedContents`.
+ */
+export function assertPackedProvenance(file, name = file) {
+	const listing = run(tarCommand(), ['-tzf', file], process.cwd()).trim().split(/\r?\n/);
+	const prefix = 'package/provenance/';
+	if (!listing.includes(`${prefix}provenance.json`)) return false;
+	// adaptations.json is over a megabyte; the default buffer is one.
+	const read = (member) =>
+		execTool(tarCommand(), ['-xOzf', file, member], {
+			cwd: process.cwd(),
+			stdio: ['ignore', 'pipe', 'pipe'],
+			maxBuffer: 64 * 1024 * 1024,
+		});
+	const envelope = JSON.parse(read(`${prefix}provenance.json`).toString('utf8'));
+	for (const [key, record] of Object.entries(envelope.records ?? {})) {
+		if (!listing.includes(`${prefix}${record.manifest}`))
+			throw new Error(`Packed ${name} lacks its provenance record ${record.manifest}`);
+		if (!record.sha256)
+			throw new Error(`Packed ${name} provenance.json lacks the ${key} digest; pack stamps it`);
+		if (hash(read(`${prefix}${record.manifest}`)) !== record.sha256)
+			throw new Error(`Packed ${name} provenance.json disagrees with ${record.manifest}`);
+	}
+	return true;
 }
 function converted(range, name, all) {
 	if (!range.startsWith('workspace:')) return range;
@@ -186,6 +215,7 @@ export function packSelected({
 			const file = resolve(tarballs[0]);
 			const metadata = packedManifest(file);
 			assertPackedContents(file, metadata);
+			assertPackedProvenance(file, distribution.name);
 			return {
 				...distribution,
 				file,

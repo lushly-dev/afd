@@ -25,10 +25,12 @@ def records():
 
 
 def replace_record(payloads, key, value):
+    """Replaces a manifest; the envelope hashes it unless it is adaptations.json (build-stamped)."""
     envelope = json.loads(payloads["provenance.json"])
     name = envelope["records"][key]["manifest"]
     payloads[name] = (json.dumps(value, indent=2) + "\n").encode()
-    envelope["records"][key]["sha256"] = hashlib.sha256(payloads[name]).hexdigest()
+    if key != "adaptations":
+        envelope["records"][key]["sha256"] = hashlib.sha256(payloads[name]).hexdigest()
     payloads["provenance.json"] = json.dumps(envelope).encode()
 
 
@@ -187,3 +189,131 @@ def test_known_license_bytes_match_immutable_git_blob_and_sha256():
     blob = b"blob " + str(len(raw)).encode() + b"\0" + raw
     assert hashlib.sha1(blob).hexdigest() == license_row["git_blob"]
     assert hashlib.sha256(raw).hexdigest() == license_row["sha256"]
+
+
+HATCHLING = [
+    "hatchling",
+    "hatchling.builders",
+    "hatchling.builders.hooks",
+    "hatchling.builders.hooks.plugin",
+    "hatchling.builders.hooks.plugin.interface",
+]
+
+
+def stamp_hook():
+    """hatch_build.py, with hatchling's hook base stubbed: the tests do not install hatchling."""
+    import sys
+    import types
+
+    saved = {name: sys.modules.get(name) for name in HATCHLING}
+    for name in HATCHLING:
+        sys.modules[name] = types.ModuleType(name)
+    sys.modules[HATCHLING[-1]].BuildHookInterface = object
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "botcore_hatch_build", ROOT / "hatch_build.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = value
+    return module
+
+
+def stamped(payloads):
+    """The records as the build packages them (hatch_build.py's stamp)."""
+    shipped = dict(payloads)
+    shipped["provenance.json"] = stamp_hook().stamp(
+        payloads["provenance.json"], payloads["adaptations.json"]
+    )
+    return shipped
+
+
+def test_the_repository_does_not_commit_the_adaptations_digest():
+    # Its one line made any two branches that recorded different files conflict (#1610).
+    payloads = records()
+    envelope = json.loads(payloads["provenance.json"])
+    assert "sha256" not in envelope["records"]["adaptations"]
+    envelope["records"]["adaptations"]["sha256"] = hashlib.sha256(
+        payloads["adaptations.json"]
+    ).hexdigest()
+    payloads["provenance.json"] = json.dumps(envelope).encode()
+    with pytest.raises(AssertionError, match="stamped when packaged; do not commit it"):
+        verifier().verify_records(payloads.__getitem__)
+
+
+def test_packaged_records_need_the_stamped_digest_of_the_adaptations_they_ship():
+    payloads = records()
+    with pytest.raises(AssertionError, match="Missing advertised adaptations digest"):
+        verifier().verify_records(payloads.__getitem__, packaged=True)
+    shipped = stamped(payloads)
+    verifier().verify_records(shipped.__getitem__, packaged=True)
+    # The stamp leaves the committed envelope otherwise byte for byte.
+    envelope = json.loads(shipped["provenance.json"])
+    del envelope["records"]["adaptations"]["sha256"]
+    assert (json.dumps(envelope, indent=2) + "\n").encode() == payloads["provenance.json"]
+    shipped["adaptations.json"] += b" "
+    with pytest.raises(AssertionError, match="Invalid advertised adaptations digest"):
+        verifier().verify_records(shipped.__getitem__, packaged=True)
+
+
+def test_the_build_hook_stamps_wheels_and_sdists_and_not_editable_installs(tmp_path):
+    hook = stamp_hook().ProvenanceStampHook()
+    hook.root = str(ROOT)
+    expected = stamped(records())["provenance.json"]
+    for target, version, stamps in [
+        ("wheel", "standard", True),
+        ("sdist", "standard", True),
+        ("wheel", "editable", False),
+    ]:
+        hook.target_name = target
+        build_data = {"force_include": {}}
+        hook.initialize(version, build_data)
+        assert bool(build_data["force_include"]) == stamps, (target, version)
+        for source, destination in build_data["force_include"].items():
+            assert destination == "src/botcore/provenance/provenance.json"
+            assert Path(source).read_bytes() == expected
+        hook.finalize(version, build_data, str(tmp_path))
+        assert not any(Path(source).exists() for source in build_data["force_include"])
+
+
+def write_artifacts(directory, payloads, version="9.9.9"):
+    import io
+    import tarfile
+    import zipfile
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(directory / f"lushly_botcore-{version}-py3-none-any.whl", "w") as wheel:
+        for name, raw in payloads.items():
+            wheel.writestr(f"botcore/provenance/{name}", raw)
+    with tarfile.open(directory / f"lushly_botcore-{version}.tar.gz", "w:gz") as sdist:
+        for name, raw in payloads.items():
+            info = tarfile.TarInfo(f"lushly_botcore-{version}/src/botcore/provenance/{name}")
+            info.size = len(raw)
+            sdist.addfile(info, io.BytesIO(raw))
+
+
+def test_built_artifacts_are_checked_for_their_stamped_records(tmp_path):
+    shipped = stamped(records())
+    write_artifacts(tmp_path / "good", shipped)
+    assert verifier().verify_artifacts(tmp_path / "good") == [
+        "lushly_botcore-9.9.9-py3-none-any.whl",
+        "lushly_botcore-9.9.9.tar.gz",
+    ]
+    write_artifacts(tmp_path / "unstamped", records())
+    with pytest.raises(AssertionError, match="Missing advertised adaptations digest"):
+        verifier().verify_artifacts(tmp_path / "unstamped")
+    write_artifacts(tmp_path / "stale", dict(shipped, **{"adaptations.json": b"{}"}))
+    with pytest.raises(AssertionError, match="Invalid advertised adaptations digest"):
+        verifier().verify_artifacts(tmp_path / "stale")
+    partial = {name: raw for name, raw in shipped.items() if name != "adaptations.json"}
+    write_artifacts(tmp_path / "partial", partial)
+    with pytest.raises(AssertionError, match="lacks provenance records"):
+        verifier().verify_artifacts(tmp_path / "partial")
+    (tmp_path / "good" / "lushly_botcore-9.9.9.tar.gz").unlink()
+    with pytest.raises(AssertionError, match="Expected a lushly_botcore wheel and sdist"):
+        verifier().verify_artifacts(tmp_path / "good")

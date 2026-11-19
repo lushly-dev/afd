@@ -68,6 +68,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/botcore"]
 
+# hatch_build.py stamps adaptations.json's digest into the packaged provenance.json.
+[tool.hatch.build.hooks.custom]
+
 [tool.hatch.build]
 include = ["src/botcore/**/*.py", "src/botcore/skills/**/*.md", "src/botcore/skills/**/scripts/*.mjs", "src/botcore/provenance/*"]
 

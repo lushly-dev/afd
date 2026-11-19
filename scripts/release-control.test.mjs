@@ -33,6 +33,7 @@ import {
 import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
 import {
 	assertPackedContents,
+	assertPackedProvenance,
 	notes,
 	packedManifest,
 	validatePacked,
@@ -1234,4 +1235,58 @@ test('a tarball must hold every file its manifest promises, so an unbuilt releas
 	);
 	const built = { 'README.md': '#', 'dist/index.js': '', 'dist/index.d.ts': '', 'dist/bin.js': '' };
 	assertPackedContents(pack('built', built), manifest);
+});
+
+test('packed provenance records must carry the stamped digest of what they pack (#1610)', (t) => {
+	const base = mkdtempSync(join(tmpdir(), 'afd-packed-provenance-'));
+	t.after(() => rmSync(base, { recursive: true, force: true }));
+	const sha = (text) => createHash('sha256').update(text).digest('hex');
+	const upstream = '{"files":[]}\n';
+	// Over the default 1 MB output buffer, as FAST-AF's adaptations.json is.
+	const adaptations = `${JSON.stringify({ files: [], pad: 'x'.repeat(1_200_000) })}\n`;
+	const envelope = (adaptationsSha) =>
+		JSON.stringify({
+			records: {
+				upstream: { manifest: 'upstream-selected.json', sha256: sha(upstream) },
+				adaptations: { manifest: 'adaptations.json', ...adaptationsSha },
+			},
+		});
+	const pack = (name, files) => {
+		const root = join(base, name, 'package');
+		for (const [file, text] of Object.entries({ 'package.json': '{}', ...files })) {
+			mkdirSync(dirname(join(root, file)), { recursive: true });
+			writeFileSync(join(root, file), text);
+		}
+		const file = join(base, `${name}.tgz`);
+		execFileSync(tarCommand(), ['-czf', file, '-C', join(base, name), 'package']);
+		return file;
+	};
+	const records = (adaptationsSha, bytes = adaptations) => ({
+		'provenance/provenance.json': envelope(adaptationsSha),
+		'provenance/upstream-selected.json': upstream,
+		'provenance/adaptations.json': bytes,
+	});
+	assert.equal(assertPackedProvenance(pack('none', {}), '@fixture/none'), false);
+	assert.equal(
+		assertPackedProvenance(pack('stamped', records({ sha256: sha(adaptations) })), '@f/x'),
+		true
+	);
+	assert.throws(
+		() => assertPackedProvenance(pack('unstamped', records({})), '@f/x'),
+		/Packed @f\/x provenance\.json lacks the adaptations digest; pack stamps it/
+	);
+	assert.throws(
+		() =>
+			assertPackedProvenance(
+				pack('stale', records({ sha256: sha(adaptations) }, `${adaptations} `)),
+				'@f/x'
+			),
+		/Packed @f\/x provenance\.json disagrees with adaptations\.json/
+	);
+	const partial = records({ sha256: sha(adaptations) });
+	delete partial['provenance/upstream-selected.json'];
+	assert.throws(
+		() => assertPackedProvenance(pack('partial', partial), '@f/x'),
+		/Packed @f\/x lacks its provenance record upstream-selected\.json/
+	);
 });

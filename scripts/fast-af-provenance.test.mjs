@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { stampedProvenance } from '../foundations/fast-af/scripts/pack-provenance.mjs';
 import {
 	hasStaleShape,
 	isRemoved,
@@ -25,8 +26,13 @@ const upstream = record('upstream-selected.json');
 const adaptations = record('adaptations.json');
 
 test("FAST-AF provenance records are bound by hash and match each unit's release state", () => {
-	for (const entry of Object.values(provenance.records))
+	const { adaptations: changing, ...frozen } = provenance.records;
+	for (const entry of Object.values(frozen))
 		assert.equal(sha(readFileSync(join(root, directory, entry.manifest))), entry.sha256);
+	// Each row's current_import_sha256 still binds the record to its file (below). The digest of
+	// adaptations.json, which changes with every edit, is stamped when packed (#1610).
+	assert.equal(changing.manifest, 'adaptations.json');
+	assert(!('sha256' in changing), "do not commit adaptations.json's digest; packing stamps it");
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
 	const inventory = JSON.parse(readFileSync(join(root, 'scripts/release/inventory.json'), 'utf8'));
@@ -53,6 +59,29 @@ test("FAST-AF provenance records are bound by hash and match each unit's release
 		assert.equal(owner.distributions[0].private === true, unit.private === true, unit.name);
 		const classified = architecture.units.find((item) => item.manifest === manifestPath);
 		assert.deepEqual([classified?.family, classified?.layer], ['fast-af', unit.layer], unit.name);
+	}
+});
+
+test('every FAST-AF package packs its provenance records, stamped with the adaptations digest', () => {
+	const stamped = stampedProvenance();
+	assert.deepEqual(Object.keys(stamped).sort(), [
+		'adaptations.json',
+		'provenance.json',
+		'upstream-selected.json',
+	]);
+	const envelope = JSON.parse(stamped['provenance.json']);
+	assert.equal(envelope.records.adaptations.sha256, sha(stamped['adaptations.json']));
+	delete envelope.records.adaptations.sha256;
+	assert.equal(
+		`${JSON.stringify(envelope, null, 2)}\n`,
+		readFileSync(join(root, directory, 'provenance.json'), 'utf8'),
+		'the stamp changes nothing else'
+	);
+	for (const unit of provenance.units) {
+		const manifest = JSON.parse(readFileSync(join(root, unit.path, 'package.json'), 'utf8'));
+		assert(manifest.files.includes('provenance'), `${unit.name} must pack provenance/`);
+		const script = relative(unit.path, 'foundations/fast-af/scripts/pack-provenance.mjs');
+		assert.equal(manifest.scripts?.prepack, `node ${script.replaceAll('\\', '/')}`, unit.name);
 	}
 });
 

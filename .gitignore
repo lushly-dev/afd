@@ -78,6 +78,9 @@ api-alignment-report.md
 # Untracked Specimen files would fail its provenance test. Vitest's browser-mode failure
 # artifacts land under .vitest/ (ignored above).
 foundations/specimen/packages/*/bin/
+# FAST-AF's prepack writes its stamped provenance records into each package it packs.
+/foundations/fast-af/packages/element/packages/fast-element/provenance/
+/foundations/fast-af/packages/violet-elements/provenance/
 
 # The local Umbel workspace scripts/umbel-components.mjs writes (Component Briefs, step C5).
 .umbel/

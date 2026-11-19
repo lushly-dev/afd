@@ -754,6 +754,17 @@
       "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial; Model routing: Opus 5.5 default and two-model first review with GPT-6.2 Astra"
     },
     {
+      "path": "hatch_build.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "bf246e223f62c8acdc5d75bb3f4c46bd23edcf28533c23ff47642ed8cf5e08c6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
+    },
+    {
       "path": "package.json",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -1940,21 +1951,21 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "436692f35640192cdf398a3fdf7ff5cbcdae019e35b84206dc2d28bb9bbaaeb8",
+      "current_import_sha256": "051efbd18a6a3f5dbf97883de61c45689eaf3ee1590fc7300fcff69b960f09cc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
     },
     {
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "7524345b1f2be63831e2b26f867463d36026e5a024c0af39efe767cd710b505e",
+      "current_import_sha256": "41ecb5a78b8c4c5a02af02279c14a517781e171bbfec87c63b428858d9c469df",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
     },
     {
       "path": "scripts/package_tests.py",
@@ -1971,21 +1982,21 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "052b41963a8e1143765f8d2a56f4bdfc00481984d4188a00e8e27fc9b74a2248",
+      "current_import_sha256": "a6381b867585f4b4fc31ae0c5572da0192377da7146ee1474424205f447288da",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
     },
     {
       "path": "scripts/verify_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "5c4df65c718e2d769b82b0196f2cec68dff3aa96e5a76e54963afd85c1f4dd58",
+      "current_import_sha256": "1a138b47e762df4602cef98be0d0084b175cc47a7d1aa302de41d6c899efa479",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
     },
     {
       "path": "src/botcore/__init__.py",
@@ -5975,11 +5986,11 @@
       "path": "tests/test_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "6f3b4c6810d841df94f55aef5d40b11c7f225bb2eeb8db2353ae692ee5be12ef",
+      "current_import_sha256": "339494b3eb50c7a6ecc4825d6af07a4176ecda305bbcadeb83b3bdf110431488",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
     },
     {
       "path": "tests/test_registry.py",

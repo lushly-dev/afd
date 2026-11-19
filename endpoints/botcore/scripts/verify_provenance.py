@@ -1,9 +1,20 @@
-"""Verify the immutable upstream -> frozen staged input -> current import chain."""
+"""Verify the immutable upstream -> frozen staged input -> current import chain.
+
+The repository commits the sha256 of the two frozen manifests in provenance.json, never that of
+adaptations.json, which changes with every edit: its one line made any two branches that recorded
+different files conflict (lushly-dev/afd#1610). The build stamps it into the packaged copy
+(hatch_build.py), so a built wheel or sdist must carry it, computed from the adaptations.json
+beside it. `python scripts/verify_provenance.py --artifacts dist` checks the built lushly-botcore
+wheel and sdist.
+"""
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import tarfile
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -40,8 +51,14 @@ def classify(upstream, staged, current):
     return stage, imported
 
 
-def verify_records(read: Callable[[str], bytes], current: Path | None = None) -> dict:
-    """Pinned source/staging digests cannot be replaced by rehashing a false claim."""
+def verify_records(
+    read: Callable[[str], bytes], current: Path | None = None, *, packaged: bool = False
+) -> dict:
+    """Pinned source/staging digests cannot be replaced by rehashing a false claim.
+
+    `packaged` reads a built artifact's records, whose envelope must carry adaptations.json's
+    digest; the repository's must not.
+    """
     envelope = json.loads(read("provenance.json"))
     assert envelope["source_revision"] == REVISION
     assert envelope["publisher_authority"] == PUBLISHER_AUTHORITY
@@ -51,7 +68,13 @@ def verify_records(read: Callable[[str], bytes], current: Path | None = None) ->
         reference = envelope["records"][key]
         raw = read(reference["manifest"])
         digest = hashlib.sha256(raw).hexdigest()
-        assert digest == reference["sha256"], f"Invalid advertised {key} digest"
+        if key == "adaptations" and not packaged:
+            assert "sha256" not in reference, (
+                "adaptations.json's digest is stamped when packaged; do not commit it"
+            )
+        else:
+            assert "sha256" in reference, f"Missing advertised {key} digest"
+            assert digest == reference["sha256"], f"Invalid advertised {key} digest"
         records[key] = json.loads(raw)
         if key == "upstream":
             assert digest == UPSTREAM_MANIFEST_SHA256, "Immutable upstream baseline changed"
@@ -100,3 +123,62 @@ def verify_records(read: Callable[[str], bytes], current: Path | None = None) ->
         "staged_files": len(staged_files),
         "classified_files": len(rows),
     }
+
+
+PACKAGE = "lushly_botcore"
+RECORDS = ("provenance.json", "upstream-selected.json", "staged-input-allowlist.json")
+
+
+def packaged_records(artifact: Path) -> dict[str, bytes]:
+    """The provenance records a built lushly-botcore wheel or sdist ships."""
+    if artifact.name.endswith(".whl"):
+        with zipfile.ZipFile(artifact) as archive:
+            prefix = "botcore/provenance/"
+            return {
+                name[len(prefix) :]: archive.read(name)
+                for name in archive.namelist()
+                if name.startswith(prefix) and "/" not in name[len(prefix) :]
+            }
+    with tarfile.open(artifact) as archive:
+        records = {}
+        for member in archive.getmembers():
+            parts = member.name.split("/")
+            if member.isfile() and parts[1:-1] == ["src", "botcore", "provenance"]:
+                records[parts[-1]] = archive.extractfile(member).read()
+        return records
+
+
+def verify_artifacts(directory: Path) -> list[str]:
+    """Every built lushly-botcore wheel and sdist carries its stamped records; both must exist."""
+    built = sorted(
+        path
+        for path in directory.iterdir()
+        if path.name.startswith(f"{PACKAGE}-") and path.name.endswith((".whl", ".tar.gz"))
+    )
+    kinds = {path.name.endswith(".whl") for path in built}
+    assert kinds == {True, False}, f"Expected a {PACKAGE} wheel and sdist in {directory}"
+    for artifact in built:
+        records = packaged_records(artifact)
+        missing = sorted({*RECORDS, "adaptations.json"} - set(records))
+        assert not missing, f"{artifact.name} lacks provenance records: {missing}"
+        try:
+            verify_records(records.__getitem__, packaged=True)
+        except AssertionError as error:
+            raise AssertionError(f"{artifact.name}: {error}") from error
+    return [path.name for path in built]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--artifacts", type=Path, required=True)
+    options = parser.parse_args()
+    try:
+        names = verify_artifacts(options.artifacts)
+    except AssertionError as error:
+        raise SystemExit(f"provenance: {error}") from None
+    for name in names:
+        print(f"provenance: {name} carries its stamped records")
+
+
+if __name__ == "__main__":
+    main()

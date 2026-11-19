@@ -203,6 +203,20 @@ test('a removed record without its earlier classification is refused when the fi
 	);
 });
 
+test("a family that does not commit the adaptations digest keeps its envelope's bytes (#1610)", (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const directory = 'foundations/fast-af/provenance';
+	write(root, `${directory}/adaptations.json`, `${JSON.stringify({ files: [] }, null, 2)}\n`);
+	const envelope = `${JSON.stringify({ records: { adaptations: { manifest: 'adaptations.json' } } }, null, 2)}\n`;
+	write(root, `${directory}/provenance.json`, envelope);
+	write(root, 'foundations/fast-af/src/a.ts', 'export const a = 1;\n');
+	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+	assert.deepEqual(recordProvenance(root, 'fast-af', 'Added'), ['foundations/fast-af/src/a.ts']);
+	assert.equal(read(root, `${directory}/adaptations.json`).files[0].import_reason, 'Added');
+	assert.equal(readFileSync(join(root, directory, 'provenance.json'), 'utf8'), envelope);
+});
+
 test('recording requires a known family and a reason', (t) => {
 	const root = fixture(t);
 	assert.throws(() => recordProvenance(root, 'violet', 'x'), /No provenance for family: violet/);

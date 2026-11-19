@@ -4,9 +4,11 @@
  *
  * Every edit to FAST-AF, Specimen, Violet, Botcore or Health records itself in its unit's
  * `provenance/` directory: a row per file in `adaptations.json`, and in `provenance.json` the
- * sha256 of each manifest. Two branches that edit different files of one unit both change the
- * envelope's hash line, so their merge always conflicts, though nothing they recorded does
- * (lushly-dev/afd#1410). The factory lane runs this, as the adapter's `regenerate` command, in its
+ * sha256 of each manifest. Where a unit commits `adaptations.json`'s sha256 (Specimen, Violet),
+ * two branches that edit different files of it both change that hash line, so their merge always
+ * conflicts, though nothing they recorded does (lushly-dev/afd#1410). Botcore and FAST-AF no
+ * longer commit it (#1610): their branches conflict only where the rows themselves do, which this
+ * merges the same way. The factory lane runs this, as the adapter's `regenerate` command, in its
  * validation checkout while the merge of the base is still open:
  *
  *   node scripts/provenance-merge.mjs
@@ -17,7 +19,7 @@
  * the merge would conflict outside the records): its hash is read from the merged file and its
  * reasons are joined. Any other value both sides changed, differently, is a real conflict: the
  * script exits 1 naming it and writes nothing. Otherwise it writes the merged manifests, recomputes each
- * manifest's sha256 in `provenance.json`, copies Botcore's records to their packaged mirror and
+ * sha256 the merged `provenance.json` commits, copies Botcore's records to their packaged mirror and
  * stages the files. It touches nothing but records, and refuses an unmerged path that is not one.
  * The unit's own provenance tests then check the result, as they check any edit.
  */
@@ -154,6 +156,7 @@ export function mergeUnit(read) {
 	const [b, o, t] = read.versions('provenance.json');
 	const envelope = merge3(withoutHashes(b), withoutHashes(o), withoutHashes(t), 'provenance.json');
 	for (const [key, record] of Object.entries(envelope.records ?? {})) {
+		if (record.sha256 !== HASHED) continue; // Not committed: packing stamps it.
 		const text = out[record.manifest] ?? read.current(record.manifest);
 		if (text === undefined) throw new RecordConflict(`${record.manifest} is missing (${key})`);
 		record.sha256 = sha256(text);
@@ -162,11 +165,18 @@ export function mergeUnit(read) {
 	return out;
 }
 
-/** The envelope without the manifest hashes, which are recomputed rather than merged. */
+/** Stands in for a manifest's hash, which is recomputed rather than merged. */
+const HASHED = '(recomputed)';
+
+/**
+ * The envelope with each manifest hash replaced by `HASHED`, so whether a record carries one
+ * merges as a value: Botcore and FAST-AF no longer commit `adaptations.json`'s (#1610), and a
+ * branch from before that merges to the base's choice.
+ */
 function withoutHashes(envelope) {
 	if (!isObject(envelope?.records)) return envelope;
 	const copy = structuredClone(envelope);
-	for (const record of Object.values(copy.records)) delete record.sha256;
+	for (const record of Object.values(copy.records)) if ('sha256' in record) record.sha256 = HASHED;
 	return copy;
 }
 

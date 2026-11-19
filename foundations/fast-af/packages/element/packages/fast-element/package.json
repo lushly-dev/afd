@@ -164,6 +164,7 @@
   "unpkg": "dist/fast-element.min.js",
   "sideEffects": false,
   "scripts": {
+    "prepack": "node ../../../../scripts/pack-provenance.mjs",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true }); require('fs').rmSync('temp', { recursive: true, force: true }); require('fs').rmSync('test-results', { recursive: true, force: true })\"",
     "doc": "api-extractor run --local",
     "doc:ci": "api-extractor run",
@@ -216,7 +217,8 @@
   "files": [
     "dist",
     "CHANGELOG.md",
-    "migration/fast-html/rules"
+    "migration/fast-html/rules",
+    "provenance"
   ],
   "beachball": {
     "disallowedChangeTypes": [
