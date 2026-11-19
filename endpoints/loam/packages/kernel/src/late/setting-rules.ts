@@ -16,6 +16,37 @@ export interface KnownSectionV1 {
 	owner: string;
 	/** The declaring app's plugin id: whose own sections the `settings` grant reads (3.8). Absent for the shell's. */
 	plugin?: string;
+	/**
+	 * The shell's own checks of the keys whose shapes 3.1's subset cannot express (3.7), by key. An app's section has
+	 * none: each of its keys is checked by the manifest's `checkSettingValue`.
+	 */
+	checks?: Readonly<Record<string, ShellKeyCheckV1>>;
+}
+
+/** Why a value of one of the shell's custom keys is refused (3.7): in words, and with a code of its own when 16 has one. */
+export type ShellKeyCheckV1 = (value: unknown) => SettingValueProblemV1 | undefined;
+
+export interface SettingValueProblemV1 {
+	/** `VALIDATION_ERROR` when absent. */
+	code?: 'SETTING_MUTE_SHELL' | 'KEYBINDING_RESERVED';
+	/** What is wrong, as the end of a sentence about the key: "must be a list". */
+	problem: string;
+}
+
+/**
+ * Why `value` is not a value of `key` (3.1, 3.7), or undefined: the shell's own check for a custom key, else `check`,
+ * the manifest's `checkSettingValue`.
+ */
+export function checkKnownValue(
+	known: Pick<KnownSectionV1, 'section' | 'checks'>,
+	key: string,
+	value: unknown,
+	check: (key: SettingKeyV1, value: unknown) => string | undefined
+): SettingValueProblemV1 | undefined {
+	const own = known.checks?.[key];
+	if (own) return own(value);
+	const problem = check(known.section.schema.properties[key] as SettingKeyV1, value);
+	return problem === undefined ? undefined : { problem };
 }
 
 /**
@@ -98,7 +129,7 @@ export interface ResolvedSettingV1 {
  * A stored value that no longer validates, after a manifest narrowed the key, is skipped, and `warn` is told.
  */
 export function resolveSetting(
-	known: Pick<KnownSectionV1, 'fullId' | 'section'>,
+	known: Pick<KnownSectionV1, 'fullId' | 'section' | 'checks'>,
 	key: string,
 	stored: Partial<Record<SettingLevelV1, StoredSettingV1>>,
 	inProject: boolean,
@@ -113,7 +144,7 @@ export function resolveSetting(
 	for (const level of order) {
 		const held = stored[level];
 		if (!held || !levels.includes(level)) continue;
-		const wrong = check(declared, held.value);
+		const wrong = checkKnownValue(known, key, held.value, check)?.problem;
 		if (wrong) {
 			warn?.(`${known.fullId}.${key} at ${level} ${wrong}, so it is skipped`);
 			continue;

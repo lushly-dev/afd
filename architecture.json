@@ -11,7 +11,16 @@
 		"tools"
 	],
 	"exclude": ["packages/examples", "packages/auth/hosted"],
-	"quarantine": [],
+	"quarantine": [
+		{
+			"path": "python/package.json",
+			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the pyproject.toml beside it is the classified unit"
+		},
+		{
+			"path": "endpoints/botcore/package.json",
+			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the pyproject.toml beside it is the classified unit"
+		}
+	],
 	"units": [
 		{
 			"manifest": "packages/core/package.json",

@@ -72,7 +72,7 @@ const template = html<LoamPalette>`
 				class="field"
 				type="text"
 				role="combobox"
-				aria-label="Search commands and documents"
+				aria-label="Search commands, documents and settings"
 				aria-autocomplete="list"
 				aria-expanded="true"
 				aria-controls="palette-results"
@@ -87,7 +87,7 @@ const template = html<LoamPalette>`
 			${ref('listbox')}
 			id="palette-results"
 			class="results"
-			label="Commands and documents"
+			label="Commands, documents and settings"
 			@change="${(x, c) => x.handleChange(c.event as CustomEvent<{ value: string }>)}"
 		>
 			${repeat((x) => x.results, resultTemplate)}
@@ -102,7 +102,7 @@ const template = html<LoamPalette>`
 			)}
 			${when(
 				(x) => x.failure === null && x.searched && x.results.length === 0,
-				html<LoamPalette>`<p>No commands or documents match</p>`
+				html<LoamPalette>`<p>No commands, documents or settings match</p>`
 			)}
 		</div>
 	</violet-dialog>

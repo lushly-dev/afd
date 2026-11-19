@@ -6,6 +6,8 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      # Loam's scenario runner runs each phase's jobs from its specification's folder (kernel/src/scenarios.test.ts).
+      - 'endpoints/loam/docs/phases/*/scenarios/**'
       # Plugins have their own workflow, loam-plugins.yml (L8).
       - '!endpoints/loam/plugins/**'
       # The foundations and AFD packages Loam builds on.
@@ -38,6 +40,8 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      # Loam's scenario runner runs each phase's jobs from its specification's folder (kernel/src/scenarios.test.ts).
+      - 'endpoints/loam/docs/phases/*/scenarios/**'
       - '!endpoints/loam/plugins/**'
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'

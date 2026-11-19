@@ -189,7 +189,9 @@ function compared(name: string, answer: unknown): unknown {
 	);
 }
 
-describe('P3-E2: persona changes emphasis, never what anyone may do', () => {
+// Each test runs every registered command against twin kernels; the count grows with every step, and a loaded
+// machine running all packages at once (a pre-push over a tooling change) took them past vitest's 5 s default.
+describe('P3-E2: persona changes emphasis, never what anyone may do', { timeout: 30_000 }, () => {
 	it.each(PATHS)(
 		'P3-E2: every command answers alike under two personas, in %s mode, through %s',
 		async (mode, _path, call) => {

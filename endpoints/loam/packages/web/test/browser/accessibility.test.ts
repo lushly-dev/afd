@@ -240,19 +240,14 @@ describe('names, roles and the palette keyboard', () => {
 		const { page } = opened;
 		// Amended by phase 2's step 6: the empty rail also holds Projects, the switcher and Documents, and
 		// the tooltip is the rail's one `loam-tooltip` in the top layer (7.1, 7.5).
+		// Amended by phase 4's step 2 (its P4-E14 lists it): Settings is no longer dimmed; it opens the settings
+		// section, and its tooltip is its name, as Projects' and Documents' are.
 		const entry = page.locator('loam-rail loam-section-entry.settings button');
 		const tip = page.locator('loam-rail loam-tooltip');
-		expect(await entry.getAttribute('aria-disabled')).toBe('true');
-		expect(
-			await entry.evaluate((button) =>
-				button.getRootNode() instanceof ShadowRoot
-					? (button.getRootNode() as ShadowRoot).getElementById('why')?.textContent
-					: null
-			)
-		).toBe('Settings arrive in phase 4');
+		expect(await entry.getAttribute('aria-disabled')).toBeNull();
 		await entry.hover();
 		await expect.poll(() => tip.isVisible()).toBe(true);
-		expect(await tip.textContent()).toBe('Settings arrive in phase 4');
+		expect(await tip.textContent()).toBe('Settings');
 		const box = await tip.boundingBox();
 		if (!box) throw new Error('No tooltip box');
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
@@ -264,6 +259,11 @@ describe('names, roles and the palette keyboard', () => {
 		await page.keyboard.press('Shift+Tab');
 		await page.keyboard.press('Tab');
 		await expect.poll(() => tip.isVisible()).toBe(true);
+		// A press opens the settings section, and the entry says it is the current page.
+		await page.keyboard.press('Enter');
+		await expect.poll(() => page.locator('loam-main loam-settings-section').count()).toBe(1);
+		expect(await entry.getAttribute('aria-current')).toBe('page');
+		expect(await page.title()).toBe('Settings · Personal');
 		await opened.context.close();
 	});
 });

@@ -29,10 +29,27 @@ view.onToolResult((result) => {
 	show(result);
 	if ((result.data as { greeting?: string } | undefined)?.greeting !== undefined) void refresh();
 });
+/** What Hello greets with here, read through the `settings` grant (phase 4 specification, 3.8); the last read wins. */
+let reads = 0;
+async function readSettings(): Promise<void> {
+	const read = ++reads;
+	const got = await view.client.call<{ value?: unknown }>('setting-get', {
+		section: 'hello.general',
+		key: 'greeting',
+	});
+	if (read !== reads) return;
+	const greeting = typeof got.data?.value === 'string' ? got.data.value : 'Hello';
+	text('greets').textContent = `Greets with ${greeting}`;
+}
+
 view.onHostContext((changed) => {
 	if ('dev.loam/selection' in changed) showSelection(changed['dev.loam/selection']);
+	// Hello's own sections changed (3.8): read the greeting again.
+	if (changed['dev.loam/settingsChanged']?.some((section) => section.startsWith('hello.')))
+		void readSettings();
 });
 showSelection(view.hostContext['dev.loam/selection']);
+void readSettings();
 
 text('greet').addEventListener('submit', (event) => {
 	event.preventDefault();
