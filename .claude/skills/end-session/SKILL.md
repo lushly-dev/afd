@@ -62,7 +62,7 @@ Every session PR ends merged, or closed with a recorded reason.
 - **Check for supersession before waiting.** A parallel session may have landed an
   equivalent change; close a redundant PR as superseded.
 - **Red CI** goes back through `prepare-pr`, which owns push and update.
-- **Enqueue only when the user authorized it**, with `prepare-pr`'s step 9 and no other
+- **Enqueue the session's own reviewed, green pull request** (AGENTS.md authorizes it), with `prepare-pr`'s step 9 and no other
   command: `main` merges through the merge queue, and step 9 binds the enqueue to the head
   whose checks you verified. The pull request has landed only when its state is `MERGED`; a
   queued one and one the queue removed are both still open, and step 9 says how to tell them

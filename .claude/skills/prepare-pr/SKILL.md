@@ -2,7 +2,7 @@
 name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
-  PR and readiness, merging only when separately authorized. `inspect` changes
+  PR and readiness, then the merge queue once reviewed and green. `inspect` changes
   nothing; `quick` reruns gates and the PR; `lane` hands a factory cell to the
   merge lane. Use when the user says ship it or open a PR.
 argument-hint: inspect | quick | lane
@@ -88,7 +88,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Enqueue only when authorized.** `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With the user's authorization and every check on the exact head green, enqueue that head and nothing else:
+9. **Enqueue once reviewed and green.** AGENTS.md authorizes a session to enqueue the pull request it opened when step 2's review is complete with no blocker unresolved; no human review follows. Without that review, or with a decision that is the owner's, leave it open and report. `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With that authorization and every check on the exact head green, enqueue that head and nothing else:
 
    ```bash
    gh api graphql -f id="$(gh pr view <n> --json id --jq .id)" -f oid=<full headRefOid verified in step 8> -f query='
@@ -115,7 +115,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - **A queued pull request's branch is locked:** a push to it is refused. To change it, remove it from the queue first ("Remove from queue" on the pull request, or the `dequeuePullRequest` mutation, which no session has exercised yet), then push and return to step 8.
    - A pull request that changes `pnpm-lock.yaml` needs no turn of its own; [gates.md](references/gates.md) says what to do when the queue refuses one.
 
-   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. When step 9 says to leave it open, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Lane mode
 
