@@ -7,7 +7,7 @@
 
 import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
-import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import type { AppDefinitionV1, LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { BOOT_ONLY } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
@@ -48,7 +48,8 @@ export interface AppPortOptions {
 	view?(
 		call: LoamClientV1['call'],
 		readResource: (uri: string) => Promise<string>,
-		scope?: ScopeV1
+		scope?: ScopeV1,
+		waitOverlay?: (overlayId: string) => Promise<OverlayResultV1>
 	): ViewBrokerV1;
 }
 
@@ -166,7 +167,17 @@ export function createAppPort(options: AppPortOptions): {
 			// modal has closed. Checked only on arrival, a call sent while it was open could reach the kernel
 			// just after a person closed it, and open the next before the cooldown began (#1054).
 			return (async () => {
+				// A change of person, or a reload, while it waits ends it: it never opens for the next person (the review's 3).
+				const person = host.overlays.people();
 				while (modalHeld) await modalHeld;
+				if (host.overlays.people() !== person) {
+					return failure({
+						code: 'SESSION_CHANGED',
+						message: 'The person changed while this question waited, so it was not opened',
+						suggestion: 'Ask again if the new person should answer it',
+						retryable: false,
+					}) as CommandResult<T>;
+				}
 				if (host.clock() < modalRefusedUntil) return refuse('app-modal-refuse');
 				const opened = host.runAs<T>(command, input, rest, fields);
 				modalHeld = opened
@@ -263,7 +274,13 @@ export function createAppPort(options: AppPortOptions): {
 				scope,
 				readOnly,
 				call: surfaceCall,
-				...(options.view ? { view: options.view(surfaceCall, readResource, scope) } : {}),
+				...(options.view
+					? {
+							view: options.view(surfaceCall, readResource, scope, (overlayId) =>
+								port.waitOverlay(overlayId)
+							),
+						}
+					: {}),
 			});
 		},
 		...(granted.has('store')

@@ -594,6 +594,8 @@ export interface OverlayV1 extends OverlayRefV1 {
 	state?: 'parked';
 	/** On the kernel's own prompts only (6.1): the command it asks for, and the caller that raised it. */
 	for?: { command: string; caller?: string };
+	/** On an app's dialog, modal or prompt: the scope it was opened in, which its element's mount keeps (D83). */
+	scope?: ScopeV1;
 }
 
 /**

@@ -171,8 +171,8 @@ export interface OverlayCommandDeps {
 	pushRate?: PushRate;
 	/** An instance's owner line title, unique and never "Loam" (6.6). */
 	appTitle?(instance: string): string | undefined;
-	/** Whether the instance is a view, whose overlays show no element (6.4). Absent: none is. */
-	isView?(instance: string): boolean;
+	/** Whether the instance is a native app, whose overlays alone show an element (6.4). Absent: none is. */
+	isNative?(instance: string): boolean;
 	/** The signed-in person's name, never an email, for an agent's "for <person>"; null for none (6.6). */
 	personLabel?(): string | null;
 	/** A menu item's verdict for its owner (6.4). Absent: every item is refused. */
@@ -242,10 +242,14 @@ export function answerRule(
 	return answers ? 'HUMAN_REQUIRED' : undefined;
 }
 
-/** The answers an overlay offers (6.4): its actions' ids, or `confirm` when it has none; `cancel` always. */
+/**
+ * The answers an overlay offers (6.4): its actions' ids, or `confirm` when it has none; `cancel` always; and
+ * `dismissed`, said outright, wherever leaving the result out gives it (R1).
+ */
 function answersOf(overlay: OverlayV1): string[] {
 	const actions = (overlay.input as { actions?: OverlayActionV1[] }).actions;
-	return actions ? [...actions.map((action) => action.id), 'cancel'] : ['confirm', 'cancel'];
+	const given = actions ? [...actions.map((action) => action.id), 'cancel'] : ['confirm', 'cancel'];
+	return unanswered(overlay.kind) === 'dismissed' ? [...given, 'dismissed'] : given;
 }
 
 /** `toast-show`, `popover-open`, `overlay-dismiss` and `overlay-list`, with `overlay-slot.ts`'s. */
@@ -378,7 +382,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		openerOf: (context) => openerOf(context, human),
 		isActive,
 		appLine,
-		isView: (instance) => deps.isView?.(instance) ?? false,
+		isNative: (instance) => deps.isNative?.(instance) ?? false,
 	});
 
 	const popoverOpen = defineCommandWithSchema<typeof popoverInput, OverlayRefV1>({
@@ -570,6 +574,14 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}
+			// `timeout` is the shell's timer on a toast, never a caller's way past a view's cooldown (the review's 3).
+			if (input.reason === 'timeout' && (overlay.kind !== 'toast' || opener.kind !== 'shell')) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"reason 'timeout' is the shell's own, for a toast its timer closed",
+					"Dismiss it with reason 'user', or leave reason out"
+				);
+			}
 			if (input.result !== undefined && !answersOf(overlay).includes(input.result)) {
 				return kernelFailure(
 					'VALIDATION_ERROR',
@@ -601,7 +613,8 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			let value: unknown = input.item;
 			if (overlay.kind === 'prompt' && answers) {
 				const prompt = overlay.input as PromptInputV1;
-				value = input.value ?? prompt.value;
+				// Exactly what was submitted, never the prompt's starting value (the review's 8).
+				value = input.value;
 				const fault = promptValueFault(prompt.schema, value);
 				if (fault) {
 					return kernelFailure('VALIDATION_ERROR', fault, 'Correct the value, then confirm again', {

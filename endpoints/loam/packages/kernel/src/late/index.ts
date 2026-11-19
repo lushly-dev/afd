@@ -143,6 +143,9 @@ const MCP_UNSERVED_OVERLAYS: ReadonlySet<string> = new Set([
 	'dialog-open',
 	'modal-open',
 	'prompt-open',
+	// Nor does an MCP caller close or list one (the review's R2): its `none` path has no overlay of its own.
+	'overlay-dismiss',
+	'overlay-list',
 ]);
 
 /** JSON with object keys sorted at every level, as AFD's journal digests it: a turn's call's `inputDigest` (phase 5's 3.4). */
@@ -603,8 +606,8 @@ export async function createLateParts(
 				pushRate,
 				humanGesture: isHumanGesture,
 				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
-				isView: (instance) =>
-					deps.summaries().find((app) => app.instance === instance)?.kind === 'view',
+				isNative: (instance) =>
+					deps.summaries().find((app) => app.instance === instance)?.kind === 'native',
 				// The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6).
 				personLabel: () => {
 					const session = deps.auth.getSession();

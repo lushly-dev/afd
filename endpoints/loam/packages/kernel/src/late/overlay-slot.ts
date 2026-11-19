@@ -21,6 +21,7 @@ import type {
 	PromptFieldV1,
 	PromptInputV1,
 	PromptSchemaV1,
+	ScopeV1,
 } from '@lushly-dev/loam-sdk';
 import * as z from 'zod/mini';
 import { kernelFailure } from '../errors.js';
@@ -160,6 +161,10 @@ function actionsFault(actions: readonly OverlayActionV1[] | undefined): string |
 		return "'dismissed' is not an action: it is how an overlay closes unanswered";
 	if (actions.filter((action) => action.default).length > 1)
 		return 'At most one action is the default';
+	// A cancel is never the destructive answer, nor the one Enter gives (the review's 15).
+	const cancel = actions.find((action) => action.id === 'cancel');
+	if (cancel && (cancel.tone === 'danger' || cancel.default === true))
+		return "The 'cancel' action may not be danger or the default";
 	return undefined;
 }
 
@@ -234,12 +239,37 @@ export function promptValueFault(
 
 /** Where a prompt's schema breaks its rules past its shape. */
 function schemaFault(schema: PromptSchemaV1 | undefined): string | undefined {
-	if (schema?.type !== 'object') return undefined;
+	if (!schema) return undefined;
+	if (schema.type !== 'object') return fieldRuleFault(schema, 'The field');
 	const keys = Object.keys(schema.properties);
 	if (keys.length === 0 || keys.length > PROMPT_FIELDS)
 		return `An object prompt has 1 to ${PROMPT_FIELDS} fields`;
 	const missing = schema.required?.find((key) => !keys.includes(key));
-	return missing === undefined ? undefined : `'${missing}' is required but is not a field`;
+	if (missing !== undefined) return `'${missing}' is required but is not a field`;
+	for (const [key, field] of Object.entries(schema.properties)) {
+		const fault = fieldRuleFault(field, `'${key}'`);
+		if (fault) return fault;
+	}
+	return undefined;
+}
+
+/** A field whose bounds cross, or whose choices are not of its type, can take no value (the review's 13). */
+function fieldRuleFault(field: PromptFieldV1, name: string): string | undefined {
+	if (
+		field.minLength !== undefined &&
+		field.maxLength !== undefined &&
+		field.minLength > field.maxLength
+	)
+		return `${name}'s minLength is above its maxLength`;
+	if (field.minimum !== undefined && field.maximum !== undefined && field.minimum > field.maximum)
+		return `${name}'s minimum is above its maximum`;
+	const choice =
+		field.type === 'string' ? 'string' : field.type === 'boolean' ? undefined : 'number';
+	if (field.enum && (choice === undefined || field.enum.some((each) => typeof each !== choice)))
+		return `${name}'s choices must each be a ${choice ?? 'string or number, never on a switch'}`;
+	if (field.enum && field.type === 'integer' && field.enum.some((each) => !Number.isInteger(each)))
+		return `${name}'s choices must each be a whole number`;
+	return undefined;
 }
 
 export interface OverlaySlotDeps {
@@ -250,8 +280,8 @@ export interface OverlaySlotDeps {
 	isActive(owner: OverlayOwner): Promise<boolean>;
 	/** An app's owner line (6.6). */
 	appLine(owner: OverlayOwner): OverlayFromV1;
-	/** Whether the instance is a view, which renders no element of its own in the shell (6.4). */
-	isView(instance: string): boolean;
+	/** Whether the instance is a native app, the only kind whose element the shell can show (6.4). */
+	isNative(instance: string): boolean;
 }
 
 type OverlayKindOpened = 'dialog' | 'modal' | 'prompt';
@@ -309,10 +339,11 @@ export function createOverlaySlotCommands(
 				'Give each action its own id, and one default at most'
 			);
 		if (input.element === undefined) return undefined;
-		if (owner.kind === 'app' && deps.isView(owner.id)) {
+		// Fail closed (the review's 14): a view's, and a mounted tool's, which has no surface at all.
+		if (owner.kind === 'app' && !deps.isNative(owner.id)) {
 			return kernelFailure(
 				'OVERLAY_ELEMENT_VIEW',
-				'A view cannot show an element of its own in the shell',
+				'Only a native app shows an element of its own in the shell',
 				'Use text, actions or a prompt'
 			);
 		}
@@ -336,8 +367,16 @@ export function createOverlaySlotCommands(
 				)
 			: undefined;
 
-	const lineFor = (owner: OverlayOwner) =>
-		owner.kind === 'app' ? { from: deps.appLine(owner) } : {};
+	/**
+	 * An app's owner line, and the scope its overlay was opened in (the review's 5, D83): an element's mount is bound to
+	 * it, and a change of scope closes what was opened in another.
+	 */
+	const lineFor = (owner: OverlayOwner, context: CommandContext) => {
+		const scope = (context as { scope?: ScopeV1 }).scope;
+		return owner.kind === 'app'
+			? { from: deps.appLine(owner), ...(scope ? { scope: { ...scope } } : {}) }
+			: {};
+	};
 
 	const dialogOpen = defineCommandWithSchema<typeof dialogInput, OverlayRefV1>({
 		name: 'dialog-open',
@@ -375,7 +414,7 @@ export function createOverlaySlotCommands(
 					{ details: { limit: DIALOG_LIMIT } }
 				);
 			}
-			return success(overlays.open(owner, 'dialog', given, lineFor(owner)));
+			return success(overlays.open(owner, 'dialog', given, lineFor(owner, context)));
 		},
 	});
 
@@ -409,7 +448,7 @@ export function createOverlaySlotCommands(
 			const given = input as ModalInputV1;
 			const refused = elementFault(owner, given) ?? busy();
 			if (refused) return refused;
-			return success(overlays.open(owner, 'modal', given, lineFor(owner)));
+			return success(overlays.open(owner, 'modal', given, lineFor(owner, context)));
 		},
 	});
 
@@ -474,7 +513,9 @@ export function createOverlaySlotCommands(
 			}
 			const refused = busy();
 			if (refused) return refused;
-			return success(overlays.open(admitted.owner, 'prompt', given, lineFor(admitted.owner)));
+			return success(
+				overlays.open(admitted.owner, 'prompt', given, lineFor(admitted.owner, context))
+			);
 		},
 	});
 

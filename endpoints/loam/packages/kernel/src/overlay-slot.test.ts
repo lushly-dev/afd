@@ -240,6 +240,93 @@ describe('dialogs (6.1, 6.2)', () => {
 	});
 });
 
+describe('the review of step 4 (R1, 13, 15, D83)', () => {
+	it("keeps another app's overlays its own: a foreign port's cancel and dismiss are OVERLAY_NOT_OWNER (R1)", async () => {
+		const { kernel, probe, sums } = await boot();
+		await kernel.call('app-open', { instance: 'probe' });
+		const dialog = await probe.call<OverlayRefV1>('dialog-open', INPUTS['dialog-open']);
+		const toast = await probe.call<OverlayRefV1>('toast-show', { message: 'Hi' });
+		for (const [overlay, result] of [
+			[dialog, 'cancel'],
+			[dialog, undefined],
+			[toast, 'dismissed'],
+			[toast, undefined],
+		] as const) {
+			const refused = await sums.call('overlay-dismiss', {
+				overlayId: overlay.data?.overlayId,
+				result,
+			});
+			expect(code(refused), String(result)).toBe('OVERLAY_NOT_OWNER');
+		}
+		// `dismissed`, said outright, is accepted where leaving the result out gives it, and nowhere else.
+		const said = await kernel.call<OverlayResultV1>('overlay-dismiss', {
+			overlayId: toast.data?.overlayId,
+			result: 'dismissed',
+		});
+		expect(said.data).toMatchObject({ result: 'dismissed' });
+		expect(
+			code(
+				await kernel.call('overlay-dismiss', {
+					overlayId: dialog.data?.overlayId,
+					result: 'dismissed',
+				})
+			)
+		).toBe('VALIDATION_ERROR');
+	});
+
+	it('refuses crossed bounds, choices of another type, and a cancel action that is danger or the default', async () => {
+		const { kernel } = await boot();
+		for (const schema of [
+			{ type: 'string', minLength: 5, maxLength: 2 },
+			{ type: 'number', minimum: 9, maximum: 1 },
+			{ type: 'string', enum: ['a', 1] },
+			{ type: 'integer', enum: [1.5] },
+			{ type: 'boolean', enum: ['yes'] },
+			{ type: 'object', properties: { n: { type: 'number', enum: ['x'] } } },
+		]) {
+			const refused = await kernel.call('prompt-open', { title: 'T', schema });
+			expect(code(refused), JSON.stringify(schema)).toBe('VALIDATION_ERROR');
+		}
+		for (const cancel of [
+			{ id: 'cancel', label: 'Stop', tone: 'danger' },
+			{ id: 'cancel', label: 'Stop', default: true },
+		]) {
+			const refused = await kernel.call('dialog-open', {
+				title: 'T',
+				actions: [cancel, { id: 'go', label: 'Go' }],
+			});
+			expect(code(refused), JSON.stringify(cancel)).toBe('VALIDATION_ERROR');
+		}
+	});
+
+	it('records the scope an app question was opened in, and closes it, parked or not, in another (D83)', () => {
+		const overlays = createOverlayStore();
+		const atlas = { workspace: 'w', project: 'atlas' };
+		const shown = overlays.open(appOwner('probe'), 'dialog', { title: 'Here' }, { scope: atlas });
+		const kept = overlays.open(
+			appOwner('probe'),
+			'dialog',
+			{ title: 'Wide' },
+			{ scope: { workspace: 'w' } }
+		);
+		const shells = overlays.open(SHELL, 'dialog', { title: 'Shell' }, { scope: atlas });
+		expect(overlays.get(shown.overlayId)?.scope).toEqual(atlas);
+		expect(overlays.get(shells.overlayId)?.scope).toBeUndefined();
+		overlays.closeForSwitch('probe');
+		expect(overlays.closeOutOfScope(atlas)).toBe(0);
+		expect(overlays.closeOutOfScope({ workspace: 'w', project: 'beacon' })).toBe(1);
+		expect(overlays.list().map((each) => each.overlayId)).toEqual([
+			kept.overlayId,
+			shells.overlayId,
+		]);
+		expect(overlays.movesOf(shown.overlayId)).toEqual(['park', 'app-switch']);
+		const before = overlays.people();
+		overlays.closeAll('person');
+		overlays.reset();
+		expect(overlays.people()).toBe(before + 2);
+	});
+});
+
 describe('an element (6.4)', () => {
 	it("shows a native app's, gives a view OVERLAY_ELEMENT_VIEW, and the shell none", async () => {
 		const { kernel, probe, probev } = await boot();
@@ -277,11 +364,21 @@ describe('prompts (6.4)', () => {
 		});
 		expect(code(refused)).toBe('VALIDATION_ERROR');
 		expect((await list(kernel)).map((each) => each.overlayId)).toEqual([id]);
+		// The answer is what was submitted, never the starting value (the review's 8): none, or null, fails.
+		for (const value of [undefined, null]) {
+			const empty = await kernel.call('overlay-dismiss', {
+				overlayId: id,
+				result: 'confirm',
+				value,
+			});
+			expect(code(empty), String(value)).toBe('VALIDATION_ERROR');
+		}
 		const answered = await kernel.call<OverlayResultV1>('overlay-dismiss', {
 			overlayId: id,
 			result: 'confirm',
+			value: '',
 		});
-		expect(answered.data).toMatchObject({ result: 'confirm', value: 'Ada' });
+		expect(answered.data).toMatchObject({ result: 'confirm', value: '' });
 	});
 
 	it("checks an object schema's fields, and refuses a for, a pattern or a value with a cancel", async () => {
@@ -564,7 +661,12 @@ describe('a change of person and replay (6.2)', () => {
 			actions: [{ id: 'keep', label: 'Keep' }],
 		});
 		await kernel.call('app-open', { instance: 'sums' });
+		// The state between switches is journaled, so a replay compares each park and restore (the review's 16).
+		const parked = await kernel.call<{ overlays: OverlayV1[] }>('overlay-list');
+		expect(parked.data?.overlays.map((each) => each.state)).toEqual(['parked']);
 		await kernel.call('app-open', { instance: 'probe' });
+		const restored = await kernel.call<{ overlays: OverlayV1[] }>('overlay-list');
+		expect(restored.data?.overlays.map((each) => each.state)).toEqual([undefined]);
 		const prompt = await kernel.call<OverlayRefV1>('prompt-open', { title: 'Name?' });
 		await kernel.call('modal-open', INPUTS['modal-open']);
 		await kernel.call('overlay-dismiss', {
@@ -592,7 +694,13 @@ describe('a change of person and replay (6.2)', () => {
 		expect(report.diverged).toBe(false);
 		expect(report.same).toBe(report.entries.length);
 		const names = report.entries.map((each) => each.command);
-		for (const name of ['dialog-open', 'prompt-open', 'modal-open', 'overlay-dismiss'])
+		for (const name of [
+			'dialog-open',
+			'prompt-open',
+			'modal-open',
+			'overlay-dismiss',
+			'overlay-list',
+		])
 			expect(names, name).toContain(name);
 	});
 });

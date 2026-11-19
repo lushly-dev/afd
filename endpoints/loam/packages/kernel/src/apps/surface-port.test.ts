@@ -546,7 +546,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		expect(listed.data?.overlays).toEqual([]);
 	});
 
-	it("runs a view's held modal once its earlier one closes with no person's dismissal", async () => {
+	it("starts no cooldown when a view's modal closes with no person's dismissal, and takes no timeout from a caller", async () => {
 		const { kernel } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
 		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
@@ -554,17 +554,70 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
 			overlayId: string;
 		}>;
+		// `timeout` is the shell's timer on a toast: no one passes it to close a modal without a cooldown.
+		for (const call of [
+			(input: unknown) => kernel.call('overlay-dismiss', input),
+			(input: unknown) => kernel.appPort('probev').call('overlay-dismiss', input),
+		]) {
+			const refused = await call({ overlayId: opened.data?.overlayId, reason: 'timeout' });
+			expect(refused.error?.code).toBe('VALIDATION_ERROR');
+		}
 		const again = view.toolsCall(modal);
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		// A timeout is not a person's close, so no cooldown begins and the held call opens the next.
+		// A switch is not a person's close: the held call is refused as inactive, never as a cooldown.
+		await kernel.call('app-close');
+		const next = (await again).structuredContent as CommandResult;
+		expect(next.error?.code).toBe('OVERLAY_OWNER_INACTIVE');
+	});
+
+	it("answers a view its own prompt's result, and refuses another owner's id (the review's 7)", async () => {
+		const { kernel } = await viewKernel();
+		await kernel.call('app-open', { instance: 'probev' });
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const opened = (await view.toolsCall({ name: 'prompt-open', arguments: { title: 'Name?' } }))
+			.structuredContent as CommandResult<{ overlayId: string }>;
+		const answer = view.overlayResult?.({ overlayId: opened.data?.overlayId });
 		await kernel.call('overlay-dismiss', {
 			overlayId: opened.data?.overlayId,
-			result: 'cancel',
-			reason: 'timeout',
+			result: 'confirm',
+			value: 'Ada',
 		});
-		const next = (await again).structuredContent as CommandResult<{ overlayId: string }>;
-		expect(next.success).toBe(true);
-		expect(next.data?.overlayId).not.toBe(opened.data?.overlayId);
+		await expect(answer).resolves.toMatchObject({ result: 'confirm', value: 'Ada' });
+		const shells = await kernel.call<{ overlayId: string }>('dialog-open', { title: 'Shell' });
+		await expect(view.overlayResult?.({ overlayId: shells.data?.overlayId })).rejects.toMatchObject(
+			{
+				code: 'OVERLAY_NOT_OWNER',
+			}
+		);
+		await expect(view.overlayResult?.({ overlayId: 7 })).rejects.toMatchObject({
+			code: 'VIEW_CALL_REFUSED',
+		});
+	});
+
+	it("opens nothing for the next person: a view's question waiting at a change of person is refused", async () => {
+		const { kernel } = await viewKernel();
+		await kernel.call('app-open', { instance: 'probev' });
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const held = (
+			await view.toolsCall({
+				name: 'modal-open',
+				arguments: { title: 'Sure?', body: 'Say so.' },
+			})
+		).structuredContent as CommandResult;
+		expect(held.success).toBe(true);
+		const waiting = view.toolsCall({ name: 'prompt-open', arguments: { title: 'Your name?' } });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const signedIn = await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'secret-password',
+		});
+		expect(signedIn.success).toBe(true);
+		expect(((await waiting).structuredContent as CommandResult).error?.code).toBe(
+			'SESSION_CHANGED'
+		);
+		const listed = await kernel.call<{ overlays: unknown[] }>('overlay-list', {});
+		expect(listed.data?.overlays).toEqual([]);
 	});
 
 	it("refuses a nested query's write from inside a mutation", async () => {

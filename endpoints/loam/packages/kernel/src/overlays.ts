@@ -20,6 +20,7 @@ import type {
 	OverlayV1,
 	PopoverInputV1,
 	PromptInputV1,
+	ScopeV1,
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 
@@ -87,6 +88,8 @@ export interface OverlayOpenOptions {
 	openedAt?: number;
 	/** The kernel's own prompts only (6.1); never from an input. */
 	for?: OverlayFor;
+	/** The scope an app's question was opened in (D83): its element's mount is bound to it. */
+	scope?: ScopeV1;
 }
 
 /** The overlays and their waiters, the kernel's own state. */
@@ -137,6 +140,13 @@ export interface OverlayStore {
 	closeForSwitch(instance: string | null): OverlayV1[];
 	/** Open the app instance `instance`'s parked dialogs again (`restore`), as it becomes active (6.1, 6.2). */
 	restore(instance: string): void;
+	/**
+	 * Close every app's question opened in a scope other than `to`, parked dialogs included (`app-switch`): its element
+	 * was bound to that scope (D83), so it is never restored in another. Answers how many it closed.
+	 */
+	closeOutOfScope(to: ScopeV1): number;
+	/** How many changes of person this store has closed everything for: a waiting open checks it (the review's 3). */
+	people(): number;
 	/** The moves an overlay made, in order, while open or recently closed (6.2). */
 	movesOf(overlayId: string): OverlayReasonV1[];
 	/**
@@ -168,6 +178,8 @@ export function createOverlayStore(): OverlayStore {
 	const fors = new Map<string, OverlayFor>();
 	const moves = new Map<string, OverlayReasonV1[]>();
 	const globals = new Map<string, string>();
+	const scopes = new Map<string, ScopeV1>();
+	let people = 0;
 	const closed = new Map<string, Closed>();
 	const waiters = new Map<string, Array<(result: OverlayResultV1) => void>>();
 	let counter = 0;
@@ -181,6 +193,8 @@ export function createOverlayStore(): OverlayStore {
 		if (parked.has(overlay.overlayId)) copy.state = 'parked';
 		const asked = fors.get(overlay.overlayId);
 		if (asked) copy.for = { ...asked };
+		const scope = scopes.get(overlay.overlayId);
+		if (scope) copy.scope = { ...scope };
 		return copy;
 	};
 
@@ -208,6 +222,7 @@ export function createOverlayStore(): OverlayStore {
 		if (options.for && owner.kind === 'shell' && kind === 'prompt') {
 			fors.set(ref.overlayId, { ...options.for });
 		}
+		if (options.scope && owner.kind === 'app') scopes.set(ref.overlayId, { ...options.scope });
 		return { ...ref };
 	}
 
@@ -286,6 +301,7 @@ export function createOverlayStore(): OverlayStore {
 			owners.delete(overlayId);
 			opened.delete(overlayId);
 			parked.delete(overlayId);
+			scopes.delete(overlayId);
 			if (overlay.kind === 'global') globals.delete((overlay.input as GlobalInputV1).id);
 			const asked = fors.get(overlayId);
 			fors.delete(overlayId);
@@ -312,10 +328,13 @@ export function createOverlayStore(): OverlayStore {
 			return detached(outcome);
 		},
 		reset() {
+			// A reload is a new page: a waiting open from before it opens nothing either.
+			people++;
 			open.clear();
 			owners.clear();
 			opened.clear();
 			parked.clear();
+			scopes.clear();
 			fors.clear();
 			moves.clear();
 			globals.clear();
@@ -348,10 +367,24 @@ export function createOverlayStore(): OverlayStore {
 				move(overlayId, 'restore');
 			}
 		},
+		closeOutOfScope(to) {
+			let count = 0;
+			for (const [overlayId, scope] of [...scopes]) {
+				const same =
+					scope.workspace === to.workspace &&
+					(scope.project === undefined || scope.project === to.project);
+				if (same) continue;
+				const overlay = open.get(overlayId);
+				if (overlay && store.close(overlayId, unanswered(overlay.kind), 'app-switch')) count++;
+			}
+			return count;
+		},
+		people: () => people,
 		movesOf(overlayId) {
 			return [...(moves.get(overlayId) ?? closed.get(overlayId)?.moves ?? [])];
 		},
 		closeAll(reason) {
+			if (reason === 'person') people++;
 			for (const overlay of [...open.values()]) {
 				store.close(overlay.overlayId, unanswered(overlay.kind), reason);
 			}
