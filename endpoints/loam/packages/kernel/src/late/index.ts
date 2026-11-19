@@ -588,14 +588,13 @@ export async function createLateParts(
 		writeOwn: (section, key, entry, context) =>
 			(settings as Settings).writeOwn(section, key, entry, context),
 		replaying: () => deps.internals?.replaying === true,
-		// The orphan notice (4.2, 10.2), through step 5's inbox: to each owner who may enter the row's project, every
-		// owner for a workspace row; in `local` mode, the one person the shell is for.
+		// The orphan notice (4.2, 10.2), through step 5's inbox: in `local` mode to the one person the shell is for, every
+		// person an owner. In `provider` mode none, by the coordinator's ruling, until the owner roster is a server record
+		// (phase 5's shell commands over MCP): the kernel holds only the people it has settled, and the boot settle's
+		// membership is not journaled, so a replay could not send the same. The flags are stored and shown either way.
 		async orphaned(rows, context) {
-			const membership = deps.scope.membership;
-			const owners =
-				membership.mode === 'local'
-					? [shellPerson() ?? 'local']
-					: [...membership.members.keys()].filter((person) => isOwner(membership, person));
+			if (deps.scope.membership.mode !== 'local') return;
+			const owners = [shellPerson() ?? 'local'];
 			const heard = orphanRecipients(rows, owners, (person, project) =>
 				deps.scope.allows(
 					{ kind: 'human', id: person },

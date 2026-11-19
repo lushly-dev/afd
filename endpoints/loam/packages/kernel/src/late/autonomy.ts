@@ -112,7 +112,8 @@ export interface AutonomyDeps {
 	): Promise<StoredSettingV1 | undefined>;
 	/**
 	 * The notice to the owners who may enter an orphaned row's project, all owners for a workspace row (4.2, 10.2),
-	 * pushed by step 5's inbox. Called after `autonomy-settle` stored the flags, in a replay too: the notice is a store
+	 * pushed by step 5's inbox: in `local` mode the one person; in `provider` mode none until the owner roster is a
+	 * server record (phase 5). Called after `autonomy-settle` stored the flags, in a replay too: the notice is a store
 	 * write of the settle's own, on its clock and random, so a replay writes the same and its later reads agree.
 	 */
 	orphaned?(rows: readonly AutonomyRowV1[], context: CommandContext): void | Promise<void>;

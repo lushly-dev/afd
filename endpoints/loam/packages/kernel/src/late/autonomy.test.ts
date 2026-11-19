@@ -31,6 +31,7 @@ import { createFixedEnvironment, createFixturePorts, replayKernel } from '../tes
 import type { LoamKernelV5, McpToolCallResult, MountTransportV2 } from '../types.js';
 import { AUTONOMY_TABLE } from './autonomy.js';
 import type { AutonomyRowV1 } from './autonomy-rules.js';
+import { NOTIFICATION_TABLE } from './notifications.js';
 
 const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
@@ -898,6 +899,53 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 		).toBe('suggest');
 	});
 
+	it('sends the orphan notice in local mode, and replays the settle that sent it with no difference', async () => {
+		let tools = ['files-read', 'files-write'];
+		const { kernel, journal } = await mountedKernel(new MemoryAdapter(), () => tools);
+		await kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'work',
+			command: 'work-files-write',
+			mode: 'suggest',
+		});
+		tools = ['files-read'];
+		await kernel.call('app-instance-refresh', { instance: 'work' });
+		const listed = await kernel.call<{ notifications: Array<{ source: string; title: string }> }>(
+			'notification-list'
+		);
+		expect(listed.data?.notifications).toEqual([
+			expect.objectContaining({
+				source: 'shell',
+				title: 'An autonomy rule no longer matches an app or command',
+			}),
+		]);
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: {
+				deployment_version: 2,
+				generation: 'test',
+				workspace: { id: 'personal', name: 'Personal' },
+				sandbox_origin: null,
+				apps: [
+					{
+						instance: 'work',
+						app: 'umbel',
+						package: 'apps/work/',
+						prefix: 'work',
+						audience: 'person',
+						transport: 'http',
+						route: 'mounts/work/mcp',
+					},
+				],
+			} as unknown as ProjectionV4,
+			ports: {
+				...createFixturePorts({ 'apps/work/': { manifest: UMBEL } }),
+				mountTransport: async () => mountedTransport(() => ['files-read']),
+			},
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		expect(report.entries.some(({ command }) => command === 'autonomy-settle')).toBe(true);
+	});
+
 	it('orphans a row whose instance now names another server, and the command name alone never backs it (R2)', async () => {
 		const store = new MemoryAdapter();
 		const first = await mountedKernel(store);
@@ -1005,6 +1053,53 @@ describe('P4-E15: autonomy replays', () => {
 			ports: createFixturePorts(scopedPackages()),
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});
+
+describe("the orphan notice in provider mode (step 5's wiring; the coordinator's ruling)", () => {
+	it('flags the rows and sends no notice until the owner roster is a server record', async () => {
+		const store = new MemoryAdapter();
+		const ports = (dual: ManifestV2) =>
+			createFixturePorts({
+				...scopedPackages(),
+				'fixtures/dual/': { manifest: dual, definition: DUAL_DEFINITION },
+			});
+		const first = await workspace({
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			ports: ports(DUAL_MANIFEST),
+		});
+		await signIn(first.kernel, 'olu@example.com');
+		expect(
+			(
+				await first.kernel.call('autonomy-set', {
+					level: 'workspace',
+					instance: 'dual',
+					command: 'dual-put',
+					mode: 'act',
+				})
+			).success
+		).toBe(true);
+		await first.kernel.dispose();
+		const dropped = {
+			...DUAL_MANIFEST,
+			commands: (DUAL_MANIFEST.commands ?? []).filter(({ name }) => name !== 'dual-put'),
+		} as ManifestV2;
+		const second = await workspace({
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			ports: ports(dropped),
+		});
+		expect((await second.journal.read()).some(({ command }) => command === 'autonomy-settle')).toBe(
+			true
+		);
+		const rows = (await store.list<AutonomyRowV1>(AUTONOMY_TABLE)).data;
+		expect(rows.find((row) => row.command === 'dual-put')?.orphan).toBe(true);
+		expect((await store.list(NOTIFICATION_TABLE)).data).toEqual([]);
 	});
 });
 

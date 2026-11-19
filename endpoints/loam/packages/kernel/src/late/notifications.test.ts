@@ -1177,6 +1177,11 @@ describe("the orphan notice's recipients (4.2, 10.2; step 8's seam)", () => {
 			['cy', ['workspace/-/dual/*']],
 		]);
 		expect(orphanRecipients(rows.slice(2), ['cy'], () => false).size).toBe(0);
+		// A project row that names no project goes to no one: fail closed.
+		expect(
+			orphanRecipients([{ id: 'project/?/dual/*', level: 'project' as const }], ['ada'], () => true)
+				.size
+		).toBe(0);
 	});
 
 	it('names at most ten rows and counts the rest', () => {

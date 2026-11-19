@@ -1002,7 +1002,8 @@ export interface OrphanRowV1 {
 
 /**
  * Who hears of orphaned autonomy rows (4.2, 10.2): each owner, with the rows they may see, a project's only when they may
- * enter its project, a workspace row always. An owner with none hears nothing.
+ * enter its project, a workspace row always; a project row naming no project, no one (fail closed). An owner with none
+ * hears nothing.
  */
 export function orphanRecipients<Row extends OrphanRowV1>(
 	rows: readonly Row[],
@@ -1013,7 +1014,7 @@ export function orphanRecipients<Row extends OrphanRowV1>(
 	for (const owner of owners) {
 		const theirs = rows.filter(
 			(row) =>
-				row.level === 'workspace' || row.project === undefined || mayEnter(owner, row.project)
+				row.level === 'workspace' || (row.project !== undefined && mayEnter(owner, row.project))
 		);
 		if (theirs.length > 0) heard.set(owner, theirs);
 	}
