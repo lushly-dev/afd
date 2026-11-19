@@ -24,9 +24,10 @@ import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
 	isMacPlatform,
-	matchKeybinding,
 	nextPart,
 	type PartName,
+	type PendingChord,
+	pressKey,
 	toggleInput,
 } from '../keyboard.js';
 import {
@@ -1026,13 +1027,29 @@ export class LoamShell extends FASTElement {
 		);
 	}
 
+	/** A sequence's first chord, waiting for its second (phase 4 specification, 8.1). */
+	#pending: PendingChord | null = null;
+
 	#onKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || !this.kernel || !this.booted) return;
-		const binding = matchKeybinding(event, this.mac, this.kernel.listKeybindings());
+		const press = pressKey(
+			event,
+			this.mac,
+			this.kernel.listKeybindings(),
+			this.#pending,
+			Date.now()
+		);
+		this.#pending = null;
 		// A modal of an app's, like the palette, keeps the keyboard to itself (section 8).
 		const paletteOpen =
 			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
 			this.apps?.modalOpen === true;
+		if (press.kind === 'wait') {
+			event.preventDefault();
+			if (!paletteOpen && !event.repeat) this.#pending = press.pending;
+			return;
+		}
+		const binding = press.kind === 'run' ? press.binding : undefined;
 		// Mod+S is the editor area's, which answers it first while an editor is the active owner (5.5).
 		if (binding && !binding.save) {
 			event.preventDefault();
@@ -1043,6 +1060,7 @@ export class LoamShell extends FASTElement {
 			}
 			if (paletteOpen || event.repeat) return;
 			if (binding.command === 'palette-open') void this.openPalette();
+			else if (binding.switcher) this.#pressSwitcher();
 			else if (binding.toggle) void this.toggle(binding.toggle);
 			else if (binding.command) this.apps?.run(binding.command);
 			return;
@@ -1052,6 +1070,18 @@ export class LoamShell extends FASTElement {
 			if (p.inspector === 'overlay') void this.#closePart('inspector');
 			else if (p.panel === 'sheet') void this.#closePart('panel');
 			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
+		}
+	}
+
+	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */
+	#pressSwitcher(): void {
+		for (const variant of ['rail', 'tabbar']) {
+			const nav = this.shadowRoot?.querySelector<HTMLElement>(`loam-${variant}`);
+			const switcher = nav?.shadowRoot?.querySelector<LoamProjectSwitcher>('loam-project-switcher');
+			if (nav && switcher && !nav.closest('[hidden]') && switcher.checkVisibility()) {
+				switcher.press();
+				return;
+			}
 		}
 	}
 

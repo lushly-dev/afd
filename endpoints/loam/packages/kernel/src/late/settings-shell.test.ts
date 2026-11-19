@@ -203,7 +203,8 @@ describe("the shell's own sections (3.7)", () => {
 		expect((await set(kernel, 'loam.keybindings', 'overrides', overrides)).data).toMatchObject({
 			value: overrides,
 		});
-		for (const keys of ['F6', 'Shift+F6', 'Mod+G Escape']) {
+		// 8.1: a sequence never begins on a reserved chord (P4-E9), Mod+Alt+P (8.4) among them.
+		for (const keys of ['F6', 'Shift+F6', 'Mod+G Escape', 'Mod+K P', 'Mod+Alt+P G']) {
 			const refused = await set(kernel, 'loam.keybindings', 'overrides', [
 				{ command: 'palette-open', keys },
 			]);
@@ -218,6 +219,8 @@ describe("the shell's own sections (3.7)", () => {
 			[{ command: 'Palette', keys: 'Mod+K' }],
 			[{ command: 'palette-open', keys: 'Shift+Mod+K' }],
 			[{ command: 'palette-open', keys: 'Mod+G P Q' }],
+			// 8.1: a sequence's first chord has Mod.
+			[{ command: 'palette-open', keys: 'Alt+G P' }],
 			[{ command: 'palette-open', keys: 'Mod+K', when: 'editor' }],
 			[{ command: 'palette-open', target: '', keys: 'Mod+K' }],
 			[

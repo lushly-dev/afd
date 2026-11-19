@@ -22,8 +22,10 @@ export interface ChordEvent {
 
 interface ParsedChord {
 	mod: boolean;
+	ctrl: boolean;
 	alt: boolean;
 	shift: boolean;
+	meta: boolean;
 	key: string;
 }
 
@@ -32,32 +34,133 @@ function parse(chord: string): ParsedChord {
 	const key = parts.at(-1) ?? '';
 	return {
 		mod: parts.includes('Mod'),
+		ctrl: parts.includes('Ctrl'),
 		alt: parts.includes('Alt'),
 		shift: parts.includes('Shift'),
+		meta: parts.includes('Meta'),
 		key,
 	};
+}
+
+/** The keys named by `event.code` that a chord writes otherwise (phase 4 specification, 8.2). */
+const CODE_NAMES: Readonly<Record<string, string>> = {
+	Space: 'Space',
+	Comma: ',',
+	Period: '.',
+	Slash: '/',
+	Semicolon: ';',
+	Equal: '=',
+	Minus: '-',
+};
+const FUNCTION = /^F(?:[1-9]|1[0-9]|2[0-4])$/;
+const NAMED =
+	/^(?:Enter|Escape|Tab|Backspace|Delete|Home|End|PageUp|PageDown|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/;
+
+/**
+ * The key a chord names for a key event (phase 4 specification, 8.2; #877): `event.key` when it is a single Latin
+ * letter or digit, so a German layout's Z is its Z; otherwise `event.code`, so a Cyrillic layout's letter, macOS's
+ * Alt+B ("∫") and a shifted digit are their physical key. Function keys by `code`. Undefined for a modifier alone.
+ */
+export function keyOf(event: Pick<ChordEvent, 'key' | 'code'>): string | undefined {
+	if (/^[a-z0-9]$/i.test(event.key)) return event.key.toUpperCase();
+	const code = event.code;
+	const letter = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(code);
+	if (letter) return letter[1] ?? letter[2];
+	if (FUNCTION.test(code) || NAMED.test(code)) return code;
+	if (CODE_NAMES[code] !== undefined) return CODE_NAMES[code];
+	// An event with no `code`, a synthetic one, is read by its `key` for a function or named key.
+	return code === '' && (FUNCTION.test(event.key) || NAMED.test(event.key)) ? event.key : undefined;
 }
 
 /** Whether a key event is the chord. `Mod` is Command on macOS and Control elsewhere. */
 export function chordMatches(chord: string, event: ChordEvent, mac: boolean): boolean {
 	const parsed = parse(chord);
 	const mod = mac ? event.metaKey : event.ctrlKey;
-	const other = mac ? event.ctrlKey : event.metaKey;
-	if (mod !== parsed.mod || other || event.altKey !== parsed.alt) return false;
-	if (event.shiftKey !== parsed.shift) return false;
-	// By physical key, because Alt changes `key` on macOS (Alt+B is "∫") and Shift changes a digit's.
-	if (/^[A-Z]$/.test(parsed.key)) return event.code === `Key${parsed.key}`;
-	if (/^\d$/.test(parsed.key)) return event.code === `Digit${parsed.key}`;
-	return event.key === parsed.key;
+	const ctrl = mac ? event.ctrlKey : false;
+	const meta = mac ? false : event.metaKey;
+	if (mod !== parsed.mod || ctrl !== parsed.ctrl || meta !== parsed.meta) return false;
+	if (event.altKey !== parsed.alt || event.shiftKey !== parsed.shift) return false;
+	return keyOf(event) === parsed.key;
 }
 
-/** The chord a key event presses, if any: of the reserved band, then `kernel.listKeybindings()`'s. */
+/** One chord or a sequence of two (8.1), as a binding's `chord` names it: `Mod+G P`. */
+export function chordsOf(keys: string): string[] {
+	return keys.split(' ');
+}
+
+/** The chord a key press makes, if any: of the reserved band, then `kernel.listKeybindings()`'s. */
 export function matchKeybinding(
 	event: ChordEvent,
 	mac: boolean,
 	bindings: readonly Readonly<ShellKeybindingV0>[] = SHELL_KEYBINDINGS_V0
 ): Readonly<ShellKeybindingV0> | undefined {
-	return bindings.find((binding) => chordMatches(binding.chord, event, mac));
+	return bindings.find(
+		(binding) => !binding.chord.includes(' ') && chordMatches(binding.chord, event, mac)
+	);
+}
+
+/** How long a sequence waits for its second chord (8.1). */
+export const SEQUENCE_WAIT_MS = 1500;
+
+/** A sequence's first chord, pressed, waiting for its second until `until`. */
+export interface PendingChord {
+	first: string;
+	until: number;
+}
+
+/** What a key press does: run a binding, start a sequence's wait, or nothing of the keybindings'. */
+export type KeyPress<T> =
+	| { kind: 'run'; binding: T }
+	| { kind: 'wait'; pending: PendingChord }
+	| { kind: 'none' };
+
+/**
+ * A key press against the bindings in force, first to last by precedence (8.1). While a sequence waits, a modifier
+ * alone keeps it waiting; the second chord of a sequence that began with `pending.first` runs it; any other key ends
+ * the wait and is matched afresh. Afresh, the first binding whose first chord the press makes decides: one chord runs,
+ * a sequence waits for its second, so a sequence and a single chord on its first key never both apply.
+ */
+export function pressKey<T extends { chord: string }>(
+	event: ChordEvent,
+	mac: boolean,
+	bindings: readonly T[],
+	pending: PendingChord | null,
+	now: number
+): KeyPress<T> {
+	if (keyOf(event) === undefined)
+		return pending && now <= pending.until ? { kind: 'wait', pending } : { kind: 'none' };
+	if (pending && now <= pending.until) {
+		const second = bindings.find((binding) => {
+			const [first, then] = chordsOf(binding.chord);
+			return (
+				then !== undefined &&
+				sameChord(first as string, pending.first) &&
+				chordMatches(then, event, mac)
+			);
+		});
+		if (second) return { kind: 'run', binding: second };
+	}
+	const hit = bindings.find((binding) =>
+		chordMatches(chordsOf(binding.chord)[0] as string, event, mac)
+	);
+	if (!hit) return { kind: 'none' };
+	const [first, then] = chordsOf(hit.chord);
+	if (then === undefined) return { kind: 'run', binding: hit };
+	return { kind: 'wait', pending: { first: first as string, until: now + SEQUENCE_WAIT_MS } };
+}
+
+/** Whether two chords are one, whatever order their modifiers are written in (`Mod+Shift+Alt+H`, `Mod+Alt+Shift+H`). */
+export function sameChord(a: string, b: string): boolean {
+	const x = parse(a);
+	const y = parse(b);
+	return (
+		x.key === y.key &&
+		x.mod === y.mod &&
+		x.ctrl === y.ctrl &&
+		x.alt === y.alt &&
+		x.shift === y.shift &&
+		x.meta === y.meta
+	);
 }
 
 /**

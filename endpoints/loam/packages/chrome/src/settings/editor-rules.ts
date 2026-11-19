@@ -4,6 +4,8 @@
  * should hear first.
  */
 
+import { keyOf } from '../keyboard.js';
+
 /** A person's override of a binding (8.3): `keys` null unbinds it. */
 export interface OverrideV1 {
 	command: string;
@@ -12,7 +14,7 @@ export interface OverrideV1 {
 }
 
 /**
- * The chords the shell keeps (phase 0's seven, `SHELL_KEYBINDINGS_V0`, held equal by a unit), and Escape: an override
+ * The chords the shell keeps (phase 0's seven and 8.4's Mod+Alt+P, `SHELL_KEYBINDINGS_V0`, held equal by a unit), and Escape: an override
  * on one shadows it, and F6, Shift+F6 and Escape no override may take (8.3, `KEYBINDING_RESERVED`).
  */
 export const SHELL_CHORDS: readonly string[] = [
@@ -23,39 +25,20 @@ export const SHELL_CHORDS: readonly string[] = [
 	'F6',
 	'Shift+F6',
 	'Mod+S',
+	'Mod+Alt+P',
 ];
 export const NEVER_BOUND: readonly string[] = ['F6', 'Shift+F6', 'Escape'];
 
-const NAMED = new Set([
-	'Enter',
-	'Escape',
-	'Tab',
-	'Backspace',
-	'Delete',
-	'Home',
-	'End',
-	'PageUp',
-	'PageDown',
-	'ArrowUp',
-	'ArrowDown',
-	'ArrowLeft',
-	'ArrowRight',
-]);
-
 /**
- * The chord a key press makes, or undefined for a modifier alone (8.2's rule: a Latin letter or digit by `key`, else
- * `code`): modifiers in the order `Mod`, `Ctrl`, `Alt`, `Shift`, `Meta`, then the key. `Mod` is Command on macOS.
+ * The chord a key press makes, or undefined for a modifier alone (8.2's rule, the matcher's `keyOf`: a Latin letter or
+ * digit by `key`, else `code`): modifiers in the order `Mod`, `Ctrl`, `Alt`, `Shift`, `Meta`, then the key. `Mod` is
+ * Command on macOS.
  */
 export function chordOf(
 	event: Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
 	mac: boolean
 ): string | undefined {
-	let key: string | undefined;
-	if (/^[a-z0-9]$/i.test(event.key)) key = event.key.toUpperCase();
-	else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(event.code)) key = event.code;
-	else if (/^(Key[A-Z]|Digit[0-9])$/.test(event.code)) key = event.code.slice(-1);
-	else if (event.key === ' ') key = 'Space';
-	else if (NAMED.has(event.key)) key = event.key;
+	const key = keyOf(event);
 	if (key === undefined) return undefined;
 	const parts = [
 		...((mac ? event.metaKey : event.ctrlKey) ? ['Mod'] : []),

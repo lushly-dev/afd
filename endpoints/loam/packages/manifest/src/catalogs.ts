@@ -260,6 +260,8 @@ export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [
 	'F6',
 	'Shift+F6',
 	'Mod+S',
+	// Phase 4 specification, 8.4: the project switcher (#857).
+	'Mod+Alt+P',
 ];
 
 /** What `app check`, `app-get` and an app's README say of each kind (D54). */

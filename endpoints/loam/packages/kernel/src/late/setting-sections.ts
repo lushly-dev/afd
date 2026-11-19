@@ -8,6 +8,7 @@
  */
 
 import type { SettingSectionV1 } from '@lushly-dev/loam-manifest';
+import { SHELL_KEYBINDINGS_V0 } from '../keybindings.js';
 import { QUARTER_ORDER, quarterProblem } from './limit-commands.js';
 import type { KnownSectionV1, ShellKeyCheckV1 } from './setting-rules.js';
 
@@ -208,6 +209,12 @@ const overrides: ShellKeyCheckV1 = (value) => {
 				};
 			const reserved = chords.find((chord) => OVERRIDE_RESERVED.includes(chord));
 			if (reserved) return { code: 'KEYBINDING_RESERVED', problem: `must not bind ${reserved}` };
+			// A sequence's first chord has Mod and is never a reserved chord (8.1), so it never delays one.
+			const [first, second] = chords as [string, string | undefined];
+			if (second !== undefined && !first.split('+').includes('Mod'))
+				return { problem: 'must begin a sequence with a Mod chord, such as Mod+G P' };
+			if (second !== undefined && SHELL_KEYBINDINGS_V0.some(({ chord }) => chord === first))
+				return { code: 'KEYBINDING_RESERVED', problem: `must not begin a sequence with ${first}` };
 		}
 		const binding = JSON.stringify([command, target ?? null]);
 		if (seen.has(binding)) return { problem: 'must override each binding once' };

@@ -120,6 +120,8 @@ describe('SHELL_KEYBINDINGS_V0', () => {
 			['F6', null],
 			['Shift+F6', null],
 			['Mod+S', null],
+			// Phase 4 specification, 8.4: the project switcher (#857).
+			['Mod+Alt+P', null],
 		]);
 		expect(Object.isFrozen(SHELL_KEYBINDINGS_V0)).toBe(true);
 	});

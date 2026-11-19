@@ -1,5 +1,5 @@
 /**
- * @fileoverview The reserved chords (phase 0 specification, section 7) and the keybindings registry
+ * @fileoverview The reserved chords (phase 0 specification, section 7; phase 4's 8.4 adds Mod+Alt+P) and the keybindings registry
  * (phase 1 specification, 4.2), with the active app's bindings as its second band.
  */
 
@@ -20,6 +20,11 @@ export interface ShellKeybindingV0 {
 	 * which the editor area answers only while an editor is the active owner (documents specification, 5.5).
 	 */
 	save?: true;
+	/**
+	 * Mod+Alt+P (phase 4 specification, 8.4; #857): the project switcher's list, opened as its button's press. Like
+	 * F6's focus, it is the chrome's, with no command.
+	 */
+	switcher?: true;
 }
 
 const BINDINGS: ShellKeybindingV0[] = [
@@ -30,6 +35,7 @@ const BINDINGS: ShellKeybindingV0[] = [
 	{ chord: 'F6', command: null, focus: 'next' },
 	{ chord: 'Shift+F6', command: null, focus: 'previous' },
 	{ chord: 'Mod+S', command: null, save: true },
+	{ chord: 'Mod+Alt+P', command: null, switcher: true },
 ];
 
 /** The reserved chords, frozen with every entry. */
