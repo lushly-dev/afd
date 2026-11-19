@@ -6,7 +6,8 @@
 /**
  * One question an elicitation asked: its input key, its binding, the deadline for its answer
  * (epoch milliseconds, kept when it is carried to a later round) and, for an approval, its nonce,
- * expiry and MAC.
+ * expiry and MAC. An up-front approval of a batch or pipeline step also keeps the step's index,
+ * the canonical JSON of its validated input and a digest of the request (#1414).
  */
 export interface Asked {
 	k: string;
@@ -15,6 +16,9 @@ export interface Asked {
 	n?: string;
 	x?: number;
 	m?: string;
+	s?: number;
+	i?: string;
+	c?: string;
 }
 
 /** How long an answer counts, from when its question was asked (as the codec's own TTL). */
@@ -37,7 +41,10 @@ function isAsked(value: unknown): value is Asked {
 		Number.isFinite(value.t) &&
 		(value.n === undefined || typeof value.n === 'string') &&
 		(value.x === undefined || Number.isFinite(value.x)) &&
-		(value.m === undefined || typeof value.m === 'string')
+		(value.m === undefined || typeof value.m === 'string') &&
+		(value.s === undefined || Number.isSafeInteger(value.s)) &&
+		(value.i === undefined || typeof value.i === 'string') &&
+		(value.c === undefined || typeof value.c === 'string')
 	);
 }
 

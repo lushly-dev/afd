@@ -1394,3 +1394,100 @@ async fn short_circuits_and_panics_carry_no_actor_kind() {
         .metadata
         .is_none_or(|metadata| metadata.actor_kind.is_none()));
 }
+
+/// A step of a batch or pipeline approved up front runs on the input validated then, not on a
+/// second validation of what was sent (#1414).
+#[tokio::test]
+async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
+    use crate::approval::relay::{ApprovalRelayChannel, UpFrontApproval, UpFrontStep};
+
+    let registry = CommandRegistry::new();
+    registry
+        .register(
+            CommandDefinition::new(
+                "note-add",
+                "Adds a note",
+                vec![
+                    CommandParameter::required_string("text", "Text"),
+                    CommandParameter::optional_string("id", "ID"),
+                ],
+                PanickingHandler,
+            )
+            .with_approval(ApprovalPolicy::Required),
+        )
+        .unwrap();
+    registry
+        .register(CommandDefinition::new(
+            "note-list",
+            "Lists notes",
+            vec![CommandParameter::optional_string("id", "ID")],
+            PanickingHandler,
+        ))
+        .unwrap();
+    // An input a second validation would not give: the id the human was shown.
+    let step = |index: usize, id: &str| UpFrontStep {
+        index,
+        command: "note-add".into(),
+        dynamic: false,
+        input: Some(serde_json::json!({ "text": "milk", "id": id })),
+        sent: Some(serde_json::json!({ "text": "milk" })),
+    };
+    let mut context = CommandContext::new();
+    context.up_front_approval = Some(Arc::new(UpFrontApproval::new(
+        "afd-batch",
+        "[]".into(),
+        false,
+        vec![
+            step(0, "first"),
+            step(1, "second"),
+            // A command without an approval policy runs on its own validation.
+            UpFrontStep {
+                index: 2,
+                command: "note-list".into(),
+                dynamic: false,
+                input: Some(serde_json::json!({ "id": "kept" })),
+                sent: Some(serde_json::json!({})),
+            },
+        ],
+        Arc::new(ApprovalRelayChannel::never_asks()),
+    )));
+    let run = |input: serde_json::Value| {
+        let registry = &registry;
+        let context = context.clone();
+        async move {
+            registry
+                .execute("note-add", input, Some(context))
+                .await
+                .data
+        }
+    };
+    let sent = serde_json::json!({ "text": "milk" });
+    // Another input is validated as usual, and takes no step's input.
+    assert_eq!(
+        run(serde_json::json!({ "text": "eggs" })).await,
+        Some(serde_json::json!({ "text": "eggs" }))
+    );
+    // Two steps sent alike take one approved input each, in order.
+    assert_eq!(
+        run(sent.clone()).await,
+        Some(serde_json::json!({ "text": "milk", "id": "first" }))
+    );
+    assert_eq!(
+        run(sent.clone()).await,
+        Some(serde_json::json!({ "text": "milk", "id": "second" }))
+    );
+    // Each is handed out once: a third run is validated as usual.
+    assert_eq!(run(sent.clone()).await, Some(sent));
+    // The step is still validated as sent: an invalid input fails, and takes nothing.
+    let invalid = registry
+        .execute("note-add", serde_json::json!({}), Some(context.clone()))
+        .await;
+    assert_eq!(
+        invalid.error.map(|error| error.code),
+        Some(crate::error_codes::VALIDATION_ERROR.to_owned())
+    );
+    let listed = registry
+        .execute("note-list", serde_json::json!({}), Some(context.clone()))
+        .await;
+    assert_eq!(listed.data, Some(serde_json::json!({})));
+}

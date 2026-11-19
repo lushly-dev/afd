@@ -38,6 +38,22 @@ describe('MemoryJournalSink', () => {
 		expect((await sink.read({ from: 2, to: 2 })).map((entry) => entry.seq)).toEqual([2]);
 	});
 
+	it('#663: reads the last entries of a range, in seq order', async () => {
+		const sink = new MemoryJournalSink([2, 3, 5, 8].map((seq) => ({ seq, ...record(`s${seq}`) })));
+		const seqs = async (range: Parameters<typeof sink.read>[0]) =>
+			(await sink.read(range)).map((entry) => entry.seq);
+
+		expect(await seqs({ last: 1 })).toEqual([8]);
+		expect(await seqs({ last: 2 })).toEqual([5, 8]);
+		expect(await seqs({ last: 2, to: 4 })).toEqual([2, 3]);
+		expect(await seqs({ last: 9, from: 3 })).toEqual([3, 5, 8]);
+		expect(await seqs({ last: 0 })).toEqual([]);
+		expect(await seqs({ last: 1, from: 9 })).toEqual([]);
+		await expect(sink.read({ last: -1 })).rejects.toThrow(RangeError);
+		await expect(sink.read({ last: Number.NaN })).rejects.toThrow(RangeError);
+		expect(await new MemoryJournalSink().read({ last: 1 })).toEqual([]);
+	});
+
 	it('continues the numbering of initial entries', async () => {
 		const sink = new MemoryJournalSink([{ seq: 7, ...record('old') }]);
 		expect((await sink.append(record('new'))).seq).toBe(8);

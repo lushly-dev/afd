@@ -5877,11 +5877,11 @@
       "upstream_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.spec.ts",
       "staged_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
-      "current_import_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
+      "current_import_sha256": "318f7fda2d6682359458240be35a66ba54350f1b21861f8ff9a31d76c1d4442c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/alert/violet-alert.stories.ts",
@@ -5901,11 +5901,11 @@
       "upstream_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.ts",
       "staged_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
-      "current_import_sha256": "a9fd3a8200ff533c9dc64b9fa3b8f7fe12bf1b5c7db247621323c8644980e545",
+      "current_import_sha256": "807be199b3a39fe10b99c99fbf338b2186e1bef20a1bcbaa83f4c8aa6c71a746",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/badge/violet-badge.spec.ts",
@@ -6093,11 +6093,11 @@
       "upstream_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
       "staged_path": "packages/violet-elements/src/card/violet-card.spec.ts",
       "staged_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
-      "current_import_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
+      "current_import_sha256": "9c34c0167990fb6ab609e47c361b7b8d7712fd0ee3056910a5e0c55242f3ca06",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.stories.ts",
@@ -6117,11 +6117,11 @@
       "upstream_sha256": "8067678392f5142e1758c5196dcda317497e8c5dd98db63e2c637a92a1a59c79",
       "staged_path": "packages/violet-elements/src/card/violet-card.ts",
       "staged_sha256": "8067678392f5142e1758c5196dcda317497e8c5dd98db63e2c637a92a1a59c79",
-      "current_import_sha256": "eca50500c29feeb77cb83700ae9e21740ce707a2773c950bbabfdc48bce1d0ab",
+      "current_import_sha256": "7f9e9e7d72dd94ddc9c94c200e3c14d591b134a3ae0fa2d6830d21ecfc31deb7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/carousel/violet-carousel.spec.ts",
@@ -6345,11 +6345,11 @@
       "upstream_sha256": "41b15b4686783694503731ce92dc7890f322db178afcdf0a3f0a700bc58c42e3",
       "staged_path": "packages/violet-elements/src/conversation/violet-approval-card.ts",
       "staged_sha256": "41b15b4686783694503731ce92dc7890f322db178afcdf0a3f0a700bc58c42e3",
-      "current_import_sha256": "6b4f085c94de4d3ee8f82f81cace07b2c7950a0adcffac1a37e22192e965251b",
+      "current_import_sha256": "0d99fe93efc451947ef464f758ba6056b15db8ef01e7f65f71f7959ea4f665d5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575); Drop a forced-colours rule that changed nothing (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-composer.spec.ts",
@@ -6705,11 +6705,11 @@
       "upstream_sha256": "d2a69dbe06937af0eb2d3a04c3e4a5ebd91f3070b1c7c52f149e71650f6c7b79",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-call-card.ts",
       "staged_sha256": "d2a69dbe06937af0eb2d3a04c3e4a5ebd91f3070b1c7c52f149e71650f6c7b79",
-      "current_import_sha256": "54719584eb7b000aaaf0853ddbcc7286e3095a242a86a0da81cb9952da83512f",
+      "current_import_sha256": "c0f95becc505574d971dee04ed57375efcc436b6a608db4204abe2aae07de6d0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575); Drop a forced-colours rule that changed nothing (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-result-card.spec.ts",
@@ -6741,11 +6741,11 @@
       "upstream_sha256": "3b2ee7b65dbe2073fbe96f3275b568932a46ad646de49f63341f0804169ff022",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-result-card.ts",
       "staged_sha256": "3b2ee7b65dbe2073fbe96f3275b568932a46ad646de49f63341f0804169ff022",
-      "current_import_sha256": "4578954c638ed0c346e6b6845cfdc0e86ed9b1a0f1c6b28e8b17c8193968b854",
+      "current_import_sha256": "2b39ec97a72893635d56afae01c68b13c81b83c127f9305199c8861da984228c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; The Refined design (#1430), review fixes: the open tab keeps its selection line inside the key (WCAG 1.4.11); the conversation cards draw their rules, text and nested controls in system colours under forced colours; the reasoning block's inset is logical; the switch's forced-colours focus ring; the comment strip refuses a comment that is not alone on its line; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575); Drop a forced-colours rule that changed nothing (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell-values.ts",
@@ -7677,11 +7677,11 @@
       "upstream_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.spec.ts",
       "staged_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
-      "current_import_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
+      "current_import_sha256": "4fc652e1a4e5d8cd617490496dc6ca3a427654976457b5df494aaf53c20b6496",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.stories.ts",
@@ -7701,11 +7701,11 @@
       "upstream_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.ts",
       "staged_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
-      "current_import_sha256": "bc2f5e808ef0b6619bfed2c4c8831b0b7b4dc0e508694700c351a763a928b940",
+      "current_import_sha256": "9a3255c997a69544843ba0e7728f1dbd6616f0c5184672df5161145284084a19",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/divider/violet-divider.spec.ts",
@@ -9069,11 +9069,11 @@
       "upstream_sha256": "1463bc281d9eabe7803d419aec5d8bde96485b364fdf7cee49ea5450d79f9fa6",
       "staged_path": "packages/violet-elements/src/snackbar/violet-snackbar.ts",
       "staged_sha256": "1463bc281d9eabe7803d419aec5d8bde96485b364fdf7cee49ea5450d79f9fa6",
-      "current_import_sha256": "89243e4d3ddcbd06fed41f7802b54879b3bd57048524ef4638fdc5aeec8a731c",
+      "current_import_sha256": "4cbafca6531967cfeddef2c472864b95af38ddb5fd93d34c73f777b3dde8c4da",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575); Drop a forced-colours rule that changed nothing (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/spinner/violet-spinner.spec.ts",
@@ -9525,11 +9525,11 @@
       "upstream_sha256": "7ca997a5ae9d6fff5dad826d7e444792d1546fb99c7c47432b0043fbffeb5eed",
       "staged_path": "packages/violet-elements/src/toast/violet-toast.spec.ts",
       "staged_sha256": "7ca997a5ae9d6fff5dad826d7e444792d1546fb99c7c47432b0043fbffeb5eed",
-      "current_import_sha256": "7a9fd327078e5e4f295ba0c74126a36098e19eb05efaed2f00c231f592441cea",
+      "current_import_sha256": "24d5cf9081d69d2ca204d5d45d382958d1554097a1ea35b3f11978e1b02a12f5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/toast/violet-toast.stories.ts",
@@ -9549,11 +9549,11 @@
       "upstream_sha256": "2cda1d7070a7ef2fd8c22074097a950e5ce7578032b4de4c5838bd178caf0a56",
       "staged_path": "packages/violet-elements/src/toast/violet-toast.ts",
       "staged_sha256": "2cda1d7070a7ef2fd8c22074097a950e5ce7578032b4de4c5838bd178caf0a56",
-      "current_import_sha256": "52ba5f330385b934b37d999f7f6be6f6857d21e7bd7813d403b1fa7d9ea48a3d",
+      "current_import_sha256": "85bb54099a4b50786b1186a888cb42bcc5803c70acb15d7a9b14009f1fb369c4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575); Drop a forced-colours rule that changed nothing (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.spec.ts",
@@ -11481,11 +11481,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b60e80d16a01f455da7e2fa32babd71d893b53d8f410b44318ea1c5be0ad40fc",
+      "current_import_sha256": "0efc50d73b3e052ae7b1e394d76b5b53eab12c0fa9d7f18376d65d23fb3a7068",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456); form control hosts (#1385): re-recorded after the Refined default theme; Versioned for release by pnpm version-packages (violet-elements, violet-npm)"
+      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456); form control hosts (#1385): re-recorded after the Refined default theme; Versioned for release by pnpm version-packages (violet-elements, violet-npm); Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575); Keep what composing components paint inside violet-card opted out of forced colours (#1575); Let content slotted into the toast, snackbar and conversation cards take the system colours under forced colours (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",

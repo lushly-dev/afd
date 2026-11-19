@@ -14,6 +14,7 @@ import {
 	isMcpExposed,
 } from '@lushly-dev/afd-core';
 import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
+import { upFrontApproval } from './approval-relay.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
@@ -45,6 +46,7 @@ import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from 
 import { isStdinPiped } from './server-types.js';
 import { createToolRouter } from './tool-router.js';
 import { getToolsList } from './tools.js';
+import { validateInputEnhanced } from './validation.js';
 
 export type {
 	CommandMiddleware,
@@ -162,8 +164,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
+	const remoteCommandMap = new Map(remoteCommands.map((command) => [command.name, command]));
 	const remoteEngine = createExecutionEngine({
-		commandMap: new Map(remoteCommands.map((command) => [command.name, command])),
+		commandMap: remoteCommandMap,
 		// MCP authorization (spec/authorization.md, M6): a resolver decides every command again at
 		// execution, on its validated input, before any other middleware or the handler; and a
 		// command hidden from the caller is looked up as a name that does not exist.
@@ -173,6 +176,17 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 				!(scopeViewOf(context)?.known(commandName) ?? true),
 			shown: shownOnly,
 		}),
+		// A step of an afd-batch or afd-pipe approved up front runs on the input validated then
+		// (#1414): what the human was shown, not what a second validation gives (a default that
+		// is random or reads the clock differs). The step is still validated as sent when it
+		// runs, since a schema may check state an earlier step changed; only the value is kept.
+		validated: async (commandName, input, context) => {
+			const command = remoteCommandMap.get(commandName);
+			const approved = command && (await upFrontApproval(context)?.validated(commandName, input));
+			if (!approved) return undefined;
+			const checked = validateInputEnhanced(command.inputSchema, input);
+			return checked.success ? { ...checked, data: approved.input } : checked;
+		},
 		devMode,
 		onCommand,
 		onError,

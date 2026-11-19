@@ -1503,8 +1503,16 @@ impl CommandRegistry {
             );
         }
 
+        // A step of an `afd-batch` or `afd-pipe` approved up front runs on the input validated
+        // then, so the input that runs is the one the human was shown (#1414). It is still
+        // validated as sent here; only the value is kept, and only for a command with an
+        // approval policy: any other runs as it does on its own.
+        let approved = match (&context.up_front_approval, &command.approval) {
+            (Some(up_front), Some(_)) => up_front.validated(&command.name, &input),
+            _ => None,
+        };
         let input = match self.validate(&command, input) {
-            Ok(input) => input,
+            Ok(input) => approved.unwrap_or(input),
             Err(error) => return failure(*error),
         };
 

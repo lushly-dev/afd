@@ -10,7 +10,8 @@
  * - otherwise, when the request carries the human's acceptance of every gated step (each bound to
  *   its command, canonical validated input and actor, with a MAC, an expiry and a nonce), each
  *   nonce is spent and the call runs: each gated step then takes one approval matching its own
- *   binding, once;
+ *   binding, once. The engine runs every step on the input validated here, never on a second
+ *   validation of it (#1414), so the input that runs is the one the human was shown;
  * - a decline refuses the call; anything else asks once, listing every gated step.
  *
  * While the plan is not to run, every step answers without calling `next`, and the router answers
@@ -28,7 +29,7 @@ import type {
 	PipelineRequest,
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure } from '@lushly-dev/afd-core';
-import { actorJson, canonicalJson } from './approval-crypto.js';
+import { actorJson, base64url, canonicalJson } from './approval-crypto.js';
 import {
 	type AcceptedApproval,
 	type ApprovalRelay,
@@ -39,7 +40,7 @@ import {
 	type UpFrontStep,
 } from './approval-relay.js';
 import type { ZodCommandDefinition } from './schema.js';
-import { batchSteps, pipelineSteps } from './up-front-steps.js';
+import { type ApprovedInputs, batchSteps, pipelineSteps, sentKey } from './up-front-steps.js';
 
 /** An approval the human gave up front, taken once by the step it is bound to. */
 interface Approved {
@@ -53,9 +54,22 @@ type Plan = { kind: 'run'; approved: Approved[] } | { kind: 'refuse'; error: Com
 export const MAX_UP_FRONT_APPROVALS = 20;
 
 /**
+ * The most characters (UTF-16 code units) of approved input one question keeps in the
+ * `requestState`, over all its steps. A step past it is validated again by the request that brings the answer, as every step
+ * was before #1414.
+ */
+export const MAX_KEPT_INPUT = 32_768;
+
+/** A digest of the request as sent: an approved input serves the request it was validated for. */
+async function callDigest(call: string): Promise<string> {
+	const bytes = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(call));
+	return base64url(new Uint8Array(bytes));
+}
+
+/**
  * The up-front approval of one `afd-batch` or `afd-pipe` request that can carry a form
- * elicitation, asking and reading answers through `relay`. Its steps are worked out only if an
- * approval middleware asks for them.
+ * elicitation, asking and reading answers through `relay`. Its steps are worked out only when a
+ * step whose command has an approval policy is about to run, or an approval middleware asks.
  */
 export function createUpFrontApproval(
 	relay: ApprovalRelay,
@@ -63,16 +77,64 @@ export function createUpFrontApproval(
 	request: BatchRequest | PipelineRequest,
 	commands: readonly ZodCommandDefinition[]
 ): UpFrontApproval {
-	let steps: UpFrontStep[] | undefined;
+	let steps: Promise<UpFrontStep[]> | undefined;
+	/**
+	 * The inputs the human approved for this request's steps in an earlier round; the latest
+	 * answer wins. None when the answers cannot be read: the middleware reports that itself.
+	 */
+	async function approvedInputs(): Promise<ApprovedInputs> {
+		const approved = new Map<number, string>();
+		try {
+			const kept = (await relay.answers()).accepted.flatMap((answer) => answer.step ?? []);
+			if (kept.length === 0) return approved;
+			const call = await callDigest(upFront.call);
+			for (const step of kept) {
+				if (step.call === call) approved.set(step.index, step.input);
+			}
+		} catch {
+			approved.clear();
+		}
+		return approved;
+	}
+	// Steps whose validated input the engine already took: two steps sent alike take one each.
+	const taken = new Set<UpFrontStep>();
 	const upFront: UpFrontApproval = {
 		tool,
 		relay,
 		call: requestJson(tool, request),
 		conditional: 'steps' in request && request.steps.some((step) => step.when !== undefined),
 		steps: () => {
-			steps ??=
-				'steps' in request ? pipelineSteps(request, commands) : batchSteps(request, commands);
+			steps ??= approvedInputs().then((approved) =>
+				'steps' in request
+					? pipelineSteps(request, commands, approved)
+					: batchSteps(request, commands, approved)
+			);
 			return steps;
+		},
+		validated: async (command, input) => {
+			// Only a command that may need approval: any other runs as it does on its own.
+			const policy = commands.find((candidate) => candidate.name === command)?.approval;
+			if (policy === undefined || policy === 'not-required') return undefined;
+			const sent = sentKey(input);
+			if (sent === undefined) return undefined;
+			let known: readonly UpFrontStep[];
+			try {
+				known = await upFront.steps();
+			} catch {
+				// The step is validated as usual, and the middleware reports what failed.
+				return undefined;
+			}
+			// No await between finding a step and taking it, so concurrent steps take one each.
+			const step = known.find(
+				(candidate) =>
+					candidate.valid &&
+					candidate.command === command &&
+					candidate.sent === sent &&
+					!taken.has(candidate)
+			);
+			if (!step) return undefined;
+			taken.add(step);
+			return { input: step.input };
 		},
 		run: (deps, command, input, context, next) =>
 			gateFor(deps)(upFront, command, input, context, next),
@@ -126,7 +188,7 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 	}
 
 	async function decide(upFront: UpFrontApproval, context: CommandContext): Promise<Plan> {
-		const steps = upFront.steps();
+		const steps = await upFront.steps();
 		const late = steps.find((step) => step.dynamic && deps.mayRequireApproval(step.command));
 		if (late) return { kind: 'refuse', error: splitError(upFront.tool, late.index, late.command) };
 		const scope = await callTags(upFront);
@@ -191,7 +253,21 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		}
 
 		// Ask once for every gated step, saying why when earlier approvals did not hold.
-		const questions = await Promise.all(gated.map((step) => deps.question(step.bindings, now)));
+		// Each question keeps its step's input, so the request that brings the answer runs it.
+		// In step order, while they fit: a step past the limit is validated again by the retry.
+		const call = await callDigest(upFront.call);
+		let room = MAX_KEPT_INPUT;
+		const kept = gated.map((step) => {
+			room -= step.input.length;
+			return room < 0 ? undefined : { index: step.index, input: step.input, call };
+		});
+		const questions = await Promise.all(
+			gated.map(async (step, at) => {
+				const question = await deps.question(step.bindings, now);
+				const keep = kept[at];
+				return keep ? { ...question, step: keep } : question;
+			})
+		);
 		upFront.relay.holdSteps({
 			questions,
 			message: stepsRelayMessage(

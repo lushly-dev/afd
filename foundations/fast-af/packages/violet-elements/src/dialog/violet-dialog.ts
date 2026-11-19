@@ -156,11 +156,17 @@ const styles = css`
     }
 
     @media (forced-colors: active) {
+        /* The surface paints itself; what is slotted into it takes the system colours. */
         dialog {
             forced-color-adjust: none;
             border: var(--_dialog-border-width) solid ButtonText;
             background: Canvas;
             box-shadow: none;
+            color: CanvasText;
+        }
+
+        slot {
+            forced-color-adjust: auto;
         }
 
         dialog::backdrop {
