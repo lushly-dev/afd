@@ -706,7 +706,7 @@ function mountedTransport(): MountTransportV2 {
 			if (tool === 'afd-help')
 				return asResult({
 					success: true,
-					data: { toolStrategy: 'hybrid', firstClassTools: [], commands: [{ name: 'notes-read' }] },
+					data: { toolStrategy: 'hybrid', firstClassTools: [], commands: [{ name: 'files-read' }] },
 				});
 			if (tool === 'afd-detail')
 				return asResult({
@@ -772,7 +772,7 @@ describe('mounted tools (4.2, D156)', () => {
 		});
 		kernels.push(parts.kernel);
 		await parts.kernel.startInstances();
-		const got = await parts.kernel.call<Data>('autonomy-get', { command: 'work-notes-read' });
+		const got = await parts.kernel.call<Data>('autonomy-get', { command: 'work-files-read' });
 		expect(got.data).toMatchObject({ instance: 'work', mode: 'ask', from: 'default' });
 		// A shell read and an app's read act.
 		expect(

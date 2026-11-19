@@ -312,6 +312,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * controls, and the three custom editors; with the console's Violet controls it measured 75,453, so the section's
  * fields are native, as the account and documents sections' are). The manifest's settings checks, shared by
  * `late-settings` and `apps`, are named `setting-checks` so they never read as the `settings` chunk; `apps` 417,105.
+ * Phase 4's step 8 (autonomy) raised two under D115, measured on its branch from `main` at `9f4bb6d2` on Windows with
+ * Node 26.13.1. `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195): the `autonomy` table, the pure
+ * `resolveAutonomy` with its ceilings and write-time bound, `autonomy-get` (single and bulk), `autonomy-list`,
+ * `autonomy-set` with its N9 check order and hand-off, and boot's `autonomy-settle`; about a third of it is the three
+ * commands' descriptions, input schemas and refusals in words. `settingsMinified` 36,000 to 40,000 (32,094 to 39,323,
+ * +7,229): `loam-autonomy-section`, its words and the tree's Autonomy entry. First paint 308,800 and 96,345 gzip,
+ * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -350,7 +357,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 30_500,
+	lateSettingsMinified: 43_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -388,7 +395,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 36_000,
+	settingsMinified: 40_000,
 	editorMoveMinified: 4_205,
 });
 
