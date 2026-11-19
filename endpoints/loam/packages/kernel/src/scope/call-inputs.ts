@@ -44,6 +44,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'toast-show': { message: 'Hello' },
 	'modal-open': { title: 'Sure?', body: 'Really.' },
 	'popover-open': { anchor: { surface: 'shell', anchor: 'probe' }, kind: 'info', body: 'Hi' },
+	'dialog-open': { title: 'Note', body: 'Kept.' },
+	'prompt-open': { title: 'Name?' },
 	'overlay-dismiss': { overlayId: 'none' },
 	'overlay-list': {},
 	'scope-get': {},
@@ -158,6 +160,8 @@ export const NOT_CALLED: Readonly<Record<string, string>> = {
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
 	'app-embed-refuse':
 		'Internal: only the port runs it, to journal its own refusal (INTERNAL_COMMANDS)',
+	'overlay-global-set':
+		'Internal: only the shell sets its strip under the title bar (INTERNAL_COMMANDS)',
 	'copilot-port-refuse':
 		"Internal: only the copilot's agent port runs it, to journal its own refusal (INTERNAL_COMMANDS)",
 };

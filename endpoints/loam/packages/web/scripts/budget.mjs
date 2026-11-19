@@ -324,6 +324,23 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
  * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
  * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
+ *
+ * Phase 4's step 4 (overlays II), under D115, after its trust review (R3): `main` at `42f9e1c1` and the branch
+ * measured from clean package builds in one tree, on Windows with Node 26.13.1. `lateMinified` 93,000 to 104,500
+ * (92,316 to 103,981, +11,665: `dialog-open`, `prompt-open` and `overlay-global-set` with their written JSON Schemas,
+ * `modal-open`'s actions and element, a prompt's field schema and its value and bound checks, 6.5's answer rule, and
+ * the scope an app's question keeps; step 3's re-estimate gave this step about 6,000). `appsMinified` 417,500 to
+ * 418,500 (417,370 to 418,055, +685: a view's waiting question refused at a change of person, and its
+ * `dev.loam/overlay-result`). `viewMinified` 26,100 to 26,400 (26,043 to 26,236, +193: the view host's
+ * `dev.loam/overlay-result` and the overlay openers a leaving view may not send). `surfacesMinified` 88,200 to
+ * 93,500 (87,996 to 93,192, +5,196: `loam-modal` as the slot's renderer, with actions, an owner line, an app's
+ * element and the person's answer by a private callback, and the layer's loader). `overlaysMinified` 6,970 to
+ * 11,000 (6,608 to 10,766, +4,158: dialogs, a prompt's fields and `loam-global`, moved here from `surfaces` by R3;
+ * section 14 estimated the whole chunk at 11,000). `lateEditorMinified` 15,305 to 15,400 (15,304 to 15,336, +32).
+ * First paint 308,966 to 309,167 (+201, the answer registry the `surfaces` and `editor` chunks share) and 96,387 to
+ * 96,477 gzip, the kernel alone 118,894 to 118,973, and `editor` 35,393 to 35,361, within their rows. The first
+ * measurement of this step's `surfaces`, 96,469, read a stale chrome build; these replace it.
+ *
  * Phase 4's step 8 (autonomy) raised two under D115, measured on its branch from `main` at `9f4bb6d2` on Windows with
  * Node 26.13.1. `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195): the `autonomy` table, the pure
  * `resolveAutonomy` with its ceilings and write-time bound, `autonomy-get` (single and bulk), `autonomy-list`,
@@ -359,7 +376,11 @@ export const CEILINGS = Object.freeze({
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
 	jsMinified: 309_500,
-	jsGzip: 96_500,
+	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
+	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
+	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
+	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
+	jsGzip: 97_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -373,10 +394,11 @@ export const CEILINGS = Object.freeze({
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
-	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
-	lateMinified: 94_000,
+	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it). Step 4 merged on top, measured from
+	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
+	lateMinified: 105_500,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 15_305,
+	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
 	lateSettingsMinified: 45_500,
@@ -390,15 +412,15 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
-	appsMinified: 417_500,
-	surfacesMinified: 88_200,
+	appsMinified: 418_500,
+	surfacesMinified: 93_500,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
 	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
 	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
 	// comments, plus a margin.
-	viewMinified: 26_100,
+	viewMinified: 26_400,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
@@ -419,7 +441,7 @@ export const CEILINGS = Object.freeze({
 	embedMinified: 6_096,
 	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
-	overlaysMinified: 6_970,
+	overlaysMinified: 11_000,
 });
 
 /** Group a module id by the package it belongs to. */

@@ -633,6 +633,8 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			if (lastOwner && lastOwner !== now && lastOwner !== state.activeApp()) {
 				deps.overlays.closeForSwitch(lastOwner);
 			}
+			// The new owner's parked dialogs come back with its tab (phase 4 specification, 6.1).
+			if (now && now !== lastOwner) deps.overlays.restore(now);
 			lastOwner = now;
 		},
 		async closeDocument(document, at, context) {

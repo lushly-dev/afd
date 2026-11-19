@@ -276,6 +276,11 @@ export interface ViewBrokerV1 {
 	runBound(command: string, signal: AbortSignal): Promise<McpToolCallResult>;
 	/** Hear each finished call of a command linked to `uri`, from any interface. */
 	onLinkedCall(uri: string, listener: (call: LinkedCallV1) => void): () => void;
+	/**
+	 * `dev.loam/overlay-result`, `{ overlayId }`: the answer to one of this app's own overlays, once it closes
+	 * (phase 4 specification, 6.4); another owner's is refused `OVERLAY_NOT_OWNER`.
+	 */
+	overlayResult?(params: unknown): Promise<OverlayResultV1>;
 }
 
 /** The kernel's object for one app instance, which the chrome turns into the SDK's objects (5.3). */
@@ -627,6 +632,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	'setting-get',
 	'setting-list',
 	'popover-open',
+	'dialog-open',
+	'prompt-open',
 ] as const;
 
 /**
