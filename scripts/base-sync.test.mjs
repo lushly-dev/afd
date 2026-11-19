@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -76,6 +76,12 @@ function setup(t, files = {}) {
 		commit: commitIn(root, git),
 		write: (changes) => write(root, changes),
 		sync: () => baseSync(git, root),
+		hook: (name, body) => {
+			const dir = join(root, '.git', 'test-hooks');
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+			git(['config', 'core.hooksPath', dir]);
+		},
 	};
 }
 
@@ -114,6 +120,31 @@ function recordConflict(t, { branchRow = ['a.py', 'a1'], mainRow = ['c.py', 'c1'
 	s.commit(records(rowsWith(branchRow)), 'branch');
 	s.main(records(rowsWith(mainRow)), 'main');
 	return s;
+}
+
+/** A record conflict, and `src/a.ts` conflicting beside it. */
+function mixedConflict(t) {
+	const s = recordConflict(t);
+	s.commit({ 'src/a.ts': 'branch\n' }, 'branch edits a.ts');
+	s.main({ 'src/a.ts': 'main\n' }, 'main edits a.ts');
+	return s;
+}
+
+/** The merge of main is committed, and any records are valid and match their mirror. */
+function assertConcluded(s) {
+	assert.equal(mergeHead(s.git), null);
+	assert.equal(parents(s.git), 2);
+	assert.equal(s.git(['status', '--porcelain']).trim(), '');
+	assert.equal(
+		s.git(['rev-parse', 'HEAD^2']).trim(),
+		s.git(['rev-parse', 'refs/remotes/origin/main']).trim()
+	);
+	for (const name of ['adaptations.json', 'provenance.json']) {
+		const path = join(s.root, BOTCORE, name);
+		if (!existsSync(path)) continue;
+		JSON.parse(readFileSync(path, 'utf8'));
+		assert.equal(readFileSync(join(s.root, MIRROR, name), 'utf8'), readFileSync(path, 'utf8'));
+	}
 }
 
 describe('base:sync', () => {
@@ -164,16 +195,15 @@ describe('base:sync', () => {
 	});
 
 	it('leaves a mixed conflict open, naming every path, and finishes on the next run', (t) => {
-		const s = recordConflict(t);
-		s.commit({ 'src/a.ts': 'branch\n' }, 'branch edits a.ts');
-		s.main({ 'src/a.ts': 'main\n' }, 'main edits a.ts');
+		const s = mixedConflict(t);
 		const first = stop(s.sync);
+		assert.match(first, /origin\/main @ [0-9a-f]{40} \(moved from /);
 		assert.match(first, /unmerged: src\/a\.ts/);
 		assert.match(
 			first,
 			/unmerged record \(merged by the next run\): endpoints\/botcore\/provenance\/provenance\.json/
 		);
-		assert.match(first, /resolve and stage those paths, then run pnpm base:sync again/);
+		assert.match(first, /resolve and stage only those paths, then run pnpm base:sync again/);
 		const open = mergeHead(s.git);
 		assert.ok(open);
 		// Running again before resolving changes nothing.
@@ -184,11 +214,78 @@ describe('base:sync', () => {
 		s.write({ 'src/a.ts': 'both\n' });
 		s.git(['add', 'src/a.ts']);
 		const second = s.sync().join('\n');
-		assert.match(second, /finishing the open merge of origin\/main/);
+		assert.match(second, /finishing the open merge of [0-9a-f]{40}/);
 		assert.match(second, /merged the provenance records/);
-		assert.equal(mergeHead(s.git), null);
-		assert.equal(parents(s.git), 2);
+		assert.ok(second.includes(PROVENANCE_TESTS[BOTCORE]), second);
+		assertConcluded(s);
 		assert.equal(readFileSync(join(s.root, 'src/a.ts'), 'utf8'), 'both\n');
+	});
+
+	it('refuses records staged with conflict markers, and finishes once the conflict is back', (t) => {
+		const s = mixedConflict(t);
+		stop(s.sync);
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', '-A']); // Stages the conflicted records, markers and all.
+		const reason = stop(s.sync);
+		assert.match(reason, /staged records are not valid JSON/);
+		assert.match(reason, /invalid: endpoints\/botcore\/provenance\/provenance\.json/);
+		assert.ok(mergeHead(s.git), 'the merge stays open');
+		s.git(['checkout', '-m', '--', `${BOTCORE}/provenance.json`, `${MIRROR}/provenance.json`]);
+		assert.match(s.sync().join('\n'), /merged the provenance records/);
+		assertConcluded(s);
+	});
+
+	it('refuses to replace a record staged by hand while its unit has an unmerged one', (t) => {
+		const s = mixedConflict(t);
+		stop(s.sync);
+		s.write({ 'src/a.ts': 'both\n', [`${BOTCORE}/provenance.json`]: '{"by":"hand"}\n' });
+		s.git(['add', 'src/a.ts', `${BOTCORE}/provenance.json`]);
+		const reason = stop(s.sync);
+		assert.match(reason, /staged by hand: endpoints\/botcore\/provenance\/provenance\.json/);
+		assert.match(
+			reason,
+			/unmerged record: endpoints\/botcore\/src\/botcore\/provenance\/provenance\.json/
+		);
+		assert.equal(s.git(['show', `:${BOTCORE}/provenance.json`]), '{"by":"hand"}\n', 'kept');
+		assert.ok(mergeHead(s.git));
+	});
+
+	it('keeps a failed commit open with its output and the test to run, then concludes', (t) => {
+		const s = recordConflict(t);
+		s.hook('pre-commit', 'echo hook says no; exit 1');
+		const reason = stop(s.sync);
+		assert.match(reason, /resolved and staged, but its commit failed/);
+		assert.match(reason, /hook says no/);
+		assert.ok(reason.includes(PROVENANCE_TESTS[BOTCORE]), reason);
+		assert.ok(mergeHead(s.git));
+		s.hook('pre-commit', 'exit 0');
+		const done = s.sync().join('\n');
+		assert.ok(done.includes(PROVENANCE_TESTS[BOTCORE]), 'still named on the next run');
+		assertConcluded(s);
+	});
+
+	it('keeps a merge a hook rejected open, and concludes it on the next run', (t) => {
+		const s = setup(t);
+		s.commit({ 'src/b.ts': 'b\n' }, 'branch');
+		s.main({ 'src/c.ts': 'c\n' }, 'main');
+		s.hook('pre-merge-commit', 'echo merge hook says no; exit 1');
+		const reason = stop(s.sync);
+		assert.match(reason, /git merge stopped without a conflict/);
+		assert.match(reason, /merge hook says no/);
+		assert.ok(mergeHead(s.git), 'not committed past the hook');
+		assert.equal(parents(s.git), 1);
+		s.hook('pre-merge-commit', 'exit 0');
+		s.sync();
+		assertConcluded(s);
+	});
+
+	it('concludes a clean merge even when git config says --no-commit', (t) => {
+		const s = setup(t);
+		s.commit({ 'src/b.ts': 'b\n' }, 'branch');
+		s.main({ 'src/c.ts': 'c\n' }, 'main');
+		s.git(['config', 'branch.feat.mergeOptions', '--no-commit']);
+		s.sync();
+		assertConcluded(s);
 	});
 
 	it('leaves the merge open with the reason when the records really conflict', (t) => {
@@ -205,27 +302,32 @@ describe('base:sync', () => {
 		assert.ok(unmerged(s.git).includes(`${BOTCORE}/adaptations.json`));
 	});
 
-	it('refuses tracked changes before fetching', (t) => {
+	it('refuses uncommitted changes and untracked files before fetching', (t) => {
 		const s = setup(t);
 		const before = s.git(['rev-parse', 'refs/remotes/origin/main']).trim();
 		s.main({ 'src/c.ts': 'c\n' }, 'main');
+		s.write({ 'src/new.ts': 'new\n' });
+		assert.match(stop(s.sync), /untracked files \(1 path\).*WIP commit, never git stash/);
 		s.write({ 'src/a.ts': 'edited\n' });
 		assert.match(stop(s.sync), /uncommitted changes .*WIP commit, never git stash/);
 		assert.equal(s.git(['rev-parse', 'refs/remotes/origin/main']).trim(), before, 'not fetched');
 		assert.equal(readFileSync(join(s.root, 'src/a.ts'), 'utf8'), 'edited\n');
 	});
 
-	it('names an in-progress cherry-pick and an open merge of another branch', (t) => {
+	it('names an in-progress rebase and cherry-pick, and an open merge of another branch', (t) => {
 		const s = setup(t);
 		s.git(['checkout', '-q', '-b', 'other']);
 		const other = s.commit({ 'src/a.ts': 'other\n' }, 'other');
 		s.git(['checkout', '-q', 'feat']);
 		s.commit({ 'src/a.ts': 'feat\n' }, 'feat');
+		assert.throws(() => s.git(['rebase', 'other']));
+		assert.match(stop(s.sync), /a rebase is in progress/);
+		s.git(['rebase', '--abort']);
 		assert.throws(() => s.git(['cherry-pick', other]));
-		assert.match(stop(s.sync), /a cherry-pick is in progress/);
+		assert.match(stop(s.sync), /a cherry-pick( or revert sequence)? is in progress/);
 		s.git(['cherry-pick', '--abort']);
 		assert.throws(() => s.git(['merge', '--no-edit', 'other']));
-		assert.match(stop(s.sync), /open merge of .* not on origin\/main.*finish it yourself/);
+		assert.match(stop(s.sync), /open merge of .* not of origin\/main.*finish it yourself/);
 		assert.ok(mergeHead(s.git), 'never aborted');
 	});
 

@@ -13,19 +13,22 @@
  * concludes. A real record conflict, one the provenance merge refuses, is left open with its
  * reason.
  *
- * It refuses tracked changes (set them aside with a WIP commit, never `git stash`: worktrees share
- * one stash stack) and an in-progress rebase, cherry-pick or revert, and it finishes only an open
- * merge of `origin/main`. It never resets, aborts, stashes or pushes. Exit 0 means the merge is
- * concluded or there was nothing to merge.
+ * It refuses uncommitted changes, untracked files included (set them aside with a WIP commit,
+ * never `git stash`: worktrees share one stash stack), and an in-progress rebase, `git am`,
+ * cherry-pick or revert. It finishes only an open merge of the base it merged (remembered in the
+ * worktree's git directory) or of the current `origin/main`. It never resets, aborts, stashes or
+ * pushes. Exit 0 means the merge is concluded or there was nothing to merge.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RecordConflict, resolve, unitOf } from './provenance-merge.mjs';
+import { RecordConflict, resolve, UNITS, unitOf } from './provenance-merge.mjs';
 
 export const REFSPEC = '+refs/heads/main:refs/remotes/origin/main';
 const BASE = 'refs/remotes/origin/main';
+/** The open merge this command started, in the worktree's own git directory. */
+const STATE = 'afd-base-sync.json';
 
 /** Each unit's provenance test, keyed by its records' directory (see `UNITS`). */
 export const PROVENANCE_TESTS = {
@@ -33,7 +36,7 @@ export const PROVENANCE_TESTS = {
 	'foundations/specimen/provenance': 'node --test scripts/specimen-provenance.test.mjs',
 	'foundations/violet/provenance': 'node --test scripts/violet-provenance.test.mjs',
 	'endpoints/botcore/provenance':
-		'(cd endpoints/botcore && uv run --frozen pytest tests/test_provenance.py -q)',
+		'uv --directory endpoints/botcore run --frozen pytest tests/test_provenance.py -q',
 };
 
 /** Why base:sync stopped without concluding; `lines` say what to do. */
@@ -47,6 +50,7 @@ export class SyncStop extends Error {
 const short = (sha) => sha.slice(0, 12);
 const list = (text) => text.split('\n').filter(Boolean);
 const paths = (n) => `${n} ${n === 1 ? 'path' : 'paths'}`;
+const AGAIN = 'then run pnpm base:sync again';
 
 /**
  * Syncs the checkout at `root`; `git(args)` runs git there and throws on a non-zero exit. Returns
@@ -69,37 +73,62 @@ export function baseSync(git, root) {
 		}
 	};
 	const gitPath = (name) => resolvePath(root, git(['rev-parse', '--git-path', name]).trim());
+	const state = {
+		read() {
+			try {
+				return JSON.parse(readFileSync(gitPath(STATE), 'utf8'));
+			} catch {
+				return null;
+			}
+		},
+		write(value) {
+			writeFileSync(gitPath(STATE), `${JSON.stringify(value)}\n`);
+		},
+		clear() {
+			rmSync(gitPath(STATE), { force: true });
+		},
+	};
 
-	if (['rebase-merge', 'rebase-apply'].some((dir) => existsSync(gitPath(dir))))
-		throw new SyncStop([
-			'a rebase is in progress: finish it (or abort it yourself), then run pnpm base:sync again',
-		]);
+	for (const [path, what] of [
+		['rebase-merge', 'a rebase'],
+		['rebase-apply', 'a rebase or git am'],
+		['sequencer', 'a cherry-pick or revert sequence'],
+	])
+		if (existsSync(gitPath(path)))
+			throw new SyncStop([`${what} is in progress: finish it (or abort it yourself), ${AGAIN}`]);
 	for (const [head, what] of [
-		['CHERRY_PICK_HEAD', 'cherry-pick'],
-		['REVERT_HEAD', 'revert'],
+		['CHERRY_PICK_HEAD', 'a cherry-pick'],
+		['REVERT_HEAD', 'a revert'],
 	])
 		if (rev(head))
-			throw new SyncStop([
-				`a ${what} is in progress: finish it (or abort it yourself), then run pnpm base:sync again`,
-			]);
+			throw new SyncStop([`${what} is in progress: finish it (or abort it yourself), ${AGAIN}`]);
 
 	const before = rev('HEAD');
 	if (!before) throw new SyncStop(['the branch has no commit to merge into']);
 	const open = rev('MERGE_HEAD');
 	if (open) {
 		const base = rev(BASE);
-		if (!base || !succeeds(['merge-base', '--is-ancestor', open, base]))
+		const started = state.read();
+		if (open !== base && open !== started?.base)
 			throw new SyncStop([
-				`an open merge of ${short(open)}, which is not on origin/main, is in progress: finish it yourself`,
+				`an open merge of ${short(open)} is in progress, and it is not of origin/main (${base ? short(base) : 'not fetched'}): finish it yourself`,
 			]);
-		return [`finishing the open merge of origin/main @ ${short(open)}`, ...conclude(open)];
+		const lines = [
+			`finishing the open merge of ${open}${
+				base && base !== open
+					? ` (origin/main has since moved to ${short(base)}: run pnpm base:sync again afterwards)`
+					: ''
+			}`,
+		];
+		return [...lines, ...conclude(open, started, lines)];
 	}
 
-	const dirty = list(git(['status', '--porcelain', '--untracked-files=no']));
+	const dirty = list(git(['status', '--porcelain']));
 	if (dirty.length)
 		throw new SyncStop([
-			`the tree has uncommitted changes (${paths(dirty.length)}): set them aside with a WIP commit, never git stash, then run pnpm base:sync again`,
+			`the tree has uncommitted changes or untracked files (${paths(dirty.length)}): set them aside with a WIP commit, never git stash, ${AGAIN}`,
 		]);
+	state.clear(); // A record of a merge that is no longer open.
 
 	const previous = rev(BASE);
 	try {
@@ -122,71 +151,164 @@ export function baseSync(git, root) {
 	if (succeeds(['merge-base', '--is-ancestor', base, 'HEAD']))
 		return [...lines, 'already up to date: nothing to merge'];
 	try {
-		git(['merge', '--no-edit', base]);
+		// --commit overrides a configured --no-commit, so a clean merge is concluded here.
+		git(['merge', '--no-edit', '--commit', base]);
 	} catch (error) {
 		if (!rev('MERGE_HEAD'))
 			throw new SyncStop([...lines, `git merge refused: ${firstLine(error)}`]);
-		return [...lines, ...conclude(base)];
+		state.write({ base, index: recordIndex() });
+		if (unmergedPaths().length === 0)
+			throw new SyncStop([
+				...lines,
+				`the merge of ${short(base)} is open: git merge stopped without a conflict`,
+				...tail(error),
+				`fix that, ${AGAIN} to conclude`,
+			]);
+		return [...lines, ...conclude(base, state.read(), lines)];
 	}
-	return [...lines, ...merged(before, [])];
+	settled(base, lines);
+	return [...lines, ...merged(before, base, [])];
+
+	function unmergedPaths() {
+		return list(git(['diff', '--name-only', '--diff-filter=U']));
+	}
+
+	/** Every record's index entry: its blob, or `U` while it is unmerged. */
+	function recordIndex() {
+		const dirs = UNITS.flatMap((unit) => [unit.dir, unit.mirror].filter(Boolean));
+		const index = {};
+		for (const line of list(git(['ls-files', '-s', '--', ...dirs]))) {
+			const [meta, path] = line.split('\t');
+			const [, blob, stage] = meta.split(' ');
+			if (unitOf(path)) index[path] = stage === '0' ? blob : 'U';
+		}
+		return index;
+	}
+
+	/** Stops unless HEAD now holds `mergeHead` with no merge open. */
+	function settled(mergeHead, lines) {
+		if (rev('MERGE_HEAD') || !succeeds(['merge-base', '--is-ancestor', mergeHead, 'HEAD'])) {
+			if (rev('MERGE_HEAD')) state.write({ base: mergeHead, index: recordIndex() });
+			throw new SyncStop([
+				...lines,
+				`git returned without concluding the merge of ${short(mergeHead)}: check merge settings in git config, ${AGAIN}`,
+			]);
+		}
+		state.clear();
+	}
 
 	/** Resolves the open merge's records and commits it, or throws SyncStop leaving it open. */
-	function conclude(mergeHead) {
-		const unmerged = list(git(['diff', '--name-only', '--diff-filter=U']));
+	function conclude(mergeHead, started, lines) {
+		const unmerged = unmergedPaths();
 		const records = unmerged.filter((path) => unitOf(path));
 		const others = unmerged.filter((path) => !unitOf(path));
 		if (others.length)
 			throw new SyncStop([
+				...lines,
 				`the merge of ${short(mergeHead)} is open: ${paths(others.length)} conflict outside the provenance records`,
 				...others.map((path) => `  unmerged: ${path}`),
 				...records.map((path) => `  unmerged record (merged by the next run): ${path}`),
-				'resolve and stage those paths, then run pnpm base:sync again to merge the records and conclude',
+				`resolve and stage only those paths, ${AGAIN} to merge the records and conclude`,
 			]);
 		const unmergedSet = new Set(unmerged);
 		const unstaged = list(git(['diff', '--name-only'])).filter((path) => !unmergedSet.has(path));
 		if (unstaged.length)
 			throw new SyncStop([
-				`the merge of ${short(mergeHead)} is open with unstaged changes: stage them, then run pnpm base:sync again`,
+				...lines,
+				`the merge of ${short(mergeHead)} is open with unstaged changes: stage them, ${AGAIN}`,
 				...unstaged.map((path) => `  unstaged: ${path}`),
 			]);
 		let written = [];
-		if (records.length)
+		if (records.length) {
+			// The provenance merge rewrites every record of a unit with an unmerged one, so a record of
+			// that unit staged by hand since this command stopped would be replaced.
+			const open = new Set(records.map((path) => unitOf(path).unit));
+			const now = recordIndex();
+			const replaced = Object.entries(started?.index ?? {})
+				.filter(([path, was]) => open.has(unitOf(path).unit) && now[path] !== was)
+				.map(([path]) => path);
+			if (replaced.length)
+				throw new SyncStop([
+					...lines,
+					`the merge of ${short(mergeHead)} is open: records staged by hand while others of their unit are still unmerged`,
+					...replaced.map((path) => `  staged by hand: ${path}`),
+					...records.map((path) => `  unmerged record: ${path}`),
+					`resolve and stage that unit's other records by hand too, or restore the conflict with git checkout -m -- <path>, ${AGAIN}`,
+				]);
 			try {
 				written = resolve(git, root);
 			} catch (error) {
 				if (!(error instanceof RecordConflict)) throw error;
 				throw new SyncStop([
+					...lines,
 					`the merge of ${short(mergeHead)} is open: the provenance merge refused: ${error.message}`,
 					...records.map((path) => `  unmerged record: ${path}`),
-					"record that file again with its unit's recorder, stage the records, then run pnpm base:sync again",
+					`record that file again with its unit's recorder, stage the records, ${AGAIN}`,
 				]);
 			}
+		}
+		const broken = list(git(['diff', '--cached', '--name-only', 'HEAD'])).filter((path) => {
+			if (!unitOf(path)) return false;
+			try {
+				JSON.parse(git(['show', `:${path}`]));
+				return false;
+			} catch {
+				return true;
+			}
+		});
+		if (broken.length)
+			throw new SyncStop([
+				...lines,
+				`the merge of ${short(mergeHead)} is open: staged records are not valid JSON (conflict markers?)`,
+				...broken.map((path) => `  invalid: ${path}`),
+				`restore the conflict with git checkout -m -- <path> (or fix and stage it), ${AGAIN}`,
+			]);
+		const report = merged(before, mergeHead, written, true);
 		try {
 			git(['commit', '--no-edit']);
 		} catch (error) {
 			throw new SyncStop([
-				`the merge of ${short(mergeHead)} is resolved and staged, but its commit failed: ${firstLine(error)}`,
-				'fix that, then run pnpm base:sync again to conclude',
+				...lines,
+				`the merge of ${short(mergeHead)} is resolved and staged, but its commit failed`,
+				...tail(error),
+				...report.slice(1),
+				`fix that, ${AGAIN} to conclude`,
 			]);
 		}
-		return merged(before, written);
+		settled(mergeHead, lines);
+		return merged(before, mergeHead, written);
 	}
 
-	/** The report once HEAD holds the merge. */
-	function merged(from, written) {
+	/**
+	 * The report for merging `mergeHead` into `from`. Each unit whose records both sides changed
+	 * needs its provenance test, however they were merged.
+	 */
+	function merged(from, mergeHead, written, pending = false) {
 		const after = rev('HEAD');
 		const out = [
-			after === from
-				? 'nothing merged'
-				: `merged into ${git(['rev-parse', '--abbrev-ref', 'HEAD']).trim()} @ ${short(after)}`,
+			pending || after !== from
+				? `merged into ${git(['rev-parse', '--abbrev-ref', 'HEAD']).trim()} @ ${short(after)}`
+				: 'nothing merged',
 		];
-		if (written.length) {
-			out.push(`merged the provenance records ${written.join(', ')}`);
-			const units = [...new Set(written.map((path) => unitOf(path).unit.dir))];
-			for (const dir of units) out.push(`run its provenance test: ${PROVENANCE_TESTS[dir]}`);
-		}
-		if (!succeeds(['diff', '--quiet', from, 'HEAD', '--', 'pnpm-lock.yaml']))
-			out.push('pnpm-lock.yaml changed: run pnpm install --frozen-lockfile');
+		if (written.length) out.push(`merged the provenance records ${written.join(', ')}`);
+		const fork = git(['merge-base', from, mergeHead]).trim();
+		const changed = (to) =>
+			new Set(
+				list(git(['diff', '--name-only', fork, to]))
+					.map((path) => unitOf(path)?.unit.dir)
+					.filter(Boolean)
+			);
+		const theirs = changed(mergeHead);
+		const units = new Set([
+			...[...changed(from)].filter((dir) => theirs.has(dir)),
+			...written.map((path) => unitOf(path).unit.dir),
+		]);
+		for (const dir of units)
+			out.push(`both sides changed ${dir}: run its provenance test: ${PROVENANCE_TESTS[dir]}`);
+		const lockfile = pending
+			? !succeeds(['diff', '--cached', '--quiet', from, '--', 'pnpm-lock.yaml'])
+			: !succeeds(['diff', '--quiet', from, 'HEAD', '--', 'pnpm-lock.yaml']);
+		if (lockfile) out.push('pnpm-lock.yaml changed: run pnpm install --frozen-lockfile');
 		return out;
 	}
 }
@@ -195,6 +317,15 @@ function firstLine(error) {
 	return String(error.stderr || error.message || error)
 		.trim()
 		.split('\n')[0];
+}
+
+/** The last lines a failed git command (or its hook) printed, indented. */
+function tail(error, count = 8) {
+	const lines = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
+		.split('\n')
+		.map((line) => line.trimEnd())
+		.filter(Boolean);
+	return (lines.length ? lines : [firstLine(error)]).slice(-count).map((line) => `  ${line}`);
 }
 
 function isEntry() {
