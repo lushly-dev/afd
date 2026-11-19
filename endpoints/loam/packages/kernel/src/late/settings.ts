@@ -49,7 +49,7 @@ import type { SettingRows } from './shell-commands.js';
 
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
-export { createLimitCommands } from './limit-commands.js';
+export { createLimitCommands, limitNotice } from './limit-commands.js';
 export { createNotifications, orphanNotice, orphanRecipients } from './notifications.js';
 export {
 	HUMAN_SETTING_KEYS,

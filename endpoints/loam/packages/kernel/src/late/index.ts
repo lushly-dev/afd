@@ -336,6 +336,7 @@ export async function createLateParts(
 			createNotifications,
 			createAutonomy,
 			createLimitCommands,
+			limitNotice,
 			isHumanGesture,
 			orphanNotice,
 			orphanRecipients,
@@ -596,8 +597,29 @@ export async function createLateParts(
 		...(deps.limits ? { limits: deps.limits } : {}),
 		isOwner: (person) => isOwner(deps.scope.membership, person),
 		provider,
+		// The owners' notice (section 11), through step 5's inbox, as the orphan notice is: in `local` mode to the one
+		// person the shell is for, every person an owner; in `provider` mode none, until the owner roster is a server record.
+		async notice(context, { instance, limit }) {
+			if (deps.scope.membership.mode !== 'local') return 0;
+			await notifications.shellNotice(
+				context,
+				shellPerson() ?? 'local',
+				limitNotice(instance, limit)
+			);
+			return 1;
+		},
 		kit: { ...DOCUMENT_KIT, personKey },
 	});
+	// The first refusal of an instance in an hour, told through boot's journaled `limit-notice-push`, after the call that
+	// met it: never in a replay, whose entries hold it, and never in `provider` mode (above).
+	if (deps.limits) {
+		deps.limits.notify = ({ instance, limit }) => {
+			if (deps.internals?.replaying === true || deps.scope.membership.mode !== 'local') return;
+			void Promise.resolve()
+				.then(() => deps.runBoot('limit-notice-push', { instance, limit }))
+				.catch(reportLate);
+		};
+	}
 	// Phase 4's autonomy (its section 4), in `late-settings` beside the settings: stored, resolved and shown, never
 	// enforced here (D41), so it is an input to no access decision (P4-E2).
 	const autonomy = createAutonomy({
@@ -806,6 +828,7 @@ export async function createLateParts(
 			autonomy.settleCommand,
 			...limitCommands.commands,
 			limitCommands.settleCommand,
+			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])
 	);
 	// `toast-show` with the inbox's half (6.1, 3.7): a sticky toast also lands as a notice, and a muted app's is never

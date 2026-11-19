@@ -47,6 +47,18 @@ export function countRefusals(
  */
 export const USAGE_RECOUNT_MS = 86_400_000;
 
+/** The owners' notice of an app's first refusal by a limit in an hour (section 11), in words. */
+export function limitNotice(
+	instance: string,
+	limit: LimitKeyV1
+): { title: string; body: string; tone: 'warning' } {
+	return {
+		title: `The app '${instance}' was refused by loam.limits.${limit}`,
+		body: `The first refusal of this app in an hour. Read what each app uses in the shell's settings, at ${LIMITS_ROUTE}, and raise the limit there if the app needs it.`,
+		tone: 'warning',
+	};
+}
+
 /** `inputBytes` is at most a quarter of `journalEntryBytes` (section 11), so an entry holding one input fits. */
 export const INPUT_SHARE = 4;
 
@@ -96,6 +108,14 @@ export interface LimitDeps {
 	isOwner(person: string | undefined): boolean;
 	/** Whether the deployment's identity is `provider`, where a signed-out call has no person. */
 	provider: boolean;
+	/**
+	 * The owners' notice of an instance's first refusal in an hour (section 11), through step 5's inbox, in the call of
+	 * `limit-notice-push`: how many owners it reached.
+	 */
+	notice?(
+		context: CommandContext,
+		refusal: { instance: string; limit: LimitKeyV1 }
+	): Promise<number>;
 	kit: LimitKit;
 }
 
@@ -103,6 +123,8 @@ export interface LimitCommands {
 	commands: ZodCommandDefinition[];
 	/** Boot's own `store-usage-settle`: in `BOOT_ONLY`, so no caller reaches it. */
 	settleCommand: ZodCommandDefinition;
+	/** Boot's own `limit-notice-push`, the owners' notice journaled, so a replay sends the same: `BOOT_ONLY`. */
+	noticeCommand: ZodCommandDefinition;
 	/** What a settle would write now: each instance whose counted bytes differ from its row's. */
 	usageChanges(now: number): Promise<Array<{ instance: string; used: number }>>;
 }
@@ -255,9 +277,35 @@ export function createLimitCommands(deps: LimitDeps): LimitCommands {
 		},
 	});
 
+	const noticeInput = z.strictObject({
+		instance: z.string().check(z.minLength(1), z.maxLength(32)),
+		limit: z.enum([...LIMIT_KEY_ORDER] as [LimitKeyV1, ...LimitKeyV1[]]),
+	});
+	const notice = kit.define<typeof noticeInput, { noticed: number }>({
+		name: 'limit-notice-push',
+		description: "Boot's own: tell the owners of an app's first refusal by a limit in an hour",
+		category: 'setting',
+		mutation: true,
+		executionTime: 'instant',
+		input: noticeInput,
+		jsonSchema: {
+			type: 'object',
+			properties: {
+				instance: { type: 'string', minLength: 1, maxLength: 32 },
+				limit: { type: 'string', enum: [...LIMIT_KEY_ORDER] },
+			},
+			required: ['instance', 'limit'],
+			additionalProperties: false,
+		} as unknown as JsonSchema,
+		async handler(input, context) {
+			return kit.success({ noticed: (await deps.notice?.(context, input)) ?? 0 });
+		},
+	});
+
 	return {
 		commands: [usage as unknown as ZodCommandDefinition],
 		settleCommand: settle as unknown as ZodCommandDefinition,
+		noticeCommand: notice as unknown as ZodCommandDefinition,
 		async usageChanges(now) {
 			const quota = deps.apps().storeQuota;
 			if (!quota) return [];

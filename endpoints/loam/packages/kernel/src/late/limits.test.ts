@@ -648,6 +648,61 @@ describe('the trust review of step 10', () => {
 	});
 });
 
+describe("the owners' notice through the inbox (section 11; step 5's shellNotice)", () => {
+	type Listed = { notifications: Array<{ source: string; title: string; tone?: string }> };
+	const shellNotices = async (kernel: LoamKernelV5) =>
+		(
+			(await kernel.call<Listed>('notification-list', { source: 'shell' })).data?.notifications ??
+			[]
+		).filter((notice) => notice.title.includes('loam.limits'));
+
+	it('tells the local owner once per instance in an hour, journaled, and the session replays the same', async () => {
+		const { kernel, journal } = await workspace({ empty: true });
+		const port = kernel.appPort('dual');
+		await port.call('dual-put', { key: 'a', value: 'x'.repeat(300_000) });
+		await expect.poll(async () => (await shellNotices(kernel)).length).toBe(1);
+		await port.call('dual-put', { key: 'a', value: 'x'.repeat(300_000) });
+		await kernel.appPort('solo').call('solo-put', { key: 'a', value: 'x'.repeat(300_000) });
+		await expect.poll(async () => (await shellNotices(kernel)).length).toBe(2);
+		const notices = await shellNotices(kernel);
+		expect(notices.map((notice) => notice.title).sort()).toEqual([
+			"The app 'dual' was refused by loam.limits.inputBytes",
+			"The app 'solo' was refused by loam.limits.inputBytes",
+		]);
+		expect(notices[0]).toMatchObject({ source: 'shell', tone: 'warning' });
+		// The entry lands once its call has ended, after the notice it wrote.
+		const pushed = async () =>
+			(await journal.read()).filter((entry) => entry.command === 'limit-notice-push');
+		await expect.poll(async () => (await pushed()).length).toBe(2);
+		expect((await pushed()).map((entry) => entry.input)).toEqual([
+			{ instance: 'dual', limit: 'inputBytes' },
+			{ instance: 'solo', limit: 'inputBytes' },
+		]);
+		// No caller reaches it.
+		expect(
+			(await kernel.call('limit-notice-push', { instance: 'dual', limit: 'inputBytes' })).error
+				?.code
+		).toBe('COMMAND_NOT_FOUND');
+		const result = await replay(await journal.read());
+		expect(result.report.diverged).toBe(false);
+	});
+
+	it('tells no one in provider mode, where the owner roster is not yet a server record', async () => {
+		const { kernel, journal } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+		});
+		await signIn(kernel, 'olu@example.com');
+		await kernel.appPort('dual').call('dual-put', { key: 'a', value: 'x'.repeat(300_000) });
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(await shellNotices(kernel)).toEqual([]);
+		expect((await journal.read()).some((entry) => entry.command === 'limit-notice-push')).toBe(
+			false
+		);
+	});
+});
+
 describe('store-usage-settle (section 11)', () => {
 	it("counts each app's records at boot where its row differs, journaled, and a replay writes the same", async () => {
 		const store = new MemoryAdapter();

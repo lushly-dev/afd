@@ -407,7 +407,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `jsMinified` to 312,800 and `jsGzip` to 98,000 (312,548 and 97,875: step 10's limits and journal bound beside steps 4
  * and 5's first paint); `lateMinified` to 109,500 (109,143); `lateSettingsMinified` to 67,500 (67,013: the inbox, autonomy
  * and the limits over the settings); `appsMinified` to 424,000 (423,710); `viewMinified` to 26,800 (26,691: the frame
- * gate beside step 4's overlay result). Every other row within its ceiling.
+ * gate beside step 4's overlay result). Every other row within its ceiling. Then the owners' notice through the inbox
+ * (`limit-notice-push`): `lateMinified` to 109,800 (109,503, +360) and `lateSettingsMinified` to 68,000 (67,841, +828).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -455,13 +456,13 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 109_500,
+	lateMinified: 109_800,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
-	lateSettingsMinified: 67_500,
+	lateSettingsMinified: 68_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,

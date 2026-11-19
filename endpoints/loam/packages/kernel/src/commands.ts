@@ -39,6 +39,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'autonomy-settle',
 	// Each app's stored bytes counted afresh (phase 4 specification, section 11).
 	'store-usage-settle',
+	// The owners' notice of an app's first refusal by a limit in an hour (phase 4 specification, section 11).
+	'limit-notice-push',
 ]);
 
 /**

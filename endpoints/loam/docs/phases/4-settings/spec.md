@@ -52,7 +52,7 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 4, overlays II** ([#1629](https://github.com/lushly-dev/afd/pull/1629), 2026-11-19): dialogs, modals' actions and elements, prompts, the slot, 6.1's path table for every kind, 6.5's answer rule with F6's cancels, `parked` and `overlay-global-set`; what it decided, measured and left, and what its trust review changed, is in [its record](#step-4-2026-11-19).
 - **Done, step 5, the inbox** ([#1630](https://github.com/lushly-dev/afd/pull/1630), 2026-11-19): section 10 without confirmations, the `notification` table and `notification-push`, `-list`, `-read`, `-archive` and `-act`, sticky toasts landing (6.1), `muted`, the `inbox` chunk, the title bar's Inbox button and the announcement, a sticky toast's **Open inbox**, the palette's row, hello's guest book, and P4-E6; what it decided, measured and left is in [its record](#step-5-2026-11-19).
 - **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
-- **Done, step 10, limits** (on `lush/loam-p4-step10-limits`, 2026-11-19, its trust review answered, not merged): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, and P4-E10's units and Chromium but the job `limit-refuses-call`, which waits on step 5's `notification-push`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
+- **Done, step 10, limits** (on `lush/loam-p4-step10-limits`, 2026-11-19, its trust review answered, not merged): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, P4-E10's units and Chromium, and, merged with steps 4 and 5 (`main` at `cb4d5dff`), the owners' notice through the inbox and the job `limit-refuses-call`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
 - **Not done:** every step of the [plan](#20-implementation-plan) after step 5, steps 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
@@ -1696,7 +1696,7 @@ The inbox, on `lush/loam-p4-step5-inbox` from `main` at `42f9e1c1` (steps 1 to 3
 
 - **Step 6:** raising and answering confirmations, Confirm and Decline naming the command, a confirmation's announcement, and hello's notices.
 - **Step 8:** an orphan autonomy row's notice to the owners who may enter its project, through `Notifications.shellNotice`, the seam built and tested here for steps 8 to 10. *Wired after step 8 merged* (`orphanRecipients` and `orphanNotice`, units, and step 8's orphans case reading the owner's inbox): in `local` mode the one person; in `provider` mode none until the owner roster is a server record (phase 5), a follow-up. Step 8's record says how.
-- **Step 9:** the experiment changes of 5.2 and a deferred unload. **Step 10:** a limit's refusal, to owners.
+- **Step 9:** the experiment changes of 5.2 and a deferred unload. **Step 10:** a limit's refusal, to owners (*done by step 10* after merging this step: `limit-notice-push` through `shellNotice`, in `local` mode).
 - **Phase 3's revoked session: not built, a question for the coordinator.** The kernel hears a revoked session as a change of person to no one, settled with `reason: 'tab'`, as it hears a sign-out in another tab. Nothing tells the two apart, so a notice on it would say "you were signed out" after every sign-out elsewhere too.
 
 **Measured.** D115, on Windows with Node 26.13.1, against the figures `budget.mjs` records for `main` with steps 2 and 3 merged:
@@ -1846,7 +1846,7 @@ Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1
 
 **Left for later steps:**
 
-- **Step 5:** the owners' notice through `KernelLimits.notify` (nothing wires it yet), and the job `limit-refuses-call`.
+- **Step 5:** the owners' notice through `KernelLimits.notify`, and the job `limit-refuses-call` (*both done by this step* once step 5 merged; below).
 - **Step 1's `setting` table key** (the step 8 follow-up): `loam.limits`'s row is `loam.limits/workspace`, filtered by its `workspace` field on read, as every shared row is until that follow-up keys them by workspace.
 - **#710, re-scoped:** section 11 answers a bound per message, input, call rate, store and whole entry. What stays deferred, by name: the journal's total and origin budget, retention, and the browser's `QuotaExceededError` (the store adapter's own failure when the origin is full).
 
@@ -1900,6 +1900,12 @@ Also: the handler frame's gate refusal of a nested `tools/call` is journaled top
 
 **Verified after the review,** 2026-11-19, same machine: `test --coverage` for the kernel (56 files, 1,147 tests), chrome (20 files, 252), the SDK (31), `web`'s units (53), the manifest (1,103), `loam-testing` (15), `loam-host` (211) and the apps (hello 10, tally 2, notes 9, checklist 10, tasks 4); the typecheck of every Loam package and app; `lint:tokens`; `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and sixteen Chromium files, 229 tests: `limits`, `settings`, `autonomy`, `scope/first-paint`, `budget`, `apps/view`, `apps/second-app`, `apps/native`, `apps/refusal`, `apps/overlays`, `accessibility` and the `documents` folder. `apps/view`'s "cannot lose a journal entry with a value JSON cannot hold" failed once on the gate's first JSON-RPC code, `-32600`; the gate answers `-32602`, invalid params, as the broker did, and it passes. **Not run:** `pnpm verify` and the Cargo-gated suites, the coordinator's.
 
+**Merged with steps 4 and 5** (`main` at `cb4d5dff`), 2026-11-19, as merge `d4a3c0de`, keeping both sides: step 5's inbox and settings code beside R1's keying in `late/settings.ts`, step 4's `overlay-global-set` beside `app-limit-refuse` in the internal commands, the view broker's and `ViewBrokerV1`'s additions together. Then:
+
+- **The owners' notice:** `KernelLimits.notify` runs boot's journaled `limit-notice-push` (`BOOT_ONLY`) after the call that met an instance's first refusal in an hour, and its handler pushes step 5's `shellNotice` to the person the shell is for, every person an owner in `local` mode, as the orphan notice does; in `provider` mode none, until the owner roster is a server record. Never in a replay, whose entry holds it, so a replay pushes the same notice once. A unit: two apps refused, one notice each, a second refusal in the hour none, the session replays with no difference; none in `provider` mode.
+- **The job `limit-refuses-call`** runs and passes in `kernel/src/scenarios.test.ts`. Its last step is amended: hello read its own inbox with `notification-list`, which 10.2 gives no app (`CALL_NOT_GRANTED`), so the person reads it and finds the ten.
+- **Measured on the combined build,** under D115: first paint 312,548 and 97,875 gzip, `jsMinified` to 312,800 and `jsGzip` to 98,000 with `first-paint.test.ts`'s literal; `lateMinified` to 109,500 (109,143); `lateSettingsMinified` to 67,500 (67,013); `appsMinified` to 424,000 (423,710); `viewMinified` to 26,800 (26,691). With the notice: `lateMinified` to 109,800 (109,503, +360) and `lateSettingsMinified` to 68,000 (67,841, +828); first paint 312,568 and 97,885 gzip. `budget.mjs` records each.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1929,5 +1935,5 @@ Also: the handler frame's gate refusal of a nested `tools/call` is journaled top
 | 2026-11-19 | Step 5's reviews (R3) | The revoked session's notice: the provider gives a reason on a refused session, so the kernel tells a revocation from a sign-out in another tab and notices it in the person's inbox | Open; with the provider |
 | 2026-11-19 | Step 5's verification (R2 amended) | A shared, age-ordered cap with virtual capping, and a hidden toast's timer and `user` close simulated as a shown one's are, if mute privacy needs to hold against others' activity and the person's own handling of toasts | Open |
 | 2026-11-19 | Step 5's verification of `0e2fba70` | Journal an agent's or an app's `notification-list` (a per-caller filter leaving out only the shell's own read), since `body: true` returns notice bodies and a pending confirmation's input | Open |
-| 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Open; step 5 |
+| 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Done 2026-11-19, after merging step 5: `limit-notice-push` |
 | 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |
