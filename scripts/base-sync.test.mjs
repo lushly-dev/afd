@@ -72,7 +72,13 @@ function setup(t, files = {}) {
 	return {
 		root,
 		git,
+		upstream,
 		main: commitIn(upstreamRoot, upstream),
+		/** Merges main as a harness's own base-sync tool would, leaving any conflict open. */
+		plainMerge: () => {
+			git(['fetch', '-q', 'origin', '+refs/heads/main:refs/remotes/origin/main']);
+			assert.throws(() => git(['merge', '--no-edit', 'refs/remotes/origin/main']));
+		},
 		commit: commitIn(root, git),
 		write: (changes) => write(root, changes),
 		sync: () => baseSync(git, root),
@@ -131,14 +137,11 @@ function mixedConflict(t) {
 }
 
 /** The merge of main is committed, and any records are valid and match their mirror. */
-function assertConcluded(s) {
+function assertConcluded(s, merged = s.git(['rev-parse', 'refs/remotes/origin/main']).trim()) {
 	assert.equal(mergeHead(s.git), null);
 	assert.equal(parents(s.git), 2);
 	assert.equal(s.git(['status', '--porcelain']).trim(), '');
-	assert.equal(
-		s.git(['rev-parse', 'HEAD^2']).trim(),
-		s.git(['rev-parse', 'refs/remotes/origin/main']).trim()
-	);
+	assert.equal(s.git(['rev-parse', 'HEAD^2']).trim(), merged);
 	for (const name of ['adaptations.json', 'provenance.json']) {
 		const path = join(s.root, BOTCORE, name);
 		if (!existsSync(path)) continue;
@@ -235,20 +238,59 @@ describe('base:sync', () => {
 		assertConcluded(s);
 	});
 
-	it('refuses to replace a record staged by hand while its unit has an unmerged one', (t) => {
+	it('finishes a merge of the base that another tool left open', (t) => {
+		const s = mixedConflict(t);
+		s.plainMerge();
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', 'src/a.ts']);
+		assert.match(s.sync().join('\n'), /merged the provenance records/);
+		assertConcluded(s);
+	});
+
+	it('finishes a recorded merge after origin/main has moved on', (t) => {
 		const s = mixedConflict(t);
 		stop(s.sync);
-		s.write({ 'src/a.ts': 'both\n', [`${BOTCORE}/provenance.json`]: '{"by":"hand"}\n' });
-		s.git(['add', 'src/a.ts', `${BOTCORE}/provenance.json`]);
-		const reason = stop(s.sync);
-		assert.match(reason, /staged by hand: endpoints\/botcore\/provenance\/provenance\.json/);
-		assert.match(
-			reason,
-			/unmerged record: endpoints\/botcore\/src\/botcore\/provenance\/provenance\.json/
-		);
-		assert.equal(s.git(['show', `:${BOTCORE}/provenance.json`]), '{"by":"hand"}\n', 'kept');
-		assert.ok(mergeHead(s.git));
+		const open = mergeHead(s.git);
+		s.main({ 'src/later.ts': 'later\n' }, 'later');
+		s.git(['fetch', '-q', 'origin', '+refs/heads/main:refs/remotes/origin/main']);
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', 'src/a.ts']);
+		assert.match(s.sync().join('\n'), /origin\/main has since moved/);
+		assertConcluded(s, open);
 	});
+
+	it('concludes when the base deleted a record', (t) => {
+		const old = { [`${BOTCORE}/old.json`]: '{}\n', [`${MIRROR}/old.json`]: '{}\n' };
+		const s = setup(t, { ...records(BASE_ROWS), ...old });
+		s.commit({ 'src/a.ts': 'branch\n' }, 'branch');
+		s.upstream(['rm', '-q', `${BOTCORE}/old.json`, `${MIRROR}/old.json`]);
+		s.main({ 'src/a.ts': 'main\n' }, 'main deletes a record');
+		stop(s.sync);
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', 'src/a.ts']);
+		s.sync();
+		assertConcluded(s);
+		assert.ok(!existsSync(join(s.root, BOTCORE, 'old.json')));
+	});
+
+	for (const [starter, start] of [
+		['base:sync', (s) => stop(s.sync)],
+		['another tool', (s) => s.plainMerge()],
+	])
+		it(`refuses to replace a record staged by hand in a merge ${starter} left open`, (t) => {
+			const s = mixedConflict(t);
+			start(s);
+			s.write({ 'src/a.ts': 'both\n', [`${BOTCORE}/provenance.json`]: '{"by":"hand"}\n' });
+			s.git(['add', 'src/a.ts', `${BOTCORE}/provenance.json`]);
+			const reason = stop(s.sync);
+			assert.match(reason, /staged by hand: endpoints\/botcore\/provenance\/provenance\.json/);
+			assert.match(
+				reason,
+				/unmerged record: endpoints\/botcore\/src\/botcore\/provenance\/provenance\.json/
+			);
+			assert.equal(s.git(['show', `:${BOTCORE}/provenance.json`]), '{"by":"hand"}\n', 'kept');
+			assert.ok(mergeHead(s.git));
+		});
 
 	it('keeps a failed commit open with its output and the test to run, then concludes', (t) => {
 		const s = recordConflict(t);
@@ -329,6 +371,34 @@ describe('base:sync', () => {
 		assert.throws(() => s.git(['merge', '--no-edit', 'other']));
 		assert.match(stop(s.sync), /open merge of .* not of origin\/main.*finish it yourself/);
 		assert.ok(mergeHead(s.git), 'never aborted');
+	});
+
+	it('names a cherry-pick sequence paused between picks', (t) => {
+		const s = setup(t);
+		s.git(['checkout', '-q', '-b', 'other']);
+		const first = s.commit({ 'src/a.ts': 'other\n' }, 'first');
+		const second = s.commit({ 'src/b.ts': 'b\n' }, 'second');
+		s.git(['checkout', '-q', 'feat']);
+		s.commit({ 'src/a.ts': 'feat\n' }, 'feat');
+		assert.throws(() => s.git(['cherry-pick', first, second]));
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', 'src/a.ts']);
+		s.git(['commit', '-q', '--no-edit']); // Commits the pick by hand; the sequence stays.
+		assert.equal(s.git(['status', '--porcelain']).trim(), '');
+		assert.match(stop(s.sync), /a cherry-pick or revert sequence is in progress/);
+	});
+
+	it('refuses to finish a merge of a topic that has since landed on main', (t) => {
+		const s = setup(t);
+		s.upstream(['checkout', '-q', '-b', 'topic']);
+		const topic = s.main({ 'src/a.ts': 'topic\n' }, 'topic');
+		s.upstream(['checkout', '-q', 'main']);
+		s.upstream(['merge', '-q', '--no-ff', '--no-edit', 'topic']);
+		s.commit({ 'src/a.ts': 'feat\n' }, 'feat');
+		s.git(['fetch', '-q', 'origin', '+refs/heads/main:refs/remotes/origin/main']);
+		assert.throws(() => s.git(['merge', '--no-edit', topic]));
+		assert.match(stop(s.sync), /open merge of .* not of origin\/main.*finish it yourself/);
+		assert.equal(mergeHead(s.git), topic, 'never aborted');
 	});
 
 	it('knows a provenance test for every unit the provenance merge resolves', () => {

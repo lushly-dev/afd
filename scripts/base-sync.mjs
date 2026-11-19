@@ -29,6 +29,7 @@ export const REFSPEC = '+refs/heads/main:refs/remotes/origin/main';
 const BASE = 'refs/remotes/origin/main';
 /** The open merge this command started, in the worktree's own git directory. */
 const STATE = 'afd-base-sync.json';
+const RECORD_DIRS = UNITS.flatMap((unit) => [unit.dir, unit.mirror].filter(Boolean));
 
 /** Each unit's provenance test, keyed by its records' directory (see `UNITS`). */
 export const PROVENANCE_TESTS = {
@@ -120,10 +121,10 @@ export function baseSync(git, root) {
 					: ''
 			}`,
 		];
-		return [...lines, ...conclude(open, started, lines)];
+		return [...lines, ...conclude(open, lines)];
 	}
 
-	const dirty = list(git(['status', '--porcelain']));
+	const dirty = list(git(['status', '--porcelain', '--untracked-files=normal']));
 	if (dirty.length)
 		throw new SyncStop([
 			`the tree has uncommitted changes or untracked files (${paths(dirty.length)}): set them aside with a WIP commit, never git stash, ${AGAIN}`,
@@ -156,7 +157,7 @@ export function baseSync(git, root) {
 	} catch (error) {
 		if (!rev('MERGE_HEAD'))
 			throw new SyncStop([...lines, `git merge refused: ${firstLine(error)}`]);
-		state.write({ base, index: recordIndex() });
+		state.write({ base });
 		if (unmergedPaths().length === 0)
 			throw new SyncStop([
 				...lines,
@@ -164,7 +165,7 @@ export function baseSync(git, root) {
 				...tail(error),
 				`fix that, ${AGAIN} to conclude`,
 			]);
-		return [...lines, ...conclude(base, state.read(), lines)];
+		return [...lines, ...conclude(base, lines)];
 	}
 	settled(base, lines);
 	return [...lines, ...merged(before, base, [])];
@@ -175,9 +176,8 @@ export function baseSync(git, root) {
 
 	/** Every record's index entry: its blob, or `U` while it is unmerged. */
 	function recordIndex() {
-		const dirs = UNITS.flatMap((unit) => [unit.dir, unit.mirror].filter(Boolean));
 		const index = {};
-		for (const line of list(git(['ls-files', '-s', '--', ...dirs]))) {
+		for (const line of list(git(['ls-files', '-s', '--', ...RECORD_DIRS]))) {
 			const [meta, path] = line.split('\t');
 			const [, blob, stage] = meta.split(' ');
 			if (unitOf(path)) index[path] = stage === '0' ? blob : 'U';
@@ -185,10 +185,30 @@ export function baseSync(git, root) {
 		return index;
 	}
 
+	/** Every record as git's own merge of HEAD and `mergeHead` left it, in `recordIndex`'s form. */
+	function gitMerged(mergeHead) {
+		let output;
+		try {
+			output = git(['merge-tree', '--write-tree', '--name-only', 'HEAD', mergeHead]);
+		} catch (error) {
+			if (error.status !== 1 || !error.stdout) throw error; // 1: the merge conflicts.
+			output = error.stdout;
+		}
+		const [tree, ...rest] = output.split('\n');
+		const conflicted = new Set(rest.slice(0, rest.indexOf('')));
+		const index = {};
+		for (const line of list(git(['ls-tree', '-r', tree.trim(), '--', ...RECORD_DIRS]))) {
+			const [meta, path] = line.split('\t');
+			if (unitOf(path)) index[path] = meta.split(' ')[2];
+		}
+		for (const path of conflicted) if (unitOf(path)) index[path] = 'U';
+		return index;
+	}
+
 	/** Stops unless HEAD now holds `mergeHead` with no merge open. */
 	function settled(mergeHead, lines) {
 		if (rev('MERGE_HEAD') || !succeeds(['merge-base', '--is-ancestor', mergeHead, 'HEAD'])) {
-			if (rev('MERGE_HEAD')) state.write({ base: mergeHead, index: recordIndex() });
+			if (rev('MERGE_HEAD')) state.write({ base: mergeHead });
 			throw new SyncStop([
 				...lines,
 				`git returned without concluding the merge of ${short(mergeHead)}: check merge settings in git config, ${AGAIN}`,
@@ -198,7 +218,7 @@ export function baseSync(git, root) {
 	}
 
 	/** Resolves the open merge's records and commits it, or throws SyncStop leaving it open. */
-	function conclude(mergeHead, started, lines) {
+	function conclude(mergeHead, lines) {
 		const unmerged = unmergedPaths();
 		const records = unmerged.filter((path) => unitOf(path));
 		const others = unmerged.filter((path) => !unitOf(path));
@@ -221,10 +241,11 @@ export function baseSync(git, root) {
 		let written = [];
 		if (records.length) {
 			// The provenance merge rewrites every record of a unit with an unmerged one, so a record of
-			// that unit staged by hand since this command stopped would be replaced.
+			// that unit staged by hand since git merged would be replaced. What git merged is recomputed
+			// rather than remembered, so this holds for a merge another tool left open too.
 			const open = new Set(records.map((path) => unitOf(path).unit));
 			const now = recordIndex();
-			const replaced = Object.entries(started?.index ?? {})
+			const replaced = Object.entries(gitMerged(mergeHead))
 				.filter(([path, was]) => open.has(unitOf(path).unit) && now[path] !== was)
 				.map(([path]) => path);
 			if (replaced.length)
@@ -247,15 +268,17 @@ export function baseSync(git, root) {
 				]);
 			}
 		}
-		const broken = list(git(['diff', '--cached', '--name-only', 'HEAD'])).filter((path) => {
-			if (!unitOf(path)) return false;
-			try {
-				JSON.parse(git(['show', `:${path}`]));
-				return false;
-			} catch {
-				return true;
+		const broken = list(git(['diff', '--cached', '--name-only', '--diff-filter=d', 'HEAD'])).filter(
+			(path) => {
+				if (!unitOf(path)) return false;
+				try {
+					JSON.parse(git(['show', `:${path}`]));
+					return false;
+				} catch {
+					return true;
+				}
 			}
-		});
+		);
 		if (broken.length)
 			throw new SyncStop([
 				...lines,
