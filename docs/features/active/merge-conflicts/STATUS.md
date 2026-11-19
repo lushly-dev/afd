@@ -19,8 +19,9 @@ for:
 - **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). Left: the owner's
   answer on computing the digest at release, [#1610](https://github.com/lushly-dev/afd/issues/1610).
 
-- **3, Changesets for Python, Botcore and the spec contract.** In progress on the branch
-  `lush/changesets-private-tracks`.
+- **3, Changesets for Python, Botcore and the spec contract.** Merged in
+  [#1613](https://github.com/lushly-dev/afd/pull/1613). Left: the first Python or Botcore release
+  prepared with `pnpm version-track` is its first live use.
 
 - **4, one line per step in the STATUS files.** Merged in [#1612](https://github.com/lushly-dev/afd/pull/1612): Loam, Umbel, Mail and
   software-factory reshaped, and the line limit at 1,500 over five documents. Left: the
