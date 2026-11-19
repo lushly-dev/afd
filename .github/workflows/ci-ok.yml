@@ -10,7 +10,7 @@ name: CI verdict
 # run of every workflow that has the `merge_group` trigger: none may be missing.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, queue-trial]
   merge_group:
 
 permissions:
