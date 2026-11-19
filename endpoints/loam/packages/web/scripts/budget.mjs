@@ -286,6 +286,19 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * specification's 16 sets its rows from a measurement; under its 113 KB, which counted FAST and the spike's
  * harness); and the runtime frame's two chunks, read from `@lushly-dev/loam-copilot`'s `dist/frame/sizes.json`, at
  * 16's 120,000 gzip (95,308 for `anthropic` and `test`, 95,178 for the OpenAI kinds).
+ * Phase 4's step 1 (the settings core) added a row and raised three under D115, measured on its branch from `main` at
+ * `8f58c33e`. First paint 303,593 and 94,914 gzip, within its rows (section 14's estimate for the step was 450 and
+ * 180: stage A's read of the person's `loam.settings` and, in `provider` mode, `loam.appearance.last`, and the
+ * appearance's three sources). `kernelMinified` 116,800 to 118,000 (117,473): that read, the shell state's three
+ * appearance sources and `appearanceFrom`, and kernel interface 4's types. `lateMinified` 80,500 to 82,000 (81,246):
+ * the settings chunk's wiring, the `loam.appearance` alias's write through the settings, `trashDays` written through
+ * and the hosted flag. `appsMinified` 395,700 to 417,500 (416,423): the manifest validator's `ui.settings`, five
+ * closed definitions that Ajv's standalone code adds about 28,000 unminified bytes for (329,227 to 357,289 for
+ * `validate.generated.js`). New row: `lateSettingsMinified` 22,800 (20,698 plus 10%; section 14 estimated 26,000):
+ * the five `setting-*` commands, their rules and the shell's two sections. Rebased onto `main` at `1465d4f5`, after
+ * phase 5's step 2 had raised `kernelMinified` to 118,000 and `appsMinified` to 397,000 for its own code and the
+ * Refined design first paint and CSS: the kernel 118,693, raised to 119,500; `late` 81,372 of 82,000; `apps` 417,099
+ * of 417,500; first paint 307,956 and 96,069 gzip, within phase 5's rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -296,17 +309,29 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 5's step 2 (model access on the desktop), measured at its final head with
 	// `main` at `e96c2f00` merged in: first paint 305,658 of 304,000 and 95,533 of 95,500 gzip (stage A's strict
 	// reader of the projection's `copilot`, the lazy copilot handed to the kernel and the panel, the panel part's
-	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500.
+	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
+	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
+	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
 	jsMinified: 308_000,
 	jsGzip: 96_500,
-	cssMinified: 8_496,
+	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
+	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
+	// stylesheet `index.html` links; measured 10,251, plus a margin.
+	cssMinified: 10_500,
+	// AFD's typefaces (D159): six latin woff2 files, Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono
+	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
+	fontsBytes: 116_000,
 	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
-	kernelMinified: 118_000,
-	lateMinified: 80_500,
+	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
+	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
+	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
+	kernelMinified: 119_500,
+	lateMinified: 82_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
+	lateSettingsMinified: 22_800,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -316,7 +341,8 @@ export const CEILINGS = Object.freeze({
 	accountMinified: 28_000,
 	urlMinified: 5_700,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
-	appsMinified: 397_000,
+	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
+	appsMinified: 417_500,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
@@ -493,7 +519,11 @@ async function measurePage() {
 	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07), and phase 3's
 	// `late-identity` (phase 3 specification, 13).
 	// Phase 5's `late-copilot` too, the copilot's records and commands (phase 5 specification, 2 and 16).
-	const late = closure(/^assets\/late-(?!documents-|editor-|identity-|copilot-)/, initial);
+	// Phase 4's `late-settings` too, its settings commands (phase 4 specification, 1 and 14).
+	const late = closure(
+		/^assets\/late-(?!documents-|editor-|identity-|copilot-|settings-)/,
+		initial
+	);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
@@ -524,6 +554,14 @@ async function measurePage() {
 	if (lateCopilot.size === 0) {
 		throw new Error('budget: the build has no `late-copilot` chunk to measure');
 	}
+	// Phase 4's (its 1): awaited beside `late-identity` in `loadLate`, so charged after the late chunks before it.
+	const lateSettings = closure(
+		/^assets\/late-settings-/,
+		new Set([...initial, ...late, ...lateDocuments, ...lateEditor, ...lateIdentity, ...lateCopilot])
+	);
+	if (lateSettings.size === 0) {
+		throw new Error('budget: the build has no `late-settings` chunk to measure');
+	}
 	const afterLate = new Set([
 		...initial,
 		...late,
@@ -531,6 +569,7 @@ async function measurePage() {
 		...lateEditor,
 		...lateIdentity,
 		...lateCopilot,
+		...lateSettings,
 	]);
 	// Phase 3's `auth` (13): Better Auth's client, `BetterAuthAdapter` and `SessionSync`, which stage B loads in
 	// `provider` mode only, after `late-identity` and before `apps`. A `local` shell never loads it, so it is charged
@@ -629,6 +668,10 @@ async function measurePage() {
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const gzipOf = (code) => gzipSync(code, { level: 9 }).length;
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
+	// The typefaces the linked stylesheet names (D159): every font file the build emits.
+	const fontAssets = output.filter(
+		(item) => item.type === 'asset' && /\.(woff2?|ttf|otf)$/.test(item.fileName)
+	);
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
 	let inlineCss = 0;
 	for (const chunk of initialChunks)
@@ -646,6 +689,7 @@ async function measurePage() {
 		lateEditorMinified: sizeOf(lateEditor),
 		lateIdentityMinified: sizeOf(lateIdentity),
 		lateCopilotMinified: sizeOf(lateCopilot),
+		lateSettingsMinified: sizeOf(lateSettings),
 		copilotPanelGzip: gzipOfFiles(copilotPanel),
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
@@ -670,6 +714,7 @@ async function measurePage() {
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
 			cssAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0) + inlineCss,
+		fontsBytes: fontAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0),
 		packages: breakdown(initialChunks),
 	};
 }
@@ -732,12 +777,14 @@ const ROWS = [
 	['jsMinified', 'JavaScript, minified'],
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
+	['fontsBytes', "The theme's typefaces, woff2"],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
 	['lateCopilotMinified', "The kernel's `late-copilot` chunk and its imports, minified"],
+	['lateSettingsMinified', "The kernel's `late-settings` chunk and its imports, minified"],
 	['copilotPanelGzip', 'The `copilot-panel` chunk and its imports, gzip'],
 	['copilotRuntimeAnthropicGzip', 'The copilot runtime for `anthropic` and `test`, gzip'],
 	['copilotRuntimeOpenaiGzip', 'The copilot runtime for the OpenAI kinds, gzip'],

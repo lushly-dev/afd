@@ -46,7 +46,7 @@ const styles = css`
     }
 
     .button:hover {
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .button:focus-visible {
@@ -58,7 +58,7 @@ const styles = css`
         background: var(--_segment-selected-background);
         border-color: var(--_segment-selected-border);
         box-shadow: var(--_segment-selected-shadow);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     :host([disabled]) .button,
@@ -157,8 +157,8 @@ export class VioletSegment extends FASTElement {
         this.ariaDisabled = disabled ? "true" : null;
     }
 
-    public focusButton(): void {
-        this.buttonElement?.focus();
+    public focusButton(options?: FocusOptions): void {
+        this.buttonElement?.focus(options);
     }
 
     public handleClick(): void {

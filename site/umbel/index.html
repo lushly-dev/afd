@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en" data-side="dev">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Umbel — the MCP server for an AFD repo (proposal)</title>
+		<meta name="robots" content="noindex">
+		<meta
+			name="description"
+			content="Umbel gives a repository one MCP server for its agents. Turn on the plugins that ship with it, add your own commands as a plugin, and every tool arrives through one registry, with a command line beside it."
+		>
+		<meta name="theme-color" content="#f74431">
+		<link rel="icon" href="../svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="../css/tokens-m2.css">
+		<link rel="stylesheet" href="../css/manifesto-2.css">
+		<link rel="stylesheet" href="../css/manifesto-3.css">
+		<link rel="stylesheet" href="../css/area.css">
+		<link rel="stylesheet" href="../css/area-kit.css">
+		<link rel="stylesheet" href="../css/umbel.css">
+		<link rel="stylesheet" href="../css/umbel-dev.css">
+		<link rel="stylesheet" href="../css/refined.css">
+		<script type="module" src="../js/umbel-dev.js"></script>
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="../" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<nav aria-label="On this page">
+				<a href="#run">A real run</a><a href="#yours">Your own</a><a href="#plugins">Plugins</a
+				><a href="#start">Start</a>
+			</nav>
+			<div class="nav-actions">
+				<nav class="side-switch" aria-label="Side of AFD">
+					<a href="./" aria-current="page">Dev</a><a href="../design/umbel/">Design</a>
+				</nav>
+				<a class="github-link" href="https://github.com/lushly-dev/afd/tree/main/endpoints/umbel"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<main id="main">
+			<section class="opening opening--area" id="top">
+				<div class="opening-art" aria-hidden="true">
+					<span class="slash"></span>
+				</div>
+				<div class="wrap">
+					<div class="opening-label">
+						<span class="crumb"><a href="../">Agent-First Development</a> / <b>Umbel</b></span>
+						<span class="edition">In development, not released</span>
+					</div>
+					<div class="area-hero">
+						<div class="area-hero-text">
+							<h1 class="area-name">Umbel</h1>
+							<p class="area-is">
+								The MCP server for an AFD repo.<br><span>Built from plugins.</span>
+							</p>
+							<p class="area-lead">
+								Umbel gives a repository one MCP server for its agents. Turn on the plugins that
+								ship with it, add your own commands as a plugin, and every tool arrives through
+								one registry, with a command line beside it.
+							</p>
+							<div class="opening-actions">
+								<a href="#run" class="button button--ink"
+									>See a real run <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+								<a href="#yours" class="text-link"
+									>Add your own <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+							</div>
+							<p class="hero-install">
+								<code>cargo build --locked -p umbel-first-party --features umbel/mounted</code>
+								<button type="button" data-copy-inline aria-live="polite">Copy</button>
+							</p>
+						</div>
+						<figure class="area-figure hero-callers">
+							<figcaption><span>One registry</span><span>Two ways in</span></figcaption>
+							<dl>
+								<div>
+									<dt>A person, at the command line</dt>
+									<dd><code data-hero-cli>umbel call components-brief '{"tags":["change-bar"],"render":"text"}'</code></dd>
+								</div>
+								<div>
+									<dt>An agent, over MCP</dt>
+									<dd>
+										<code data-hero-mcp>tools/call { "name": "components-brief", "arguments": { "tags": ["change-bar"], "render": "text" } }</code>
+									</dd>
+								</div>
+							</dl>
+							<p class="hero-answer">
+								<span class="mono">The same answer</span>
+								<span data-hero-answer>Briefed 1 component(s) from 1 library(ies), with 0 tag(s) unknown and 0 section(s) or piece(s) left out to fit.</span>
+							</p>
+						</figure>
+					</div>
+					<dl class="hero-facts">
+						<div>
+							<dt>Use ours, or don't</dt>
+							<dd>Seven plugins ship with it, for component briefs, knowledge, memory and more. Each one is optional.</dd>
+						</div>
+						<div>
+							<dt>Bring your own commands</dt>
+							<dd>The AFD server your repo already has mounts as a plugin. Its results come through unchanged, marked with where they came from.</dd>
+						</div>
+						<div>
+							<dt><span data-first-count>8</span> tools shown first</dt>
+							<dd>
+								The server in this run has <span data-command-count>28</span> commands. An agent
+								is shown a few and finds the rest on request, so a new plugin does not flood it.
+							</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="run">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 01</span>The run</span>
+						<h2>A real run.<br><span>Recorded, not acted out.</span></h2>
+					</div>
+					<p class="surface-hint">
+						<b>Pick a line</b
+						><span
+							>Umbel is a native program, so it cannot run in this tab. These are the lines of one
+							real run in this repository, and exactly what Umbel printed for each.</span
+						>
+					</p>
+					<div class="record">
+						<div class="record-list" role="group" aria-label="A line of the recorded run" data-run-list></div>
+						<figure class="command-source record-out">
+							<figcaption><span data-run-line></span><span data-run-exit></span></figcaption>
+							<pre tabindex="0" aria-label="What Umbel printed"><code data-run-out></code></pre>
+							<div class="command-source__note" data-run-reading aria-live="polite">
+								Loading the recorded run…<noscript> It needs JavaScript to draw.</noscript>
+							</div>
+						</figure>
+					</div>
+					<p class="record-foot" data-run-foot></p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="yours">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>Your own</span>
+						<h2 class="lit" data-lit>Your repo's commands.<br><span>On the same server.</span></h2>
+					</div>
+					<p class="d-lead">
+						This repository already has an AFD server: the todo example's. Putting it on Umbel
+						took one scaffold and two settings. Its commands now sit beside the plugin that
+						ships with Umbel, and an agent connects once.
+					</p>
+					<ol class="uyours">
+						<li>
+							<span class="mono">1. Scaffold a plugin</span>
+							<pre tabindex="0"><code data-yours-scaffold></code></pre>
+							<p data-yours-files></p>
+						</li>
+						<li>
+							<span class="mono">2. Point it at your server</span>
+							<pre tabindex="0" aria-label="The plugin's manifest, as used"><code data-yours-manifest></code></pre>
+							<p data-yours-edit></p>
+						</li>
+						<li>
+							<span class="mono">3. Turn it on</span>
+							<pre tabindex="0" aria-label="The workspace's configuration, as used"><code data-yours-config></code></pre>
+							<p>The workspace file says which plugins are on. One ships with Umbel, one is yours.</p>
+						</li>
+					</ol>
+					<div class="uresult">
+						<h3>What Umbel then reports</h3>
+						<ul data-yours-plugins></ul>
+						<p class="uresult-note" data-yours-note></p>
+						<p class="result-live">Read from the recorded run: the scaffold, the files as used, and <code>umbel plugin list</code>.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="host">
+				<span class="big-numeral" aria-hidden="true">03</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 03</span>The host</span>
+						<h2>What the host owns.<br><span>And what it won't.</span></h2>
+					</div>
+					<p class="d-lead">
+						The rule is short: if a feature could be a plugin, it is a plugin. That leaves the
+						host with the parts every plugin needs and no opinion about what they are for.
+					</p>
+					<div class="uhost">
+						<div>
+							<h3>It owns</h3>
+							<ul>
+								<li><b>The ways in.</b> MCP over stdio and HTTP, and a command line, from one registry.</li>
+								<li><b>Discovery.</b> A few tools listed first, and the rest found on request.</li>
+								<li><b>Approvals.</b> The prompts a person answers before something lasting happens.</li>
+								<li><b>The journal.</b> Every change is a command, so every change is an event to read back.</li>
+								<li><b>The workspace.</b> Configuration, spaces and which plugins are on.</li>
+								<li><b>The stores.</b> A plugin reaches data only through a grant the deployer allowed.</li>
+							</ul>
+						</div>
+						<div>
+							<h3>It won't</h3>
+							<ul>
+								<li><b>Have a feature of its own.</b> With no plugin, it answers about itself and nothing else.</li>
+								<li><b>Call a model to answer you.</b> The model calling it does the reasoning.</li>
+								<li><b>Let one plugin depend on another.</b> Shared services come from the host.</li>
+								<li><b>Treat stored text as instructions.</b> It is labelled, scanned and never promoted on an agent's say.</li>
+								<li><b>Mix spaces.</b> Every read and write names its space.</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="plugins">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 04</span>The plugin</span>
+						<h2>Four kinds of plugin.<br><span>One contract.</span></h2>
+					</div>
+					<p class="d-lead">
+						A plugin is a directory with one manifest. The manifest names its commands, the host
+						services it needs and why, and anything it ships to be read. How it runs is one word
+						in that file.
+					</p>
+					<dl class="ukinds">
+						<div>
+							<dt><code>compiled</code></dt>
+							<dd>A Rust crate linked into a host binary.</dd>
+							<dd><span class="mark" data-mark="outline">Trusted</span>It runs with the host's permissions. Its grants are a declaration.</dd>
+						</div>
+						<div>
+							<dt><code>component</code></dt>
+							<dd>The same source, built as a WebAssembly component.</dd>
+							<dd><span class="mark" data-mark="solid">Sandboxed</span>No network, files or environment. Only the services its grants allow, with fuel, time and memory limits on each call.</dd>
+						</div>
+						<div>
+							<dt><code>mounted</code></dt>
+							<dd>An MCP server you already have, started by the host, its tools renamed under a prefix.</dd>
+							<dd><span class="mark" data-mark="solid">A separate process</span>Its environment is cleared, and no caller's credential ever reaches it.</dd>
+						</div>
+						<div>
+							<dt><code>pack</code></dt>
+							<dd>Content alone: packs and skills.</dd>
+							<dd><span class="mark" data-mark="plain">No code</span>There is nothing to run.</dd>
+						</div>
+					</dl>
+					<div class="ugrants">
+						<h3>What this run's plugin asked the host for</h3>
+						<ul data-grants></ul>
+						<p class="result-live">Read from <code>umbel plugin show</code> in the recorded run.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--agent" id="first-party">
+				<span class="big-numeral" aria-hidden="true">05</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>The plugins</span>
+						<h2>Seven to start with.<br><span>All optional.</span></h2>
+					</div>
+					<p class="d-lead">
+						The stock <code>umbel</code> binary compiles in no plugin. A second binary,
+						<code>umbel-first-party</code>, compiles in these seven, and a workspace turns on the ones
+						it wants.
+					</p>
+					<dl class="uplugins">
+						<div>
+							<dt>sources</dt>
+							<dd>Reads a space's Markdown and code files into the stores, by content hash.</dd>
+						</div>
+						<div>
+							<dt>knowledge</dt>
+							<dd>Search, a graph of how documents relate, and changes by proposal that a person approves.</dd>
+						</div>
+						<div>
+							<dt>memory</dt>
+							<dd>What an agent learned: private unless shared, never verified, and it expires.</dd>
+						</div>
+						<div>
+							<dt>context</dt>
+							<dd>One bundle for a session's start, sized to a budget, with what it left out.</dd>
+						</div>
+						<div>
+							<dt>components</dt>
+							<dd>Briefs on a component library, from the pack Specimen builds. The one in the run above.</dd>
+						</div>
+						<div>
+							<dt>curator</dt>
+							<dd>Drafts settled memory as knowledge proposals. It uses no model and runs only at a command line.</dd>
+						</div>
+						<div>
+							<dt>ideas</dt>
+							<dd>A person's ideas, kept for good, each marked by whether that person affirmed it.</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="start">
+				<span class="big-numeral" aria-hidden="true">06</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 06</span>The start</span>
+						<h2>Build it from source.<br><span>It isn't released yet.</span></h2>
+					</div>
+					<div class="installs">
+						<div>
+							<span class="mono">Build</span>
+							<div class="install-command">
+								<pre><code>cd endpoints/umbel &amp;&amp; cargo build --locked -p umbel-first-party --features umbel/mounted</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the build command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">A workspace</span>
+							<div class="install-command">
+								<pre><code>umbel init ~/umbel-ws</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the workspace command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">Serve an agent</span>
+							<div class="install-command">
+								<pre><code>umbel serve --stdio</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the serve command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">A plugin of your own</span>
+							<div class="install-command">
+								<pre><code>umbel plugin new kind=component id=notes dir=notes</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the plugin scaffold command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+					</div>
+					<p class="copy-status" data-copy-status role="status"></p>
+					<div class="area-start">
+						<div class="area-status">
+							<span class="mono">Status</span>
+							<p>
+								<strong>In development.</strong> Nothing is released or published: there is no
+								package, and it builds from source with Rust. The host, the plugin contract,
+								knowledge, memory and context, and the curator are built and tested. Hosted
+								sign-in and other storage backends are in progress. Until then, access filtering
+								is exact only for a program that embeds Umbel.
+							</p>
+						</div>
+						<div class="area-status">
+							<span class="mono">Read on</span>
+							<div class="start-links">
+								<a class="text-link" href="https://github.com/lushly-dev/afd/tree/main/endpoints/umbel"
+									>Source <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a
+									class="text-link"
+									href="https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/architecture.md"
+									>Architecture <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a
+									class="text-link"
+									href="https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/STATUS.md"
+									>What is done <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="../design/umbel/"
+									>The design side <i class="icon icon--right" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A designer's perspective</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. <strong>It's the commands underneath.</strong>
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="../" class="wordmark" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<p>For people.<br>And the agents working with them.</p>
+			<nav aria-label="Footer">
+				<a href="../">Agent-First Development</a
+				><a href="../design/umbel/">The design side</a
+				><a href="https://github.com/lushly-dev/afd">Source</a>
+			</nav>
+			<span class="footer-edition">AGENT-FIRST DEVELOPMENT / UMBEL</span>
+		</footer>
+	</body>
+</html>

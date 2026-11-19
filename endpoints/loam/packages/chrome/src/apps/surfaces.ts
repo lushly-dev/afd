@@ -17,6 +17,7 @@ import type {
 	AppSummaryV2,
 	KernelEventV1,
 	KernelEventV3,
+	KernelEventV4,
 	LoamKernelV5,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
@@ -41,7 +42,7 @@ import { OverlaySurfaces } from './overlay-surfaces.js';
 import { type Parked, park, restore } from './parking.js';
 import { readSidebarList, type SidebarList, selectInLists, sidebarLists } from './sidebar.js';
 import { StatusItems } from './status-items.js';
-import { surfaceCalls } from './surface-calls.js';
+import { deliverSettings, settingsHeard, surfaceCalls } from './surface-calls.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
 
@@ -358,7 +359,17 @@ export class AppSurfaces implements ShellApps {
 		const showing = this.#showing;
 		if (showing === null) return;
 		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
-		else if (command === 'status-item-set' && event.caller === showing) {
+		// The showing app's own sections changed: each of its surfaces hears it (phase 4 specification, 3.8).
+		const changed = (event as KernelEventV4).settings;
+		if (changed?.length) {
+			const heard = settingsHeard(this.#held.get(showing)?.port.manifest, changed);
+			if (heard.length > 0) {
+				const parts = ['sidebar', 'panel'].flatMap((name) => [
+					...this.#part<HTMLElement>(name).children,
+				]);
+				deliverSettings([...this.#mainElements, ...this.#inspectorElements, ...parts], heard);
+			}
+		} else if (command === 'status-item-set' && event.caller === showing) {
 			this.#enqueue(() => this.#readStatus(showing));
 		} else if (event.mutation && event.instance === showing) {
 			const held = this.#held.get(showing);

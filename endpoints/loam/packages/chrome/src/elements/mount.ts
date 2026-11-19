@@ -18,7 +18,7 @@ const styles = css`
 		overflow: auto;
 		contain: content;
 		color: var(--color-text-primary);
-		font-family: 'Montserrat', 'Segoe UI', sans-serif;
+		font-family: var(--font-family-body);
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
 		font-weight: var(--type-body-md-weight);
@@ -88,6 +88,11 @@ export class LoamMount extends HTMLElement {
 	set selectionLevel(level: 'workspace' | 'project') {
 		if (this.#options) this.#options.selectionLevel = level;
 		if (this.#surface) this.#surface.selectionLevel = level;
+	}
+
+	/** The app's own sections changed (phase 4 specification, 3.8): its element hears it, if it listens. */
+	settingsChanged(sections: string[]): void {
+		this.#surface?.settingsChanged?.(sections);
 	}
 
 	/** A change of route is a property change: it recreates nothing (7.6). */

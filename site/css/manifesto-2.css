@@ -159,9 +159,6 @@ code {
 .icon--terminal {
 	--icon: url("../svg/lucide/terminal.svg");
 }
-.icon--bot {
-	--icon: url("../svg/lucide/bot.svg");
-}
 .icon--right {
 	--icon: url("../svg/lucide/arrow-right.svg");
 }
@@ -190,8 +187,19 @@ code {
 	line-height: 1;
 	text-decoration: none;
 }
-.wordmark span {
-	color: var(--red);
+/* svg/wordmark.svg, inline: Archivo Black's AFD as outlines, after a slash at
+   the A's own lean (20 degrees). Sized by the font size: the caps are 0.688em. */
+.wordmark {
+	display: inline-flex;
+	align-items: center;
+}
+.wordmark svg {
+	display: block;
+	width: auto;
+	height: 0.688em;
+}
+.wordmark .wordmark-slash {
+	fill: var(--red);
 }
 .manifesto-nav nav,
 .nav-actions {

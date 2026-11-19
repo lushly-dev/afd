@@ -16,12 +16,12 @@ const styles = css`
         --_approval-font-size: var(--violet-approval-font-size, var(--_body-size, 14px));
         --_approval-line-height: var(--violet-approval-line-height, var(--_body-line, 20px));
         --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size, 12px));
-        --_warning-bg-subtle: var(--color-state-warning-background, #fdebcc);
+        --_warning-bg-subtle: var(--color-state-warning-background, #f3e8d2);
         --_warning-text: var(--color-state-warning-text, #92400e);
-        --_success-bg-subtle: var(--color-state-success-background, #e3f1e7);
-        --_success-text: var(--color-state-success-text, #166534);
-        --_danger-bg-subtle: var(--color-state-danger-background, #fbe2e2);
-        --_danger-text: var(--color-state-danger-text, #b42318);
+        --_success-bg-subtle: var(--color-state-success-background, #dfeae3);
+        --_success-text: var(--color-state-success-text, #2c5e4b);
+        --_danger-bg-subtle: var(--color-state-danger-background, #f7e4df);
+        --_danger-text: var(--color-state-danger-text, #c42a1a);
     }
 
     /* The one raised card in a thread: a toned band, the request, and the actions on a band. */
@@ -57,7 +57,7 @@ const styles = css`
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
         background: var(--_warning-bg-subtle);
-        font-size: var(--type-label-sm-size, 12px);
+        font-size: var(--type-label-sm-size, 13px);
         line-height: var(--_approval-line-height);
         font-weight: 500;
         color: var(--_warning-text);
@@ -109,9 +109,11 @@ const styles = css`
         color: inherit;
     }
 
-    /* On the danger band a 12% tint leaves the label just under 4.5:1 in the default theme; 10% holds it. */
+    /* On the danger band any tint takes the label under 4.5:1 in the default theme (the band is
+       already the danger background), so the denied chip is drawn by a faint edge instead. */
     :host([state="denied"]) .status-chip {
-        background: color-mix(in srgb, currentColor 10%, transparent);
+        background: transparent;
+        border-color: color-mix(in srgb, currentColor 40%, transparent);
     }
 
     .summary {
@@ -119,7 +121,7 @@ const styles = css`
         gap: var(--_space-stack-2xs);
         font-size: var(--_approval-font-size);
         line-height: var(--_approval-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
     }
 
     .detail {

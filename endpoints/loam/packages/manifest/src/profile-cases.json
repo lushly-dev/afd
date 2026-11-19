@@ -1583,7 +1583,7 @@
 				"/manifest_version": 2,
 				"/ui/new": [
 					{
-						"title": "Greet\u061c",
+						"title": "Greet؜",
 						"icon": "system/document",
 						"command": "hello-list"
 					}
@@ -1657,7 +1657,7 @@
 				"/manifest_version": 2,
 				"/ui/new": [
 					{
-						"title": "Greet\u202e",
+						"title": "Greet‮",
 						"icon": "system/document",
 						"command": "hello-list"
 					}
@@ -1986,6 +1986,19 @@
 			"accepted": false,
 			"code": "MANIFEST_ID_RESERVED",
 			"key": "plugin.id"
+		},
+		{
+			"id": "id-reserved-loam",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/plugin/id": "loam",
+				"/plugin/domains": ["loam"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id",
+			"suggestion": "another id"
 		},
 		{
 			"id": "project-summary-without-command",
@@ -4902,15 +4915,1096 @@
 			"suggestion": "phase 3"
 		},
 		{
-			"id": "later-ui-settings",
+			"id": "version-keys-ui-settings",
 			"base": "native",
 			"set": {
-				"/ui/settings": {}
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
 			},
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.settings",
-			"suggestion": "phase 4"
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "ui-settings-served",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-settings-shapes-accepted",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "a",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "boolean",
+									"default": true
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "b",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"enum": ["a", "b"],
+									"enumTitles": ["A", "B"],
+									"default": "a"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "c",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 365,
+									"default": 30
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "d",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "number",
+									"minimum": 0,
+									"maximum": 1.5,
+									"default": 0.5
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "e",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "array",
+									"items": {
+										"type": "string",
+										"enum": ["x", "y"]
+									},
+									"maxItems": 2,
+									"uniqueItems": true,
+									"default": ["x"]
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-settings-pattern",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"maxLength": 10,
+									"pattern": "^a",
+									"default": "a"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.pattern",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "ui-settings-nested",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "object",
+									"properties": {
+										"a": {
+											"type": "string"
+										}
+									},
+									"default": {}
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.type",
+			"suggestion": "settings subset",
+			"alsoKeys": ["ui.settings[0].schema.properties.k.properties"]
+		},
+		{
+			"id": "ui-settings-ref",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"maxLength": 10,
+									"default": "a",
+									"$ref": "#/x"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.$ref",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "ui-settings-one-of",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"maxLength": 10,
+									"default": "a",
+									"oneOf": [
+										{
+											"maxLength": 3
+										}
+									]
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.oneOf",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "ui-settings-shape-mixed",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"maxLength": 10,
+									"enum": ["a"],
+									"default": "a"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "ui-settings-integer-bounds",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "integer",
+									"minimum": 5,
+									"maximum": 1,
+									"default": 3
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "ui-settings-key-levels",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "boolean",
+									"default": true,
+									"levels": ["person"]
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.levels",
+			"suggestion": "Use only workspace"
+		},
+		{
+			"id": "ui-settings-default-missing",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "boolean"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_DEFAULT",
+			"key": "ui.settings[0].schema.properties.k.default",
+			"suggestion": "default inside"
+		},
+		{
+			"id": "ui-settings-default-out-of-bounds",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 365,
+									"default": 400
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_DEFAULT",
+			"key": "ui.settings[0].schema.properties.k.default",
+			"suggestion": "default inside"
+		},
+		{
+			"id": "ui-settings-default-not-in-enum",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "string",
+									"enum": ["a", "b"],
+									"default": "c"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_DEFAULT",
+			"key": "ui.settings[0].schema.properties.k.default",
+			"suggestion": "default inside"
+		},
+		{
+			"id": "ui-settings-defaults-too-large",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k0": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k1": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k2": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k3": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k4": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k5": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k6": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k7": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k8": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k9": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k10": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k11": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k12": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k13": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k14": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k15": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								},
+								"k16": {
+									"type": "string",
+									"title": "K",
+									"maxLength": 1000,
+									"default": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema",
+			"suggestion": "split the section"
+		},
+		{
+			"id": "ui-settings-title-control",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "Gen\u0007",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.settings[0].title",
+			"suggestion": "control character"
+		},
+		{
+			"id": "ui-settings-enum-title-bidi",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"theme": {
+									"type": "string",
+									"title": "Theme",
+									"enum": ["a", "b"],
+									"enumTitles": ["A", "B‮"],
+									"default": "a"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.settings[0].schema.properties.theme.enumTitles[1]",
+			"suggestion": "control character"
+		},
+		{
+			"id": "ui-settings-limit",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "s0",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s1",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s2",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s3",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s4",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s5",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s6",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s7",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "s8",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTINGS_LIMIT",
+			"key": "ui.settings[8]",
+			"suggestion": "fewer sections"
+		},
+		{
+			"id": "ui-settings-duplicate",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.settings[1].id",
+			"suggestion": "its own id"
+		},
+		{
+			"id": "ui-settings-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTINGS_MOUNTED",
+			"key": "ui.settings",
+			"suggestion": "Remove `ui.settings`"
+		},
+		{
+			"id": "ui-settings-secret-warns",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"apiToken": {
+									"title": "K",
+									"type": "string",
+									"maxLength": 80,
+									"default": ""
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": true,
+			"warnings": [
+				{
+					"code": "MANIFEST_SETTING_SECRET",
+					"key": "ui.settings[0].schema.properties.apiToken"
+				}
+			]
+		},
+		{
+			"id": "ui-settings-requires-experiment",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						},
+						"requires_experiment": "hello.inspector-v2"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.settings[0].requires_experiment",
+			"suggestion": "experiments are served"
+		},
+		{
+			"id": "closed-settingSection",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 80,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						},
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.settings[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-settingSchema",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "boolean",
+									"title": "G",
+									"default": true
+								}
+							},
+							"additionalProperties": false,
+							"required": ["greeting"]
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.required",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "closed-settingKey",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "boolean",
+									"default": true,
+									"bogus": 1
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.bogus",
+			"suggestion": "settings subset"
+		},
+		{
+			"id": "closed-settingItems",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace", "project"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"k": {
+									"title": "K",
+									"type": "array",
+									"items": {
+										"type": "string",
+										"enum": ["x"],
+										"bogus": 1
+									},
+									"maxItems": 1,
+									"uniqueItems": true,
+									"default": []
+								}
+							},
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTING_SCHEMA",
+			"key": "ui.settings[0].schema.properties.k.items.bogus",
+			"suggestion": "settings subset"
 		},
 		{
 			"id": "later-ui-experiments",
@@ -6225,14 +7319,14 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "settings",
+					"name": "events",
 					"reason": "x"
 				}
 			},
 			"accepted": false,
 			"code": "GRANT_UNAVAILABLE",
 			"key": "grants[1].name",
-			"suggestion": "phase 4"
+			"suggestion": "phase 5"
 		},
 		{
 			"id": "grant-required-collaboration",
@@ -6253,7 +7347,7 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "settings",
+					"name": "events",
 					"reason": "x",
 					"required": false
 				}

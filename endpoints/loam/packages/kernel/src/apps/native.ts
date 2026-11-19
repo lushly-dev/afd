@@ -12,6 +12,7 @@ import {
 	type LoamClientV1,
 	projectsOver,
 	type ScopeV1,
+	settingsOver,
 } from '@lushly-dev/loam-sdk';
 import { LoamKernelError } from '../errors.js';
 import type { KernelPortsV1 } from '../types.js';
@@ -122,6 +123,8 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 			client,
 			scope,
 			...(granted.has('projects') ? { projects: projectsOver(client, scope.project) } : {}),
+			// The app's own sections, through `setting-get` and `setting-list` (phase 4 specification, 3.8).
+			...(granted.has('settings') ? { settings: settingsOver(client) } : {}),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
 			...(context.signal ? { signal: context.signal } : {}),
 			...(granted.has('clock') ? { now: () => readClock(context) } : {}),

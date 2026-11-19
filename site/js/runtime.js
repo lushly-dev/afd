@@ -65,6 +65,19 @@ export function getTodos() {
 	return [...todos];
 }
 
+// The words commands put in their results. A design can replace any of them
+// with provide('voice', { ... }) before its first call.
+const voice = {
+	titleMissing: () => 'Title is required',
+	created: (todo) => `Created todo "${todo.title}" with ${todo.priority} priority`,
+	listed: (all) =>
+		all.length ? `${all.length} todo${all.length === 1 ? '' : 's'} in this tab` : 'No todos yet',
+	toggled: (todo) =>
+		`${todo.completed ? 'Marked as completed' : 'Marked as pending'}: "${todo.title}"`,
+	updated: (todo, changes) => `Updated ${changes.join(', ')} for todo "${todo.title}"`,
+};
+const say = (key, ...args) => (hooks.voice?.[key] ?? voice[key])(...args);
+
 const registry = createCommandRegistry();
 
 registry.register({
@@ -85,7 +98,7 @@ registry.register({
 	],
 	async handler(input = {}) {
 		const title = typeof input.title === 'string' ? input.title.trim() : '';
-		if (!title) return invalid('title', 'Title is required', ['title', 'priority']);
+		if (!title) return invalid('title', say('titleMissing'), ['title', 'priority']);
 		if (title.length > 80) return invalid('title', 'Title too long (max 80)', ['title', 'priority']);
 		const priority = input.priority ?? 'medium';
 		if (!['low', 'medium', 'high'].includes(priority)) {
@@ -102,7 +115,7 @@ registry.register({
 		};
 		todos.unshift(todo);
 		return success(todo, {
-			reasoning: `Created todo "${title}" with ${priority} priority`,
+			reasoning: say('created', todo, getTodos()),
 			confidence: 1,
 		});
 	},
@@ -118,15 +131,97 @@ registry.register({
 		return success(
 			{ todos: getTodos(), total: todos.length },
 			{
-				reasoning: todos.length
-					? `${todos.length} todo${todos.length === 1 ? '' : 's'} in this tab`
-					: 'No todos yet',
+				reasoning: say('listed', getTodos()),
 				confidence: 1,
 				...(todos.length === 0 && {
 					suggestions: ['Create one: afd call todo-create \'{"title":"Buy groceries"}\''],
 				}),
 			}
 		);
+	},
+});
+
+// Same answer the todo example gives when an id is unknown.
+function missing(id) {
+	return failure({
+		code: 'NOT_FOUND',
+		message: `Todo with ID "${id ?? ''}" not found`,
+		suggestion: 'Use todo-list to see available todos',
+		retryable: false,
+	});
+}
+
+registry.register({
+	name: 'todo-toggle',
+	description: 'Toggle the completion status of a todo',
+	category: 'todo',
+	mutation: true,
+	expose: EVERYWHERE,
+	parameters: [{ name: 'id', type: 'string', description: 'Which todo', required: true }],
+	async handler(input = {}) {
+		if (typeof input.id !== 'string' || !input.id) {
+			return invalid('id', 'Todo ID is required', ['id']);
+		}
+		const todo = todos.find((candidate) => candidate.id === input.id);
+		if (!todo) return missing(input.id);
+		todo.completed = !todo.completed;
+		return success({ ...todo }, { reasoning: say('toggled', todo, getTodos()), confidence: 1 });
+	},
+});
+
+registry.register({
+	name: 'todo-update',
+	description: 'Change the title or priority of a todo',
+	category: 'todo',
+	mutation: true,
+	expose: EVERYWHERE,
+	parameters: [
+		{ name: 'id', type: 'string', description: 'Which todo', required: true },
+		{ name: 'title', type: 'string', description: 'A new title' },
+		{
+			name: 'priority',
+			type: 'string',
+			description: 'A new priority',
+			enum: ['low', 'medium', 'high'],
+		},
+	],
+	async handler(input = {}) {
+		const fields = ['id', 'title', 'priority'];
+		if (typeof input.id !== 'string' || !input.id) {
+			return invalid('id', 'Todo ID is required', fields);
+		}
+		const todo = todos.find((candidate) => candidate.id === input.id);
+		if (!todo) return missing(input.id);
+		const changes = [];
+		if (input.title !== undefined) {
+			const title = typeof input.title === 'string' ? input.title.trim() : '';
+			if (!title) return invalid('title', say('titleMissing'), fields);
+			if (title.length > 80) return invalid('title', 'Title too long (max 80)', fields);
+			if (title !== todo.title) changes.push(`title to "${title}"`);
+			todo.title = title;
+		}
+		if (input.priority !== undefined) {
+			if (!['low', 'medium', 'high'].includes(input.priority)) {
+				return invalid(
+					'priority',
+					'Invalid option: expected one of "low"|"medium"|"high"',
+					fields
+				);
+			}
+			if (input.priority !== todo.priority) {
+				changes.push(`priority from ${todo.priority} to ${input.priority}`);
+			}
+			todo.priority = input.priority;
+		}
+		if (!changes.length) {
+			return failure({
+				code: 'NO_CHANGES',
+				message: 'No fields to update',
+				suggestion: 'Provide a different title or priority',
+				retryable: false,
+			});
+		}
+		return success({ ...todo }, { reasoning: say('updated', todo, changes), confidence: 1 });
 	},
 });
 

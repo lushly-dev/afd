@@ -11,9 +11,9 @@ const styles = css`
         color: var(--_text-secondary);
         --_progress-track-size: 6px;
         --_progress-radius: var(--radius-round, 9999px);
-        --_progress-fill: var(--color-control-selected-foreground, #244635);
+        --_progress-fill: var(--color-control-selected-foreground, #2c5e4b);
         /* The track is a well, filled to the value. */
-        --_progress-track: color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent);
+        --_progress-track: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
     }
 
     .header {

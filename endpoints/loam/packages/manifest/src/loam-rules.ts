@@ -12,6 +12,7 @@ import {
 import { type Finding, needsInput } from './core-rules.js';
 import { documentRules } from './document-rules.js';
 import { keyOf, valueAt } from './pointers.js';
+import { settingRules } from './settings.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
 
 type Ui = NonNullable<ManifestV2['ui']>;
@@ -71,6 +72,8 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/project_summary' },
 	{ pointer: '/ui/documents' },
 	{ pointer: '/ui/new' },
+	// Phase 4's step 1: a key of version 2, as phase 4 adds no manifest version (its 12.1).
+	{ pointer: '/ui/settings' },
 ];
 
 const holds = (document: unknown, key: VersionKey): boolean => {
@@ -656,6 +659,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	resourceKeyRules(manifest, found);
 	summaryRules(manifest, found);
 	newRules(manifest, found);
+	settingRules(manifest, found.refuse.bind(found), found.warnings);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
 	return found;

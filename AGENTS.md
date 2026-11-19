@@ -33,7 +33,7 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 | Edit a skill | `manage-skills`. The Botcore-sourced skills are generated: edit the source in `endpoints/botcore/src/botcore/skills/` and run `pnpm skills:sync` |
 | Delegate work or choose a model | [Model routing](docs/operations/model-routing.md), which is separate from the models an application built with AFD selects |
 | Push, open a pull request or merge | `prepare-pr`: review, changeset, gates, the pull request, and lockfile changes merged one at a time |
-| Triage issues or plan factory work | `triage-issues`: the label rules in `.github/labels.json` and `scripts/issue-labels.mjs`, and `dispatch` for what a cell may take |
+| Triage issues, plan factory work, or open an epic or file work under one | `triage-issues`: the label rules in `.github/labels.json` and `scripts/issue-labels.mjs`, `dispatch` for what a cell may take, and [epics](.claude/skills/triage-issues/references/epics.md) (type `Epic`, real sub-issues, the `Epic:` line in `STATUS.md`) |
 | End a session | `end-session`: what landed, what to file, what to record |
 | Cut a release | `cut-release` |
 

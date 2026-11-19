@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Complete (closed 2026-11-14): specified, and implemented in TypeScript, Python and Rust; C++ and the final four-language step are #1202 and #1203. Approved by the owner 2026-10-31, with every recommendation; the [owner decisions](#owner-decisions-2026-10-31) record the answers. Progress is in [STATUS.md](STATUS.md) |
+| Status | Complete (closed 2026-11-14): specified, and implemented in TypeScript, Python and Rust; C++ and the final four-language step followed on 2026-11-18 (#1202 and #1203). Approved by the owner 2026-10-31, with every recommendation; the [owner decisions](#owner-decisions-2026-10-31) record the answers. Progress is in [STATUS.md](STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D27](../../../../endpoints/umbel/docs/decisions.md): the owner chose the hybrid strategy as Umbel's execution model on 2026-10-31; under [D25](../../../../endpoints/umbel/docs/decisions.md) it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |

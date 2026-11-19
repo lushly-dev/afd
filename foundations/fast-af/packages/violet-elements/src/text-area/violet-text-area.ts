@@ -99,6 +99,16 @@ const styles = css`
         box-shadow: var(--_field-shadow-focus);
     }
 
+    /*
+     * A read-only field's fill is a wash of the text colour, too light behind the resting border
+     * and the placeholder: its top line takes the strong border and its placeholder the secondary
+     * text, so both keep their contrast on every surface (Loam's D159).
+     */
+    :host([readonly]) {
+        --_field-border: var(--_field-border-readonly);
+        --_field-placeholder: var(--_text-secondary);
+    }
+
     :host([readonly]) .control-frame {
         background: var(--_field-background-readonly);
     }
@@ -317,6 +327,8 @@ export class VioletTextArea extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const control = event.currentTarget as HTMLTextAreaElement | null;
         this.value = control?.value ?? "";
         this.$emit("input", { value: this.value });

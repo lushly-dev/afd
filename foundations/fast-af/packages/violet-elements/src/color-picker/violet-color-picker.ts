@@ -133,7 +133,7 @@ const styles = css`
         white-space: nowrap;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .trigger-value.placeholder {
@@ -222,7 +222,7 @@ const styles = css`
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
         font-weight: 600;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .hex-field {
@@ -393,7 +393,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -859,6 +859,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleHexInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         this.hexDraft = input.value;
 
@@ -895,6 +897,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleChannelInput(channel: "h" | "s" | "l", event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         const nextValue = Number(input.value);
         this.updateChannel(channel, nextValue);
@@ -1147,5 +1151,8 @@ if (!customElements.get("violet-color-picker")) {
         name: "violet-color-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

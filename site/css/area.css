@@ -1,0 +1,224 @@
+/* ============================================================
+   Page scaffolding shared by both sides of AFD (proposal)
+   ------------------------------------------------------------
+   Loaded after tokens-m2.css, manifesto-2.css and manifesto-3.css,
+   by the design home and by every area page (Violet, Specimen…)
+   on either side. It holds the plain section: a colour field, a
+   figure label, a statement and a lead. What a page puts inside
+   is its own business.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── The product hero ────────────────────────────────────────────
+   A home page opens on a poster: one loud line. An area page opens
+   on the same colour field but has a different job. Someone who
+   lands here should know what the tool is before they scroll, so
+   the hero carries, in order: the name, one line that says what
+   kind of thing it is, a short description, the way in, and one
+   small picture as proof. Three facts sit under a rule (the facts
+   and the install line are in manifesto-3.css, which the home
+   pages share). What goes in the picture is the page's own
+   business. The art is the wide slash alone: the thin one would
+   run through the facts. */
+
+.opening--area > .wrap {
+	justify-content: flex-start;
+	gap: var(--space-7);
+	min-height: 0;
+	padding-block: var(--space-6) var(--space-7);
+}
+
+.crumb a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.crumb b {
+	font-weight: var(--weight-strong);
+}
+
+.area-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+	align-items: center;
+	gap: var(--space-8);
+}
+
+.area-name {
+	margin: 0;
+	font-family: var(--display);
+	font-size: var(--t-display);
+	font-weight: var(--weight-regular);
+	line-height: var(--leading-tight);
+	text-transform: uppercase;
+}
+
+/* A name of eight letters or more is wider than its column at full size. */
+.area-name--long {
+	font-size: calc(var(--t-display) * 0.82);
+}
+
+/* What kind of thing it is: the heavy line, then the thin one. */
+.area-is {
+	margin-top: var(--space-4);
+	font-size: var(--t-title);
+	font-weight: var(--weight-strong);
+	line-height: var(--leading-snug);
+	letter-spacing: var(--tracking-display);
+}
+
+.area-is span {
+	font-weight: var(--weight-thin);
+}
+
+.area-lead {
+	max-width: 33em;
+	margin-top: var(--space-4);
+	font-size: var(--t-lead);
+	line-height: 1.45;
+}
+
+.area-hero .opening-actions {
+	margin-top: var(--space-6);
+}
+
+.area-hero .hero-install {
+	margin-top: var(--space-5);
+}
+
+/* The proof: an ink panel, square, set against the slash. */
+.area-figure {
+	margin: 0;
+	padding: var(--space-5);
+	background: var(--field-ink);
+	color: var(--color-on-dark);
+}
+
+.area-figure figcaption {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-4);
+	padding-bottom: var(--space-3);
+	border-bottom: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.hero-answer {
+	display: grid;
+	gap: var(--space-1);
+	padding-top: var(--space-4);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.hero-answer .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+/* A word and the comma after it stay on one line. */
+.keep {
+	white-space: nowrap;
+}
+
+/* ── Sections ────────────────────────────────────────────────── */
+
+.d-section {
+	position: relative;
+	isolation: isolate;
+	padding-block: var(--statement-pad);
+	overflow: clip;
+}
+
+.d-section > .wrap {
+	position: relative;
+	z-index: var(--layer-content);
+}
+
+.d-section--rest {
+	background: var(--field-rest);
+}
+
+.d-section--ink,
+.d-section--deep {
+	--muted: var(--color-on-dark-muted);
+	--line: var(--color-on-dark-line);
+	color: var(--color-on-dark);
+}
+
+.d-section--ink {
+	--numeral-fill: var(--numeral-on-ink);
+	background: var(--field-ink);
+}
+
+.d-section--deep {
+	--numeral-fill: var(--numeral-on-deep);
+	background: var(--field-deep);
+}
+
+/* The mint field: the part of a page that is about the agent. */
+.d-section--agent {
+	--numeral-fill: var(--numeral-on-agent);
+	--muted: var(--accent-agent-text);
+	background: var(--field-agent);
+}
+
+.d-section--ink :focus-visible,
+.d-section--deep :focus-visible {
+	outline-color: var(--accent-agent);
+}
+
+.d-section--ink .fig-chip,
+.d-section--deep .fig-chip {
+	background: var(--accent-agent);
+	color: var(--color-text);
+}
+
+.d-section--ink .section-index,
+.d-section--deep .section-index {
+	color: var(--color-on-dark-muted);
+}
+
+.d-section--ink h2 > span:not(.lit-word),
+.d-section--deep h2 > span:not(.lit-word) {
+	color: var(--accent-agent);
+}
+
+.d-lead {
+	max-width: 760px;
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.45;
+}
+
+.d-section--ink .d-lead,
+.d-section--deep .d-lead {
+	color: var(--color-on-dark-muted);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1000px) {
+	.area-hero {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-6);
+	}
+}
+
+@media (max-width: 850px) {
+	.opening--area > .wrap {
+		gap: var(--space-6);
+	}
+}
+
+@media (max-width: 620px) {
+	.d-lead,
+	.area-lead {
+		font-size: var(--t-body);
+	}
+}

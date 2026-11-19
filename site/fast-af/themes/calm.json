@@ -1,0 +1,86 @@
+{
+	"title": "Calm",
+	"note": "A shell theme for long sessions: soft lines, a gentle lift for what floats, moderate rounding, colour kept for meaning.",
+	"added": {
+		"mint-25": ["#ebf7f0", "a paler tint of mint than mint-50, behind a success message"],
+		"red-25": ["#fbefea", "a paler tint of red than red-50, behind an error message"],
+		"amber-25": ["#fbf2df", "a paler tint of the warning colour, behind a warning message"],
+		"red-950": ["#3d211d", "a deep shade of red-ink, an opaque error surface on dark"],
+		"amber-950": ["#3a2b18", "a deep shade of the warning colour, an opaque warning surface on dark"]
+	},
+	"light": {
+		"radius.sm": "4px",
+		"radius.md": "8px",
+		"radius.lg": "12px",
+		"size.focus-ring.width": "2px",
+		"size.target.compact": "28px",
+
+		"color.border.subtle": "@stone-200",
+		"color.border.strong": "@sage-500",
+		"color.field.border": "@sage-500",
+		"color.field.border.hover": "@ink-soft",
+
+		"color.action.primary.hover": "@green-700",
+		"color.action.primary.pressed": "@green-800",
+		"color.action.secondary.background": "@ink/0.07",
+		"color.action.secondary.border": "transparent",
+		"color.action.secondary.hover": "@ink/0.11",
+		"color.action.secondary.pressed": "@ink/0.15",
+
+		"color.state.success.background": "@mint-25",
+		"color.state.success.border": "@mint-ink/0.25",
+		"color.state.warning.background": "@amber-25",
+		"color.state.warning.border": "@amber-800/0.28",
+		"color.state.danger.background": "@red-25",
+		"color.state.danger.border": "@red-ink/0.28",
+
+		"shadow.control": "0 1px 2px @ink/0.06",
+		"shadow.card": "0 0 0 1px @ink/0.06, 0 1px 2px @ink/0.04",
+		"shadow.floating": "0 0 0 1px @ink/0.10, 0 1px 3px @ink/0.10, 0 8px 24px @ink/0.10"
+	},
+	"dark": {
+		"color.surface.highlight": "@green-700",
+		"color.surface.pressed": "@paper/0.14",
+		"color.border.subtle": "@paper/0.10",
+		"color.border.strong": "@sage-500",
+		"color.field.border": "@sage-500",
+		"color.field.border.hover": "@stone-400",
+		"color.action.secondary.background": "@paper/0.09",
+		"color.action.secondary.border": "transparent",
+		"color.action.secondary.hover": "@paper/0.13",
+		"color.action.secondary.pressed": "@paper/0.17",
+
+		"color.state.success.background": "@green-900",
+		"color.state.success.border": "@mint/0.28",
+		"color.state.danger.background": "@red-950",
+		"color.state.danger.foreground": "@red-300",
+		"color.state.danger.border": "@red-300/0.32",
+		"color.state.warning.background": "@amber-950",
+		"color.state.warning.border": "@amber-300/0.32",
+
+		"shadow.control": "0 1px 2px @black/0.28",
+		"shadow.card": "0 0 0 1px @paper/0.07, 0 1px 2px @black/0.24",
+		"shadow.floating": "0 0 0 1px @paper/0.12, 0 2px 6px @black/0.32, 0 14px 36px @black/0.42"
+	},
+	"high-contrast": {
+		"shadow.floating": "0 0 0 2px @black"
+	},
+	"css": [
+		"all (radius): split the scale by role. Add radius.control for button, icon-button, text-field, text-area, select, combobox, date-picker, date-range-picker, time-picker, segment, pagination, menu-item, option and tree-item; keep radius.md for surfaces (card, alert, accordion-item, listbox, tree, tab, progress, skeleton) and radius.lg for what floats. Calm would then set control 8px, surface 6px, floating 14px. Today 8px on a button forces 8px on a card.",
+		"menu, select, listbox, toast, tab (radius): stop multiplying. menu .panel and select .listbox use calc(radius.md * 2), listbox calc(radius.md * 1.25), toast calc(radius.lg * 1.33), tab calc(radius.md + 2px). Read radius.lg for the floating panels and radius.md for listbox and tab, so a dialog (12px) and a menu (16px) no longer disagree.",
+		"text-field, text-area, select, combobox, date-picker, date-range-picker, time-picker: read the field tokens. .control-frame background is var(--_surface-page); make it var(--color-field-background), and var(--color-field-background-readonly) when read-only. Text from color.field.text, placeholder from color.field.placeholder (now --_text-muted), the focused edge from color.field.border.focus. No component reads these five ids, so a theme cannot tint a field.",
+		"text-field and the other fields (filled appearance): add appearance=\"filled\": background color.field.background (calm would set @ink/0.05 in light, @paper/0.07 in dark), border 1px solid transparent at rest, no shadow.control; on hover border-color color.field.border; on focus the 2px ring as now. To stay findable without a 3:1 edge: keep the label above and the value or placeholder at 4.5:1, draw a 1px color.field.border line on the block-end edge only (inset 0 -1px 0 box-shadow, so the radius is kept), and restore the full border under prefers-contrast: more, the high-contrast preset and forced colours. Keep outline as the default until the owner accepts that trade.",
+		"segmented-control: .group border-radius reads --_radius-lg, which violetFieldTokenDefaults never defines, so the track is square around rounded segments. Define it, then draw the control as a tinted track with a raised thumb: .group { border: 0; padding: 2px; background: color.surface.subtle; box-shadow: none; border-radius: calc(radius.control + 2px) } and :host([checked]) .button { background: color.surface.highlight; border-color: transparent; box-shadow: shadow.control; border-radius: radius.control }.",
+		"button, text-field, text-area, select: remove the movement. .control:hover { transform: translateY(-1px) } on button and the translateY on .control-frame:focus-within make controls shift under the pointer and the caret. Keep the colour change and shadow.control; a shell that recedes should not move its chrome.",
+		"slider, range-slider: .thumb takes shadow.floating, a panel's shadow, and a border of color.border.subtle on a page-coloured fill. Use box-shadow: shadow.control and border: 1px solid color.border.strong, so the thumb meets 3:1 and the floating shadow can be sized for dialogs.",
+		"option: the selected surface is color-mix(color.state.success.background 58%, transparent) and its border color.state.success.foreground. Read color.surface.selected and color.control.selected.border: a chosen row is not a success message, and the two should be tunable apart.",
+		"calendar: .day-button.selected uses color.state.success.foreground as its fill and a literal white for the numeral. Use color.control.selected.background and color.control.selected.foreground.",
+		"tab: add a pill appearance for use inside panels: selected tab { background: color.surface.subtle; border-radius: radius.control; color: color.text.primary; font-weight: 500 }, no .indicator, and no border-block-end on the tablist. Keep the underline appearance for page-level tabs.",
+		"skeleton, tab, tree-item: remove literal white. skeleton --_skeleton-highlight is color-mix(white 68%, card), tab --_tab-hover color-mix(subtle 42%, white), tree-item selected row color-mix(subtle 76%, white). On dark they flash light grey. Mix with color.surface.highlight instead.",
+		"field and action token defaults: under (pointer: fine) only the body size should drop 1px. --_type-label-size-compact and --_type-caption-size-compact give 11px labels and 10px help text on a desktop, which is small for a day's work.",
+		"field and action token defaults: under (pointer: fine) the auto target is size.target.compact. Give desktop controls their own id (size.target.control, 28px in calm) so a theme can size buttons and fields without moving the 24px floor Loam's status bar is built on. Calm sets size.target.compact to 28px to show the result.",
+		"toast, snackbar: the toned surface is color-mix(state background 78%, card). With a translucent state background (the base dark preset) the toast shows the page through it. Mix over color.surface.floating, or state that state backgrounds must be opaque.",
+		"alert, approval-card: the icon disc is tinted from the state colour and the surface is tinted too. Drop the surface tint for the info tone only if a quieter stack is wanted; no change needed for calm.",
+		"button (primary as a pill): not recommended. badge, chat-suggestions and persona are already fully round; a round primary button would read as a chip."
+	]
+}

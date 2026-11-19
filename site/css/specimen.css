@@ -1,0 +1,999 @@
+/* ============================================================
+   Specimen — both sides (proposal)
+   ------------------------------------------------------------
+   Loaded after area.css and area-kit.css. The comparison (two
+   frames, a count per channel, the list of differences) is on
+   both sides, so it is here. The design side's other figures
+   follow it. The dev side adds specimen-dev.css.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* A capture's picture is a browser frame, whatever field it sits on. */
+.hero-read img,
+.sframe img,
+.found img,
+.themes-table img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+/* ── Hero: one capture, read two ways ────────────────────────── */
+
+.hero-read-part {
+	display: grid;
+	gap: var(--space-2);
+	padding-block: var(--space-4);
+}
+
+.hero-read-part .mono,
+.hero-read-part + .hero-read-part .mono {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.hero-read-part + .hero-read-part {
+	padding-top: 0;
+}
+
+/* The bar and a little air: the frame's empty lower third is cropped. */
+.hero-read img {
+	aspect-ratio: 480 / 74;
+	object-fit: cover;
+	object-position: top;
+}
+
+.hero-read pre,
+.found pre {
+	margin: 0;
+	font: var(--t-code) / 1.7 var(--mono);
+	white-space: pre-wrap;
+}
+
+.hero-read mark,
+.found mark {
+	background: none;
+	color: var(--accent-agent);
+	font-weight: var(--weight-strong);
+}
+
+/* ── Fig. 01: five readings ──────────────────────────────────── */
+
+.readings {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: var(--space-6);
+	margin: var(--space-8) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.readings li {
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	gap: var(--space-3);
+	min-width: 0;
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.readings .mono {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.readings p {
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.readings code {
+	padding: var(--space-3);
+	background: var(--color-code-bg);
+	color: var(--color-code-text);
+	font: var(--t-code) / 1.6 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+/* ── The comparison ──────────────────────────────────────────── */
+
+.sstage {
+	display: grid;
+	gap: var(--space-5);
+	margin-top: var(--space-5);
+}
+
+.sstage-cause {
+	display: grid;
+	gap: var(--space-1);
+	min-height: 3.2em;
+	font-size: var(--t-body);
+	line-height: var(--leading-snug);
+}
+
+.sstage-cause .mono,
+.sverdict-status .mono,
+.sframe figcaption .mono {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.sframes {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-5);
+}
+
+.sframe {
+	display: grid;
+	gap: var(--space-3);
+	min-width: 0;
+	margin: 0;
+	padding: var(--space-4);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.sframe figcaption {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.sframe figcaption b {
+	font-weight: var(--weight-medium);
+}
+
+.sframe-shot {
+	position: relative;
+	max-width: 480px;
+	margin-inline: auto;
+	width: 100%;
+}
+
+.sframe-shot svg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+}
+
+/* What the comparison touched, outlined where each capture measured it. */
+.sframe-shot rect {
+	fill: none;
+	stroke: var(--accent-human);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+
+.sframe-shot svg[data-pointing] rect {
+	opacity: 0.2;
+}
+
+.sframe-shot svg[data-pointing] rect[data-active] {
+	fill: color-mix(in srgb, var(--accent-human) 22%, transparent);
+	stroke-width: 2;
+	opacity: 1;
+}
+
+.sframe-where {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	text-align: center;
+}
+
+.sverdict {
+	display: grid;
+	grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr);
+	align-items: end;
+	gap: var(--space-6);
+	padding-top: var(--space-5);
+	border-top: var(--rule) solid var(--color-on-dark);
+}
+
+.sverdict-status {
+	display: grid;
+	gap: var(--space-1);
+}
+
+.sverdict-status b {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.sverdict-status b[data-status="no-change-observed"] {
+	color: var(--color-on-dark-muted);
+}
+
+.stally {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: var(--space-3);
+	margin: 0;
+}
+
+.stally > div {
+	padding-top: var(--space-2);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.stally > div[data-changed="true"] {
+	border-top: var(--rule) solid var(--accent-agent);
+}
+
+.stally dt {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+	overflow-wrap: anywhere;
+}
+
+.stally dd {
+	margin: var(--space-1) 0 0;
+	color: var(--color-on-dark-subtle);
+	font-size: var(--t-title);
+	font-weight: var(--weight-thin);
+	line-height: 1.1;
+}
+
+.stally > div[data-changed="true"] dd {
+	color: var(--accent-agent);
+	font-weight: var(--weight-medium);
+}
+
+.sreading {
+	min-height: 1.5em;
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+.sdiff {
+	display: grid;
+	gap: var(--space-5);
+	max-height: 440px;
+	padding: var(--space-4) var(--space-5);
+	overflow: auto;
+	background: var(--afd-black);
+	scrollbar-width: thin;
+}
+
+.sdiff[hidden] {
+	display: none;
+}
+
+.sdiff h4 {
+	display: flex;
+	gap: var(--space-3);
+	padding-bottom: var(--space-2);
+	border-bottom: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--accent-agent);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.sdiff h4 span {
+	color: var(--color-on-dark-muted);
+}
+
+.sdiff ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sdiff li {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.6fr);
+	gap: var(--space-4);
+	padding: var(--space-1) var(--space-2);
+	margin-inline: calc(var(--space-2) * -1);
+	font: var(--t-code) / 1.7 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.sdiff li[data-ref]:hover,
+.sdiff li[data-ref]:focus-visible {
+	background: var(--afd-ink-raised);
+	outline: none;
+}
+
+.sdiff-who {
+	color: var(--color-on-dark);
+}
+
+.sdiff-what,
+.sdiff-change > span {
+	color: var(--color-on-dark-muted);
+}
+
+.sdiff-change i {
+	margin-inline: var(--space-2);
+	color: var(--color-on-dark-subtle);
+	font-style: normal;
+}
+
+.sdiff-change b {
+	color: var(--accent-agent);
+	font-weight: var(--weight-medium);
+}
+
+.sdiff-snapshots {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-5);
+	padding-block: var(--space-3);
+}
+
+.sdiff-snapshots .mono {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.sdiff-snapshots pre {
+	margin: var(--space-1) 0 0;
+	color: var(--color-on-dark-muted);
+	font: var(--t-code) / 1.7 var(--mono);
+	white-space: pre-wrap;
+}
+
+.sdiff-snapshots span[data-changed] {
+	color: var(--accent-agent);
+	font-weight: var(--weight-medium);
+}
+
+.sstage-foot {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-5);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.sstage-foot a {
+	color: var(--accent-agent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ── Fig. 06: the theme audit ────────────────────────────────── */
+
+.themes-hint {
+	max-width: 760px;
+	margin-top: var(--space-5);
+	font-size: var(--t-body);
+	font-weight: var(--weight-medium);
+	line-height: var(--leading-body);
+}
+
+.themes-wrap {
+	min-width: 0;
+	margin-top: var(--space-7);
+	overflow-x: auto;
+}
+
+.themes-table {
+	width: 100%;
+	min-width: 760px;
+	border-collapse: collapse;
+}
+
+.themes-table th,
+.themes-table td {
+	padding: var(--space-5) var(--space-4) var(--space-5) 0;
+	border-top: var(--rule-thin) solid var(--color-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.themes-table thead th {
+	padding-block: var(--space-2);
+	border-top: var(--rule) solid var(--color-rule);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.themes-table tbody th {
+	width: 26%;
+	padding-right: var(--space-6);
+	font-weight: var(--weight-regular);
+}
+
+.themes-table tbody th b {
+	display: block;
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.themes-table tbody tr:last-child > * {
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.themes-table td:last-child {
+	padding-right: 0;
+}
+
+.themes-tags {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+}
+
+/* Specimen's word for the screen (a mark), then what that means for the audit. */
+.themes-outcome {
+	padding-inline: 0;
+}
+
+tr[data-status="undeclared"] .themes-outcome {
+	color: var(--accent-human-text);
+	font-weight: var(--weight-strong);
+}
+
+.themes-meaning,
+.themes-reason {
+	display: block;
+	margin-top: var(--space-3);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.themes-reason {
+	margin-top: var(--space-1);
+	color: var(--color-text-muted);
+}
+
+/* Each picture sits on the page colour of its theme, so a screen that did not
+   change with the theme looks out of place where it is out of place. */
+.themes-mat {
+	display: block;
+	padding: var(--space-4);
+	border: var(--rule-thin) solid var(--color-line);
+	background: var(--afd-white);
+}
+
+td[data-theme="dark"] .themes-mat {
+	border-color: var(--afd-black);
+	background: var(--afd-black);
+}
+
+td[data-theme="high-contrast"] .themes-mat {
+	border: var(--rule) solid var(--afd-black);
+}
+
+/* A picture is never drawn larger than it was captured. */
+.themes-mat img {
+	max-width: 360px;
+	margin-inline: auto;
+}
+
+.themes-theme {
+	display: none;
+	margin-bottom: var(--space-2);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.themes-note {
+	display: block;
+	margin-top: var(--space-2);
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+/* The finding, on the row that fails: the same picture where it should differ. */
+tr[data-status="undeclared"] td[data-same] .themes-note {
+	color: var(--accent-human-text);
+	font-weight: var(--weight-strong);
+}
+
+.themes-verdict {
+	max-width: 760px;
+	margin-top: var(--space-6);
+	padding-left: var(--space-4);
+	border-left: var(--rule-heavy) solid var(--color-rule);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+.themes-verdict[data-valid="false"] {
+	border-left-color: var(--accent-human);
+}
+
+.themes-verdict b {
+	font-weight: var(--weight-strong);
+}
+
+.themes-raw {
+	margin-top: var(--space-4);
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+}
+
+/* ── Fig. 04: the catch ──────────────────────────────────────── */
+
+.found {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-5);
+	margin-top: var(--space-8);
+}
+
+.found figure {
+	display: grid;
+	align-content: start;
+	gap: var(--space-4);
+	min-width: 0;
+	margin: 0;
+	padding: var(--space-5);
+	background: var(--afd-green-700);
+}
+
+.found figcaption {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.found figcaption .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.found figcaption code {
+	font: var(--weight-medium) var(--t-small) / 1.5 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.found img {
+	max-width: 480px;
+}
+
+.found-note {
+	max-width: 760px;
+	margin-top: var(--space-6);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+/* ── The brief: a component pack, as an agent reads it ───────── */
+
+.brief {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr);
+	align-items: start;
+	gap: var(--space-7);
+	margin-top: var(--space-8);
+}
+
+.brief-key {
+	position: sticky;
+	top: calc(var(--nav-h) + var(--space-5));
+	display: grid;
+	gap: var(--space-4);
+}
+
+.brief-count {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.brief-bases {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.brief-bases button {
+	display: grid;
+	grid-template-columns: 2.2em minmax(0, 1fr);
+	column-gap: var(--space-3);
+	align-items: baseline;
+	padding: var(--space-3) var(--space-4);
+	border: var(--rule-thin) solid var(--color-rule);
+	background: transparent;
+	color: var(--color-text);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.brief-bases b {
+	grid-row: span 2;
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1;
+}
+
+.brief-bases span {
+	font: var(--weight-strong) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.brief-bases small {
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.brief-bases button:hover {
+	background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.brief-bases button[aria-pressed="true"] {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+.brief-note {
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.brief-foot {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-5);
+	margin-top: var(--space-5);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.brief-foot a,
+.found-note a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.found-note a {
+	color: var(--accent-agent);
+}
+
+/* The file itself: a sheet of paper on the mint field. */
+.brief-doc {
+	display: grid;
+	gap: var(--space-5);
+	min-width: 0;
+	padding: var(--space-6);
+	background: var(--color-surface);
+}
+
+.brief-doc header {
+	display: grid;
+	gap: var(--space-2);
+	padding-bottom: var(--space-5);
+	border-bottom: var(--rule) solid var(--color-rule);
+}
+
+.brief-tag {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--space-3);
+}
+
+.brief-tag code {
+	font: var(--weight-medium) var(--t-title) / 1.1 var(--mono);
+	letter-spacing: -0.03em;
+}
+
+.brief-tag span,
+.brief-import {
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.brief-import code {
+	text-transform: none;
+}
+
+.brief-summary {
+	font-size: var(--t-lead);
+	line-height: 1.4;
+}
+
+.brief-doc h4 {
+	padding-bottom: var(--space-2);
+	border-bottom: var(--rule-thin) solid var(--color-rule);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.brief-doc ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.brief-doc li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: var(--space-4);
+	padding-block: var(--space-3);
+	border-bottom: var(--rule-thin) solid var(--color-line);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+	transition: opacity 160ms;
+}
+
+.brief-doc li code {
+	font: var(--weight-medium) var(--t-code) / 1.6 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.brief-doc li div > span {
+	color: var(--color-text-muted);
+}
+
+/* One word picked: the other facts step back. */
+.brief-doc[data-show="verified"] li:not([data-basis="verified"]),
+.brief-doc[data-show="observed"] li:not([data-basis="observed"]),
+.brief-doc[data-show="declared"] li:not([data-basis="declared"]),
+.brief-doc[data-show="authored"] li:not([data-basis="authored"]) {
+	opacity: 0.22;
+}
+
+/* ── A few numbers, large ────────────────────────────────────── */
+
+.stats {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--space-6);
+	margin: var(--space-8) 0 0;
+}
+
+.stats > div {
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--accent-agent);
+}
+
+.stats dt {
+	font-family: var(--display);
+	font-size: calc(var(--t-statement) * 0.6);
+	line-height: var(--leading-tight);
+	letter-spacing: var(--tracking-display);
+	white-space: nowrap;
+}
+
+.stats dd {
+	margin: var(--space-3) 0 0;
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* ── Fig. 08: the levels ─────────────────────────────────────── */
+
+.levels {
+	margin: var(--space-8) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.levels li {
+	display: grid;
+	grid-template-columns: minmax(0, 0.7fr) minmax(0, 2fr) minmax(0, 0.8fr);
+	align-items: baseline;
+	gap: var(--space-5);
+	padding-block: var(--space-4);
+	border-top: var(--rule-thin) solid var(--color-line);
+	color: var(--color-text-muted);
+}
+
+.levels li:last-child {
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.levels b {
+	font-size: var(--t-title);
+	font-weight: var(--weight-thin);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.levels p {
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.levels span {
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-align: right;
+	text-transform: uppercase;
+}
+
+/* The one level that counts is the one in ink. */
+.levels li[data-level="verified"] {
+	border-top: var(--rule) solid var(--color-rule);
+	color: var(--color-text);
+}
+
+.levels li[data-level="verified"] b {
+	font-weight: var(--weight-strong);
+}
+
+.levels li[data-level="verified"] span {
+	font-weight: var(--weight-strong);
+}
+
+.levels-note {
+	max-width: 760px;
+	margin-top: var(--space-6);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.readings {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		row-gap: var(--space-7);
+	}
+
+	.brief {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-6);
+	}
+
+	.brief-key {
+		position: static;
+	}
+
+	.brief-bases {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.stats {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		row-gap: var(--space-7);
+	}
+
+	.sverdict {
+		grid-template-columns: minmax(0, 1fr);
+		align-items: start;
+		gap: var(--space-4);
+	}
+}
+
+@media (max-width: 850px) {
+	.sframes,
+	.found {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	/* Three pictures across do not fit beside their heading: the heading goes on top. */
+	.themes-table {
+		min-width: 0;
+	}
+
+	.themes-table thead {
+		display: none;
+	}
+
+	.themes-table tbody tr {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--space-3);
+		padding-block: var(--space-5);
+		border-top: var(--rule) solid var(--color-rule);
+	}
+
+	.themes-table tbody th,
+	.themes-table tbody td {
+		width: auto;
+		padding: 0;
+		border: 0;
+	}
+
+	.themes-table tbody th {
+		grid-column: 1 / -1;
+	}
+
+	.themes-table tbody tr:last-child > * {
+		border: 0;
+	}
+
+	.themes-mat {
+		padding: var(--space-2);
+	}
+
+	.themes-theme {
+		display: block;
+	}
+
+	.levels li {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-2);
+	}
+
+	.levels span {
+		text-align: left;
+	}
+}
+
+@media (max-width: 620px) {
+	.readings {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: var(--space-5);
+	}
+
+	.readings li {
+		grid-template-rows: none;
+	}
+
+	.sframe {
+		padding: var(--space-3);
+	}
+
+	.stally {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		row-gap: var(--space-4);
+	}
+
+	.sdiff {
+		padding: var(--space-3);
+	}
+
+	.sdiff li {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
+		padding-block: var(--space-2);
+	}
+
+	.sdiff-snapshots {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.found figure {
+		padding: var(--space-4);
+	}
+
+	/* One picture to a line, at its own size. */
+	.themes-table tbody tr {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-4);
+	}
+
+	.themes-mat {
+		padding: var(--space-3);
+	}
+
+	.brief-bases {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.brief-doc {
+		padding: var(--space-4);
+	}
+
+	.brief-doc li {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-2);
+		justify-items: start;
+	}
+
+	.stats {
+		gap: var(--space-5);
+	}
+}

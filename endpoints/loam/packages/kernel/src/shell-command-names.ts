@@ -114,4 +114,10 @@ export const SHELL_COMMAND_NAMES = [
 	'copilot-session-get',
 	'copilot-provider-list',
 	'approval-health-get',
+	// Phase 4's step 1 (its 3.9): the settings.
+	'setting-schema-get',
+	'setting-list',
+	'setting-get',
+	'setting-set',
+	'setting-reset',
 ] as const;

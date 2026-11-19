@@ -2,12 +2,63 @@
 
 ## Unreleased
 
+- Make form control hosts dependable without shadow-root workarounds (#1385): one `input` event per edit, the element's own; host `focus()` reaching the control in eight controls that ignored it; `violet-checkbox` described by its supporting text and the host's `aria-describedby`; and `violet-data-grid` columns keeping their own widths with `selection-mode="none"`, with keyboard resize stepping from the column's own width.
+
 - Fix active option rows to read the contract color.surface.subtle token in every theme (#659).
 
 - Protect closed dialog Tab order and pointer exclusion with browser regressions, including modal and non-modal transitions and focus restoration (#511).
 
 - Give the data-grid fill handle a 24 × 24 CSS px pointer target while retaining its visual size. Cell focus mode includes keyboard-accessible Fill down and Fill right buttons that emit the same `cell-fill` detail as dragging one row or column, with touch support and live feedback (#506).
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
+
+## 0.2.0-preview.2
+
+### Minor Changes
+
+- [#1529](https://github.com/lushly-dev/afd/pull/1529) [`0078d53`](https://github.com/lushly-dev/afd/commit/0078d531d545722cc89793eaf06f3d47c9d631b3) Thanks [@Falkicon](https://github.com/Falkicon)! - The built-in default theme is AFD's own, Refined, from the AFD site's design system. It was the palette the components were first drawn in, which is Lushly's; Lushly now carries that look as its own theme set. A page with no theme installed, and every literal fallback in the components, takes the new values in light, dark and high contrast.
+
+  - **Colour.** Ink on paper: the main action is ink (paper in dark), the second action a wash of ink with no outline, danger the site's red. What is chosen is mint, softer behind a tick, a switch key or a radio in light; focus is the site's blue in light and mint in dark. Messages sit on greyed tints with no outline in light and on deep opaque tints in dark. Fields go toward the base, white in light and near-black in dark.
+  - **Type.** `font.family.body` is `"Inter", system-ui, sans-serif`, `font.family.heading` is Space Grotesk and `font.family.mono` is IBM Plex Mono. The package does not ship the typefaces: a page that wants them loads them, and without them each stack falls back to the system's faces. Captions are 12px at the regular weight and labels 13px.
+  - **Shape.** `radius.sm`, `radius.md` and `radius.lg` are 4px, 8px and 12px, and the shadows are a hairline ring with a soft drop, deeper for what floats.
+
+  High contrast keeps its neutral colours, 7:1 text and spread shadows. `shadow.well` keeps its values. The token interface and every id are unchanged; only values move.
+
+- [#1525](https://github.com/lushly-dev/afd/pull/1525) [`746d651`](https://github.com/lushly-dev/afd/commit/746d651be1361635f31cfbe098e4eca73e14ae2d) Thanks [@Falkicon](https://github.com/Falkicon)! - The Refined design: 54 components take their new look in their own styles. A theme's colours, radii and shadows apply as before; what changed is how each component uses them.
+
+  - **Edges are surfaces and shadows, not outlines.** Fields are wells with a hairline edge, a rule along the top and a soft inner shadow; primary and danger buttons sit one step up and go flat when pressed; cards, menus, lists, popovers and dialogs float on their surface and shadow. Borders stay in place, clear, and show again in forced colours.
+  - **Controls are one size on every pointer.** A fine pointer no longer drops controls to the compact target and one pixel of type; they take the natural target (32px) unless `--violet-target-size` or a coarse pointer says otherwise. The disabled controls the design touched are at half opacity.
+  - `violet-switch` is a slide key with a tick when on, `violet-slider` and `violet-range-slider` fill their rail to the value with the thumb in the fill colour, the open `violet-tab` (which keeps its selection line, inside the key) and the current page of `violet-pagination` are filled keys, the chosen `violet-segment` is raised out of a well, and `violet-spinner` is a run round a rounded square (one lap a second, three under reduced motion) at 16px, 24px and 32px.
+  - `violet-text-field` and `violet-text-area` turn their supporting text the danger colour while `invalid`, as well as their border.
+  - The conversation components drop their boxes: an agent's message is the page, `violet-reasoning-block` is a line of muted text that opens, a tool call is a band with its command in the mono face, and only `violet-approval-card` is raised.
+
+  **Breaking: token interface version 2.** `tokens/interface.json` has `contractVersion` 2. It adds `font.family.heading` (`fontFamily`; a dialog's title and `violet-text` headings), `shadow.well` (`shadow`; the inner shadow of a field) and five colour ids fields now read, `color.field.background`, `color.field.background.readonly`, `color.field.text`, `color.field.placeholder` and `color.field.border.focus`. `font.family.mono` is no longer `reserved`: the tool-call card reads it. A product theme set has to supply the seven new ids (on the preview line this ships as a minor, so a caret range takes it: theme-set owners should add the ids before upgrading); `findVioletThemeSetGaps` names the ones it lacks, and until then a component uses its fallback (the body family, the built-in light values). The built-in default theme supplies them with the values the components already rendered, so it looks the same, except that its dark preset deepens the field's inner shadow and its high-contrast preset drops it.
+
+  Three things the design left without a difference:
+
+  - `violet-slider`'s `show-fill` attribute is kept and has no effect, since the rail is always filled.
+  - The `quiet` and `transparent` appearances of `violet-button` and `violet-icon-button` render the same; `transparent` is kept for existing markup.
+  - `--violet-reasoning-border` draws a ring round the reasoning block when set, in place of the border it used to colour. It is clear by default.
+
+  Fixes for private aliases that were read and never defined, so the declaration was dropped ([#1436](https://github.com/lushly-dev/afd/issues/1436)): `violet-menu`'s panel has its floating shadow, `violet-listbox` its panel padding, `violet-snackbar` its minimum height, `violet-carousel`'s dots their 24px targets and the data grid's pill select its empty-list type size. A spec now fails when a component reads such an alias.
+
+  The built styles in `dist` no longer carry their CSS comments: `build` removes them after `tsc`, about 11.5 KB across the components. The comments stay in `src`.
+
+### Patch Changes
+
+- [#1441](https://github.com/lushly-dev/afd/pull/1441) [`bbc4e42`](https://github.com/lushly-dev/afd/commit/bbc4e4287e9e0c701e74d87789bfc13d4e39085f) Thanks [@Falkicon](https://github.com/Falkicon)! - Give the data-grid fill handle a 24px pointer target without enlarging its visual, and include accessible Fill down and Fill right actions for mouse, touch and keyboard users.
+
+- [#1460](https://github.com/lushly-dev/afd/pull/1460) [`247111a`](https://github.com/lushly-dev/afd/commit/247111aa5d6b507be322ea202c32b4e5168125ab) Thanks [@Falkicon](https://github.com/Falkicon)! - Use the contract surface token for active options so dark-theme text stays readable.
+
+- [#1528](https://github.com/lushly-dev/afd/pull/1528) [`312b0e0`](https://github.com/lushly-dev/afd/commit/312b0e0f83618403d01cb3e1cbc6b7de84149bef) Thanks [@Falkicon](https://github.com/Falkicon)! - Form controls behave as an application expects from the host element, so the shadow-root workarounds applications carried can go ([#1385](https://github.com/lushly-dev/afd/issues/1385)).
+
+  - **One `input` event per edit.** `violet-text-field`, `violet-text-area`, `violet-date-picker`, `violet-time-picker`, `violet-slider`, `violet-range-slider`, `violet-color-picker` and `violet-combobox` no longer let the inner control's native `input` event escape the shadow root. A host listener now receives one event per edit, the element's own `CustomEvent` with the value in `detail`. Before, it also received the native `InputEvent`, without `detail`; a listener that read `inputType`, `data` or `isComposing` from it no longer gets them, and one that skipped events without `detail` is unaffected. `violet-color-picker` fires `input` only when its colour changes.
+  - **`focus()` on the host reaches the control** for `violet-date-picker`, `violet-time-picker`, `violet-date-range-picker`, `violet-slider`, `violet-range-slider`, `violet-color-picker`, `violet-file-upload` (its browse button) and `violet-segmented-control` (its checked segment, or the first enabled one). Before, it did nothing. A failed form submission now also focuses the file upload's browse button, not its hidden file input, and the segmented control's Tab stop.
+  - **`violet-checkbox` is described by its supporting text** and by the ids in the host's `aria-describedby`, which are resolved across the shadow boundary, as `violet-text-field` already does, including a target that appears later once the checkbox takes focus.
+  - **`violet-data-grid` with `selection-mode="none"` gives each column its own width.** Its hidden selection column and its spacer rows still made a column slot that no visible cell filled, so each cell sat one slot to the left and took the wider of its own width and its left neighbour's. With the slot gone, narrow columns stretch to fill the grid, as they already did with selection on. The keyboard column resize now steps from the column's own width when it is in `px` or `rem`, not its stretched width, so each arrow press moves it by exactly one step.
+
+- [#1413](https://github.com/lushly-dev/afd/pull/1413) [`fdcd24b`](https://github.com/lushly-dev/afd/commit/fdcd24b8554361b7cfe08272ecd92d00ae2abc93) Thanks [@Falkicon](https://github.com/Falkicon)! - `violet-select` shows the chosen option's label, and names its trigger with it, when the options arrive after `value` is set, when they are added inside a `violet-option-group`, and when the chosen option's label changes. Before, the trigger kept showing the raw value ([#499](https://github.com/lushly-dev/afd/issues/499)).
+
+- [#1427](https://github.com/lushly-dev/afd/pull/1427) [`4e34fab`](https://github.com/lushly-dev/afd/commit/4e34fabaaadf6399267c69c027793b2310b4c974) Thanks [@Falkicon](https://github.com/Falkicon)! - `violet-switch`'s native `role="switch"` input now fills the whole control shell instead of being clipped to nothing, so it receives pointer events: `getByRole('switch', { name }).click()` toggles it in Playwright without `force`, and a click on the track toggles it exactly once ([#501](https://github.com/lushly-dev/afd/issues/501)). The track and thumb pass pointer events through, so a `violet-switch::part(control):hover` rule no longer matches (use `violet-switch:hover::part(control)`), and the hit area now spans the control's full target height, not only the track. Keyboard, label, disabled, form and focus-ring behaviour are unchanged.
 
 ## 0.2.0-preview.1
 

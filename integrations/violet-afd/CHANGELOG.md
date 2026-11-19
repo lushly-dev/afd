@@ -1,5 +1,13 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.1
+
+### Minor Changes
+
+- [#1423](https://github.com/lushly-dev/afd/pull/1423) [`599be24`](https://github.com/lushly-dev/afd/commit/599be24536a5bb87c60264bd187cd698991fbc39) Thanks [@Falkicon](https://github.com/Falkicon)! - Deprecate `compare.nodes` in favour of `tokens.compare` ([#500](https://github.com/lushly-dev/afd/issues/500)), which compares two to four nodes and also counts absent and subtracted tokens; `violet compare` already runs it. `compare.nodes` will be removed in `@lushly-dev/violet-afd` 0.5.0. Until then it still works: its description starts with "Deprecated", a successful result carries a `DEPRECATED_COMMAND` warning, a `deprecated` metadata flag and a note in `reasoning`, and the HTTP API answers it with `Deprecation: true` and a `Link: </api/v1/tokens/compare>; rel="successor-version"` header, and lists it with `deprecated: true` in `GET /api/commands`. `CommandDefinition` gains an optional `deprecated` field (`{ replacement, removal }`) for other commands to use. The hosted OpenAPI document never described `compare.nodes`, so it has nothing to mark.
+
+- [#1433](https://github.com/lushly-dev/afd/pull/1433) [`8b54f66`](https://github.com/lushly-dev/afd/commit/8b54f6664d478695eb368236c48f5d740d5ee31d) Thanks [@Falkicon](https://github.com/Falkicon)! - Component specimens for a text block (`text`), a link (`link`), a checkbox (`checkbox`) and a focus ring (`focus`), with new roles `font.family`, `line.height`, `underline`, `underline.offset`, `size`, `check`, `ring`, `ring.width` and `ring.offset`. Each role turns its value into a declaration only through an allow-list validator; `safeTextDecoration` is new in `@lushly-dev/violet-core/css`, and the checkbox's check colour is drawn through the `--violet-specimen-check` custom property. Each entry of `SPECIMEN_COMPONENTS` now lists its own `roles` and the `required` role it cannot be drawn without (the text block and link need `foreground`, the focus ring needs `ring`); `specimenComponentHasRole` checks a pair. `SPECIMEN_ROLE_NAMES` lists every role, but no component takes them all, so code that pairs roles with components should read each component's `roles`; `SPECIMEN_REQUIRED_ROLE` is deprecated in favour of `required`. `specimen.get` reports each component's own roles and its `required` role, and `specimen.set` refuses a role the component does not take, suggesting that component's roles. Button, input and card keep their ten roles.
+
 ## 0.3.0-preview.0
 
 ### Minor Changes

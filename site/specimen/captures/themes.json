@@ -1,0 +1,289 @@
+{
+  "success": true,
+  "data": {
+    "themes": [
+      "light",
+      "dark",
+      "high-contrast"
+    ],
+    "checkpoint": "mount",
+    "threshold": 0.02,
+    "valid": false,
+    "reports": [
+      {
+        "id": "bar",
+        "title": "Change bar/Ready",
+        "component": "change-bar",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7556565656565657
+          }
+        ]
+      },
+      {
+        "id": "bar-token-changed",
+        "title": "Change bar/Token changed",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.9011111111111111
+          }
+        ]
+      },
+      {
+        "id": "bar-relabelled",
+        "title": "Change bar/Relabelled",
+        "component": "change-bar",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.8832828282828283
+          }
+        ]
+      },
+      {
+        "id": "bar-disabled",
+        "title": "Change bar/Disabled",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7863636363636364
+          }
+        ]
+      },
+      {
+        "id": "bar-disabled-fixed",
+        "title": "Change bar/Disabled, fixed",
+        "component": "change-bar",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7863636363636364
+          }
+        ]
+      },
+      {
+        "id": "bar-unnamed",
+        "title": "Change bar/Unnamed",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7556565656565657
+          }
+        ]
+      },
+      {
+        "id": "checks-events",
+        "title": "Checks/Events",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7556565656565657
+          }
+        ]
+      },
+      {
+        "id": "checks-label",
+        "title": "Checks/Label",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.8832828282828283
+          }
+        ]
+      },
+      {
+        "id": "checks-save-disabled",
+        "title": "Checks/Save disabled",
+        "status": "follows",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 1
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0.7863636363636364
+          }
+        ]
+      },
+      {
+        "id": "receipt",
+        "title": "Receipt/Printed",
+        "status": "declared",
+        "declared": {
+          "supported": [
+            "light"
+          ],
+          "basis": "declared",
+          "reason": "Paper is white. A receipt prints the same in every theme."
+        },
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 0
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0
+          }
+        ]
+      },
+      {
+        "id": "empty-state",
+        "title": "Empty state/Nothing to save",
+        "status": "undeclared",
+        "declared": null,
+        "frames": [
+          {
+            "theme": "light",
+            "rendered": "light",
+            "changed": 0
+          },
+          {
+            "theme": "dark",
+            "rendered": "dark",
+            "changed": 0
+          },
+          {
+            "theme": "high-contrast",
+            "rendered": "high-contrast",
+            "changed": 0
+          }
+        ]
+      }
+    ],
+    "counts": {
+      "total": 11,
+      "follows": 9,
+      "declared": 1,
+      "pinned": 0,
+      "undeclared": 1,
+      "contradicted": 0,
+      "unavailable": 0
+    },
+    "workers": 2,
+    "elapsedMs": 2560.0154
+  },
+  "reasoning": "Completed the requested specimen operation."
+}

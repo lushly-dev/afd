@@ -52,7 +52,9 @@ pub fn approval_secret(value: Option<String>) -> Result<Vec<u8>, String> {
 pub fn contexts() -> Vec<ContextConfig> {
     vec![
         ContextConfig::new("todo-reading")
-            .with_description("Review todos without changing them: list, get and stats only")
+            .with_description(
+                "Review todos without changing them: list, get, stats and history only",
+            )
             .with_triggers(["review", "summarize", "report", "what is left"]),
         ContextConfig::new("todo-editing")
             .with_description("Add, change, complete and remove todos")

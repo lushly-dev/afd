@@ -37,10 +37,10 @@ const styles = css`
             box-shadow var(--_duration-base) var(--_easing-standard),
             transform var(--_duration-fast) var(--_easing-standard);
 
-        --_selection-text: var(--color-control-selected-foreground, #244635);
+        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
         --_tab-border: color-mix(in srgb, var(--_border-subtle) 88%, transparent);
         --_tab-key-background: var(--color-action-secondary-background, var(--_surface-subtle));
-        --_tab-key-border: var(--color-action-secondary-border, rgba(28, 26, 13, 0.18));
+        --_tab-key-border: var(--color-action-secondary-border, transparent);
         --_tab-hover: var(--_tab-key-background);
         --_tab-closed-resting: var(--_surface-subtle);
         --_tab-indicator-thickness: 2px;
@@ -52,7 +52,7 @@ const styles = css`
     }
 
     :host([aria-selected="true"]) {
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
     :host([disabled]),
@@ -108,7 +108,7 @@ const styles = css`
     :host([data-appearance="open"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover),
     :host([data-appearance="mixed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: var(--_tab-hover);
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
     /* An open tab is a key: the one you are on is filled, as a pressed secondary button is. */
@@ -150,7 +150,7 @@ const styles = css`
 
     :host([data-appearance="closed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: color-mix(in srgb, var(--_surface-page) 90%, var(--_tab-closed-resting));
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
     :host([data-appearance="closed"][aria-selected="true"]),

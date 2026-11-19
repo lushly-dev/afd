@@ -142,6 +142,16 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--_field-border-readonly)",
+				"name": "--_field-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_text-secondary)",
+				"name": "--_field-placeholder"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--space-layout-sm, 12px)",
 				"name": "--_space-layout-sm"
 			}
@@ -203,7 +213,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.input-change",
 		"field.label",
 		"field.label-required",

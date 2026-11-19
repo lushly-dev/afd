@@ -1,5 +1,7 @@
 # Software Factory: status
 
+Epic: [#1549](https://github.com/lushly-dev/afd/issues/1549). File new work for this area as its sub-issue.
+
 Read this before the [proposal](software-factory.proposal.md). It moved from `proposed/` to
 `active/` on 2026-11-14, because Phase 1's implementation had started on `main`. Reconciled that
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
@@ -54,6 +56,11 @@ The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purp
   as `node-missing` (counted; its detail starts `NODE_MISSING`: keep the base's `.nvmrc`, or have the
   owner install that Node on the lane host). The base's own `.nvmrc` missing its Node still pauses
   the lane, as do coverage runs. The run-fleet runbook says how the foreman answers it.
+- **A branch that deletes `.nvmrc` is ejected too** ([#1505](https://github.com/lushly-dev/afd/issues/1505),
+  on `lush/fleet-1505-nvmrc-deleted-node-missing`). Without `.nvmrc` its slot validated on the
+  host's default Node; when `.nvmrc` is among its changes against the base and the slot has none,
+  it is ejected as `node-missing`, its detail saying the repository pins its Node there. A
+  branch that leaves `.nvmrc` blank is ejected the same way and told to pin a version number.
 
 ## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 

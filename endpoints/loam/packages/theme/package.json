@@ -18,7 +18,8 @@
 		},
 		"./loam-theme.css": "./dist/loam-theme.css",
 		"./loam-theme.json": "./dist/loam-theme.json",
-		"./contract.json": "./dist/contract.json"
+		"./contract.json": "./dist/contract.json",
+		"./loam-fonts.css": "./fonts/loam-fonts.css"
 	},
 	"scripts": {
 		"build": "tsc && node scripts/theme.mjs build",

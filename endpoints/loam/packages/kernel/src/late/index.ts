@@ -25,7 +25,7 @@ import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type {
 	AppSummaryV2,
 	AppsLoadV2,
-	KernelEventV3,
+	KernelEventV4,
 	KernelMcpOptions,
 	KernelOptionsV5,
 	KernelPortsV1,
@@ -43,7 +43,7 @@ import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
-import { canOpen, setMain } from './main-state.js';
+import { archivedRefusal, canOpen, setMain } from './main-state.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { isOwner } from './owners.js';
@@ -53,8 +53,9 @@ import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
-import { createScopeCommands } from './scope-commands.js';
+import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
+import type { Settings } from './settings.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
 
@@ -220,7 +221,7 @@ export interface LateParts {
 			commands: readonly ZodCommandDefinition[];
 			middleware: readonly CommandMiddleware[];
 		},
-		listeners: ReadonlySet<(event: KernelEventV3) => void>
+		listeners: ReadonlySet<(event: KernelEventV4) => void>
 	): KernelMcpOptions;
 	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
 	reload(): Promise<void>;
@@ -255,6 +256,12 @@ export interface LateParts {
 	settle(run: (name: string, input: unknown) => Promise<{ success: boolean }>): Promise<void>;
 	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
+	/**
+	 * After stage A has hydrated and stage B's commands are in (phase 4 specification, 3.6): an old `loam.appearance`
+	 * record moved into the person's `loam.settings`, journaled as `setting-set` with `migrated: true` through `run`,
+	 * the palette's call past the queue. Never in a replay, whose entries are what ran.
+	 */
+	migrate(run: (name: string, input: unknown) => Promise<CommandResult>): Promise<void>;
 }
 
 /**
@@ -290,10 +297,13 @@ export async function createLateParts(
 			OWNER_COMMANDS,
 			PROVIDER_COMMANDS,
 		},
+		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
+		{ createSettings },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
 		import('./session-settle.js'),
+		import('./settings.js'),
 	]);
 	// The copilot's records and commands, `late-copilot`, beside them (phase 5 specification, 2 and 3.5).
 	const { createCopilotParts } = await import('../copilot/commands.js');
@@ -330,15 +340,20 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
+	/** The kernel's hearing of the adapter (phase 3 specification, 4.4), built below with what it needs. */
+	let sessions: SessionSettle | undefined;
+	/** Phase 4's settings (its section 3), built below once the workspace row's store is. */
+	let settings: Settings | undefined;
+	/** The person the shell is for: the last settle's once there is one, the adapter's until then (4.4, B2). */
+	const shellPerson = (): string | undefined => {
+		const settledFor = sessions?.person();
+		return settledFor === undefined
+			? personKey(sessionActor(deps.auth, deps.clock))
+			: (settledFor ?? undefined);
+	};
 	// Keyed by the person the shell is for, once `session-settle` is built; the adapter's until then (4.4, B2).
 	const quiet =
-		deps.personal &&
-		personalWrites(deps.personal, deps.store, deps.viewState, () => {
-			const settledFor = sessions?.person();
-			return settledFor === undefined
-				? personKey(sessionActor(deps.auth, deps.clock))
-				: (settledFor ?? undefined);
-		});
+		deps.personal && personalWrites(deps.personal, deps.store, deps.viewState, shellPerson);
 	// Agent members (phase 3 specification, 8): the `agent-member` table, which line 4 of the access decision reads
 	// (3.3), and its commands. Boot's own `runBoot` journals the sponsor's read and the suspensions, top-level (4.4).
 	const agentMembers = createAgentMembers({
@@ -373,8 +388,6 @@ export async function createLateParts(
 			new Set(has ? ['sidebar', 'inspector'] : ['sidebar'])
 		);
 	};
-	/** The kernel's hearing of the adapter (phase 3 specification, 4.4), built below with what it needs. */
-	let sessions: SessionSettle | undefined;
 	// Step 3's identity commands (4.6, 5.2); in `local` mode the Mock's capabilities are attached first (4.1).
 	const identityCommands = await createIdentityCommands({
 		auth: deps.auth,
@@ -419,6 +432,8 @@ export async function createLateParts(
 		documents,
 		async settle(name, call) {
 			await editor?.settle(name, call);
+			// The person's settings, and so the appearance the shell paints, follow a change of person (phase 4's 3.6).
+			await settings?.follow();
 			const seen = deps.scope.seen.get(call.traceId as string);
 			if (/^(editor-|document-)/.test(name) || seen?.mainChanged || seen?.scopeChanged)
 				await declare();
@@ -473,6 +488,60 @@ export async function createLateParts(
 	/** Whether the applied projection's host is the desktop, as `shell-info-get` says (phase 6 specification, 10.1). */
 	let desktop = false;
 	const stores = createShellStores(deps.store, deps.scope);
+	const provider = deps.identity?.mode === 'provider';
+	/**
+	 * The deployment's host kind (phase 6 specification, 3.3), decided apart from its apps: a deployment the kernel was
+	 * given names it at once, a version 4 file by its `host` and an older one `static`; with a boot, the projection
+	 * stage B's loader reads names it. Unknown until then, and for good when the loader fails or the boot lists no app.
+	 */
+	let hostKind: 'static' | 'hosted' | 'desktop' | undefined = deps.deployment
+		? ((deps.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host?.kind ??
+			'static')
+		: undefined;
+	/**
+	 * Section 13's hosted `provider` deployment, which refuses shared writes. Fails closed: a `provider` deployment whose
+	 * host is not known yet, or never will be, counts as hosted, since a provider is served by the hosted server (phase
+	 * 6's `DEPLOYMENT_DESKTOP_PROVIDER` and `DEPLOYMENT_PROVIDER_NEEDS_HOST`; the review's B2).
+	 */
+	const hosted = () => provider && (hostKind === undefined || hostKind === 'hosted');
+	settings = createSettings({
+		store: deps.store,
+		scope: deps.scope,
+		apps: deps.apps,
+		state: deps.state,
+		provider,
+		person: shellPerson,
+		// `personalRecordId`'s shape in `provider` mode, held equal to it by a unit; `local` keeps one record (3.6).
+		recordId: (person) => (provider ? `loam.settings~${person ?? 'signed-out'}` : 'loam.settings'),
+		hosted,
+		replaying: () => deps.internals?.replaying === true,
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
+		// `loam.documents.trashDays` written through to the workspace row (A-P2-2), which the trash's expiry reads, in
+		// one batch with the setting's own row.
+		async trashDays(days, context, also) {
+			const row = await stores.workspace();
+			const at = DOCUMENT_KIT.callNow(context);
+			const by = personOf(context);
+			await stores.putWorkspace(
+				row
+					? { ...row, trashDays: days, updatedAt: at, updatedBy: by }
+					: {
+							id: deps.scope.workspace.id,
+							name: deps.scope.workspace.name,
+							generation: applied ? deps.generation() : UNAPPLIED,
+							trashDays: days,
+							organization: null,
+							tenant: null,
+							createdAt: at,
+							updatedAt: at,
+							updatedBy: by,
+						},
+				also
+			);
+		},
+		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
+	});
 	const scoped = createScopeCommands({
 		...deps,
 		stores,
@@ -484,6 +553,7 @@ export async function createLateParts(
 			...boot,
 			...createShellCommands({
 				...deps,
+				writeAppearance: (patch, context) => (settings as Settings).writeAppearance(patch, context),
 				editorOwner: editor.owner,
 				documentRows: rows,
 				desktop: () => desktop,
@@ -525,6 +595,7 @@ export async function createLateParts(
 			...agentMembers.commands,
 			...copilot.commands,
 			...copilot.bootOnly,
+			...settings.commands,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -625,7 +696,9 @@ export async function createLateParts(
 					!HUMAN_COMMANDS.includes(command.name) &&
 					!OWNER_COMMANDS.includes(command.name) &&
 					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
-					command.category !== 'copilot'
+					command.category !== 'copilot' &&
+					// Phase 4 serves none of its commands over MCP (its section 13, Q5).
+					command.category !== 'setting'
 			),
 			middleware: [
 				async (command, _input, context, next) => {
@@ -669,6 +742,14 @@ export async function createLateParts(
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
+		async migrate(run) {
+			try {
+				await (settings as Settings).migrate(run);
+			} catch (cause) {
+				// As the apply: a failure fails the move alone, which the next stage B tries again.
+				reportLate(cause);
+			}
+		},
 		async apply(projection, run, settle) {
 			desktop = projection.host?.kind === 'desktop';
 			// A replay's entries are what ran (10): it reads its own `internals`, so first paint passes nothing.
@@ -734,6 +815,11 @@ export async function createLateParts(
 								deployment: listed,
 								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
 							} as AppsLoadV2);
+				// The projection's host, whatever its apps do next (phase 4 specification, 13).
+				if (loaded && 'deployment' in loaded)
+					hostKind =
+						(loaded.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host
+							?.kind ?? 'static';
 				// A boot with no loader: every app is listed `failed`, never the shell.
 				return loaded ?? { unavailable: 'no apps loader' };
 			} catch (cause) {

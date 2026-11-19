@@ -130,6 +130,12 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'copilot-session-get': { session: 'cps_0000000000000000' },
 	'copilot-provider-list': {},
 	'approval-health-get': {},
+	// Phase 4's step 1: the settings, a person's own appearance, which every caller here may read and a person write.
+	'setting-schema-get': { section: 'loam.appearance' },
+	'setting-list': { section: 'loam.appearance' },
+	'setting-get': { section: 'loam.appearance', key: 'theme' },
+	'setting-set': { section: 'loam.appearance', key: 'theme', value: 'dark', level: 'person' },
+	'setting-reset': { section: 'loam.appearance', key: 'theme', level: 'person' },
 };
 
 /**

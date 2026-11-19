@@ -14,16 +14,16 @@ const styles = css`
         display: grid;
 
         /* The rail is a well, filled to the value; the thumb is the end of the fill, in its colour. */
-        --_selection-fill: var(--color-control-selected-foreground, #244635);
-        --_rail-background: color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent);
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+        --_selection-fill: var(--color-control-selected-foreground, #2c5e4b);
+        --_rail-background: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
+        --_danger-border: var(--color-state-danger-border, transparent);
         --_radius-full: var(--radius-round, 9999px);
         --_thumb-size: calc(var(--_target-size) * 0.5);
         --_track-size: calc(var(--_target-size) * 0.125);
         --_control-block-size: var(--_target-size);
         --_vertical-track-size: calc(var(--_target-size) * 4);
         --_tick-size: 6px;
-        --_tick-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+        --_tick-color: var(--color-border-strong, #6b7d6e);
         --_slider-percent: 50%;
     }
 
@@ -222,7 +222,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
+        color: var(--color-state-danger-foreground, #c42a1a);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -556,6 +556,8 @@ export class VioletSlider extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement | null;
         this.value = input?.value ?? this.value;
         this.$emit("input", { value: this.value });
@@ -791,5 +793,8 @@ if (!customElements.get("violet-slider")) {
         name: "violet-slider",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

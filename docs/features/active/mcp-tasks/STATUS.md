@@ -1,5 +1,7 @@
 # MCP Tasks: status
 
+Epic: [#1553](https://github.com/lushly-dev/afd/issues/1553). File new work for this area as its sub-issue.
+
 Read this before the [proposal](mcp-tasks.proposal.md). Last reconciled 2026-11-13 against
 `main` at `1024546b`, using source and merged history. This audit did not rerun the task suites.
 

@@ -33,9 +33,9 @@ describe("violet-badge", () => {
     it("keeps its status colour with no theme installed", async () => {
         const badge = await renderBadge(`<violet-badge color="danger">Overdue</violet-badge>`);
         expect(getComputedStyle(badge).getPropertyValue("--color-state-danger-text")).toBe("");
-        // The light theme's values are the fallbacks: #B42318 text on #FBE2E2.
-        expect(getComputedStyle(badge).getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#b42318");
-        expect(getComputedStyle(badge).getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#fbe2e2");
+        // The light theme's values are the fallbacks: #C42A1A text on #F7E4DF.
+        expect(getComputedStyle(badge).getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#c42a1a");
+        expect(getComputedStyle(badge).getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#f7e4df");
     });
 
     it("hides the badge from assistive technology when decorative", async () => {

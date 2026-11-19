@@ -343,6 +343,9 @@ export const SUITES = [
 			},
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted' },
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern' },
+			{
+				run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern',
+			},
 			// The script resolves CARGO_TARGET_DIR inside Bash, including on Windows' cmd.exe.
 			{
 				run: 'bash endpoints/umbel/tests/scripts/external-clients.sh',

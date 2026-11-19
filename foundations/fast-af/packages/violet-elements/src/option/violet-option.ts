@@ -14,13 +14,13 @@ const styles = css`
 
     :host {
         display: block;
-        --_surface-hover: var(--color-surface-subtle, #f0efe6);
-        --_surface-active: var(--color-surface-subtle, #f0efe6);
-        --_surface-selected: var(--color-surface-selected, #ddeadf);
-        --_option-mark: var(--color-control-selected-foreground, #244635);
+        --_surface-hover: var(--color-surface-subtle, #e9e5de);
+        --_surface-active: var(--color-surface-subtle, #e9e5de);
+        --_surface-selected: var(--color-surface-selected, #dfeae3);
+        --_option-mark: var(--color-control-selected-foreground, #2c5e4b);
         --_option-mark-size: 0.6875rem;
-        --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 11px));
-        --_type-caption-line: var(--type-caption-xs-line, 14px);
+        --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));
+        --_type-caption-line: var(--type-caption-xs-line, 16px);
         --_option-padding-inline-start: var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5));
         --_option-padding-inline-end: var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5));
     }

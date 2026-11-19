@@ -3,6 +3,11 @@
  * close over (phase 0 specification, 6.1): `loam.layout`, one `loam.layout.<instance>` per app
  * instance, `loam.appearance` and `loam.apps` (phase 1 specification, 4.5).
  *
+ * From phase 4's step 1 the appearance is the person's `loam.appearance` settings section (phase 4 specification,
+ * 3.6): `loam.appearance` stays a view-state id, an alias of its two keys, and its record is the old one, which
+ * `hydrate` reads and stage B moves into `loam.settings`. Stage A paints from the person's own values, over the
+ * old record until it moves, and, signed out in `provider` mode, from `loam.appearance.last`.
+ *
  * Each handler's `set` and `replace` go through the shared validator, so a caller of the registry
  * or of `view-state-set` can bypass nothing. A refusal throws a {@link LoamKernelError}; the
  * guarded `view-state-set` checks first, so it returns the refusal as a result instead.
@@ -89,7 +94,15 @@ export interface ShellState {
 		project: string | undefined,
 		takesProject: (instance: string) => boolean
 	): Promise<string>;
+	/** The appearance the shell paints: the person's own keys, over the old record or, signed out, `.last` (3.6). */
 	appearance(): AppearanceStateV0;
+	/** The person's own `loam.appearance` keys, from their `loam.settings` (phase 4 specification, 3.6). */
+	setOwnAppearance(values: Partial<AppearanceStateV0>): void;
+	/** The profile's `loam.appearance.last`, which a signed-out `provider` page paints with (3.6, R4). */
+	setLastAppearance(values: Partial<AppearanceStateV0> | undefined): void;
+	/** The old `loam.appearance` record `hydrate` read, until stage B moves it (3.6). */
+	legacyAppearance(): Partial<AppearanceStateV0> | undefined;
+	dropLegacyAppearance(): void;
 	/** Resolves once a record registered on first use has been read, so no write lands before it (0b). */
 	whenRead(id: string): Promise<void>;
 	/** Load the persisted records. An invalid record is ignored and its defaults kept. */
@@ -110,9 +123,26 @@ interface LayoutRecord {
 	written?: boolean;
 }
 
-export function registerShellState(viewState: ViewStateRegistry): ShellState {
+export interface ShellStateOptions {
+	/** Whether the page paints `loam.appearance.last` first: signed out in `provider` mode (phase 4 specification, 3.6). */
+	lastFirst?(): boolean;
+}
+
+export function registerShellState(
+	viewState: ViewStateRegistry,
+	options: ShellStateOptions = {}
+): ShellState {
 	const layouts = new Map<string, LayoutRecord>();
-	let appearance = createDefaultAppearance();
+	/** The old `loam.appearance` record, which the alias's handler holds until stage B moves it (3.6). */
+	let appearance: AppearanceStateV0 | undefined;
+	let own: Partial<AppearanceStateV0> = {};
+	let last: Partial<AppearanceStateV0> | undefined;
+	const painted = (): AppearanceStateV0 => ({
+		...createDefaultAppearance(),
+		...appearance,
+		...(options.lastFirst?.() ? last : undefined),
+		...own,
+	});
 	let active: string | null = null;
 	/** Reads in progress, which may overlap: while any is, an invalid record is ignored. */
 	let hydrating = 0;
@@ -158,15 +188,17 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 		declared: new Set(['sidebar']),
 	});
 
+	// The alias reads what the shell paints; a write through the registry itself, as `hydrate`'s, is the old record's.
+	// The commands write the person's settings instead, so nothing writes this record again (3.6).
 	const appearanceHandler: ViewStateHandler<AppearanceStateV0 & Record<string, unknown>> = {
-		get: () => ({ ...appearance }) as AppearanceStateV0 & Record<string, unknown>,
+		get: () => painted() as AppearanceStateV0 & Record<string, unknown>,
 		set(partial) {
-			const checked = validateAppearancePatch(appearance, partial);
+			const checked = validateAppearancePatch(appearance ?? createDefaultAppearance(), partial);
 			if (checked.valid) appearance = checked.state;
 			else if (!hydrating) throw LoamKernelError.fromCommandError(checked.error);
 		},
 		replace(state) {
-			const checked = validateAppearancePatch(appearance, state, true);
+			const checked = validateAppearancePatch(createDefaultAppearance(), state, true);
 			if (!checked.valid) throw LoamKernelError.fromCommandError(checked.error);
 			appearance = checked.state;
 		},
@@ -268,7 +300,17 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			await reading.get(id);
 			return id;
 		},
-		appearance: () => ({ ...appearance }),
+		appearance: painted,
+		setOwnAppearance(values) {
+			own = { ...values };
+		},
+		setLastAppearance(values) {
+			last = values && { ...values };
+		},
+		legacyAppearance: () => appearance && { ...appearance },
+		dropLegacyAppearance() {
+			appearance = undefined;
+		},
 		whenRead: async (id) => reading.get(id),
 		async hydrate() {
 			hydrating++;

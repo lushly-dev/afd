@@ -51,7 +51,7 @@ const styles = css`
         --_carousel-dot-size: 0.625rem;
         /* The surface block has no target sizes; a dot's button is three quarters of a control. */
         --_target-size: var(--violet-target-size, var(--size-target-natural, 32px));
-        --_carousel-dot-active: var(--color-state-success-foreground, #245c36);
+        --_carousel-dot-active: var(--color-state-success-foreground, #2c5e4b);
         --_carousel-dot-idle: color-mix(in srgb, var(--_text-muted) 32%, transparent);
     }
 

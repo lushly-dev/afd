@@ -1,5 +1,7 @@
 # Phase 5 specification: bus, copilot and mounted servers
 
+Epic: [#1544](https://github.com/lushly-dev/afd/issues/1544). File new work for this area as its sub-issue.
+
 | Field | Value |
 | --- | --- |
 | Phase | 5, bus, copilot and mounted servers ([architecture section 9](../../architecture.md#9-phases)) |

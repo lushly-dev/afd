@@ -14,7 +14,7 @@
     },
     {
       "id": "date-picker.events",
-      "text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input. The native input's own input event also reaches host listeners, without detail.",
+      "text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input.",
       "members": [
         "input",
         "change"
