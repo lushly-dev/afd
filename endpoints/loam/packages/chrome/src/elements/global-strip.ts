@@ -1,7 +1,8 @@
 /**
  * @fileoverview `loam-global`: the shell's strips under the title bar (phase 4 specification, 6.1), one line per id the
- * kernel holds, each a polite status. It survives a switch and closes when the kernel says its condition ended; a
- * person never dismisses it. Each strip is a slotted `p` with its tone in `data-tone`.
+ * kernel holds, in one persistent polite live region whose text changes. It survives a switch and closes when the
+ * kernel says its condition ended; a person never dismisses it. Each strip is a slotted `p` with its tone in
+ * `data-tone`. In the lazy `overlays` chunk.
  */
 
 import { css, FASTElement, html } from '@lushly-dev/fast-element';

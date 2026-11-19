@@ -153,6 +153,11 @@ export class ViewHost {
 				return broker.toolsCall(params);
 			case 'resources/read':
 				return broker.resourcesRead(params);
+			case 'dev.loam/overlay-result':
+				// The answer to the view's own question (phase 4 specification, 6.4); the broker refuses another's.
+				if (!broker.overlayResult)
+					throw refusal(-32601, 'Method not found', 'Use a method of the MCP Apps profile');
+				return broker.overlayResult(params);
 			case 'ping':
 				return {};
 			case 'ui/request-display-mode':

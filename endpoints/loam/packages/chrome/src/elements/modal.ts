@@ -3,8 +3,11 @@
  * 6.7), a native `<dialog>` holding an owner line, a title, a body, an app's own element or a prompt's fields, and its
  * answers, as text. In the slot (a modal or a prompt) it opens with `showModal()`, `aria-modal`, and Tab wraps; as a
  * dialog it opens with `show()`, non-modal. Focus starts on the default answer, on cancel when it is `danger`, or on a
- * prompt's first field, and returns to the invoker. Escape cancels. It closes when the kernel's state says so: a press
- * is an event, and the shell runs `overlay-dismiss`, showing what the kernel refused.
+ * prompt's first field, and returns to the invoker; a dialog takes no focus when it opens. Escape cancels. It closes
+ * when the kernel's state says so. Only a person's press on a button it drew, or their Escape, answers it, through the
+ * private `onAnswer` its renderer set, with its own id: no event carries an answer, so nothing else on the page, an
+ * app's element inside it included, answers as the person (step 4's review). What the kernel accepted is told to
+ * `hearAnswers`' listeners, and what it refused shows in place.
  */
 
 import { css, FASTElement, html, observable, ref, Updates } from '@lushly-dev/fast-element';
@@ -17,9 +20,7 @@ import type {
 import { actionButton } from '../apps/action-styles.js';
 import { deepActiveElement } from './events.js';
 import { trapTab } from './focus.js';
-import { type PromptFields, promptFields } from './prompt-fields.js';
-
-export const MODAL_RESULT_EVENT = 'loam-modal-result';
+import type { PromptFields } from './prompt-fields.js';
 
 /** What the shell shows: a modal's, a dialog's or a prompt's input. */
 export type QuestionInput = ModalInputV1 | DialogInputV1 | PromptInputV1;
@@ -31,6 +32,8 @@ export interface QuestionOptions {
 	from?: string;
 	/** An app's own element, mounted for it (6.4). */
 	element?: HTMLElement | null;
+	/** A prompt's fields, built by the `overlays` chunk. */
+	fields?: PromptFields | null;
 }
 
 const template = html<LoamModal>`
@@ -236,7 +239,11 @@ export class LoamModal extends FASTElement {
 	declare buttons: HTMLElement;
 	overlayId = '';
 	kind: QuestionOptions['kind'] = 'modal';
+	/** Set by its renderer alone: a person's answer, with the id of the question shown when they gave it. */
+	onAnswer: (overlayId: string, result: string, value?: unknown) => void = () => {};
 	#fields: PromptFields | null = null;
+	/** A `close` the shell's own `hide()` queued, which reports nothing whenever it arrives (the review's 6). */
+	#closing = false;
 	#opener: Element | null = null;
 
 	constructor() {
@@ -266,9 +273,8 @@ export class LoamModal extends FASTElement {
 		const doc = this.ownerDocument;
 		this.content.replaceChildren();
 		this.#fields = null;
-		if (options.kind === 'prompt') {
-			const prompt = input as PromptInputV1;
-			this.#fields = promptFields(doc, prompt.schema, prompt.value);
+		if (options.kind === 'prompt' && options.fields) {
+			this.#fields = options.fields;
 			this.content.append(this.#fields.element);
 		} else if (options.element) this.content.append(options.element);
 		this.buttons.replaceChildren();
@@ -288,7 +294,10 @@ export class LoamModal extends FASTElement {
 			button.className = ['action', tone, which].filter(Boolean).join(' ');
 			button.textContent = answer.label;
 			button.dataset.answer = answer.id;
-			button.addEventListener('click', () => this.answer(answer.id));
+			// A person's press alone: a script's `click()` is not trusted, and answers nothing.
+			button.addEventListener('click', (event) => {
+				if (event.isTrusted) this.#answer(answer.id);
+			});
 			this.buttons.append(button);
 			if (answer.default) first = button;
 		}
@@ -300,11 +309,17 @@ export class LoamModal extends FASTElement {
 		if (options.kind === 'dialog') {
 			this.dialog.removeAttribute('aria-modal');
 			this.dialog.show();
-		} else {
-			// A modal and a prompt are modal (section 15), whatever an assistive technology makes of `showModal`.
-			this.dialog.setAttribute('aria-modal', 'true');
-			this.dialog.showModal();
+			// A dialog opens beside the work: it takes no focus from it (the review's 10), though `show()` moves focus
+			// in; it goes back to where the person was. A press, or Tab, reaches the dialog.
+			const was = this.#opener;
+			if (was instanceof HTMLElement && was.isConnected && was !== doc.body) {
+				was.focus({ preventScroll: true });
+			}
+			return;
 		}
+		// A modal and a prompt are modal (section 15), whatever an assistive technology makes of `showModal`.
+		this.dialog.setAttribute('aria-modal', 'true');
+		this.dialog.showModal();
 		(this.#fields?.first ?? first)?.focus();
 	}
 
@@ -315,6 +330,7 @@ export class LoamModal extends FASTElement {
 		const inside =
 			this.contains(deepActiveElement(this.ownerDocument)) ||
 			this.shadowRoot?.activeElement != null;
+		this.#closing = true;
 		this.dialog.close();
 		this.content.replaceChildren();
 		const opener = this.#opener;
@@ -334,34 +350,36 @@ export class LoamModal extends FASTElement {
 		this.#fields?.first?.setAttribute('aria-invalid', 'true');
 	}
 
-	answer(result: string): void {
+	#answer(result: string): void {
 		if (this.overlayId === '') return;
 		const value = result !== 'cancel' && this.#fields ? this.#fields.read() : undefined;
-		this.dispatchEvent(
-			new CustomEvent(MODAL_RESULT_EVENT, {
-				detail: { overlayId: this.overlayId, result, ...(value !== undefined ? { value } : {}) },
-				bubbles: true,
-				composed: true,
-			})
-		);
+		this.onAnswer(this.overlayId, result, value);
 	}
 
 	handleCancel(event: Event): void {
 		event.preventDefault();
-		this.answer('cancel');
+		if (event.isTrusted) this.#answer('cancel');
 	}
 
-	/** The browser closed it itself, as Chromium does on a second Escape: the kernel must hear. */
+	/**
+	 * The browser closed it itself, as Chromium does on a second Escape: the kernel must hear. The `close` the shell's own
+	 * `hide()` queued is its own, whenever it arrives, even after the next question took this `<dialog>`, so it never
+	 * cancels that one (the review's 6).
+	 */
 	handleClosed(): void {
-		if (this.overlayId !== '') this.answer('cancel');
+		if (this.#closing) {
+			this.#closing = false;
+			return;
+		}
+		if (this.overlayId !== '' && !this.dialog.open) this.#answer('cancel');
 	}
 
 	handleKeydown(event: KeyboardEvent): boolean {
 		if (this.kind === 'dialog') {
-			// A non-modal dialog has no cancel event of its own: Escape cancels it here.
-			if (event.key === 'Escape' && !event.defaultPrevented) {
+			// A non-modal dialog has no cancel event of its own: a person's Escape cancels it here.
+			if (event.key === 'Escape' && !event.defaultPrevented && event.isTrusted) {
 				event.preventDefault();
-				this.answer('cancel');
+				this.#answer('cancel');
 			}
 			return true;
 		}

@@ -27,10 +27,13 @@ let browser: Browser;
 let site: DeploymentSite;
 beforeAll(async () => {
 	site = await serveDeployment({
+		// The checklist is a view: its editor needs the second origin.
+		sandbox: true,
 		config: deploymentFile(
 			deploymentEntry('hello', await packApp('hello')),
 			deploymentEntry('tally', await packApp('tally')),
-			deploymentEntry('notes', await packApp('notes'))
+			deploymentEntry('notes', await packApp('notes')),
+			deploymentEntry('checklist', await packApp('checklist'))
 		),
 	});
 	browser = await chromium.launch();
@@ -89,21 +92,16 @@ const questions = (page: Page) =>
 			.filter((each) => each.open)
 	);
 
-/** Press a question's button by its label. */
-const press = (page: Page, title: string, label: string) =>
-	page.evaluate(
-		({ title, label }) => {
-			const host = [
-				...(document.querySelector('loam-shell')?.shadowRoot?.querySelectorAll('loam-modal') ?? []),
-			].find((each) => each.shadowRoot?.querySelector('h2')?.textContent?.trim() === title);
-			const button = [...(host?.shadowRoot?.querySelectorAll('.buttons button') ?? [])].find(
-				(each) => each.textContent?.trim() === label
-			) as HTMLButtonElement | undefined;
-			button?.click();
-			return button !== undefined;
-		},
-		{ title, label }
-	);
+/** Press a question's button by its label, as a person does: a script's click() answers nothing. */
+async function press(page: Page, title: string, label: string): Promise<boolean> {
+	const button = page
+		.locator('loam-modal')
+		.filter({ has: page.locator('h2', { hasText: title }) })
+		.locator('.buttons button', { hasText: label });
+	if ((await button.count()) === 0) return false;
+	await button.first().click();
+	return true;
+}
 
 describe('P4-E7: dialogs (6.1 to 6.4)', () => {
 	it("shows an app's dialog non-modal with its line and element, parks it on a switch and restores it", async () => {
@@ -259,15 +257,21 @@ describe('P4-E7: the global strip (6.1)', () => {
 				const titlebar = root?.querySelector('loam-titlebar')?.getBoundingClientRect();
 				const top = global?.getBoundingClientRect().top ?? -1;
 				return {
-					hidden: global?.hidden ?? true,
+					hidden: !line,
 					text: line?.textContent ?? '',
-					role: line?.getAttribute('role') ?? null,
+					role: global?.getAttribute('role') ?? null,
+					live: global?.getAttribute('aria-live') ?? null,
 					below: titlebar ? Math.round(top) >= Math.round(titlebar.bottom) - 1 : false,
 				};
 			});
-		await expect
-			.poll(strip)
-			.toEqual({ hidden: false, text: 'You are offline', role: 'status', below: true });
+		// One persistent polite region whose text changes (the review's 12).
+		await expect.poll(strip).toEqual({
+			hidden: false,
+			text: 'You are offline',
+			role: 'status',
+			live: 'polite',
+			below: true,
+		});
 		await openApp(page, 'hello');
 		expect((await strip()).text).toBe('You are offline');
 		const agent = (await agentCall(page, 'overlay-global-set', {
@@ -278,6 +282,104 @@ describe('P4-E7: the global strip (6.1)', () => {
 		await kernelCall(page, 'overlay-global-set', { id: 'offline' });
 		await surfacesIdle(page);
 		await expect.poll(async () => (await strip()).hidden).toBe(true);
+	});
+});
+
+describe("step 4's trust review (2, 4, 6, 10)", () => {
+	it("answers nothing from a page's event or a script's click: only a person's press on the question's own button", async () => {
+		const { page } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		const opened = await portCall(page, 'hello', 'modal-open', {
+			title: 'Forged?',
+			body: 'Only the person answers.',
+			element: 'x-card',
+		});
+		expect(opened.success).toBe(true);
+		await expect.poll(async () => (await questions(page)).length).toBe(1);
+		await page.evaluate((overlayId) => {
+			const host = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-modal');
+			const card = host?.shadowRoot
+				?.querySelector('.content loam-mount')
+				?.shadowRoot?.querySelector('x-card');
+			// The phase 1 event, from inside the app's own element, and a script's press on the confirm button.
+			card?.dispatchEvent(
+				new CustomEvent('loam-modal-result', {
+					detail: { overlayId, result: 'confirm' },
+					bubbles: true,
+					composed: true,
+				})
+			);
+			(host?.shadowRoot?.querySelector('button.confirm') as HTMLButtonElement | null)?.click();
+		}, opened.data?.overlayId);
+		await surfacesIdle(page);
+		expect((await overlays(page)).map((each) => each.overlayId)).toEqual([opened.data?.overlayId]);
+		// A real press answers.
+		await page.locator('loam-modal button.confirm').click();
+		await expect.poll(() => overlays(page)).toEqual([]);
+	});
+
+	it('cancels nothing of the next question when one closes and the next opens at once on the same <dialog>', async () => {
+		const { page } = await openShell(browser, site.origin);
+		const first = (await kernelCall(page, 'modal-open', {
+			title: 'First',
+			body: 'One.',
+		})) as Result;
+		await expect
+			.poll(async () => (await questions(page)).map((each) => each.title))
+			.toEqual(['First']);
+		await page.evaluate(async (overlayId) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input: unknown): Promise<unknown> };
+			};
+			await shell.kernel.call('overlay-dismiss', { overlayId });
+			await shell.kernel.call('modal-open', { title: 'Second', body: 'Two.' });
+		}, first.data?.overlayId);
+		await surfacesIdle(page);
+		await page.waitForTimeout(200);
+		await expect
+			.poll(async () => (await questions(page)).map((each) => each.title))
+			.toEqual(['Second']);
+		expect((await overlays(page)).map((each) => each.kind)).toEqual(['modal']);
+	});
+
+	it("keeps focus where it is when a dialog opens, and follows the active tab's owner between two apps' documents", async () => {
+		const { page } = await openShell(browser, site.origin);
+		const note = await createNote(page, 'Note');
+		const list = (await kernelCall(page, 'document-create', {
+			type: 'checklist',
+			title: 'List',
+		})) as {
+			data?: { id: string };
+		};
+		await open(page, note);
+		await page.locator('loam-editor-frame textarea').first().focus();
+		const before = await focused(page);
+		const dialog = await portCall(page, 'notes', 'dialog-open', { title: 'Notes says' });
+		expect(dialog.success).toBe(true);
+		await expect
+			.poll(async () => (await questions(page)).map((each) => each.title))
+			.toEqual(['Notes says']);
+		expect((await focused(page)).tag).toBe(before.tag);
+		// The checklist's tab takes over: the notes dialog parks, and hides with no app switch.
+		await open(page, list.data?.id as string);
+		await expect.poll(async () => (await questions(page)).map((each) => each.title)).toEqual([]);
+		expect((await overlays(page)).map((each) => each.state)).toEqual(['parked']);
+		await open(page, note);
+		await expect
+			.poll(async () => (await questions(page)).map((each) => each.title))
+			.toEqual(['Notes says']);
+		// A prompt cancelled by its own Escape leaves the page usable, not inert.
+		await kernelCall(page, 'prompt-open', { title: 'Quick?' });
+		await expect.poll(async () => (await questions(page)).some((each) => each.modal)).toBe(true);
+		await page.keyboard.press('Escape');
+		await expect
+			.poll(async () => (await overlays(page)).filter((each) => each.kind === 'prompt'))
+			.toEqual([]);
+		expect(
+			await page.evaluate(
+				() => document.querySelector('loam-shell')?.shadowRoot?.querySelector('[inert]') == null
+			)
+		).toBe(true);
 	});
 });
 

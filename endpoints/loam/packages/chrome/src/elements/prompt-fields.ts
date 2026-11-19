@@ -32,6 +32,14 @@ function control(
 	let read: () => unknown;
 	if (field.enum) {
 		const select = doc.createElement('select');
+		// No starting value picks no choice (the review's 13): an empty first option, which reads as none.
+		if (!field.enum.includes(value as string | number)) {
+			const none = doc.createElement('option');
+			none.value = '';
+			none.textContent = 'Choose';
+			none.selected = true;
+			select.append(none);
+		}
 		for (const [index, choice] of field.enum.entries()) {
 			const option = doc.createElement('option');
 			option.value = String(index);
@@ -40,7 +48,7 @@ function control(
 			select.append(option);
 		}
 		input = select;
-		read = () => field.enum?.[Number(select.value)];
+		read = () => (select.value === '' ? undefined : field.enum?.[Number(select.value)]);
 	} else if (field.type === 'boolean') {
 		const box = doc.createElement('input');
 		box.type = 'checkbox';
@@ -111,7 +119,12 @@ export function promptFields(
 			const out: Record<string, unknown> = {};
 			for (const [key, read] of reads) {
 				const got = read();
-				if (got !== undefined && got !== '') out[key] = got;
+				// Exactly what was entered (the review's 8): a cleared field is left out, so a required one fails; an
+				// empty text is kept where the schema takes one, and left out of an optional field that cannot.
+				const field = schema.properties[key] as PromptFieldV1;
+				const emptyRefused =
+					got === '' && (field.minLength ?? 0) > 0 && !schema.required?.includes(key);
+				if (got !== undefined && !emptyRefused) out[key] = got;
 			}
 			return out;
 		},

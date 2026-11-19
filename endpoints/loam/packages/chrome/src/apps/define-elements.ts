@@ -1,6 +1,5 @@
 /** @fileoverview Registering what the chrome defines for apps, globally under `loam-` (5.4). */
 
-import { globalDefinition, LoamGlobal } from '../elements/global-strip.js';
 import { LoamList, listDefinition } from '../elements/list.js';
 import { LoamModal, modalDefinition } from '../elements/modal.js';
 import { LoamMount } from '../elements/mount.js';
@@ -24,7 +23,6 @@ export const APP_ELEMENTS: readonly string[] = Object.freeze([
 	toastRegionDefinition.name,
 	toastDefinition.name,
 	modalDefinition.name,
-	globalDefinition.name,
 ]);
 
 let defined: Promise<void> | null = null;
@@ -43,7 +41,6 @@ export function defineAppElements(): Promise<void> {
 			[LoamToastRegion, toastRegionDefinition],
 			[LoamToast, toastDefinition],
 			[LoamModal, modalDefinition],
-			[LoamGlobal, globalDefinition],
 		] as const) {
 			if (customElements.get(definition.name)) continue;
 			// biome-ignore lint/suspicious/noExplicitAny: each definition matches its own element type
