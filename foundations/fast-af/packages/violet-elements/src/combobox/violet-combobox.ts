@@ -514,6 +514,8 @@ export class VioletCombobox extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
         this.open = true;

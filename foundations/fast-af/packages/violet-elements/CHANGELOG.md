@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make form control hosts dependable without shadow-root workarounds (#1385): one `input` event per edit, the element's own; host `focus()` reaching the control in eight controls that ignored it; `violet-checkbox` described by its supporting text and the host's `aria-describedby`; and `violet-data-grid` columns keeping their own widths with `selection-mode="none"`, with keyboard resize stepping from the column's own width.
+
 - Fix active option rows to read the contract color.surface.subtle token in every theme (#659).
 
 - Protect closed dialog Tab order and pointer exclusion with browser regressions, including modal and non-modal transitions and focus restoration (#511).

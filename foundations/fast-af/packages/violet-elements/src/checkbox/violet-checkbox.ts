@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -252,7 +252,7 @@ const template = html<VioletCheckbox>`
             <span class="label" part="label" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
             </span>
-            <span class="supporting" part="supporting-text" ?hidden="${x => !x.hasSupporting}">
+            <span class="supporting" part="supporting-text" id="supporting-text" ?hidden="${x => !x.hasSupporting}">
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
         </span>
@@ -277,6 +277,9 @@ export class VioletCheckbox extends FASTElement {
     public static readonly formAssociated = true;
 
     readonly #internals: ElementInternals;
+    readonly #describedByObserver = new MutationObserver(() => this.#syncDescribedBy());
+    // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
+    readonly #handleFocusIn = (): void => this.#syncDescribedBy();
     #defaultChecked: boolean;
     #defaultIndeterminate: boolean;
 
@@ -363,6 +366,16 @@ export class VioletCheckbox extends FASTElement {
         this.#syncSupportingState();
         this.#syncControlState();
         this.#syncFormState();
+        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
+        this.addEventListener("focusin", this.#handleFocusIn);
+        // Targets rendered in the same update as the checkbox exist once that update has landed.
+        Updates.enqueue(() => this.#syncDescribedBy());
+    }
+
+    public disconnectedCallback(): void {
+        super.disconnectedCallback();
+        this.#describedByObserver.disconnect();
+        this.removeEventListener("focusin", this.#handleFocusIn);
     }
 
     public handleChange(event: Event): void {
@@ -378,6 +391,7 @@ export class VioletCheckbox extends FASTElement {
 
     public handleSupportingSlotChange(): void {
         this.#syncSupportingState();
+        this.#syncDescribedBy();
     }
 
     public formStateRestoreCallback(state: File | string | FormData | null): void {
@@ -510,6 +524,48 @@ export class VioletCheckbox extends FASTElement {
             control.setAttribute("aria-label", ariaLabel);
         } else {
             control.removeAttribute("aria-label");
+        }
+
+        this.#syncDescribedBy();
+    }
+
+    /**
+     * Describes the input by the host's `aria-describedby` targets and the slotted supporting text.
+     * Host IDREFs cannot cross the shadow boundary, so they are resolved in the host's root node and
+     * assigned through element reflection (`ariaDescribedByElements`). Without element reflection only
+     * the supporting text is linked, by an IDREF inside the shadow root.
+     */
+    #syncDescribedBy(): void {
+        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (!control) {
+            return;
+        }
+
+        const targets: Element[] = [];
+        const root = this.getRootNode() as Document | ShadowRoot;
+        for (const id of (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) {
+            const target = root.getElementById?.(id) ?? null;
+            if (target && !targets.includes(target)) {
+                targets.push(target);
+            }
+        }
+
+        const supporting = this.hasSupporting ? (this.shadowRoot?.getElementById("supporting-text") ?? null) : null;
+        if (supporting) {
+            targets.push(supporting);
+        }
+
+        const hasElementReflection: boolean = "ariaDescribedByElements" in control;
+        if (hasElementReflection) {
+            control.removeAttribute("aria-describedby");
+            control.ariaDescribedByElements = targets.length ? targets : null;
+            return;
+        }
+
+        if (supporting) {
+            control.setAttribute("aria-describedby", "supporting-text");
+        } else {
+            control.removeAttribute("aria-describedby");
         }
     }
 

@@ -157,8 +157,8 @@ export class VioletSegment extends FASTElement {
         this.ariaDisabled = disabled ? "true" : null;
     }
 
-    public focusButton(): void {
-        this.buttonElement?.focus();
+    public focusButton(options?: FocusOptions): void {
+        this.buttonElement?.focus(options);
     }
 
     public handleClick(): void {

@@ -328,6 +328,8 @@ export class VioletTimePicker extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement | null;
         this.value = input?.value ?? "";
         this.#syncFormState();
@@ -433,5 +435,8 @@ if (!customElements.get("violet-time-picker")) {
         name: "violet-time-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

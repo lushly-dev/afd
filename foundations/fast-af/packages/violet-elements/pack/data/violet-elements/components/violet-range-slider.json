@@ -313,6 +313,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
+		"event.input-once",
 		"field.supporting-text",
 		"form.invalid",
 		"import.root",
@@ -351,7 +352,7 @@
 		{
 			"basis": "authored",
 			"id": "range-slider.events",
-			"text": "input and change are CustomEvents with detail { valueStart, valueEnd }, not detail.value. The inner range's native input event also reaches host listeners, without detail; skip events that have none."
+			"text": "input and change are CustomEvents with detail { valueStart, valueEnd }, not detail.value."
 		},
 		{
 			"basis": "authored",
