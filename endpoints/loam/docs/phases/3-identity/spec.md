@@ -463,6 +463,7 @@ So **an agent never has more access than the person it acts for, and an agent me
 
 - **Why human commands are human.** D40 says an agent member "cannot … administer"; this specification reads it for every agent, a person's own included. A persona is the person's lens, and the proposal says "the switch is explicit and visible", so an agent does not switch or edit it; `account-update` changes how a person is shown to others; credentials, sessions, invitations and connected agents are a person's own keys. An agent may read the person's account and personas, and nothing more of these.
 - **Not served over MCP** means left out of `mcpOptions().commands`, as `PERSON_SESSION` is: `COMMAND_NOT_FOUND`. `HUMAN_COMMANDS` (this table's second and third rows) and `OWNER_COMMANDS` (its fourth) are frozen lists in `late-identity`. The fifth row's commands stay served, and an agent's `project-create` of a listed slug, and any agent's `project-create` or `project-update` whose input has `access`, is `HUMAN_REQUIRED` in the handler, so no answer to Q2 can let an agent change who is in a project.
+- **Phase 4 adds to these lists, by its A-P3-1 (its step 1):** `notification-act` and `palette-run` join `HUMAN_COMMANDS` whole, named before the phase 4 steps that build them; `setting-set` and `setting-reset` (and later `autonomy-set`, `experiment-*` and `limit-usage-get`) refuse a non-human caller in their own handlers, as `project-update { access }` does here, each with its own hand-off `details`; and the membership re-read of 7.6 decides by `needsMembershipRead(command, input)`. None of phase 4's commands is served over MCP.
 - **The ports** are unchanged: none of these is in `APP_CALLABLE_SHELL_COMMANDS_V1` or a grant's list. **Apps receive the actor and the scope, never credentials** (principle 7).
 - **Replay never reaches the provider, and re-runs what writes Loam's store.** A command whose whole effect is at the provider (`account-*`, `session-list`, `session-revoke`, `member-*`) is in the kernel's recorded table, as `app-instance-refresh` is (phase 2's 10): a replay answers it from its entry, and one with no entry stops as `REPLAY_NOT_RECORDED`. **A command that writes Loam's store is never recorded,** owner commands included (`agent-member-*` on installed agent members, `workspace-app-set`, `project-*`, `persona-*`): a replay re-runs it, so its writes replay. `agent-member-remove` on a connected agent writes the provider's database, so it is recorded; it is "connected" when `agent` is not in the kernel's `agent-member` table, and the `REPLAY_NOT_RECORDED` decision reads that table, the kernel's own list, never the entry (as `late/scope-change.ts:248-253` reads the kernel's own table for mounted commands). Their owner check and line 0 read membership from the replay's journaled membership (4.4). The replay's Mock is driven by the recorded `auth-sign-in`, `auth-sign-out` and `session-settle` entries.
 - **Every new command** joins `kernel/src/scope/call-scope.test.ts`'s table, through a person, an agent and two surface ports, on twin workspaces.
@@ -561,6 +562,8 @@ export interface AuthAdapter {
 ### 4.5 A person's records per actor
 
 In `provider` mode, several people may share a browser profile. So in `provider` mode, `loam.scope`, `loam.apps`, `loam.editor[@<project>]`, `loam.layout.<owner>[@<project>]` take the suffix `~<person>`, and `loam.persona~<person>` does in both modes, through one function, `personalRecordId(id, person)`, beside `storeRecordId`. Signed out, the key is `~signed-out`, holding defaults only, cleared at each sign-out. `local` mode keeps phase 2's ids for the rest, so nothing migrates.
+
+**Appearance, from phase 4's step 1 (its 3.6, A-P3-2):** in `provider` mode appearance is per person, in the person's settings record `loam.settings~<person>`; the profile keeps only `loam.appearance.last`, the last signed-in person's theme and density, which stage A and the signed-out page paint with. The `~signed-out` record holds nothing of appearance. `loam.appearance` itself stays a view-state id, an alias of the two keys.
 
 On a change of person, `session-settle` discards nothing: the editor area holds the leaving person's unsaved drafts in memory, keyed by person, and restores them if that person signs in again in the same page; a held draft makes `beforeunload` ask. **No action of another person loses a draft.**
 
@@ -745,7 +748,7 @@ export interface PersonaV1 {
 	};
 	emphasis: {
 		apps?: string[];           // up to 12 instance ids, first in their band, marked emphasized
-		sections?: ('projects' | 'documents' | 'account')[];   // first in the palette's sections
+		sections?: ('projects' | 'documents' | 'account' | 'settings' | 'inbox')[];   // first in the palette's sections; `settings` and `inbox` from phase 4's step 1 (A-P3-1)
 	};
 	createdAt: number; updatedAt: number; updatedBy: string;
 }
@@ -839,7 +842,7 @@ Better Auth serves its organization endpoints on the same origin, so a person ca
 
 ### 7.6 Freshness
 
-- **In a browser,** `MembershipV1` is read by the probe, on `session-settle`, on 4.3's refresh (focus, `online`, every 60 seconds while visible), and **again before every command in `OWNER_COMMANDS`, every `project-create`, and every `project-update` carrying `access`**, from `whoami`.
+- **In a browser,** `MembershipV1` is read by the probe, on `session-settle`, on 4.3's refresh (focus, `online`, every 60 seconds while visible), and **again before every command in `OWNER_COMMANDS`, every `project-create`, and every `project-update` carrying `access`**, from `whoami`. From phase 4's step 1 (A-P3-1) the kernel decides this by `needsMembershipRead(command, input)`, which adds every `setting-set` and `setting-reset` of a workspace value (`level: 'workspace'`), an owner's write.
 - **On the server,** the MCP chain, the trust-record transport and the relay read the member row for `(boundId, person)` **on every request**, with no cache: one indexed read in the provider's database.
 
 ## 8. Agent members (D90)

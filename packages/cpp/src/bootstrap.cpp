@@ -142,6 +142,11 @@ CommandResult afd_help(const CommandRegistry& registry, const Json& input,
             }
         }
         Json info = help_entry(definition, full);
+        if (context.first_class_tools &&
+            std::find(context.first_class_tools->begin(), context.first_class_tools->end(),
+                      definition.name) != context.first_class_tools->end()) {
+            info["firstClass"] = true;
+        }
         const std::string category = definition.category && !definition.category->empty()
                                          ? *definition.category
                                          : "uncategorized";
@@ -157,6 +162,9 @@ CommandResult afd_help(const CommandRegistry& registry, const Json& input,
                 {"groupedByCategory", std::move(grouped)}};
     if (context.tool_strategy) {
         output["toolStrategy"] = *context.tool_strategy;
+    }
+    if (context.first_class_tools) {
+        output["firstClassTools"] = *context.first_class_tools;
     }
     if (!registry.context_fields().empty()) {
         Json fields = Json::array();

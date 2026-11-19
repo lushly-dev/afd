@@ -586,6 +586,45 @@ def test_a_branch_that_sets_an_nvmrc_alias_is_ejected_with_the_way_forward(lane)
     assert not lane.state()["lane"].get("paused")
 
 
+def test_a_branch_that_deletes_nvmrc_is_ejected_not_run_on_the_host_s_node(lane):
+    """#1505: no .nvmrc in its slot would validate it on the host's default Node."""
+    lane.change_world(
+        slotFiles={".nvmrc": "26\n"},
+        nodes={"26": NODE_26},
+        branchSlotFiles={"feat/export-csv": {".nvmrc": None}},
+        outcomes={"changed": {"feat/export-csv": [".nvmrc", "src/export.ts"]}},
+    )
+    actions = run_steps(lane, **INSTALL)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    assert "validating fix/retry-backoff in slot 1" in actions
+    assert not lane.state()["lane"].get("paused")
+    ejected = events(lane, "ejected")[0]
+    assert ejected["reason"] == "node-missing" and not ejected.get("excused")
+    assert ejected["detail"].startswith("NODE_MISSING: the branch deletes .nvmrc")
+    assert "pins its Node" in ejected["detail"] and "keep the base's .nvmrc" in ejected["detail"]
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert [s["path"] for s in job["steps"]] == [[NODE_26]] * 2  # Main's Node for the next.
+
+
+def test_a_branch_that_blanks_nvmrc_is_ejected_and_told_to_pin_a_version(lane):
+    lane.change_world(
+        slotFiles={".nvmrc": "26\n"},
+        nodes={"26": NODE_26},
+        branchSlotFiles={"feat/export-csv": {".nvmrc": " \n"}},
+        outcomes={"changed": {"feat/export-csv": [".nvmrc", "src/export.ts"]}},
+    )
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (node-missing)" in actions
+    detail = events(lane, "ejected")[0]["detail"]
+    assert detail.startswith("NODE_MISSING: the branch leaves .nvmrc blank")
+    assert "pin a version number" in detail and "deletes" not in detail
+
+
+def test_without_nvmrc_in_base_or_branch_a_branch_validates_as_before(lane):
+    lane.change_world(outcomes={"changed": {"feat/export-csv": ["src/export.ts"]}})
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+
+
 def test_a_branch_whose_nvmrc_node_is_installed_validates_on_it(lane):
     _bumps_nvmrc(lane, "27")
     lane.change_world(nodes={"27": "/fnm/v27.0.0/bin"})

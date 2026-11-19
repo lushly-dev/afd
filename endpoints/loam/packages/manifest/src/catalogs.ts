@@ -237,7 +237,8 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 
 /**
  * The grants this build serves: phase 1's, and `projects` from phase 2's step 4 (phase 2 specification,
- * 5), and `documents` from step 9 (documents specification, 11). A step that serves a grant adds it here.
+ * 5), `documents` from step 9 (documents specification, 11), and `settings` from phase 4's step 1 (phase 4
+ * specification, 3.8). A step that serves a grant adds it here.
  */
 export const SERVED_GRANTS_V2: readonly string[] = [
 	'store',
@@ -245,6 +246,7 @@ export const SERVED_GRANTS_V2: readonly string[] = [
 	'random',
 	'projects',
 	'documents',
+	'settings',
 ];
 
 /** The chords the shell keeps, as `SHELL_KEYBINDINGS_V0` does; the kernel's test holds them equal. */

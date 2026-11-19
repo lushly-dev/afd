@@ -15,6 +15,7 @@ import {
 	type LoamClientV1,
 	projectsOver,
 	type ScopeV1,
+	settingsOver,
 } from './index.js';
 import { createPeer, RpcAborted, RpcFailure, type RpcPeer } from './rpc.js';
 
@@ -32,6 +33,11 @@ export interface ViewHostContextV1 {
 	'dev.loam/scope'?: { workspace: string; project?: string };
 	'dev.loam/route'?: string;
 	'dev.loam/selectionLevel'?: 'workspace' | 'project';
+	/**
+	 * With the `settings` grant: this app's own sections that changed, by full id, in `host-context-changed`
+	 * (phase 4 specification, 3.8). Read them again with `setting-get` or `setting-list`.
+	 */
+	'dev.loam/settingsChanged'?: string[];
 	/** A document's editor or embed: the document it renders, and a new title (documents specification, 5.6). */
 	'dev.loam/document'?: DocumentRefV1;
 }
@@ -317,6 +323,7 @@ function callContext(peer: RpcPeer, { callId, context }: HandlerCallParams): App
 		client,
 		scope: scope ?? { workspace: '' },
 		...(granted.has('projects') ? { projects: projectsOver(client, scope?.project) } : {}),
+		...(granted.has('settings') ? { settings: settingsOver(client) } : {}),
 		...(granted.has('clock') && now !== undefined ? { now: () => now } : {}),
 		...(granted.has('random') && randomSeed !== undefined
 			? { random: mulberry32(randomSeed) }

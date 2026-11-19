@@ -1,7 +1,7 @@
 /**
- * @fileoverview Kernel interface version 5 (phase 5 specification, 3.2), version 3 (phase 3 specification, 12), and versions 2 (phase 2
- * specification, 11.1), 1 (phase 1 specification, 9.1) and 0 (phase 0 specification, 6.2), which it
- * extends: the only surface the chrome binds to.
+ * @fileoverview Kernel interface version 5 (phase 5 specification, 3.2), version 4 (phase 4 specification, 12), version 3
+ * (phase 3 specification, 12), and versions 2 (phase 2 specification, 11.1), 1 (phase 1 specification, 9.1) and 0
+ * (phase 0 specification, 6.2), which it extends: the only surface the chrome binds to.
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
@@ -52,8 +52,8 @@ export type {
 export type { IdentityV1, ScopeV1 };
 
 /**
- * Version 5 is phase 5's. Version 4 is phase 4's step 1 (settings), which has not landed: it adds its fields under
- * its own number when it does, and the shell reports the highest version it implements.
+ * Version 5 is phase 5's. Version 4 is phase 4's, from its step 1 (settings), which landed after version 5: it adds
+ * its fields under its own number, version 5 extends them, and the shell reports the highest version it implements.
  */
 export const KERNEL_INTERFACE_VERSION = 5;
 
@@ -608,15 +608,56 @@ export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
 	identity: { mode: IdentityV1['mode']; organization: string | null };
 }
 
+// ─── Version 4 ──────────────────────────────────────────────────────────────────
+
+/**
+ * What an app may call besides its own commands from kernel interface 4 (phase 4 specification, 12): version 1's,
+ * and `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant. The port reads the
+ * grant (`late/port-callable.ts`); the later steps of phase 4 add `popover-open`, `dialog-open`, `prompt-open`,
+ * `experiment-check`, `notification-push`, `confirmation-get` and `confirmation-withdraw` here with their commands.
+ */
+export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
+	...APP_CALLABLE_SHELL_COMMANDS_V1,
+	'setting-get',
+	'setting-list',
+] as const;
+
+/**
+ * Kernel interface version 4 (phase 4 specification, 12), step 1: settings. An event names the settings sections a
+ * call changed, so the chrome re-reads what follows them, appearance among them, and tells a native surface or a
+ * view whose section changed (3.8).
+ */
+export interface LoamKernelV4
+	extends Omit<LoamKernelV3, 'version' | 'agent' | 'call' | 'subscribe'> {
+	readonly version: 4;
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: CallOptionsV3
+	): Promise<CommandResult<T>>;
+	subscribe(listener: (event: KernelEventV4) => void): () => void;
+	readonly agent: Pick<LoamKernelV4, 'call' | 'listCommands'>;
+}
+
+export interface KernelEventV4 extends KernelEventV3 {
+	/** The settings sections whose values this call changed, by full id (3.8). */
+	settings?: string[];
+}
+
+/** What `shell-info-get` returns from version 4. */
+export interface ShellInfoV4 extends Omit<ShellInfoV3, 'kernelInterface'> {
+	kernelInterface: 4;
+}
+
 // ─── Version 5 ──────────────────────────────────────────────────────────────────
 
 /**
  * Kernel interface version 5 (phase 5 specification, 3.2): the copilot. A call's options may carry the copilot's
  * trace, which the kernel reads only from the options object it gave the agent port's half; `copilot` joins the
  * reserved agent names; and `copilotSession`, `turn` and `trace` are declared context fields, journaled, copied to every
- * call made while a copilot call runs.
+ * call made while a copilot call runs. It extends version 4's settings.
  */
-export interface LoamKernelV5 extends Omit<LoamKernelV3, 'version' | 'agent' | 'call'> {
+export interface LoamKernelV5 extends Omit<LoamKernelV4, 'version' | 'agent' | 'call'> {
 	readonly version: 5;
 	call<T = unknown>(
 		name: string,
@@ -640,6 +681,6 @@ export interface KernelOptionsV5 extends KernelOptionsV3 {
 }
 
 /** What `shell-info-get` returns from version 5. */
-export interface ShellInfoV5 extends Omit<ShellInfoV3, 'kernelInterface'> {
+export interface ShellInfoV5 extends Omit<ShellInfoV4, 'kernelInterface'> {
 	kernelInterface: 5;
 }

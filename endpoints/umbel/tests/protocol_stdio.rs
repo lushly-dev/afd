@@ -13,7 +13,7 @@ use umbel::HostBuilder;
 
 const ERAS: [Era; 2] = [Era::Modern, Era::Legacy];
 
-// server_hybrid.rs: the_lists_and_ttls_match_the_shared_cases
+// tool_strategies_vectors.rs: the_lists_and_ttls_match_the_shared_cases
 #[tokio::test]
 async fn both_eras_list_the_meta_tools_then_the_first_class_tools() {
     let dir = minimal();
@@ -59,7 +59,7 @@ async fn the_legacy_initialize_names_umbel() {
     );
 }
 
-// server_hybrid.rs: the_calls_match_the_shared_cases
+// tool_strategies_vectors.rs: the_calls_match_the_shared_cases
 #[tokio::test]
 async fn workspace_show_runs_in_both_eras_with_structured_content() {
     let dir = workspace("config_version = 1\nname = \"stdio-team\"\n");

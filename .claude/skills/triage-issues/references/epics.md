@@ -25,8 +25,7 @@ never set.
 
 - **Type `Epic`**, the organization's issue type, which is what tools query:
   `gh issue create --type Epic`, or `gh issue edit <n> --type Epic`. A title
-  prefix alone is not an epic. Where the organization has no `Epic` type yet, create
-  the issue without `--type` and set it once the type exists.
+  prefix alone is not an epic; set the type on one that lacks it.
 - **Title** `Epic: <name>, <the outcome in a clause>`. Lushly's epics use
   `epic(<area>): <outcome>`, its own convention; tools match either.
 - **Body:** the outcome in a sentence, the plan or `STATUS.md` as a full

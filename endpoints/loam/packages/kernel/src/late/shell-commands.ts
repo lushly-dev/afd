@@ -92,6 +92,11 @@ export interface ShellCommandDeps {
 	instanceCommands?(instance: string): ReadonlySet<string>;
 	/** The palette's document rows, filtered for the actor at query time (8.2). */
 	documentRows?: DocumentRows;
+	/**
+	 * The appearance's write from phase 4's step 1 (phase 4 specification, 3.6): the person's own `loam.appearance`
+	 * settings, or `.last` signed out in `provider` mode. `appearance-set` and the `loam.appearance` alias write here.
+	 */
+	writeAppearance?(patch: Partial<AppearanceStateV0>, context: CommandContext): Promise<void>;
 }
 
 /** The project a view-state id holds after `@`, as `loam.layout.hello@prj_atlas` does (3.4). */
@@ -286,8 +291,31 @@ function guardViewStateSet(
 					if (undeclared) return partUndeclared(undeclared);
 				}
 			} else if (id === APPEARANCE_VIEW_STATE_ID) {
-				const checked = validateAppearancePatch(deps.state.appearance(), state, replace === true);
+				const previous = deps.state.appearance();
+				const checked = validateAppearancePatch(previous, state, replace === true);
 				if (!checked.valid) return failure(checked.error);
+				// An alias of the person's two appearance keys (phase 4 specification, 3.6): written as `appearance-set`
+				// writes them, never to the old record, and answered as the registry answers.
+				if (deps.writeAppearance) {
+					// A merge writes the keys it names; a replacement both.
+					const written = replace
+						? checked.state
+						: (Object.fromEntries(
+								Object.keys(state)
+									.filter((key) => state[key] !== undefined)
+									.map((key) => [key, checked.state[key as keyof AppearanceStateV0]])
+							) as Partial<AppearanceStateV0>);
+					await deps.writeAppearance(written, context);
+					return success(
+						{ id, state: { ...deps.state.appearance() }, previous: { ...previous } },
+						{
+							reasoning: `Updated view state for "${id}"`,
+							confidence: 1.0,
+							undoCommand: 'view-state-set',
+							undoArgs: { id, state: { ...previous }, replace: true },
+						}
+					);
+				}
 			}
 			const result = await original({ ...(input as object), id: recordId }, context);
 			return result.success ? { ...result, data: { ...(result.data as object), id } } : result;
@@ -406,11 +434,19 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			},
 			additionalProperties: false,
 		},
-		async handler(input) {
+		async handler(input, context) {
 			const previous = state.appearance();
 			const checked = validateAppearancePatch(previous, input);
 			if (!checked.valid) return failure(checked.error);
-			viewState.set(APPEARANCE_VIEW_STATE_ID, input as Record<string, unknown>);
+			// The person's own `loam.appearance` keys from phase 4's step 1 (phase 4 specification, 3.6).
+			if (deps.writeAppearance) {
+				await deps.writeAppearance(
+					Object.fromEntries(
+						Object.entries(input).filter(([, value]) => value !== undefined)
+					) as Partial<AppearanceStateV0>,
+					context
+				);
+			} else viewState.set(APPEARANCE_VIEW_STATE_ID, input as Record<string, unknown>);
 			const undoArgs = Object.fromEntries(
 				Object.keys(input).map((key) => [key, previous[key as keyof AppearanceStateV0]])
 			);

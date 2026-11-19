@@ -21,7 +21,7 @@ version is separate from each implementation's own package version.
 - [`tool-strategies.md`](./tool-strategies.md): the MCP tool strategies (`individual`, `grouped`,
   `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
   definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
-  [`tool-strategies.json`](./tool-strategies.json).
+  [`vectors/tool-strategies.json`](./vectors/tool-strategies.json).
 - [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
   `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
   with the cases in [`mcp-resources.json`](./mcp-resources.json).
@@ -71,6 +71,11 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`tool-strategies.json`](./vectors/tool-strategies.json), the hybrid strategy's cases, moves into
+`vectors/` now that C++ serves the strategy and all four languages load it
+([#1202](https://github.com/lushly-dev/afd/issues/1202)). Its content does not change, so the
+version stays.
 
 [`tool-strategies.md`](./tool-strategies.md) makes the individual, grouped and lazy lists normative
 ([#533](https://github.com/lushly-dev/afd/issues/533), decided by the owner on 2026-11-17): every
