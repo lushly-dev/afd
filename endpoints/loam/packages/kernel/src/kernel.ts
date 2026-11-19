@@ -212,13 +212,19 @@ export interface KernelParts {
 /** What only `replayKernel` asks of a kernel. */
 export interface KernelPartsInternals {
 	/**
-	 * A nested call's answer from the journal, in place of running it (7.6). Undefined runs it: a refusal
-	 * before the middleware leaves no entry, and answers the same again. A recorded call (`replay:
-	 * 'recorded'`) that passes validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`,
-	 * before its handler could reach a server, and the outer call is reported diverged (phase 2
-	 * specification, 10 and 12).
+	 * A nested call's answer from the journal, in place of running it (7.6), given the palette's and the agent's
+	 * commands, whose schema for `name` validates `input` as the registry will: the record is matched on the whole
+	 * validated input (#859). Undefined runs it: a refusal before the middleware, as a name neither registry holds or
+	 * an input the schema refuses, leaves no entry, and answers the same again. A recorded call (`replay: 'recorded'`) that passes
+	 * validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`, before its handler could reach a
+	 * server, and the outer call is reported diverged (phase 2 specification, 10 and 12).
 	 */
-	answerNested?(parent: string, name: string, input: unknown): CommandResult | undefined;
+	answerNested?(
+		parent: string,
+		name: string,
+		input: unknown,
+		commands: readonly ZodCommandDefinition[]
+	): CommandResult | undefined;
 	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
 	nestedUnrecorded?(parent: string, name: string): void;
 	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
@@ -392,6 +398,8 @@ export async function createKernelParts(
 		lateParts?.authGate(held) ??
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
+		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
+		...(lateParts ? [lateParts.writeThrough] : []),
 		scopeMiddleware,
 		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
 		...(lateParts ? [lateParts.copilot.gate] : []),
@@ -697,7 +705,7 @@ export async function createKernelParts(
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
 		if (fields.parent !== undefined) {
-			const answered = internals.answerNested?.(fields.parent, name, input);
+			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3

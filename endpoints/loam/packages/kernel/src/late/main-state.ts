@@ -4,13 +4,18 @@
  * the writes are here.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
+import type { CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
 import type { ProjectV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
-import { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from '../shell-state.js';
+import {
+	APPS_VIEW_STATE_ID,
+	type MainStateV2,
+	SCOPE_VIEW_STATE_ID,
+	type ShellState,
+} from '../shell-state.js';
 
 /** Write `loam.apps`: what is not given keeps its value. */
 export function setMain(viewState: ViewStateRegistry, main: Partial<MainStateV2>): void {
@@ -20,6 +25,28 @@ export function setMain(viewState: ViewStateRegistry, main: Partial<MainStateV2>
 /** Write `loam.scope`, the persisted active project's id. */
 export function setScopeProject(viewState: ViewStateRegistry, project: string | null): void {
 	viewState.set(SCOPE_VIEW_STATE_ID, { project });
+}
+
+/**
+ * Inside the journal: a call that changed `loam.apps` or `loam.scope` waits for the store to hold them before its
+ * entry is recorded and its result returned. Their writes are debounced, and a reload does not wait for `pagehide`'s
+ * flush, so one made at once booted from the state before them while the journal held the call, and a replay of it
+ * diverged (#861). Compared by value, so every writer inside the call is covered: the handlers, the apps chunk's
+ * `app-open` and `app-close`, and the scope middleware's own leaving and settling around a change of person, which is
+ * why it sits right inside the journal. The store may then hold a change a moment before the journal holds its entry;
+ * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
+ */
+export function writeThrough(
+	viewState: ViewStateRegistry,
+	state: Pick<ShellState, 'main' | 'scopeProject'>
+): CommandMiddleware {
+	const read = () => JSON.stringify([state.main(), state.scopeProject()]);
+	return async (_name, _input, _context, next) => {
+		const before = read();
+		const result = await next();
+		if (read() !== before) await viewState.flush();
+		return result;
+	};
 }
 
 /**

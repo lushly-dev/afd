@@ -225,6 +225,9 @@ const HOST_IMPORTS =
  *   coordinator 2026-11-10): measured 38,997 bytes on `main` and 39,071 after, with esbuild
  *   0.28.2; `defineCommand` carrying a command's `scopes` adds 31, and the engine's two optional
  *   hooks that look a hidden command up as a missing one add 43. No authorization code is in it.
+ *   Raised to 39,400 by `JournalRange.last` (#663, 2026-11-18): measured 39,099 bytes on `main` at
+ *   `626187de` and 39,315 after, with esbuild 0.28.2; `MemoryJournalSink` reads through
+ *   `selectJournalRange`, which now checks `last` and takes the range's tail.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -235,7 +238,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_100,
+		bytes: 39_400,
 	},
 	{
 		what: 'the same host with the approval middleware',

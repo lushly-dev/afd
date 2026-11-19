@@ -205,16 +205,23 @@ export function parseMountedResult(result: McpToolCallResult, instance: string):
 export const RECORDED_RESULT_MAX_BYTES = 256 * 1024;
 const RECORDED_TEXT_MAX = 2_000;
 
+/**
+ * What the journal keeps of an input the kernel's 256 KiB bound refused: its document's id only when it is one,
+ * 1 to 128 characters; a refused value of any other size is left out too.
+ */
+export function oversizedInput(input: unknown): { document?: string } {
+	const { document } = (input ?? {}) as { document?: unknown };
+	const id = typeof document === 'string' && document.length > 0 && document.length <= 128;
+	return id ? { document } : {};
+}
+
 /** A recorded entry over the bound keeps what a replay and a reader need of it, and no `data`. */
 export function boundRecorded(record: JournalRecord, oversized?: Set<string>): JournalRecord {
 	// A call the kernel's own 256 KiB bound refused, by the mark it set at that check, is journaled with
 	// only its document's id, so a refused save does not itself store what it refused (documents
 	// specification, 4.4). The result is never read for it: an app's own refusal keeps its input.
 	if (record.traceId !== undefined && oversized?.delete(record.traceId)) {
-		// Its id only when it is one, 1 to 128 characters: a refused value of any other size is left out too.
-		const { document } = (record.input ?? {}) as { document?: unknown };
-		const id = typeof document === 'string' && document.length > 0 && document.length <= 128;
-		return { ...record, input: id ? { document } : {} };
+		return { ...record, input: oversizedInput(record.input) };
 	}
 	if (record.context?.replay !== 'recorded') return record;
 	const bytes = lengthOf(record.result);
