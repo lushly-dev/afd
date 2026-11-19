@@ -19,6 +19,13 @@ export const anchorOwnerOf = (overlay: { owner: string; from?: { kind: string } 
 		? { kind: 'app', id: overlay.owner }
 		: { kind: 'shell', id: overlay.owner };
 
+/**
+ * Another surface inside the one searched: an app's mount, a view's frame or an embed, each another owner's or another
+ * origin's, so a search never reaches into it (6.3).
+ */
+export const nestedSurface = (element: Element): boolean =>
+	['loam-mount', 'loam-view-frame', 'loam-embed'].includes(element.localName);
+
 /** Whether `value` names an anchor the kernel took: the pattern `popover-open` validates, so a selector needs no escape. */
 const ANCHOR = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 

@@ -1001,6 +1001,8 @@ These are estimates, under D115.
 | `AUTONOMY_COMMAND_UNKNOWN` | A row naming no registered command or instance | No | List the app's commands with `app-command-list` |
 | `EXPERIMENT_NOT_FOUND` | An unknown, hidden or removed id | No | List with `experiment-list` |
 | `EXPERIMENT_NOT_OWNED` | Checking another app's experiment | No | Check only this app's own |
+| `MANIFEST_TITLE_RESERVED` | A manifest's `plugin.title` says "Loam" as a word (6.6, 12.1) | No | Title the app after what it does, without the shell's name |
+| `DEPLOYMENT_TITLE_RESERVED` | A deployment's instance `title` says "Loam" as a word (6.6; step 3) | No | Title the instance after the app, without the shell's name |
 | `OVERLAY_ANCHOR_NOT_FOUND` | An anchor that cannot be resolved | No | Set `data-loam-anchor` on the invoker |
 | `OVERLAY_ELEMENT_VIEW` | `element` from a view | No | Use text, actions or a prompt |
 | `OVERLAY_LIMIT` | A fourth dialog | No | Close one first |
@@ -1480,6 +1482,15 @@ Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` f
 - **The SDK's `ToastInputV1.link`** is `ToastLinkV1`, what `toast-show` takes: no document `anchor` and no app `route`.
 - **A journal recorded before this step** that holds an agent's toast replays with one named difference, at `toast-show`'s `data.owner` (`shell` then, `agent:<id>` now), reported as `REPLAY_DIVERGED` with that path, as `overlay-paths.test.ts` shows. No shape version marks such entries, and phase 4's exit replays only its own sessions, so this step keeps the difference named rather than reading old entries apart.
 - **Section 14's `late` row, re-estimated:** step 3 alone spent +6,558 of the phase's +5,000, and its fixes more. The rest of the phase adds, by its plan: step 4's dialogs, prompts and the slot, about 6,000; step 5's inbox commands, about 7,000; step 6's confirmations, about 8,000; steps 7 to 10, about 4,000 between them where their code is not in a chunk of its own. So `late`, from `main`'s 81,372, ends near **116,000**, not the 86,500 the row implied; each step raises it by its measured cost under D115, and step 11 records the total.
+
+**After the focused re-check of `fd87c442`:**
+
+- **B1, anchors stay in the owner's surface** (6.3): an app's search stops at any other surface below its own mount, another app's `loam-mount` or `loam-embed`, or a view's frame, as the shell's does, so no app anchors on, or probes, what another shows.
+- **I1:** only a tab's own editor mount, marked by the editor frame, anchors in main; the inspector's document details and an embed never do.
+- **I4, "Loam" as a word** is one rule, the manifest's `saysShellName`, used by `MANIFEST_TITLE_RESERVED`, `DEPLOYMENT_TITLE_RESERVED` and the owner line: read after NFKC, with invisible format characters (Unicode `Cf`, U+200B among them) removed and `_` read as a separator, so `Loam_Notes` and `Lo\u200bam` say it and `Loamy` does not.
+- **I5:** an owner line never falls back to a name that says it: the title, then the instance id, then the plugin id, then "an app"; a twin's instance id is left out when it says it.
+- **`reason: 'anchor'`** closes a popover only, and only from the shell's own call (a human gesture); anyone else's is `VALIDATION_ERROR`.
+- **Section 16** lists `MANIFEST_TITLE_RESERVED` and `DEPLOYMENT_TITLE_RESERVED`, and phase 2's deployment table the reserved ids and the title.
 
 **Verified after the reviews.** 2026-11-18, on Windows 11 with Node 26.13.1: the units with `--coverage` of the kernel (1,010), the manifest (1,083), chrome (227) and the SDK (30), and web's (53); the typecheck of every Loam package and app; chrome's `lint:tokens`, after the popover's two raw lengths became the shell's size tokens; `budget`, with `lateMinified` raised under D115 from 88,500 to 91,000 (90,158, +2,228 for these fixes; `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows); ten Chromium files (108 tests, `apps/popovers` with a change of person added; the chrome now re-reads its overlays after a sign-in, a sign-out or a settle, so a `local` page no longer keeps a closed toast on screen); `test:walk` alone, 15 of 15, after the coordinator's run had timed out seed 6221072 in `openPage` under load; and `pnpm check`. Not run: the rest of `test:browser`, `test:mounted`, `test:hosted`, the desktop suite and Cargo, which the coordinator's `pnpm verify` before these fixes passed. A Chromium check of a native editor's anchor and of a failed pick's toast is not written: both are unit-free chrome paths, for step 4's review to cover.
 

@@ -44,6 +44,7 @@ export {
 	type SettingSchemaV1,
 	type SettingSectionV1,
 } from './settings.js';
+export { saysShellName } from './shell-name.js';
 export type {
 	DeploymentRead,
 	DeploymentRefusal,

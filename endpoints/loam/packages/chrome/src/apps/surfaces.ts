@@ -34,7 +34,7 @@ import { STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { AppListV2 } from '../rail/rail-bands.js';
 import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
-import { type AnchorOwner, findAnchor } from './anchors.js';
+import { type AnchorOwner, findAnchor, nestedSurface } from './anchors.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback, focusMainHeading } from './focus-fallback.js';
@@ -201,11 +201,12 @@ export class AppSurfaces implements ShellApps {
 				const failure = await this.#activate(this.#hold(instance));
 				if (failure !== undefined) throw new Error(failure);
 			},
-			createMount: (instance, element, { scope, document, readOnly }) => {
+			createMount: (instance, element, { scope, document, readOnly, editor }) => {
 				const held = this.#hold(instance);
 				const mount = this.#create<LoamMount>('loam-mount');
-				// An editor's own mount anchors its popovers; an embed, inside another document, never does.
-				if (!readOnly) {
+				// A tab's own editor anchors its popovers in main; an embed, inside another document, and the inspector's
+				// details never do (the re-check's I1).
+				if (editor === true && readOnly !== true) {
 					this.#mountOwners.set(mount, instance);
 					this.#editorMounts.add(mount);
 				}
@@ -922,10 +923,12 @@ export class AppSurfaces implements ShellApps {
 		if (!root) return null;
 		if (anchor.surface === 'shell') {
 			if (owner.kind !== 'shell') return null;
-			return findAnchor(root, anchor.anchor, (element) =>
-				['loam-mount', 'loam-view-frame', 'loam-toast-region', 'loam-popover'].includes(
-					element.localName
-				)
+			return findAnchor(
+				root,
+				anchor.anchor,
+				(element) =>
+					nestedSurface(element) ||
+					['loam-toast-region', 'loam-popover'].includes(element.localName)
 			);
 		}
 		if (owner.kind !== 'app') return null;
@@ -941,7 +944,9 @@ export class AppSurfaces implements ShellApps {
 				continue;
 			}
 			if (this.#mountOwners.get(mount) !== owner.id || !mount.shadowRoot) continue;
-			const found = findAnchor(mount.shadowRoot, anchor.anchor);
+			// Below the owner's own mount, never inside another surface it holds: another app's embed, or a frame
+			// (the re-check's B1), so no app anchors on, or probes, what another app shows.
+			const found = findAnchor(mount.shadowRoot, anchor.anchor, nestedSurface);
 			if (found) return found;
 		}
 		return null;

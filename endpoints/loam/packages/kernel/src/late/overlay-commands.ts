@@ -11,6 +11,7 @@ import {
 	type JsonSchema,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
+import { saysShellName } from '@lushly-dev/loam-manifest';
 import type {
 	ModalInputV1,
 	OverlayAnchorV1,
@@ -183,24 +184,31 @@ export interface OverlayCommandDeps {
 	anchorFound?(owner: OverlayOwner, anchor: OverlayAnchorV1): boolean;
 }
 
-/** "Loam" as a word: no app's title may carry it (6.6, `MANIFEST_TITLE_RESERVED`), so none passes for the shell's. */
-export const TITLE_RESERVED = /\bloam\b/i;
+/** What an owner line shows when no name of the app's may be shown (6.6). */
+export const UNNAMED_APP = 'an app';
 
 /**
  * The title an app's owner line shows (6.6): its title as the rail shows it, with its instance id after it when another
- * instance shows the same title, and its instance id alone when the title is empty or says "Loam", which the manifest
- * and the deployment refuse but the line never trusts.
+ * instance shows the same title. A name that says "Loam" as a word (the manifest's and the deployment's one rule,
+ * `saysShellName`, which they refuse but the line never trusts) is never shown: the title falls back to the instance
+ * id, then the plugin id, then "an app", and a twin's instance id is left out when it says it.
  */
 export function ownerTitle(
-	summaries: ReadonlyArray<{ instance: string; title: string }>,
+	summaries: ReadonlyArray<{ instance: string; title: string; app?: string }>,
 	instance: string
 ): string {
-	const title = summaries.find((each) => each.instance === instance)?.title.trim() ?? '';
-	if (title === '' || TITLE_RESERVED.test(title)) return instance;
+	const own = summaries.find((each) => each.instance === instance);
+	const shown = (name: string | undefined): string | undefined => {
+		const trimmed = name?.trim();
+		return trimmed && !saysShellName(trimmed) ? trimmed : undefined;
+	};
+	const id = shown(instance);
+	const title = shown(own?.title);
+	if (title === undefined) return id ?? shown(own?.app) ?? UNNAMED_APP;
 	const twin = summaries.some(
 		(each) => each.instance !== instance && each.title.trim().toLowerCase() === title.toLowerCase()
 	);
-	return twin ? `${title} (${instance})` : title;
+	return twin && id !== undefined ? `${title} (${id})` : title;
 }
 
 /** No one's path: what opens an overlay is a person, an app or the agent interface (6.1). */
@@ -525,6 +533,17 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					'OVERLAY_NOT_OWNER',
 					`Overlay '${input.overlayId}' belongs to another app`,
 					'Dismiss only overlays this app opened'
+				);
+			}
+			// `anchor` is the page's word that a popover's anchor left it: the chrome's, a human gesture's, alone.
+			if (
+				input.reason === 'anchor' &&
+				(overlay.kind !== 'popover' || openerOf(context, human).kind !== 'shell')
+			) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"reason 'anchor' closes a popover whose anchor left the page, and only the shell says so",
+					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}
 			// An agent cancels or dismisses only, never confirms (6.5; F6's cancels are step 4's).

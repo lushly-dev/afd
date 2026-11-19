@@ -371,7 +371,19 @@ describe('popovers: one per invoker, closed on a switch (6.1, 6.2)', () => {
 	});
 
 	it('closes a popover the page lost its anchor for with reason anchor, never as the person', async () => {
-		const { kernel } = await boot();
+		const { kernel, probe } = await boot();
+		await kernel.call('app-open', { instance: 'probe' });
+		// Only the shell says an anchor left the page, and only of a popover.
+		const toast = await probe.call<OverlayRefV1>('toast-show', { message: 'x' });
+		const popover = await probe.call<OverlayRefV1>('popover-open', info());
+		for (const [call, overlayId] of [
+			[kernel.call, toast.data?.overlayId],
+			[probe.call, popover.data?.overlayId],
+			[kernel.agent.call, popover.data?.overlayId],
+		] as const) {
+			const refused = await call('overlay-dismiss', { overlayId, reason: 'anchor' });
+			expect(refused.error?.code).toBe('VALIDATION_ERROR');
+		}
 		const opened = await kernel.call<OverlayRefV1>('popover-open', info('bell', 'shell'));
 		const closed = await kernel.call<OverlayResultV1>('overlay-dismiss', {
 			overlayId: opened.data?.overlayId,
@@ -577,6 +589,23 @@ describe("owner lines (6.6, the review's R-c and 8)", () => {
 		expect(ownerTitle(apps, 'odd')).toBe('odd');
 		expect(ownerTitle(apps, 'ok')).toBe('Loamy memo');
 		expect(ownerTitle(apps, 'gone')).toBe('gone');
+	});
+
+	it('reads a title plainly, and never falls back to a name that says Loam (I4, I5)', () => {
+		const apps = [
+			{ instance: 'a1', title: 'Loam_Memo', app: 'memo' },
+			{ instance: 'a2', title: 'Lo' + String.fromCharCode(0x200b) + 'am', app: 'memo' },
+			{ instance: 'loam-memo', title: 'Loam memo', app: 'memo' },
+			{ instance: 'loam-two', title: '', app: 'loam-kit' },
+			{ instance: 'twin', title: 'Same' },
+			{ instance: 'loam-twin', title: 'Same' },
+		];
+		expect(ownerTitle(apps, 'a1')).toBe('a1');
+		expect(ownerTitle(apps, 'a2')).toBe('a2');
+		expect(ownerTitle(apps, 'loam-memo')).toBe('memo');
+		expect(ownerTitle(apps, 'loam-two')).toBe('an app');
+		expect(ownerTitle(apps, 'twin')).toBe('Same (twin)');
+		expect(ownerTitle(apps, 'loam-twin')).toBe('Same');
 	});
 
 	it("shows the person's name, never an email, for an agent's toast", async () => {

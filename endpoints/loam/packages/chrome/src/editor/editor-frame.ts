@@ -29,12 +29,18 @@ export interface SurfaceHostV1 {
 	ensureActivated(instance: string): Promise<void>;
 	/**
 	 * A mount of one of the plugin's elements, with a surface port fixed to `scope`, and its document; an
-	 * embed's port is read-only (9.2).
+	 * embed's port is read-only (9.2). `editor` marks a tab's own editor, the one mount of a document whose
+	 * popovers anchor in main (phase 4 specification, 6.3); an embed's and the inspector's details never do.
 	 */
 	createMount(
 		instance: string,
 		element: string,
-		options: { scope: DocumentRefV1['scope']; document: DocumentRefV1; readOnly?: boolean }
+		options: {
+			scope: DocumentRefV1['scope'];
+			document: DocumentRefV1;
+			readOnly?: boolean;
+			editor?: boolean;
+		}
 	): LoamMount;
 }
 
@@ -256,6 +262,7 @@ export class LoamEditorFrame extends FASTElement {
 		const mount = host.createMount(instance, element, {
 			scope: reference.scope,
 			document: reference,
+			editor: true,
 		});
 		this.#mount = mount;
 		this.append(mount);

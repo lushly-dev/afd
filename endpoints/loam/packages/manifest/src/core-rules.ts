@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
+import { saysShellName } from './shell-name.js';
 import type { ManifestRefusalCode } from './types.js';
 import { validateSchemaShape } from './validate-shape.generated.js';
 import type { GeneratedValidator } from './validator-errors.js';
@@ -231,7 +232,7 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 	};
 
 	// An app's title is its overlays' owner line and its rail label: never the shell's name (phase 4's 6.6, 12.1).
-	if (typeof plugin.title === 'string' && /\bloam\b/i.test(plugin.title)) {
+	if (typeof plugin.title === 'string' && saysShellName(plugin.title)) {
 		push(
 			'MANIFEST_TITLE_RESERVED',
 			'/plugin/title',

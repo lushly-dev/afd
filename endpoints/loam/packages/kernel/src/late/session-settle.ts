@@ -659,8 +659,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	}
 
 	/**
-	 * A change of person (4.4), to `to`, never the adapter's live person: every open overlay dismissed as an app
-	 * switch, since each is the leaving person's; the active app closed by `app-close`'s rules; selections
+	 * A change of person (4.4), to `to`, never the adapter's live person: every open overlay closed with reason
+	 * `person` (phase 4 specification, 6.2), sticky toasts too, since each is the leaving person's; the active app closed by `app-close`'s rules; selections
 	 * cleared; the leaving person's drafts held; in `provider` mode the next person's records read; then the scope
 	 * they may be in. `left` is read once and the shell is `to`'s before the first await (B2).
 	 */

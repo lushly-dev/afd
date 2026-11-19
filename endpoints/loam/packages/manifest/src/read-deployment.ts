@@ -7,6 +7,7 @@
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
 import type { IdentityMethodV1, IdentityV1 } from './read-boot.js';
+import { saysShellName } from './shell-name.js';
 import type {
 	DeploymentRead,
 	DeploymentRefusal,
@@ -456,7 +457,7 @@ function reservedInstances(deployment: AnyDeployment): DeploymentRefusal[] {
 function reservedTitles(deployment: AnyDeployment): DeploymentRefusal[] {
 	return Object.entries(deployment.apps).flatMap(([id, entry]): DeploymentRefusal[] => {
 		const { title } = entry as { title?: unknown };
-		if (typeof title !== 'string' || !/\bloam\b/i.test(title)) return [];
+		if (typeof title !== 'string' || !saysShellName(title)) return [];
 		return [
 			{
 				code: 'DEPLOYMENT_TITLE_RESERVED',
