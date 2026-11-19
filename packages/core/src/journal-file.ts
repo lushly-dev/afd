@@ -12,6 +12,7 @@ import {
 	type JournalRange,
 	type JournalRecord,
 	type JournalSink,
+	journalRangeLast,
 	parseJournal,
 	selectJournalRange,
 	serializeJournalEntry,
@@ -70,6 +71,8 @@ export class FileJournalSink implements JournalSink {
 	}
 
 	async read(range?: JournalRange): Promise<JournalEntry[]> {
+		// An invalid `last` is refused before the file is read or parsed, whatever the file holds.
+		if (range) journalRangeLast(range);
 		// Wait for pending appends so a read sees every entry appended before it.
 		await this.queue;
 		return selectJournalRange(await this.readAll(), range);

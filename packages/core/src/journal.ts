@@ -96,12 +96,13 @@ export interface JournalRange {
 	/** Last `seq` to include. Default: the end of the journal. */
 	to?: number;
 	/**
-	 * At most this many entries: the last ones between `from` and `to`, still in `seq` order. A whole
-	 * number, 0 or more; `{ last: 1 }` reads the journal's last entry, so a caller that wants its last
+	 * At most this many entries: the last ones between `from` and `to`, still in `seq` order. A safe
+	 * integer, 0 or more; `{ last: 1 }` reads the journal's last entry, so a caller that wants its last
 	 * `seq` need not read the rest. Default: every entry in the range. A sink written before this field
-	 * returns the whole range, whose last entries are the same, so read them with `.slice(-n)`.
+	 * returns the whole range, whose last entries are the same, so read them with
+	 * `n === 0 ? [] : entries.slice(-n)` (`.slice(-0)` is the whole range).
 	 *
-	 * @throws RangeError from `read` when it is not a whole number, 0 or more
+	 * @throws RangeError from `read` when it is not a safe integer, 0 or more
 	 */
 	last?: number;
 }
@@ -124,13 +125,13 @@ export interface JournalSink {
  * `range.last`, checked: undefined for none.
  *
  * @internal Shared by the sinks in this package; not exported from the package root.
- * @throws RangeError when it is not a whole number, 0 or more
+ * @throws RangeError when it is not a safe integer, 0 or more
  */
 export function journalRangeLast(range: JournalRange): number | undefined {
 	const { last } = range;
 	if (last === undefined) return undefined;
 	if (!Number.isSafeInteger(last) || last < 0) {
-		throw new RangeError(`JournalRange.last must be a whole number, 0 or more; got ${last}`);
+		throw new RangeError(`JournalRange.last must be a safe integer, 0 or more; got ${last}`);
 	}
 	return last;
 }
@@ -138,7 +139,7 @@ export function journalRangeLast(range: JournalRange): number | undefined {
 /**
  * Entries of `entries` (in `seq` order) that fall in `range`.
  *
- * @throws RangeError when `range.last` is not a whole number, 0 or more
+ * @throws RangeError when `range.last` is not a safe integer, 0 or more
  */
 export function selectJournalRange(
 	entries: readonly JournalEntry[],
@@ -148,7 +149,8 @@ export function selectJournalRange(
 	const from = range.from ?? Number.NEGATIVE_INFINITY;
 	const to = range.to ?? Number.POSITIVE_INFINITY;
 	const selected = entries.filter((entry) => entry.seq >= from && entry.seq <= to);
-	return last === undefined ? selected : selected.slice(selected.length - last);
+	// Clamped: a `last` past the range's length is the whole range, not a start counted from the end.
+	return last === undefined ? selected : selected.slice(Math.max(0, selected.length - last));
 }
 
 /**
