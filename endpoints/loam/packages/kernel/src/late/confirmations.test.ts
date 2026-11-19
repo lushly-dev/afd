@@ -494,6 +494,7 @@ describe('the pending path (R9)', () => {
 			noteInbox: () => {},
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -866,6 +867,7 @@ describe('the run a person confirmed', () => {
 			noteInbox: () => {},
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			archived: () => false,
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		} as never);
@@ -968,6 +970,7 @@ describe('after the trust review', () => {
 			noteInbox: () => {},
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -1433,6 +1436,7 @@ describe('after the trust review', () => {
 			replaying: () => false,
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1477,6 +1481,7 @@ describe('after the trust review', () => {
 			noteInbox: () => {},
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			archived: () => false,
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1754,6 +1759,7 @@ describe('the third round', () => {
 			replaying: () => false,
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1811,6 +1817,7 @@ describe('the third round', () => {
 			replaying: () => false,
 			releaseQueue: () => {},
 			chainOf: () => undefined,
+			inputOver: () => false,
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -2002,5 +2009,100 @@ describe('the third round', () => {
 			document,
 			scope: { workspace: 'personal' },
 		});
+	});
+});
+
+describe("with step 10's limits", () => {
+	const setLimit = (kernel: LoamKernelV5, key: string, value: number) =>
+		kernel.call('setting-set', { section: 'loam.limits', key, value, level: 'workspace' });
+
+	it("an app's confirmed run is measured again against inputBytes, lowered since it raised the call", async () => {
+		const { kernel } = await boot();
+		// Keeper inactive: its call waits in the inbox, its input measured by its port under the default.
+		const text = 'z'.repeat(40_000);
+		const asked = await kernel.appPort('keeper').call('keeper-note', { text });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		expect((await setLimit(kernel, 'inputBytes', 16_384)).success).toBe(true);
+		const acted = await kernel.call('notification-act', {
+			notification: idOf(asked),
+			answer: 'confirm',
+		});
+		expect(acted.data).toEqual({ state: 'declined', reason: 'access' });
+		const read = await kernel.appPort('keeper').call('confirmation-get', {
+			notification: idOf(asked),
+		});
+		expect(read.data).toMatchObject({ state: 'declined', reason: 'access' });
+	});
+
+	it("the queue a waiting call releases takes nothing off an app's call rate", async () => {
+		const { kernel } = await boot();
+		await kernel.call('app-open', { instance: 'keeper' });
+		const keeper = kernel.appPort('keeper');
+		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+		const waiting = keeper.call('keeper-bump');
+		const prompt = await slotPrompt(kernel);
+		// The clock stands still, so the burst is all the port has: the rest are refused at the port, queue or not.
+		const calls = await Promise.all(Array.from({ length: 220 }, () => keeper.call('keeper-get')));
+		expect(calls.filter((each) => each.error?.code === 'RATE_LIMITED').length).toBeGreaterThan(0);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect((await waiting).success).toBe(true);
+	});
+
+	it('the journal redacts a wrapped input before it bounds the entry', async () => {
+		const { kernel, journal } = await boot();
+		const blob = 'q'.repeat(1_200_000);
+		await kernel.call('palette-run', {
+			command: 'gone-command',
+			prompt: 'ovl-1',
+			input: { blob },
+		});
+		const entry = (await journal.read()).find((each) => each.command === 'palette-run');
+		expect(entry).toBeDefined();
+		// The unknown command's input dropped first: the entry is small, kept whole, and replayable.
+		expect((entry as unknown as { unreplayable?: boolean }).unreplayable).toBeUndefined();
+		expect(entry?.input).toEqual({ command: 'gone-command', prompt: 'ovl-1' });
+	});
+
+	it('confirmations and slot declines are one workspace’s: another in the same store reads, holds and answers none', async () => {
+		const store = new MemoryAdapter();
+		const first = await createScopedWorkspace({ store, deployment: deployment(), ports: ports() });
+		await first.kernel.call('app-open', { instance: 'keeper' });
+		const waiting = first.kernel.appPort('keeper').call('keeper-set', { value: 4 });
+		await first.kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(first.kernel)).overlayId,
+			result: 'cancel',
+		});
+		expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
+		const pending = await first.kernel.agent.call('keeper-bump');
+		await first.kernel.dispose();
+		const team = { ...deployment(), workspace: { id: 'team', name: 'Team' } };
+		const second = await createScopedWorkspace({
+			store,
+			deployment: team,
+			ports: ports(),
+			empty: true,
+		});
+		kernels.push(second.kernel);
+		const { kernel } = second;
+		expect(await confirmations(kernel)).toEqual([]);
+		expect(
+			(await kernel.agent.call('confirmation-get', { notification: idOf(pending) })).error?.code
+		).toBe('NOTIFICATION_NOT_FOUND');
+		expect(
+			(
+				await kernel.call('notification-act', {
+					notification: idOf(pending),
+					answer: 'confirm',
+				})
+			).success
+		).toBe(false);
+		// The first workspace's decline window holds nothing here: the same call asks.
+		await kernel.call('app-open', { instance: 'keeper' });
+		const again = kernel.appPort('keeper').call('keeper-set', { value: 4 });
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'confirm',
+		});
+		expect((await again).data).toEqual({ value: 4 });
 	});
 });

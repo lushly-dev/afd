@@ -847,6 +847,18 @@ export async function createLateParts(
 			deps.scope.projects.get(scope.project)?.status === 'archived' &&
 			deps.isMutation(command),
 		chainOf: documentChainOf,
+		// Measured here rather than with first paint's `measureJson`, whose import would part first paint's chunks.
+		inputOver(input) {
+			const bound = deps.limits?.values().inputBytes;
+			if (bound === undefined) return false;
+			try {
+				const json = JSON.stringify(input);
+				return json === undefined || new TextEncoder().encode(json).length > bound;
+			} catch {
+				// No JSON form: over every limit (section 11's R2).
+				return true;
+			}
+		},
 		releaseQueue: (context) =>
 			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
 		digest: async (value) => {

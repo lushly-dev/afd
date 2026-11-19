@@ -118,6 +118,11 @@ export interface ConfirmationDeps {
 	/** Boot's own: `prompt-settle`, journaled before the answer it waits for. */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	replaying(): boolean;
+	/**
+	 * Whether an input is over `loam.limits.inputBytes` now, or has no JSON form (phase 4's section 11): an app's raised
+	 * call, measured by its port then, is measured again before its confirmed run, as the limit may have fallen since.
+	 */
+	inputOver(input: unknown): boolean;
 	/** Whether `command` is a mutation under an archived project in `scope` (line 6; step 6's second round, 4). */
 	archived(command: string, scope: ScopeV1): boolean;
 	/** Release the queue a queued call holds, as it starts waiting on a person (7.2; step 6's second round, 3). */
@@ -1339,7 +1344,10 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
 				const caller = row.ciface === 'palette' ? row.source : undefined;
-				if (refusedAccess(row.cactor, row.confirmation.command, caller, row.scope)) {
+				if (
+					refusedAccess(row.cactor, row.confirmation.command, caller, row.scope) ||
+					(caller !== undefined && deps.inputOver(row.confirmation.input ?? {}))
+				) {
 					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
 					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
 				}

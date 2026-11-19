@@ -1947,6 +1947,21 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Verified after the third round,** the same machine: `test --coverage` for the kernel (1,222), chrome (248) and web (53), the packages it touched; the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; fourteen Chromium files, 192 tests (`confirmations` with the app's modal closed by script, `documents/editor`, `inbox`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `scope/first-paint`, `budget` and `boot`). Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
 
+**Merged with step 10,** 2026-11-19: `main` at `ca1b11f3` (step 10, [#1631](https://github.com/lushly-dev/afd/pull/1631)) merged in `1c2cabf3`, both steps kept. Each interaction is checked by a unit in `confirmations.test.ts`:
+- **Journal bound:** step 10's bound on a whole entry sits at the journal sink, after step 6's wrapped redaction, so every entry step 6 adds (the confirmed run, `palette-run`, `prompt-settle`'s `open`, `decline` and `settle`) is redacted, then bounded. The unit: a 1.2 MB input wrapped for an unknown command is dropped first, and the entry is kept whole. An entry over the bound, as one with a large stored result, is kept truncated and replays as `REPLAY_ENTRY_TRUNCATED`, as any call's does.
+- **Call rate:** an app's rate is taken at its port, on arrival, before the kernel's queue, so a waiting call's release of the queue lets no call past it. The unit has its calls refused `RATE_LIMITED` while a question waits.
+- **Input size (fixed):** an app's raised call, measured by its port when raised, is measured again against the `inputBytes` in force before its confirmed run, and one over it ends declined for access, running nothing. The unit fails without it. An agent's input is not under `inputBytes` in step 10, so its confirmed run is not measured either.
+- **Workspace:** a confirmation's row and a slot decline carry their workspace, every read filters by it, its key's digest names it, and `prompt-settle`'s `settle` refuses another workspace's row. Their ids are random per call, as step 5's notices are, never shared keys like the `setting` rows #1614 changed. The unit: another workspace in the same store lists, reads and answers none of them, and is not held by the first's decline window.
+
+**Measured on the combined build,** D115:
+- First paint: 313,878 and 98,362 gzip; `jsMinified` set to 314,500 and `jsGzip` to 98,700, with `first-paint.test.ts`'s literal.
+- `kernelMinified`: 124,312; its row 125,000.
+- `lateMinified`: 113,255; its row 113,800.
+- `lateSettingsMinified`: 90,579; its row 91,200.
+- `appsMinified`: 425,879; its row 426,500.
+
+`budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
