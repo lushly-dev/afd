@@ -195,6 +195,16 @@ test('spec prose reaches no package; the files beside it reach their readers', (
 	// checks, which always run, read the Markdown.
 	assert.deepEqual(scope(['spec/authorization.md', 'spec/CHANGELOG.md']).affected, []);
 	assert.deepEqual(scope(['spec/plugin-manifest.md']).affected, []);
+	// The release tracks' private stubs (scripts/release/tracks.mjs) are workspace packages that own
+	// none of the files beside them: a Python or Botcore change selects no package, as before.
+	assert.deepEqual(
+		scope([
+			'python/src/afd/__init__.py',
+			'endpoints/botcore/src/botcore/__init__.py',
+			'endpoints/botcore/uv.lock',
+		]).affected,
+		[]
+	);
 	assert.deepEqual(scope(['spec/authorization.json']).changed, [
 		'@lushly-dev/afd-cli',
 		'@lushly-dev/afd-core',

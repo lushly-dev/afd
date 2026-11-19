@@ -165,7 +165,7 @@ This pull request:
 | New [`spec/mcp-resources.json`](../../../../spec/mcp-resources.json) | Hand-written cases: 28 `_meta` keys, a two-skill catalog with its `skills/list`, `resources/list`, reads, a `skills/get` and six errors, and nine catalogs that must fail. Beside `tool-strategies.json`, not in `vectors/`, until all four languages load it |
 | [`spec/command-metadata.md`](../../../../spec/command-metadata.md) | `toolMeta` field and the advertised schema in [Fields](../../../../spec/command-metadata.md#fields); the [reporting rules](../../../../spec/command-metadata.md#reporting-rules) and [Surfaces](../../../../spec/command-metadata.md#surfaces) |
 | [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md) | Four acceptance rows, all Planned |
-| [`spec/CHANGELOG.md`](../../../../spec/CHANGELOG.md) | An entry under `1.0-rc`, and the new page in the scope. `spec/VERSION` stays `1.0-rc`: additive changes during the release candidate are recorded under it, as the hybrid strategy's were |
+| [`spec/CHANGELOG.md`](../../../../spec/CHANGELOG.md) | An entry under `1.0-rc`, written as an `afd-spec` fragment in `.changeset/`, and the new page in the scope. `spec/VERSION` stays `1.0-rc`: additive changes during the release candidate are recorded under it, as the hybrid strategy's were |
 | [`docs/language-parity.md`](../../../language-parity.md) | Four rows in the MCP server matrix, Planned in every language |
 
 No error code, wire fixture or existing vector changes. The 34-case todo conformance suite does not
