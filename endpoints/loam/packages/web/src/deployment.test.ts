@@ -72,6 +72,21 @@ describe('webPorts', () => {
 		});
 	});
 
+	it("forwards the kernel's frame gate to the view chunk (phase 4's section 11)", async () => {
+		const frame = {} as HandlerFrameV1;
+		const openHandlerFrame = vi.fn(() => frame);
+		const ports = webPorts(
+			page,
+			BASE,
+			'https://sandbox.example',
+			async () => ({ openHandlerFrame }),
+			noMount
+		);
+		const admit = vi.fn(() => undefined);
+		await ports.openHandlerFrame('hello', '<p>', admit);
+		expect(openHandlerFrame).toHaveBeenCalledWith(expect.objectContaining({ admit }));
+	});
+
 	it('loads the mount chunk only when asked, and rejects what cannot be served', async () => {
 		const ports = webPorts(page, BASE, null, noView, noMount);
 		await expect(ports.openHandlerFrame('x', '')).rejects.toThrow(/sandbox origin/);

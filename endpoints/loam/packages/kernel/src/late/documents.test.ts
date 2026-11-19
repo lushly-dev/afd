@@ -731,8 +731,10 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		] as const) {
 			expect((await kernel.call(name, input, at)).success, name).toBe(true);
 		}
-		// Amended by phase 4's step 10 (its section 11, listed against P4-E14): the store quota counts an instance's table
-		// once, when it has no usage row, to charge the new content; it measures each row's size and reads no meaning.
+		// Amended by phase 4's step 10 (its section 11, listed against P4-E14): the store quota lists an instance's table to
+		// count it, when it has no usage row (here, to charge the first content) or at stage B's daily recount; it measures
+		// each row's size and reads no meaning. At most once in this test.
+		expect(store.reads.filter((read) => read === 'app-probe/*').length).toBeLessThanOrEqual(1);
 		expect(store.reads.filter((read) => read !== 'app-probe/*')).toEqual([]);
 		store.reads.length = 0;
 		await kernel.call('document-move', { document: record.id, project: 'beacon' }, at);

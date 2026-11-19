@@ -851,9 +851,15 @@ export function createDocumentCommands(
 					'expire the trash'
 				);
 			await (deps.links ? deps.links.expire(ids, expire) : expire([]));
-			// After the delete: a refund that does not land leaves the count high, never low, until the next count (14).
-			for (const [instance, bytes] of refunds)
-				await check.quota()?.refund(instance, workspace, bytes, callNow(context));
+			// After the delete: a refund that does not land leaves the count high, never low, until the daily count corrects
+			// it (14), and never fails an expiry whose deletion has happened.
+			for (const [instance, bytes] of refunds) {
+				try {
+					await check.quota()?.refund(instance, workspace, bytes, callNow(context));
+				} catch (cause) {
+					(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+				}
+			}
 			return success({ deleted: ids });
 		},
 	});

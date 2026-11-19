@@ -148,7 +148,7 @@ export function createViewBroker({ manifest, sandboxOrigin, guard }: ViewBrokerO
 					});
 					throw refuseRequest({
 						code: 'RATE_LIMITED',
-						rpcCode: -32600,
+						rpcCode: -32602,
 						message:
 							refused?.error?.message ??
 							`This app has ${READS_IN_FLIGHT} resource reads in flight already`,

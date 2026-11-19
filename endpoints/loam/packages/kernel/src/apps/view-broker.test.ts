@@ -271,7 +271,7 @@ describe("the view broker's message bound (phase 4 specification, section 11)", 
 		);
 		await expect(broker.resourcesRead({ uri: RESOURCE })).rejects.toMatchObject({
 			code: 'RATE_LIMITED',
-			details: { limit: READS_IN_FLIGHT, retryAfterMs: 100 },
+			details: { limit: READS_IN_FLIGHT, retryAfterMs: 100, rpcCode: -32602 },
 		});
 		expect(runAs).toHaveBeenCalledWith(
 			'app-limit-refuse',

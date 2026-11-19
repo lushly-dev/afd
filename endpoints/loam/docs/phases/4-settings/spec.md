@@ -365,7 +365,7 @@ For key `k` of section `s`, for person `p` in scope `{ workspace, project? }`, t
 - **Person values** are one record per person, `loam.settings`, in the view-state store's backing table. In `provider` mode it is keyed through `personalRecordId`. Its shape is `{ [sectionFullId]: { [key]: { value, updatedAt, updatedBy } } }`.
   - **`loam.settings` is not a view-state id.** `view-state-*` on it is refused with `VIEW_STATE_NOT_FOUND`, and `view-state-list` leaves it out.
 - **Shared values** are rows of the workspace store's `setting` table, `<sectionFullId>/workspace` or `<sectionFullId>/project/<projectId>`, each with per-key `updatedAt` and `updatedBy`. Project rows are archived and restored with their project.
-  - **Amended (step 10, R1; closes #1614):** each id starts with its workspace, `<workspace>/<sectionFullId>/workspace` or `<workspace>/<sectionFullId>/project/<projectId>`, as step 8 keyed the autonomy rows, so two workspaces in one browser's store never share a row. A row keyed without its workspace is not this workspace's: it is never read and never written over. Values set before this step in that shape read as unset once, and are set again at the new id.
+  - **Amended (step 10, R1; closes #1614):** each id starts with its workspace, `<workspace>/<sectionFullId>/workspace` or `<workspace>/<sectionFullId>/project/<projectId>`, as step 8 keyed the autonomy rows, so two workspaces in one browser's store never share a row. A row keyed without its workspace is not this workspace's: it is never read and never written over. Values set before this step in that shape are not migrated: they read as unset, and an owner sets them again at the new id. Until then a workspace's lowered `loam.limits` reads as its defaults (section 11).
 
 ### 3.5 The settings section
 
@@ -912,6 +912,7 @@ export interface NotificationV1 {
 
   These are deferred by name, and #710 stays open.
 - **Refused calls each journal an entry** (step 10's R4): every refusal at the port and at a frame's boundary is an `app-limit-refuse` entry, so a replay and `limit-usage-get` agree. An app calling past its rate therefore grows the journal by a small entry per refused call, bounded per entry and not in total; folding the refusals of one window into one counted entry would leave a nested refused call with no entry to answer it from, so a replay could no longer re-run the handler that made it. The journal's total budget, which would bound this, is #710's.
+- **Resource reads in flight** (step 10's trust review): at most 4 per instance; the next is refused `RATE_LIMITED` with `details: { limit: 4, retryAfterMs }` and JSON-RPC `-32602`, as the frame gate answers, and counted under `callsPerSecond`, which `limit-usage-get` reports.
 - **What `messageBytes` does not reach** (step 10's trust review): the browser clones a frame's message before any script sees it, so the cost of the clone itself comes before the bound; and a value cloned in a form JSON does not show (an `ArrayBuffer`, a `Map`) is measured, and used, as its JSON form.
 
 ## 12. The kernel and the SDK
@@ -1090,7 +1091,7 @@ The phase exits when all of these hold:
 | P4-E11 | Withdrawn | | Menus are deferred (section 9) |
 | P4-E12 | **Budgets** | Budget; Chromium | Section 14 |
 | P4-E13 | **Accessibility and captures** | Chromium | Section 15; **the autonomy section's advisory notice** |
-| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2 |
+| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2. **Amended (step 10):** phase 2's P2-D4 "never reads a document's content but to move it" (`kernel/src/late/documents.test.ts`) allows at most one list of `app-probe`: the store quota lists an instance's table to count its rows' sizes when it has no usage row, and at stage B's daily recount (section 11); expiry reads each expired content row's charge to refund it |
 | P4-E15 | **Every new command replays** | Units | A seeded session |
 | P4-E16 | **Every scenario passes, and no job was skipped** | Units; the exit step | `scenarios.test.ts`, then `node scripts/loam-exit-check.mjs --phase 4` |
 | P4-E17 | **Hosted refusal** | Units | A hosted `provider` projection. **Refused with `SHARED_RECORD_UNAVAILABLE`,** journaled, with no table changed: `setting-set` and `setting-reset` at `workspace` and `project` level, `autonomy-set` at every level including `person`, and workspace `experiment-*`. **These succeed:** `setting-set` at `person` level, person `experiment-*`, `notification-*` and confirmations |
@@ -1703,7 +1704,17 @@ The improvements:
 - **16:** `measureJson` skips the encoding when the string's length alone decides (longer than the bound, or a third of it or shorter).
 - **17:** in section 11's notes above.
 
-Also: the handler frame's gate refusal of a nested `tools/call` is journaled top level, as the instance, since the frame's message is refused before the call it would make exists; a replay that runs the handler natively makes that nested call and reports it unrecorded. Recorded, not changed: the frame must send over 1 MiB in one message for it.
+Also: the handler frame's gate refusal of a nested `tools/call` is journaled top level, as the instance, since the frame's message is refused before the call it would make exists; a replay that runs the handler natively makes that nested call and reports it unrecorded. Recorded, not changed: the frame must send over 1 MiB in one message for it. **A second edge, the same way:** a handler frame's reply over `messageBytes` fails the call live, while a replay that runs the handler natively, with no frame, succeeds and reports the difference.
+
+**After the re-check** of `4b52e595` (every code fix confirmed; one documentation and test blocker):
+
+- **P2-D4's amendment** is listed against P4-E14, naming both counts that list an instance's table (no usage row; the daily recount) and expiry's read of each row's charge; phase 2's spec notes it beside the test's rule; the test allows at most one `app-probe` list.
+- **3.4:** old-shape shared settings are not migrated; an owner sets them again, and a lowered `loam.limits` reads as its defaults until then.
+- **A provider boot with a loader:** a unit holds that no stored `loam.limits` row is read while the host is unknown, and that it is read once stage B learns a static host, and never for a hosted one.
+- **The frame host's gate:** a unit holds that `createFrameHost` passes its gate as `openHandlerFrame`'s third argument, with a refused notification and a refused request, each journaled for the instance; another that `webPorts` forwards it to the view chunk.
+- **Expiry's refund** after the delete has landed is caught and reported, never failing the expiry; the daily recount corrects the count.
+- **Reads in flight** answer `-32602` and are counted under `callsPerSecond` (section 11).
+- **The second replay edge** above.
 
 **Measured after the review,** against the step's figures above: first paint 311,543 and 97,564 gzip (+1,183 and +488), `jsMinified` 310,600 to 311,800 and `jsGzip` 97,200 to 97,800 with `first-paint.test.ts`'s literal; `kernelMinified` 121,000 to 122,600 (122,351); `lateMinified` 95,200 to 95,800 (95,556); `appsMinified` 420,500 to 423,000 (422,704); `viewMinified` 26,100 to 26,600 (26,498); the rest within their rows. `budget.mjs` records each.
 

@@ -5,12 +5,15 @@
  * `late-settings-failure.test.ts`'s; the view broker's message bound is `apps/view-broker.test.ts`'s.
  */
 
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { IdentityV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, failure, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { STORE_USAGE_TABLE, storeUsageId } from '../apps/store.js';
+import { createKernelParts } from '../kernel.js';
 import { LIMIT_DEFAULTS, LIMIT_KEYS } from '../limits.js';
 import type { MembershipV1 } from '../scope/access.js';
 import {
@@ -22,7 +25,12 @@ import {
 	scopedDeployment,
 	scopedPackages,
 } from '../scope/fixtures.js';
-import { createFixturePorts, createSteppingClock, replayKernel } from '../testing.js';
+import {
+	createFixedEnvironment,
+	createFixturePorts,
+	createSteppingClock,
+	replayKernel,
+} from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
 import { LIMIT_KEY_ORDER, QUARTER_ORDER } from './limit-commands.js';
 import { LIMITS_SECTION } from './setting-sections.js';
@@ -514,6 +522,91 @@ describe('the trust review of step 10', () => {
 			).success
 		).toBe(true);
 	});
+
+	it.each([
+		['static', 10],
+		['hosted', 50],
+	] as const)(
+		'reads no stored row before a %s provider boot knows its host, and reads again once it does (R3)',
+		async (kind, after) => {
+			class Watched extends MemoryAdapter {
+				reads = 0;
+				override async get<T>(table: string, id: string): Promise<T | null> {
+					if (table === 'setting' && id === 'personal/loam.limits/workspace') this.reads += 1;
+					return super.get<T>(table, id);
+				}
+			}
+			const store = new Watched();
+			await store.create('setting', {
+				id: 'personal/loam.limits/workspace',
+				workspace: 'personal',
+				section: 'loam.limits',
+				level: 'workspace',
+				values: { callsPerSecond: { value: 10, updatedAt: 1, updatedBy: 'local' } },
+				updatedAt: 1,
+				updatedBy: 'local',
+			});
+			let asked = false;
+			let answer: (load: unknown) => void = () => {};
+			const loaded = new Promise((resolve) => {
+				answer = resolve;
+			});
+			const parts = await createKernelParts({
+				store,
+				storeKind: 'memory',
+				journal: new MemoryJournalSink(),
+				auth: new MockAuthAdapter(),
+				environment: createFixedEnvironment(),
+				host: 'test',
+				identity: PROVIDER,
+				membership: ACME(),
+				boot: {
+					generation: 'g',
+					workspace: { id: 'personal', name: 'Personal' },
+					apps: [
+						{
+							instance: 'dual',
+							app: 'dual',
+							title: 'Dual',
+							kind: 'native',
+							icon: 'system/folder',
+							order: 100,
+							scopeLevels: ['workspace', 'project'],
+							rail: true,
+							parts: [],
+							layout: {},
+							refusal: null,
+						},
+					],
+					identity: PROVIDER,
+				} as never,
+				appsLoader: () => {
+					asked = true;
+					return loaded as never;
+				},
+			});
+			kernels.push(parts.kernel);
+			const started = parts.kernel.startApps();
+			// The late load has read the limits while the host is unknown: the defaults, and no row read.
+			// Stage B asks its loader only once the late load, which reads the limits, has ended.
+			await expect.poll(() => asked).toBe(true);
+			expect(parts.kernel.lateFailure).toBeUndefined();
+			expect(store.reads).toBe(0);
+			expect(parts.limits.values().callsPerSecond).toBe(50);
+			answer({
+				deployment: {
+					...scopedDeployment(),
+					...(kind === 'hosted'
+						? { deployment_version: 4, host: { kind: 'hosted', kernel: 'api/kernel' } }
+						: {}),
+				},
+				ports: ports(),
+			});
+			await started;
+			expect(store.reads).toBe(kind === 'hosted' ? 0 : 1);
+			expect(parts.limits.values().callsPerSecond).toBe(after);
+		}
+	);
 
 	it.each([
 		['a value over its bound', { callsPerSecond: 100_000 }, { callsPerSecond: 50 }],
