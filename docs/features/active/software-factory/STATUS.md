@@ -322,6 +322,11 @@ Evidence: `scripts/review-record.test.mjs` (37 tests, including a real repositor
 worktree and a symlinked start) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
 plugin's real process runner against the real script. PR: [#1305](https://github.com/lushly-dev/afd/pull/1305).
 
+Phase 1 still needs, as the proposal lists it: the webhook wake, experience review (`pr-preview`
+and the before-and-after screens), `run-fleet`, and one measured AFD fleet run on the
+workstation. (Superseded: `run-fleet` merged in #1310, and each piece now has its own line under
+[Phase 1](#phase-1-the-plugin-one-slot).)
+
 ### Lane-loop repair on the MacBook Air, 2026-11-15
 
 **Merged:** [PR #1295](https://github.com/lushly-dev/afd/pull/1295) merged on 2026-11-15

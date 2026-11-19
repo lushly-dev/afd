@@ -14,7 +14,7 @@ not, so an agent never has to scan the code to learn what is current. It follows
 - Write down follow-ups that are not yet issues, with the date and who raised them. Link the issue
   when one exists.
 - Never delete history. Mark an entry superseded and point to what replaced it.
-- A step edits its own lines and no others: its line under [Steps](#steps), made when its plan is written
+- A step edits its own lines and no others: its line under [Steps](#steps), made before it starts
   (a step split in several pull requests has a line for each), one line under
   [Verification](#verification), one row in the session log and any follow-up rows. Its line's
   state is "not started", "in progress" with the pull request, or "merged as #N".
@@ -109,7 +109,7 @@ waits for Gmail has a line of its own.
 
 - C3: first contacts and bursts, migration 10. Merged as [#1273](https://github.com/lushly-dev/afd/pull/1273), with the limits measured again with no other session running in [#1348](https://github.com/lushly-dev/afd/pull/1348), the tests of junk and long floods in [#1363](https://github.com/lushly-dev/afd/pull/1363) and the bursts' third rule (migration 11) in [#1401](https://github.com/lushly-dev/afd/pull/1401). The owner said on 2026-11-15 to build it on made-up floods, since the flood they remember was deleted and Gmail has had none. The owner's server has run it since 2026-11-16 UTC; its store was upgraded and found no burst; since 2026-11-17 UTC it runs the bursts' third rule.
 
-- C3, the Gmail half. Not started. It waits for step B6 (the follow-up of 2026-11-14).
+- C3, the Gmail half. Not started. It waits for the OAuth client, as steps B0 and B6 do (the follow-up of 2026-11-14).
 
 - D1, first of three pull requests (the specification's section 15), on the scripted servers: selections and the person's policy, migration 12. Merged as [#1429](https://github.com/lushly-dev/afd/pull/1429).
 
