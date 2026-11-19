@@ -442,7 +442,7 @@ export interface SettingsV1 {
 - `title` and `description`;
 - `app`: the owning app's title.
 
-`palette-search` gains an optional `kind: 'command' | 'document' | 'setting'` filter. Rows are ordered by score, then by name, so a result is deterministic. Choosing a setting row runs `section-open { section: 'settings', target }`. A project-only key is listed only while a project is active. The index is built in `late-settings`, never in first paint.
+`palette-search` gains an optional `kind: 'command' | 'document' | 'setting'` filter. Rows are ordered by score, then, on a tie, a command before a document before a setting (step 2), then by name, so a result is deterministic. Choosing a setting row runs `section-open { section: 'settings', target }`. A project-only key is listed only while a project is active. The index is built in `late-settings`, never in first paint.
 
 ## 4. The autonomy section (D118)
 

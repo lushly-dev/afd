@@ -82,6 +82,24 @@ export const EXTRA_INPUTS = [
 		prefix: 'endpoints/loam/docs/phases/5-copilot/scenarios/',
 		packages: ['@lushly-dev/loam-kernel'],
 	},
+	// And phase 4's, with `p4-base.seed.json`, on the seed `p4-base`, whose apps the runner loads from their sources and
+	// manifests, read with the CLI's manifest reader, by path (kernel/scenarios/apps.ts): only the kernel's own tests.
+	{
+		prefix: 'endpoints/loam/docs/phases/4-settings/scenarios/',
+		packages: ['@lushly-dev/loam-kernel'],
+		ownTests: true,
+	},
+	...[
+		'endpoints/loam/apps/hello/',
+		'endpoints/loam/apps/tally/',
+		'endpoints/loam/apps/checklist/',
+		'endpoints/loam/packages/cli/src/',
+	].map((prefix) => ({
+		prefix,
+		except: PROSE,
+		packages: ['@lushly-dev/loam-kernel'],
+		ownTests: true,
+	})),
 	// The web host's units scan every file of the kernel and the chrome, tests included, for the name
 	// of an app or a document type (phase 2 specification, section 1 and D2).
 	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },

@@ -119,11 +119,6 @@ export class AppSurfaces implements ShellApps {
 	#prepared: AppList | null = null;
 	#rendered = false;
 	#missedSwitch = false;
-	/**
-	 * Selections set since the showing app changed, which reach its surfaces when they exist: a count, so a selection set
-	 * while `#sync` reads the list, for the app it is about to show, is not forgotten with the older ones.
-	 */
-	#selectionWritten = 0;
 	/** The scope and route the surfaces now rendering are created in: read at each render. */
 	#state: MainStateV1 | null = null;
 	/** A change of scope since the last render: what was parked belongs to the scope it left (7.6). */
@@ -358,7 +353,6 @@ export class AppSurfaces implements ShellApps {
 			this.#enqueue(() => this.#overlays.read());
 		}
 		if (!event.success) return;
-		if (command === 'app-selection-set') this.#selectionWritten++;
 		const showing = this.#showing;
 		if (showing === null) return;
 		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
@@ -401,7 +395,6 @@ export class AppSurfaces implements ShellApps {
 	 * what changed was no command, as an `activate` that threw, so the list is read again.
 	 */
 	async #sync(recreate = false, read = false): Promise<void> {
-		const written = this.#selectionWritten;
 		const list = await (read ? this.#shell.rail.refresh() : this.#shell.rail.fresh());
 		if (!list) {
 			// The scope moved and the list could not be read: what was made in the scope left goes all the
@@ -435,7 +428,6 @@ export class AppSurfaces implements ShellApps {
 			deepActiveElement(this.#shell.ownerDocument)?.classList.contains('project-home') === true;
 		const focusLeaves = this.#leave();
 		this.#showing = active;
-		if (changed) this.#selectionWritten -= written;
 		await this.#shell.readLayout();
 		await Updates.next();
 		if (fromHome && active === null) focusMainHeading(this.#shell);
@@ -792,7 +784,9 @@ export class AppSurfaces implements ShellApps {
 		this.#enqueue(async () => {
 			if (stale()) return;
 			await this.#readStatus(port.instance);
-			if (!stale() && this.#selectionWritten) await this.#readSelection(port.instance);
+			// The kernel holds the entering app's selection: read it at every mount, so a selection set at any moment
+			// around the open, before or after the queued sync, reaches the surfaces (phase 4's step 2 reviews, 7).
+			if (!stale()) await this.#readSelection(port.instance);
 		});
 	}
 

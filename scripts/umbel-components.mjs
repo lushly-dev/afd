@@ -329,8 +329,9 @@ export function findBinary(
 		.map((path) => ({ path, stats: stat(path) }))
 		.filter(({ stats }) => stats?.isFile());
 	if (found.length === 0) return null;
-	// Either separator: `join` writes Windows paths with backslashes.
-	const profileOf = (path) => (/[\\/]release[\\/]/.test(path) ? 'release' : 'debug');
+	// By the binary's own directory, `target/release` or `target/debug`, never a `release` directory higher in the
+	// checkout's path. Either separator: `join` writes Windows paths with backslashes.
+	const profileOf = (path) => (path.split(/[\\/]/).at(-2) === 'release' ? 'release' : 'debug');
 	const best = profileOf(found[0].path);
 	return found
 		.filter(({ path }) => profileOf(path) === best)

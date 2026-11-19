@@ -120,8 +120,17 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 		const read = ++this.#reads;
 		const settings = this.context?.settings;
 		const greeting = await greetingOf({ ...(settings ? { settings } : {}) });
-		// The board is a project's alone: at workspace level it is not found, and nothing is said of it.
-		const board = await settings?.get<string>('hello.project', 'board').catch(() => undefined);
+		// The board is a project's alone: read at project level, which a call at workspace level is refused
+		// (`SETTING_PROJECT_REQUIRED`), so outside a project nothing is said of it, not even its default.
+		const listed = settings
+			? await this.context?.client.call<{ values: Array<{ key: string; value: unknown }> }>(
+					'setting-list',
+					{ section: 'hello.project', level: 'project' }
+				)
+			: undefined;
+		const board = listed?.success
+			? listed.data?.values.find(({ key }) => key === 'board')?.value
+			: undefined;
 		if (read !== this.#reads) return;
 		this.greets =
 			typeof board === 'string'

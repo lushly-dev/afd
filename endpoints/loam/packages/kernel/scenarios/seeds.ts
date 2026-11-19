@@ -153,7 +153,10 @@ export const P4_SEED: SeedFileV1 = JSON.parse(
 	readFileSync(join(LOAM, 'docs/phases/4-settings/scenarios/p4-base.seed.json'), 'utf8')
 );
 
-/** A document's record and its template-less content, as `document-create` writes them, by the seed's person. */
+/**
+ * A document's record and its content, as `document-create` writes them (`recordOf` and its `AppStoreRecord` in
+ * `src/late/documents.ts`), by the seed's person; kept equal to that shape by hand, and read back by the seed's test.
+ */
 function documentWrites(
 	document: SeedFileV1['documents'][number],
 	manifests: Record<string, ManifestV2>

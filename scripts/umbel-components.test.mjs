@@ -80,6 +80,29 @@ test('a release binary wins over a newer debug one, and the newest release wins'
 	);
 });
 
+test('a checkout under a directory named release is classified by the binary’s own directory', () => {
+	const file = (mtimeMs) => ({ isFile: () => true, mtimeMs });
+	const stats = {
+		'/work/release/afd/target/debug/x': file(9),
+		'/work/release/afd/target/release/x': file(1),
+	};
+	const stat = (path) => stats[path] ?? null;
+	// The release build is listed first and wins over the newer debug one, which a path's `release` segment would tie.
+	assert.equal(
+		findBinary(['/work/release/afd/target/release/x', '/work/release/afd/target/debug/x'], stat),
+		'/work/release/afd/target/release/x'
+	);
+	// With only a debug build, it is found, and is not taken for a release one ahead of a release elsewhere.
+	const both = { ...stats, '/opt/umbel/target/release/x': file(5) };
+	assert.equal(
+		findBinary(
+			['/opt/umbel/target/release/x', '/work/release/afd/target/debug/x'],
+			(path) => both[path] ?? null
+		),
+		'/opt/umbel/target/release/x'
+	);
+});
+
 test('the workspace serves the components plugin alone, and keeps a deployer pack.toml', (t) => {
 	const workspace = scratch(t);
 	const override = prepareWorkspace(workspace);

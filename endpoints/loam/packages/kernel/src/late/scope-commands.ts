@@ -713,7 +713,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		name: 'section-open',
 		title: 'Open a section',
 		description:
-			'Show the projects, documents, account or settings section in main; the active app closes. For settings, target names a section or a key: hello.general.greeting',
+			'Show the projects, documents, account or settings section in main; the active app closes. For settings, target names a section or a key: loam.appearance.theme',
 		category: 'section',
 		mutation: true,
 		executionTime: 'instant',

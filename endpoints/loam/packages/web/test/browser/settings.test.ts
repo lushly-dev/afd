@@ -183,7 +183,7 @@ describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
 		expect(groups).toEqual(['Shell', 'Hello']);
 		expect(
 			await view
-				.locator('[role="treeitem"][data-group="Shell"] [role="treeitem"]')
+				.locator('[role="treeitem"][data-group="shell"] [role="treeitem"]')
 				.allTextContents()
 		).toEqual(['Appearance', 'Rail', 'Keybindings', 'Notifications', 'Documents']);
 		await view.locator('[role="treeitem"][aria-selected="true"]').focus();
@@ -239,10 +239,10 @@ describe('P4-E1: the three custom editors (3.7)', () => {
 		await expect
 			.poll(() => editor.locator('li').allTextContents())
 			.toEqual(['HelloMove upMove down', 'TallyMove upMove down']);
-		await editor.getByRole('button', { name: 'Move Tally up' }).click();
+		await editor.getByRole('button', { name: 'Move up: Tally' }).click();
 		await expect.poll(rail).toEqual(['tally', 'hello']);
 		// Focus follows the app it moved.
-		expect((await focused(page)).label).toBe('Move Tally up');
+		expect((await focused(page)).label).toBe('Move up: Tally');
 		expect(
 			await kernelCall(page, 'setting-get', { section: 'loam.rail', key: 'order' })
 		).toMatchObject({ data: { value: ['tally', 'hello'], from: 'person' } });
@@ -252,7 +252,7 @@ describe('P4-E1: the three custom editors (3.7)', () => {
 			target: 'loam.notifications.muted',
 		});
 		const picker = view.locator('loam-instance-picker');
-		await picker.getByLabel('Hello').check();
+		await picker.getByLabel('Hello').click();
 		await expect
 			.poll(
 				async () =>
@@ -289,15 +289,187 @@ describe('P4-E1: the three custom editors (3.7)', () => {
 			)
 			.toMatchObject({ data: { value: [{ command: 'palette-open', keys: 'Mod+Shift+L' }] } });
 		await expect.poll(() => keys.locator('li').count()).toBe(1);
-		// F6 is never recorded as a binding: it says so before anything is added.
+		// F6 is never recorded as a binding: it says so before anything is added, and Add stays disabled.
 		await keys.locator('#override-command').fill('layout-set');
 		await keys.locator('#override-record').click();
 		await page.keyboard.press('F6');
 		await expect
 			.poll(() => keys.locator('#override-said').textContent())
 			.toBe('Recorded F6. F6 cannot be bound: bind another key.');
+		// The Record button's name stays; only its pressed state says it records (APG).
+		expect(await keys.locator('#override-record').textContent()).toBe('Record keys');
+		expect(await keys.getByRole('button', { name: 'Add' }).getAttribute('aria-disabled')).toBe(
+			'true'
+		);
+		// Still pressable, as `aria-disabled` keeps it in the Tab order, and it says why nothing is added.
+		await keys.getByRole('button', { name: 'Add' }).click({ force: true });
+		await settle(page);
+		// Nothing was written, and no row for it shows.
+		expect(await keys.locator('li').allTextContents()).toEqual(['palette-open: Mod+Shift+LRemove']);
+		// Choosing to unbind Mod+K's command warns as soon as it is chosen, before Add.
+		await keys.locator('#override-command').fill('palette-open');
+		await keys.locator('#override-unbind').check();
+		await expect
+			.poll(() => keys.locator('#override-said').textContent())
+			.toBe('This unbinds Mod+K, which opens the command palette.');
+		await page.close();
+	});
+});
+
+describe("P4-E1: step 2's reviews", () => {
+	it('2: a control left from before a change of scope never writes in the new scope', async () => {
+		const { page, atlas } = await inAtlas();
+		const beacon = (
+			(await kernelCall(page, 'project-create', { name: 'Beacon', slug: 'beacon' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'hello.general.greeting',
+		});
+		const view = section(page);
+		await expect
+			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
+			.toBe('Project Atlas');
+		// The scope moves to Beacon, and the person's edit to Atlas's field lands after it, before the section reads again.
+		await page.evaluate(async (beacon) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				shadowRoot: ShadowRoot;
+				kernel: { call(name: string, input: unknown): Promise<unknown> };
+			};
+			const field = shell.shadowRoot
+				.querySelector('loam-settings-section')
+				?.shadowRoot?.querySelector('#field-greeting') as HTMLInputElement;
+			await shell.kernel.call('scope-set', { project: beacon });
+			field.value = 'Kept';
+			field.dispatchEvent(new Event('change'));
+		}, beacon);
+		await settle(page);
+		const read = (project: string) =>
+			page.evaluate(
+				(project) =>
+					(
+						document.querySelector('loam-shell') as unknown as {
+							kernel: {
+								call(name: string, input: unknown, options: unknown): Promise<{ data: unknown }>;
+							};
+						}
+					).kernel
+						.call(
+							'setting-get',
+							{ section: 'hello.general', key: 'greeting' },
+							{ scope: { workspace: 'personal', project } }
+						)
+						.then((result) => result.data),
+				project
+			);
+		// Beacon's value is untouched; Atlas's is what was edited, or nothing if the edit came after the panel forgot.
+		expect(await read(beacon)).toMatchObject({ value: 'Hello', from: 'default' });
+		expect(['Kept', 'Hello']).toContain(((await read(atlas)) as { value: string }).value);
+		await page.close();
+	});
+
+	it('3: the list editors keep what they do not show', async () => {
+		const { page } = await openShell(browser, site.origin);
+		const get = async (section: string, key: string) =>
+			((await kernelCall(page, 'setting-get', { section, key })) as { data: { value: unknown } })
+				.data.value;
+		const set = (section: string, key: string, value: unknown) =>
+			kernelCall(page, 'setting-set', { section, key, value, level: 'person' });
+		// An id no app has now, as a disabled app's would be, in each list; and two overrides of one command.
+		await set('loam.rail', 'order', ['ghost', 'hello', 'tally']);
+		await set('loam.notifications', 'muted', ['ghost']);
+		await set('loam.keybindings', 'overrides', [
+			{ command: 'section-open', target: 'documents', keys: 'Mod+G D' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+G P' },
+		]);
+		const view = section(page);
+		await kernelCall(page, 'section-open', { section: 'settings', target: 'loam.rail.order' });
+		await view
+			.locator('loam-rail-order-editor')
+			.getByRole('button', { name: 'Move up: Tally' })
+			.click();
+		await expect.poll(() => get('loam.rail', 'order')).toEqual(['tally', 'hello', 'ghost']);
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.notifications.muted',
+		});
+		await view.locator('loam-instance-picker').getByLabel('Hello').click();
+		await expect.poll(() => get('loam.notifications', 'muted')).toEqual(['ghost', 'hello']);
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.keybindings.overrides',
+		});
+		const keys = view.locator('loam-keybinding-editor');
+		await keys.locator('#override-command').fill('palette-open');
+		await keys.locator('#override-record').click();
+		await page.keyboard.press('Control+Shift+L');
 		await keys.getByRole('button', { name: 'Add' }).click();
-		await expect.poll(() => view.locator('.status').textContent()).toMatch(/was not saved/);
+		await expect
+			.poll(() => get('loam.keybindings', 'overrides'))
+			.toEqual([
+				{ command: 'section-open', target: 'documents', keys: 'Mod+G D' },
+				{ command: 'section-open', target: 'projects', keys: 'Mod+G P' },
+				{ command: 'palette-open', keys: 'Mod+Shift+L' },
+			]);
+		await expect
+			.poll(() => keys.locator('#override-said').textContent())
+			.toBe('Added palette-open: Mod+Shift+L.');
+		// axe over the rail editor and the instance picker too (15).
+		for (const target of ['loam.rail.order', 'loam.notifications.muted']) {
+			await kernelCall(page, 'section-open', { section: 'settings', target });
+			await settle(page);
+			expect(await axe(page), target).toEqual([]);
+		}
+		await page.close();
+	});
+
+	it("6: Back between two keys' links selects the key, and a key's own levels choose the tab", async () => {
+		const { page } = await inAtlas();
+		const view = section(page);
+		const target = () => view.locator('.field[data-target]').getAttribute('data-key');
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.appearance.theme',
+		});
+		await expect.poll(target).toBe('theme');
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.appearance.density',
+		});
+		await expect.poll(target).toBe('density');
+		await expect.poll(() => new URL(page.url()).hash).toBe('#density');
+		await page.goBack();
+		await expect.poll(() => new URL(page.url()).hash).toBe('#theme');
+		await expect.poll(target).toBe('theme');
+		// `signoff` is the workspace's alone, in a section of workspace and project: from Atlas, the Workspace tab.
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'hello.general.signoff',
+		});
+		await expect
+			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
+			.toBe('Workspace');
+		await expect.poll(target).toBe('signoff');
+		await page.close();
+	});
+
+	it('9: hello says no board outside a project, and a free string may be set empty', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await expect.poll(() => greets(page)).toBe('Greets with Hello');
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'hello.general.signoff',
+		});
+		const view = section(page);
+		await view.locator('#field-signoff').fill('');
+		await view.locator('#field-signoff').press('Tab');
+		await expect.poll(() => view.locator('.status').textContent()).toBe('Sign-off is saved.');
+		expect(
+			await kernelCall(page, 'setting-get', { section: 'hello.general', key: 'signoff' })
+		).toMatchObject({ data: { value: '', from: 'workspace' } });
 		await page.close();
 	});
 });

@@ -252,6 +252,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 			for (const section of (manifest.ui?.settings ?? []) as unknown as SettingSectionV1[]) {
 				const fullId = `${manifest.plugin.id}.${section.id}`;
 				// The shell's own namespace is never an app's, and a second instance of an app shares its sections.
+				// A second ready instance of one native or view app cannot exist (`APP_DOMAIN_CONFLICT`), and a mounted app
+				// declares no section, so the first is the one that opens wherever the section can.
 				if (fullId.startsWith('loam.') || ids.has(fullId)) continue;
 				ids.add(fullId);
 				known.push({ fullId, section, owner: app.instance, plugin: manifest.plugin.id });
@@ -473,8 +475,12 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const project = scope.projects.get(id) as ProjectV1 | undefined;
 		if (project?.status === 'archived') return kit.archivedRefusal(project);
 		// An app's key is a member's to set only where the app is enabled for the project (3.2).
-		return known.owner === 'shell' ? undefined : deps.canOpen(known.owner, id);
+		return opensIn(known, id);
 	}
+
+	/** Why the app declaring `known` cannot open in `project`, or undefined when it can, or for the shell's (3.2). */
+	const opensIn = (known: KnownSectionV1, project: string): CommandResult<never> | undefined =>
+		known.owner === 'shell' ? undefined : deps.canOpen(known.owner, project);
 
 	/** The section's resolved object, with `key` at `next`, against its 16 KiB (3.1). */
 	async function tooLarge(
@@ -605,7 +611,11 @@ export function createSettings(deps: SettingsDeps): Settings {
 	const NAME = z.string().check(z.minLength(1), z.maxLength(128));
 	const NAME_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 128 };
 
-	const schemaInput = z.strictObject({ section: z.optional(NAME), key: z.optional(NAME) });
+	const schemaInput = z.strictObject({
+		section: z.optional(NAME),
+		key: z.optional(NAME),
+		outline: z.optional(z.boolean()),
+	});
 	const schemaGet = kit.define<
 		typeof schemaInput,
 		{
@@ -615,24 +625,33 @@ export function createSettings(deps: SettingsDeps): Settings {
 				description?: string;
 				levels: SettingLevelV1[];
 				app?: string;
-				schema: SettingSectionV1['schema'];
+				instance?: string;
+				schema?: SettingSectionV1['schema'];
+				keys?: Array<{ key: string; title: string; levels: SettingLevelV1[] }>;
 			}>;
 		}
 	>({
 		name: 'setting-schema-get',
 		title: 'Settings schemas',
 		description:
-			'List the settings sections and their keys: levels, types and defaults. Name a section, and a key, to read one',
+			'List the settings sections and their keys: levels, types and defaults. Name a section, and a key, to read one; outline lists each section and its keys by title, with no schema',
 		category: 'setting',
 		mutation: false,
 		executionTime: 'instant',
 		input: schemaInput,
 		jsonSchema: {
 			type: 'object',
-			properties: { section: NAME_JSON, key: NAME_JSON },
+			properties: { section: NAME_JSON, key: NAME_JSON, outline: { type: 'boolean' } },
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			if (input.outline === true && input.key !== undefined) {
+				return fail(
+					'VALIDATION_ERROR',
+					'An outline lists keys, so it names no key',
+					'Leave key out, or outline out'
+				);
+			}
 			if (input.key !== undefined && input.section === undefined) {
 				return fail('VALIDATION_ERROR', 'A key is read within its section', 'Name the section too');
 			}
@@ -657,16 +676,27 @@ export function createSettings(deps: SettingsDeps): Settings {
 					title: section.title,
 					...(section.description !== undefined ? { description: section.description } : {}),
 					levels: [...section.levels],
-					...(owner !== 'shell' ? { app: titles.get(owner) ?? owner } : {}),
-					schema:
-						input.key === undefined
-							? section.schema
-							: {
-									...section.schema,
-									properties: {
-										[input.key]: section.schema.properties[input.key] as SettingKeyV1,
-									},
-								},
+					// The owning app's title to show, and its instance, which says whose it is: two apps may share a title.
+					...(owner !== 'shell' ? { app: titles.get(owner) ?? owner, instance: owner } : {}),
+					...(input.outline === true
+						? {
+								keys: Object.entries(section.schema.properties).map(([key, declared]) => ({
+									key,
+									title: declared.title,
+									levels: [...(declared.levels ?? section.levels)],
+								})),
+							}
+						: {
+								schema:
+									input.key === undefined
+										? section.schema
+										: {
+												...section.schema,
+												properties: {
+													[input.key]: section.schema.properties[input.key] as SettingKeyV1,
+												},
+											},
+							}),
 				})),
 			};
 			const budget = SETTING_OUTPUT_BUDGETS['setting-schema-get']?.maxBytes ?? 0;
@@ -1091,8 +1121,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 		async search(query, context, limit) {
 			if (query.trim() === '') return [];
 			const known = sections();
+			// Built again when a section, its owner, its title or one of its keys changes.
 			const built = JSON.stringify(
-				known.map((entry) => [entry.fullId, entry.owner, entry.section.title])
+				known.map((entry) => [
+					entry.fullId,
+					entry.owner,
+					entry.section.title,
+					Object.entries(entry.section.schema.properties).map(([key, declared]) => [
+						key,
+						declared.title,
+						declared.description,
+						declared.levels,
+					]),
+				])
 			);
 			if (indexed?.built !== built) {
 				const held = indexRows(known);
@@ -1105,22 +1146,29 @@ export function createSettings(deps: SettingsDeps): Settings {
 			}
 			const { index, rows: held } = indexed;
 			const byId = new Map(known.map((entry) => [entry.fullId, entry]));
-			// Filtered for the call at query time: a port sees its own app's sections only (3.8), a project-only key shows
-			// only in a project, and an app's only where the app opens there (3.2, 3.10).
+			// Filtered for the call at query time. A project-only key shows only in a project the caller may enter, and an
+			// app's only where one of its instances opens there (3.2, 3.10): `palette-search` is not decided at the call's
+			// scope, so a project the actor may not enter is treated as no project, revealing nothing of it. The `owns`
+			// filter is defence in depth: a port is refused `palette-search` itself (`CALL_NOT_GRANTED`).
 			const app = callerApp(context);
-			const project = (context as KernelFieldContext).scope?.project;
+			const asked = (context as KernelFieldContext).scope?.project;
+			const project =
+				asked !== undefined &&
+				scope.allows(context.actor as AccessActorV1, {
+					workspace: scope.workspace.id,
+					project: asked,
+				})
+					? asked
+					: undefined;
 			const out: PaletteItem[] = [];
 			for (const found of index.search(query, index.size)) {
 				const row = held.get(found.name) as PaletteItem;
 				const entry = byId.get(row.section as string) as KnownSectionV1;
 				if (!owns(app, entry)) continue;
+				if (!entry || !Object.hasOwn(entry.section.schema.properties, row.key as string)) continue;
 				const levels = levelsOf(entry, row.key as string);
 				const projectOnly = !levels.includes('person') && !levels.includes('workspace');
-				if (
-					projectOnly &&
-					(project === undefined ||
-						(entry.owner !== 'shell' && deps.canOpen(entry.owner, project) !== undefined))
-				)
+				if (projectOnly && (project === undefined || opensIn(entry, project) !== undefined))
 					continue;
 				out.push({ ...row, score: found.score, field: found.field, matches: found.matches });
 				if (out.length === limit) break;

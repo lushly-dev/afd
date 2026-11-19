@@ -85,3 +85,26 @@ export const CUSTOM_EDITORS: Readonly<Record<string, string>> = {
 	'loam.notifications.muted': 'loam-instance-picker',
 	'loam.keybindings.overrides': 'loam-keybinding-editor',
 };
+
+/**
+ * A rail order after a move among the apps shown (R8; the review's 3): the shown apps in their new order, then every
+ * stored id that is not shown (an app disabled, failed or set by a command), in the order stored, so none is lost.
+ */
+export function reorder(stored: readonly string[], shown: readonly string[]): string[] {
+	const visible = new Set(shown);
+	return [...shown, ...stored.filter((id) => !visible.has(id))];
+}
+
+/** A muted list with `instance` on or off, every other stored id kept where it was (the review's 3). */
+export function toggled(stored: readonly string[], instance: string, on: boolean): string[] {
+	const kept = stored.filter((id) => id !== instance);
+	return on ? [...kept, instance] : kept;
+}
+
+/** The overrides with `next` in place of the one for the same command and target only (8.3; the review's 3). */
+export function withOverride(stored: readonly OverrideV1[], next: OverrideV1): OverrideV1[] {
+	const same = (each: OverrideV1) =>
+		each.command === next.command && (each.target ?? null) === (next.target ?? null);
+	const at = stored.findIndex(same);
+	return at < 0 ? [...stored, next] : stored.map((each, index) => (index === at ? next : each));
+}

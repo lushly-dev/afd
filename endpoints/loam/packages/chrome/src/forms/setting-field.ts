@@ -76,10 +76,13 @@ function controlOf(field: FormField, id: string): SettingField['control'] {
  * line, as the console's form takes a list of strings.
  */
 export function settingField(key: string, schema: SettingKeySchema, value: unknown): SettingField {
+	// A free string may be empty, which the console's form reads as missing when required (its 7.7): such a key is not
+	// required here, and an empty entry is the empty string.
+	const free = schema.type === 'string' && schema.enum === undefined;
 	const model: FormModel = renderForm({
 		type: 'object',
 		properties: { [key]: { ...schema, default: value } },
-		required: [key],
+		required: free ? [] : [key],
 		additionalProperties: false,
 	});
 	const field = model.fields[0] as FormField;
@@ -138,6 +141,7 @@ export function settingField(key: string, schema: SettingKeySchema, value: unkno
 			if (schema.type === 'array' && typeof raw === 'string' && raw.trim() === '')
 				return { ok: true, value: [] };
 			const reading = readForm(model, { [key]: raw });
+			if (reading.ok && free && !Object.hasOwn(reading.input, key)) return { ok: true, value: '' };
 			return reading.ok
 				? { ok: true, value: reading.input[key] }
 				: { ok: false, error: reading.errors[key] ?? 'Enter a value.' };

@@ -115,6 +115,15 @@ description = "The word Hello greets with, as in Hello, friend!"
 maxLength = 40
 default = "Hello"
 
+# A key narrower than its section: the workspace's alone, so a link to it opens the workspace's level.
+[ui.settings.schema.properties.signoff]
+type = "string"
+title = "Sign-off"
+description = "How the workspace's notes from Hello end."
+levels = ["workspace"]
+maxLength = 40
+default = "Bye"
+
 [[ui.settings]]
 id = "project"
 title = "Project"

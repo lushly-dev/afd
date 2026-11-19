@@ -342,7 +342,7 @@ describe("the palette's setting rows (3.10)", () => {
 		expect(third.data?.items[0]?.title).not.toBe('changed');
 	});
 
-	it('lists nothing for an empty query, and a port sees only its own app’s rows', async () => {
+	it('lists nothing for an empty query, and a port is refused palette-search itself (CALL_NOT_GRANTED)', async () => {
 		const { kernel } = await workspace();
 		expect(
 			(await kernel.call<Rows>('palette-search', { query: '', kind: 'setting' })).data?.items
@@ -420,5 +420,94 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 			}) as never,
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});
+
+describe("the reviews' findings (step 2)", () => {
+	it('1: lists no project-only key for a project the caller may not enter, as a person or an agent', async () => {
+		const { kernel, scopes } = await workspace();
+		const board = async (
+			call: typeof kernel.call,
+			scope: (typeof scopes)['atlas'],
+			kind?: string
+		) =>
+			(
+				await call<Rows>('palette-search', { query: 'board', ...(kind ? { kind } : {}) }, { scope })
+			).data?.items.filter((item) => item.kind === 'setting') ?? [];
+		const person = kernel.call.bind(kernel) as typeof kernel.call;
+		const agent = kernel.agent.call.bind(kernel.agent) as typeof kernel.call;
+		for (const call of [person, agent]) {
+			expect((await board(call, scopes.atlas, 'setting')).map(({ name }) => name)).toEqual([
+				'greet.project.board',
+			]);
+			// Citadel is restricted to someone else: as if no project were named, in filtered and mixed searches alike.
+			expect(await board(call, scopes.citadel, 'setting')).toEqual([]);
+			expect(await board(call, scopes.citadel)).toEqual([]);
+		}
+	});
+
+	it('4: an outline lists every section and its keys by title within the budget, with no schema', async () => {
+		const { kernel } = await workspace();
+		const outline = await kernel.call<{
+			sections: Array<{ section: string; schema?: unknown; keys: Array<{ key: string }> }>;
+		}>('setting-schema-get', { outline: true });
+		expect(outline.success, JSON.stringify(outline.error)).toBe(true);
+		const general = outline.data?.sections.find(({ section }) => section === 'greet.general');
+		expect(general).toMatchObject({
+			app: 'Greet',
+			instance: 'greet',
+			keys: [{ key: 'greeting', title: 'Greeting', levels: ['workspace', 'project'] }],
+		});
+		expect(outline.data?.sections.every((section) => section.schema === undefined)).toBe(true);
+		expect(
+			(
+				await kernel.call('setting-schema-get', {
+					section: 'greet.general',
+					key: 'greeting',
+					outline: true,
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+	});
+
+	// An app opens in every project unless it is disabled, which takes its sections away with it: no row, and its key
+	// not found (a native or view instance has no `projects` of its own, and a workspace-only app opens beside any).
+	it('12: lists no project-only key of an app disabled here, and refuses its write', async () => {
+		const { kernel, scopes } = await workspace();
+		await kernel.call('workspace-app-set', { instance: 'greet', enabled: false });
+		const listed = await kernel.call<Rows>(
+			'palette-search',
+			{ query: 'board', kind: 'setting' },
+			{ scope: scopes.atlas }
+		);
+		expect(listed.data?.items).toEqual([]);
+		const refused = await kernel.call(
+			'setting-set',
+			{ section: 'greet.project', key: 'board', value: 'Ours', level: 'project' },
+			{ scope: scopes.atlas }
+		);
+		expect(refused.error?.code).toBe('SETTING_NOT_FOUND');
+	});
+
+	it('12: an agent may not write loam.notifications.muted, even for its person', async () => {
+		const { kernel } = await workspace();
+		const refused = await kernel.agent.call('setting-set', {
+			section: 'loam.notifications',
+			key: 'muted',
+			value: ['greet'],
+			level: 'person',
+		});
+		expect(refused.error).toMatchObject({
+			code: 'HUMAN_REQUIRED',
+			details: { section: 'loam.notifications', key: 'muted', level: 'person' },
+		});
+		// `toastSticky` is not a human key: the agent writes it for its person.
+		const sticky = await kernel.agent.call('setting-set', {
+			section: 'loam.notifications',
+			key: 'toastSticky',
+			value: 'always',
+			level: 'person',
+		});
+		expect(sticky.success).toBe(true);
 	});
 });

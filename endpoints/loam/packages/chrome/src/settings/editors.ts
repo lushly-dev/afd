@@ -3,10 +3,19 @@
  * shapes the schema form cannot show: `loam-rail-order-editor` (`loam.rail.order`), `loam-instance-picker`
  * (`loam.notifications.muted`) and `loam-keybinding-editor` (`loam.keybindings.overrides`). Each shows `value` and
  * dispatches `change` with `detail.value`, the whole new value; the section writes it with `setting-set`, and the kernel
- * checks it. Plain elements with text as text, as the rest of this chunk.
+ * checks it. An editor shows a new value only once the section gives it back, read after the write, so a refused write
+ * leaves what is stored. A list keeps every stored item the editor does not show. Plain elements with text as text.
  */
 
-import { chordOf, NEVER_BOUND, type OverrideV1, overrideWarning } from './editor-rules.js';
+import {
+	chordOf,
+	NEVER_BOUND,
+	type OverrideV1,
+	overrideWarning,
+	reorder,
+	toggled,
+	withOverride,
+} from './editor-rules.js';
 import { button, el, SettingsElement } from './parts.js';
 
 export { CUSTOM_EDITORS, type OverrideV1 } from './editor-rules.js';
@@ -94,15 +103,11 @@ export class LoamRailOrderEditor extends Editor<string[]> {
 				if (to < 0 || to >= shown.length || this.disabled) return;
 				const order = shown.map(({ instance }) => instance);
 				[order[index], order[to]] = [order[to] as string, order[index] as string];
-				// Focus follows the app it moved, on the same button.
-				this.value = order;
-				(this.shadowRoot as ShadowRoot)
-					.querySelector<HTMLElement>(`[data-move="${app.instance}-${word}"]`)
-					?.focus();
-				changed(this, order);
+				// Shown once written: focus stays on this button, which the next render finds by its `data-move`.
+				changed(this, reorder(this.value, order));
 			},
 			{
-				'aria-label': `Move ${app.title} ${word}`,
+				'aria-label': `Move ${word}: ${app.title}`,
 				'data-move': `${app.instance}-${word}`,
 			}
 		);
@@ -120,6 +125,7 @@ export class LoamInstancePicker extends Editor<string[]> {
 
 	render(): void {
 		const root = this.shadowRoot as ShadowRoot;
+		const focused = root.activeElement?.id;
 		const boxes = this.apps.map((app) => {
 			const box = el('input', {
 				type: 'checkbox',
@@ -129,13 +135,9 @@ export class LoamInstancePicker extends Editor<string[]> {
 			box.checked = this.value.includes(app.instance);
 			box.disabled = this.disabled;
 			box.addEventListener('change', () => {
-				const next = this.apps
-					.map(({ instance }) => instance)
-					.filter((instance) =>
-						instance === app.instance ? box.checked : this.value.includes(instance)
-					);
-				this.value = next;
-				root.querySelector<HTMLElement>(`#pick-${app.instance}`)?.focus();
+				const next = toggled(this.value, app.instance, box.checked);
+				// Shown once written: the box goes back to what is stored if the write is refused.
+				box.checked = this.value.includes(app.instance);
 				changed(this, next);
 			});
 			return el('label', { class: 'check', for: `pick-${app.instance}` }, box, app.title);
@@ -148,6 +150,7 @@ export class LoamInstancePicker extends Editor<string[]> {
 				...(boxes.length > 0 ? boxes : [el('p', { class: 'note' }, 'No app to choose.')])
 			)
 		);
+		if (focused) root.querySelector<HTMLElement>(`#${CSS.escape(focused)}`)?.focus();
 	}
 }
 
@@ -166,6 +169,10 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 	#unbind = false;
 	#command = '';
 	#said = '';
+	/** The override Add sent, until the stored value holds it, when the form clears. */
+	#submitted: OverrideV1 | null = null;
+	/** The warning last said, so a change of what is pending says a new one once. */
+	#warned: string | undefined;
 
 	constructor() {
 		super([]);
@@ -174,6 +181,24 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 	render(): void {
 		const root = this.shadowRoot as ShadowRoot;
 		const focused = root.activeElement?.id;
+		const submitted = this.#submitted;
+		if (
+			submitted &&
+			this.value.some(
+				(each) =>
+					each.command === submitted.command &&
+					(each.target ?? null) === (submitted.target ?? null) &&
+					each.keys === submitted.keys
+			)
+		) {
+			// Stored: the form clears, and says what was added.
+			this.#said = `Added ${submitted.command}: ${submitted.keys ?? 'unbound'}.`;
+			this.#submitted = null;
+			this.#command = '';
+			this.#recorded = null;
+			this.#unbind = false;
+			this.#warned = undefined;
+		}
 		const rows = this.value.map((override, index) =>
 			el(
 				'li',
@@ -187,10 +212,10 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 					'Remove',
 					() => {
 						if (this.disabled) return;
-						const next = this.value.filter((_, at) => at !== index);
-						this.#said = `Removed the override of ${override.command}.`;
-						this.value = next;
-						changed(this, next);
+						changed(
+							this,
+							this.value.filter((_, at) => at !== index)
+						);
 					},
 					{ 'aria-label': `Remove the override of ${override.command}` }
 				)
@@ -208,8 +233,9 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			this.#command = command.value.trim();
 			this.#update();
 		});
+		// Its name stays "Record keys"; `aria-pressed` says it is recording, as APG's toggle button does.
 		const record = button(
-			this.#recording ? 'Press the keys…' : 'Record keys',
+			'Record keys',
 			() => {
 				if (this.disabled) return;
 				this.#recording = !this.#recording;
@@ -241,6 +267,11 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			{ 'aria-label': 'Add an override' },
 			el('label', { for: 'override-command' }, 'Command', command),
 			record,
+			el(
+				'span',
+				{ id: 'override-keys', class: 'note' },
+				this.#recorded ? `Keys: ${this.#recorded}` : 'No keys recorded'
+			),
 			el('label', { class: 'check', for: 'override-unbind' }, unbind, 'Unbind it'),
 			add
 		);
@@ -289,6 +320,7 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 		this.#unbind = false;
 		const warning = this.#warning();
 		this.#said = `Recorded ${chord}.${warning ? ` ${warning}` : ''}`;
+		this.#warned = warning;
 		this.render();
 		(this.shadowRoot as ShadowRoot).querySelector<HTMLElement>('#override-record')?.focus();
 	}
@@ -301,20 +333,30 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 
 	#warning(): string | undefined {
 		const pending = this.#pending();
-		if (this.#recorded && NEVER_BOUND.includes(this.#recorded))
+		if (!this.#unbind && this.#recorded && NEVER_BOUND.includes(this.#recorded))
 			return `${this.#recorded} cannot be bound: bind another key.`;
 		return pending ? overrideWarning(pending) : undefined;
 	}
 
-	/** The Add button follows what is entered; the warning shows before it is pressed. */
+	/** Whether Add may send: something pending, and no key that is never bound (8.3). */
+	#ready(): boolean {
+		const blocked =
+			!this.#unbind && this.#recorded !== null && NEVER_BOUND.includes(this.#recorded);
+		return this.#pending() !== undefined && !blocked && !this.disabled;
+	}
+
+	/**
+	 * The Add button follows what is pending, and a warning is said as soon as what is pending changes, before Add:
+	 * naming the command or choosing to unbind may shadow a shell chord or leave Mod+K unbound (8.3; the review's 5).
+	 */
 	#update(): void {
 		const root = this.shadowRoot as ShadowRoot;
-		const add = root.querySelector<HTMLElement>('#override-add');
-		const ready = this.#pending() !== undefined && !this.disabled;
-		add?.setAttribute('aria-disabled', String(!ready));
-		const record = root.querySelector('#override-record');
-		if (record && !this.#recording)
-			record.textContent = this.#recorded ? `Keys: ${this.#recorded}` : 'Record keys';
+		root.querySelector('#override-add')?.setAttribute('aria-disabled', String(!this.#ready()));
+		const warning = this.#warning();
+		if (warning !== this.#warned) {
+			this.#warned = warning;
+			if (warning) this.#say(warning);
+		}
 	}
 
 	#say(text: string): void {
@@ -325,21 +367,17 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 
 	#add(): void {
 		const pending = this.#pending();
-		if (!pending || this.disabled) {
+		if (!pending || !this.#ready()) {
 			this.#say(
-				this.#command ? 'Record the keys, or choose to unbind it.' : 'Name a command first.'
+				!this.#command
+					? 'Name a command first.'
+					: (this.#warning() ?? 'Record the keys, or choose to unbind it.')
 			);
 			return;
 		}
-		const warning = this.#warning();
-		const next = [...this.value.filter((each) => each.command !== pending.command), pending];
-		this.#command = '';
-		this.#recorded = null;
-		this.#unbind = false;
-		this.#said = `Added ${pending.command}: ${pending.keys ?? 'unbound'}.${warning ? ` ${warning}` : ''}`;
-		this.value = next;
-		(this.shadowRoot as ShadowRoot).querySelector<HTMLElement>('#override-command')?.focus();
-		changed(this, next);
+		// Sent, and shown once stored: the form clears when the value given back holds it.
+		this.#submitted = pending;
+		changed(this, withOverride(this.value, pending));
 	}
 }
 
