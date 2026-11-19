@@ -28,6 +28,8 @@ import {
 	NOTIFICATION_LIST_BUDGET,
 	NOTIFICATION_QUOTA,
 	NOTIFICATION_TABLE,
+	orphanNotice,
+	orphanRecipients,
 } from './notifications.js';
 import { createPushRate } from './push-rate.js';
 
@@ -1156,5 +1158,37 @@ describe("the act's read-back failing (the verification of 2995bb7e)", () => {
 			if (ran) expect(stored).toMatchObject({ state: 'done', readAt: 9 });
 			else expect(stored).not.toHaveProperty('state');
 		}
+	});
+});
+
+describe("the orphan notice's recipients (4.2, 10.2; step 8's seam)", () => {
+	it('tells each owner of the rows they may see: a project row only if they may enter its project', () => {
+		const rows = [
+			{ id: 'workspace/-/dual/*', level: 'workspace' as const },
+			{ id: 'project/prj_a/dual/*', level: 'project' as const, project: 'prj_a' },
+			{ id: 'project/prj_b/dual/*', level: 'project' as const, project: 'prj_b' },
+		];
+		const heard = orphanRecipients(rows, ['ada', 'bea', 'cy'], (person, project) =>
+			person === 'ada' ? true : person === 'bea' ? project === 'prj_a' : false
+		);
+		expect([...heard].map(([owner, theirs]) => [owner, theirs.map((row) => row.id)])).toEqual([
+			['ada', ['workspace/-/dual/*', 'project/prj_a/dual/*', 'project/prj_b/dual/*']],
+			['bea', ['workspace/-/dual/*', 'project/prj_a/dual/*']],
+			['cy', ['workspace/-/dual/*']],
+		]);
+		expect(orphanRecipients(rows.slice(2), ['cy'], () => false).size).toBe(0);
+	});
+
+	it('names at most ten rows and counts the rest', () => {
+		const many = Array.from({ length: 12 }, (_, index) => ({
+			id: `workspace/-/app${index}/*`,
+			level: 'workspace' as const,
+		}));
+		const notice = orphanNotice(many);
+		expect(notice.title).toBe('12 autonomy rules no longer match an app or command');
+		expect(notice.body).toContain('app9/*, and 2 more.');
+		expect(orphanNotice(many.slice(0, 1)).title).toBe(
+			'An autonomy rule no longer matches an app or command'
+		);
 	});
 });

@@ -695,6 +695,18 @@ describe('orphans (4.2): flagged at the manifest’s apply', () => {
 			({ command }) => command === 'autonomy-settle'
 		);
 		expect(settled).toHaveLength(1);
+		// The owner hears of it in their inbox, once, from the shell (4.2, 10.2; step 5's wiring).
+		const inbox = await second.kernel.call<{
+			notifications: Array<{ source: string; title: string; body?: string; tone: string }>;
+		}>('notification-list', { body: true });
+		expect(inbox.data?.notifications).toEqual([
+			expect.objectContaining({
+				source: 'shell',
+				tone: 'warning',
+				title: '2 autonomy rules no longer match an app or command',
+				body: expect.stringContaining('workspace/-/dual/dual-put, workspace/-/solo/*'),
+			}),
+		]);
 		// An orphan decides nothing; and it can always be removed.
 		expect(
 			(await second.kernel.call<Data>('autonomy-get', { command: 'solo-put' })).error?.code

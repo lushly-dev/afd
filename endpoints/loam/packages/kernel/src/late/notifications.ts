@@ -992,3 +992,54 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 function sourceName(source: Exclude<NoticeSource, { kind: 'none' }>): string {
 	return source.kind === 'app' ? source.instance : source.kind === 'agent' ? source.id : 'shell';
 }
+
+/** What an orphaned autonomy row is to its notice (4.2): its id, and the project it is set for, if any. */
+export interface OrphanRowV1 {
+	id: string;
+	level: 'workspace' | 'project';
+	project?: string;
+}
+
+/**
+ * Who hears of orphaned autonomy rows (4.2, 10.2): each owner, with the rows they may see, a project's only when they may
+ * enter its project, a workspace row always. An owner with none hears nothing.
+ */
+export function orphanRecipients<Row extends OrphanRowV1>(
+	rows: readonly Row[],
+	owners: readonly string[],
+	mayEnter: (person: string, project: string) => boolean
+): Map<string, Row[]> {
+	const heard = new Map<string, Row[]>();
+	for (const owner of owners) {
+		const theirs = rows.filter(
+			(row) =>
+				row.level === 'workspace' || row.project === undefined || mayEnter(owner, row.project)
+		);
+		if (theirs.length > 0) heard.set(owner, theirs);
+	}
+	return heard;
+}
+
+/** Most rows an orphan notice names by id; the rest are counted. */
+const ORPHANS_NAMED = 10;
+
+/** The shell's notice of orphaned autonomy rows (4.2): one per owner per settle, naming the rows. */
+export function orphanNotice(rows: readonly OrphanRowV1[]): {
+	title: string;
+	body: string;
+	tone: 'warning';
+} {
+	const count = rows.length;
+	const named = rows.slice(0, ORPHANS_NAMED).map((row) => row.id);
+	const more = count > ORPHANS_NAMED ? `, and ${count - ORPHANS_NAMED} more` : '';
+	return {
+		title:
+			count === 1
+				? 'An autonomy rule no longer matches an app or command'
+				: `${count} autonomy rules no longer match an app or command`,
+		body: `Each still bounds what agents may do, and decides nothing on its own. Review or remove ${
+			count === 1 ? 'it' : 'them'
+		} in Settings, under Autonomy: ${named.join(', ')}${more}.`.slice(0, 1000),
+		tone: 'warning',
+	};
+}

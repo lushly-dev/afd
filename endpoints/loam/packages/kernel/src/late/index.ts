@@ -316,7 +316,14 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings, createNotifications, createAutonomy, isHumanGesture },
+		{
+			createSettings,
+			createNotifications,
+			createAutonomy,
+			isHumanGesture,
+			orphanNotice,
+			orphanRecipients,
+		},
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -581,6 +588,23 @@ export async function createLateParts(
 		writeOwn: (section, key, entry, context) =>
 			(settings as Settings).writeOwn(section, key, entry, context),
 		replaying: () => deps.internals?.replaying === true,
+		// The orphan notice (4.2, 10.2), through step 5's inbox: to each owner who may enter the row's project, every
+		// owner for a workspace row; in `local` mode, the one person the shell is for.
+		async orphaned(rows, context) {
+			const membership = deps.scope.membership;
+			const owners =
+				membership.mode === 'local'
+					? [shellPerson() ?? 'local']
+					: [...membership.members.keys()].filter((person) => isOwner(membership, person));
+			const heard = orphanRecipients(rows, owners, (person, project) =>
+				deps.scope.allows(
+					{ kind: 'human', id: person },
+					{ workspace: deps.scope.workspace.id, project }
+				)
+			);
+			for (const [owner, theirs] of heard)
+				await notifications.shellNotice(context, owner, orphanNotice(theirs));
+		},
 		kit: { ...DOCUMENT_KIT, personKey },
 	});
 	/** The autonomy rows the apps no longer back, or back again, flagged by boot's journaled settle; never in a replay. */
