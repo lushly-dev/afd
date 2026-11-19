@@ -200,14 +200,10 @@ const styles = css`
             forced-color-adjust: none;
         }
 
-        /* What is slotted into this component takes the system colours; a slot's fallback is its own. */
+        /* What is slotted into this component takes the system colours. */
         slot {
             forced-color-adjust: auto;
             color: CanvasText;
-        }
-
-        slot > * {
-            forced-color-adjust: none;
         }
 
         .frame::part(root) {
