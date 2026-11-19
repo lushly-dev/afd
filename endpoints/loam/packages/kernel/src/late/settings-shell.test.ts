@@ -124,6 +124,7 @@ describe("the shell's own sections (3.7)", () => {
 			'loam.rail',
 			'loam.keybindings',
 			'loam.notifications',
+			'loam.limits',
 			'loam.documents',
 		]);
 		const listed = await kernel.call<{ values: Array<{ section: string; key: string }> }>(

@@ -493,7 +493,7 @@ describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 		const rows = (await store.list<{ id: string; values: Data; updatedBy: string }>(SETTING_TABLE))
 			.data;
 		expect(rows.map((row) => [row.id, row.updatedBy])).toEqual([
-			['greet.general/workspace', 'local'],
+			['personal/greet.general/workspace', 'local'],
 		]);
 		expect(rows[0]?.values.greeting).toMatchObject({ value: 'Team', updatedBy: 'local' });
 		await kernel.call('workspace-app-set', { instance: 'greet', enabled: false });
@@ -1066,7 +1066,7 @@ describe("the second review's findings", () => {
 			(call[0] as Array<{ path: string }>).map((operation) => operation.path)
 		);
 		expect(paths).toContainEqual([
-			`/setting/${encodeURIComponent('loam.documents/workspace')}`,
+			`/setting/${encodeURIComponent('personal/loam.documents/workspace')}`,
 			'/workspace/personal',
 		]);
 		await kernel.call('setting-reset', {
@@ -1076,7 +1076,7 @@ describe("the second review's findings", () => {
 		});
 		const last = batch.mock.calls.at(-1)?.[0] as Array<{ method: string; path: string }>;
 		expect(last.map((operation) => [operation.method, operation.path])).toEqual([
-			['DELETE', `/setting/${encodeURIComponent('loam.documents/workspace')}`],
+			['DELETE', `/setting/${encodeURIComponent('personal/loam.documents/workspace')}`],
 			['PUT', '/workspace/personal'],
 		]);
 		expect((await kernel.call<WorkspaceV1>('workspace-get')).data?.trashDays).toBe(30);

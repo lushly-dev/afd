@@ -3,10 +3,12 @@
  * `loam.documents` (A-P2-2) from step 1; `loam.rail`, `loam.keybindings` and `loam.notifications` from step 2, whose
  * three list keys use shapes an app cannot declare (an array of objects, and arrays of free instance ids), each checked
  * here and rendered by a named custom editor. `loam.limits` is step 10's; `loam.autonomy` and `loam.experiments` are
- * written only by their own commands (`SETTING_USE_AUTONOMY`), and join the tree with steps 8 and 9.
+ * written only by their own commands (`SETTING_USE_AUTONOMY`), and join the tree with steps 8 and 9. `loam.limits` is
+ * step 10's: section 11's five keys, workspace only, whose bounds hold each other.
  */
 
 import type { SettingSectionV1 } from '@lushly-dev/loam-manifest';
+import { QUARTER_ORDER, quarterProblem } from './limit-commands.js';
 import type { KnownSectionV1, ShellKeyCheckV1 } from './setting-rules.js';
 
 /**
@@ -71,6 +73,71 @@ export const DOCUMENTS_SECTION: SettingSectionV1 = Object.freeze({
 		additionalProperties: false,
 	},
 }) as SettingSectionV1;
+
+/**
+ * `loam.limits`, a workspace section an owner writes (section 11; 3.7): its defaults and bounds, which `limits.ts`
+ * enforces from boot with the same defaults (a unit holds them equal).
+ */
+export const LIMITS_SECTION: SettingSectionV1 = Object.freeze({
+	id: 'limits',
+	title: 'Limits',
+	description:
+		'How much one app may send, store and call. Each bounds one call or one store, never the journal’s total.',
+	levels: ['workspace'],
+	schema: {
+		type: 'object',
+		properties: {
+			messageBytes: {
+				type: 'integer',
+				title: 'Largest message from a view, in bytes',
+				description: 'A larger message is dropped, and the view is told. From 65,536 to 8,388,608.',
+				minimum: 65_536,
+				maximum: 8_388_608,
+				default: 1_048_576,
+			},
+			inputBytes: {
+				type: 'integer',
+				title: 'Largest input of an app’s call, in bytes',
+				description: 'At most a quarter of the largest journal entry. From 16,384 to 1,048,576.',
+				minimum: 16_384,
+				maximum: 1_048_576,
+				default: 262_144,
+			},
+			callsPerSecond: {
+				type: 'integer',
+				title: 'Calls a second, per app',
+				description: 'Each app may also make 200 at once. From 5 to 500.',
+				minimum: 5,
+				maximum: 500,
+				default: 50,
+			},
+			storeBytes: {
+				type: 'integer',
+				title: 'Stored bytes, per app',
+				description: 'A write past it is refused. From 1,048,576 to 268,435,456.',
+				minimum: 1_048_576,
+				maximum: 268_435_456,
+				default: 26_214_400,
+			},
+			journalEntryBytes: {
+				type: 'integer',
+				title: 'Largest journal entry, in bytes',
+				description:
+					'A larger entry is kept truncated, and a replay stops there. From 262,144 to 4,194,304.',
+				minimum: 262_144,
+				maximum: 4_194_304,
+				default: 1_048_576,
+			},
+		},
+		additionalProperties: false,
+	},
+}) as SettingSectionV1;
+
+/** The quarter rule (section 11), with the suggestion that names the order. */
+const quarter = (values: Record<string, unknown>) => {
+	const problem = quarterProblem(values);
+	return problem ? { problem, suggestion: QUARTER_ORDER } : undefined;
+};
 
 /** Most items in each list key of the shell's (3.7): 64 instance ids, 64 overrides. */
 export const SHELL_LIST_MAX = 64;
@@ -261,8 +328,8 @@ export const NOTIFICATIONS_SECTION: SettingSectionV1 = Object.freeze({
 }) as unknown as SettingSectionV1;
 
 /**
- * The shell's sections, in the settings tree's order (3.5): Appearance, the rail beside it, Keybindings, Notifications
- * and Documents. Autonomy, Experiments and Limits join at their places as steps 8 to 10 build them.
+ * The shell's sections, in the settings tree's order (3.5): Appearance, the rail beside it, Keybindings, Notifications,
+ * Limits and Documents. Autonomy is the chrome's own entry (step 8), and Experiments join with step 9.
  */
 export const SHELL_SECTIONS: readonly KnownSectionV1[] = Object.freeze<KnownSectionV1[]>([
 	{ fullId: 'loam.appearance', section: APPEARANCE_SECTION, owner: 'shell' },
@@ -279,5 +346,6 @@ export const SHELL_SECTIONS: readonly KnownSectionV1[] = Object.freeze<KnownSect
 		owner: 'shell',
 		checks: { muted },
 	},
+	{ fullId: 'loam.limits', section: LIMITS_SECTION, owner: 'shell', relate: quarter },
 	{ fullId: 'loam.documents', section: DOCUMENTS_SECTION, owner: 'shell' },
 ]);

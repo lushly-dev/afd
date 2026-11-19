@@ -5,6 +5,8 @@
  * of the shape JSON-RPC says, is read at all.
  */
 
+import type { FrameAdmitV1, FrameRefusalV1 } from '@lushly-dev/loam-kernel';
+
 /** What the outer iframe may do: a child frame takes only flags its parent has. */
 export const PROXY_SANDBOX = 'allow-scripts allow-same-origin allow-forms';
 
@@ -18,6 +20,12 @@ export interface ChannelOptions {
 	title: string;
 	/** The HTML the proxy renders once it is ready. */
 	html: string;
+	/**
+	 * The kernel's gate on every message the frame sends, called before anything reads it (phase 4 specification, section
+	 * 11's `messageBytes`): a refused request is answered with the refusal, a refused reply fails the request it answers,
+	 * and a refused notification is dropped.
+	 */
+	admit?: FrameAdmitV1;
 }
 
 export type RequestHandler = (method: string, params: unknown) => Promise<unknown>;
@@ -70,17 +78,22 @@ export function rpcErrorOf(cause: unknown): RpcError {
 		code?: unknown;
 		message?: unknown;
 		suggestion?: unknown;
-		details?: { rpcCode?: unknown };
+		details?: { rpcCode?: unknown } & Record<string, unknown>;
 	};
 	if (typeof code !== 'string' || typeof message !== 'string') {
 		reportError(cause);
 		return { code: -32603, message: 'The shell could not answer this request' };
 	}
-	const rpcCode = details?.rpcCode;
+	const { rpcCode, ...rest } = details ?? {};
 	return {
 		code: typeof rpcCode === 'number' ? rpcCode : -32603,
 		message,
-		data: { code, ...(typeof suggestion === 'string' ? { suggestion } : {}) },
+		// The refusal's details cross the frame too, as `QUOTA_EXCEEDED`'s `{ kind, limit, used }` (section 11).
+		data: {
+			code,
+			...(typeof suggestion === 'string' ? { suggestion } : {}),
+			...(Object.keys(rest).length > 0 ? { details: rest } : {}),
+		},
 	};
 }
 
@@ -89,6 +102,7 @@ export class ProxyChannel {
 	readonly #view: Window;
 	readonly #sandboxOrigin: string;
 	readonly #html: string;
+	readonly #admit: FrameAdmitV1 | undefined;
 	readonly #pending = new Map<
 		number,
 		{ resolve(value: unknown): void; reject(error: Error): void }
@@ -100,10 +114,11 @@ export class ProxyChannel {
 		Promise.reject({ code: 'VIEW_CALL_REFUSED', message: `No method ${method}` });
 	onNotification: NotificationHandler = () => {};
 
-	constructor({ document, sandboxOrigin, title, html }: ChannelOptions) {
+	constructor({ document, sandboxOrigin, title, html, admit }: ChannelOptions) {
 		this.#view = document.defaultView ?? window;
 		this.#sandboxOrigin = sandboxOrigin;
 		this.#html = html;
+		this.#admit = admit;
 		const frame = document.createElement('iframe');
 		// Before `src`, so the document it loads has these flags from its first byte.
 		frame.setAttribute('sandbox', PROXY_SANDBOX);
@@ -119,6 +134,12 @@ export class ProxyChannel {
 
 	#onMessage = (event: MessageEvent): void => {
 		if (event.source !== this.frame.contentWindow || event.origin !== this.#sandboxOrigin) return;
+		// The kernel's gate first, before any dispatch, log, read or reply handling (section 11).
+		const refused = this.#admit?.(event.data);
+		if (refused) {
+			this.#refuse(event.data, refused);
+			return;
+		}
 		const message = event.data as RpcMessage | null | undefined;
 		if (typeof message !== 'object' || message === null || message.jsonrpc !== '2.0') return;
 		if (typeof message.method === 'string') {
@@ -133,6 +154,28 @@ export class ProxyChannel {
 		if (message.error) waiting.reject(new ChannelError(message.error));
 		else waiting.resolve(message.result);
 	};
+
+	/** A refused message: a request answered with the refusal, a reply failing its request, anything else dropped. */
+	#refuse(data: unknown, refused: FrameRefusalV1): void {
+		const { id, method } = (data ?? {}) as { id?: unknown; method?: unknown };
+		const error: RpcError = {
+			code: refused.rpcCode,
+			message: refused.message,
+			data: {
+				code: refused.code,
+				suggestion: refused.suggestion,
+				...(refused.details ? { details: refused.details } : {}),
+			},
+		};
+		if (typeof method === 'string') {
+			if (isId(id)) this.#post({ id, error });
+			return;
+		}
+		const waiting = typeof id === 'number' ? this.#pending.get(id) : undefined;
+		if (!waiting) return;
+		this.#pending.delete(id as number);
+		waiting.reject(new ChannelError(error));
+	}
 
 	#sendHtml(): void {
 		if (this.#sentHtml) return;

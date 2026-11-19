@@ -199,7 +199,8 @@ export interface KernelPortsV1 {
 	fetchJson(url: string): Promise<unknown>;
 	fetchText(url: string): Promise<string>;
 	importNative(url: string): Promise<AppDefinitionV1>;
-	openHandlerFrame(instance: string, html: string): Promise<HandlerFrameV1>;
+	/** `admit`, the kernel's gate on every message the frame sends (phase 4 specification, section 11). */
+	openHandlerFrame(instance: string, html: string, admit?: FrameAdmitV1): Promise<HandlerFrameV1>;
 	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
 	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
 	/**
@@ -220,6 +221,25 @@ export interface KernelPortsV1 {
 	 */
 	watchMembership?(listener: () => void): () => void;
 }
+
+/**
+ * A message a frame sent that the kernel refused at the boundary, before anything read it (phase 4 specification, section
+ * 11's `messageBytes`): what a request is answered with, `data: { code, suggestion, details }` and the JSON-RPC code.
+ */
+export interface FrameRefusalV1 {
+	code: string;
+	message: string;
+	suggestion: string;
+	rpcCode: number;
+	details?: Record<string, unknown>;
+}
+
+/**
+ * The kernel's admission of each message a frame sends, as it arrives: undefined admits it; a refusal drops it, answering
+ * a request with it and failing a reply's waiting request with it. The chrome's channel calls it first, for a view's frame
+ * and a handler frame alike.
+ */
+export type FrameAdmitV1 = (message: unknown) => FrameRefusalV1 | undefined;
 
 export interface HandlerFrameV1 {
 	/** Resolves with the frame's command names, from `dev.loam/handlers-ready`. */
@@ -281,6 +301,8 @@ export interface ViewBrokerV1 {
 	 * (phase 4 specification, 6.4); another owner's is refused `OVERLAY_NOT_OWNER`.
 	 */
 	overlayResult?(params: unknown): Promise<OverlayResultV1>;
+	/** The kernel's gate on every message the view's frame sends, which the chrome's channel calls first (section 11). */
+	readonly admit?: FrameAdmitV1;
 }
 
 /** The kernel's object for one app instance, which the chrome turns into the SDK's objects (5.3). */

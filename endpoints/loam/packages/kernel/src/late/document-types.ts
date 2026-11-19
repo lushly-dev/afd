@@ -9,9 +9,11 @@ import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
+import type { StoreQuota } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
+import type { KernelLimits } from '../limits.js';
 import { personOf } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
@@ -28,7 +30,10 @@ export const DOCUMENT_TABLE = 'document';
  */
 export const documentContentKey = (document: string): string => `doc/${document}`;
 
-/** An instance command's input, as JSON, is at most this many bytes (4.4). */
+/**
+ * An instance command's input, as JSON, is at most this many bytes (4.4) by default: since phase 4's step 10 the bound
+ * is `loam.limits.inputBytes` (A-P2-3), whose default this is.
+ */
 export const DOCUMENT_INPUT_MAX_BYTES = 256 * 1024;
 
 type ManifestType = NonNullable<NonNullable<ManifestV2['ui']>['documents']>[number];
@@ -128,11 +133,17 @@ export interface DocumentCheckDeps {
 	isMutation(name: string): boolean;
 	/** After a record is written, so the palette's titles are read again (8.2). */
 	changed?(): void;
+	/** The kernel's limits, whose `inputBytes` bounds an instance command's input (A-P2-3); absent, the default. */
+	limits?: KernelLimits;
 }
 
 export interface DocumentCheck {
 	/** The registry, as the apps stand now. */
 	types(): DocumentTypesV1;
+	/** The bound on an instance command's input and an import's envelope: `loam.limits.inputBytes` (A-P2-3). */
+	inputBytes(): number;
+	/** The `store` grant's quota, which a document's content the shell writes is charged to (section 11). */
+	quota(): StoreQuota | undefined;
 	/**
 	 * 4.2's check for a command naming `document`: the record, or the refusal. `type` is an instance
 	 * command's own type, which the record's must be.
@@ -331,6 +342,8 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 				: undefined;
 		},
 		types,
+		inputBytes: () => deps.limits?.values().inputBytes ?? DOCUMENT_INPUT_MAX_BYTES,
+		quota: () => deps.apps().storeQuota,
 		find,
 		put,
 		opens: (type, at) => canOpen(deps.apps(), scope, type.instance, at.project),
@@ -339,14 +352,15 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			if (!owned) return undefined;
 			// Measured before anything is read, and refused before the handler, so a refused save never runs;
 			// the journal keeps the entry without its input (4.4).
-			if (new TextEncoder().encode(JSON.stringify(input) ?? '').length > DOCUMENT_INPUT_MAX_BYTES) {
+			const bound = deps.limits?.values().inputBytes ?? DOCUMENT_INPUT_MAX_BYTES;
+			if (new TextEncoder().encode(JSON.stringify(input) ?? '').length > bound) {
 				// The kernel's own marks: `apps.redact` journals the call without its input, by trace ID, and
 				// `replay: 'recorded'`, a field only trusted code sets, has a replay answer the entry from its
 				// record, since it cannot re-run what the journal does not hold. Nothing ran.
 				markOversized(scope, call);
 				return kernelFailure(
 					'DOCUMENT_CONTENT_TOO_LARGE',
-					`The input of '${name}' is over 256 KiB of JSON`,
+					`The input of '${name}' is over ${bound} bytes of JSON`,
 					`Report this to the owner of the app '${owned.instance}': its documents outgrow what one command carries`
 				);
 			}

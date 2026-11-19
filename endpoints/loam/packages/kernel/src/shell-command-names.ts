@@ -137,4 +137,6 @@ export const SHELL_COMMAND_NAMES = [
 	'palette-run',
 	'confirmation-get',
 	'confirmation-withdraw',
+	// Phase 4's step 10 (its section 11): the limits' usage, owners only.
+	'limit-usage-get',
 ] as const;

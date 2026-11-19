@@ -21,6 +21,11 @@ export interface KnownSectionV1 {
 	 * none: each of its keys is checked by the manifest's `checkSettingValue`.
 	 */
 	checks?: Readonly<Record<string, ShellKeyCheckV1>>;
+	/**
+	 * A rule between the section's keys (phase 4 specification, section 11's quarter rule), given the section's values
+	 * as a write would leave them at its level: what is wrong, and the suggestion naming the order to write them in.
+	 */
+	relate?: (values: Record<string, unknown>) => { problem: string; suggestion: string } | undefined;
 }
 
 /** Why a value of one of the shell's custom keys is refused (3.7): in words, and with a code of its own when 16 has one. */

@@ -16,6 +16,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
+import type { KernelLimits } from '../limits.js';
 import { createPaletteIndex } from '../palette-index.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
@@ -84,6 +85,8 @@ export { withBootActions } from './boot-actions.js';
 export type LateCommandDeps = ShellCommandDeps &
 	AppCommandDeps & {
 		auth: AuthAdapter;
+		/** The limits the kernel enforces from boot, which `late-settings` reads into (phase 4 specification, section 11). */
+		limits?: KernelLimits;
 		store: DataAdapter;
 		/** The projection's generation this page booted with. */
 		generation(): string;
@@ -348,6 +351,8 @@ export async function createLateParts(
 			createAutonomy,
 			createConfirmations,
 			bucketOf,
+			createLimitCommands,
+			limitNotice,
 			isHumanGesture,
 			orphanNotice,
 			orphanRecipients,
@@ -598,8 +603,41 @@ export async function createLateParts(
 			);
 		},
 		paletteIndex: createPaletteIndex,
+		...(deps.limits ? { limits: deps.limits } : {}),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
+	await settings.readLimits();
+	// `limit-usage-get` and boot's `store-usage-settle` (section 11), in `late-settings` beside the settings.
+	const limitCommands = createLimitCommands({
+		scope: deps.scope,
+		apps: deps.apps,
+		...(deps.limits ? { limits: deps.limits } : {}),
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		provider,
+		// The owners' notice (section 11), through step 5's inbox, as the orphan notice is: in `local` mode to the one
+		// person the shell is for, every person an owner; in `provider` mode none, until the owner roster is a server record.
+		async notice(context, { instance, limit }) {
+			if (deps.scope.membership.mode !== 'local') return 0;
+			await notifications.shellNotice(
+				context,
+				shellPerson() ?? 'local',
+				limitNotice(instance, limit)
+			);
+			return 1;
+		},
+		kit: { ...DOCUMENT_KIT, personKey },
+	});
+	// The first refusal of an instance in an hour, told through boot's journaled `limit-notice-push`, after the call that
+	// met it: never in a replay, whose entries hold it, and never in `provider` mode (above).
+	if (deps.limits) {
+		deps.limits.notify = ({ instance, limit }) => {
+			if (deps.internals?.replaying === true || deps.scope.membership.mode !== 'local') return;
+			void Promise.resolve()
+				.then(() => deps.runBoot('limit-notice-push', { instance, limit }))
+				.catch(reportLate);
+		};
+	}
 	// Phase 4's autonomy (its section 4), in `late-settings` beside the settings: stored, resolved and shown, never
 	// enforced here (D41), so it is an input to no access decision (P4-E2).
 	const autonomy = createAutonomy({
@@ -889,6 +927,9 @@ export async function createLateParts(
 			autonomy.settleCommand,
 			...confirmations.commands,
 			confirmations.settle,
+			...limitCommands.commands,
+			limitCommands.settleCommand,
+			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])
 	);
 	// `toast-show` with the inbox's half (6.1, 3.7): a sticky toast also lands as a notice, and a muted app's is never
@@ -989,7 +1030,7 @@ export async function createLateParts(
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: [
-			...createPortRefusals(),
+			...createPortRefusals(deps.limits),
 			...copilot.internal,
 			// The shell's strip under the title bar (phase 4 specification, 6.1).
 			byName.get('overlay-global-set') as ZodCommandDefinition,
@@ -1143,6 +1184,16 @@ export async function createLateParts(
 			} catch (cause) {
 				reportLate(cause);
 			}
+			// Then each app's stored bytes counted afresh where its row differs, journaled, and only when one does, so an
+			// unchanged workspace's journal is unchanged (section 11).
+			try {
+				const usage = replaying
+					? []
+					: await limitCommands.usageChanges(deps.clock?.now() ?? Date.now());
+				if (usage.length > 0) await run('store-usage-settle', { usage });
+			} catch (cause) {
+				reportLate(cause);
+			}
 			if (settle) await parts.settle(run);
 		},
 		async settle(run) {
@@ -1159,6 +1210,8 @@ export async function createLateParts(
 			// (`host.ts`), so the boot's `auth-session-get` reads the same.
 			deps.overlays.reset();
 			pushRate.reset();
+			// The call rates and the hour's refusals are the page's, as the push rate is (section 11).
+			deps.limits?.reset();
 			deps.apps().resetSession();
 			await deps.auth.signOut();
 			// A replay's page starts as the person its first settle names, as the original's stage A did (4.4).
@@ -1181,10 +1234,13 @@ export async function createLateParts(
 								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
 							} as AppsLoadV2);
 				// The projection's host, whatever its apps do next (phase 4 specification, 13).
-				if (loaded && 'deployment' in loaded)
+				if (loaded && 'deployment' in loaded) {
 					hostKind =
 						(loaded.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host
 							?.kind ?? 'static';
+					// The limits read again now the host is known: a hosted `provider` one keeps the defaults (R3).
+					await settings?.readLimits();
+				}
 				// A boot with no loader: every app is listed `failed`, never the shell.
 				return loaded ?? { unavailable: 'no apps loader' };
 			} catch (cause) {

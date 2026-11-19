@@ -478,6 +478,44 @@ describe('serveHandlers', () => {
 		expect(posted.at(-1)).toMatchObject({ id: 'call-1', result: { success: true } });
 	});
 
+	it("answers the shell's refusal of its store request as that refusal, details kept (phase 4's section 11)", async () => {
+		const refusal = {
+			error: {
+				code: -32600,
+				message: "This app's store would hold 2 bytes, over its 1",
+				data: {
+					code: 'QUOTA_EXCEEDED',
+					suggestion: 'Delete what this app no longer needs',
+					details: { kind: 'store', limit: 1, used: 1 },
+				},
+			},
+		};
+		const { deliver, posted } = installWindow({
+			'dev.loam/store': () => refusal,
+			'tools/call': () => refusal,
+		});
+		const nested: unknown[] = [];
+		serveHandlers({
+			sdk: 1,
+			handlers: {
+				'hello-fill': async (_input, context) => {
+					nested.push(await context.client.call('hello-list'));
+					await context.store?.put('a', 'b');
+					return success(1);
+				},
+			},
+		});
+		deliver(call('hello-fill', { grants: ['store'] }));
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		const answered = {
+			code: 'QUOTA_EXCEEDED',
+			suggestion: 'Delete what this app no longer needs',
+			details: { kind: 'store', limit: 1, used: 1 },
+		};
+		expect(nested).toEqual([{ success: false, error: expect.objectContaining(answered) }]);
+		expect(posted.at(-1)).toMatchObject({ result: { success: false, error: answered } });
+	});
+
 	it('answers a missing handler and a throwing one with a failure', async () => {
 		const { deliver, posted } = installWindow();
 		serveHandlers({

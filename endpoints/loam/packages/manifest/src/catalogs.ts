@@ -222,6 +222,8 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 	'setting',
 	'experiment',
 	'notification',
+	// Phase 4's step 10 (its 12): the limits.
+	'limit',
 	'event',
 	'account',
 	'persona',

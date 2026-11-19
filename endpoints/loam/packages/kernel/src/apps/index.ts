@@ -19,6 +19,7 @@ import { INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import type { AppKeybinding } from '../keybindings.js';
+import { createKernelLimits } from '../limits.js';
 import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
@@ -33,10 +34,12 @@ import {
 	transportOf,
 } from './entry.js';
 import { createFrameHost, type FrameHost, visibleToApp } from './handler-frame.js';
+import { createLimitGuard } from './limit-guard.js';
 import { createMountedHost } from './mounted.js';
 import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
+import { createStoreQuota } from './store.js';
 import { pageDecided } from './support.js';
 import { type AppsHost, type AppsHostInput, layoutNamesOf } from './types.js';
 import { createViewBroker } from './view-broker.js';
@@ -60,8 +63,13 @@ const NO_PORTS: KernelPortsV1 = {
 /** Read every package, in parallel, then decide in deployment order, since the later holder loses. */
 export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 	const { palette, ...rest } = input;
+	// Fail closed: with no limits given, the defaults (phase 4 specification, section 11).
+	const limits = rest.limits ?? createKernelLimits();
 	const host: AppsHost = {
 		...rest,
+		limits,
+		// One quota for every store of an instance, so each instance's writes run one at a time (section 11).
+		storeQuota: createStoreQuota(rest.store, limits),
 		// The internal and boot-only names too, so no app's or discovered tool's command can take one (3.6).
 		taken: new Set([...rest.taken, ...INTERNAL_COMMANDS]),
 		commandRows(instance) {
@@ -127,7 +135,11 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		let native: NativeHost | undefined;
 		const viewHost =
 			record.kind === 'view'
-				? createViewBroker({ manifest, sandboxOrigin: deployment.sandbox_origin })
+				? createViewBroker({
+						manifest,
+						sandboxOrigin: deployment.sandbox_origin,
+						guard: createLimitGuard(host, record.instance),
+					})
 				: undefined;
 		const { port, nestedClient } = createAppPort({
 			record,
@@ -419,6 +431,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 
 	return {
 		...createOperations(records, host),
+		storeQuota: host.storeQuota,
 		commands,
 		owners,
 		keybindings,
