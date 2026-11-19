@@ -417,7 +417,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * (310,909 to 311,462, +553; gzip 97,256 of 97,500): the redaction of every input another command carries, a notice's
  * action, a menu's items and `overlay-list`'s projection among them, with an unknown command's dropped.
  * `kernelMinified` 120,500 to 121,500 (120,034 to 121,058): that, and the document chain a waiting call gives up.
- * `lateSettingsMinified` 81,500 to 84,500 (81,152 to 83,751, +2,599): the waiting call's chain released and retaken, a
+ * `lateSettingsMinified` 81,500 to 84,500 (81,152 to 83,764, +2,612): the waiting call's chain released and retaken, a
  * call that never ran answered from its record, the slot's decline and the act's end written by `prompt-settle`, the
  * key held across the slot and the inbox, and the per-app bound that never evicts a live window. `surfacesMinified`
  * 96,500 to 97,000 (96,544): `withdrawn` sent for the shell's own questions alone.
@@ -475,7 +475,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,751, set to 84,500.
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500.
 	lateSettingsMinified: 84_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,

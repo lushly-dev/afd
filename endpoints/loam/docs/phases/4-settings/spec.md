@@ -1935,7 +1935,7 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 **Measured after the third round,** D115, `redactWrapped` cut first:
 - First paint: 311,462 and 97,256 gzip; `jsMinified` raised to 312,000.
 - `kernelMinified`: 121,058; its row 121,500.
-- `lateSettingsMinified`: 83,751; its row 84,500.
+- `lateSettingsMinified`: 83,764; its row 84,500.
 - `surfacesMinified`: 96,544; its row 97,000.
 
 `budget.mjs` records each.
