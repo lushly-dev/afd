@@ -427,9 +427,9 @@ describe('ViewStateRegistry', () => {
 			warnSpy.mockRestore();
 		});
 
-		it('flush is a no-op', async () => {
+		it('flush is a no-op that reports no failed write', async () => {
 			const reg = new ViewStateRegistry();
-			await expect(reg.flush()).resolves.toBeUndefined();
+			await expect(reg.flush()).resolves.toEqual({ failed: [] });
 		});
 	});
 

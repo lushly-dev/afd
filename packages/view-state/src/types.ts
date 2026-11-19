@@ -13,6 +13,11 @@ export interface ViewStateEntry {
 	state: Record<string, unknown>;
 }
 
+/** What a flush did: the IDs whose write failed, kept and written again by the next flush. */
+export interface ViewStateFlushResult {
+	failed: string[];
+}
+
 export interface ViewStateRegistryOptions {
 	/** Optional persistence adapter. Structurally compatible with @lushly-dev/local-db DataAdapter. */
 	adapter?: {

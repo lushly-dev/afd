@@ -2,6 +2,7 @@ import { DebouncedPersistence } from './persistence.js';
 import type {
 	PersistedViewState,
 	ViewStateEntry,
+	ViewStateFlushResult,
 	ViewStateHandler,
 	ViewStateRegistryOptions,
 } from './types.js';
@@ -175,11 +176,12 @@ export class ViewStateRegistry {
 		});
 	}
 
-	/** Immediately write all pending persistence. */
-	async flush(): Promise<void> {
-		if (this.persistence) {
-			await this.persistence.flush();
-		}
+	/**
+	 * Immediately write all pending persistence. Resolves with the IDs whose write failed, which are kept and
+	 * written again by the next flush; with no adapter, none. Never rejects.
+	 */
+	async flush(): Promise<ViewStateFlushResult> {
+		return this.persistence ? this.persistence.flush() : { failed: [] };
 	}
 
 	/** Flush pending writes and clear all handlers. */
