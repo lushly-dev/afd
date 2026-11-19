@@ -260,8 +260,8 @@ Catalog version 1 and what phase 1 serves of it are in the
 
 | Kind | Lifetime | On app switch | Placement | Limit |
 | --- | --- | --- | --- | --- |
-| toast | transient, timed | dismissed; `sticky` moves it to the inbox | the shell's toast region | stack cap, oldest collapses |
-| popover | transient, light-dismiss | closed | anchored to the invoker, top layer | one per invoker |
+| toast | transient, timed, 1 to 30 s; `sticky` never times out | dismissed; sticky ones, and those `loam.notifications.toastSticky` selects, also land in the inbox | the shell's toast region, an F6 stop while it holds one | 5 on screen, a sixth dismisses the oldest; an agent's never pushes off a shell or `danger` toast |
+| popover | transient, light-dismiss | closed | anchored to a `data-loam-anchor` in the owner's surface, top layer | one per invoker |
 | dialog | session | parked and restored; `cancel-on-leave` cancels | top layer, non-modal | per app |
 | modal | session | cancelled, result reported to the owner | top layer, rest of the shell inert | one shell-wide |
 | prompt | session | cancelled | the agent's confirmation and input-required flow | one per agent turn |
@@ -270,6 +270,11 @@ Catalog version 1 and what phase 1 serves of it are in the
 Focus returns to the invoker; modals trap focus; every overlay carries its
 owner id, and the overlay manager refuses an open from an app that is not
 active unless the kind is `toast` or the call is a `global` from the shell.
+**Agents open toasts only** (phase 4, D121): the agent interface's toast is
+`agent:<id>`'s, at most 5 a minute, and every other kind it opens is
+`HUMAN_REQUIRED`. An app's or an agent's overlay shows whose it is ("From
+<app>"; "From <agent>, for <person>"), set by the kernel; the shell's own
+carries none.
 
 How an app reaches the registry and the surfaces. Every edge goes to the
 shell; there is no edge between apps.
