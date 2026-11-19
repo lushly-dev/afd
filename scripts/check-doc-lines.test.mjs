@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -23,24 +23,49 @@ function fixture(policy, files) {
 	return root;
 }
 
+/** The environment without a hook's `GIT_*` variables, which would point git at this repository. */
+const clean = Object.fromEntries(
+	Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
+);
+
 /** Runs the check in `root`. CI is unset unless a test sets it: a fixture is no git repository. */
 const run = (root, env = {}) =>
 	spawnSync(process.execPath, [script], {
 		cwd: root,
 		encoding: 'utf8',
-		env: { ...process.env, CI: '', AFD_BASE: '', ...env },
+		env: { ...clean, CI: '', AFD_BASE: '', ...env },
+		timeout: 15_000,
 	});
+
+/** Git in a fixture: no hooks, no signing, nothing inherited from the caller's repository. */
+const git = (root, ...args) =>
+	execFileSync(
+		'git',
+		[
+			'-c',
+			'user.name=t',
+			'-c',
+			'user.email=t@example.invalid',
+			'-c',
+			'commit.gpgsign=false',
+			'-c',
+			'core.hooksPath=/dev/null',
+			...args,
+		],
+		{
+			cwd: root,
+			env: clean,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore'],
+			timeout: 15_000,
+		}
+	).trim();
 
 /** Commits the fixture as `main`, so the working tree is compared with it as its merge base. */
 function commit(root) {
-	const git = (...args) =>
-		execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], {
-			cwd: root,
-			stdio: 'ignore',
-		});
-	git('init', '-q', '-b', 'main');
-	git('add', '-A');
-	git('-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', 'base');
+	git(root, 'init', '-q', '-b', 'main');
+	git(root, 'add', '-A');
+	git(root, 'commit', '-q', '-m', 'base');
 	return root;
 }
 const write = (root, path, text) => writeFileSync(join(root, path), text);
@@ -433,4 +458,133 @@ test("the repository's own policy covers the documents and summary rows it was w
 			real.capped.some((entry) => entry.startsWith === start),
 			`${start} is capped`
 		);
+});
+
+test('a renamed prefix cannot carry a rewritten line of the same length', () => {
+	const root = commit(
+		fixture(policy({ grandfathered: [exempt('Old step', 80)] }), {
+			[DOC]: `${row('Old step', 80)}\n`,
+		})
+	);
+	// The same text under a shorter prefix is the same exemption.
+	save(root, policy({ grandfathered: [{ ...exempt('Old step', 80), startsWith: '| Old step' }] }));
+	assert.equal(run(root).status, 0);
+
+	// A rewrite at the same length, recorded under that shorter prefix, is not.
+	const rewritten = row('Old step', 80, 'y');
+	write(root, DOC, `${rewritten}\n`);
+	save(
+		root,
+		policy({
+			grandfathered: [{ ...exempt('Old step', 80, rewritten), startsWith: '| Old step' }],
+		})
+	);
+	const result = run(root);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /"\| Old step" was added to "grandfathered" since the merge base/);
+});
+
+test('one removed entry is taken over once', () => {
+	const root = commit(
+		fixture(policy({ grandfathered: [exempt('Old step', 80)] }), {
+			[DOC]: `${row('Old step', 80)}\n`,
+		})
+	);
+	write(root, DOC, `${row('Step 4', 70)}\n${row('Step 5', 70)}\n`);
+	save(root, policy({ grandfathered: [exempt('Step 4', 70), exempt('Step 5', 70)] }));
+	const result = run(root);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /"\| Step 5 \|" was added to "grandfathered"/);
+	assert.doesNotMatch(result.stderr, /Step 4/);
+});
+
+test('a cap goes once the limit is at or below it', () => {
+	const root = commit(
+		fixture(policy({ capped: [cap('Summary', 40)] }), { [DOC]: `${row('Summary', 30)}\n` })
+	);
+	save(root, policy({ limit: 40 }));
+	const result = run(root);
+	assert.equal(result.status, 0, result.stderr);
+});
+
+test('a document deleted from the repository may leave the policy', () => {
+	const doc = `${row('Step 1', 50)}\n`;
+	const root = commit(
+		fixture(policy({ files: [DOC, 'docs/OTHER.md'] }), { [DOC]: doc, 'docs/OTHER.md': doc })
+	);
+	rmSync(join(root, 'docs/OTHER.md'));
+	save(root, policy());
+	const result = run(root);
+	assert.equal(result.status, 0, result.stderr);
+});
+
+test('a policy new on the branch has nothing to be compared with, and passes under CI', () => {
+	const doc = `${row('Old step', 80)}\n`;
+	const root = commit(fixture(policy(), { [DOC]: `${row('Step 1', 50)}\n` }));
+	rmSync(join(root, POLICY));
+	git(root, 'commit', '-q', '-am', 'a base without the policy');
+	write(root, DOC, doc);
+	save(root, policy({ grandfathered: [exempt('Old step', 80)] }));
+	const result = run(root, { CI: 'true' });
+	assert.equal(result.status, 0, result.stderr);
+});
+
+test('AFD_BASE names the base; an all-zero one falls back to main', () => {
+	const root = commit(
+		fixture(policy({ capped: [cap('Summary', 30)] }), { [DOC]: `${row('Summary', 30)}\n` })
+	);
+	const base = git(root, 'rev-parse', 'HEAD');
+	// A later commit on main raises the cap; against main the tree is unchanged, against the
+	// first commit it is looser.
+	write(root, DOC, `${row('Summary', 40)}\n`);
+	save(root, policy({ capped: [cap('Summary', 40)] }));
+	git(root, 'commit', '-q', '-am', 'raise the cap');
+	assert.equal(run(root).status, 0);
+	assert.equal(run(root, { AFD_BASE: '0'.repeat(40) }).status, 0);
+
+	const result = run(root, { AFD_BASE: base });
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /the "max" of "\| Summary \|" rose from 30 to 40/);
+});
+
+test('a repository with no base ref is noted locally and fails under CI', () => {
+	const root = fixture(policy(), { [DOC]: `${row('Step 1', 50)}\n` });
+	git(root, 'init', '-q', '-b', 'topic');
+	git(root, 'add', '-A');
+	git(root, 'commit', '-q', '-m', 'no main here');
+	const local = run(root);
+	assert.equal(local.status, 0, local.stderr);
+	assert.match(local.stdout, /none of origin\/main, main has a merge base with HEAD/);
+	assert.equal(run(root, { CI: 'true' }).status, 1);
+});
+
+test('a policy that is not JSON fails, on the branch or at its base', () => {
+	const broken = fixture(policy(), { [DOC]: '# Status\n' });
+	write(broken, POLICY, '{ "limit": ');
+	const now = run(broken);
+	assert.equal(now.status, 1);
+	assert.match(now.stderr, /doc-line-limits\.json: not JSON/);
+
+	const root = fixture(policy(), { [DOC]: `${row('Step 1', 50)}\n` });
+	write(root, POLICY, '{ "limit": ');
+	commit(root);
+	save(root, policy());
+	const atBase = run(root, { CI: 'true' });
+	assert.equal(atBase.status, 1);
+	assert.match(atBase.stderr, /not compared with its merge base: .* is not JSON/);
+});
+
+test('a malformed capped entry fails', () => {
+	const doc = { [DOC]: `${row('Summary', 30)}\n` };
+	const entry = cap('Summary', 30);
+	const cases = [
+		[{ ...entry, startsWith: '' }, /needs "file" and a non-empty "startsWith"/],
+		[{ ...entry, reason: undefined }, /needs a "reason"/],
+		[{ ...entry, max: '30' }, /needs a whole-number "max"/],
+	];
+	for (const [bad, message] of cases) {
+		const result = run(fixture(policy({ capped: [bad] }), doc));
+		assert.equal(result.status, 1);
+		assert.match(result.stderr, message);
+	}
 });

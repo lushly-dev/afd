@@ -25,12 +25,12 @@ should never have to scan the codebase to learn what is current.
 - **No cell or sentence that every pull request edits.** A line everyone
   edits, by adding to it or by replacing it, puts every open branch in
   conflict. A step writes its own line in the phase detail and its own
-  session-log row, and edits no other. A summary cell names no entry, or
-  only its phase's latest ("Latest: step 2, merged in #1531") with a link to
-  the phase detail. `scripts/check-doc-lines.mjs` refuses a line over the
-  limit in `scripts/policy/doc-line-limits.json`, and holds the summary
-  rows of the two tables below to the lower caps listed there. What a cell
-  used to list
+  session-log row. The one line it shares is its phase's row in the Phases
+  table, where it replaces "Latest: …" and adds nothing; a summary cell
+  names no entry, or only that latest one, and links to the phase detail.
+  `scripts/check-doc-lines.mjs` refuses a line over the limit in
+  `scripts/policy/doc-line-limits.json`, and holds the summary rows of the
+  two tables below to the lower caps listed there. What a cell used to list
   is in the phase detail, the session log and git history, so nothing is
   deleted by keeping it short.
 

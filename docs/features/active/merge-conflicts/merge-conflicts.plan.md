@@ -6,7 +6,7 @@ pull requests. Progress is in [STATUS.md](STATUS.md); the epic is
 
 ## Why
 
-`main` took 179 commits in three days. A few shared files are edited by almost
+`main` took 178 commits in three days. A few shared files are edited by almost
 every pull request, and they are written so that unrelated edits land on the same line. Git then
 reports a conflict although nothing the two branches did disagrees, and a session spends a
 base-sync, a gate run and a push to say so.

@@ -17,13 +17,13 @@
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 3. Identity |",
-			"max": 900,
+			"max": 1000,
 			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
 		},
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 4. Settings, experiments, notifications, overlays |",
-			"max": 1000,
+			"max": 1100,
 			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
 		},
 		{

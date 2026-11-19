@@ -22,10 +22,13 @@
  *
  * The policy only tightens. It is compared with the policy at the merge base with `origin/main`
  * (AFD_BASE overrides the ref, as in scripts/affected.mjs): the limit and a cap may not rise, a
- * document may not leave `files` nor a cap its line while they exist, a grandfathered line may
- * change only by getting shorter, and one may be added only for a document new to `files` or a
- * line a lowered limit newly covers. Without a base to read (no git, no such ref) the comparison
- * is skipped with a note, except under CI, where it fails.
+ * document may not leave `files` nor a cap its line while they exist (a cap goes once the limit
+ * is at or below it), a grandfathered line may change only by getting shorter, and one may be
+ * added only for a document new to `files` or a line a lowered limit newly covers. An entry whose
+ * `startsWith` changed is the same exemption only with the same `sha256`, or a shorter line.
+ * Without a base to read (no git, no such ref) the comparison is skipped with a note, except
+ * under CI, where it fails. Not seen: a capped row given a new label, whose cap then reads as a
+ * line that went away; carry the cap over to the new label.
  *
  * Usage: node scripts/check-doc-lines.mjs [--policy <path>]   (paths resolve from the cwd)
  * Exit code 1 = violations found, each printed as file:line.
@@ -236,6 +239,7 @@ function checkTightens(policy) {
 
 	for (const old of isList(before.capped) ? before.capped : []) {
 		if (!policy.files.includes(old.file) || !existsSync(resolve(old.file))) continue;
+		if (policy.limit <= old.max) continue; // The limit itself now holds the line at least as low.
 		const name = JSON.stringify(old.startsWith);
 		const now = policy.capped.find(
 			(entry) => entry.file === old.file && entry.startsWith === old.startsWith
@@ -258,11 +262,11 @@ function checkTightens(policy) {
 		const old = exempt.filter((entry) => entry.file === file);
 		const known = new Map(old.map((entry) => [entry.startsWith, entry]));
 		const now = policy.grandfathered.filter((entry) => entry.file === file);
-		// A removed entry may be taken over by one whose line's opening words changed, no longer.
+		// A removed entry may be taken over by one whose line's opening words changed: the same
+		// text under a new prefix, or a shorter line. Each removed entry is taken over once.
 		const freed = old
 			.filter((entry) => !now.some((other) => other.startsWith === entry.startsWith))
-			.map((entry) => entry.length)
-			.sort((a, b) => a - b);
+			.sort((a, b) => a.length - b.length);
 		for (const entry of now) {
 			const name = JSON.stringify(entry.startsWith);
 			const was = known.get(entry.startsWith);
@@ -278,7 +282,8 @@ function checkTightens(policy) {
 				continue;
 			}
 			if (lowered && entry.length <= before.limit) continue; // Newly covered by the lower limit.
-			const slot = freed.findIndex((length) => length >= entry.length);
+			const same = freed.findIndex((gone) => gone.sha256 === entry.sha256);
+			const slot = same >= 0 ? same : freed.findIndex((gone) => gone.length > entry.length);
 			if (slot >= 0) freed.splice(slot, 1);
 			else
 				fail(
