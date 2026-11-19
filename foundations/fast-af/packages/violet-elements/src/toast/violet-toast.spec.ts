@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-toast";
 import type { VioletToast } from "./violet-toast";
@@ -19,6 +20,29 @@ async function renderToast(
     await customElements.whenDefined("violet-toast");
     await nextFrame();
     return document.querySelector("violet-toast") as VioletToast;
+}
+
+/** Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or turns the emulation off. */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: active
+            ? [
+                  { name: "forced-colors", value: "active" },
+                  { name: "prefers-color-scheme", value: "dark" },
+              ]
+            : [],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-toast", () => {
@@ -89,5 +113,23 @@ describe("violet-toast", () => {
         await nextFrame();
 
         expect(toast.open).toBe(false);
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it("keeps what it paints inside its card opted out of forced colours", async () => {
+            await emulateForcedColors(true);
+            const toast = await renderToast();
+
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            // Its card's slots opt slotted content back in; the toast's own layout opts out again.
+            const layout = toast.shadowRoot?.querySelector(".layout") as HTMLElement;
+            const leading = toast.shadowRoot?.querySelector(".leading") as HTMLElement;
+            expect(getComputedStyle(layout).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
+        });
     });
 });
