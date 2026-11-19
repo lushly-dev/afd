@@ -1212,6 +1212,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 			}
 			return structuredClone(out);
 		},
+		ownerOf(section) {
+			const owner = sections().find((entry) => entry.fullId === section)?.owner;
+			return owner === undefined || owner === 'shell' ? undefined : owner;
+		},
 	};
 
 	function target(to: string, context: CommandContext): { path: string } | CommandResult<never> {

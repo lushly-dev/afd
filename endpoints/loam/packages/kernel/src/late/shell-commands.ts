@@ -68,6 +68,8 @@ import type { DocumentRows } from './palette-documents.js';
 /** The palette's setting rows (phase 4 specification, 3.10): the keys the call may see whose text matches. */
 export interface SettingRows {
 	search(query: string, context: CommandContext, limit: number): Promise<PaletteItem[]>;
+	/** The instance that declared a section, none for the shell's own: its row ranks with that app (A-P0-1). */
+	ownerOf?(section: string): string | undefined;
 }
 
 /**
@@ -405,6 +407,12 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			);
 			return row;
 		});
+		// An app's setting ranks with its app's commands (A-P0-1): the active app's own setting is the active app's.
+		for (const row of settingRows) {
+			const instance = deps.settingRows?.()?.ownerOf?.(row.section as string);
+			if (instance !== undefined)
+				GROUPS.set(row, instance === app ? 0 : instance === owner ? 1 : 2);
+		}
 		// By rank group, then score, then a command, a document and a setting on a tie (8.2), then by name, so a result is
 		// deterministic (phase 4 specification, 3.10); the editor owner's document's instance commands first of all (5.4).
 		const first = owner !== null ? deps.instanceCommands?.(owner) : undefined;

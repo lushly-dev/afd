@@ -730,10 +730,13 @@ describe('P2-D5: the editor area, native half', () => {
 			tone: 'danger',
 		});
 		expect((await editorView(page))?.[0]?.tabs[0]?.name).toBe('One, unsaved');
-		// Its close asks, and Keep editing keeps it; Discard closes it.
+		// Its close asks (phase 4's 7.3): Save, the default, Discard and Cancel. Cancel keeps it; Discard closes it.
 		await tabOf(page, 'One').focus();
 		await page.keyboard.press('Delete');
-		await page.locator('loam-modal button', { hasText: 'Keep editing' }).click();
+		await expect
+			.poll(() => page.locator('loam-modal dialog[open] .buttons button').allTextContents())
+			.toEqual(['Save', 'Discard', 'Cancel']);
+		await page.locator('loam-modal button', { hasText: 'Cancel' }).click();
 		await editorIdle(page);
 		expect((await editorView(page))?.[0]?.tabs.map((tab) => tab.title)).toEqual(['One']);
 		await tabOf(page, 'One').focus();
@@ -1830,7 +1833,7 @@ describe('P2-D5: the editor area, native half', () => {
 
 	it.each<[string, string]>([
 		['Discard', 'nothing reopens'],
-		['Keep editing', 'the draft comes back'],
+		['Cancel', 'the draft comes back'],
 	])(
 		'P2-D5: the person’s %s during a reopen’s open: %s',
 		async (choice) => {

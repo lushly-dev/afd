@@ -7,6 +7,9 @@
  * starts `new` lists what New creates, as `New: <title>`, from the `new` chunk, loaded on that first query
  * (documents specification, 7 and 8.2). A query for the inbox lists "Open inbox" first, `section-open { section:
  * 'inbox' }` (phase 4 specification, 7.1 and 10.3).
+ *
+ * Phase 4's step 6 (its 7.1; A-P0-1): every enabled, loaded app's commands are listed, ranked by the active app, each
+ * naming its app; a command that needs input runs through `palette-run`, whose prompt asks for it in the slot.
  */
 
 import type { CommandSummaryV0, LoamKernelV5, PaletteItem } from '@lushly-dev/loam-kernel';
@@ -20,8 +23,16 @@ interface PaletteShell extends NewHost {
 	readonly palette: LoamPalette;
 }
 
-/** A row that is not a command: a document to open, a setting to show, what New creates, or the inbox. */
-type Row = { document: string } | { setting: string } | { item: NewItemV1 } | { inbox: true };
+/**
+ * A row that is not a plain command: a document to open, a setting to show, what New creates, the inbox, or a command
+ * that needs input, which the palette's input prompt asks for (7.1).
+ */
+type Row =
+	| { document: string }
+	| { setting: string }
+	| { item: NewItemV1 }
+	| { inbox: true }
+	| { input: string };
 
 /** The "Open inbox" row's name, no command's (a command's name has no colon). */
 const OPEN_INBOX = 'inbox:open';
@@ -142,11 +153,14 @@ export class ShellPalette {
 				continue;
 			}
 			const summary = commands.get(item.name);
+			// A command that needs input asks for it in the palette's prompt (7.1), never disabled.
+			if (summary?.needsInput === true) this.#rows.set(item.name, { input: item.name });
 			rows.push({
 				name: item.name,
 				...(item.title !== undefined ? { title: item.title } : {}),
-				description: item.description,
-				disabled: summary?.needsInput === true,
+				// Each names its app (A-P0-1), as a setting's row does.
+				description: item.app ? `${item.app}: ${item.description}` : item.description,
+				disabled: false,
 				...(summary?.keybinding !== undefined ? { keybinding: summary.keybinding } : {}),
 			});
 		}
@@ -166,11 +180,14 @@ export class ShellPalette {
 		}
 		const result = !row
 			? await kernel.call(name, {})
-			: 'inbox' in row
-				? await kernel.call('section-open', { section: 'inbox' })
-				: 'setting' in row
-					? await kernel.call('section-open', { section: 'settings', target: row.setting })
-					: await kernel.call('document-open', { document: row.document, preview: false });
+			: 'input' in row
+				? // The input prompt opens in the slot, which closes the palette as it shows (7.1).
+					await kernel.call('palette-run', { command: row.input })
+				: 'inbox' in row
+					? await kernel.call('section-open', { section: 'inbox' })
+					: 'setting' in row
+						? await kernel.call('section-open', { section: 'settings', target: row.setting })
+						: await kernel.call('document-open', { document: row.document, preview: false });
 		if (!result.success) {
 			return {
 				message: result.error?.message ?? `${name} failed`,

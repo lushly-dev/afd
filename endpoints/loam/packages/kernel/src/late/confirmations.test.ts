@@ -431,6 +431,7 @@ describe('the pending path (R9)', () => {
 			runNow: async () => success({}),
 			runBoot: async () => success({}),
 			replaying: () => false,
+			noteInbox: () => {},
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		});
@@ -794,6 +795,7 @@ describe('the run a person confirmed', () => {
 			workspace: () => 'personal',
 			provider: false,
 			replaying: () => false,
+			noteInbox: () => {},
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		} as never);
 		const refused = await made.gate(

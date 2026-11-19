@@ -27,7 +27,7 @@ import {
 } from './editor-group.js';
 import {
 	activeTab,
-	confirmDiscard,
+	askClose,
 	defineEditorElements,
 	type EditorReadV1,
 	focusMain,
@@ -105,7 +105,7 @@ export class EditorController implements FrameListener {
 	readonly #stalled = new Set<string>();
 	/** The pass of `#marks` queued and not yet begun, which any later change shares. */
 	#marking: Promise<void> | undefined;
-	readonly #modals = new Map<string, (result: 'confirm' | 'cancel') => void>();
+	readonly #modals = new Map<string, (result: string) => void>();
 	#queue: Promise<void> = Promise.resolve();
 	#scopeKey: string | null = null;
 	/** The scope rendered, and its visit: each change of scope is a new one, so a return is not the same visit. */
@@ -556,7 +556,7 @@ export class EditorController implements FrameListener {
 				});
 			}
 		}
-		// A modal the kernel closed, as a change of scope cancels the shell's, answers Keep editing.
+		// A modal the kernel closed, as a change of scope cancels the shell's, answers Cancel.
 		if (this.#modals.size && (event.scopeChanged || event.command === 'overlay-dismiss'))
 			void lostModals(this.#kernel, this.#modals);
 		if (!event.scopeChanged && !(event.success && event.mutation)) return;
@@ -610,9 +610,10 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * Close a tab as a person asks (5.5): a dirty one saves first when its type autosaves; otherwise, or when
-	 * the save rejects, the phase 1 modal asks, Discard or Keep editing. Focus goes to the tab that becomes
-	 * active, or main. False when the person kept editing.
+	 * Close a tab as a person asks (5.5): a dirty one saves first when its type autosaves; otherwise, or when the save
+	 * rejects, the kernel's close prompt asks (phase 4 specification, 7.3): Save runs the editor's `save()`, Discard
+	 * closes without it, Cancel keeps the tab. Focus goes to the tab that becomes active, or main. False when the person
+	 * kept editing, or the save they chose failed.
 	 */
 	async close(tab: string): Promise<boolean> {
 		const visit = this.#visit;
@@ -644,11 +645,19 @@ export class EditorController implements FrameListener {
 					}
 				}
 				if (!saved) {
-					// The Discard is of the draft as the modal found it, wherever it is by then; typed into after, kept.
+					// The Discard is of the draft as the prompt found it, wherever it is by then; typed into after, kept.
 					const edits = life?.edits;
-					if (!(await confirmDiscard(this.#kernel, this.#modals, frame?.title ?? 'this document')))
-						return false;
-					if (life) life.discard = edits;
+					const answer = await askClose(this.#kernel, this.#modals, tab, at && { scope: at });
+					if (answer === 'cancel') return false;
+					if (answer === 'save') {
+						if (!frame) return false;
+						try {
+							await frame.save();
+						} catch (cause) {
+							await this.#kernel.call('toast-show', notSaved(frame.title, cause));
+							return false;
+						}
+					} else if (answer === 'discard' && life) life.discard = edits;
 				}
 			} finally {
 				this.#asking.delete(asking);

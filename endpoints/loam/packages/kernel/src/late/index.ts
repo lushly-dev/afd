@@ -798,6 +798,7 @@ export async function createLateParts(
 			),
 		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
 		replaying: () => deps.internals?.replaying === true,
+		noteInbox: (context) => deps.scope.note(context.traceId, { inbox: true }),
 		digest: async (value) => {
 			const bytes = new TextEncoder().encode(canonical(value));
 			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));

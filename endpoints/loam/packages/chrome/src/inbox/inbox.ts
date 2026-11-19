@@ -1,10 +1,11 @@
 /**
  * @fileoverview The `inbox` chunk (phase 4 specification, 10.3 and 15), loaded when main first shows the inbox, at
  * `/<workspace>[/p/<project>]/~/inbox[/<notice>]`: `loam-inbox`, the person's notices, newest first, with any
- * confirmation waiting for them first (step 6 raises them; until then none is). Each notice says who left it (6.6) and
- * when, offers its action, its link, Mark read and Archive; "Mark all read" and "Archive all" act on every one but a
- * confirmation waiting for an answer. A path names a notice to open the inbox at, as a sticky toast's "Open inbox"
- * does (6.7).
+ * confirmation waiting for them first. Each notice says who left it (6.6) and when, offers its action, its link, Mark
+ * read and Archive; "Mark all read" and "Archive all" act on every one but a confirmation waiting for an answer. A
+ * confirmation (7.2, step 6) shows the shell's header, the app's text and the input, and Confirm and Decline, each
+ * naming the command (15); one that ended says how, "Declined automatically" with how many calls the window refused.
+ * A path names a notice to open the inbox at, as a sticky toast's "Open inbox" does (6.7).
  *
  * Every read and write is a command: `notification-list`, `-read`, `-archive` and `-act`. Native controls with a
  * constructable sheet, tokens only, as the settings section's are, so the chunk needs nothing of FAST's.
@@ -51,6 +52,37 @@ const when = (value: number): string => {
 		);
 	} catch {
 		return '';
+	}
+};
+
+/** A confirmation's input as text, one line per field, never markup (7.2). */
+const inputWords = (input: unknown): string => {
+	if (input === undefined) return '';
+	if (input === null || typeof input !== 'object' || Array.isArray(input))
+		return JSON.stringify(input) ?? '';
+	const entries = Object.entries(input as Record<string, unknown>);
+	return entries.length === 0
+		? 'No input'
+		: entries.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join('\n');
+};
+
+/** How a confirmation that is no longer waiting ended (7.2), in words. */
+const endedWords = (record: NonNullable<NotificationV1['confirmation']>): string => {
+	const again =
+		record.declinedAgain !== undefined && record.declinedAgain > 0
+			? ` · Declined automatically ${record.declinedAgain === 1 ? 'once' : `${record.declinedAgain} times`}`
+			: '';
+	switch (record.state) {
+		case 'confirmed':
+			return 'Confirmed';
+		case 'declined':
+			return `${record.reason === 'access' ? 'Declined: access changed before it could run' : 'Declined'}${again}`;
+		case 'expired':
+			return 'Expired: no one answered within 10 minutes';
+		case 'withdrawn':
+			return 'Withdrawn by whoever asked';
+		default:
+			return '';
 	}
 };
 
@@ -158,6 +190,14 @@ const STYLES = `
 		background: var(--color-action-primary-background);
 		color: var(--color-action-primary-text);
 	}
+	.action.danger {
+		border-color: var(--color-action-danger-background);
+		background: var(--color-action-danger-background);
+		color: var(--color-action-danger-text);
+	}
+	.action.danger:hover {
+		background: var(--color-action-danger-hover);
+	}
 	.action:focus-visible,
 	a:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
@@ -245,11 +285,13 @@ export class LoamInbox extends HTMLElement {
 					void this.#read();
 					return;
 				}
-				// A mutation that may change the list, never the list's own read, which would read again for ever.
+				// A mutation that may change the list, never the list's own read, which would read again for ever; or a call
+				// that raised or ended a confirmation, which may itself have failed (7.2).
 				if (
-					event.success &&
-					event.mutation &&
-					(event.command.startsWith('notification-') || event.command === 'toast-show')
+					event.inbox === true ||
+					(event.success &&
+						event.mutation &&
+						(event.command.startsWith('notification-') || event.command === 'toast-show'))
 				)
 					void this.#read();
 			}) ?? null;
@@ -366,8 +408,15 @@ export class LoamInbox extends HTMLElement {
 	#item(notice: NotificationV1): HTMLElement {
 		const unread = notice.readAt === undefined;
 		const heading = el('h2', {}, notice.title);
+		const asked = notice.kind === 'confirmation' ? notice.confirmation : undefined;
 		const meta = [
-			waiting(notice) ? 'Waiting for your answer' : unread ? 'Unread' : '',
+			waiting(notice)
+				? 'Waiting for your answer'
+				: asked
+					? endedWords(asked)
+					: unread
+						? 'Unread'
+						: '',
 			this.#from(notice),
 			when(notice.createdAt),
 			notice.state === 'done'
@@ -387,11 +436,41 @@ export class LoamInbox extends HTMLElement {
 				...(unread ? { 'data-unread': '' } : {}),
 				...(notice.id === this.#target ? { 'data-target': '' } : {}),
 			},
+			// A confirmation's header is the shell's, above the app's own words (7.2).
+			...(asked ? [el('p', { class: 'meta' }, asked.header)] : []),
 			heading,
 			el('p', { class: 'meta' }, meta.join(' · ')),
 			...(notice.body ? [el('p', { class: 'body' }, notice.body)] : []),
+			...(asked
+				? [
+						el('p', { class: 'body' }, asked.prompt),
+						el('p', { class: 'body input' }, inputWords(asked.input)),
+					]
+				: []),
 			actions
 		);
+		if (asked && waiting(notice)) {
+			// Confirm and Decline name the command (15); only the person's press answers, as `notification-act`.
+			const answer = (given: 'confirm' | 'decline') => async () => {
+				if (this.#acting.has(notice.id)) return;
+				this.#acting.add(notice.id);
+				try {
+					await this.#write(
+						'notification-act',
+						{ notification: notice.id, answer: given },
+						(data) => `${notice.title}: ${(data as unknown as { state?: string }).state ?? given}`
+					);
+				} finally {
+					this.#acting.delete(notice.id);
+				}
+			};
+			const confirm = this.#button('Confirm', answer('confirm'), !asked.danger);
+			confirm.setAttribute('aria-label', `Confirm ${notice.title}`);
+			if (asked.danger) confirm.classList.add('danger');
+			const decline = this.#button('Decline', answer('decline'));
+			decline.setAttribute('aria-label', `Decline ${notice.title}`);
+			actions.append(decline, confirm);
+		}
 		if (notice.action && notice.state === undefined && notice.kind === 'notice') {
 			const { label } = notice.action;
 			const run = this.#button(

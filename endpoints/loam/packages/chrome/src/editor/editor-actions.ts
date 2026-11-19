@@ -78,15 +78,12 @@ export function settleFocus(
 }
 
 /**
- * The phase 1 modal's answer, to the close that waits for it (5.5): only what the kernel accepted, told by the shell's
- * renderer, never an event a page's element could send (phase 4's step 4 review).
+ * The close prompt's answer, to the close that waits for it (phase 4 specification, 7.3): only what the kernel accepted,
+ * told by the shell's renderer, never an event a page's element could send (phase 4's step 4 review).
  */
-export function hearModals(
-	shell: LoamShell,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>
-): void {
+export function hearModals(shell: LoamShell, modals: Map<string, (result: string) => void>): void {
 	hearAnswers(shell, (overlayId, result) => {
-		modals.get(overlayId)?.(result === 'confirm' ? 'confirm' : 'cancel');
+		modals.get(overlayId)?.(result);
 		modals.delete(overlayId);
 	});
 }

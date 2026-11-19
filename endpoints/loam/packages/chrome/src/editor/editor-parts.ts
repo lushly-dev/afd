@@ -150,15 +150,6 @@ export const isSave = (event: KeyboardEvent, mac: boolean): boolean =>
 	!event.shiftKey &&
 	event.code === 'KeyS';
 
-/** The phase 1 modal's input: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
-export const discardModal = (title: string) => ({
-	title: 'Close without saving?',
-	body: `Your changes to ${title.slice(0, 200)} are not saved. Closing loses them.`,
-	confirmLabel: 'Discard',
-	cancelLabel: 'Keep editing',
-	danger: true,
-});
-
 /** A rejected save's `danger` toast, with its code and suggestion (5.5). */
 export { notSaved } from './not-saved.js';
 
@@ -253,7 +244,7 @@ export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefine
 /** Each modal of `modals` the kernel's list no longer holds, closed with no answer, answered `cancel`; a failed read answers none. */
 export async function lostModals(
 	kernel: LoamKernelV5,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>
+	modals: Map<string, (result: string) => void>
 ): Promise<void> {
 	const open = (await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
 		?.overlays;
@@ -296,19 +287,40 @@ export async function readRecord(
 	return held;
 }
 
-/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5); its answer by `modals`. */
-export async function confirmDiscard(
+/** The close prompt's words and answers (phase 4 specification, 7.3): Save the default, Discard the danger, Cancel. */
+export const CLOSE_PROMPT = {
+	title: 'Save your changes?',
+	body: 'This tab has changes that are not saved. Closing without saving loses them.',
+	actions: [
+		{ id: 'save', label: 'Save', tone: 'primary', default: true },
+		{ id: 'discard', label: 'Discard', tone: 'danger' },
+		{ id: 'cancel', label: 'Cancel' },
+	],
+} as const;
+
+/**
+ * The close prompt (phase 4 specification, 7.3; A-P2-1): the person's own `editor-close` of a dirty tab, which the kernel
+ * answers by opening its prompt, Save (the default), Discard or Cancel; its answer by `modals`. `closed` when the kernel
+ * held the tab clean and closed it. A draft whose tab the kernel no longer holds, as when an agent closed it while its
+ * save ran, is asked the same in the shell's own modal, the person's gesture's, which only they answer (6.5).
+ */
+export async function askClose(
 	kernel: LoamKernelV5,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>,
-	title: string
-): Promise<boolean> {
-	const opened = await kernel.call<{ overlayId: string }>('modal-open', discardModal(title));
-	const overlayId = opened.data?.overlayId;
-	if (!opened.success || overlayId === undefined) return false;
-	const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
-		modals.set(overlayId, resolve)
-	);
-	return result === 'confirm';
+	modals: Map<string, (result: string) => void>,
+	tab: string,
+	scope: { scope: ScopeOf } | undefined
+): Promise<'save' | 'discard' | 'cancel' | 'closed'> {
+	const asked = await kernel.call('editor-close', { tab }, scope);
+	if (asked.success) return 'closed';
+	let prompt = (asked.error?.details as { prompt?: { overlayId: string } } | undefined)?.prompt;
+	if (!prompt) {
+		const opened = await kernel.call<{ overlayId: string }>('modal-open', CLOSE_PROMPT);
+		prompt = opened.data;
+	}
+	if (!prompt) return 'cancel';
+	const { overlayId } = prompt;
+	const result = await new Promise<string>((resolve) => modals.set(overlayId, resolve));
+	return result === 'save' || result === 'discard' ? result : 'cancel';
 }
 
 /**

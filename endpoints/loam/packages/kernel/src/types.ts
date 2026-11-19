@@ -662,6 +662,11 @@ export interface LoamKernelV4
 export interface KernelEventV4 extends KernelEventV3 {
 	/** The settings sections whose values this call changed, by full id (3.8). */
 	settings?: string[];
+	/**
+	 * A confirmation in the inbox was raised, answered or ended by this call, which may itself have failed, as a call
+	 * answered `CONFIRMATION_PENDING` has (7.2): the Inbox count reads again.
+	 */
+	inbox?: true;
 }
 
 /** What `shell-info-get` returns from version 4. */

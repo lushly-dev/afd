@@ -65,6 +65,16 @@ export interface LayerHelpers {
 	answerFor(question: LoamModal): LoamModal['onAnswer'];
 }
 
+/** A confirmation's input as it will run, one line per field, as text (phase 4 specification, 7.2, R15). */
+export function inputWords(input: unknown): string {
+	if (input === null || typeof input !== 'object' || Array.isArray(input))
+		return JSON.stringify(input) ?? 'No input';
+	const entries = Object.entries(input as Record<string, unknown>);
+	return entries.length === 0
+		? 'No input'
+		: entries.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join('\n');
+}
+
 /** The owner line the shell shows (6.6): none for the shell's own. */
 export function ownerLine(from: OverlayFromV1 | undefined): string {
 	if (!from) return '';
@@ -110,6 +120,33 @@ export class OverlaySurfaces {
 	#answerFor(question: LoamModal): LoamModal['onAnswer'] {
 		return (overlayId, result, value) =>
 			void (async () => {
+				const asked = this.#asks.get(overlayId);
+				// The palette's input prompt runs its command with what it collected (phase 4 specification, 7.1); a confirm_prompt
+				// command's confirmation replaces it in the slot, and this call waits for that answer too (R15).
+				if (asked?.kind === 'input' && result !== 'cancel') {
+					const ran = await this.#kernel.call('palette-run', {
+						command: asked.command,
+						prompt: overlayId,
+						input: value ?? {},
+					});
+					if (ran.success) {
+						tellAnswered(this.#shell, overlayId, 'confirm');
+						return;
+					}
+					if (!ran.error) return;
+					const { message, suggestion, code } = ran.error;
+					const words = suggestion ? `${message}. ${suggestion}` : message;
+					if (question.overlayId === overlayId) question.refuse(words);
+					// The prompt has gone, so the run itself failed: said as long as a toast may last. A person's own
+					// decline needs no word.
+					else if (code !== 'CONFIRMATION_DECLINED')
+						void this.#kernel.call('toast-show', {
+							message: words.slice(0, 200),
+							tone: 'danger',
+							durationMs: 30_000,
+						});
+					return;
+				}
 				const answered = await this.#kernel.call<OverlayResultV1>('overlay-dismiss', {
 					overlayId,
 					result,
@@ -125,6 +162,9 @@ export class OverlaySurfaces {
 				question.refuse(suggestion ? `${message}. ${suggestion}` : message);
 			})();
 	}
+
+	/** The kernel's own prompts shown, by id: what each asks (7.1 to 7.3), for its answer's path. */
+	readonly #asks = new Map<string, NonNullable<OverlayV1['for']>>();
 
 	constructor(
 		shell: LoamShell,
@@ -371,7 +411,13 @@ export class OverlaySurfaces {
 			await Updates.next();
 		}
 		const options = this.#optionsOf(overlay);
-		if (overlay.kind === 'prompt' && layer) {
+		const asks = overlay.for?.kind;
+		this.#asks.clear();
+		if (overlay.for) this.#asks.set(overlay.overlayId, overlay.for);
+		if (asks) options.asks = asks;
+		// A confirmation and the close prompt ask for no value (7.2, 7.3): a confirmation shows its input as it will run.
+		if (asks === 'confirmation') options.details = inputWords(overlay.for?.input);
+		else if (overlay.kind === 'prompt' && asks !== 'close' && layer) {
 			const prompt = overlay.input as PromptInputV1;
 			options.fields = layer.promptFields(this.#shell.ownerDocument, prompt.schema, prompt.value);
 		}

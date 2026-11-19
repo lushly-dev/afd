@@ -381,6 +381,24 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Steps 4, 5 and 8 merged (step 5's branch with `main` at `03b036bb`), under D115: `jsMinified` 310,000 to 310,500
  * (310,131; gzip 96,764 of 97,000); `lateMinified` 105,500 to 107,500 (106,836); `surfacesMinified` 93,500 to 95,500
  * (94,868), each both steps' code together. Every other row within its ceiling.
+ * Phase 4's step 6 (prompts and confirmations), under D115, on its branch from step 5's head (`3a35be2f`, steps 4, 5
+ * and 8 merged) on Windows with Node 26.13.1, against the figures above for those steps merged. First paint 310,406
+ * (+275) and 96,862 gzip (+98), within 310,500 and 97,000: the kernel's chain gains the confirmations' gate and two
+ * late context fields, and `late/` an unqueued runner. `kernelMinified` 119,500 to 120,000 (119,623, the same).
+ * `lateSettingsMinified` 61,500 to 78,500 (60,469 to 77,862, +17,393): `confirmations.ts`, the gate's slot and inbox
+ * paths with the key, the window, the limit of five and expiry, the re-check and the one run on confirm, the internal
+ * `prompt-settle`, `palette-run` with its prompt's fields, `confirmation-get` and `-withdraw`, each with its written
+ * JSON Schema and refusals in words. `lateMinified` 107,500 to 110,000 (106,836 to 109,456, +2,620): the
+ * confirmations' wiring (the re-check, the palette's command and input check, titles and the digest), the palette's
+ * ranking by the active app, its settings with it, each row naming its app (A-P0-1), and the persona ranked after it. `lateEditorMinified` 15,400
+ * to 16,000 (15,336 to 15,813, +477): the close prompt (7.3). `appsMinified` 418,500 to 420,500 (418,055 to 420,134,
+ * +2,079): a command's `confirm_prompt` and the strict refusal of `confirm` naming `confirmation-get`, with classic
+ * Zod's custom and pipe types. `surfacesMinified` 95,500 to 96,500 (94,868 to 96,179, +1,311): the slot's kernel
+ * prompts (a confirmation's input, Decline focused, the input prompt answered by `palette-run`), the palette's input
+ * rows and app names, and the bell's count and announcement of a confirmation. `editorMinified` 35,600 to 36,000
+ * (35,479 to 35,762, +283): the close prompt's answers in place of phase 2's discard modal. `inboxMinified` 10,000 to
+ * 11,500 (9,637 to 11,340, +1,703, over section 14's 10,000): a confirmation's header, input and state, and Confirm
+ * and Decline naming the command.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -420,7 +438,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 119_500,
+	kernelMinified: 120_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -428,13 +446,13 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 107_500,
+	lateMinified: 110_000,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 15_400,
+	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
-	lateSettingsMinified: 61_500,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 77,862; set to 78,500.
+	lateSettingsMinified: 78_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -446,10 +464,10 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
-	appsMinified: 418_500,
+	appsMinified: 420_500,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
-	surfacesMinified: 95_500,
+	surfacesMinified: 96_500,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -472,14 +490,14 @@ export const CEILINGS = Object.freeze({
 	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
 	sectionsMinified: 51_000,
 	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
-	editorMinified: 35_600,
+	editorMinified: 36_000,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
 	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
-	inboxMinified: 10_000,
+	inboxMinified: 11_500,
 });
 
 /** Group a module id by the package it belongs to. */

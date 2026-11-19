@@ -34,6 +34,13 @@ export interface QuestionOptions {
 	element?: HTMLElement | null;
 	/** A prompt's fields, built by the `overlays` chunk. */
 	fields?: PromptFields | null;
+	/**
+	 * Which of the kernel's own prompts it is (phase 4 specification, 7.1 to 7.3). A confirmation takes no field and
+	 * focuses Decline, never Confirm, so a person typing elsewhere cannot confirm with Enter (step 4's record).
+	 */
+	asks?: 'input' | 'confirmation' | 'close';
+	/** A confirmation's input as it will run, as text (7.2, R15). */
+	details?: string;
 }
 
 const template = html<LoamModal>`
@@ -139,6 +146,15 @@ const styles = [
 		}
 		.content {
 			margin-block-end: var(--space-stack-md);
+		}
+		.details {
+			margin: 0;
+			padding: var(--size-space-sm);
+			border-radius: var(--radius-md);
+			background: var(--color-surface-subtle);
+			color: var(--color-text-primary);
+			font-family: var(--font-family-mono);
+			white-space: pre-wrap;
 		}
 		.field {
 			display: flex;
@@ -277,6 +293,12 @@ export class LoamModal extends FASTElement {
 			this.#fields = options.fields;
 			this.content.append(this.#fields.element);
 		} else if (options.element) this.content.append(options.element);
+		else if (options.details !== undefined) {
+			const details = doc.createElement('p');
+			details.className = 'details';
+			details.textContent = options.details;
+			this.content.append(details);
+		}
 		this.buttons.replaceChildren();
 		const answers = answersOf(input);
 		let first: HTMLElement | null = null;
@@ -302,6 +324,8 @@ export class LoamModal extends FASTElement {
 			if (answer.default) first = button;
 		}
 		const danger = (input as { danger?: boolean }).danger === true;
+		if (options.asks === 'confirmation')
+			first = this.buttons.querySelector<HTMLElement>('[data-answer="cancel"]');
 		first ??= this.buttons.querySelector<HTMLElement>(
 			`[data-answer="${danger ? 'cancel' : answers.some((each) => each.id === 'confirm') ? 'confirm' : 'cancel'}"]`
 		);

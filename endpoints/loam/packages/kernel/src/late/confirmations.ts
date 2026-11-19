@@ -128,6 +128,8 @@ export interface ConfirmationDeps {
 	/** Boot's own: `prompt-settle`, journaled before the answer it waits for. */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	replaying(): boolean;
+	/** Mark the call's kernel event: its inbox changed, though the call may have failed (`CONFIRMATION_PENDING`). */
+	noteInbox(context: CommandContext): void;
 	/** SHA-256 of canonical JSON, as the copilot's input digest (phase 5's 3.4). */
 	digest(value: unknown): Promise<string>;
 	kit: SettingsKit;
@@ -485,6 +487,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	): Promise<CommandResult> {
 		const caller = opener.owner.id;
 		const scope = scopeOf(call);
+		// The person's inbox may change whatever this answers: the Inbox count reads again (10.3).
+		deps.noteInbox(call);
 		return serial(person, async () => {
 			const now = kit.callNow(call);
 			const rows = await rowsOf(person);
@@ -662,6 +666,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			);
 		}
 		const result = await next();
+		deps.noteInbox(call);
 		const now = kit.callNow(call);
 		const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
 		const { claim: _claim, ...kept } = stored;
@@ -845,6 +850,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			const row = await own(input.notification, context);
 			if (!('confirmation' in row)) return row;
 			const person = row.person;
+			deps.noteInbox(context);
 			return serial(person, async () => {
 				const stored = (await rowsOf(person)).find((each) => each.id === row.id) ?? row;
 				const state = stateNow(stored.confirmation, kit.callNow(context));
@@ -1028,6 +1034,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		const person = notice.person;
 		const now = kit.callNow(context);
+		deps.noteInbox(context);
 		const row = (await rowsOf(person)).find((each) => each.id === notice.id);
 		if (!row) {
 			return fail(
@@ -1121,6 +1128,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		async withdraw(context, match, person) {
 			const whose = person ?? personOf(context);
 			if (whose === undefined) return 0;
+			deps.noteInbox(context);
 			return serial(whose, async () => {
 				const now = kit.callNow(context);
 				let count = 0;
