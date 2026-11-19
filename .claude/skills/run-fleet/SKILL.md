@@ -6,7 +6,7 @@ description: >
   Use when running the backlog, or starting, resuming or closing out a fleet.
 metadata:
   source: afd
-  version: 0.1.0
+  version: 0.1.1
   portable: true
 ---
 
@@ -48,7 +48,7 @@ After acting, leave one background `factory call lane-wait '{"consumer": "forema
 
 ## Finish
 
-`lane-drop` any cell that will not come back, then wait for `queue-empty`: the lane may still be running `main`'s coverage. Then `event-resolve` it, `lane-report` and `lane-stop`. Relay the merged PRs, what was ejected and why, the report's numbers, and what remains. Never delete a worktree or lock you did not make, or report dropped work as shipped.
+`lane-drop` any cell that will not come back, then wait for `queue-empty`: the lane may still be running `main`'s coverage. Then record the decision with `event-resolve {"id": "<event id>", "note": "Fleet finished"}`, `lane-report` and `lane-stop`. Relay the merged PRs, what was ejected and why, the report's numbers, and what remains. Never delete a worktree or lock you did not make, or report dropped work as shipped.
 
 Then tidy T3 Code, so that nothing from the run wakes later on an outdated brief:
 

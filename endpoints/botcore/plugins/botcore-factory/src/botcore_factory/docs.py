@@ -24,8 +24,8 @@ it for `foreman.leaseMinutes` (waiting renews it too). Another session is refuse
 2. `cell_register(issues=[nextIssue], branch, route, session)`: claims the issue on GitHub
    (`status:in-progress` plus a claim comment with the lease) and assigns the plan. Call it
    before starting the cell, so a refusal costs nothing; then `cell_attach(branch, thread)`.
-3. `lane_wait(consumer="foreman", session)`: the events not yet given to you, each with a compact
-   `status`. Answer each one; reading resolves nothing.
+3. `lane_wait(consumer="foreman", session)`: open events not yet given to you, each with a
+   compact `status`. Answer each one; reading resolves nothing.
 4. `issue_check()` when triage has run or a claim may have expired.
 
 A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn.

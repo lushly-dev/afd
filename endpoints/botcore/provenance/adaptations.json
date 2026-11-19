@@ -1324,10 +1324,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8bdf806b042751f754941adfdf7a30cdf8553b13d271e3f2685e2cd20f5c1981",
+      "current_import_sha256": "e533e7de92e4db069895c384727fbe407ce9d1e467846d08656fa236216d0f62",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Skip resolved events when delivering a lane wake (#1608)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/dials.py",
@@ -1346,10 +1346,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9f7d86b43c9380138734a4e00881897529b545b50ffa00ad27de894114a745dc",
+      "current_import_sha256": "32840a28a5d8d5d35eaa36d341ececa07cded59b5f71989a23dd2c59ef426fb4",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Skip resolved events when delivering a lane wake (#1608)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/events.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "185df2ba9efa80f496a11d7580ebe0735bdb29f3f8432c4c143a840f7682e80e",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Skip resolved events when delivering a lane wake (#1608)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/fixture_parts.py",
@@ -1603,6 +1614,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_events.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7015f123278fc627ad0357f35b4be6e971cd539aa996235b66e8b52415aac27c",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Skip resolved events when delivering a lane wake (#1608)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_routes.py",
