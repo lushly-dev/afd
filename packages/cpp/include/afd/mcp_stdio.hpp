@@ -82,10 +82,17 @@ enum class ToolStrategy {
     grouped,
     /// Then the context tools when contexts are configured, and nothing else; the same in every
     /// context.
-    lazy
+    lazy,
+    /// Then the context tools when contexts are configured, then the command tools of
+    /// `StdioServerOptions::first_class_tools` in that order; the same in every context
+    /// (spec/tool-strategies.md, "Hybrid").
+    hybrid
 };
 
-/// The strategy's name, as `afd-help` reports it: `individual`, `grouped` or `lazy`.
+/// The most first-class tools a hybrid server lists (spec/tool-strategies.md, H5).
+inline constexpr std::size_t max_first_class_tools = 8;
+
+/// The strategy's name, as `afd-help` reports it: `individual`, `grouped`, `lazy` or `hybrid`.
 std::string_view tool_strategy_name(ToolStrategy strategy) noexcept;
 
 /// A grouped tool's name for a command; `std::nullopt` or an empty name is `general`.
@@ -118,8 +125,13 @@ struct StdioServerOptions {
     /// Lines longer than this are rejected, bounding memory for a hostile client.
     std::size_t max_line_bytes = std::size_t{1} << 20;
     ConfirmationMode confirmations = ConfirmationMode::off;
-    /// How `tools/list` presents the commands. Default: `grouped`, as in TypeScript and Rust.
+    /// How `tools/list` presents the commands. Default: `grouped`, as in every language.
     ToolStrategy tool_strategy = ToolStrategy::grouped;
+    /// Under `hybrid`, and only then: the commands listed as their own tools after the
+    /// meta-tools and context tools, in this order. At most `max_first_class_tools`, each a
+    /// registered command exposed to MCP, listed once, and neither a meta-tool nor a context
+    /// tool; a bootstrap command may be one. `create` fails otherwise, naming the entry.
+    std::optional<std::vector<std::string>> first_class_tools;
     /// The grouped tool of each command under `grouped`. Default: its `category`, else the first
     /// kebab-case segment of its name, else `general`.
     GroupBy group_by;
@@ -128,7 +140,7 @@ struct StdioServerOptions {
     /// missing. Empty (the default): no contexts.
     std::vector<ContextConfig> contexts;
     /// The `ttlMs` of `tools/list` and `server/discover` on 2026-07-28. Default: 300000, or 0
-    /// with contexts under `individual` or `grouped`, whose list varies by
+    /// with contexts under `individual` or `grouped`, whose lists vary by
     /// `_meta["dev.afd/context"]`, which clients leave out of their cache key.
     std::optional<std::int64_t> tools_list_ttl_ms;
     /// Advertise the CommandResult envelope (`command_result_output_schema`) as the top-level
@@ -160,8 +172,10 @@ using ClientRequester = std::function<std::optional<Json>(const Json& request)>;
 class StdioServer {
 public:
     /// Fails when `state_secret` is set but shorter than 32 bytes, when `contexts` are set but
-    /// their commands are not registered and exposed to MCP, or when `tools_list_ttl_ms` is
-    /// negative. `registry` must outlive the server.
+    /// their commands are not registered and exposed to MCP, when `tools_list_ttl_ms` is
+    /// negative, or when `first_class_tools` does not suit `tool_strategy` (see that option).
+    /// `registry` must outlive the server, and the commands it serves as first-class tools must
+    /// stay registered and exposed.
     static Expected<std::unique_ptr<StdioServer>> create(const CommandRegistry& registry,
                                                          StdioServerOptions options = {});
 

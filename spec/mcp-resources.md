@@ -346,7 +346,7 @@ get errors. It is written by hand from this page; its digests were computed with
 the exact bytes in the file (each `text` encoded as UTF-8, each `base64` decoded). Each language's
 step adds its loader.
 
-It sits beside [`tool-strategies.json`](./tool-strategies.json), not in [`vectors/`](./vectors/README.md),
+It sits in `spec/`, not in [`vectors/`](./vectors/README.md),
 because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It moves
 to `vectors/` in the pull request that makes the fourth language load it.
 

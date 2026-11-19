@@ -37,7 +37,7 @@ if(AFD_JOURNAL_FILE)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 if(AFD_BUILD_MCP_STDIO)
-    target_sources(afd_tests PRIVATE mcp_stdio_test.cpp mcp_tools_test.cpp)
+    target_sources(afd_tests PRIVATE tool_strategies_vectors_test.cpp mcp_stdio_test.cpp mcp_tools_test.cpp)
     target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
 endif()
 # approval_test.cpp checks the private HMAC and base64url helpers (header-only) directly.
