@@ -24,15 +24,7 @@ import {
 } from '@lushly-dev/afd-testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
-import {
-	P4_APPS,
-	P4_COUNT,
-	P4_DOCUMENT,
-	P4_PERSON,
-	P4_PROJECTS,
-	SEEDS,
-	type SeededKernel,
-} from '../scenarios/seeds.js';
+import { P4_PERSON, P4_PROJECTS, P4_SEED, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
 
 const PHASE_4 = fileURLToPath(
 	new URL('../../../docs/phases/4-settings/scenarios/', import.meta.url)
@@ -202,17 +194,19 @@ describe("Loam's runner: the p4-base seed", () => {
 		expect(scoped.data).toMatchObject({ value: 14, from: 'workspace' });
 	});
 
-	it('holds the four apps, enabled for both projects, a count of 3 and the checklist in Atlas', async () => {
+	it("holds its seed file's apps, enabled for both projects, and its documents and calls' results", async () => {
 		seeded = await (SEEDS['p4-base'] as () => Promise<SeededKernel>)();
 		const { kernel } = seeded;
+		const instances = P4_SEED.apps.map(({ instance }) => instance);
+		expect(instances).toHaveLength(4);
 		const apps = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
 			'app-list'
 		);
 		expect(apps.data?.apps.map(({ instance, state }) => ({ instance, state }))).toEqual(
-			P4_APPS.map((instance) => ({ instance, state: 'ready' }))
+			instances.map((instance) => ({ instance, state: 'ready' }))
 		);
 		for (const project of ['prj_atlas', 'prj_beacon']) {
-			for (const instance of P4_APPS) {
+			for (const instance of instances) {
 				const opened = await kernel.call(
 					'app-open',
 					{ instance },
@@ -223,20 +217,25 @@ describe("Loam's runner: the p4-base seed", () => {
 				);
 			}
 		}
-		const counted = await kernel.call<{ total: number }>(P4_COUNT.command);
-		expect(counted.data?.total).toBe(P4_COUNT.total);
-		const document = await kernel.call<{ id: string; scope: { project?: string } }>(
-			'document-get',
-			{ document: P4_DOCUMENT },
-			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
-		);
-		expect(document.data).toMatchObject({ id: P4_DOCUMENT, scope: { project: 'prj_atlas' } });
-		const items = await kernel.call<{ items: unknown[] }>(
-			'checklist-get',
-			{ document: P4_DOCUMENT },
-			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
-		);
-		expect(items.data?.items, JSON.stringify(items.error)).toEqual([]);
+		for (const document of P4_SEED.documents) {
+			const read = await kernel.call(
+				'document-get',
+				{ document: document.id },
+				document.project ? { scope: { workspace: 'personal', project: document.project } } : {}
+			);
+			expect(read.data).toMatchObject({ id: document.id, title: document.title });
+		}
+		expect(P4_SEED.checks.length).toBeGreaterThan(0);
+		for (const check of P4_SEED.checks) {
+			const read = await kernel.call(
+				check.command,
+				check.input,
+				check.project ? { scope: { workspace: 'personal', project: check.project } } : {}
+			);
+			expect(read.data, `${check.command}: ${JSON.stringify(read.error)}`).toMatchObject(
+				check.data as object
+			);
+		}
 	});
 });
 

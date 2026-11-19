@@ -139,8 +139,8 @@ describe("the shell's own sections (3.7)", () => {
 
 	it("loam.rail.order: a person's own list of instance ids, the rest of a list refused", async () => {
 		const { kernel } = await workspace();
-		expect((await set(kernel, 'loam.rail', 'order', ['greet', 'notes'])).data).toMatchObject({
-			value: ['greet', 'notes'],
+		expect((await set(kernel, 'loam.rail', 'order', ['greet', 'other'])).data).toMatchObject({
+			value: ['greet', 'other'],
 			from: 'person',
 		});
 		for (const value of [
