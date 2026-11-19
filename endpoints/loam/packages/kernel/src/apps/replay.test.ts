@@ -1,6 +1,6 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryAdapter } from '@lushly-dev/local-db';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from '../errors.js';
 import { createKernel } from '../kernel.js';
 import {
@@ -265,6 +265,32 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 			expect(report.diverged).toBe(false);
 		});
 
+		it('#859: diverges when the nested command is no longer exposed to the interface that calls it', async () => {
+			const run = async (client: NestedClient) =>
+				(await client.call('probe-list')).error?.code ?? null;
+			const recorded = await recordSession(calls, optionsFor(run));
+			const outer = recorded.entries.at(-1)?.result.data as { seen: unknown };
+			expect(outer.seen).toBeNull();
+			// The same app with `probe-list` hidden from the palette: live, the call is `COMMAND_NOT_EXPOSED`.
+			const hidden = {
+				deployment: probeDeployment(),
+				ports: createFixturePorts({
+					'apps/probe/': {
+						manifest: {
+							...PROBE_MANIFEST,
+							commands: PROBE_MANIFEST.commands?.map((command) =>
+								command.name === 'probe-list' ? { ...command, expose: { palette: false } } : command
+							),
+						},
+						definition: nestedDefinition(run),
+					},
+				}),
+			};
+			await expect(replayKernel(recorded.entries, hidden)).rejects.toMatchObject({
+				code: 'REPLAY_DIVERGED',
+			});
+		});
+
 		it('passes an unchanged handler that returns a nested result as its own', async () => {
 			const base = probeDefinition();
 			const passThrough = {
@@ -386,6 +412,86 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		await first.kernel.dispose();
 		const { report } = await replayKernel(await journal.read(), probeOptions());
 		expect(report.diverged).toBe(false);
+	});
+
+	/** A store whose writes of `loam.apps` a test can hold, or refuse. */
+	class GatedStore extends MemoryAdapter {
+		hold: Promise<void> | undefined;
+		refuse = false;
+		private async gate(table: string, id: string | undefined): Promise<void> {
+			if (table !== 'settings' || id !== 'loam.apps') return;
+			if (this.refuse) throw new Error('HTTP 500: storage refused');
+			await this.hold;
+		}
+		override async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
+			await this.gate(table, id);
+			return super.update(table, id, patch);
+		}
+		override async create<T>(table: string, data: Partial<T>): Promise<T> {
+			await this.gate(table, (data as { id?: string }).id);
+			return super.create(table, data);
+		}
+	}
+
+	it('#861: a call that sees a change still being written is journaled after the call that made it', async () => {
+		const store = new GatedStore();
+		const { kernel, journal } = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		let release!: () => void;
+		store.hold = new Promise((resolve) => {
+			release = resolve;
+		});
+		const first = kernel.call('app-open', { instance: 'probe' });
+		// The first call has changed `loam.apps` and waits for the store; the second sees the app already open.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const second = kernel.call('app-open', { instance: 'probe' });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		release();
+		expect((await first).success).toBe(true);
+		expect((await second).success).toBe(true);
+		const opens = (await journal.read()).filter((entry) => entry.command === 'app-open');
+		expect(opens.map((entry) => (entry.result.data as { previous: unknown }).previous)).toEqual([
+			null,
+			'probe',
+		]);
+		await kernel.dispose();
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	it("#861: a change the store did not save is the call's failure, and the next flush saves it", async () => {
+		const store = new GatedStore();
+		const { kernel, journal } = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		store.refuse = true;
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const opened = await kernel.call('app-open', { instance: 'probe' });
+		expect(opened.error).toMatchObject({
+			code: 'VIEW_STATE_NOT_SAVED',
+			retryable: true,
+			details: { records: ['loam.apps'] },
+		});
+		expect(opened.error?.suggestion).toBeTruthy();
+		// The journal says what a reload finds: the call failed, and the store holds no active app.
+		const entry = (await journal.read()).at(-1);
+		expect(entry?.command).toBe('app-open');
+		expect(entry?.result.success).toBe(false);
+		expect(await store.get('settings', 'loam.apps')).toBeNull();
+		// Kept: once the store takes writes again, the next flush saves the change.
+		store.refuse = false;
+		await kernel.flush();
+		expect(
+			((await store.get('settings', 'loam.apps')) as { value?: { active?: unknown } } | null)?.value
+				?.active
+		).toBe('probe');
+		warn.mockRestore();
+		await kernel.dispose();
 	});
 
 	it('answers an entry marked recorded from its record, and registers nothing', async () => {

@@ -5,7 +5,7 @@
  */
 
 import type { CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
-import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import type { ViewStateFlushResult, ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
 import type { ProjectV1 } from '../scope/records.js';
@@ -35,17 +35,49 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * `app-open` and `app-close`, and the scope middleware's own leaving and settling around a change of person, which is
  * why it sits right inside the journal. The store may then hold a change a moment before the journal holds its entry;
  * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
+ *
+ * - **Every call waits for a write in flight**, its own or another's, so one that saw a change before the store held it,
+ *   as a second `app-open` of the same app does, is never journaled before the call that made it.
+ * - **A handler that throws after a change** is written through all the same, and its error is the call's.
+ * - **A write that fails** is the call's failure, `VIEW_STATE_NOT_SAVED`, retryable: the journal never records as done
+ *   what a reload would not find. The change stays in memory, and the next flush writes it again.
  */
 export function writeThrough(
 	viewState: ViewStateRegistry,
 	state: Pick<ShellState, 'main' | 'scopeProject'>
 ): CommandMiddleware {
 	const read = () => JSON.stringify([state.main(), state.scopeProject()]);
-	return async (_name, _input, _context, next) => {
+	const records = new Set([APPS_VIEW_STATE_ID, SCOPE_VIEW_STATE_ID]);
+	/** The last write-through started, until it settles. */
+	let inFlight: Promise<ViewStateFlushResult> | undefined;
+	const start = (): Promise<ViewStateFlushResult> => {
+		const flush = viewState.flush();
+		inFlight = flush;
+		void flush.then(() => {
+			if (inFlight === flush) inFlight = undefined;
+		});
+		return flush;
+	};
+	return async (name, _input, _context, next) => {
 		const before = read();
-		const result = await next();
-		if (read() !== before) await viewState.flush();
-		return result;
+		let outcome: { result: CommandResult } | { thrown: unknown };
+		try {
+			outcome = { result: await next() };
+		} catch (thrown) {
+			outcome = { thrown };
+		}
+		const mine = read() !== before ? start() : undefined;
+		const waited = mine ?? inFlight;
+		const flushed = waited ? await waited : undefined;
+		if ('thrown' in outcome) throw outcome.thrown;
+		const unsaved = mine ? (flushed?.failed ?? []).filter((id) => records.has(id)) : [];
+		if (unsaved.length === 0) return outcome.result;
+		return kernelFailure(
+			'VIEW_STATE_NOT_SAVED',
+			`\`${name}\` changed ${unsaved.join(' and ')}, but the store did not save it`,
+			'Check that this site may store data, then run it again',
+			{ retryable: true, details: { records: unsaved } }
+		);
 	};
 }
 

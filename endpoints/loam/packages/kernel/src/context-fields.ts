@@ -25,6 +25,10 @@ export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFi
 		// Stage B's own move of an old appearance record (phase 4 specification, 3.6): set by the kernel alone, on that
 		// call alone, and journaled, so a replay of its entry carries it and a person's forged `migrated` never does.
 		{ name: 'migration', meta: 'dev.loam/migration', schema: z.literal(true), journal: true },
+		// A call the kernel's input bound refused, whose input the journal keeps as its document's id alone (documents
+		// specification, 4.4): set by the kernel alone, so a replay compares such an entry by that id and the bound, and
+		// every other entry by its whole input (#859).
+		{ name: 'oversized', meta: 'dev.loam/oversized', schema: z.literal(true), journal: true },
 	]);
 
 /** What the kernel sets for a call. */
@@ -50,4 +54,6 @@ export interface KernelFieldContext extends KernelCallFields {
 	app?: string;
 	instance?: string;
 	replay?: 'recorded';
+	/** The kernel's input bound refused the call, and the journal keeps its input as its document's id alone. */
+	oversized?: true;
 }

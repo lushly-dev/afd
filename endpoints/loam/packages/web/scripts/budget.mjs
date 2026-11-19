@@ -448,7 +448,10 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 122_600,
+	// Raised from 122,600 to 123,000 under D115 by the second review of #1604 (#859, #861, #663), measured in one tree
+	// against `main` at `dcabc87a`: 122,588 to 122,844 (+256). The `oversized` journal mark a replay matches a refused
+	// input by, the nested-call exposure check, and `afd-view-state` reporting and keeping a failed write.
+	kernelMinified: 123_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -456,7 +459,9 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 109_800,
+	// Raised from 109,800 to 110,300 under D115 by the same review: 109,503 to 109,952 (+449), `late`'s write-through
+	// waiting for a write in flight, writing through a handler that throws, and `VIEW_STATE_NOT_SAVED`.
+	lateMinified: 110_300,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_400,
 	lateIdentityMinified: 63_000,

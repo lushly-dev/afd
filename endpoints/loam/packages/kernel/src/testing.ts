@@ -224,26 +224,32 @@ function validatedInput(
 
 /**
  * Whether `given`, validated by the command's schema, is the call `recorded` journals: the whole input, after the
- * journal's own redactions (`input.password` removed; an input the kernel's 256 KiB bound refused, which it marks
- * `replay: 'recorded'`, kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
+ * journal's own redactions (`input.password` removed). Never a subset: `{}` is not a recorded `{ filter: 'a' }`. An entry
+ * the kernel's input bound refused (`oversized`, which only the kernel sets) keeps its document's id alone, so it is
+ * matched by that id and by `given` being over `inputBytes`, the replay kernel's bound, as it would be refused live: a
+ * small call to the same document is not it, and runs (#859). An app's own `DOCUMENT_CONTENT_TOO_LARGE` keeps its whole
+ * input and no mark, so it compares whole. An entry from before the mark that has that refusal, `replay: 'recorded'` and
+ * an input no more than a document's id is ambiguous, what was left of a larger call or the whole of a small one, so it
+ * answers nothing: the call runs, and the replay reports any difference.
  * The journal records the input after the handler ran, so a handler that changes its own input is recorded changed,
  * and a nested call into it no longer matches: the replay reports it diverged rather than answer the wrong entry.
  * So would a schema default that is not deterministic (one read from the clock or a random source), which the kernel's
  * schemas do not have.
  */
-function sameCall(recorded: JournalEntry, given: unknown): boolean {
-	let journaled = redactJournalRecord({
+function sameCall(recorded: JournalEntry, given: unknown, inputBytes: number): boolean {
+	const journaled = redactJournalRecord({
 		command: recorded.command,
 		input: given,
 	} as JournalRecord).input;
-	if (
+	if (recorded.context?.oversized === true) {
+		const over = new TextEncoder().encode(JSON.stringify(given) ?? '').length > inputBytes;
+		return over && sameJson(recorded.input, oversizedInput(journaled));
+	}
+	const ambiguous =
 		recorded.context?.replay === 'recorded' &&
 		recorded.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE' &&
-		new TextEncoder().encode(JSON.stringify(journaled) ?? '').length > DOCUMENT_INPUT_MAX_BYTES
-	) {
-		journaled = oversizedInput(journaled);
-	}
-	return sameJson(recorded.input, journaled);
+		sameJson(recorded.input, oversizedInput(recorded.input));
+	return !ambiguous && sameJson(recorded.input, journaled);
 }
 
 /**
@@ -275,7 +281,8 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 			parent: string,
 			name: string,
 			input: unknown,
-			command: ZodCommandDefinition | undefined
+			command: ZodCommandDefinition | undefined,
+			inputBytes: number = DOCUMENT_INPUT_MAX_BYTES
 		): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
@@ -293,7 +300,7 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 			}
 			if (next?.command !== name) return undefined;
 			const validated = validatedInput(command, input);
-			if (!validated || !sameCall(next, validated.input)) return undefined;
+			if (!validated || !sameCall(next, validated.input, inputBytes)) return undefined;
 			queue?.shift();
 			last = next;
 			return next.result;
@@ -455,7 +462,8 @@ export async function replayKernel(
 				parent,
 				name,
 				input,
-				commands.find((command) => command.name === name)
+				commands.find((command) => command.name === name),
+				counted?.values().inputBytes
 			);
 			// A nested refusal answered from its record still counts, as its handler counted it live, at the time it
 			// read (phase 4's section 11): `limit-usage-get` then replays the same.

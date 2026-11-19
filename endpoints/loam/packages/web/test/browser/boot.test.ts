@@ -4,6 +4,7 @@ import {
 	agentCall,
 	deploymentEntry,
 	deploymentFile,
+	journal,
 	openPage,
 	openShell,
 	packApp,
@@ -45,6 +46,44 @@ describe('the built shell', () => {
 			.getAttribute('content');
 		expect(csp).toContain("object-src 'none'");
 		expect(errors).toEqual([]);
+		await context.close();
+	});
+
+	it("#663: reads only the journal's last entry at boot, walking back from the end", async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		// Every cursor opened on the journal's store, from the page's first script.
+		await context.addInitScript(() => {
+			const opened: { method: string; direction: string }[] = [];
+			(window as unknown as { journalCursors: typeof opened }).journalCursors = opened;
+			const proto = IDBObjectStore.prototype as unknown as Record<
+				string,
+				(this: IDBObjectStore, ...args: unknown[]) => unknown
+			>;
+			for (const method of ['openCursor', 'openKeyCursor']) {
+				const original = proto[method] as (this: IDBObjectStore, ...args: unknown[]) => unknown;
+				proto[method] = function (this: IDBObjectStore, ...args: unknown[]) {
+					if (this.name === 'entries')
+						opened.push({ method, direction: String(args[1] ?? 'next') });
+					return original.apply(this, args);
+				};
+			}
+		});
+		const first = await openShell(browser, site.origin, {}, context);
+		await agentCall(first.page, 'layout-get');
+		const before = await journal(first.page);
+		await first.page.close();
+		// A second boot over the same journal, which now holds entries.
+		const { page } = await openShell(browser, site.origin, {}, context);
+		const cursors = await page.evaluate(
+			() => (window as unknown as { journalCursors: unknown[] }).journalCursors
+		);
+		// Only a read with `last` walks the keys back from the end; a whole read, as the shell's before #663, never does.
+		// The harness's own polling reads the whole journal forward, so those cursors say nothing about the boot.
+		expect(cursors).toContainEqual({ method: 'openKeyCursor', direction: 'prev' });
+		const lastSeq = await page.evaluate(
+			() => (document.querySelector('loam-shell') as unknown as { lastSeq: number }).lastSeq
+		);
+		expect(lastSeq).toBeGreaterThanOrEqual(before.at(-1)?.seq ?? Number.POSITIVE_INFINITY);
 		await context.close();
 	});
 

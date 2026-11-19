@@ -684,6 +684,31 @@ describe('#861: loam.scope survives a reload made at once', () => {
 		await second.kernel.dispose();
 		await first.kernel.dispose();
 	});
+	it('writes through a scope change made by a handler that then throws, and keeps its error', async () => {
+		/** A store that refuses project records once `refuse` is set. */
+		class RefusingStore extends MemoryAdapter {
+			refuse = false;
+			override async batch(operations: Parameters<MemoryAdapter['batch']>[0]) {
+				if (this.refuse && operations.some((op) => op.path.startsWith('/project/')))
+					throw new Error('HTTP 500: storage refused');
+				return super.batch(operations);
+			}
+		}
+		const store = new RefusingStore();
+		const first = await scoped({ store });
+		expect((await first.kernel.call('scope-set', { project: 'atlas' })).success).toBe(true);
+		store.refuse = true;
+		// Archiving the active project moves the scope to the workspace, then its record's write throws.
+		const archived = await first.kernel.call('project-archive', { project: 'atlas' });
+		expect(archived.success).toBe(false);
+		expect(archived.error?.code).not.toBe('VIEW_STATE_NOT_SAVED');
+		expect((await first.kernel.call('scope-get')).data).toMatchObject({ scope: WORKSPACE });
+		// The store holds the scope the kernel is in as soon as the call resolves, with no flush.
+		expect(
+			((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value
+		).toEqual({ project: null });
+		await first.kernel.dispose();
+	});
 });
 
 describe("P2-E8: stage A's scope from the URL (6.3)", () => {

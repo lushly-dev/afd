@@ -194,6 +194,7 @@ export function markOversized(scope: ScopeRuntime, call: CommandContext): void {
 		scope.oversized.add(call.traceId);
 	}
 	(call as CommandContext & KernelFieldContext).replay = 'recorded';
+	(call as CommandContext & KernelFieldContext).oversized = true;
 }
 
 /** An instance's manifest, or undefined for one with no port: refused, or not deployed. */

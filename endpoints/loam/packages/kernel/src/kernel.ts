@@ -732,7 +732,9 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
-		if (fields.parent !== undefined) {
+		// Only a call the caller's interface may make: one it is not exposed to runs, and is refused as it was live, so a
+		// replay never answers it from an entry its handler could not have reached (#859).
+		if (fields.parent !== undefined && registries[iface].hasCommand(name)) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;
 		}
