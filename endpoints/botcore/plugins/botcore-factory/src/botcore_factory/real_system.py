@@ -51,7 +51,12 @@ class LocalMachine:
         return self._memory()[1] / GIB
 
     def free_disk_gb(self, path: str) -> float:
-        return shutil.disk_usage(path).free / GIB
+        """Free space on the volume that holds ``path``, or would: its nearest existing parent
+        (the lane's slots directory exists only once a slot was prepared)."""
+        where = Path(path).absolute()
+        while not where.exists() and where.parent != where:
+            where = where.parent
+        return shutil.disk_usage(where).free / GIB
 
     def has_program(self, name: str) -> bool:
         return shutil.which(name) is not None

@@ -345,6 +345,9 @@ class FixtureGit:
     def _slots(self) -> dict:
         return self.store.data.setdefault("checkouts", {})
 
+    def slots_dir(self) -> str:
+        return "slots"
+
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         _fail(self.store, "prepare", branch)
         self._slots()[slot] = {"branch": branch, "head": head}
@@ -479,7 +482,17 @@ class FixtureMachine:
         return float(host["freeMemoryGb"])
 
     def free_disk_gb(self, path: str) -> float:
-        return float(self.store.this_machine().get("freeDiskGb", 0))
+        """``host.freeDiskGb``, else this machine's record's ``freeDiskGb``."""
+        host = self.store.data.get("host", {})
+        if "freeDiskGb" in host:
+            return float(host["freeDiskGb"])
+        record = self.store.this_machine()
+        if "freeDiskGb" not in record:
+            raise WorldError(
+                "The fixture does not say how much disk is free (host.freeDiskGb, or this "
+                "machine's freeDiskGb)"
+            )
+        return float(record["freeDiskGb"])
 
     def has_program(self, name: str) -> bool:
         return name not in self.store.this_machine().get("missing", [])

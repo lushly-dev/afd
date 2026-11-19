@@ -7,10 +7,18 @@ from __future__ import annotations
 import pytest
 from test_lane import events, run_steps
 
+from botcore_factory.cells import holding_seats
 from botcore_factory.report import lane_report
 
 BRANCH = "feat/export-csv"
 CI_FAILED = {"checks": {BRANCH: "failure"}}
+DISPATCHABLE = {
+    "number": 190,
+    "labels": ["status:planned", "execution:bounded", "area:core"],
+    "assignees": [],
+    "openPrs": [],
+    "createdAt": "2030-01-01T09:00:00Z",
+}
 
 
 def cell_of(run) -> dict:
@@ -135,3 +143,31 @@ async def test_another_foreman_cannot_excuse(make_run):
     await run.call("lane_wait", consumer="foreman", session="thread-a", timeout_ms=0)
     busy = await run.call("ejection_excuse", branch=BRANCH, reason="flake", session="thread-b")
     assert busy.error.code == "FOREMAN_BUSY"
+
+
+async def test_an_ejected_cell_at_the_limit_waits_on_the_owner_and_frees_its_seat(make_run):
+    """lushly-dev/afd#1593: a cell the owner must decide on holds no seat; one its foreman is
+    repairing does, and an excuse that brings it under the limit seats it again."""
+    run = make_run("running", dials={"cells.max": 5})
+    assert len(holding_seats(run.state())) == 5
+    run.change_world(outcomes=CI_FAILED)
+    run_steps(run, 3)
+    assert cell_of(run)["state"] == "ejected" and len(holding_seats(run.state())) == 5  # Repairing.
+    assert events(run, "queue-room") == []
+
+    run = make_run("running", dials={"cells.max": 5})
+    at_two(run)
+    run.change_world(outcomes=CI_FAILED)
+    run_steps(run, 3)
+    assert events(run, "ejection-limit")
+    assert BRANCH not in [c["branch"] for c in holding_seats(run.state())]
+    [room] = events(run, "queue-room")
+    assert room["detail"] == f"A seat is free: {BRANCH} waits on the owner"
+    run.change_world(issues=[*run.world_data()["issues"], DISPATCHABLE])
+    status = (await run.call("lane_status")).data
+    assert status["canStartCell"] is True, status.get("reason")
+    assert status["waitingOnOwner"] >= 1
+
+    excused = await run.call("ejection_excuse", branch=BRANCH, reason="#1565: the disk filled up")
+    assert excused.success, excused.error
+    assert BRANCH in [c["branch"] for c in holding_seats(run.state())]

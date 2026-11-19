@@ -20,7 +20,8 @@ a fixture world and a fake clock. Each step, in order:
    job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
    ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
    ``.nvmrc``, deleted it or left it blank, and is the lane's trouble when the ``.nvmrc`` is
-   the base's own);
+   the base's own); free disk at the slots below ``host.minFreeDiskGb`` is the lane's trouble
+   before any of it starts, so a full disk pauses the lane rather than ejecting a good branch;
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -38,6 +39,7 @@ import re
 
 from botcore_factory import job
 from botcore_factory.adapter import matches
+from botcore_factory.cells import disk_short
 from botcore_factory.lane_base import (
     BAD_REVISION,
     INFRASTRUCTURE,
@@ -47,7 +49,7 @@ from botcore_factory.lane_base import (
 )
 from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
-from botcore_factory.runtime import Factory
+from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import MergeOutcome, WorldError
 
 __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
@@ -163,6 +165,16 @@ class Step(Merging, Coverage):
                     return
             if not self.config.validate_command:
                 raise LaneTrouble("The repository adapter names no validate command")
+            # A full disk mid-build ejects a good branch (lushly-dev/afd#1565): pause instead.
+            try:
+                short = disk_short(self.factory, self.state["dials"])
+            except Refusal as refusal:
+                raise LaneTrouble(f"{refusal.message}. {refusal.suggestion}") from refusal
+            if short is not None:
+                raise LaneTrouble(
+                    f"Validating {entry['branch']} waits: {short.message}. {short.suggestion}; "
+                    "then lane-resume"
+                )
             # Checked once a slot is to be had, and before a validated branch gives one up.
             if not self.review_verified(entry, self.base_head()):
                 continue
