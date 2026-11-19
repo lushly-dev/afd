@@ -27,8 +27,8 @@ for:
   software-factory reshaped, and the line limit at 1,500 over five documents. Left: the
   measurement, a week after it merges.
 
-- **5, merge queue.** Not started: it starts when 1 to 4 have merged. Turning the queue on in
-  branch protection may be the owner's.
+- **5, merge queue.** In progress: [#1615](https://github.com/lushly-dev/afd/pull/1615) makes CI ready for `merge_group` (the trigger, the path gate, commit credit and
+  the verdict on the queue's commit). Left: a queue trial, turning the queue on for `main` (may be the owner's), then `prepare-pr` enqueues.
 
 ## Measure
 
