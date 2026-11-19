@@ -107,6 +107,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	let editor = false;
 	/** Whether the account section has been shown, so the `account` chunk follows every later state (5.1). */
 	let account = false;
+	/** Whether the settings section has been shown, so the `settings` chunk follows every later state (phase 4's 3.5). */
+	let settings = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -311,12 +313,28 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				}
 			);
 		}
+		// The settings section, from the `settings` chunk, loaded once it shows (phase 4 specification, 3.5).
+		if (settings || (state.section === 'settings' && state.active === null)) {
+			settings = true;
+			void import('./settings/settings.js').then(
+				({ syncSettings }) => syncSettings(host as unknown as LoamShell),
+				(cause) => {
+					settings = false;
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+					reportError(cause);
+				}
+			);
+		}
 		// Main held busy for a persisted documents section that the route then left shows what it shows (6).
 		if (state.active === null && state.section !== 'documents') {
 			host.releaseMain?.();
 		}
 		const wanted = routeOf(state);
-		const here = view.location.origin + view.location.pathname;
+		// The settings section's with its fragment, a setting's key (phase 4 specification, 3.5).
+		const here =
+			view.location.origin +
+			view.location.pathname +
+			(wanted?.kind === 'section' && wanted.section === 'settings' ? view.location.hash : '');
 		if (!wanted) return;
 		// A document on another scheme than http(s), the desktop's on macOS and Linux, cannot have its path rewritten
 		// (HTML's rule): moving the URL would load the shell again. Its address stays where it is (phase 6, 10.2).
