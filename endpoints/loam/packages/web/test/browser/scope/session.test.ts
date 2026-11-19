@@ -621,10 +621,11 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 		};
 		expect(listed.data.items.map((item) => item.id)).not.toContain('Only Beacon');
 		// A key that would name another scope's record is refused by the frame's store, `VALIDATION_ERROR`
-		// there (step 4; the scoped view's case reads that reply), which hello's command answers as a throw.
-		// Nothing is stored.
+		// there (step 4; the scoped view's case reads that reply). Amended by phase 4's step 10 (listed against its
+		// P4-E14): a kernel refusal thrown into a handler answers as that refusal, not as the handler's throw, so
+		// hello's command fails with the store's own code. Nothing is stored.
 		const named = await kernelCall(page, 'hello-greet', { name: 'p~prj_beacon~x' });
-		expect(named).toMatchObject({ success: false, error: { code: 'HANDLER_THREW' } });
+		expect(named).toMatchObject({ success: false, error: { code: 'VALIDATION_ERROR' } });
 		const relisted = (await kernelCall(page, 'hello-list')) as {
 			data: { items: Array<{ id: string }> };
 		};
