@@ -1,0 +1,810 @@
+/**
+ * P4-E4's units (phase 4 specification, section 4 and 19; D118, D154, D156): the autonomy commands in the kernel, on
+ * the scoped workspace's apps. The jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling` run in
+ * `scenarios.test.ts`; the pure rules are in `autonomy-rules.test.ts`; P4-E2's sweep in `scope/settings-sweep.test.ts`.
+ */
+
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import type {
+	IdentityV1,
+	ManifestV1,
+	ManifestV2,
+	ProjectionV3,
+	ProjectionV4,
+} from '@lushly-dev/loam-manifest';
+import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createKernelParts } from '../kernel.js';
+import type { MembershipV1 } from '../scope/access.js';
+import {
+	createScopedWorkspace,
+	DUAL_DEFINITION,
+	DUAL_MANIFEST,
+	type ScopedWorkspace,
+	type ScopedWorkspaceOptions,
+	scopedDeployment,
+	scopedPackages,
+} from '../scope/fixtures.js';
+import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import type { LoamKernelV5, McpToolCallResult, MountTransportV2 } from '../types.js';
+import { AUTONOMY_TABLE } from './autonomy.js';
+import type { AutonomyRowV1 } from './autonomy-rules.js';
+
+const kernels: LoamKernelV5[] = [];
+afterEach(async () => {
+	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
+});
+
+async function workspace(options: ScopedWorkspaceOptions = {}): Promise<ScopedWorkspace> {
+	const made = await createScopedWorkspace(options);
+	kernels.push(made.kernel);
+	return made;
+}
+
+type Data = Record<string, unknown>;
+interface Listed {
+	rows: AutonomyRowV1[];
+	ceiling: string | null;
+	cap: string | null;
+	writable: Record<string, { writable: boolean; reason?: string }>;
+}
+
+const PROVIDER: IdentityV1 = {
+	mode: 'provider',
+	organization: 'acme',
+	path: 'api/auth',
+	methods: ['passkey', 'password'],
+};
+const BEA = 'mock-user-bea@example.com';
+const CY = 'mock-user-cy@example.com';
+const ACME = (): MembershipV1 => ({
+	mode: 'provider',
+	members: new Map([
+		[BEA, 'member'],
+		[CY, 'member'],
+		['mock-user-olu@example.com', 'owner'],
+	]),
+	digest: 'd1',
+});
+const signIn = (kernel: LoamKernelV5, email: string) =>
+	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+
+describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
+	it('sets workspace and project rows, resolves through them, and lists them', async () => {
+		const { kernel, projects, scopes } = await workspace();
+		expect(
+			(await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' }))
+				.success
+		).toBe(true);
+		const set = await kernel.call<Data>('autonomy-set', {
+			level: 'project',
+			project: projects.atlas.id,
+			instance: 'dual',
+			mode: 'act',
+		});
+		expect(set.data).toMatchObject({
+			row: { id: `project/${projects.atlas.id}/dual/*`, mode: 'act', updatedBy: 'local' },
+			previous: null,
+		});
+		expect(set).toMatchObject({
+			undoCommand: 'autonomy-set',
+			undoArgs: { level: 'project', project: projects.atlas.id, instance: 'dual', mode: null },
+		});
+		const got = await kernel.call<Data>(
+			'autonomy-get',
+			{ command: 'dual-put', instance: 'dual' },
+			{ scope: scopes.atlas }
+		);
+		expect(got.data).toMatchObject({
+			command: 'dual-put',
+			instance: 'dual',
+			project: projects.atlas.id,
+			mode: 'act',
+			from: `project/${projects.atlas.id}/dual/*`,
+			chain: [
+				{ id: `project/${projects.atlas.id}/dual/*`, as: 'mode' },
+				{ id: 'workspace/-/*/*', mode: 'act', as: 'ceiling' },
+			],
+		});
+		// The instance is found from the command; the input's project wins over the call's scope.
+		const there = await kernel.call<Data>(
+			'autonomy-get',
+			{ command: 'dual-put', project: projects.beacon.id },
+			{ scope: scopes.atlas }
+		);
+		expect(there.data).toMatchObject({ instance: 'dual', mode: 'ask', from: 'workspace/-/*/*' });
+		const listed = await kernel.call<Listed>('autonomy-list');
+		expect(listed.data?.rows.map(({ id }) => id)).toEqual([
+			`project/${projects.atlas.id}/dual/*`,
+			'workspace/-/*/*',
+		]);
+		expect(listed.data).toMatchObject({ ceiling: 'act', cap: null });
+		expect(
+			(await kernel.call<Listed>('autonomy-list', { level: 'workspace' })).data?.rows
+		).toHaveLength(1);
+	});
+
+	it("resolves the shell's own commands, and every command's default with no row (D156)", async () => {
+		const { kernel } = await workspace();
+		const results = await kernel.call<{ results: Data[] }>('autonomy-get', {
+			commands: [
+				{ command: 'project-list' },
+				{ command: 'project-create', instance: 'shell' },
+				{ command: 'dual-get' },
+				{ command: 'dual-put' },
+			],
+		});
+		expect(results.data?.results.map(({ instance, mode }) => [instance, mode])).toEqual([
+			['shell', 'act'],
+			['shell', 'ask'],
+			['dual', 'act'],
+			['dual', 'ask'],
+		]);
+	});
+
+	it('reads up to 50 commands at once, in order, and names the one it cannot find', async () => {
+		const { kernel } = await workspace();
+		const fifty = Array.from({ length: 50 }, () => ({ command: 'dual-get' }));
+		expect(
+			(await kernel.call<{ results: unknown[] }>('autonomy-get', { commands: fifty })).data?.results
+		).toHaveLength(50);
+		expect(
+			(await kernel.call('autonomy-get', { commands: [...fifty, { command: 'dual-get' }] })).error
+				?.code
+		).toBe('VALIDATION_ERROR');
+		expect((await kernel.call('autonomy-get', { commands: [] })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		const unknown = await kernel.call('autonomy-get', {
+			commands: [{ command: 'dual-get' }, { command: 'dual-erase' }],
+		});
+		expect(unknown.error).toMatchObject({
+			code: 'AUTONOMY_COMMAND_UNKNOWN',
+			details: { index: 1 },
+		});
+		expect(unknown.error?.suggestion).toContain('app-command-list');
+	});
+
+	it("caps a person's own mode, and only lowers it", async () => {
+		const { kernel } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		const capped = await kernel.call<Data>('autonomy-set', { level: 'person', cap: 'suggest' });
+		expect(capped.data).toEqual({ cap: 'suggest', previous: null });
+		expect(capped).toMatchObject({ undoArgs: { level: 'person', cap: null } });
+		const got = await kernel.call<Data>('autonomy-get', { command: 'dual-get' });
+		expect(got.data).toMatchObject({
+			mode: 'suggest',
+			cap: 'suggest',
+			chain: [
+				{ id: 'workspace/-/*/*', mode: 'act', as: 'mode' },
+				{ id: 'cap', mode: 'suggest', as: 'cap' },
+			],
+		});
+		// The agent reads its person's cap; the cap is the person's, not a shared value.
+		expect(
+			(await kernel.agent.call<Data>('autonomy-get', { command: 'dual-get' })).data?.mode
+		).toBe('suggest');
+		expect((await kernel.call<Listed>('autonomy-list')).data?.cap).toBe('suggest');
+		await kernel.call('autonomy-set', { level: 'person', cap: null });
+		expect((await kernel.call<Data>('autonomy-get', { command: 'dual-get' })).data?.mode).toBe(
+			'act'
+		);
+		// The cap is `loam.autonomy.cap`, which setting-* never writes.
+		expect(
+			(
+				await kernel.call('setting-set', {
+					section: 'loam.autonomy',
+					key: 'cap',
+					value: 'act',
+					level: 'person',
+				})
+			).error?.code
+		).toBe('SETTING_USE_AUTONOMY');
+	});
+
+	it('removes a row with mode null, keeping a ceiling the general row holds alone', async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		const cleared = await kernel.call<Data>('autonomy-set', { level: 'workspace', mode: null });
+		expect(cleared.data?.row).toMatchObject({ id: 'workspace/-/*/*', ceiling: 'act' });
+		expect(cleared.data?.row).not.toHaveProperty('mode');
+		const gone = await kernel.call('autonomy-set', { level: 'workspace', ceiling: null });
+		expect(gone.data).toMatchObject({ row: null });
+		expect((await store.list(AUTONOMY_TABLE)).data).toEqual([]);
+	});
+
+	it('returns detached copies: changing a result changes nothing held', async () => {
+		const { kernel } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask' });
+		const listed = await kernel.call<Listed>('autonomy-list');
+		(listed.data?.rows[0] as { mode: string }).mode = 'act';
+		const got = await kernel.call<{ chain: Array<{ mode: string }> }>('autonomy-get', {
+			command: 'dual-get',
+		});
+		(got.data?.chain[0] as { mode: string }).mode = 'act';
+		expect((await kernel.call<Listed>('autonomy-list')).data?.rows[0]?.mode).toBe('ask');
+		expect((await kernel.call<Data>('autonomy-get', { command: 'dual-get' })).data?.mode).toBe(
+			'ask'
+		);
+	});
+
+	it('refuses an input that is not strict, or a row of the wrong shape', async () => {
+		const { kernel, projects } = await workspace();
+		for (const input of [
+			{ level: 'workspace', mode: 'ask', extra: 1 },
+			{ level: 'workspace', mode: 'always' },
+			{ level: 'workspace' },
+			{ level: 'project', mode: 'ask' },
+			{ level: 'workspace', project: projects.atlas.id, mode: 'ask' },
+			{ level: 'workspace', command: 'dual-put', mode: 'ask' },
+			{ level: 'project', project: projects.atlas.id, ceiling: 'act' },
+			{ level: 'workspace', instance: 'dual', ceiling: 'act' },
+			{ level: 'person', cap: 'act', mode: 'act' },
+			{ level: 'person' },
+		]) {
+			const refused = await kernel.call('autonomy-set', input);
+			expect(refused.error?.code, JSON.stringify(input)).toBe('VALIDATION_ERROR');
+			expect(refused.error?.suggestion, JSON.stringify(input)).toBeTruthy();
+		}
+		for (const input of [{ command: 'dual-get', extra: 1 }, {}, { level: 'person' }]) {
+			expect((await kernel.call('autonomy-get', input)).error?.code).toBe('VALIDATION_ERROR');
+		}
+		expect((await kernel.call('autonomy-list', { level: 'person' })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+	});
+});
+
+describe('the bounds (4.2, F8): AUTONOMY_ABOVE_CEILING', () => {
+	it("bounds a project row by the default with no workspace row, then by the workspace's general mode", async () => {
+		const { kernel, projects } = await workspace();
+		const project = (mode: string, extra: Data = {}) =>
+			kernel.call('autonomy-set', { level: 'project', project: projects.atlas.id, mode, ...extra });
+		// No general row: a general project row is bounded by the strictest default, ask.
+		const refused = await project('act');
+		expect(refused.error).toMatchObject({
+			code: 'AUTONOMY_ABOVE_CEILING',
+			details: { bound: 'default', mode: 'ask' },
+		});
+		expect(refused.error?.suggestion).toContain('owner');
+		expect((await project('ask')).success).toBe(true);
+		// A command row of a read is bounded by its own default, act.
+		expect((await project('act', { instance: 'dual', command: 'dual-get' })).success).toBe(true);
+		expect((await project('act', { instance: 'dual', command: 'dual-put' })).error?.code).toBe(
+			'AUTONOMY_ABOVE_CEILING'
+		);
+		// With no ceiling, the workspace's general mode bounds.
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'suggest' });
+		expect((await project('ask')).error).toMatchObject({
+			code: 'AUTONOMY_ABOVE_CEILING',
+			details: { bound: 'workspace/-/*/*', mode: 'suggest' },
+		});
+		// An owner raises the ceiling, and the project may go that far.
+		await kernel.call('autonomy-set', { level: 'workspace', ceiling: 'act' });
+		expect((await project('act')).success).toBe(true);
+	});
+
+	it("bounds an instance or command row by the workspace's rows for it", async () => {
+		const { kernel, projects } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		await kernel.call('autonomy-set', { level: 'workspace', instance: 'dual', mode: 'ask' });
+		const at = { level: 'project', project: projects.atlas.id, instance: 'dual' };
+		expect((await kernel.call('autonomy-set', { ...at, mode: 'act' })).error?.code).toBe(
+			'AUTONOMY_ABOVE_CEILING'
+		);
+		expect(
+			(await kernel.call('autonomy-set', { ...at, command: 'dual-get', mode: 'act' })).error
+				?.details
+		).toMatchObject({ bound: 'workspace/-/dual/*' });
+		// Workspace rows are an owner's, and bounded by nothing.
+		expect(
+			(
+				await kernel.call('autonomy-set', {
+					level: 'workspace',
+					instance: 'dual',
+					command: 'dual-put',
+					mode: 'act',
+				})
+			).success
+		).toBe(true);
+	});
+});
+
+describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
+	it('refuses a row naming no registered instance or command, and lets a row be removed whatever it names', async () => {
+		const { kernel } = await workspace();
+		for (const input of [
+			{ instance: 'dual', command: 'dual-erase' },
+			{ instance: 'solo', command: 'dual-put' },
+			{ instance: 'nowhere' },
+			{ instance: 'shell', command: 'dual-put' },
+			{ instance: 'shell', command: 'autonomy-settle' },
+		]) {
+			const refused = await kernel.call('autonomy-set', {
+				level: 'workspace',
+				mode: 'ask',
+				...input,
+			});
+			expect(refused.error?.code, JSON.stringify(input)).toBe('AUTONOMY_COMMAND_UNKNOWN');
+		}
+		expect(
+			(
+				await kernel.call('autonomy-set', {
+					level: 'workspace',
+					instance: 'dual',
+					command: 'dual-erase',
+					mode: null,
+				})
+			).success
+		).toBe(true);
+		expect((await kernel.call('autonomy-get', { command: 'dual-erase' })).error?.code).toBe(
+			'AUTONOMY_COMMAND_UNKNOWN'
+		);
+	});
+});
+
+describe('who sets it (4.3; D154)', () => {
+	it('HUMAN_REQUIRED for an agent, with the hand-off, at every level; reads succeed', async () => {
+		const { kernel, projects } = await workspace();
+		for (const [input, key, route] of [
+			[{ level: 'workspace', mode: 'act' }, 'workspace/-/*/*', '~/settings/loam.autonomy'],
+			[
+				{
+					level: 'project',
+					project: projects.atlas.id,
+					instance: 'dual',
+					command: 'dual-put',
+					mode: 'ask',
+				},
+				`project/${projects.atlas.id}/dual/dual-put`,
+				'~/settings/loam.autonomy',
+			],
+			[{ level: 'person', cap: 'act' }, 'cap', '~/settings/loam.autonomy#cap'],
+		] as const) {
+			const refused = await kernel.agent.call('autonomy-set', input);
+			expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+			expect(refused.error?.details).toEqual({
+				route,
+				section: 'loam.autonomy',
+				key,
+				level: input.level,
+			});
+			expect(refused.error?.suggestion).toContain(route);
+		}
+		expect((await kernel.agent.call('autonomy-list')).success).toBe(true);
+		expect((await kernel.agent.call('autonomy-get', { command: 'dual-put' })).success).toBe(true);
+		expect((await kernel.call<Listed>('autonomy-list')).data?.rows).toEqual([]);
+	});
+
+	it('CALL_NOT_GRANTED for a port, and none of them is served over MCP (section 13)', async () => {
+		const made = await workspace();
+		for (const name of ['autonomy-get', 'autonomy-list', 'autonomy-set']) {
+			const refused = await made.kernel
+				.appPort('dual')
+				.call(
+					name,
+					name === 'autonomy-set' ? { level: 'person', cap: 'act' } : { command: 'dual-get' }
+				);
+			expect(refused.error?.code, name).toBe('CALL_NOT_GRANTED');
+		}
+		const served = made.mcpOptions()?.commands.map(({ name }) => name) ?? [];
+		expect(served.length).toBeGreaterThan(0);
+		for (const name of ['autonomy-get', 'autonomy-list', 'autonomy-set', 'autonomy-settle'])
+			expect(served).not.toContain(name);
+	});
+
+	it("lets an owner and the project's creator set its row; a non-creator member is OWNER_REQUIRED", async () => {
+		const { kernel } = await workspace({ identity: PROVIDER, membership: ACME(), empty: true });
+		await signIn(kernel, 'bea@example.com');
+		const made = await kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+		const atlas = made.data?.id as string;
+		const row = (mode: string) =>
+			kernel.call('autonomy-set', { level: 'project', project: atlas, mode });
+		expect((await row('suggest')).success).toBe(true);
+		// The workspace's rows are an owner's.
+		expect(
+			(await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' })).error?.code
+		).toBe('OWNER_REQUIRED');
+		expect((await kernel.call<Listed>('autonomy-list', { project: atlas })).data?.writable).toEqual(
+			{
+				workspace: { writable: false, reason: 'OWNER_REQUIRED' },
+				project: { writable: true },
+				cap: { writable: true },
+			}
+		);
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'cy@example.com');
+		const refused = await row('ask');
+		expect(refused.error).toMatchObject({
+			code: 'OWNER_REQUIRED',
+			suggestion: 'Ask an owner of the workspace to do this',
+		});
+		// Her own cap she sets.
+		expect((await kernel.call('autonomy-set', { level: 'person', cap: 'ask' })).success).toBe(true);
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'olu@example.com');
+		expect((await row('ask')).success).toBe(true);
+		expect((await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' })).success).toBe(
+			true
+		);
+	});
+
+	it('PROJECT_NOT_FOUND for a creator removed from their project, before any owner check', async () => {
+		const { kernel } = await workspace({ identity: PROVIDER, membership: ACME(), empty: true });
+		await signIn(kernel, 'bea@example.com');
+		const made = await kernel.call<{ id: string }>('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: [BEA, CY] },
+		});
+		const vault = made.data?.id as string;
+		const row = () =>
+			kernel.call('autonomy-set', { level: 'project', project: vault, mode: 'ask' });
+		expect((await row()).success).toBe(true);
+		expect(
+			(
+				await kernel.call('project-update', {
+					project: vault,
+					access: { mode: 'restricted', members: [CY] },
+				})
+			).success
+		).toBe(true);
+		const gone = await row();
+		const missing = await kernel.call('autonomy-set', {
+			level: 'project',
+			project: 'prj_nowhere',
+			mode: 'ask',
+		});
+		const phase2 = await kernel.call('project-get', { project: vault });
+		expect(gone.error?.code).toBe('PROJECT_NOT_FOUND');
+		expect(JSON.stringify(gone.error)).toBe(JSON.stringify(missing.error));
+		expect(JSON.stringify(gone.error)).toBe(JSON.stringify(phase2.error));
+		// Nor may she read or list it.
+		for (const result of [
+			await kernel.call('autonomy-get', { command: 'project-get', project: vault }),
+			await kernel.call('autonomy-list', { project: vault }),
+		]) {
+			expect(JSON.stringify(result.error)).toBe(JSON.stringify(phase2.error));
+		}
+		expect((await kernel.call<Listed>('autonomy-list')).data?.rows).toEqual([]);
+		// Cy, who may enter it and is no owner, is refused as a non-creator.
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'cy@example.com');
+		expect((await row()).error?.code).toBe('OWNER_REQUIRED');
+		expect((await kernel.call<Listed>('autonomy-list')).data?.rows.map(({ id }) => id)).toEqual([
+			`project/${vault}/*/*`,
+		]);
+	});
+
+	it('OWNER_REQUIRED for the creator of a project a team instance lists (D87, D110)', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store, identity: PROVIDER, membership: ACME(), empty: true });
+		await signIn(first.kernel, 'bea@example.com');
+		const made = await first.kernel.call<{ id: string }>('project-create', {
+			name: 'Vault',
+			slug: 'vault',
+		});
+		const vault = made.data?.id as string;
+		await first.kernel.dispose();
+		// A later deployment's team instance lists the slug.
+		const deployment = scopedDeployment();
+		const listed = {
+			...deployment,
+			generation: 'listed',
+			apps: deployment.apps.map((app) =>
+				app.instance === 'tasks' ? { ...app, audience: 'team' as const, projects: ['vault'] } : app
+			),
+		};
+		const second = await workspace({
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: listed as ProjectionV3,
+		});
+		await signIn(second.kernel, 'bea@example.com');
+		const refused = await second.kernel.call('autonomy-set', {
+			level: 'project',
+			project: vault,
+			mode: 'ask',
+		});
+		expect(refused.error?.code).toBe('OWNER_REQUIRED');
+	});
+
+	it('refuses an archived project’s row, as every write under it', async () => {
+		const { kernel, projects } = await workspace();
+		await kernel.call('project-archive', { project: projects.beacon.id });
+		expect(
+			(
+				await kernel.call('autonomy-set', {
+					level: 'project',
+					project: projects.beacon.id,
+					mode: 'ask',
+				})
+			).error?.code
+		).toBe('PROJECT_ARCHIVED');
+	});
+});
+
+describe('restricted projects (4.3, 4.4): byte-identical PROJECT_NOT_FOUND, and rows filtered', () => {
+	it('answers a project the caller may not enter as a missing one, and lists none of its rows', async () => {
+		const { kernel, projects, store } = await workspace();
+		// Signed out in `local` mode: Citadel is restricted to someone else.
+		const asked = [
+			['autonomy-set', { level: 'project', project: projects.citadel.id, mode: 'ask' }],
+			['autonomy-get', { command: 'dual-get', project: projects.citadel.id }],
+			['autonomy-list', { project: projects.citadel.id }],
+		] as const;
+		const phase2 = JSON.stringify((await kernel.call('project-get', { project: 'citadel' })).error);
+		for (const [name, input] of asked) {
+			expect(JSON.stringify((await kernel.call(name, input)).error), name).toBe(phase2);
+			expect(
+				JSON.stringify((await kernel.call(name, { ...input, project: 'prj_nowhere' })).error),
+				name
+			).toBe(phase2);
+		}
+		// The call's scope is checked as the input's is.
+		expect(
+			JSON.stringify(
+				(
+					await kernel.call(
+						'autonomy-get',
+						{ command: 'dual-get' },
+						{ scope: { workspace: 'personal', project: projects.citadel.id } }
+					)
+				).error
+			)
+		).toBe(phase2);
+		// A row of Citadel, written by its member, is in no list a non-member reads, nor in any chain.
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'someone@example.com',
+			password: 'x',
+		});
+		expect(
+			(
+				await kernel.call('autonomy-set', {
+					level: 'project',
+					project: projects.citadel.id,
+					mode: 'suggest',
+				})
+			).success
+		).toBe(true);
+		await kernel.call('auth-sign-out');
+		expect((await store.list(AUTONOMY_TABLE)).data).toHaveLength(1);
+		expect((await kernel.call<Listed>('autonomy-list')).data?.rows).toEqual([]);
+		expect(JSON.stringify((await kernel.call('autonomy-list')).data)).not.toContain(
+			projects.citadel.id
+		);
+	});
+});
+
+describe('section 13: a hosted provider deployment refuses autonomy-set at every level (P4-E17)', () => {
+	it('refuses each, journaled, with no table or record changed', async () => {
+		const deployment = {
+			...scopedDeployment(),
+			deployment_version: 4,
+			generation: 'hosted',
+			host: { kind: 'hosted', kernel: 'api/kernel' },
+		} as ProjectionV4;
+		const { kernel, store, journal } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: deployment as unknown as ProjectionV3,
+		});
+		await signIn(kernel, 'olu@example.com');
+		const made = await kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+		const before = JSON.stringify((await store.list('settings')).data);
+		for (const input of [
+			{ level: 'workspace', mode: 'act' },
+			{ level: 'project', project: made.data?.id, mode: 'ask' },
+			{ level: 'person', cap: 'suggest' },
+		]) {
+			const refused = await kernel.call('autonomy-set', input);
+			expect(refused.error?.code, input.level).toBe('SHARED_RECORD_UNAVAILABLE');
+		}
+		expect((await store.list(AUTONOMY_TABLE)).data).toEqual([]);
+		expect(JSON.stringify((await store.list('settings')).data)).toBe(before);
+		const journaled = (await journal.read()).filter(({ command }) => command === 'autonomy-set');
+		expect(journaled.map(({ result }) => result?.error?.code)).toEqual([
+			'SHARED_RECORD_UNAVAILABLE',
+			'SHARED_RECORD_UNAVAILABLE',
+			'SHARED_RECORD_UNAVAILABLE',
+		]);
+		// Reads still answer, and the agent gets its hand-off before the hosted refusal.
+		expect((await kernel.call<Listed>('autonomy-list')).data?.writable.cap).toEqual({
+			writable: false,
+			reason: 'SHARED_RECORD_UNAVAILABLE',
+		});
+		expect(
+			(await kernel.agent.call('autonomy-set', { level: 'person', cap: 'ask' })).error?.code
+		).toBe('HUMAN_REQUIRED');
+	});
+});
+
+describe('orphans (4.2): flagged at the manifest’s apply', () => {
+	const DROPPED: ManifestV2 = {
+		...DUAL_MANIFEST,
+		commands: (DUAL_MANIFEST.commands ?? []).filter(({ name }) => name !== 'dual-put'),
+	} as ManifestV2;
+
+	const boot = (store: DataAdapter, dual: ManifestV2, withSolo = true) => {
+		const deployment = scopedDeployment();
+		return workspace({
+			store,
+			deployment: {
+				...deployment,
+				apps: deployment.apps.filter((app) => withSolo || app.instance !== 'solo'),
+			},
+			ports: createFixturePorts({
+				...scopedPackages(),
+				'fixtures/dual/': { manifest: dual, definition: DUAL_DEFINITION },
+			}),
+		});
+	};
+
+	it('flags a row whose command or instance is gone, ignores it, and unflags it when it returns', async () => {
+		const store = new MemoryAdapter();
+		const first = await boot(store, DUAL_MANIFEST);
+		await first.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'dual',
+			command: 'dual-put',
+			mode: 'act',
+		});
+		await first.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'solo',
+			mode: 'suggest',
+		});
+		// No change at this apply: nothing is journaled.
+		expect((await first.journal.read()).some(({ command }) => command === 'autonomy-settle')).toBe(
+			false
+		);
+		await first.kernel.dispose();
+		const second = await boot(store, DROPPED, false);
+		const listed = await second.kernel.call<Listed>('autonomy-list');
+		expect(listed.data?.rows.map(({ id, orphan }) => [id, orphan ?? false])).toEqual([
+			['workspace/-/dual/dual-put', true],
+			['workspace/-/solo/*', true],
+		]);
+		const settled = (await second.journal.read()).filter(
+			({ command }) => command === 'autonomy-settle'
+		);
+		expect(settled).toHaveLength(1);
+		// An orphan decides nothing; and it can always be removed.
+		expect(
+			(await second.kernel.call<Data>('autonomy-get', { command: 'solo-put' })).error?.code
+		).toBe('AUTONOMY_COMMAND_UNKNOWN');
+		expect(
+			(
+				await second.kernel.call('autonomy-set', {
+					level: 'workspace',
+					instance: 'solo',
+					mode: null,
+				})
+			).success
+		).toBe(true);
+		await second.kernel.dispose();
+		const third = await boot(store, DUAL_MANIFEST);
+		const back = await third.kernel.call<Listed>('autonomy-list');
+		expect(back.data?.rows).toMatchObject([{ id: 'workspace/-/dual/dual-put', mode: 'act' }]);
+		expect(back.data?.rows[0]).not.toHaveProperty('orphan');
+		expect(
+			(await third.kernel.call<Data>('autonomy-get', { command: 'dual-put' })).data?.mode
+		).toBe('act');
+	});
+});
+
+/** A mounted server whose one tool is a read, as `apps/mounted.test.ts`'s fake transport answers discovery. */
+function mountedTransport(): MountTransportV2 {
+	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
+	return {
+		connect: async () => ({ protocolVersion: '2025-11-25' }),
+		listTools: () => Promise.reject(new Error('Discovery lists no tools')),
+		async callTool(tool, args) {
+			if (tool === 'afd-help')
+				return asResult({
+					success: true,
+					data: { toolStrategy: 'hybrid', firstClassTools: [], commands: [{ name: 'notes-read' }] },
+				});
+			if (tool === 'afd-detail')
+				return asResult({
+					success: true,
+					data: (args as { command: string[] }).command.map((name) => ({
+						name,
+						found: true,
+						callable: true,
+						mutation: false,
+						description: `Runs ${name}`,
+						inputSchema: { type: 'object', properties: {} },
+					})),
+				});
+			return asResult({ success: true, data: {} });
+		},
+		async close() {},
+	};
+}
+
+describe('mounted tools (4.2, D156)', () => {
+	it('resolve ask by default, even a read', async () => {
+		const manifest = {
+			manifest_version: 1,
+			protocol: 1,
+			plugin: {
+				id: 'umbel',
+				title: 'Umbel',
+				version: '0.1.0',
+				description: 'A mounted host, for these tests.',
+				kind: 'mounted',
+				domains: ['umbel'],
+			},
+			mount: { prefix: 'umbel', transport: 'http' },
+		} as ManifestV1;
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new (await import('@lushly-dev/afd-auth')).MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			deployment: {
+				deployment_version: 2,
+				generation: 'test',
+				workspace: { id: 'personal', name: 'Personal' },
+				sandbox_origin: null,
+				apps: [
+					{
+						instance: 'work',
+						app: 'umbel',
+						package: 'apps/work/',
+						prefix: 'work',
+						audience: 'person',
+						transport: 'http',
+						route: 'mounts/work/mcp',
+					},
+				],
+			} as ProjectionV3,
+			ports: {
+				...createFixturePorts({ 'apps/work/': { manifest } }),
+				mountTransport: async () => mountedTransport(),
+			},
+		});
+		kernels.push(parts.kernel);
+		await parts.kernel.startInstances();
+		const got = await parts.kernel.call<Data>('autonomy-get', { command: 'work-notes-read' });
+		expect(got.data).toMatchObject({ instance: 'work', mode: 'ask', from: 'default' });
+		// A shell read and an app's read act.
+		expect(
+			(await parts.kernel.call<Data>('autonomy-get', { command: 'project-list' })).data?.mode
+		).toBe('act');
+	});
+});
+
+describe('P4-E15: autonomy replays', () => {
+	it('replays a session of autonomy writes and reads with no difference', async () => {
+		const { kernel, journal, projects, scopes } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		await kernel.call('autonomy-set', {
+			level: 'project',
+			project: projects.atlas.id,
+			instance: 'dual',
+			command: 'dual-put',
+			mode: 'act',
+		});
+		await kernel.call('autonomy-set', { level: 'person', cap: 'ask' });
+		await kernel.call('autonomy-set', {
+			level: 'project',
+			project: projects.atlas.id,
+			mode: 'act',
+		});
+		await kernel.call('autonomy-get', { command: 'dual-put' }, { scope: scopes.atlas });
+		await kernel.call('autonomy-list');
+		await kernel.agent.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: scopedDeployment(),
+			ports: createFixturePorts(scopedPackages()),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});

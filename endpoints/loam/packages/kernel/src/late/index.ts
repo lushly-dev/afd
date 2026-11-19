@@ -304,7 +304,7 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings },
+		{ createSettings, createAutonomy },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -549,6 +549,27 @@ export async function createLateParts(
 		paletteIndex: createPaletteIndex,
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// Phase 4's autonomy (its section 4), in `late-settings` beside the settings: stored, resolved and shown, never
+	// enforced here (D41), so it is an input to no access decision (P4-E2).
+	const autonomy = createAutonomy({
+		store: deps.store,
+		scope: deps.scope,
+		apps: deps.apps,
+		shellCommands: () => SHELL_COMMAND_NAMES,
+		isMutation: deps.isMutation,
+		hosted,
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		// As `project-update { access }` decides a listed slug (D87, D110): a team instance still listed names it.
+		teamListed: (project) =>
+			deps.scope.workspaceApps
+				.all()
+				.some((app) => app.listed !== null && (app.projects ?? []).includes(project.slug)),
+		ownValue: (section, key, context) => (settings as Settings).ownValue(section, key, context),
+		writeOwn: (section, key, entry, context) =>
+			(settings as Settings).writeOwn(section, key, entry, context),
+		replaying: () => deps.internals?.replaying === true,
+		kit: { ...DOCUMENT_KIT, personKey },
+	});
 	const scoped = createScopeCommands({
 		...deps,
 		stores,
@@ -605,6 +626,8 @@ export async function createLateParts(
 			...copilot.commands,
 			...copilot.bootOnly,
 			...settings.commands,
+			...autonomy.commands,
+			autonomy.settleCommand,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -809,6 +832,15 @@ export async function createLateParts(
 							deps.clock?.now() ?? Date.now()
 						);
 				if (before !== undefined) await run('document-trash-expire', { before });
+			} catch (cause) {
+				reportLate(cause);
+			}
+			// Then the autonomy rows the apps no longer back, flagged, and those backed again, unflagged: journaled, and
+			// only when there is some, so an unchanged workspace's journal is unchanged (phase 4 specification, 4.2).
+			try {
+				const changed = replaying ? undefined : await autonomy.orphanChanges();
+				if (changed && (changed.orphaned.length > 0 || changed.restored.length > 0))
+					await run('autonomy-settle', changed);
 			} catch (cause) {
 				reportLate(cause);
 			}

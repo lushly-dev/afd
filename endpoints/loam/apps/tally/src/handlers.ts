@@ -41,6 +41,20 @@ export const handlers = {
 		for (const listener of listeners) listener();
 		return success(next);
 	},
+	/** Back to zero, after any add in flight: a phase 4 job narrows an agent's autonomy for it (`autonomy-per-command`). */
+	async 'tally-reset'(_input: Record<string, never>, context: AppCallContextV1) {
+		const { store } = context;
+		if (!store) return failure(STORE_MISSING);
+		const reset = adding.then(async () => {
+			const next: Held = { total: 0, history: [] };
+			await store.put('tally', next);
+			return next;
+		});
+		adding = reset.catch(() => {});
+		const next = await reset;
+		for (const listener of listeners) listener();
+		return success(next);
+	},
 	async 'tally-get'(_input: Record<string, never>, context: AppCallContextV1) {
 		if (!context.store) return failure(STORE_MISSING);
 		return success((await context.store.get<Held>('tally')) ?? { total: 0, history: [] });

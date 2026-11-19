@@ -58,12 +58,27 @@ const DEPLOYER_KEYS = [
 ];
 
 /**
- * The one named exemption (phase 3 specification, Status, step 6, deviation 13, kept by the coordinator on
+ * The named exemptions. The first (phase 3 specification, Status, step 6, deviation 13, kept by the coordinator on
  * 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
- * `projects` anywhere else in their input, is still scanned.
+ * `projects` anywhere else in their input, is still scanned. The second is phase 4 step 8's, below.
  */
 function exempted(name: string, schema: unknown): unknown {
+	// Phase 4's autonomy rows name a registered command by `command` (its 4.1): a shell or app command's name, checked
+	// against the registry, never a mounted server's process, which only a deployment entry holds.
+	if (name === 'autonomy-get' || name === 'autonomy-set') {
+		const copy = structuredClone(schema) as {
+			oneOf?: Array<{
+				properties?: { command?: unknown; commands?: { items?: { properties?: object } } };
+			}>;
+		};
+		for (const branch of copy.oneOf ?? []) {
+			delete branch.properties?.command;
+			delete (branch.properties?.commands?.items?.properties as { command?: unknown } | undefined)
+				?.command;
+		}
+		return copy;
+	}
 	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;
 	type Branch = { properties?: { access?: { properties?: Record<string, unknown> } } };
 	const copy = structuredClone(schema) as Branch & { oneOf?: Branch[] };
