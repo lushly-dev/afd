@@ -476,7 +476,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 
   - 7, keybindings: not started.
 
-  - 8, autonomy: not started.
+  - 8, autonomy: in progress on the branch `lush/loam-p4-step8-autonomy`, built and committed, not merged (2026-11-19; [its record](phases/4-settings/spec.md#step-8-2026-11-19)): the `autonomy` table and the person's cap `loam.autonomy.cap`; the pure `resolveAutonomy` (4.2's ceilings, F8's write-time bound, D156's default); `autonomy-get` (bulk to 50), `autonomy-list` and `autonomy-set` with N9's order, D154's owner and creator rule, the hand-off and section 13's refusal; orphans flagged by boot's `autonomy-settle`, the owners' notice a seam for step 5; the settings tree's Autonomy section with 4.5's notice; tally's `tally-reset`; the three autonomy jobs pass; P4-E2's sweep covers autonomy. Awaits its trust review.
 
   - 9, experiments: not started.
 
@@ -679,6 +679,7 @@ new row.
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-18 | Phase 4 step 2 | [#1611](https://github.com/lushly-dev/afd/pull/1611): the settings section and the palette (phase 4 specification, step 2): the `settings` chunk with the section, its tree and level switcher, the console's form model with native controls and the three custom editors; the shell's `loam.rail`, `loam.keybindings` and `loam.notifications`; the palette's setting rows and `kind` filter; `section-open`'s `target` and the settings route; the person's rail order; hello's settings at manifest version 2; `p4-base`'s apps from a seed file; the three settings scenarios and P4-E1 in Chromium. Budget rows raised under D115 (`jsMinified`, `lateMinified`, `lateSettingsMinified`, `urlMinified`) and `settingsMinified` added. Section 1 amended (step 2): the form's model stays in the console. P2-E11 reads hello at version 2 |
+| 2026-11-19 | Phase 4 step 8 | On `lush/loam-p4-step8-autonomy`, not merged: autonomy (phase 4 specification, step 8): the `autonomy` table, the person's cap, `resolveAutonomy`, `autonomy-get`, `-list` and `-set`, boot's `autonomy-settle`, and the settings tree's Autonomy section with its advisory notice; tally's `tally-reset`; the three autonomy scenarios; E4's units and Chromium; P4-E2 over autonomy. Budget rows `lateSettingsMinified` and `settingsMinified` raised under D115. Amends 3.2, 4.1, 4.2, 4.4 and 12 (step 8) and the architecture's section 5 (`autonomy-list`) |
 
 ### Sessions: phase 5, bus, copilot and mounted servers
 

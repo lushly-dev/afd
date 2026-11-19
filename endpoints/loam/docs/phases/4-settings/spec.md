@@ -48,7 +48,8 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done since approval:** the owner's answers to Q1 to Q5, 2026-11-18 (D154 to D158).
 - **Done, step 1, the settings core** ([#1533](https://github.com/lushly-dev/afd/pull/1533), 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
 - **Done, step 2, the settings section and the palette** ([#1611](https://github.com/lushly-dev/afd/pull/1611), 2026-11-18): 3.5, 3.7 (`loam.rail`, `loam.keybindings`, `loam.notifications`), 3.10, the three custom editors, hello's settings, `p4-base`'s apps, and P4-E1 but for the hand-offs of steps 8 and 9; what it decided, measured and left is in [its record](#step-2-2026-11-18), with one amendment to section 1 (step 2).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 2. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Built, step 8, autonomy** (on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2`, 2026-11-19; not merged): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 2; step 8 is built on its branch and not merged. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -334,7 +335,7 @@ export type SettingKeyV1 = { title: string /* 1 to 60 */; description?: string /
 
 - **The hand-off (F2).** `setting-*`, `autonomy-set` and `experiment-*` refuse a non-human caller **in their own handlers**, not through phase 3's central `HUMAN_COMMANDS` check, so the refusal is theirs: `HUMAN_REQUIRED` with `details: { route, section, key, level }`, and a suggestion naming the route. For example, `route` is `~/settings/hello.general#greeting`.
   - **For a setting,** `key` is the key.
-  - **For autonomy,** `section` is `loam.autonomy` and `key` is the row id the call would write (`workspace/-/tally/tally-reset`), or `cap`.
+  - **For autonomy,** `section` is `loam.autonomy` and `key` is the row id the call would write (`workspace/-/tally/tally-reset`), or `cap`. **Amended (step 8):** `route` is the section's, `~/settings/loam.autonomy`, since a row id holds slashes that no route's fragment may (phase 2's 6.1); the cap's is `~/settings/loam.autonomy#cap`.
   - **For an experiment,** `section` is `loam.experiments` and `key` is the experiment's `fullId`; `level` is `person` or `workspace`.
   - The agent can then tell its person exactly where to go.
   - Or it can push a notice whose `link` goes there (10.1).
@@ -465,6 +466,7 @@ export interface AutonomyRowV1 {
 ```
 
 - **A person's own cap** is `loam.autonomy.cap`, written only by `autonomy-set { level: 'person', cap }`.
+- **Amended (step 8):** `mode` is absent on the workspace's general row while it holds a `ceiling` alone, so an owner can let projects go further without changing the workspace's own mode from the default. `autonomy-set` with `mode: null` removes a row, keeping a general row's `ceiling`; `ceiling: null` clears it; `cap: null` clears the cap. A row is replaced whole at each write, so a field it no longer holds does not survive.
 - **D41's "approval of a plan or a capability within limits"** has no field here. Phase 5 adds the limit (a count, a budget or a plan reference) with its approvals ([section 18](#18-out-of-scope-and-the-seams-reserved)).
 
 ### 4.2 Resolution
@@ -489,7 +491,9 @@ export interface AutonomyRowV1 {
    - **a command project row** against those, the default for that command, and the workspace's rows for its instance and command.
 5. **The person's cap.** Lower the mode to it.
 
-**Orphan rows** are ignored, and flagged in `autonomy-list` and in a notice to the owners who may enter the row's project (all owners for a workspace row) (10.2).
+**Orphan rows** are ignored, and flagged in `autonomy-list` and in a notice to the owners who may enter the row's project (all owners for a workspace row) (10.2). **Amended (step 8):** the manifest's apply is boot's own `autonomy-settle { orphaned, restored }`, run after each stage B's apply when a row's instance or command is gone or back, journaled with the row ids so a replay flags the same rows; a mounted instance's command rows are judged only once its catalog is read. The notice is step 5's, through the seam `autonomy-settle` calls.
+
+**Amended (step 8), F8 for an instance row:** a project row for an instance also meets the workspace's row for that instance at write time, which resolution would lower it to.
 
 The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' | 'ceiling' | 'cap' }> }`, with only rows of projects the caller may enter.
 
@@ -511,8 +515,10 @@ The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' 
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `autonomy-get` | query | `{ command; instance?; project? }` or `{ commands: Array<{ command; instance? }> /* 1 to 50 */; project? }` | One result, or `{ results }` in the same order. **The project:** the input's when given, otherwise the call's scope. A project the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
-| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged. A `project` the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
+| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged. A `project` the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND`. **Amended (step 8):** also `writable: { workspace; project?; cap }`, each `{ writable; reason? }` computed for the caller as `setting-list`'s (3.9), `project` for the input's project or the call's scope's |
 | `autonomy-set` | mutation, human | `{ level: 'workspace' \| 'project'; project?; instance?; command?; mode?: AutonomyModeV1 \| null; ceiling? } \| { level: 'person'; cap }` | `{ row?; cap?; previous }` |
+
+**Amended (step 8):** `autonomy-get`'s result is 4.2's with `command`, `instance` and `project` (or `null`) beside it, and a command it cannot find is `AUTONOMY_COMMAND_UNKNOWN`, with `details: { index }` in bulk. `autonomy-set` at `project` level names its `project` (never the call's scope), and `ceiling` and `cap` take `null` to clear. A project row of an archived project is `PROJECT_ARCHIVED`, after the owner check. Each declares an output budget (`AUTONOMY_OUTPUT_BUDGETS`), checked for `autonomy-get` and `autonomy-list` at 64 KiB.
 
 ### 4.5 What phase 4 shows, and what phase 5 does
 
@@ -906,7 +912,7 @@ export interface NotificationV1 {
 - **SDK (a minor):** `SettingsV1`, `NotificationsV1`, `ConfirmationsV1 { get, withdraw }`, the widened `OverlaysV1`, and `settingsChanged`.
 - **New shell domains:** `keybinding`, `confirmation`, `limit`.
 - **New commands:** `palette-run`, `notification-act`, `notification-archive`, `confirmation-get`, `confirmation-withdraw`, `autonomy-list`, `setting-reset`, `keybinding-list`, `limit-usage-get`.
-- **Internal commands:** `overlay-global-set`, `experiment-settle`, `store-usage-settle`.
+- **Internal commands:** `overlay-global-set`, `experiment-settle`, `store-usage-settle`. **Amended (step 8):** and `autonomy-settle`, in `BOOT_ONLY` (4.2).
 
 ### 12.1 The manifest
 
@@ -1492,6 +1498,46 @@ Measured after the fixes: first paint 308,160 and 96,130 gzip; `late` 82,865; `l
 
 **Verified after the reviews,** on the same machine: `test --coverage` for the kernel (1,000), chrome (238), hello (8), the console (82) and `web`'s units (53); the typecheck of every Loam package and app; `lint:tokens` (chrome, console, hello); `pnpm test:tooling` (642); `node --test scripts/umbel-components.test.mjs` (20); `budget`; `pnpm check`; and eleven Chromium files, 156 tests (`settings`, `apps/native`, `accessibility`, `shell`, `layout`, `scope/rail`, `scope/url`, `scope/first-paint`, `apps/second-app`, `apps/console`, `appearance-settings`). Not run: the Cargo-gated suites.
 
+## Step 8, 2026-11-19
+
+Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after steps 1 and 2), not merged. It gets a trust review (section 20).
+
+**Built.**
+
+- **The pure rules** (`kernel/src/late/autonomy-rules.ts`): `AutonomyRowV1` and its id; the default (D156: `act` for a command that is not a mutation, `ask` for a mutation, `ask` for every mounted tool); `resolveAutonomy({ rows, command, project?, cap? })`, returning 4.2's `{ mode, from, ceilings, cap, chain }`, which ignores orphans and other projects' rows, and lowers a project row's mode to the workspace's bound (its `ceiling`, else its general mode, else the command's default) and its rows for the instance and the command, then to the cap; `writeBound`, F8's bound at write time; `orphanChanges`.
+- **The commands** (`kernel/src/late/autonomy.ts`, in the `late-settings` chunk): `autonomy-get` (one, or 1 to 50 in order; the input's project, else the call's scope; the instance found from the command when not given, `shell` for the shell's own), `autonomy-list` (the workspace's rows and those of projects the caller may enter, orphans flagged, the ceiling, the cap and `writable`), `autonomy-set` (a workspace or project row, or the person's cap) and boot's `autonomy-settle`. The rows are the workspace store's `autonomy` table, read at every call; the cap is `loam.autonomy.cap` in the person's `loam.settings`, read and written through the settings module, one write at a time with `setting-*`'s. Strict inputs; every result a detached copy; every refusal with a suggestion; the category `setting`, so `mcpOptions()` serves none of them (section 13), and a port gets `CALL_NOT_GRANTED`. `setting-*` on `loam.autonomy` stays `SETTING_USE_AUTONOMY`; `section-open`'s `target` takes `loam.autonomy` and `loam.autonomy.cap`.
+- **`autonomy-set`'s order (N9):** validation; line 0 (the scope middleware); the project's access, `PROJECT_NOT_FOUND` byte-identical to phase 2's for a project the caller may not enter or that does not exist; the agent's hand-off (`HUMAN_REQUIRED`, `details: { route, section: 'loam.autonomy', key: <row id or 'cap'>, level }`); section 13's `SHARED_RECORD_UNAVAILABLE` at every level; the owner check (D154: workspace rows an owner's; a project row an owner's or its creator's, while the creator may enter it and no team instance lists it, D87, D110; `OWNER_REQUIRED` otherwise); `PROJECT_ARCHIVED`; the instance and command (`AUTONOMY_COMMAND_UNKNOWN`, skipped for a removal, so an orphan can always go); the bounds (`AUTONOMY_ABOVE_CEILING`, naming the bound in `details` and saying an owner sets it). The membership is read again before a workspace or project row in `provider` mode (`needsMembershipRead`).
+- **Orphans:** after each stage B's apply, not in a replay, the rows whose instance the deployment no longer has, or whose command it no longer registers, are flagged by a journaled `autonomy-settle`, and rows backed again unflagged; nothing is journaled when nothing changed. The orphan notice's seam is `AutonomyDeps.orphaned`, which step 5's inbox wires.
+- **The chrome** (`chrome/src/settings/autonomy.ts`, `autonomy-words.ts`): the tree's Autonomy entry after Keybindings (3.5), at `~/settings/loam.autonomy`; `loam-autonomy-section` with the advisory notice first, exactly 4.5's text; the workspace's mode and ceiling and its rules; the active project's mode and rules; a new rule for an app or one of its commands; the person's cap, or section 13's message in its place where `autonomy-list` says the deployment cannot keep it; and "Why a command gets its mode", the chain in words. Every read and write is an `autonomy-*` command in the scope the panel shows; a part the caller may not change is disabled with the reason in words. Native controls, as the settings section's.
+- **Tally** gains `tally-reset`, a mutation, which `autonomy-per-command` and `owner-ceiling` narrow; step 6 adds its `confirm_prompt`.
+- **The jobs:** `autonomy-per-command`, `know-my-mode` and `owner-ceiling` run and pass in `kernel/src/scenarios.test.ts`.
+
+**Decided while building it,** each a judgement a reviewer should check:
+
+- **`tally-reset` here rather than in step 6**, as a plain mutation, so the two jobs that name it run now; step 6 adds the `confirm_prompt` section 1 names.
+- **F8 for an instance row** (4.2, amended): a project row for an instance also meets the workspace's row for that instance at write time, since resolution would lower it there; the specification named only the general bound for it.
+- **A project row names its project** in the input, never the call's scope, so a write cannot land in a project other than the one named; reads take the input's, else the scope's, as 4.4 says.
+- **Who is an owner** is phase 3's `isOwner`: in `local` mode every actor, so D154's creator and team-listed rules bind in `provider` mode.
+- **An instance a new row may name** is `shell` or one the deployment has that the workspace has not disabled; a disabled instance's existing rows are not orphans.
+- **`autonomy-get` refuses an unknown command** with `AUTONOMY_COMMAND_UNKNOWN` (4.4 named it for `autonomy-set` only), rather than resolve a default for a command that is not there.
+- **The hand-off's route** for a row is the section's, not `#<row id>` (3.2, amended); the cap's is `#cap`.
+- **`autonomy-list`'s `writable`** (4.4, amended) lets the section disable what the caller may not change and show section 13's message for the cap, with no host decision of its own.
+- **Rows are replaced whole** (4.1, amended): the store's `PUT` merges into a row it holds, so a removed `mode` or an ended orphan flag would have survived; each write deletes and puts in one batch. Found by the unit for a removed mode.
+- **The workspace's general row may hold a `ceiling` alone** (4.1, amended).
+- **`autonomy-settle` runs at every stage B**, not only when the generation changes, since an app's package can drop a command under the same projection.
+- **The category is `setting`,** so the existing `mcpOptions()` filter keeps the three off MCP with nothing new to keep in step.
+
+**Left for later steps:**
+
+- **Step 5:** the orphan notice to the owners who may enter the row's project, through `AutonomyDeps.orphaned`, which nothing wires yet.
+- **Step 6:** `tally-reset`'s `confirm_prompt`.
+- **Phase 5's step 3:** enforcement through `resolveAutonomy` (D145), including a vouched server's reads at `act`.
+- **E1, waiting:** `experiment-*`'s hand-off (step 9); `autonomy-set`'s is now tested (`late/autonomy.test.ts`).
+
+**Measured.** D115, on Windows with Node 26.13.1, against step 2's figures: `lateSettingsMinified` 30,500 to 43,500 (28,400 to 42,595, +14,195: the table, the rules, the three commands and the settle, about a third of it descriptions, input schemas and refusals in words; section 14 estimated 26,000 for the whole chunk); `settingsMinified` 36,000 to 40,000 (32,094 to 39,323: the section, its words and the tree's entry). First paint 308,800 and 96,345 gzip, within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000; the kernel alone 118,835 of 119,500. `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (51 files, 1,045 tests), chrome (17 files, 241), `web`'s units (11 files, 53), tally (2) and hello (8); the typecheck of every Loam package and app; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and six Chromium files, 39 tests: `autonomy` (4, new: the section, the notice, the hand-off, the hosted cap's message through a stubbed answer, axe in three themes), `settings`, `apps/second-app`, `budget`, `scope/first-paint` and `accessibility`. **Not run:** the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and every Cargo gate.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1511,3 +1557,7 @@ Measured after the fixes: first paint 308,160 and 96,130 gzip; `late` 82,865; `l
 | 2026-11-18 | Step 2's re-check | The settings section's panel read and `show()` share one read counter, so a panel re-read during a scope change's `show()` can leave the tree and level tabs naming the old project (labels only; writes stay bound to the shown scope) | Open |
 | 2026-11-18 | Step 2's re-check | `#hashHeard` may answer the shell's own `#key` writes with a duplicate, journaled `section-open`; compare the route's path rather than the key | Open |
 | 2026-11-18 | Step 2's re-check | A Chromium case for the chrome's key-by-key fallback on an oversized section (the kernel half is tested) | Open |
+| 2026-11-19 | Step 8 | Wire the orphan notice to the owners who may enter an orphaned row's project through `AutonomyDeps.orphaned` | Open; step 5 |
+| 2026-11-19 | Step 8 | Flag a mounted instance's command rows when its catalog drops a command: `autonomy-settle` runs at stage B's apply, before any catalog is read, so only a gone instance orphans them | Open |
+| 2026-11-19 | Step 8 | The autonomy section's new-rule form lists the apps only; a rule for one of the shell's own commands is set with `autonomy-set` | Open |
+| 2026-11-19 | Step 8 | A Chromium case for the cap's message on a real hosted `provider` projection (the step's case stubs `autonomy-list`'s answer; the kernel's unit holds the rule) | Open |
