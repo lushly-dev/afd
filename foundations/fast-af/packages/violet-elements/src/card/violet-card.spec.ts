@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-card";
 import type { VioletCard } from "./violet-card";
@@ -52,6 +53,29 @@ function section(card: VioletCard, name: "header" | "body" | "footer"): HTMLElem
         throw new Error(`violet-card did not render its ${name}`);
     }
     return element;
+}
+
+/** Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or turns the emulation off. */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: active
+            ? [
+                  { name: "forced-colors", value: "active" },
+                  { name: "prefers-color-scheme", value: "dark" },
+              ]
+            : [],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-card", () => {
@@ -190,6 +214,34 @@ describe("violet-card", () => {
 
             expect(card.getAttribute("tabindex")).toBe("-1");
             expect(card.getAttribute("role")).toBe("article");
+        });
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it("lets slotted content take the system colours while the frame keeps its own", async () => {
+            await emulateForcedColors(true);
+            const card = await renderCard({ header: "Header", footer: "Footer" });
+            // Content styled by a theme, as an app's stylesheet would style it.
+            for (const child of Array.from(card.children) as HTMLElement[]) {
+                child.style.color = "rgb(24, 27, 26)";
+            }
+            await nextFrame();
+
+            const canvasText = systemColor("CanvasText");
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            expect(canvasText).not.toBe("rgb(24, 27, 26)");
+            for (const child of Array.from(card.children)) {
+                expect(getComputedStyle(child).forcedColorAdjust).toBe("auto");
+                expect(getComputedStyle(child).color).toBe(canvasText);
+            }
+
+            const root = card.shadowRoot?.querySelector(".root") as HTMLElement;
+            expect(getComputedStyle(root).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(root).backgroundColor).toBe(systemColor("Canvas"));
         });
     });
 });

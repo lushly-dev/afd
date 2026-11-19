@@ -5877,11 +5877,11 @@
       "upstream_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.spec.ts",
       "staged_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
-      "current_import_sha256": "c2ef965ba223cd1afad4168924589cabcfdccc1c4f285651f366539c3e89a85b",
+      "current_import_sha256": "acd79379d0fdc511bd8341f99d7998e8a0d842020fd02898c000f87c3c3a0a32",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/alert/violet-alert.stories.ts",
@@ -5901,11 +5901,11 @@
       "upstream_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.ts",
       "staged_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
-      "current_import_sha256": "a9fd3a8200ff533c9dc64b9fa3b8f7fe12bf1b5c7db247621323c8644980e545",
+      "current_import_sha256": "807be199b3a39fe10b99c99fbf338b2186e1bef20a1bcbaa83f4c8aa6c71a746",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/badge/violet-badge.spec.ts",
@@ -6093,11 +6093,11 @@
       "upstream_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
       "staged_path": "packages/violet-elements/src/card/violet-card.spec.ts",
       "staged_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
-      "current_import_sha256": "94d8f36a5a044017ce2fce8680cb2b7a393661636f6940421f55ef3d9e6e1b7d",
+      "current_import_sha256": "84925e2c09e57c7d4aecff6817bf71b8e21cb60e660ae968f9b68a60e93a6d3c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.stories.ts",
@@ -6117,11 +6117,11 @@
       "upstream_sha256": "8067678392f5142e1758c5196dcda317497e8c5dd98db63e2c637a92a1a59c79",
       "staged_path": "packages/violet-elements/src/card/violet-card.ts",
       "staged_sha256": "8067678392f5142e1758c5196dcda317497e8c5dd98db63e2c637a92a1a59c79",
-      "current_import_sha256": "eca50500c29feeb77cb83700ae9e21740ce707a2773c950bbabfdc48bce1d0ab",
+      "current_import_sha256": "7f9e9e7d72dd94ddc9c94c200e3c14d591b134a3ae0fa2d6830d21ecfc31deb7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/carousel/violet-carousel.spec.ts",
@@ -7677,11 +7677,11 @@
       "upstream_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.spec.ts",
       "staged_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
-      "current_import_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
+      "current_import_sha256": "aa129dcfaea36280eb7738d3f26cbe7ab74dd1b4efdbc214c08557a90c78f02e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.stories.ts",
@@ -7701,11 +7701,11 @@
       "upstream_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.ts",
       "staged_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
-      "current_import_sha256": "bc2f5e808ef0b6619bfed2c4c8831b0b7b4dc0e508694700c351a763a928b940",
+      "current_import_sha256": "9a3255c997a69544843ba0e7728f1dbd6616f0c5184672df5161145284084a19",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; AFD's theme, Refined, becomes the built-in default (D159, #1430): regenerated export, built-in set, literal fallbacks, manifest and pack; specs, stories and two conversation components follow the new values; Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/divider/violet-divider.spec.ts",
@@ -11481,11 +11481,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b60e80d16a01f455da7e2fa32babd71d893b53d8f410b44318ea1c5be0ad40fc",
+      "current_import_sha256": "9d141a7d76c94ea32c1f957672e5114eeb9ad4a2fd85f164a9b6372e820cb69e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456); form control hosts (#1385): re-recorded after the Refined default theme; Versioned for release by pnpm version-packages (violet-elements, violet-npm)"
+      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata; Merged main: type-check Violet component specs in CI (#1521), with a typecheck script and tsconfig.spec.json; extract violet-elements' packed tarball portably on Windows (#1456); form control hosts (#1385): re-recorded after the Refined default theme; Versioned for release by pnpm version-packages (violet-elements, violet-npm); Let slotted content take the system colours under forced colours in violet-alert, violet-card and violet-dialog (#1575)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",

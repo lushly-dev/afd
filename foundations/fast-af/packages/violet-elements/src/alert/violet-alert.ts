@@ -177,8 +177,25 @@ const styles = css`
             color: CanvasText;
         }
 
+        /*
+         * The frame's slot opts its content back in, so the layout, which the alert paints, opts out
+         * again; what is slotted into the alert takes the system colours.
+         */
+        .layout {
+            forced-color-adjust: none;
+        }
+
+        .title,
+        .content {
+            color: CanvasText;
+        }
+
         .leading {
             color: ButtonText;
+        }
+
+        slot {
+            forced-color-adjust: auto;
         }
     }
 `;
