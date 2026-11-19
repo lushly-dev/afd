@@ -66,8 +66,10 @@ describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 		// only what ran after it: the status bar's number is the one thing that differs (7.1).
 		const journalNumber = (observation: Observation) =>
 			Number(/Journal (\d+)/.exec(observation.channels.a11y.snapshot)?.[1]);
-		expect(journalNumber(live)).toBe(50 + 2 + 3);
-		expect(journalNumber(replay)).toBe(2 + 3);
+		// The shell's own reads after either: three, and from phase 4's step 5 the Inbox count's `notification-list`
+		// at stage B, journaled as the shell's other reads are, in the live page and the replayed one alike.
+		expect(journalNumber(live)).toBe(50 + 2 + 4);
+		expect(journalNumber(replay)).toBe(2 + 4);
 		const diff = diffObservations(live, replay);
 		const outsideJournal = diff.differences.filter((difference) => {
 			// The journal's item: fourth from phase 2's step 6, after the workspace's, the project's (hidden
