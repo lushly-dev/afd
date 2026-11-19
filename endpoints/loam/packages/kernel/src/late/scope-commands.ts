@@ -59,6 +59,11 @@ export interface ScopeCommandDeps {
 	generation(): string;
 	/** Whether stage B left the store holding that generation's entries (4.1). */
 	applied(): boolean;
+	/**
+	 * The settings section's place for `section-open { section: 'settings', target }` (phase 4 specification, 3.5,
+	 * 3.10): its path, or the refusal `setting-get` would give. Absent while `late-settings` has not loaded.
+	 */
+	settingTarget?(target: string, context: CommandContext): { path: string } | CommandResult<never>;
 }
 
 /**
@@ -144,8 +149,10 @@ const scopeSetInput = z.strictObject({
 });
 const sectionInput = z.strictObject({
 	// The account section runs at workspace level and shows nothing of any project (phase 3 specification, 5.1).
-	section: z.enum(['projects', 'documents', 'account']),
+	section: z.enum(['projects', 'documents', 'account', 'settings']),
 	path: z.optional(z.string()),
+	// The settings section's key or section, as a palette row names it (phase 4 specification, 3.10).
+	target: z.optional(z.string().check(z.minLength(1), z.maxLength(256))),
 });
 const routeInput = z.strictObject({ instance: ref, path: z.string() });
 
@@ -705,7 +712,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	>({
 		name: 'section-open',
 		title: 'Open a section',
-		description: 'Show the projects, documents or account section in main; the active app closes',
+		description:
+			'Show the projects, documents, account or settings section in main; the active app closes. For settings, target names a section or a key: hello.general.greeting',
 		category: 'section',
 		mutation: true,
 		executionTime: 'instant',
@@ -713,19 +721,41 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		jsonSchema: {
 			type: 'object',
 			properties: {
-				section: { type: 'string', enum: ['projects', 'documents', 'account'] },
+				section: { type: 'string', enum: ['projects', 'documents', 'account', 'settings'] },
 				path: STRING,
+				target: { type: 'string', minLength: 1, maxLength: 256 },
 			},
 			required: ['section'],
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const refused = routeRefusal(input.path ?? '');
+			let path = input.path ?? '';
+			if (input.target !== undefined) {
+				if (input.section !== 'settings' || input.path !== undefined) {
+					return kernelFailure(
+						'VALIDATION_ERROR',
+						'`target` names a place in the settings section, in place of a path',
+						"Open { section: 'settings', target } with no path, or another section with path alone"
+					);
+				}
+				const place = deps.settingTarget?.(input.target, context);
+				if (!place) {
+					return kernelFailure(
+						'SETTING_NOT_FOUND',
+						'The settings are not loaded yet',
+						'Try again once the shell has started',
+						{ retryable: true }
+					);
+				}
+				if ('success' in place) return place;
+				path = place.path;
+			}
+			const refused = routeRefusal(path);
 			if (refused) return refused;
 			const previous = state.main().section;
 			const closed = deps.apps().close();
 			if (!closed.success) return closed as CommandResult<never>;
-			setMain(deps.viewState, { active: null, section: input.section, path: input.path ?? '' });
+			setMain(deps.viewState, { active: null, section: input.section, path });
 			scope.note(context.traceId, { mainChanged: 'push' });
 			return success({ section: input.section, previous });
 		},

@@ -1,4 +1,4 @@
-manifest_version = 1
+manifest_version = 2
 protocol = 1
 afd_contract = "1.0"
 
@@ -24,6 +24,10 @@ reason = "Keeps the names greeted."
 [[grants]]
 name = "clock"
 reason = "Stamps each greeting with the command context's clock."
+
+[[grants]]
+name = "settings"
+reason = "Reads the greeting and the guest board's name, which a person sets for the workspace or a project."
 
 [[commands]]
 name = "hello-greet"
@@ -91,3 +95,39 @@ items = [{ id = "count", label = "Greetings" }]
 [[ui.surfaces.keybindings]]
 chord = "Mod+Shift+H"
 command = "hello-greet"
+
+# Phase 4's settings (its 3.1): the greeting, for the workspace and each project, and the guest board, for a
+# project alone. Hello reads them through the `settings` grant and greets with the one that applies here.
+[[ui.settings]]
+id = "general"
+title = "General"
+description = "How Hello greets people."
+levels = ["workspace", "project"]
+
+[ui.settings.schema]
+type = "object"
+additionalProperties = false
+
+[ui.settings.schema.properties.greeting]
+type = "string"
+title = "Greeting"
+description = "The word Hello greets with, as in Hello, friend!"
+maxLength = 40
+default = "Hello"
+
+[[ui.settings]]
+id = "project"
+title = "Project"
+description = "Hello in one project."
+levels = ["project"]
+
+[ui.settings.schema]
+type = "object"
+additionalProperties = false
+
+[ui.settings.schema.properties.board]
+type = "string"
+title = "Guest board"
+description = "The name of this project's guest board."
+maxLength = 60
+default = "Guests"

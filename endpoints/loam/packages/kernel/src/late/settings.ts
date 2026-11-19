@@ -22,12 +22,14 @@ import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { createPaletteIndex, PaletteIndex, PaletteItem } from '../palette-index.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ProjectV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { DocumentKit } from './document-kit.js';
 import {
+	checkKnownValue,
 	isHumanGesture,
 	type KnownSectionV1,
 	type ResolvedSettingV1,
@@ -40,6 +42,7 @@ import {
 	writerOf,
 } from './setting-rules.js';
 import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
+import type { SettingRows } from './shell-commands.js';
 
 export {
 	HUMAN_SETTING_KEYS,
@@ -137,6 +140,8 @@ export interface SettingsDeps {
 	 * the value shown and the retention applied never diverge.
 	 */
 	trashDays(days: number, context: CommandContext, also: BatchOperation[]): Promise<void>;
+	/** The palette's index, given by `late/` so this chunk imports no module first paint may hold (13). */
+	paletteIndex: typeof createPaletteIndex;
 	kit: SettingsKit;
 }
 
@@ -157,9 +162,22 @@ export interface Settings {
 	 * in. Never in a replay, whose entries are what ran.
 	 */
 	migrate(run: (name: string, input: unknown) => Promise<CommandResult>): Promise<void>;
+	/** The palette's setting rows (3.10), built here on the first query that needs them, never in first paint. */
+	rows: SettingRows;
+	/** The person's own rail order, `loam.rail.order`, for the call (3.7; R8): instance ids, first to last. */
+	railOrder(context: CommandContext): Promise<readonly string[]>;
+	/**
+	 * `section-open { section: 'settings', target }`'s place (3.5, 3.10): `target` is `<section>` or `<section>.<key>`, a
+	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
+	 */
+	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
 }
 
 const LEVELS = ['person', 'workspace', 'project'] as const;
+
+/** The levels a key may be set at: its own, else its section's (3.1). */
+const levelsOf = (known: KnownSectionV1, key: string): readonly SettingLevelV1[] =>
+	(known.section.schema.properties[key] as SettingKeyV1).levels ?? known.section.levels;
 
 /** The value a stored entry holds, read back from the store, or undefined for anything malformed. */
 function storedOf(entry: unknown): StoredSettingV1 | undefined {
@@ -858,7 +876,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		{
 			const found = lookup(context, input.section, input.key);
 			if ('success' in found) return found;
-			const { known, declared } = found as { known: KnownSectionV1; declared: SettingKeyV1 };
+			const { known } = found as { known: KnownSectionV1 };
 			const refused =
 				writeRefusal('setting-set', known, input.key, input.level, context) ??
 				projectRefusal(known, input.level, context);
@@ -884,12 +902,18 @@ export function createSettings(deps: SettingsDeps): Settings {
 				);
 			}
 			const wrong =
-				input.value === undefined ? 'is required' : checkSettingValue(declared, input.value);
+				input.value === undefined
+					? { problem: 'is required' }
+					: checkKnownValue(known, input.key, input.value, checkSettingValue);
 			if (wrong) {
 				return fail(
-					'VALIDATION_ERROR',
-					`The value of '${known.fullId}.${input.key}' ${wrong}`,
-					'Read the key with setting-schema-get { section, key }, and give a value inside it',
+					wrong.code ?? 'VALIDATION_ERROR',
+					`The value of '${known.fullId}.${input.key}' ${wrong.problem}`,
+					wrong.code === 'SETTING_MUTE_SHELL'
+						? 'Mute an app instead'
+						: wrong.code === 'KEYBINDING_RESERVED'
+							? 'Bind another key'
+							: 'Read the key with setting-schema-get { section, key }, and give a value inside it',
 					{ field: 'value' }
 				);
 			}
@@ -1029,6 +1053,93 @@ export function createSettings(deps: SettingsDeps): Settings {
 		await afterWrite(known, 'theme', context);
 	}
 
+	// ─── The palette's rows (3.10) ─────────────────────────────────────────────
+
+	/** The index over every known key, and the sections it was built from: built again when they change. */
+	let indexed: { built: string; index: PaletteIndex; rows: Map<string, PaletteItem> } | undefined;
+
+	/** Each key of each known section, as a row: `name` is `<section>.<key>`, `app` the owning app's title (3.10). */
+	function indexRows(known: readonly KnownSectionV1[]): Map<string, PaletteItem> {
+		const titles = new Map(
+			deps
+				.apps()
+				.summaries()
+				.map((app) => [app.instance, app.title])
+		);
+		const rows = new Map<string, PaletteItem>();
+		for (const entry of known) {
+			for (const [key, declared] of Object.entries(entry.section.schema.properties)) {
+				const name = `${entry.fullId}.${key}`;
+				rows.set(name, {
+					name,
+					title: declared.title,
+					description: declared.description ?? entry.section.title,
+					score: 0,
+					field: 'name',
+					matches: [],
+					kind: 'setting',
+					section: entry.fullId,
+					key,
+					...(entry.owner !== 'shell' ? { app: titles.get(entry.owner) ?? entry.owner } : {}),
+				});
+			}
+		}
+		return rows;
+	}
+
+	const rows: SettingRows = {
+		async search(query, context, limit) {
+			if (query.trim() === '') return [];
+			const known = sections();
+			const built = JSON.stringify(
+				known.map((entry) => [entry.fullId, entry.owner, entry.section.title])
+			);
+			if (indexed?.built !== built) {
+				const held = indexRows(known);
+				// By name and title: a key's description is a sentence, whose letters a short query finds by accident.
+				indexed = {
+					built,
+					rows: held,
+					index: deps.paletteIndex([...held.values()], ['name', 'title']),
+				};
+			}
+			const { index, rows: held } = indexed;
+			const byId = new Map(known.map((entry) => [entry.fullId, entry]));
+			// Filtered for the call at query time: a port sees its own app's sections only (3.8), a project-only key shows
+			// only in a project, and an app's only where the app opens there (3.2, 3.10).
+			const app = callerApp(context);
+			const project = (context as KernelFieldContext).scope?.project;
+			const out: PaletteItem[] = [];
+			for (const found of index.search(query, index.size)) {
+				const row = held.get(found.name) as PaletteItem;
+				const entry = byId.get(row.section as string) as KnownSectionV1;
+				if (!owns(app, entry)) continue;
+				const levels = levelsOf(entry, row.key as string);
+				const projectOnly = !levels.includes('person') && !levels.includes('workspace');
+				if (
+					projectOnly &&
+					(project === undefined ||
+						(entry.owner !== 'shell' && deps.canOpen(entry.owner, project) !== undefined))
+				)
+					continue;
+				out.push({ ...row, score: found.score, field: found.field, matches: found.matches });
+				if (out.length === limit) break;
+			}
+			return structuredClone(out);
+		},
+	};
+
+	function target(to: string, context: CommandContext): { path: string } | CommandResult<never> {
+		const known = sections().find(
+			(entry) => to === entry.fullId || to.startsWith(`${entry.fullId}.`)
+		);
+		const fullId = known?.fullId ?? to;
+		const key = known && to !== known.fullId ? to.slice(known.fullId.length + 1) : undefined;
+		const found = lookup(context, fullId, key);
+		if ('success' in found) return found;
+		return { path: key === undefined ? fullId : `${fullId}/${key}` };
+	}
+
 	return {
 		commands: [
 			schemaGet,
@@ -1038,6 +1149,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 			settingReset,
 		] as unknown as ZodCommandDefinition[],
 		sections,
+		rows,
+		target,
+		async railOrder(context) {
+			const known = SHELL_SECTIONS.find((entry) => entry.fullId === 'loam.rail') as KnownSectionV1;
+			const inProject = (context as KernelFieldContext).scope?.project !== undefined;
+			const { value } = resolveFrom(
+				known,
+				'order',
+				await storedFor(known, 'order', context),
+				inProject
+			);
+			return Array.isArray(value) ? (value as string[]) : [];
+		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
 		async follow() {
 			const person = deps.person();

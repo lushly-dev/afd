@@ -24,7 +24,13 @@ import {
 } from '@lushly-dev/afd-testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
-import { P4_PERSON, P4_PROJECTS, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
+import {
+	P4_DOCUMENT,
+	P4_PERSON,
+	P4_PROJECTS,
+	SEEDS,
+	type SeededKernel,
+} from '../scenarios/seeds.js';
 
 const PHASE_4 = fileURLToPath(
 	new URL('../../../docs/phases/4-settings/scenarios/', import.meta.url)
@@ -34,13 +40,14 @@ const PHASE_5 = fileURLToPath(
 );
 
 /**
- * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 builds the settings core and
- * `p4-base`, and no file runs yet: each needs hello's settings, the palette's setting rows, or a later step's commands.
+ * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 built the settings core and
+ * `p4-base`; step 2 the settings section, the palette's setting rows, hello's sections and `p4-base`'s apps, so the
+ * three settings jobs run. The rest need a later step's commands.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
-	'setting-per-project': "step 2: hello's `hello.general` and the apps in `p4-base`",
-	'setting-from-palette': "step 2: the palette's setting rows and the settings section",
-	'agent-changes-setting': "step 2: hello's `hello.general`",
+	'setting-per-project': 'now',
+	'setting-from-palette': 'now',
+	'agent-changes-setting': 'now',
 	'autonomy-per-command': 'step 8: autonomy',
 	'know-my-mode': 'step 8: autonomy',
 	'owner-ceiling': 'step 8: autonomy',
@@ -191,6 +198,43 @@ describe("Loam's runner: the p4-base seed", () => {
 			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
 		);
 		expect(scoped.data).toMatchObject({ value: 14, from: 'workspace' });
+	});
+
+	it('holds the four apps, enabled for both projects, a count of 3 and the checklist in Atlas', async () => {
+		seeded = await (SEEDS['p4-base'] as () => Promise<SeededKernel>)();
+		const { kernel } = seeded;
+		const apps = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
+			'app-list'
+		);
+		expect(apps.data?.apps.map(({ instance, state }) => ({ instance, state }))).toEqual(
+			['hello', 'tally', 'checklist', 'console'].map((instance) => ({ instance, state: 'ready' }))
+		);
+		for (const project of ['prj_atlas', 'prj_beacon']) {
+			for (const instance of ['hello', 'tally', 'checklist', 'console']) {
+				const opened = await kernel.call(
+					'app-open',
+					{ instance },
+					{ scope: { workspace: 'personal', project } }
+				);
+				expect(opened.success, `${instance} in ${project}: ${JSON.stringify(opened.error)}`).toBe(
+					true
+				);
+			}
+		}
+		const counted = await kernel.call<{ total: number }>(['tally', 'get'].join('-'));
+		expect(counted.data?.total).toBe(3);
+		const document = await kernel.call<{ id: string; scope: { project?: string } }>(
+			'document-get',
+			{ document: P4_DOCUMENT },
+			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
+		);
+		expect(document.data).toMatchObject({ id: P4_DOCUMENT, scope: { project: 'prj_atlas' } });
+		const items = await kernel.call<{ items: unknown[] }>(
+			'checklist-get',
+			{ document: P4_DOCUMENT },
+			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
+		);
+		expect(items.data?.items, JSON.stringify(items.error)).toEqual([]);
 	});
 });
 

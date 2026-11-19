@@ -27,15 +27,30 @@ const nameOf = (input: { name?: string }, context: AppCallContextV1): string =>
 	input.name ??
 	(typeof context.config.default_name === 'string' ? context.config.default_name : 'world');
 
+/** `hello.general.greeting`'s default (the manifest's), and what Hello says without the `settings` grant. */
+export const DEFAULT_GREETING = 'Hello';
+
+/**
+ * The greeting that applies here (phase 4 specification, 3.8): the project's, else the workspace's, else the default,
+ * read through the `settings` grant. A read that fails greets with the default.
+ */
+export async function greetingOf(context: Pick<AppCallContextV1, 'settings'>): Promise<string> {
+	const value = await context.settings
+		?.get<string>('hello.general', 'greeting')
+		.catch(() => undefined);
+	return typeof value === 'string' && value.trim() !== '' ? value : DEFAULT_GREETING;
+}
+
 export const handlers = {
 	async 'hello-greet'(input: { name?: string }, context: AppCallContextV1) {
 		if (!context.store) return failure(STORE_MISSING);
 		const name = nameOf(input, context);
+		const greeting = await greetingOf(context);
 		const at = context.now?.() ?? null;
 		await context.store.put(name, { at });
 		changed();
 		return success(
-			{ greeting: `Hello, ${name}!`, at },
+			{ greeting: `${greeting}, ${name}!`, at },
 			{ undoCommand: 'hello-forget', undoArgs: { name } }
 		);
 	},

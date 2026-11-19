@@ -3,17 +3,17 @@
  * each builds a fresh kernel before a file runs. A file names its seed with a `seed:<name>` tag; the default is its
  * phase's, `p4-base` or `p5-base`.
  *
- * What `p4-base` holds in phase 4's step 1, and what waits:
+ * What `p4-base` holds since phase 4's step 2, and what waits:
  *
  * - a `local` workspace, signed in as one person (`mock-user-ada@example.com`), who is therefore an owner;
  * - projects `prj_atlas` (slug `atlas`) and `prj_beacon` (slug `beacon`), both created by that person, written to the
  *   store before the kernel starts, so their ids are fixed;
- * - **not yet**: the four apps the specification names, enabled for both projects, tally's count at 3 and the document
- *   it names in Atlas (the shell names no document type, P2-D2). The kernel's package cannot import the apps: each app's tests depend on
- *   `@lushly-dev/loam-testing`, which depends on the kernel, so the kernel depending on them is a cycle. Step 2, whose
- *   `hello.general` the first runnable files need, loads them (from a package that may depend on them, or as built
- *   packages through fixture ports) and seeds tally's count and the document through their own commands. Hello's
- *   experiment `hello.inspector-v2` waits for step 9.
+ * - the apps hello, tally, checklist and console, enabled for both projects (no project disables an app), loaded from
+ *   their sources through fixture ports (`apps.ts` says why);
+ * - tally's count at 3, at workspace level, through its own `tally-add`;
+ * - the checklist `doc_checklist0000001` in Atlas, empty, written to the store before the kernel starts, as the
+ *   projects are, so its id is fixed;
+ * - **not yet**: hello's experiment `hello.inspector-v2`, step 9's.
  *
  * What `p5-base` holds in phase 5's step 1, and what waits:
  *
@@ -36,9 +36,12 @@ import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
 import type { CopilotProviderV1 } from '../src/copilot/types.js';
 import { createKernel } from '../src/kernel.js';
+import { DOCUMENT_TABLE, documentContentKey } from '../src/late/document-types.js';
 import type { ProjectV1 } from '../src/scope/records.js';
+import { scopeKeyOf, storeRecordId } from '../src/scope/store-id.js';
 import { createFixedEnvironment } from '../src/testing.js';
 import type { LoamKernelV5 } from '../src/types.js';
+import { seedApps } from './apps.js';
 import { MODEL_SCRIPTS } from './model-scripts.js';
 
 export interface SeededKernel {
@@ -125,15 +128,75 @@ export const P4_PROJECTS: readonly ProjectV1[] = Object.freeze([
 	project('prj_beacon', 'beacon', 'Beacon', 2),
 ]);
 
+/** `p4-base`'s checklist in Atlas, by fixed id. */
+export const P4_DOCUMENT = 'doc_checklist0000001';
+
+/** The checklist's record and its empty content, as `document-create` writes them from the blank template. */
+function checklistWrites(binding: unknown): Array<{ method: 'PUT'; path: string; body: unknown }> {
+	const scope = { workspace: 'personal', project: 'prj_atlas' };
+	const key = documentContentKey(P4_DOCUMENT);
+	const at = 3;
+	return [
+		{
+			method: 'PUT',
+			path: `/${DOCUMENT_TABLE}/${P4_DOCUMENT}`,
+			body: {
+				id: P4_DOCUMENT,
+				workspace: 'personal',
+				type: 'checklist',
+				instance: 'checklist',
+				title: 'Launch checklist',
+				scope,
+				scopeKey: scopeKeyOf(scope),
+				owner: P4_PERSON,
+				tags: [],
+				status: 'active',
+				trashedAt: null,
+				trashedFrom: null,
+				contentVersion: 1,
+				binding,
+				epoch: 0,
+				createdAt: at,
+				updatedAt: at,
+				createdBy: P4_PERSON,
+				updatedBy: P4_PERSON,
+			},
+		},
+		{
+			method: 'PUT',
+			path: `/app-checklist/${encodeURIComponent(storeRecordId(scope, key))}`,
+			body: {
+				id: storeRecordId(scope, key),
+				key,
+				value: { items: [] },
+				app: 'checklist',
+				instance: 'checklist',
+				workspace: 'personal',
+				actor: null,
+				updatedAt: at,
+				scope,
+				scopeKey: scopeKeyOf(scope),
+			},
+		},
+	];
+}
+
 async function p4Base(): Promise<SeededKernel> {
+	const served = await seedApps();
+	const type = (served.manifests.checklist?.ui?.documents ?? []).find(
+		(declared) => declared.id === 'checklist'
+	);
+	if (!type) throw new Error('p4-base: checklist declares no `checklist` type');
 	const store: DataAdapter = new MemoryAdapter();
-	await store.batch(
-		P4_PROJECTS.map((record) => ({
+	const { summary } = await store.batch([
+		...P4_PROJECTS.map((record) => ({
 			method: 'PUT' as const,
 			path: `/project/${record.id}`,
 			body: record,
-		}))
-	);
+		})),
+		...checklistWrites(type.binding),
+	]);
+	if (summary.failed > 0) throw new Error('p4-base: the store refused the seed');
 	const journal = new MemoryJournalSink();
 	const kernel = await createKernel({
 		store,
@@ -142,13 +205,26 @@ async function p4Base(): Promise<SeededKernel> {
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
+		deployment: {
+			deployment_version: 2,
+			generation: 'p4-base',
+			workspace: { id: 'personal', name: 'Personal' },
+			sandbox_origin: 'https://sandbox.loam.test',
+			apps: served.apps,
+		},
+		ports: served.ports,
 	});
-	const signedIn = await kernel.call('auth-sign-in', {
-		method: 'credentials',
-		email: P4_PERSON.slice('mock-user-'.length),
-		password: 'x',
-	});
-	if (!signedIn.success) throw new Error(`p4-base: ${JSON.stringify(signedIn.error)}`);
+	const steps: Array<[string, unknown]> = [
+		[
+			'auth-sign-in',
+			{ method: 'credentials', email: P4_PERSON.slice('mock-user-'.length), password: 'x' },
+		],
+		['tally-add', { by: 3 }],
+	];
+	for (const [command, input] of steps) {
+		const done = await kernel.call(command, input);
+		if (!done.success) throw new Error(`p4-base: ${command}: ${JSON.stringify(done.error)}`);
+	}
 	return { kernel, journal, dispose: () => kernel.dispose() };
 }
 

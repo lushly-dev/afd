@@ -15,6 +15,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
+import { createPaletteIndex } from '../palette-index.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
@@ -540,6 +541,7 @@ export async function createLateParts(
 				also
 			);
 		},
+		paletteIndex: createPaletteIndex,
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	const scoped = createScopeCommands({
@@ -547,6 +549,7 @@ export async function createLateParts(
 		stores,
 		lateScope,
 		applied: () => applied,
+		settingTarget: (target, context) => (settings as Settings).target(target, context),
 	});
 	const byName = new Map(
 		[
@@ -556,6 +559,7 @@ export async function createLateParts(
 				writeAppearance: (patch, context) => (settings as Settings).writeAppearance(patch, context),
 				editorOwner: editor.owner,
 				documentRows: rows,
+				settingRows: () => settings?.rows,
 				desktop: () => desktop,
 				// A signed-out `provider` page lists only the signed-out commands, filtered before the search ranks (2.1, I4).
 				paletteOnly: () =>
@@ -599,6 +603,29 @@ export async function createLateParts(
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
+	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
+	const appList = byName.get('app-list') as ZodCommandDefinition;
+	byName.set('app-list', {
+		...appList,
+		async handler(input: unknown, context: CommandContext) {
+			const result = (await appList.handler(input, context)) as CommandResult<{
+				apps: Array<{ instance: string; railRank?: number }>;
+			}>;
+			if (!result.success || !result.data) return result;
+			// A read that fails leaves the rail in the workspace's order: the list itself stands.
+			const order = (await settings?.railOrder(context).catch(() => undefined)) ?? [];
+			if (order.length === 0) return result;
+			return {
+				...result,
+				data: {
+					...result.data,
+					apps: result.data.apps.map((app) =>
+						order.includes(app.instance) ? { ...app, railRank: order.indexOf(app.instance) } : app
+					),
+				},
+			};
+		},
+	} as ZodCommandDefinition);
 	// The kernel's wrapper of `auth-sign-in`, and a signed-out `provider` page's palette (phase 3 specification, 2.1, 4.6).
 	byName.set(
 		'auth-sign-in',

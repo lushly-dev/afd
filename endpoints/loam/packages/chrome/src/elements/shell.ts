@@ -739,6 +739,8 @@ export class LoamShell extends FASTElement {
 		// (phase 4 specification, 3.6): the next person's own, or signed out the profile's last.
 		if (event.settings?.includes('loam.appearance') || event.actorChanged)
 			void this.#readAppearance();
+		// The person's own rail order (phase 4 specification, 3.7; R8).
+		if (event.settings?.includes('loam.rail')) void this.rail.refresh();
 		if (/^(toast|modal)-/.test(event.command)) {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();
