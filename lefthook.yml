@@ -85,6 +85,9 @@ pre-push-checks:
     versions:
       run: node scripts/check-versions.mjs
 
+    release-tracks:
+      run: node scripts/release-track.mjs check
+
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
 
@@ -132,6 +135,9 @@ check:
 
     versions:
       run: node scripts/check-versions.mjs
+
+    release-tracks:
+      run: node scripts/release-track.mjs check
 
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/

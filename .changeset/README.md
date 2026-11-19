@@ -20,14 +20,30 @@ Other foundation/integration/endpoint families may have independent versions and
 release batches. Registry scope does not define group membership. Held units
 retain their release records; shared fragments require coordinated selection.
 
-Changesets only version the published npm packages in this monorepo.
+Changesets versions the published npm packages and three private stubs. Each stub holds the
+version of something that has no npm package and is released on its own track:
 
-This directory contains npm package-to-semver fragments only. Botcore category
-fragments use separately owned storage. See [platform release controls](../docs/operations/platform-releases.md).
+| Fragment names | For a change in | Bump | Body |
+|---|---|---|---|
+| `"afd-python"` | `python/` | `minor` or `patch` | Entries under `### Added`, `### Changed`, `### Fixed` and the other Keep a Changelog headings |
+| `"lushly-botcore"` | `endpoints/botcore/` | `minor` or `patch` | The same |
+| `"afd-spec"` | `spec/` | always `patch` | Prose paragraphs, no heading |
+
+A fragment for a stub names only that stub; a change that also touches an npm package gets a
+second file. `pnpm version-track <python|botcore|spec>` consumes a track's fragments when its
+release is prepared: it writes the dated changelog section and copies the version to
+`pyproject.toml` and `__version__`. The npm version PR never touches them. `prepare-pr` step 3
+has the format in full and the `cut-release` skill the steps.
+
+This directory contains package-to-semver fragments only. Botcore's own category fragments
+(`botcore changeset-create`, for repositories without Changesets) use separately owned storage.
+See [platform release controls](../docs/operations/platform-releases.md).
 
 - If you changed one or more `@lushly-dev/*` packages, add a changeset.
-- If you changed only `python/`, `packages/rust/`, `packages/cpp/` or docs/skills, do not add
-  a no-op changeset.
-- Record Python, Rust and C++ changes in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md`
-  and `packages/cpp/CHANGELOG.md`. Each is released on its own `python-v*`, `rust-v*` or
-  `cpp-v*` tag; the `cut-release` skill has the steps.
+- If you changed `python/`, `endpoints/botcore/` or `spec/` in a way a user sees, add a fragment
+  that names its stub. Never add to `python/CHANGELOG.md`, `endpoints/botcore/CHANGELOG.md` or
+  `spec/CHANGELOG.md` by hand: `pnpm check:tracks` fails.
+- If you changed only `packages/rust/`, `packages/cpp/` or docs/skills, do not add a no-op
+  changeset. Record Rust and C++ changes in `packages/rust/CHANGELOG.md` and
+  `packages/cpp/CHANGELOG.md`. Each is released on its own `rust-v*` or `cpp-v*` tag; the
+  `cut-release` skill has the steps.

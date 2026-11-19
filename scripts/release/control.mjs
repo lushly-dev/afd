@@ -12,6 +12,7 @@ import {
 	pythonRequirements,
 	registryName,
 } from './manifest-requirements.mjs';
+import { assertTrackOwnership } from './tracks.mjs';
 
 export const DEFAULT_ROOTS = [
 	'packages',
@@ -274,6 +275,8 @@ export function parseFragments(root, inventory = loadInventory(root)) {
 					if (!item) fail(`Incompatible npm fragment: ${path}`);
 					packages.push({ name: item[1], type: item[2] });
 				}
+				// A fragment for a track Changesets versions and something else publishes names it alone.
+				assertTrackOwnership(path, packages);
 			} else if (storage.protocol === 'category-json-v1') {
 				const fragment = JSON.parse(text);
 				if (

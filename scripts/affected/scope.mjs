@@ -19,6 +19,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { TRACKS } from '../release/tracks.mjs';
 import { changedImporters } from './lockfile.mjs';
 import { readWorkspace, withDependencies, withDependents } from './workspace.mjs';
 
@@ -173,6 +174,8 @@ const inside = (path, dir) => path === dir || path.startsWith(`${dir}/`);
  * @param {string[]} [options.files] explicit changed files (compared with HEAD), skips the diff
  * @param {(args: string[]) => string} [options.git] git runner, for tests
  */
+const TRACK_STUBS = new Set(Object.values(TRACKS).map((track) => track.package));
+
 export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, git } = {}) {
 	const packages = readWorkspace(root);
 	const everything = packages.map((pkg) => pkg.name);
@@ -230,12 +233,14 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 			continue;
 		}
 		if (provenanceRecord(file)) continue;
-		let owners = packages.filter((pkg) => inside(file, pkg.dir));
+		// A release track's stub is a version holder beside a project that is not a workspace
+		// package: it owns none of that project's files, which reach their readers as before.
+		let owners = packages.filter((pkg) => !TRACK_STUBS.has(pkg.name) && inside(file, pkg.dir));
 		const ownTests = owners.length > 0 && TEST_FILE.test(file);
 		if (owners.length === 0) {
 			const unit = unitRoot(file);
 			if (unit !== file && !unitDocs(file, unit))
-				owners = packages.filter((pkg) => inside(pkg.dir, unit));
+				owners = packages.filter((pkg) => !TRACK_STUBS.has(pkg.name) && inside(pkg.dir, unit));
 		}
 		for (const pkg of owners) mark(pkg.name, file, ownTests);
 		for (const input of EXTRA_INPUTS.filter(
