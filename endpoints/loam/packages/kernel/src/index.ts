@@ -47,10 +47,22 @@ export {
 export {
 	type AppKeybinding,
 	createKeybindings,
+	type KeybindingContextV1,
+	type KeybindingEntryV1,
+	type KeybindingInForceV1,
+	type KeybindingOverrideV1,
 	type KeybindingRegistry,
+	type KeybindingV1,
 	keybindingFor,
+	keysCollide,
+	parseChord,
+	resolveKeybindings,
+	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
 	type ShellKeybindingV0,
+	sameChord,
+	whenHolds,
+	whenProblem,
 } from './keybindings.js';
 // The account and member commands' shapes (phase 3 specification, 5.1, 5.3, 7.2), and Loam's account capability,
 // which the web host's `auth` chunk gives its adapter. Types only: nothing here reaches first paint.

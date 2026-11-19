@@ -38,11 +38,12 @@ import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import type { CopilotTraceV1 } from './copilot/types.js';
-import { LoamKernelError } from './errors.js';
+import { kernelFailure, LoamKernelError } from './errors.js';
 import {
 	createKeybindings,
 	type KeybindingRegistry,
 	needsInput,
+	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
 import type { LateParts } from './late/index.js';
@@ -304,7 +305,18 @@ export async function createKernelParts(
 	// The limits, enforced with their defaults from boot, whether or not `late-settings` ever reads the workspace's
 	// (phase 4 specification, section 11): a replay's refusals are its journal's, so its rate takes nothing.
 	const limits = createKernelLimits(() => internals.replaying === true);
-	let keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, []);
+	// Phase 4 specification, 8.1: an override runs a command needing no input, or `section-open` with its section.
+	const keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, [], {
+		project: () => scope.active().project !== undefined,
+		runnable: (command, target) => {
+			if (command === 'section-open') return target !== undefined;
+			const found = registries?.palette
+				.listCommands()
+				.find((each) => each.name === command && !INTERNAL_COMMANDS.includes(each.name));
+			if (!found) return false;
+			return !(apps.owners.get(command)?.needsInput ?? needsInput(found.inputSchema));
+		},
+	});
 	let commandSet = 0;
 
 	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
@@ -479,6 +491,7 @@ export async function createKernelParts(
 			const parts = await createLateParts(bootCommands, {
 				...options,
 				limits,
+				keybindings,
 				viewState,
 				state,
 				overlays,
@@ -624,7 +637,7 @@ export async function createKernelParts(
 				scope,
 				limits,
 			});
-			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
+			keybindings.setApps(apps.keybindings);
 		} catch (cause) {
 			// A chunk that does not load refuses every app, and never the shell (D66).
 			reportKernelError(cause);
@@ -732,6 +745,14 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
+		// A reserved chord's action is named in `keybinding-list` and overrides, but is no command yet (8.5, R1).
+		if (SHELL_KEY_ACTIONS.includes(name)) {
+			return kernelFailure(
+				'KEYBINDING_ACTION_ONLY',
+				`${name} is a reserved chord's action in the shell's chrome, not a command`,
+				`Press its keys: keybinding-list { command: '${name}' } names them`
+			);
+		}
 		if (fields.parent !== undefined) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;

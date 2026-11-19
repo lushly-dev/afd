@@ -1,13 +1,18 @@
 /**
- * @fileoverview The reserved chords (phase 0 specification, section 7): matching a key event to
- * `SHELL_KEYBINDINGS_V0`, the `layout-set` input a toggle chord computes, and F6's part order.
+ * @fileoverview The key matcher (phase 0 specification, section 7; phase 4 specification, 8.1 and 8.2): a key event
+ * matched to the bindings in force on any layout, a sequence's wait, `when`'s focus terms, the `layout-set` input a
+ * toggle chord computes, and F6's part order.
  */
+
+export { sameChord } from '@lushly-dev/loam-kernel';
 
 import {
 	type LayoutPatchV0,
 	type LayoutStateV0,
+	parseChord,
 	SHELL_KEYBINDINGS_V0,
 	type ShellKeybindingV0,
+	sameChord,
 } from '@lushly-dev/loam-kernel';
 import type { LayoutClass } from './layout-class.js';
 
@@ -18,28 +23,6 @@ export interface ChordEvent {
 	metaKey: boolean;
 	altKey: boolean;
 	shiftKey: boolean;
-}
-
-interface ParsedChord {
-	mod: boolean;
-	ctrl: boolean;
-	alt: boolean;
-	shift: boolean;
-	meta: boolean;
-	key: string;
-}
-
-function parse(chord: string): ParsedChord {
-	const parts = chord.split('+');
-	const key = parts.at(-1) ?? '';
-	return {
-		mod: parts.includes('Mod'),
-		ctrl: parts.includes('Ctrl'),
-		alt: parts.includes('Alt'),
-		shift: parts.includes('Shift'),
-		meta: parts.includes('Meta'),
-		key,
-	};
 }
 
 /** The keys named by `event.code` that a chord writes otherwise (phase 4 specification, 8.2). */
@@ -74,7 +57,7 @@ export function keyOf(event: Pick<ChordEvent, 'key' | 'code'>): string | undefin
 
 /** Whether a key event is the chord. `Mod` is Command on macOS and Control elsewhere. */
 export function chordMatches(chord: string, event: ChordEvent, mac: boolean): boolean {
-	const parsed = parse(chord);
+	const parsed = parseChord(chord);
 	const mod = mac ? event.metaKey : event.ctrlKey;
 	const ctrl = mac ? event.ctrlKey : false;
 	const meta = mac ? false : event.metaKey;
@@ -98,6 +81,12 @@ export function matchKeybinding(
 		(binding) => !binding.chord.includes(' ') && chordMatches(binding.chord, event, mac)
 	);
 }
+
+/**
+ * The shell's ask of the editor area to save, when a person's save binding is a sequence whose second key the area
+ * cannot read as save (phase 4 specification, 8.1): `detail.path`, the key event's composed path.
+ */
+export const SAVE_ASKED_EVENT = 'loam-save-asked';
 
 /** How long a sequence waits for its second chord (8.1). */
 export const SEQUENCE_WAIT_MS = 1500;
@@ -149,18 +138,20 @@ export function pressKey<T extends { chord: string }>(
 	return { kind: 'wait', pending: { first: first as string, until: now + SEQUENCE_WAIT_MS } };
 }
 
-/** Whether two chords are one, whatever order their modifiers are written in (`Mod+Shift+Alt+H`, `Mod+Alt+Shift+H`). */
-export function sameChord(a: string, b: string): boolean {
-	const x = parse(a);
-	const y = parse(b);
-	return (
-		x.key === y.key &&
-		x.mod === y.mod &&
-		x.ctrl === y.ctrl &&
-		x.alt === y.alt &&
-		x.shift === y.shift &&
-		x.meta === y.meta
-	);
+/**
+ * Whether a binding's `when` holds for focus (phase 4 specification, 8.1; R4): `editor` while focus is in an editor,
+ * `sidebar` and `main` while it is in that part. The kernel decided `project` and `documentType` before listing it.
+ */
+export function focusHolds(
+	when: string | undefined,
+	focus: { part: string | undefined; editor: boolean }
+): boolean {
+	if (when === undefined) return true;
+	return when.split(' && ').every((term) => {
+		if (term === 'editor') return focus.editor;
+		if (term === 'sidebar' || term === 'main') return focus.part === term;
+		return true;
+	});
 }
 
 /**

@@ -865,6 +865,8 @@ describe('section 3.3: nothing writes an instance', () => {
 		const offending = registries.palette
 			.listCommands()
 			.filter(({ name }) => !INTERNAL_COMMANDS.includes(name))
+			// Phase 4's `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes nowhere.
+			.filter(({ name }) => name !== 'keybinding-list')
 			.filter(({ inputSchema }) => {
 				const properties = Object.keys(
 					(inputSchema as { properties?: Record<string, unknown> }).properties ?? {}

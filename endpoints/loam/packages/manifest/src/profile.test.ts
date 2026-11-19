@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { AJV_OPTIONS, readCore, readSchema } from '../scripts/compile.mjs';
 import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from './catalogs.js';
+import { versionTwoKeybindings } from './loam-rules.js';
 import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
@@ -183,6 +184,8 @@ describe("Loam's profile", () => {
 			const holdsVersionTwo =
 				valueAt(document, '/manifest_version') !== 1 ||
 				versionTwo.some((pointer) => valueAt(document, pointer) !== undefined) ||
+				// Phase 4's step 7: a keybinding's sequence and `when` are version 2's (its 12.1).
+				versionTwoKeybindings(document).length > 0 ||
 				valueAt(document, '/ui/surfaces/sidebar/shape') === 'tree';
 			if (holdsVersionTwo) continue;
 			expect(v2).toBe(false);

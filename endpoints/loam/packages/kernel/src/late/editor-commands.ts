@@ -55,6 +55,11 @@ export interface EditorCommandDeps {
 	isMutation(name: string): boolean;
 	/** The dirty tabs and selections, in maps `late` makes, which a change of person moves (phase 3, 4.5). */
 	drafts: EditorDraftsV1;
+	/**
+	 * Told the editor owner and its document's type after each call that could move them, for a binding's `when`
+	 * (phase 4 specification, 8.1): `documentType == <type>` reads the type.
+	 */
+	editorHeld?(editor: { owner: string; type: string } | null): void;
 }
 
 /** What the rest of `late` asks of the editor area. */
@@ -292,6 +297,11 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 	 * owns nothing (5.4, 2.2).
 	 */
 	async function owner(): Promise<string | null> {
+		return (await ownerAndType())?.owner ?? null;
+	}
+
+	/** The editor owner, with the type of the active tab's document it owns by. */
+	async function ownerAndType(): Promise<{ owner: string; type: string } | null> {
 		const active = scope.active();
 		const held = showing(active) ? editors.peek(active.project) : undefined;
 		const tab = held && activeTab(held);
@@ -302,7 +312,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			record.workspace === active.workspace &&
 			sameScope(record.scope, active) &&
 			!check.opens(type, active)
-			? type.instance
+			? { owner: type.instance, type: record.type }
 			: null;
 	}
 
@@ -628,7 +638,9 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		async settle(name, call) {
 			const seen = scope.seen.get(call.traceId as string);
 			if (!name.startsWith('editor-') && !seen?.mainChanged && !seen?.scopeChanged) return;
-			const now = await owner();
+			const held = await ownerAndType();
+			deps.editorHeld?.(held);
+			const now = held?.owner ?? null;
 			// The owner it left gives up its overlays, unless it is the active app now, whose they are.
 			if (lastOwner && lastOwner !== now && lastOwner !== state.activeApp()) {
 				deps.overlays.closeForSwitch(lastOwner);

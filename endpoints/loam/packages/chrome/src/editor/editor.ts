@@ -15,7 +15,15 @@ import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
-import { hearModals, keyFrame, saveAll, saveOnce, settleFocus } from './editor-actions.js';
+import { SAVE_ASKED_EVENT } from '../keyboard.js';
+import {
+	hearModals,
+	keyFrame,
+	saveAll,
+	saveFrame,
+	saveOnce,
+	settleFocus,
+} from './editor-actions.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, type FrameListener, type LoamEditorFrame } from './editor-frame.js';
 import {
@@ -145,6 +153,13 @@ export class EditorController implements FrameListener {
 				void this.#onAction((event as CustomEvent<EditorGroupAction & { group: string }>).detail)
 		);
 		hearModals(shell, this.#modals);
+		// A person's save binding that is a sequence (phase 4 specification, 8.1): the shell asks once it completes.
+		shell.addEventListener(SAVE_ASKED_EVENT, (event) => {
+			if (!shows(this.#area)) return;
+			const path = (event as CustomEvent<{ path: EventTarget[] }>).detail.path;
+			const frame = saveFrame(path, this.#state, this.#frames);
+			if (frame) this.saveAsked(frame);
+		});
 	}
 
 	/** One read at a time, so a later answer never renders under an earlier one. */
@@ -965,7 +980,14 @@ export class EditorController implements FrameListener {
 
 	/** Mod+S in the page: the editor `keyFrame` chooses saves (5.5). */
 	#onKeydown(event: KeyboardEvent): void {
-		const frame = keyFrame(event, this.#shell.mac, shows(this.#area), this.#state, this.#frames);
+		const frame = keyFrame(
+			event,
+			this.#shell.mac,
+			shows(this.#area),
+			this.#state,
+			this.#frames,
+			this.#kernel.listKeybindings()
+		);
 		if (frame && !event.repeat) this.saveAsked(frame);
 	}
 

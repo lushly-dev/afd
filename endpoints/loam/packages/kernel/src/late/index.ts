@@ -15,6 +15,7 @@ import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
+import type { KeybindingRegistry } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
 import { createPaletteIndex } from '../palette-index.js';
@@ -86,6 +87,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		auth: AuthAdapter;
 		/** The limits the kernel enforces from boot, which `late-settings` reads into (phase 4 specification, section 11). */
 		limits?: KernelLimits;
+		/** The kernel's keybindings, which `late-settings` gives the person's overrides (phase 4 specification, 8.3). */
+		keybindings?: KeybindingRegistry;
 		store: DataAdapter;
 		/** The projection's generation this page booted with. */
 		generation(): string;
@@ -335,6 +338,7 @@ export async function createLateParts(
 			createSettings,
 			createNotifications,
 			createAutonomy,
+			createKeybindingCommands,
 			createLimitCommands,
 			limitNotice,
 			isHumanGesture,
@@ -486,7 +490,14 @@ export async function createLateParts(
 	// The editor area's dirty tabs and selections, made here so a change of person can move them (4.5).
 	const drafts: EditorDraftsV1 = { dirty: new Map(), selections: new Map() };
 	const editorParts = createEditorParts(
-		{ ...deps, lateScope, check: documents, drafts },
+		{
+			...deps,
+			lateScope,
+			check: documents,
+			drafts,
+			// The active tab's owner and type, which a binding's `when` reads (phase 4 specification, 8.1).
+			...(deps.keybindings ? { editorHeld: (held) => deps.keybindings?.setEditor(held) } : {}),
+		},
 		DOCUMENT_KIT
 	);
 	editor = editorParts;
@@ -586,10 +597,19 @@ export async function createLateParts(
 		},
 		paletteIndex: createPaletteIndex,
 		...(deps.limits ? { limits: deps.limits } : {}),
+		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
+	// The person's overrides into the kernel's keybindings (8.3), as the limits are.
+	await settings.readOverrides();
+	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
+	const keybindingCommands = createKeybindingCommands({
+		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
+		activeApp: () => deps.state.activeApp(),
+		kit: DOCUMENT_KIT,
+	});
 	// `limit-usage-get` and boot's `store-usage-settle` (section 11), in `late-settings` beside the settings.
 	const limitCommands = createLimitCommands({
 		scope: deps.scope,
@@ -827,6 +847,7 @@ export async function createLateParts(
 			...autonomy.commands,
 			autonomy.settleCommand,
 			...limitCommands.commands,
+			...keybindingCommands,
 			limitCommands.settleCommand,
 			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])

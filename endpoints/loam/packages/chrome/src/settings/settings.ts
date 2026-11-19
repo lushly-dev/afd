@@ -22,6 +22,7 @@ import {
 	defineAutonomySection,
 	type LoamAutonomySection,
 } from './autonomy.js';
+import type { ListedBindingV1 } from './editor-rules.js';
 import {
 	CUSTOM_EDITORS,
 	defineEditors,
@@ -98,6 +99,8 @@ const LIMITS = 'loam.limits';
 /** What the panel's fields are given besides their rows: the keybinding editor's commands, the Limits' usage. */
 interface PanelExtra {
 	commands: Array<{ name: string; title?: string }>;
+	/** The keybinding editor's: every binding, for its warnings (8.3). */
+	bindings?: ListedBindingV1[];
 	usage?: Partial<Record<string, string>>;
 }
 
@@ -656,11 +659,15 @@ export class LoamSettingsSection extends SettingsElement {
 			return { commands: [], usage };
 		}
 		if (section.section !== 'loam.keybindings' || !this.kernel) return { commands: [] };
-		const found = await this.#call<{ items: Array<{ name: string; title?: string }> }>(
-			'palette-search',
-			{ query: '', kind: 'command', limit: 50 }
-		);
-		return { commands: found.data?.items ?? [] };
+		const [found, listed] = await Promise.all([
+			this.#call<{ items: Array<{ name: string; title?: string }> }>('palette-search', {
+				query: '',
+				kind: 'command',
+				limit: 50,
+			}),
+			this.#call<{ bindings: ListedBindingV1[] }>('keybinding-list', { all: true }),
+		]);
+		return { commands: found.data?.items ?? [], bindings: listed.data?.bindings ?? [] };
 	}
 
 	/** Write a key's new value at the level shown now, `expected` the value it showed (3.2), and say how it went. */
@@ -720,6 +727,7 @@ export class LoamSettingsSection extends SettingsElement {
 			made.disabled = !row.writable;
 			if (editor === 'loam-keybinding-editor') {
 				(made as LoamKeybindingEditor).commands = extra.commands;
+				(made as LoamKeybindingEditor).bindings = extra.bindings ?? [];
 			} else {
 				(made as LoamRailOrderEditor).apps = this.apps
 					.filter((app) => editor !== 'loam-rail-order-editor' || app.rail)

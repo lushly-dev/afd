@@ -7,10 +7,13 @@
  * leaves what is stored. A list keeps every stored item the editor does not show. Plain elements with text as text.
  */
 
+import { SEQUENCE_WAIT_MS } from '../keyboard.js';
 import {
 	chordOf,
-	NEVER_BOUND,
+	keysRefused,
+	type ListedBindingV1,
 	type OverrideV1,
+	overrideRefused,
 	overrideWarning,
 	reorder,
 	toggled,
@@ -162,12 +165,17 @@ export class LoamInstancePicker extends Editor<string[]> {
 export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 	/** The commands an override may name, for the command field's suggestions. */
 	commands: Array<{ name: string; title?: string }> = [];
+	/** Every binding, `keybinding-list { all: true }`'s, for the warning before a binding shadows another (8.3, 15). */
+	bindings: ListedBindingV1[] = [];
 	/** Whether `Mod` is Command. */
 	mac = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
 	#recorded: string | null = null;
 	#recording = false;
 	#unbind = false;
 	#command = '';
+	#target = '';
+	/** A Mod chord just recorded, which a second key pressed before `until` makes a sequence (8.1). */
+	#first: { chord: string; until: number } | null = null;
 	#said = '';
 	/** The override Add sent, until the stored value holds it, when the form clears. */
 	#submitted: OverrideV1 | null = null;
@@ -195,6 +203,8 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			this.#said = `Added ${submitted.command}: ${submitted.keys ?? 'unbound'}.`;
 			this.#submitted = null;
 			this.#command = '';
+			this.#target = '';
+			this.#first = null;
 			this.#recorded = null;
 			this.#unbind = false;
 			this.#warned = undefined;
@@ -221,6 +231,17 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 				)
 			)
 		);
+		const target = el('input', {
+			id: 'override-target',
+			autocomplete: 'off',
+			maxlength: '128',
+		}) as HTMLInputElement;
+		target.value = this.#target;
+		target.disabled = this.disabled;
+		target.addEventListener('input', () => {
+			this.#target = target.value.trim();
+			this.#update();
+		});
 		const command = el('input', {
 			id: 'override-command',
 			list: 'override-commands',
@@ -246,7 +267,7 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			{
 				id: 'override-record',
 				'aria-pressed': String(this.#recording),
-				'aria-describedby': 'override-said',
+				'aria-describedby': 'override-said override-hint',
 			}
 		);
 		record.addEventListener('keydown', (event) => this.#heard(event));
@@ -266,7 +287,13 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			'form',
 			{ 'aria-label': 'Add an override' },
 			el('label', { for: 'override-command' }, 'Command', command),
+			el('label', { for: 'override-target' }, 'Target, if any (a section or a part)', target),
 			record,
+			el(
+				'span',
+				{ id: 'override-hint', class: 'note' },
+				'After a Mod chord, a second key pressed at once makes a sequence.'
+			),
 			el(
 				'span',
 				{ id: 'override-keys', class: 'note' },
@@ -292,7 +319,9 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			el(
 				'datalist',
 				{ id: 'override-commands' },
-				...this.commands.map(({ name, title }) => el('option', { value: name }, title ?? name))
+				...suggestions(this.commands, this.bindings).map(({ name, title }) =>
+					el('option', { value: name }, title ?? name)
+				)
 			),
 			el('p', { id: 'override-said', role: 'status', 'aria-live': 'polite' }, this.#said)
 		);
@@ -300,8 +329,29 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 		if (focused) root.querySelector<HTMLElement>(`#${focused}`)?.focus();
 	}
 
-	/** A key pressed while recording: Escape stops; a modifier alone waits; anything else is the chord. */
+	/**
+	 * A key pressed while recording: Escape stops; a modifier alone waits; anything else is the chord. After a Mod chord,
+	 * a second key pressed within 1,500 ms makes a sequence (8.1); Escape then keeps the first alone.
+	 */
 	#heard(event: KeyboardEvent): void {
+		const first = this.#first;
+		if (first && !this.#recording) {
+			if (Date.now() > first.until || event.key === 'Tab') {
+				this.#first = null;
+				return;
+			}
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				this.#first = null;
+				return;
+			}
+			const second = chordOf(event, this.mac);
+			if (!second) return;
+			event.preventDefault();
+			this.#first = null;
+			this.#heardKeys(`${first.chord} ${second}`);
+			return;
+		}
 		if (!this.#recording) return;
 		if (event.key === 'Escape') {
 			event.preventDefault();
@@ -316,6 +366,14 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 		if (!chord) return;
 		event.preventDefault();
 		this.#recording = false;
+		this.#first = chord.split('+').includes('Mod')
+			? { chord, until: Date.now() + SEQUENCE_WAIT_MS }
+			: null;
+		this.#heardKeys(chord);
+	}
+
+	/** Keys recorded: shown, said with any warning, and the Record button keeps focus for a sequence's second key. */
+	#heardKeys(chord: string): void {
 		this.#recorded = chord;
 		this.#unbind = false;
 		const warning = this.#warning();
@@ -327,22 +385,26 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 
 	#pending(): OverrideV1 | undefined {
 		if (!this.#command) return undefined;
-		if (this.#unbind) return { command: this.#command, keys: null };
-		return this.#recorded ? { command: this.#command, keys: this.#recorded } : undefined;
+		const target = this.#target ? { target: this.#target } : {};
+		if (this.#unbind) return { command: this.#command, ...target, keys: null };
+		return this.#recorded ? { command: this.#command, ...target, keys: this.#recorded } : undefined;
+	}
+
+	/** Why Add cannot send what is pending: F6's own binding, a key never bound, a sequence's first chord (8.1, 8.3). */
+	#refused(): string | undefined {
+		const pending = this.#pending();
+		if (pending) return overrideRefused(pending);
+		return this.#unbind ? undefined : keysRefused(this.#recorded);
 	}
 
 	#warning(): string | undefined {
 		const pending = this.#pending();
-		if (!this.#unbind && this.#recorded && NEVER_BOUND.includes(this.#recorded))
-			return `${this.#recorded} cannot be bound: bind another key.`;
-		return pending ? overrideWarning(pending) : undefined;
+		return this.#refused() ?? (pending ? overrideWarning(pending, this.bindings) : undefined);
 	}
 
-	/** Whether Add may send: something pending, and no key that is never bound (8.3). */
+	/** Whether Add may send: something pending, and keys that may be bound (8.1, 8.3). */
 	#ready(): boolean {
-		const blocked =
-			!this.#unbind && this.#recorded !== null && NEVER_BOUND.includes(this.#recorded);
-		return this.#pending() !== undefined && !blocked && !this.disabled;
+		return this.#pending() !== undefined && this.#refused() === undefined && !this.disabled;
 	}
 
 	/**
@@ -376,9 +438,22 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 			return;
 		}
 		// Sent, and shown once stored: the form clears when the value given back holds it.
+		this.#first = null;
 		this.#submitted = pending;
 		changed(this, withOverride(this.value, pending));
 	}
+}
+
+/** The command field's suggestions: the palette's commands, then each other command a binding names (R1's among them). */
+function suggestions(
+	commands: ReadonlyArray<{ name: string; title?: string }>,
+	bindings: readonly ListedBindingV1[]
+): Array<{ name: string; title?: string }> {
+	const named = new Set(commands.map(({ name }) => name));
+	const more = [...new Set(bindings.map(({ command }) => command))].filter(
+		(name) => !named.has(name)
+	);
+	return [...commands, ...more.map((name) => ({ name }))];
 }
 
 /** Define the three editors, once. */

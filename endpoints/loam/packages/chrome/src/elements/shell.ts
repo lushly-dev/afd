@@ -23,11 +23,13 @@ import {
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
+	focusHolds,
 	isMacPlatform,
 	nextPart,
 	type PartName,
 	type PendingChord,
 	pressKey,
+	SAVE_ASKED_EVENT,
 	toggleInput,
 } from '../keyboard.js';
 import {
@@ -70,7 +72,7 @@ export const MOCK_SIGN_IN_EMAIL = 'person@example.com';
 export interface ShellApps {
 	readonly modalOpen: boolean;
 	undeclared(part: 'sidebar' | 'inspector' | 'panel'): boolean;
-	run(command: string): void;
+	run(command: string, input?: Record<string, unknown>): void;
 	start(): Promise<void>;
 	dispose(): void;
 	/** The editor frame's way in (documents specification, 5.6). */
@@ -1032,13 +1034,10 @@ export class LoamShell extends FASTElement {
 
 	#onKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || !this.kernel || !this.booted) return;
-		const press = pressKey(
-			event,
-			this.mac,
-			this.kernel.listKeybindings(),
-			this.#pending,
-			Date.now()
-		);
+		// The bindings in force whose `when` holds for focus too (8.1, R4); the kernel decided the rest.
+		const focus = this.#focus(event);
+		const bindings = this.kernel.listKeybindings().filter(({ when }) => focusHolds(when, focus));
+		const press = pressKey(event, this.mac, bindings, this.#pending, Date.now());
 		this.#pending = null;
 		// A modal of an app's, like the palette, keeps the keyboard to itself (section 8).
 		const paletteOpen =
@@ -1050,7 +1049,15 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		const binding = press.kind === 'run' ? press.binding : undefined;
-		// Mod+S is the editor area's, which answers it first while an editor is the active owner (5.5).
+		// Save is the editor area's, which answers its chord first while an editor is the active owner (5.5); a
+		// sequence's second key the area cannot see as save, so the shell asks it (8.1).
+		if (binding?.save && binding.chord.includes(' ')) {
+			event.preventDefault();
+			this.dispatchEvent(
+				new CustomEvent(SAVE_ASKED_EVENT, { detail: { path: event.composedPath() } })
+			);
+			return;
+		}
 		if (binding && !binding.save) {
 			event.preventDefault();
 			if (binding.focus) {
@@ -1062,6 +1069,9 @@ export class LoamShell extends FASTElement {
 			if (binding.command === 'palette-open') void this.openPalette();
 			else if (binding.switcher) this.#pressSwitcher();
 			else if (binding.toggle) void this.toggle(binding.toggle);
+			// A person's override of `section-open` names its section (8.1's `target`).
+			else if (binding.command === 'section-open' && binding.target)
+				this.apps?.run('section-open', { section: binding.target });
 			else if (binding.command) this.apps?.run(binding.command);
 			return;
 		}
@@ -1071,6 +1081,19 @@ export class LoamShell extends FASTElement {
 			else if (p.panel === 'sheet') void this.#closePart('panel');
 			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
 		}
+	}
+
+	/** Where focus is, for a binding's `when` (8.1, R4): the shell's part holding it, and whether an editor does. */
+	#focus(event: Event): { part: string | undefined; editor: boolean } {
+		const path = event.composedPath();
+		const part = path.find(
+			(node) =>
+				node instanceof HTMLElement && node.dataset.part && node.getRootNode() === this.shadowRoot
+		) as HTMLElement | undefined;
+		const editor = path.some(
+			(node) => node instanceof HTMLElement && node.localName === 'loam-editor-frame'
+		);
+		return { part: part?.dataset.part, editor };
 	}
 
 	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */

@@ -18,7 +18,7 @@ import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
-import type { AppKeybinding } from '../keybindings.js';
+import { type AppKeybinding, keysCollide } from '../keybindings.js';
 import { createKernelLimits } from '../limits.js';
 import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
@@ -328,8 +328,11 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		const needing = new Map(
 			definitions.map((definition) => [definition.name, definition.jsonSchema])
 		);
-		for (const { chord, command } of manifest.ui?.surfaces?.keybindings ?? []) {
-			const holder = chords.get(chord);
+		for (const binding of manifest.ui?.surfaces?.keybindings ?? []) {
+			const { chord, command } = binding;
+			// Keys another app holds, the same or a sequence on the same first chord (phase 4 specification, 8.1).
+			const held = [...chords.keys()].find((each) => keysCollide(each, chord));
+			const holder = held === undefined ? undefined : chords.get(held);
 			if (holder !== undefined) {
 				record.notices.push({
 					code: 'KEYBINDING_CONFLICT',
@@ -343,7 +346,13 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 				});
 			} else {
 				chords.set(chord, entry.instance);
-				keybindings.push({ chord, command, instance: entry.instance });
+				const when = (binding as { when?: string }).when;
+				keybindings.push({
+					chord,
+					command,
+					instance: entry.instance,
+					...(when !== undefined ? { when } : {}),
+				});
 			}
 		}
 		record.port = port;

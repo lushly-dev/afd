@@ -2,6 +2,7 @@ import { createDefaultLayout, SHELL_KEYBINDINGS_V0 } from '@lushly-dev/loam-kern
 import { describe, expect, it } from 'vitest';
 import {
 	type ChordEvent,
+	focusHolds,
 	isMacPlatform,
 	keyOf,
 	matchKeybinding,
@@ -243,5 +244,19 @@ describe('sequences (8.1)', () => {
 			binding: single,
 		});
 		expect(pressKey(g, false, [...bindings, single], null, 0).kind).toBe('wait');
+	});
+});
+
+describe("when's focus terms (8.1, R4)", () => {
+	it('holds editor, sidebar and main by where focus is, and leaves the kernel’s terms to it', () => {
+		const inMain = { part: 'main', editor: false };
+		expect(focusHolds(undefined, inMain)).toBe(true);
+		expect(focusHolds('main', inMain)).toBe(true);
+		expect(focusHolds('sidebar', inMain)).toBe(false);
+		expect(focusHolds('editor', inMain)).toBe(false);
+		expect(focusHolds('editor && main', { part: 'main', editor: true })).toBe(true);
+		expect(
+			focusHolds('project && documentType == notes-page', { part: undefined, editor: false })
+		).toBe(true);
 	});
 });

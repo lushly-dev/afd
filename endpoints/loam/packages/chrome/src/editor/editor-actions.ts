@@ -4,6 +4,7 @@
  * the controller passes. In the `editor` chunk.
  */
 
+import type { ShellKeybindingV0 } from '@lushly-dev/loam-kernel';
 import { hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
@@ -19,18 +20,32 @@ export function keyFrame(
 	event: KeyboardEvent,
 	mac: boolean,
 	shows: boolean,
-	state: { activeGroup: string; groups: Array<{ id: string; active: string | null }> } | null,
+	state: EditorGroupsState | null,
+	frames: Map<string, LoamEditorFrame>,
+	bindings?: readonly Readonly<ShellKeybindingV0>[]
+): LoamEditorFrame | undefined {
+	if (event.defaultPrevented || !isSave(event, mac, bindings) || !shows) return undefined;
+	const frame = saveFrame(event.composedPath(), state, frames);
+	if (frame) event.preventDefault();
+	return frame;
+}
+
+type EditorGroupsState = {
+	activeGroup: string;
+	groups: Array<{ id: string; active: string | null }>;
+};
+
+/** The editor a save asks: the one on `path`, which may be in another group than the active one, else the active group's. */
+export function saveFrame(
+	path: readonly EventTarget[],
+	state: EditorGroupsState | null,
 	frames: Map<string, LoamEditorFrame>
 ): LoamEditorFrame | undefined {
-	if (event.defaultPrevented || !isSave(event, mac) || !shows) return undefined;
 	const group = state?.groups.find((each) => each.id === state.activeGroup);
 	const frame =
-		(event.composedPath().find((node) => node instanceof LoamEditorFrame) as
-			| LoamEditorFrame
-			| undefined) ?? (group?.active ? frames.get(group.active) : undefined);
-	if (frame?.state !== 'ready' || frames.get(frame.tab) !== frame) return undefined;
-	event.preventDefault();
-	return frame;
+		(path.find((node) => node instanceof LoamEditorFrame) as LoamEditorFrame | undefined) ??
+		(group?.active ? frames.get(group.active) : undefined);
+	return frame?.state === 'ready' && frames.get(frame.tab) === frame ? frame : undefined;
 }
 
 /** Every dirty editor's `save()`, not waited for, as on `pagehide` (5.5). */

@@ -26,6 +26,11 @@ export interface KnownSectionV1 {
 	 * as a write would leave them at its level: what is wrong, and the suggestion naming the order to write them in.
 	 */
 	relate?: (values: Record<string, unknown>) => { problem: string; suggestion: string } | undefined;
+	/**
+	 * A person-level section kept per workspace in the person's record, at `<workspace>/<section>` (phase 4 specification,
+	 * 3.4 as amended by step 7's R5): `loam.keybindings`. One stored under its bare id is not this workspace's, never read.
+	 */
+	workspaceKeyed?: true;
 }
 
 /** Why a value of one of the shell's custom keys is refused (3.7): in words, and with a code of its own when 16 has one. */

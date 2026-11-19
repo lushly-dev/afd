@@ -8,7 +8,6 @@
  */
 
 import type { SettingSectionV1 } from '@lushly-dev/loam-manifest';
-import { SHELL_KEYBINDINGS_V0 } from '../keybindings.js';
 import { QUARTER_ORDER, quarterProblem } from './limit-commands.js';
 import type { KnownSectionV1, ShellKeyCheckV1 } from './setting-rules.js';
 
@@ -173,6 +172,21 @@ export function isChord(chord: string): boolean {
 	return CHORD_KEY.test(key);
 }
 
+/**
+ * The reserved chords (phase 0's seven and 8.4's Mod+Alt+P), on which no sequence begins (8.1): `SHELL_KEYBINDINGS_V0`'s,
+ * repeated so this chunk imports nothing of first paint (phase 3 specification, 13); a unit holds the two equal.
+ */
+export const RESERVED_CHORDS: readonly string[] = Object.freeze([
+	'Mod+K',
+	'Mod+B',
+	'Mod+Alt+B',
+	'Mod+J',
+	'F6',
+	'Shift+F6',
+	'Mod+S',
+	'Mod+Alt+P',
+]);
+
 /** The chords no override binds (8.3): focus between parts, and Escape. */
 export const OVERRIDE_RESERVED: readonly string[] = Object.freeze(['F6', 'Shift+F6', 'Escape']);
 
@@ -181,9 +195,9 @@ const COMMAND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 /**
  * `loam.keybindings.overrides` (3.7, 8.3): up to 64 `{ command, target?, keys }`, `keys` one chord or two separated by a
- * space, or `null` to unbind, each binding once. Stored and checked now; the matcher that applies them is step 7's.
+ * space, or `null` to unbind, each binding once. The kernel's keybindings apply them (step 7).
  */
-const overrides: ShellKeyCheckV1 = (value) => {
+export const overridesProblem: ShellKeyCheckV1 = (value) => {
 	if (!Array.isArray(value)) return { problem: 'must be a list' };
 	if (value.length > SHELL_LIST_MAX)
 		return { problem: `must hold at most ${SHELL_LIST_MAX} items` };
@@ -213,9 +227,15 @@ const overrides: ShellKeyCheckV1 = (value) => {
 			const [first, second] = chords as [string, string | undefined];
 			if (second !== undefined && !first.split('+').includes('Mod'))
 				return { problem: 'must begin a sequence with a Mod chord, such as Mod+G P' };
-			if (second !== undefined && SHELL_KEYBINDINGS_V0.some(({ chord }) => chord === first))
+			if (second !== undefined && RESERVED_CHORDS.includes(first))
 				return { code: 'KEYBINDING_RESERVED', problem: `must not begin a sequence with ${first}` };
 		}
+		// 8.3: F6 and Shift+F6 themselves are neither rebound nor unbound, now that R1 names their actions.
+		if (command === 'shell-focus-next' || command === 'shell-focus-previous')
+			return {
+				code: 'KEYBINDING_RESERVED',
+				problem: `must not rebind or unbind ${command === 'shell-focus-next' ? 'F6' : 'Shift+F6'}`,
+			};
 		const binding = JSON.stringify([command, target ?? null]);
 		if (seen.has(binding)) return { problem: 'must override each binding once' };
 		seen.add(binding);
@@ -345,7 +365,9 @@ export const SHELL_SECTIONS: readonly KnownSectionV1[] = Object.freeze<KnownSect
 		fullId: 'loam.keybindings',
 		section: KEYBINDINGS_SECTION,
 		owner: 'shell',
-		checks: { overrides },
+		checks: { overrides: overridesProblem },
+		// R5 (step 7): a person's overrides are theirs in this workspace alone.
+		workspaceKeyed: true,
 	},
 	{
 		fullId: 'loam.notifications',
