@@ -1262,7 +1262,8 @@ describe("the instance id `shell` (step 8's R4, beside step 3's reservation)", (
 			mode: 'suggest',
 		});
 		await first.kernel.dispose();
-		// A mounted instance names itself, so one may be deployed as `shell` until phase 4's step 3 reserves the id.
+		// The deployment reader refuses the id since step 3 (`DEPLOYMENT_INSTANCE_RESERVED`); a projection a host builds
+		// itself does not pass through it, so the kernel can still be handed a mounted instance named `shell`.
 		const second = await mountedKernel(store, undefined, 'mounts/shell/mcp', 'shell', 'taken');
 		expect((await second.kernel.call<Listed>('autonomy-list')).data?.rows).toMatchObject([
 			{ id: 'workspace/-/shell/project-create', app: 'loam', orphan: true },

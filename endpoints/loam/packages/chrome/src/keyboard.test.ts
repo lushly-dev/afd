@@ -92,6 +92,14 @@ describe('reserved chords', () => {
 		expect(nextPart([], 'main', 'next')).toBeUndefined();
 	});
 
+	it('stops at the toast region last, only while it is present (phase 4 specification, 6.7)', () => {
+		const present = ['titlebar', 'main', 'statusbar', 'toasts'] as const;
+		expect(nextPart(present, 'statusbar', 'next')).toBe('toasts');
+		expect(nextPart(present, 'toasts', 'next')).toBe('titlebar');
+		expect(nextPart(present, 'titlebar', 'previous')).toBe('toasts');
+		expect(nextPart(['titlebar', 'statusbar'], 'statusbar', 'next')).toBe('titlebar');
+	});
+
 	it('matches an app chord after the reserved band, and a digit by its physical key', () => {
 		const bindings = [
 			...SHELL_KEYBINDINGS_V0,

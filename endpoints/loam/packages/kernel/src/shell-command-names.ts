@@ -33,6 +33,7 @@ export const SHELL_COMMAND_NAMES = [
 	'status-item-set',
 	'toast-show',
 	'modal-open',
+	'popover-open',
 	'overlay-dismiss',
 	'overlay-list',
 	'scope-get',

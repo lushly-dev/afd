@@ -233,8 +233,10 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 
 	/**
 	 * Whether an app instance is named `shell`, which makes the instance id `shell` mean two things (R4). Phase 4's step
-	 * 3 reserves `shell` and `loam` as instance ids; until it lands, autonomy refuses a row or a read naming `shell` while
-	 * an app holds that id, and a shell row never matches the app, whose identity is never {@link SHELL_IDENTITY}.
+	 * 3's deployment reader refuses `shell` and `loam` as instance ids (`DEPLOYMENT_INSTANCE_RESERVED`), but the kernel
+	 * loads whatever projection its host gives it, and that reader is not on that path; so autonomy still refuses a row
+	 * or a read naming `shell` while an app holds that id, and a shell row never matches the app, whose identity is never
+	 * {@link SHELL_IDENTITY}.
 	 */
 	const shellTaken = (): boolean =>
 		deps

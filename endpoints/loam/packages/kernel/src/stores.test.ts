@@ -58,10 +58,13 @@ const DEPLOYER_KEYS = [
 ];
 
 /**
- * The named exemptions. The first (phase 3 specification, Status, step 6, deviation 13, kept by the coordinator on
- * 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
+ * Three named exemptions, each one path on the commands named. The first (phase 3 specification, Status, step 6,
+ * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it
+ * may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
- * `projects` anywhere else in their input, is still scanned. The second is phase 4 step 8's, below.
+ * `projects` anywhere else in their input, is still scanned. Phase 4's step 3 adds `popover-open`'s menu item
+ * `command`, a command's name (its 6.4), kept by the coordinator on 2026-11-18 (that step's record, R-a); its step 8
+ * adds `autonomy-get`'s and `autonomy-set`'s `command`, a registered command's name (its 4.1). Both below.
  */
 function exempted(name: string, schema: unknown): unknown {
 	// Phase 4's autonomy rows name a registered command by `command` (its 4.1): a shell or app command's name, checked
@@ -77,6 +80,15 @@ function exempted(name: string, schema: unknown): unknown {
 			delete (branch.properties?.commands?.items?.properties as { command?: unknown } | undefined)
 				?.command;
 		}
+		return copy;
+	}
+	if (name === 'popover-open') {
+		// A menu item's `command` names one of the owner's own palette commands (phase 4 specification, 6.4), as a
+		// notice's action will (10.1): a command's name, never a mount's executable, and no projection entry holds it.
+		type Menu = { properties?: { items?: { items?: { properties?: Record<string, unknown> } } } };
+		const copy = structuredClone(schema) as { anyOf?: Menu[] };
+		for (const branch of copy.anyOf ?? [])
+			delete branch.properties?.items?.items?.properties?.command;
 		return copy;
 	}
 	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;

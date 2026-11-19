@@ -76,8 +76,8 @@ export const DEFAULT_ID = 'default';
 
 /**
  * The shell's identity on its rows (R4): `loam`, the plugin id no app may take (`MANIFEST_ID_RESERVED`), so a row for
- * the shell's commands never matches an app, even one deployed as an instance named `shell` before phase 4's step 3
- * reserves that instance id.
+ * the shell's commands never matches an app, even one at an instance named `shell` in a projection that did not pass
+ * through the deployment reader, which refuses that id since phase 4's step 3 (`DEPLOYMENT_INSTANCE_RESERVED`).
  */
 export const SHELL_IDENTITY = 'loam';
 

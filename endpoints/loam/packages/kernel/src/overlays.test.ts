@@ -1,6 +1,6 @@
 import type { OverlayRefV1, OverlayResultV1, OverlayV1 } from '@lushly-dev/loam-sdk';
 import { describe, expect, it } from 'vitest';
-import { createOverlayStore, TOAST_CAP } from './overlays.js';
+import { appOwner, createOverlayStore, SHELL, TOAST_CAP } from './overlays.js';
 import { createSteppingClock, createTestKernel } from './testing.js';
 
 const toast = { message: 'Saved' };
@@ -47,7 +47,7 @@ describe('toast-show and modal-open', () => {
 
 	it('dismisses the oldest toast when a sixth arrives, with reason cap', async () => {
 		const store = createOverlayStore();
-		const refs = Array.from({ length: TOAST_CAP + 1 }, () => store.open('shell', 'toast', toast));
+		const refs = Array.from({ length: TOAST_CAP + 1 }, () => store.open(SHELL, 'toast', toast));
 		const first = refs[0] as OverlayRefV1;
 		await expect(store.whenClosed(first.overlayId)?.settled).resolves.toEqual({
 			overlayId: first.overlayId,
@@ -106,9 +106,9 @@ describe('overlay-dismiss', () => {
 describe('the overlay store', () => {
 	it('answers a wait after the overlay has closed, and names the owner', async () => {
 		const store = createOverlayStore();
-		const { overlayId } = store.open('sums', 'modal', { title: 'T', body: 'B' });
+		const { overlayId } = store.open(appOwner('sums'), 'modal', { title: 'T', body: 'B' });
 		const waiting = store.whenClosed(overlayId);
-		expect(waiting?.owner).toBe('sums');
+		expect(waiting?.owner).toEqual({ kind: 'app', id: 'sums' });
 		store.close(overlayId, 'confirm', 'user');
 		await expect(waiting?.settled).resolves.toMatchObject({ result: 'confirm' });
 		await expect(store.whenClosed(overlayId)?.settled).resolves.toMatchObject({
@@ -119,10 +119,10 @@ describe('the overlay store', () => {
 
 	it('forgets old closed overlays', () => {
 		const store = createOverlayStore();
-		const { overlayId } = store.open('shell', 'toast', toast);
+		const { overlayId } = store.open(SHELL, 'toast', toast);
 		store.close(overlayId, 'dismissed', 'user');
 		for (let i = 0; i < 80; i++) {
-			const next = store.open('shell', 'toast', toast);
+			const next = store.open(SHELL, 'toast', toast);
 			store.close(next.overlayId, 'dismissed', 'user');
 		}
 		expect(store.whenClosed(overlayId)).toBeUndefined();

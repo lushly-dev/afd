@@ -43,6 +43,7 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'status-item-set': { id: 'count', value: 'v' },
 	'toast-show': { message: 'Hello' },
 	'modal-open': { title: 'Sure?', body: 'Really.' },
+	'popover-open': { anchor: { surface: 'shell', anchor: 'probe' }, kind: 'info', body: 'Hi' },
 	'overlay-dismiss': { overlayId: 'none' },
 	'overlay-list': {},
 	'scope-get': {},

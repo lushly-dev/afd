@@ -444,6 +444,8 @@ export async function replayKernel(
 			auth,
 			environment: options.environment ?? createFixedEnvironment(),
 			host: 'test',
+			// A replay's page answered every anchor: a refusal it decided is answered from the record (phase 4's 6.3).
+			overlayAnchors: { resolve: () => true },
 			...(options.commands !== undefined ? { commands: options.commands } : {}),
 			...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 			...(options.ports !== undefined ? { ports: options.ports } : {}),

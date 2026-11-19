@@ -239,7 +239,7 @@ export function createAppPort(options: AppPortOptions): {
 					suggestion: 'Wait on the overlayId that modal-open returned',
 				});
 			}
-			if (held.owner !== instance) {
+			if (held.owner.kind !== 'app' || held.owner.id !== instance) {
 				throw new LoamKernelError({
 					code: 'OVERLAY_NOT_OWNER',
 					message: `Overlay '${overlayId}' belongs to another app`,

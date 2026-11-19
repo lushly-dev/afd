@@ -145,6 +145,13 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect(await client.names()).toEqual(listed);
 	});
 
+	it('serves no toast or popover: only a person, an app or the agent interface opens one (phase 4, 6.1)', async () => {
+		const workspace = await createScopedWorkspace();
+		const listed = await (await connect(await serve(workspace), mode)).names();
+		expect(listed).toContain('dual-where');
+		for (const name of ['toast-show', 'popover-open']) expect(listed, name).not.toContain(name);
+	});
+
 	it('serves no boot-only or internal command: neither listed nor callable', async () => {
 		const workspace = await createScopedWorkspace();
 		const client = await connect(await serve(workspace), mode);

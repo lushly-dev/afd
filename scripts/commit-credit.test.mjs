@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -9,6 +10,7 @@ import {
 	agentCoAuthors,
 	isAgentEmail,
 	mainProblems,
+	mergeGroupCommits,
 	PUSH_EVENT_LIMIT,
 	problems,
 	pushedCommits,
@@ -149,5 +151,204 @@ describe('--push-event', () => {
 		const done = push({ commits: [] });
 		assert.equal(done.status, 2);
 		assert.match(done.stderr, /lists no commits/);
+	});
+});
+
+describe('--merge-group', () => {
+	const script = fileURLToPath(new URL('./commit-credit.mjs', import.meta.url));
+	const base = 'refs/heads/main';
+	const head = 'c'.repeat(40);
+	const queued = (sha, message, author = owner) => ({
+		sha,
+		commit: { message, author, committer: { name: 'GitHub', email: 'noreply@github.com' } },
+	});
+	const comparison = (commits, extra = {}) => ({
+		merge_base_commit: { sha: 'b'.repeat(40) },
+		status: 'ahead',
+		behind_by: 0,
+		total_commits: commits.length,
+		commits,
+		...extra,
+	});
+	/** A fake GitHub that answers each read in turn and records what was asked. */
+	const github = (answers) => {
+		const urls = [];
+		let index = 0;
+		return {
+			urls,
+			fetchImpl: async (url) => {
+				urls.push(url);
+				const answer = answers[Math.min(index++, answers.length - 1)];
+				if (typeof answer === 'number')
+					return { ok: false, status: answer, text: async () => 'nope', json: async () => ({}) };
+				return { ok: true, json: async () => answer };
+			},
+		};
+	};
+	const read = (answers, overrides = {}) => {
+		const fake = github(answers);
+		return {
+			fake,
+			commits: mergeGroupCommits({
+				repository: 'example/repo',
+				base,
+				head,
+				token: 'token',
+				fetchImpl: fake.fetchImpl,
+				...overrides,
+			}),
+		};
+	};
+
+	it('reads the commits the group holds that its branch does not, in one comparison', async () => {
+		const squash = queued(head, 'feat: x (#7)\n\nAssisted-by: Claude Code\n');
+		const { fake, commits } = read([comparison([squash])]);
+		assert.deepEqual(await commits, [
+			{
+				sha: head,
+				message: squash.commit.message,
+				author: owner,
+				committer: squash.commit.committer,
+			},
+		]);
+		assert.deepEqual(fake.urls, [
+			`https://api.github.com/repos/example/repo/compare/main...${head}?per_page=100&page=1`,
+		]);
+	});
+
+	it("finds the co-author line GitHub writes into the queue's squash, a person's included", async () => {
+		const { commits } = read([
+			comparison([
+				queued('a'.repeat(40), 'fix: first in the queue (#6)\n'),
+				queued(head, 'feat: x (#7)\n\n* feat: x\n\nCo-authored-by: Owner <old@example.com>\n'),
+			]),
+		]);
+		const found = (await commits).map((commit) => mainProblems(commit));
+		assert.deepEqual(found, [[], ['has the line "Co-authored-by: Owner <old@example.com>"']]);
+	});
+
+	it('follows the pages of a long group and refuses a list that stops short', async () => {
+		const first = Array.from({ length: 100 }, (_, index) =>
+			queued(String(index).padStart(40, '0'), 'fix: y\n')
+		);
+		const pages = [
+			comparison(first, { total_commits: 101 }),
+			comparison([queued(head, 'fix: last\n')], { total_commits: 101 }),
+		];
+		const whole = read(pages);
+		assert.equal((await whole.commits).length, 101);
+		assert.match(whole.fake.urls[1], /&page=2$/);
+		// The branch moved between the pages: they are pages of two comparisons.
+		await assert.rejects(
+			read([pages[0], { ...pages[1], merge_base_commit: { sha: 'e'.repeat(40) } }]).commits,
+			/main moved while the merge group c{40} was being read \(b{40} then e{40}\)/
+		);
+		await assert.rejects(
+			read([{ ...pages[0], merge_base_commit: undefined }]).commits,
+			/main moved while the merge group/
+		);
+		// The second page comes back empty: 100 of 101 is not the group.
+		await assert.rejects(
+			read([pages[0], comparison([], { total_commits: 101 })]).commits,
+			/may not list every commit of the merge group \(100 of 101/
+		);
+	});
+
+	it('refuses a group that is empty, ends elsewhere or is not its base plus commits', async () => {
+		await assert.rejects(read([comparison([])]).commits, /may not list every commit/);
+		await assert.rejects(
+			read([comparison([queued('d'.repeat(40), 'fix: y\n')])]).commits,
+			/may not list every commit/
+		);
+		await assert.rejects(
+			read([comparison([queued(head, 'fix: y\n')], { status: 'diverged', behind_by: 2 })]).commits,
+			/is not main plus commits \(status diverged\)/
+		);
+		await assert.rejects(read([502]).commits, /compare\/.*: 502 nope/);
+		// The branch, never a commit: the commit a group was built on leaves out the groups ahead.
+		for (const wrong of [
+			'',
+			'main',
+			'b'.repeat(40),
+			'refs/tags/v1',
+			'refs/heads/a b',
+			'refs/heads/../x?y',
+		])
+			await assert.rejects(
+				read([comparison([])], { base: wrong }).commits,
+				/BASE_REF must be/,
+				wrong
+			);
+		const nested = read([comparison([queued(head, 'fix: y\n')])], {
+			base: 'refs/heads/release/1.x',
+		});
+		await nested.commits;
+		assert.match(nested.fake.urls[0], /\/compare\/release%2F1\.x\.\.\.c{40}\?/);
+		await assert.rejects(read([comparison([])], { head: 'main' }).commits, /HEAD_SHA must be/);
+	});
+
+	/** Runs the script against a local server standing in for GitHub's API. */
+	const run = async (body, environment = {}) => {
+		const requests = [];
+		const server = createServer((request, response) => {
+			requests.push(request.url);
+			response.setHeader('content-type', 'application/json');
+			response.end(JSON.stringify(body));
+		});
+		await new Promise((done) => server.listen(0, '127.0.0.1', done));
+		const child = spawn(process.execPath, [script, '--merge-group'], {
+			env: {
+				...process.env,
+				GITHUB_TOKEN: 'token',
+				GITHUB_REPOSITORY: 'example/repo',
+				GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+				BASE_REF: base,
+				HEAD_SHA: head,
+				...environment,
+			},
+		});
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk;
+		});
+		const status = await new Promise((done) => child.on('close', done));
+		await new Promise((done) => server.close(done));
+		return { status, stdout, stderr, requests };
+	};
+
+	it('fails the group whose squash names a co-author, naming the commit, the line and the fix', async () => {
+		const done = await run(
+			comparison([queued(head, 'feat: x (#7)\n\nCo-authored-by: Owner <old@example.com>\n')])
+		);
+		assert.equal(done.status, 1, done.stderr);
+		assert.match(done.stderr, /cccccccc has the line "Co-authored-by: Owner <old@example.com>"/);
+		assert.match(done.stderr, /The pull request has left the queue/);
+		assert.deepEqual(done.requests, [
+			`/repos/example/repo/compare/main...${head}?per_page=100&page=1`,
+		]);
+	});
+	it('fails the group whose squash an agent authored', async () => {
+		const agent = { name: 'Claude', email: 'noreply@anthropic.com' };
+		const done = await run(comparison([queued(head, 'feat: x (#7)\n', agent)]));
+		assert.equal(done.status, 1, done.stderr);
+		assert.match(done.stderr, /cccccccc author is Claude <noreply@anthropic.com>/);
+	});
+	it('passes a group whose commits credit only their authors', async () => {
+		const done = await run(
+			comparison([queued(head, 'feat: x (#7)\n\nAssisted-by: Claude Code\n')])
+		);
+		assert.equal(done.status, 0, done.stderr);
+		assert.match(done.stdout, /1 commit\(s\) credit only their authors/);
+	});
+	it('refuses a group it cannot read whole rather than passing it', async () => {
+		assert.equal((await run(comparison([]))).status, 2);
+		const noBase = await run(comparison([queued(head, 'fix: y\n')]), { BASE_REF: '' });
+		assert.equal(noBase.status, 2);
+		assert.match(noBase.stderr, /BASE_REF must be the merge group's target branch/);
+		assert.deepEqual(noBase.requests, []);
 	});
 });
