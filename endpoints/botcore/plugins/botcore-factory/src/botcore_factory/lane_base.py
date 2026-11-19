@@ -3,7 +3,8 @@ base branch's head, and where a branch that must be validated again goes in the 
 
 A failure ejects a branch only when the branch must change to get past it: a conflict, a
 validation that failed, a real check failure, a push refused after the lease, a head that changed
-under a merge, a PR GitHub refuses or that was closed. Anything else that failed outside (the
+under a merge, a PR GitHub refuses, that was closed or that left a merge queue unmerged.
+Anything else that failed outside (the
 network, GitHub, a registry, a timeout) is the lane's trouble: it pauses and ejects nothing. Of
 the ejections, only the branch's own failures count toward ``cells.maxEjections``: a conflict
 with a moved main and the push, PR and merge plumbing (``EXCUSED_CAUSES``) do not, nor one the
@@ -50,6 +51,11 @@ INFRASTRUCTURE = re.compile(
     r"rate limit|socket",
     re.I,
 )
+#: The state of a queue entry whose pull request GitHub was asked to merge and has not merged
+#: yet: it waits in GitHub's merge queue (``lane_merge``).
+MERGE_QUEUED = "merge-queued"
+#: The states of an entry whose pull request is open: it stays ahead of every other entry.
+AT_THE_FRONT = ("merging", MERGE_QUEUED)
 #: The fields a validation adds to a queue entry; cleared when it must be validated again.
 VALIDATION_FIELDS = (
     "run",
@@ -66,6 +72,7 @@ VALIDATION_FIELDS = (
     "validatedBase",
     "checkStandsIn",
     "checkBase",
+    "mergeQueue",
 )
 
 
@@ -76,7 +83,7 @@ EXCUSED_CAUSES = {
     "conflict": "main moved under it",
     "push-failed": "the push was refused",
     "pr-failed": "GitHub refused the pull request",
-    "merge-failed": "GitHub refused the merge",
+    "merge-failed": "GitHub refused the merge",  # Or let it go from a merge queue.
 }
 
 
@@ -146,7 +153,7 @@ def open_index(queue: list[dict], exclude: dict | None = None) -> int:
     for entry in queue:
         if entry is exclude:
             continue
-        if entry.get("state") != "merging":
+        if entry.get("state") not in AT_THE_FRONT:
             break
         index += 1
     return index

@@ -514,6 +514,25 @@ class GitHubApp:
     def disable_auto_merge(self, repo, number):
         self._graphql(_DISABLE_AUTO_MERGE, id=self._node_id(repo, number))
 
+    def enqueue_pull(self, repo, number, head):
+        try:
+            data = self._graphql(_ENQUEUE, id=self._node_id(repo, number), head=head)
+            entry = (data.get("enqueuePullRequest") or {}).get("mergeQueueEntry")
+            if not entry:  # An error GraphQL files as NOT_FOUND still returns data.
+                raise GitHubRefused(200, f"GitHub made no merge queue entry for #{number}")
+        except GitHubRefused:
+            # Whatever GitHub's wording, the head moved only if the pull request says so.
+            current = (self.pull(repo, number) or {}).get("head")
+            if current and current != head:
+                raise HeadMoved(current) from None
+            raise
+        return {"state": entry.get("state"), "position": entry.get("position")}
+
+    def dequeue_pull(self, repo, number):
+        data = self._graphql(_DEQUEUE, id=self._node_id(repo, number))
+        if data.get("dequeuePullRequest") is None:
+            raise GitHubRefused(200, f"GitHub did not take #{number} out of the merge queue")
+
     def create_revert(self, repo, number, title, body):
         data = self._graphql(_REVERT, id=self._node_id(repo, number), title=title, body=body)
         return data["revertPullRequest"]["revertPullRequest"]["number"]
@@ -600,6 +619,21 @@ def _pull_shape(node: dict, bot: str) -> dict:
         "closes": [issue["number"] for issue in node["closingIssuesReferences"]["nodes"]],
         "checks": [],
     }
+    entry = node.get("mergeQueueEntry") or {}
+    removed = ((node.get("timelineItems") or {}).get("nodes") or [None])[-1]
+    if node.get("isMergeQueueEnabled") or node.get("isInMergeQueue") or entry or removed:
+        # Only where the base has a merge queue, as GitHub says; absent everywhere else.
+        shape["mergeQueue"] = {
+            "required": bool(node.get("isMergeQueueEnabled")),
+            "queued": bool(node.get("isInMergeQueue") or entry),
+            **({"state": entry["state"]} if entry.get("state") else {}),
+            **({"position": entry["position"]} if entry.get("position") is not None else {}),
+        }
+        if removed:  # The last time a queue let it go: a merge is logged as one too.
+            shape["mergeQueue"]["removed"] = {
+                "at": removed.get("createdAt"),
+                "reason": removed.get("reason"),
+            }
     revert = _REVERT_BRANCH.match(node["headRefName"] or "")
     if revert and not fork and author == bot:  # Only the gateway's own reverts count.
         shape["revertOf"] = int(revert.group(1))
@@ -685,6 +719,10 @@ _ISSUE_FIELDS = f"""number state title body authorAssociation
     {_COMMENTS}"""
 _PULL_FIELDS = """number state title body headRefName headRefOid mergeable mergeStateStatus
     mergedAt author { __typename login } autoMergeRequest { enabledAt }
+    isMergeQueueEnabled isInMergeQueue mergeQueueEntry { state position }
+    timelineItems(last: 1, itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT]) {
+      nodes { ... on RemovedFromMergeQueueEvent { createdAt reason } }
+    }
     isCrossRepository
     labels(first: 100) { nodes { name } }
     closingIssuesReferences(first: 20) { nodes { number } }"""
@@ -724,6 +762,14 @@ _ENABLE_AUTO_MERGE = """mutation($id: ID!, $method: PullRequestMergeMethod!, $he
 }"""
 _DISABLE_AUTO_MERGE = """mutation($id: ID!) {
   disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId }
+}"""
+_ENQUEUE = """mutation($id: ID!, $head: GitObjectID!) {
+  enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+    mergeQueueEntry { state position }
+  }
+}"""
+_DEQUEUE = """mutation($id: ID!) {
+  dequeuePullRequest(input: {id: $id}) { clientMutationId }
 }"""
 _REVERT = """mutation($id: ID!, $title: String!, $body: String!) {
   revertPullRequest(input: {pullRequestId: $id, title: $title, body: $body}) {

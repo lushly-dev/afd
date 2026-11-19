@@ -175,6 +175,24 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
+- 2026-11-19: `pr-merge` queues instead of merging behind a merge queue on `main` (#PRNUM, for
+  [#1598](https://github.com/lushly-dev/afd/issues/1598)). A required queue refuses the REST merge.
+  Where a pull request's base has one (GitHub's `isMergeQueueEnabled`, no configuration), nothing
+  merges at once: `enqueuePullRequest` with the expected head when the required check passed, and
+  auto-merge bound to the head, which GitHub turns into a queue entry, while it still runs. The
+  answer is `state: queued` with `mergeQueue {required, queued, state?,
+  position?}`; `pr-status` carries the same while the pull request is open, with `removed {at,
+  reason}` once a queue let it go, and `cancel` takes it out of the queue and reports what GitHub
+  then shows. Without a queue nothing changed. Verified with
+  `uv run --frozen pytest tests/test_gateway_routes.py tests/test_github_app.py` against the fake
+  GitHub and a mocked App; no real queue has been written to. Open, and blocking a gateway on a
+  repository with both a queue and AFD's `ci-ok`: the App opens the pull request, so the queue's
+  squash, which takes no body, may credit the owner as a co-author and fail the group (G0's
+  squash-credit test must cover the queue); whether the App may read the merge-queue fields, which
+  every pull request read now asks for on every repository, and call `enqueuePullRequest`,
+  without another permission. Not done, as before: nothing releases a
+  queued or auto-merged pull request's claims when it merges (`pr-merged` is only an event).
+
 ## Follow-ups not yet issues
 
 | Raised | By | Follow-up |

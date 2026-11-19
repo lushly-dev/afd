@@ -28,6 +28,7 @@ from pathlib import Path
 
 from botcore_factory.claims import format_time
 from botcore_factory.lane import Step, step
+from botcore_factory.lane_base import AT_THE_FRONT
 from botcore_factory.lock import HostLock, LaneLocked
 from botcore_factory.records import make
 from botcore_factory.report import summarize
@@ -312,12 +313,13 @@ def check_lane(factory: Factory) -> None:
 def resume(factory: Factory) -> list[str]:
     """Take up where the last lane stopped: validations go back to the front (behind a branch
     already merging), their orphaned jobs killed when pid and start time still match, and a PR
-    that merged meanwhile is landed."""
+    that merged meanwhile is landed, one that waited in GitHub's merge queue included (the first
+    step reads a queued one that has not merged)."""
     with factory.store.update("lane resume") as state:
         resumed = Step(factory, state)
         for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
             resumed.requeue(entry, "restart")  # Kills its job: never two in one slot.
-        for entry in [e for e in state["queue"] if e.get("state") == "merging"]:
+        for entry in [e for e in state["queue"] if e.get("state") in AT_THE_FRONT]:
             with contextlib.suppress(WorldError):  # Read again by the first step.
                 if factory.world.github.pr_state(entry["pr"]) == "MERGED":
                     resumed.land(entry)

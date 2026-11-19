@@ -8,7 +8,8 @@ a fixture world and a fake clock. Each step, in order:
 2. queues held branches while the queue has room (``lane.queueMax``);
 3. moves the front of the queue towards a merge (``lane_merge``): serial, in queue order, bound
    to the validated head, after reading the base again (a move main's changes cannot touch
-   advances the branch; any other validates it again);
+   advances the branch; any other validates it again); a front branch GitHub queued instead of
+   merging (a merge queue) is read again until it merged or left the queue;
 4. starts validations in free slots (``lane.slots``): the base's own review verifier first
    checks the cell's review of the queued head (``review_evidence``, run from the ``review`` slot
    at the base, never the branch's copy: lushly-dev/afd#1308; a refusal ejects as

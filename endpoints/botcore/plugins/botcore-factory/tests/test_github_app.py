@@ -639,3 +639,84 @@ def test_serve_needs_the_app_in_the_config_and_one_github(tmp_path, key_pair):
     share(key, shared=True)
     shared = runner.invoke(admin_cli, [*base, "--app-key", str(key)])
     assert shared.exit_code == 2 and REFUSED in shared.output
+
+
+def test_a_pull_request_says_whether_its_base_has_a_merge_queue(github):
+    app, mock, _ = github
+    entry = {"state": "AWAITING_CHECKS", "position": 2}
+    mock.graphql += [
+        {"data": {"repository": {"pullRequest": _pull(46)}}},
+        {"data": {"repository": {"pullRequest": _pull(46, isMergeQueueEnabled=True)}}},
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": _pull(
+                        46, isMergeQueueEnabled=True, isInMergeQueue=True, mergeQueueEntry=entry
+                    )
+                }
+            }
+        },
+    ]
+    assert "mergeQueue" not in app.pull(REPO, 46)
+    assert app.pull(REPO, 46)["mergeQueue"] == {"required": True, "queued": False}
+    assert app.pull(REPO, 46)["mergeQueue"] == {
+        "required": True,
+        "queued": True,
+        "state": "AWAITING_CHECKS",
+        "position": 2,
+    }
+    query = json.loads(mock.requests[-1].content)["query"]
+    assert "isMergeQueueEnabled isInMergeQueue mergeQueueEntry { state position }" in query
+    assert "REMOVED_FROM_MERGE_QUEUE_EVENT" in query
+    gone = {"nodes": [{"createdAt": "2030-02-03T10:01:00Z", "reason": "failed_checks"}]}
+    mock.graphql.append(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": _pull(46, isMergeQueueEnabled=True, timelineItems=gone)
+                }
+            }
+        }
+    )
+    assert app.pull(REPO, 46)["mergeQueue"] == {
+        "required": True,
+        "queued": False,
+        "removed": {"at": "2030-02-03T10:01:00Z", "reason": "failed_checks"},
+    }
+
+
+def test_a_pull_request_is_enqueued_and_dequeued_bound_to_its_head(github):
+    app, mock, _ = github
+    mock.routes[("GET", f"/repos/{REPO}/pulls/46")] = httpx.Response(200, json={"node_id": "PR_1"})
+    entry = {"state": "QUEUED", "position": 1}
+    mock.graphql.append({"data": {"enqueuePullRequest": {"mergeQueueEntry": entry}}})
+    assert app.enqueue_pull(REPO, 46, "a" * 40) == entry
+    sent = json.loads(mock.requests[-1].content)
+    assert sent["variables"] == {"id": "PR_1", "head": "a" * 40}
+    assert (
+        "enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head})" in (sent["query"])
+    )
+    # An answer with no entry is a refusal, whatever kind GraphQL files its error under.
+    missing = {"data": {"enqueuePullRequest": None}, "errors": [{"type": "NOT_FOUND"}]}
+    mock.graphql += [missing, {"data": {"repository": {"pullRequest": _pull(46)}}}]
+    with pytest.raises(GitHubRefused, match="no merge queue entry"):
+        app.enqueue_pull(REPO, 46, "a" * 40)
+    refusal = {"data": None, "errors": [{"message": "Head sha did not match"}]}
+    mock.graphql += [refusal, {"data": {"repository": {"pullRequest": _pull(46)}}}]
+    with pytest.raises(GitHubRefused):  # The head is still "a" * 40: not a move.
+        app.enqueue_pull(REPO, 46, "a" * 40)
+    mock.graphql += [
+        refusal,
+        {"data": {"repository": {"pullRequest": _pull(46, headRefOid="b" * 40)}}},
+    ]
+    with pytest.raises(HeadMoved) as moved:
+        app.enqueue_pull(REPO, 46, "a" * 40)
+    assert moved.value.head == "b" * 40
+    mock.graphql.append({"data": {"dequeuePullRequest": {"clientMutationId": None}}})
+    app.dequeue_pull(REPO, 46)
+    sent = json.loads(mock.requests[-1].content)
+    assert sent["variables"] == {"id": "PR_1"}
+    assert "dequeuePullRequest(input: {id: $id})" in sent["query"]
+    mock.graphql.append({"data": {"dequeuePullRequest": None}, "errors": [{"type": "NOT_FOUND"}]})
+    with pytest.raises(GitHubRefused, match="did not take #46 out"):
+        app.dequeue_pull(REPO, 46)

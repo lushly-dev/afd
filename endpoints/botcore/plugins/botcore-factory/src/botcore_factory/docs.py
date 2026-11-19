@@ -33,7 +33,12 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 ## Events
 
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
-`pr-closed`, `ci-failed`, `merge-failed`, `review-unverified`, `node-missing` (the branch's own
+`pr-closed`, `ci-failed` (the required check failed on the pull request's head or, behind a
+merge queue, on the commit the queue built for it: `detail` names that commit, and a
+`Co-authored-by:` line in the squash the queue wrote when there is one, which GitHub adds for
+every commit author who is not the pull request's), `merge-failed` (GitHub
+refused the merge, or the pull request left the merge queue unmerged for another reason, which
+`detail` gives when GitHub does), `review-unverified`, `node-missing` (the branch's own
 `.nvmrc` names a Node the lane host lacks, or an alias, or the branch deletes or blanks
 `.nvmrc`; `detail` starts `NODE_MISSING`: keep the base's `.nvmrc`, or the owner installs that
 Node on the lane host); with `detail`, `lines`
@@ -43,9 +48,11 @@ and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
 `ejection_excuse` excused; answered as `ejected` is, or by the excuse that brings it under the
 limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
-running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
+running after `lane.checkTimeoutMinutes` with its PR left open, a pull request still in the
+merge queue after as long, left there; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
-`merged`, `merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
+`merged` (`detail` ends `through the merge queue` when it went through one),
+`merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
 since the last green run; or, with `reason` `unchecked-merge`, a check on main's merge commit
 failed after a merge that advanced past a moved base without a new validation, `suspects` the
 PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
@@ -73,7 +80,26 @@ after `lane.maxBaseReruns` of those, a move that merges cleanly and touches no
 `required_check`, run on the pull request's merge ref, stands in; a move after the push merges
 on that check of the older main, `checkBase` in the record), pushes the validated commit
 (with a lease on its own last push), opens the PR, waits for `required_check` on that commit and
-squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` merges and at
+squash-merges bound to it. Where the base takes merges only through a merge queue (GitHub says
+so on the pull request; the lane reads that, never a setting), the lane adds the pull request to
+the queue bound to the same head (`enqueuePullRequest`) and reads what GitHub did: the entry
+waits at the front in state `merge-queued` (its `mergeQueue` holds GitHub's `state`, `position`
+and the commit the queue built, `groupHead`), nothing behind it is pushed or merged, and the
+base is not followed: GitHub locks a queued pull request's branch, and its queue runs the
+required check on exactly what lands. It lands when GitHub says `MERGED`. Out of the queue
+and still open, it is read again and ejected a minute after the first such read (three when
+GitHub never showed it queued); while GitHub's reason for the removal is `merged`, which it logs
+a second before the pull request reads as merged, it is never ejected, and still open five
+minutes on it is a `lane-error`. Past `lane.checkTimeoutMinutes` in the queue the lane pauses
+with a `lane-error` and leaves it there. A stopped lane picks the wait up where it was; one
+that finds its pull request queued at a head it did not validate pauses. The queue writes the
+squash message itself: in the trials a pull request of one commit kept that commit's message,
+and any other (every branch the lane merged the base into) gets the pull request's title,
+so `lane_enqueue`'s `title`, as its subject and each commit's message below. It adds
+`Co-authored-by:` for every commit author who is not the pull request's, so the lane authors
+its merges of the base as the branch's own author (its newest own commit's), whatever the
+host's git identity is.
+Coverage runs on the base every `lane.coverageEvery` merges and at
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
 that advanced without a new validation (either way) the lane watches the check runs and
 workflow runs (`workflow: <name>`) `main_checks` selects on its merge commit; one failing is
@@ -107,6 +133,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `paused`, `pauseReason`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
   `cells[] {branch, issue, issues, relatedBecause?, state, plan, route, ejections, excused,
   countedEjections, lastEjection}`, `openEvents[]`,
+  (a `queue[]` entry's `state` is `queued`, `validating`, `validated`, `merging`, its pull
+  request open and its check awaited, or `merge-queued`, in GitHub's merge queue, with
+  `mergeQueue {since, queuedAt, state, position, groupHead}` and the lane's own notes:
+  `queue` and `seen` (GitHub showed a queue, and this entry in it), `removedBefore` (the
+  last removal before the request) and `leftAt` (when it was first read out of the queue)),
   `waitingOnOwner`, `dials`, `canStartCell` with `plan` (with its `pace`) and `nextIssue`, or
   `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
@@ -122,7 +153,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   branch's own changes count, against a base the lane fetches, so main's gate changes a rebase or
   merge brings in do not),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
-  (names the stage, with its first lines), `HEAD_MOVED` (the worktree changed while the checks
+  (names the stage, with its first lines), `MERGE_QUEUED` (the branch's pull request is in
+  GitHub's merge queue, which locks the branch), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,
   detail?, logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`;
@@ -138,7 +170,10 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `gate_allow(branch, reason)` -> `allowed`: a diagnosis found the gate edit to be the right
   repair. Refuses `NOT_FOUND`.
 - `lane_drop(branch, reason)` -> `dropped`, `released[]`: dequeues the branch, puts each issue
-  back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND`.
+  back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND` and
+  `MERGE_QUEUED` (the branch is in GitHub's merge queue, where it would merge after the lane
+  forgot it: wait, or remove it from the queue on GitHub, `lane_resume` a paused lane and
+  wait for its `ejected` event first).
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, left, pace, daysToReset,
   aboveCeiling, resetsAt}`, every weekly window but Claude's Fable window, which only Fable
   draws on; `ceiling`; `next` (the plan `cell_register` assigns: among Claude's plans while
@@ -187,7 +222,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `cells.claudeOnly` true,
-`lane.coverageEvery` 5, `lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but
+`lane.coverageEvery` 5, `lane.checkTimeoutMinutes` 90 (the required check on a pull request,
+and then the wait in a merge queue), `lane.maxBaseReruns` 2 (100 all but
 turns the guard off), `claims.leaseHours` 24, `foreman.leaseMinutes` 30, `cells.maxEjections` 3,
 `experience.hold` false, `lane.autostart` true, `logs.keepDays` 30, and the owner's
 `review.*` dials.
