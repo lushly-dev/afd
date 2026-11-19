@@ -85,6 +85,9 @@ pre-push-checks:
     versions:
       run: node scripts/check-versions.mjs
 
+    release-tracks:
+      run: node scripts/release-track.mjs check
+
     # No line in a shared status document that every pull request adds to (the plan in
     # docs/features/active/merge-conflicts/ says why).
     doc-lines:
@@ -137,6 +140,9 @@ check:
 
     versions:
       run: node scripts/check-versions.mjs
+
+    release-tracks:
+      run: node scripts/release-track.mjs check
 
     # No line in a shared status document that every pull request adds to (the plan in
     # docs/features/active/merge-conflicts/ says why).

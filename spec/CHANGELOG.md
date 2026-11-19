@@ -63,12 +63,27 @@ has no bootstrap commands yet. The Contract column of the root `README.md` and t
 
 In the same pull request:
 
-1. Change `VERSION` and add an entry below.
+1. Fold any entries still pending for the version in force (`pnpm version-track spec`), so they
+   stay under its heading. Then change `VERSION` and record the change as a fragment (see
+   "Recording a change").
 2. Update the four constants.
 3. Update the Contract column in `README.md` and the Contract row in `docs/language-parity.md`.
 
 `node scripts/check-versions.mjs`, which `pnpm check` runs, fails until all of these agree.
 `alfred parity` reports a constant that differs from `VERSION`.
+
+## Recording a change
+
+A change to the contract is recorded as one file in [`.changeset/`](../.changeset/README.md): a
+fragment that names `afd-spec` with `patch` and holds the entry as prose paragraphs. Nothing is
+added to this file by hand. `pnpm version-track spec` folds the pending fragments in, above the
+earlier entries, under the heading of the contract version in force, and adds that heading when
+`VERSION` has changed. The `patch` only counts folds in the private `package.json` beside this file: it is
+not the contract version, which changes only as "Changing the version" says.
+
+`pnpm check:tracks` compares this file with a digest that `package.json` pins, so a hand edit
+fails. To correct an entry already folded, edit it and run `node scripts/release-track.mjs pin spec`
+in the same pull request.
 
 ## 1.0-rc
 

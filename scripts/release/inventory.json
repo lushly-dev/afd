@@ -105,6 +105,27 @@
 			]
 		},
 		{
+			"id": "afd-python-changes",
+			"family": "afd",
+			"protocol": "npm-changesets",
+			"sourceRevision": "626187deaf2b5b2a237e7f39527a8dba7630a958",
+			"authority": "none: private Changesets stub authored in lushly-dev/afd; it holds the Python afd version for pnpm version-track python (the afd-python unit publishes it, on python-v tags) and owns that track's fragments in .changeset. The manifest is private: true and cannot publish; the npm release never selects it",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd-python",
+					"registry": "npm",
+					"manifest": "python/package.json",
+					"format": "npm",
+					"initialVersion": "0.11.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "afd-rust",
 			"family": "afd",
 			"protocol": "language-tag-v1",
@@ -145,6 +166,27 @@
 			]
 		},
 		{
+			"id": "afd-spec-changes",
+			"family": "afd",
+			"protocol": "npm-changesets",
+			"sourceRevision": "626187deaf2b5b2a237e7f39527a8dba7630a958",
+			"authority": "none: private Changesets stub authored in lushly-dev/afd; it holds a fold counter for the contract changelog (the contract version is spec/VERSION) and owns that track's fragments in .changeset. The manifest is private: true and cannot publish; the npm release never selects it",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd-spec",
+					"registry": "npm",
+					"manifest": "spec/package.json",
+					"format": "npm",
+					"initialVersion": "0.0.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "botcore",
 			"family": "botcore",
 			"protocol": "language-tag-v1",
@@ -161,6 +203,27 @@
 					"manifest": "endpoints/botcore/pyproject.toml",
 					"format": "python",
 					"initialVersion": "0.5.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-changes",
+			"family": "botcore",
+			"protocol": "npm-changesets",
+			"sourceRevision": "626187deaf2b5b2a237e7f39527a8dba7630a958",
+			"authority": "none: private Changesets stub authored in lushly-dev/afd; it holds the lushly-botcore version for pnpm version-track botcore (the botcore unit publishes it, on botcore-v tags) and owns that track's fragments in .changeset. The manifest is private: true and cannot publish; the npm release never selects it",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "lushly-botcore",
+					"registry": "npm",
+					"manifest": "endpoints/botcore/package.json",
+					"format": "npm",
+					"initialVersion": "0.7.0",
+					"private": true
 				}
 			]
 		},
