@@ -65,6 +65,16 @@ deleted the queue ref while the pull request was still open.
   (#1621) saw exactly that. A cell whose own commits are not authored as the account that opens
   the pull request (the lane host's `gh` sign-in) is ejected the same way, as `ci-failed` naming
   the line.
+- A pull request that merged at a head other than the one the lane validated lands with
+  `headMoved` and `mergedHead`, counted as merged without the check (`merged-without-check`).
+- An open pull request whose last removal from a queue says `merged` is in the second before it
+  reads as merged, whatever the entry's state: the lane waits for `MERGED` and never asks again.
+- Limit, host recovery: `lane-host-set` with `recover` rebuilds every queue ref as `queued`. A
+  pull request in GitHub's queue is then validated again and its push refused by the branch lock;
+  one the queue already merged is never recorded as landed. Recover only with none queued.
+- Limit, a lane killed between its request and the record of it: it asks once more for the same
+  head, and only if the queue has let that head go for a reason other than a merge. Queued,
+  merged or about to read as merged, the pull request is taken up instead.
 - The queue is found in GitHub's answer, never in configuration, so the lane host takes this
   change before the queue is turned on. Not run against a live queue. Not established by any
   trial: what `mergeQueueEntry.headCommit` names (used only when a removal names no commit), and

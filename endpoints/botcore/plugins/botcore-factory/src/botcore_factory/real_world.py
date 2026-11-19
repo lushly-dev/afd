@@ -751,10 +751,13 @@ class CliGit:
         # No conflict is not a merge: the base must now be in the head's history.
         if not self._ancestor(path, main):
             raise WorldError(f"Merging {main} into the slot did not happen")
-        parents = self.run(["git", "-C", path, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
-        # A merge commit the lane just made: its first parent is the head it merged into.
-        # (A fast-forward onto a merge commit of the base is that base's own commit.)
-        if len(parents) > 2 and parents[1] == before:
+        # Only a commit this merge created is re-authored: its parents are the head it merged
+        # into and the base. A fast-forward moved the head onto the base's own commit (a merge
+        # commit of the base's, whose first parent may be that head, included): amending it
+        # would copy main's commit, and main would no longer be in the branch's history.
+        made = self.run(["git", "-C", path, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
+        base = self.run(["git", "-C", path, "rev-parse", "--verify", f"{main}^{{commit}}"]).strip()
+        if made and made[0] not in (before, base) and made[1:] == [before, base]:
             self._author_merge(path, author)
         return MergeOutcome(True, head=self.head(path))
 

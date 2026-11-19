@@ -150,10 +150,18 @@ class Merging(Advancing):
         except WorldError as exc:
             raise LaneTrouble(f"Reading PR {pr} failed: {exc}") from exc
         if progress.state == "MERGED":
-            self.land(entry, without_check=status != "success")
+            self.land(entry, without_check=status != "success", merged_head=progress.head)
             return
         if progress.state == "CLOSED":
             self.eject(entry, "pr-closed", f"PR {pr} was closed without merging")
+            return
+        if progress.removal_reason.strip().lower() == "merged":
+            # Open, and its last removal from a merge queue says ``merged``: GitHub logs that a
+            # second before the pull request reads as merged, and a merged pull request never
+            # reopens. Asking again would find main moved by this pull request's own squash
+            # and validate it again; it waits for ``MERGED`` instead.
+            self.enter_queue(entry, progress, "")
+            entry["mergeQueue"]["queue"] = True
             return
         if progress.queued:
             # In GitHub's queue already: a lane that stopped between the request and its
@@ -198,7 +206,7 @@ class Merging(Advancing):
             except WorldError as again:
                 raise LaneTrouble(f"Merging PR {pr} failed: {exc}; {again}") from again
             if after.state == "MERGED":  # It landed; only the answer was lost.
-                self.land(entry)
+                self.land(entry, merged_head=after.head)
             elif after.queued:  # It was queued; only the answer was lost.
                 # Auto-merge alone is never the lane's lost answer: neither request sets it,
                 # so a refusal with someone's auto-merge on the pull request is a refusal.
@@ -225,7 +233,7 @@ class Merging(Advancing):
             self.actions.append(f"PR {pr} was asked for; reading it failed, read again: {exc}")
             after = MergeProgress(queue_required=before.queue_required)
         if after.state == "MERGED":
-            self.land(entry)
+            self.land(entry, merged_head=after.head)
             return
         if after.state == "CLOSED":
             self.eject(entry, "pr-closed", f"PR {pr} was closed without merging")
@@ -278,7 +286,7 @@ class Merging(Advancing):
         except WorldError as exc:
             raise LaneTrouble(f"Reading PR {pr} in the merge queue failed: {exc}") from exc
         if progress.state == "MERGED":
-            self.land(entry)
+            self.land(entry, merged_head=progress.head)
             return
         if progress.state == "CLOSED":
             self.eject(entry, "pr-closed", f"PR {pr} was closed without merging")
@@ -402,8 +410,16 @@ class Merging(Advancing):
         why = f": {reason}" if reason else "; GitHub gave no reason"
         self.eject(entry, "merge-failed", f"PR {pr} left the merge queue unmerged{why}")
 
-    def land(self, entry: dict, without_check: bool = False) -> None:
+    def land(self, entry: dict, without_check: bool = False, merged_head: str = "") -> None:
+        """Record the merge. ``merged_head`` is the pull request's head as GitHub gives it: when
+        it is not the head the lane pushed (a person pushed and merged or queued it between two
+        steps), what merged was never validated here, whatever the validated head's check
+        says. The landing is then recorded with ``headMoved`` and ``mergedHead``, counted as
+        merged without the check, and raised as ``merged-without-check``."""
         branch, pr = entry["branch"], entry["pr"]
+        validated = entry.get("pushedHead")
+        moved = bool(merged_head and validated and merged_head != validated)
+        without_check = without_check or moved
         # Through a queue only if GitHub showed one: a read that trailed a direct merge also
         # waits a step in ``merge-queued``.
         waited = entry.get("mergeQueue") if (entry.get("mergeQueue") or {}).get("queue") else None
@@ -416,6 +432,7 @@ class Merging(Advancing):
             attempt=entry["attempt"],
             pr=pr,
             withoutCheck=without_check,
+            **({"headMoved": True, "mergedHead": merged_head} if moved else {}),
             advanced=bool(entry.get("advanced")),
             checkStoodIn=bool(entry.get("checkStandsIn")),
             **(
@@ -439,7 +456,12 @@ class Merging(Advancing):
             self.event(
                 "merged-without-check",
                 branch=branch,
-                detail=f"PR {pr} merged without {self.config.required_check} green",
+                detail=(
+                    f"PR {pr} merged at {merged_head}, not at {validated}, the head the lane "
+                    "validated"
+                    if moved
+                    else f"PR {pr} merged without {self.config.required_check} green"
+                ),
             )
         if full:
             self.event("queue-room", detail=f"A seat is free: {branch} merged")

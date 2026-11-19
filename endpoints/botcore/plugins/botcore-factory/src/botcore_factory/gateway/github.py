@@ -390,8 +390,12 @@ class FakeGitHub:
                 self._enqueue(pull, head)
 
     def disable_auto_merge(self, repo, number):
+        """GitHub refuses to turn off auto-merge that is not set."""
         with self._write(repo) as data:
-            self._pull(data, number).update(autoMerge=False, autoMergeHead=None)
+            pull = self._pull(data, number)
+            if not pull.get("autoMerge"):
+                raise GitHubRefused(200, "Can't disable auto-merge for this pull request")
+            pull.update(autoMerge=False, autoMergeHead=None)
 
     def _enqueue(self, pull: dict, head: str) -> None:
         pull["mergeQueue"] = {

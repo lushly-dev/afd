@@ -8,7 +8,6 @@ first and spend the caller's write budget. Who is calling comes from the call's 
 
 from __future__ import annotations
 
-import contextlib
 import difflib
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -743,6 +742,7 @@ class Gateway:
         read and the write, so it is read again and cancelled once more before answering."""
         number = pull["number"]
         changed = dequeued = False
+        refused = ""  # What GitHub said when it would not turn auto-merge off.
         for _ in range(2):
             queued = bool((pull.get("mergeQueue") or {}).get("queued"))
             if not pull.get("autoMerge") and not queued:
@@ -751,9 +751,12 @@ class Gateway:
                 self.spend("pr-merge")
             changed = True
             if pull.get("autoMerge"):
-                # Refused when it is no longer set (it became a queue entry): the next read says.
-                with contextlib.suppress(GitHubRefused):
+                # Refused when it is no longer set (it became a queue entry): the next read
+                # says whether that was why. Any other refusal is reported below.
+                try:
                     self.github.disable_auto_merge(repo, number)
+                except GitHubRefused as exc:
+                    refused = exc.message
             if queued:
                 self.github.dequeue_pull(repo, number)
                 dequeued = True
@@ -772,6 +775,16 @@ class Gateway:
             **({"mergeQueue": queue} if queue else {}),
         }
         if data["autoMerge"] or (queue or {}).get("queued"):
+            if refused:
+                raise refuse(
+                    "STILL_QUEUED",
+                    f"Pull request {number} is still set to merge: GitHub refused to turn "
+                    f"auto-merge off ({refused})",
+                    "Read GitHub's answer: a permission the gateway lacks is the owner's to "
+                    "grant; otherwise call pr-status, then pr-merge with cancel again",
+                    number=number,
+                    refused=refused,
+                )
             raise refuse(
                 "STILL_QUEUED",
                 f"Pull request {number} is still set to merge after cancelling twice",

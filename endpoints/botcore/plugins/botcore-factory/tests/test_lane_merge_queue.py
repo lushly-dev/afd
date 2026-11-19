@@ -62,6 +62,11 @@ def settle(lane, outcome: str) -> list[str]:
     return actions
 
 
+def unchecked(lane) -> list[dict]:
+    """This branch's ``merged-without-check`` events (the fixture holds an older one)."""
+    return [e for e in events(lane, "merged-without-check") if e.get("branch") == BRANCH]
+
+
 def queue_states(lane) -> dict:
     return dict(queue(lane))
 
@@ -275,6 +280,70 @@ def test_a_queued_pull_request_is_adopted_before_its_head_s_check_is_read(lane):
     lane.change_world(outcomes={"checks": {BRANCH: "failure"}})
     run_steps(lane)
     assert entry_of(lane, BRANCH)["state"] == "merge-queued" and not events(lane, "ejected")
+
+
+def test_a_merge_at_a_head_the_lane_did_not_validate_is_recorded_as_such(lane):
+    """A person pushed and the queue merged that head between two steps: the validated head's
+    check is green, and what merged was never validated."""
+    queued(lane)
+    rewrite_pr(lane, "600", state="MERGED", queue=None, head="someone-pushed", mergeCommit=GROUP)
+    run_steps(lane)
+    merged = next(r for r in lane.store.read_records() if r["kind"] == "merged")
+    assert (merged["withoutCheck"], merged["headMoved"], merged["mergedHead"]) == (
+        True,
+        True,
+        "someone-pushed",
+    )
+    assert [e["detail"] for e in unchecked(lane)] == [
+        "PR 600 merged at someone-pushed, not at b2c3d4e+main-0, the head the lane validated"
+    ]
+
+
+def test_a_merge_at_the_validated_head_says_nothing_of_a_moved_head(lane):
+    queued(lane)
+    settle(lane, "merge")
+    merged = next(r for r in lane.store.read_records() if r["kind"] == "merged")
+    assert merged["withoutCheck"] is False and "headMoved" not in merged
+    assert not unchecked(lane)
+
+
+def test_a_restart_finds_a_merge_at_another_head(lane):
+    queued(lane)
+    rewrite_pr(lane, "600", state="MERGED", queue=None, head="someone-pushed", mergeCommit=GROUP)
+    resume(lane.factory())
+    merged = next(r for r in lane.store.read_records() if r["kind"] == "merged")
+    assert merged["headMoved"] is True and unchecked(lane)
+
+
+def test_an_open_pull_request_the_queue_says_it_merged_is_waited_for_not_asked_again(lane):
+    """The entry still says ``merging`` (the lane stopped before recording its request) and
+    the queue has just merged the pull request: open for another second, its check green, main
+    already moved by its own squash. Asking again would validate it again and never record
+    the merge."""
+    lane.change_world(outcomes={"checks": {BRANCH: "pending"}})
+    run_steps(lane, 2)
+    assert entry_of(lane, BRANCH)["state"] == "merging"
+    lane.change_world(outcomes={"checks": {BRANCH: "success"}}, main={"head": GROUP})
+    rewrite_pr(lane, "600", removedAt="2030-01-01T00:03:00Z", removalReason="merged")
+    factory = lane.factory()
+    github = factory.world.github
+
+    class NeverAsked:
+        def __getattr__(self, name):
+            return getattr(github, name)
+
+        def merge_pr(self, pr, head):
+            raise AssertionError("asked again for a pull request the queue merged")
+
+        enqueue_pr = merge_pr
+
+    factory.world = replace(factory.world, github=NeverAsked())
+    actions = step(factory)
+    assert not any(action.startswith("rerun") for action in actions)
+    assert entry_of(lane, BRANCH)["state"] == "merge-queued" and "rerun" not in kinds(lane)
+    rewrite_pr(lane, "600", state="MERGED", mergeCommit=GROUP)
+    assert "merged feat/export-csv (PR 600), through the merge queue" in run_steps(lane)
+    assert kinds(lane).count("merged") == 1
 
 
 # Queued, then removed.
@@ -881,6 +950,22 @@ def test_the_lane_authors_a_base_merge_as_the_branch_s_author(tmp_path, monkeypa
     assert run(["git", "-C", slot, "log", "-1", "--format=%an <%ae>"]).strip() == (
         "The Owner <owner@example.org>"
     )
+    # A branch with no commit of its own fast-forwards onto main. Main's tip is a merge commit
+    # whose first parent is where the branch stood: it is main's commit, and is left alone.
+    monkeypatch.delenv("GIT_AUTHOR_NAME")
+    monkeypatch.delenv("GIT_AUTHOR_EMAIL")
+    stood = run(["git", "rev-parse", "main"]).strip()
+    run(["git", "checkout", "-q", "-b", "side", "main"])
+    commit("e.txt", "e\n", "side")
+    run(["git", "checkout", "-q", "main"])
+    run(["git", "merge", "--no-ff", "--no-edit", "-q", "side"])
+    tip = run(["git", "rev-parse", "main"]).strip()
+    assert run(["git", "rev-list", "--parents", "-n", "1", tip]).split()[1] == stood
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "An Agent")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "agent@example.org")
+    behind = git.prepare_slot("3", "", stood)
+    forwarded = git.merge_main(behind, tip)
+    assert forwarded.clean and forwarded.head == tip  # Main's own commit, not a copy of it.
     # A merge left open and committed by the lane (regenerated files) is authored so too.
     monkeypatch.delenv("GIT_AUTHOR_NAME")
     monkeypatch.delenv("GIT_AUTHOR_EMAIL")

@@ -54,7 +54,9 @@ kind                    required fields                                     writ
                         gave its slot to the front of the queue and keeps
                         its validation in the checkout moved to path
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
-                        withoutCheck, advanced (merged after a
+                        withoutCheck, headMoved with mergedHead (it
+                        merged at a head the lane did not validate;
+                        withoutCheck is then true), advanced (merged after a
                         base-advanced, without a new validation),
                         checkStoodIn (after a rerun-limit advance, with
                         checkBase, the base at the push, which its check

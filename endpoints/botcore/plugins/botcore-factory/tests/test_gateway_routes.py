@@ -902,9 +902,12 @@ def test_cancel_follows_auto_merge_into_the_queue(run, monkeypatch):
     disable = FakeGitHub.disable_auto_merge
 
     def raced(self, repo, number):
-        disable(self, repo, number)
+        # GitHub turned auto-merge into a queue entry first, so it refuses to turn it off.
         with self._write(repo) as data:
-            self._enqueue(self._pull(data, number), PR47_HEAD)
+            pull = self._pull(data, number)
+            pull.update(autoMerge=False, autoMergeHead=None)
+            self._enqueue(pull, PR47_HEAD)
+        disable(self, repo, number)
 
     monkeypatch.setattr(FakeGitHub, "disable_auto_merge", raced)
     cancelled = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
@@ -961,3 +964,19 @@ def test_auto_merge_github_does_not_show_is_not_reported_queued(run, monkeypatch
     gateway = behind_a_queue(run, 47, PR47_HEAD)
     result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
     assert result.error.code == "NOT_QUEUED" and "pr-merge again" in result.error.suggestion
+
+
+def test_a_refusal_to_turn_auto_merge_off_is_reported_not_swallowed(run, monkeypatch):
+    from botcore_factory.gateway.github import GitHubRefused
+
+    def forbidden(self, repo, number):
+        raise GitHubRefused(200, "Resource not accessible by integration")
+
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["autoMerge"]
+    monkeypatch.setattr(FakeGitHub, "disable_auto_merge", forbidden)
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert result.error.code == "STILL_QUEUED"
+    assert "Resource not accessible by integration" in result.error.message
+    assert result.error.details["refused"] == "Resource not accessible by integration"
+    assert "permission" in result.error.suggestion

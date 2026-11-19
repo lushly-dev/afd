@@ -1346,7 +1346,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6bf4398db15956ef082a338b5c7db90b07566d4c501df4a4507a6bdf627b274b",
+      "current_import_sha256": "9f7d86b43c9380138734a4e00881897529b545b50ffa00ad27de894114a745dc",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1401,7 +1401,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "235aa8c191b18f686ce649b63289e4477791ec66133bb72f94bc2ebc1f3d24c3",
+      "current_import_sha256": "cca35f8c96e260beddef34d5bc7cc355432458228969fac04d8fc7a5a300bceb",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1423,7 +1423,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "98e50ae81b5a800512e84e685e2aa5fe11e2e44fcfbaeb952dfe446b3157c8b7",
+      "current_import_sha256": "bf1557cf2dfd80f73ad14e2d855b7b9a94562fef3618889f831d748becea5c6f",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1489,7 +1489,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "93544a78f2cb2f818fecd33078175f00ca1ed5bbb4d29122cb28e54edec7b519",
+      "current_import_sha256": "f6230350e2df666ab8273e94e236ec02973e5107dcfff0f972a3895851506146",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1500,7 +1500,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "315492251d731b3fc9580a1829c843374ce5495aba44702e95287a748ed0cf69",
+      "current_import_sha256": "29f4a453dc38a690ddfb4f88cfae7a29fc530e2185e7f33cfb13a5cf3914f565",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1544,7 +1544,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f9fe033c8521f9860b4439dbf86b0ee92b9035d80f6ade28e3f2ce783be94855",
+      "current_import_sha256": "0aa633058d8bbe7b4dccf52b5a09cb360dce38c98c705bfee4fd1e7c981434ef",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1555,7 +1555,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7ceec06339f93b2fcdca82c32cd6e5c4d5473d632d68691970908a3a458645c5",
+      "current_import_sha256": "169153a8c7f9b410f49acf0460df16b4f4becf7f81e04661646a811c7a253539",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1610,7 +1610,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6e6674f8d3df6f641e18cba8eebec78e92158c34800d1da73da71298a983c273",
+      "current_import_sha256": "f5208ac8bc08961512eb80d7f8899146fb2d1c2e6a20b1596b798eda77d78a74",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
@@ -1654,7 +1654,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8f839a76383331ef595c09d069ce2c9c7f925e137fd3bfd02364e8d669a43889",
+      "current_import_sha256": "c4111da31f4c04451570bce81cb37eeed31ba34acd979a98d0b5fed8b1eb8bef",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"

@@ -92,7 +92,14 @@ GitHub never showed it queued); while GitHub's reason for the removal is `merged
 a second before the pull request reads as merged, it is never ejected, and still open five
 minutes on it is a `lane-error`. Past `lane.checkTimeoutMinutes` in the queue the lane pauses
 with a `lane-error` and leaves it there. A stopped lane picks the wait up where it was; one
-that finds its pull request queued at a head it did not validate pauses. The queue writes the
+that finds its pull request queued at a head it did not validate pauses, and a pull request
+that merged at another head lands with `headMoved` and a `merged-without-check` event. Two
+limits: a lane killed between its request and the record of it asks once more for the same
+head if the queue has let that head go meanwhile (queued, merged or about to read as merged,
+it is taken up instead), and `lane_host_set(recover)` rebuilds every queue ref as `queued`, so
+a pull request in GitHub's queue is validated again and its push refused by the branch lock,
+and one the queue already merged is never recorded as landed: recover a host only once
+GitHub's queue holds none of the lane's pull requests. The queue writes the
 squash message itself: in the trials a pull request of one commit kept that commit's message,
 and any other (every branch the lane merged the base into) gets the pull request's title,
 so `lane_enqueue`'s `title`, as its subject and each commit's message below. It adds

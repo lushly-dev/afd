@@ -321,8 +321,9 @@ def resume(factory: Factory) -> list[str]:
             resumed.requeue(entry, "restart")  # Kills its job: never two in one slot.
         for entry in [e for e in state["queue"] if e.get("state") in AT_THE_FRONT]:
             with contextlib.suppress(WorldError):  # Read again by the first step.
-                if factory.world.github.pr_state(entry["pr"]) == "MERGED":
-                    resumed.land(entry)
+                progress = factory.world.github.merge_progress(entry["pr"])
+                if progress.state == "MERGED":
+                    resumed.land(entry, merged_head=progress.head)
         return resumed.actions
 
 
