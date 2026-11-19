@@ -13,6 +13,8 @@ on:
       - 'packages/rust/**'
       - '.cargo/config.toml'
       - '.github/workflows/loam-plugins.yml'
+  # The merge queue. No path filter applies to it: the `queue` job below does that work.
+  merge_group:
   pull_request:
     branches: [main]
     paths:
@@ -35,16 +37,43 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  queue:
+    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
+    # when the files it changes match this workflow's own pull_request.paths; every other event
+    # passes straight through (scripts/affected.mjs trigger).
+    name: Merge queue paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - if: github.event_name == 'merge_group'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: paths
+        env:
+          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            node scripts/affected.mjs trigger loam-plugins.yml
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   scope:
     # One step per plugin: its own folder but its documents, and what it builds on.
     name: Affected plugins
+    needs: queue
+    if: needs.queue.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       mail: ${{ steps.mail.outputs.run }}
     env:
-      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
-      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group') && 'affected' || 'all' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

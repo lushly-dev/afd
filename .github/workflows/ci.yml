@@ -5,11 +5,13 @@ name: CI
 # importer); lint and the repository-wide checks always run. The daily schedule and manual runs
 # check the whole workspace, catching anything the change analysis cannot see. A pull request checks
 # out its merge ref, whose first parent is main as merged, not the older pull_request.base.sha.
+# A merge group is checked as a pull request is, against the commit the queue built it on.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   schedule:
     - cron: '23 7 * * *'
   workflow_dispatch:
@@ -36,8 +38,8 @@ jobs:
           && '["22.x", "24.x", "26.x"]' || '["26.x"]') }}
 
     env:
-      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
-      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group') && 'affected' || 'all' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

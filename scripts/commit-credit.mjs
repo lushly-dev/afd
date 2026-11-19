@@ -19,6 +19,13 @@
  *                                                     GITHUB_EVENT_PATH; any Co-authored-by line
  *                                                     fails, since GitHub writes one into a squash
  *                                                     message after ci-ok has checked the branch
+ *   node scripts/commit-credit.mjs --merge-group      Actions (ci-ok, on a merge queue's commit):
+ *                                                     every commit the merge group holds that
+ *                                                     its target branch does not, the squash
+ *                                                     GitHub wrote for it and for each pull
+ *                                                     request queued ahead; any Co-authored-by
+ *                                                     line fails. GITHUB_TOKEN, GITHUB_REPOSITORY,
+ *                                                     BASE_REF (refs/heads/main) and HEAD_SHA set
  * Exit 0 clean, 1 an agent or co-author is credited, 2 a failed read.
  */
 
@@ -160,22 +167,112 @@ async function pullRequestCommits() {
 	}
 }
 
+export const QUEUE_FIX = [
+	'A commit the merge queue built credits a co-author, and main would receive it. GitHub writes the',
+	"queue's squash message itself: it adds a Co-authored-by line for a branch commit's author it",
+	"does not take to be the squash commit's author, and keeps the lines the branch commits carry.",
+	'The pull request has left the queue. Before queueing it again:',
+	'  a line a branch commit carries: replace it with an email-free "Assisted-by: <agent>" trailer',
+	'  a line GitHub added for a commit author: re-author those commits with the address of the',
+	"  account that opened the pull request (git rebase <base> --exec 'git commit --amend --no-edit",
+	"  --reset-author'), so the squash has one author",
+].join('\n');
+
+/**
+ * The commits a merge group holds that its target branch does not, oldest first, in the shape
+ * `mainProblems` reads: the squash GitHub wrote for each queued pull request, which exists
+ * nowhere before the queue builds it. The base is the branch (`refs/heads/main`), not the commit
+ * the group was built on: a group is built on the groups ahead of it, and a queue set to merge
+ * past a failing entry would land those squashes on this group's verdict. A list that may be
+ * partial, or a group that is not the branch plus commits, is refused rather than checked in part.
+ */
+export async function mergeGroupCommits({
+	repository,
+	base,
+	head,
+	token,
+	api = 'https://api.github.com',
+	fetchImpl = fetch,
+}) {
+	const branch = /^refs\/heads\/([\w.-]+(?:\/[\w.-]+)*)$/.exec(base ?? '')?.[1];
+	if (!branch)
+		throw new Error("BASE_REF must be the merge group's target branch, as refs/heads/main");
+	if (!/^[0-9a-f]{40}$/.test(head ?? ''))
+		throw new Error("HEAD_SHA must be a 40-character commit, the merge group's");
+	const commits = [];
+	let total = null;
+	let compared = null;
+	for (let page = 1; page <= 30; page++) {
+		const url = `${api}/repos/${repository}/compare/${encodeURIComponent(branch)}...${head}?per_page=100&page=${page}`;
+		const response = await fetchImpl(url, {
+			headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+		});
+		if (!response.ok) throw new Error(`${url}: ${response.status} ${await response.text()}`);
+		const body = await response.json();
+		// `ahead` is the branch plus commits; anything else means the branch has moved elsewhere.
+		if (body.status !== 'ahead' || body.behind_by !== 0)
+			throw new Error(
+				`the merge group ${head} is not ${branch} plus commits (status ${body.status}): check the range by hand with git log`
+			);
+		// Every page compares with the branch afresh. If the branch moved between two pages,
+		// the pages are of different comparisons and commits could fall between them.
+		const mergeBase = body.merge_base_commit?.sha;
+		if (!mergeBase || (page > 1 && mergeBase !== compared))
+			throw new Error(
+				`${branch} moved while the merge group ${head} was being read (${compared} then ${mergeBase}): run the check again`
+			);
+		compared = mergeBase;
+		total = body.total_commits;
+		const batch = body.commits ?? [];
+		for (const item of batch) {
+			commits.push({
+				sha: item.sha,
+				message: item.commit.message,
+				author: item.commit.author,
+				committer: item.commit.committer,
+			});
+		}
+		if (batch.length === 0 || commits.length >= total) break;
+	}
+	if (
+		!Number.isInteger(total) ||
+		total < 1 ||
+		commits.length !== total ||
+		commits.at(-1).sha !== head
+	)
+		throw new Error(
+			`the comparison may not list every commit of the merge group (${commits.length} of ${total}, ending at ${commits.at(-1)?.sha} for ${head}): check the range by hand with git log`
+		);
+	return commits;
+}
+
 async function main(argv) {
 	const at = argv.indexOf('--message');
-	const onMain = argv.includes('--push-event');
+	const inQueue = argv.includes('--merge-group');
+	// Both read what main receives, so both refuse any co-author line, a person's included.
+	const onMain = argv.includes('--push-event') || inQueue;
 	let commits;
 	try {
-		commits = onMain
-			? pushedCommits(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')))
-			: at >= 0
-				? [
-						{
-							message: readFileSync(argv[at + 1], 'utf8'),
-							author: ident('GIT_AUTHOR_IDENT'),
-							committer: ident('GIT_COMMITTER_IDENT'),
-						},
-					]
-				: await pullRequestCommits();
+		const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_API_URL, BASE_REF, HEAD_SHA } = process.env;
+		commits = inQueue
+			? await mergeGroupCommits({
+					repository: GITHUB_REPOSITORY,
+					base: BASE_REF,
+					head: HEAD_SHA,
+					token: GITHUB_TOKEN,
+					api: GITHUB_API_URL || undefined,
+				})
+			: onMain
+				? pushedCommits(JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')))
+				: at >= 0
+					? [
+							{
+								message: readFileSync(argv[at + 1], 'utf8'),
+								author: ident('GIT_AUTHOR_IDENT'),
+								committer: ident('GIT_COMMITTER_IDENT'),
+							},
+						]
+					: await pullRequestCommits();
 	} catch (error) {
 		console.error(`commit-credit: ${error.message}`);
 		return 2;
@@ -187,7 +284,7 @@ async function main(argv) {
 			console.error(`commit-credit: ${commit.sha ? `${commit.sha.slice(0, 8)} ` : ''}${problem}`);
 		}
 	}
-	if (failed) console.error(onMain ? MAIN_FIX : FIX);
+	if (failed) console.error(inQueue ? QUEUE_FIX : onMain ? MAIN_FIX : FIX);
 	else if (onMain)
 		console.log(`commit-credit: ${commits.length} commit(s) credit only their authors`);
 	else console.log(`commit-credit: ${commits.length} commit(s) credit only people`);

@@ -58,6 +58,7 @@ let result = registry
 
 `CommandRegistry::execute` runs, in order:
 
+0. **An app's call** (`CommandInterface::Apps`) runs only when the command sets `ExposeOptions::apps` and `set_call_grant`'s check returns `true`; anything else, a missing command included, is one fixed `CALL_NOT_GRANTED`. The caller is the host's context field in `context.extra` (`spec/command-metadata.md`, "App-to-app calls").
 1. **Lookup.** An unknown name gets `COMMAND_NOT_FOUND`, with up to three close matches drawn only from commands the caller could call, and a pointer to `afd-help` when it is callable (`afd-discover` over MCP).
 2. **Exposure,** when the context names an interface: `COMMAND_NOT_EXPOSED`. Remote (MCP) callers get `COMMAND_NOT_FOUND` instead.
 3. **Active context:** `COMMAND_NOT_IN_CONTEXT`. Set it with `CommandContext::with_active_context` or `with_context_stack`.

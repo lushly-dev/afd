@@ -81,6 +81,9 @@ export {
 	isTelemetryEvent,
 	success,
 } from '@lushly-dev/afd-core';
+// App-to-app calls (spec/command-metadata.md, "App-to-app calls")
+export type { CallGrant } from '@lushly-dev/afd-core/internal/app-calls';
+export { type AppCallRegistryOptions, createAppCallRegistry } from './app-call-registry.js';
 // Pre-execution approval gate
 export {
 	type ApprovalCommand,

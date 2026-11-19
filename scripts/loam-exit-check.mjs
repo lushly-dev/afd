@@ -38,6 +38,8 @@ export const WORKFLOWS = {
 		name: 'Loam',
 		file: 'loam.yml',
 		jobs: [
+			// The merge queue's gate: it runs on every event and passes a manual run straight through.
+			'Merge queue paths',
 			'Affected units',
 			'Build, unit and Chromium',
 			'Editor walk',
@@ -51,7 +53,7 @@ export const WORKFLOWS = {
 	desktop: {
 		name: 'Loam desktop',
 		file: 'loam-desktop.yml',
-		jobs: ['Affected units', 'Desktop on Linux'],
+		jobs: ['Merge queue paths', 'Affected units', 'Desktop on Linux'],
 	},
 	// A manual run's matrix (ci.yml): Node 22, 24 and 26.
 	ci: {

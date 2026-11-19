@@ -1,7 +1,8 @@
 # Plugin manifest
 
 One manifest format for the hosts in this repository that load plugins. A host-neutral **core**,
-[`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json), defines the keys every host shares,
+[`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json) and its version 2,
+[`plugin-manifest.core.v2.json`](./plugin-manifest.core.v2.json), defines the keys every host shares,
 each with one meaning. A **profile** is one host's closed schema for one manifest version: it
 references the core, adds that host's sections and closes its vocabularies. A file is written for
 one profile. A Loam app and an Umbel plugin therefore use the same keys with the same meanings, and
@@ -20,7 +21,7 @@ host never takes a plugin's trust from it. Loading, discovery and trust stay eac
 
 | Term | Meaning |
 | --- | --- |
-| Core | The definitions in `plugin-manifest.core.v1.json`: `$defs` only, with every object left open |
+| Core | The definitions in `plugin-manifest.core.v<N>.json`, one file per core version: `$defs` only, with every object left open |
 | Profile | One host's closed schema for one manifest version, conforming to one core version |
 | App or plugin | What a manifest describes; its identity is `plugin.id` |
 | Instance | A deployer's use of an app. A host may run several of one app |
@@ -139,7 +140,8 @@ a file system, and run with Loam's `app check`. What the profile adds, narrows a
 ## Keys
 
 [`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json) holds each key's type, pattern and
-length. These are the meanings. Keys and meanings are Umbel's wherever Umbel has them.
+length, and [version 2](./plugin-manifest.core.v2.json) the same with `expose.apps` (K5). These are
+the meanings. Keys and meanings are Umbel's wherever Umbel has them.
 
 ### K1. Versions
 
@@ -195,8 +197,12 @@ The profile names the grants `store-write` and `workspace-write` need, and may r
 
 `expose` has `mcp`, `agent`, `cli` and `palette`, which mean what AFD's `expose` means
 ([command metadata](./command-metadata.md#fields)). A manifest's flags are the app's default exposure,
-and a deployer may narrow them. A flag left out takes the profile's default (C5). `apps` is reserved,
-and joins the core in version 2 with its AFD feature.
+and a deployer may narrow them. A flag left out takes the profile's default (C5).
+
+`apps` is defined from core version 2, where it means what AFD's `expose.apps` means: another app may
+call the command under a host's grant ([App-to-app calls](./command-metadata.md#app-to-app-calls)).
+It defaults to `false` in every profile, so C5 does not apply to it: a profile MUST NOT default it to
+`true`. Core version 1 reserves it, and a profile on version 1 refuses it.
 
 ### K6. Grants
 
@@ -227,7 +233,7 @@ version may define any of them except `dependencies` and `allow`, which stay out
   by plugins), `dependencies` (plugins do not depend on each other), `signature` (signed plugins),
   `scopes` (per-command authorization), `on_conflict` (a conflict across instances is always `error`);
 - in a command: `scopes`;
-- in `expose`: `apps`;
+- in `expose`: `apps`, in core version 1 only; version 2 defines it (K5);
 - in a grant: `allow` (the deployer's), `targets`.
 
 ## Rules beyond the schema
@@ -339,7 +345,10 @@ cannot forge it.
 
 - **The core.** Integer versions, in the file name and `$id`. A new version only adds: an optional key,
   a reserved key defined, or a value in an open vocabulary. A meaning or default never changes and a
-  key is never removed. Anything else is a new format.
+  key is never removed. Anything else is a new format. Version 2 (Loam phase 5 step 0b) defines
+  `expose.apps`, reserved in version 1, and changes nothing else, which
+  `scripts/plugin-manifest.test.mjs` checks. Umbel's and Loam's profiles conform to version 1; Loam's
+  adopts version 2 with a new manifest version in its phase 5's milestone B.
 - **Profiles.** Each manifest version pins one core version and follows its host's rules. Adopting a
   newer core version means a new manifest version, so an older host refuses the newer file and says
   what it serves.
@@ -404,6 +413,11 @@ have no reader. Every reader runs it. Its sections:
   the instance's `prefix`: `command`, or `unnameable` when it has none.
 
 A `pointer` is an RFC 6901 JSON Pointer, so `/` in a key is written `~1`.
+
+The cases are written against core version 1, which both profiles conform to. Core version 2 differs
+from it only in `expose.apps`, and `scripts/plugin-manifest.test.mjs` checks that difference and
+nothing else: every other definition equal, `apps` a boolean defaulting to `false`, accepted by
+version 2 and refused by version 1.
 
 ## Implementation status
 
