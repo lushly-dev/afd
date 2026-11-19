@@ -30,8 +30,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
   budget, and its bare arm, and an independent reader reviewed it. Its rules for "go" are not
-  confirmed. What it describes is built, outside the repository where it must be; no session
-  has run.
+  confirmed. Its application, held material and reference build are built; its runner is not
+  finished, and no session has run.
 - **In progress:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15 and merged in
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
@@ -119,7 +119,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is built but has not run.** Its application is built and merged in #1239
+- **The bench is mostly built and has not run.** Its application is built and merged in #1239
   (2026-11-15). Outside the repository, its held material is written and frozen, its reference
   build is approved and a copy of it holds the faults, and its runner is written without walks,
   readers or statistics.
@@ -546,8 +546,9 @@ without its screens:
   | 4 | 4 | 30, from 25 findings and 5 notes | 4 | 11 | 15 | 24 findings and the 5 notes | 1 | 1 further note |
 
   The severity columns count the merged items; the verdict columns count what the verifier
-  judged, and an item judged not real was dropped before the merge. Round 4's other five notes
-  repeated a finding or a decision, or were Violet's own problems. Rounds 5 to 7 checked the
+  judged, and an item judged not real was dropped before the merge. Of round 4's eleven notes,
+  five became items and one was not real; the rest repeated a finding or a decision, or were
+  Violet's own problems. Rounds 5 to 7 checked the
   fixes with four reviewers, then two and two, and round 8 fixed what round 7 found. Most of
   what rounds 3 to 7 found was in how a screen behaves under repeated presses.
 - **The owner's look,** on 2026-11-16: all 50 states, 11 marked for a change, 1 marked right and
