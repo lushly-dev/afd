@@ -29,7 +29,13 @@ import type {
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 import { deepActiveElement, tellAnswered } from '../elements/events.js';
-import type { LoamModal, QuestionInput, QuestionOptions } from '../elements/modal.js';
+import {
+	type AnswerFn,
+	bindAnswer,
+	type LoamModal,
+	type QuestionInput,
+	type QuestionOptions,
+} from '../elements/modal.js';
 import type { LoamShell } from '../elements/shell.js';
 import {
 	type LoamToast,
@@ -62,7 +68,8 @@ export interface LayerHelpers {
 	anchorOwnerOf: typeof anchorOwnerOf;
 	/** How a question shows, and its private answer callback (step 4). */
 	optionsOf(overlay: OverlayV1): QuestionOptions;
-	answerFor(question: LoamModal): LoamModal['onAnswer'];
+	/** Bind a question's private answer callback (step 4; the trust review's blocker 1). */
+	bindAnswer(question: LoamModal): void;
 }
 
 /** A confirmation's input as it will run, one line per field, as text (phase 4 specification, 7.2, R15). */
@@ -117,7 +124,7 @@ export class OverlaySurfaces {
 	 * A person's answer to `question`, as its private callback (the review's 2): its own id, then the kernel's word.
 	 * What the kernel accepted is told to `hearAnswers`; what it refused shows in that question, which stays open.
 	 */
-	#answerFor(question: LoamModal): LoamModal['onAnswer'] {
+	#answerFor(question: LoamModal): AnswerFn {
 		return (overlayId, result, value) =>
 			void (async () => {
 				const asked = this.#asks.get(overlayId);
@@ -154,7 +161,13 @@ export class OverlaySurfaces {
 					...(value !== undefined ? { value } : {}),
 				});
 				if (answered.success && answered.data) {
-					tellAnswered(this.#shell, overlayId, answered.data.result);
+					// The close prompt names its tab, so its answer acts whichever close opened it (7.3).
+					tellAnswered(
+						this.#shell,
+						overlayId,
+						answered.data.result,
+						asked?.kind === 'close' ? asked.tab : undefined
+					);
 					return;
 				}
 				if (!answered.error || question.overlayId !== overlayId) return;
@@ -208,7 +221,7 @@ export class OverlaySurfaces {
 		const { ownerDocument: doc, shadowRoot } = this.#shell;
 		this.#region = doc.createElement('loam-toast-region') as LoamToastRegion;
 		this.#modal = doc.createElement('loam-modal') as LoamModal;
-		this.#modal.onAnswer = this.#answerFor(this.#modal);
+		bindAnswer(this.#modal, this.#answerFor(this.#modal));
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.addEventListener(TOAST_INBOX_EVENT, this.#onInbox);
@@ -242,7 +255,7 @@ export class OverlaySurfaces {
 					focusFallback,
 					anchorOwnerOf,
 					optionsOf: (overlay) => this.#optionsOf(overlay),
-					answerFor: (question) => this.#answerFor(question),
+					bindAnswer: (question) => bindAnswer(question, this.#answerFor(question)),
 				}),
 			(cause) => {
 				this.#layer = undefined;

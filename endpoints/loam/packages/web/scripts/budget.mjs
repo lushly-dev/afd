@@ -397,8 +397,16 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * prompts (a confirmation's input, Decline focused, the input prompt answered by `palette-run`), the palette's input
  * rows and app names, and the bell's count and announcement of a confirmation. `editorMinified` 35,600 to 36,000
  * (35,479 to 35,762, +283): the close prompt's answers in place of phase 2's discard modal. `inboxMinified` 10,000 to
- * 11,500 (9,637 to 11,340, +1,703, over section 14's 10,000): a confirmation's header, input and state, and Confirm
- * and Decline naming the command.
+ * 11,500 (9,637 to 11,340, +1,703, over section 14's 10,000, accepted under D115 by the coordinator): a confirmation's
+ * header, input and state, and Confirm and Decline naming the command.
+ * Step 6's trust review, under D115, the same machine: `jsMinified` 310,500 to 311,000 (310,406 to 310,720, +314; gzip
+ * 96,945 of 97,000): the journal's redaction of `palette-run`'s wrapped input (R4), the slot's read and answer past
+ * the queue once stage B has ended (blocker 8), and the close prompt's tab told to the answer registry (blocker 12).
+ * `kernelMinified` 120,000 to 120,500 (120,034, the same). `lateSettingsMinified` 78,500 to 81,000 (78,180 to 80,506,
+ * +2,326): the bucket, the shared prior answer, the per-person limit, the slot's stored decline and re-check, the
+ * fill's consume and scope, and the list's bounded input. `appsMinified` 420,500 to 421,000 (420,134 to 420,544,
+ * +410): the manifest's refusal of a `confirm` input beside a `confirm_prompt`. `inboxMinified` 11,500 to 12,000
+ * (11,340 to 11,941, +601): a cut input shown whole before Confirm, and the trusted press.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -421,7 +429,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
 	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
 	// Steps 4, 5 and 8 together (step 5's branch with `main` at `03b036bb`): 310,131; set to 310,500 under D115.
-	jsMinified: 310_500,
+	// Step 6's trust review: 310,720 (the header records it); set to 311,000 under D115.
+	jsMinified: 311_000,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -438,7 +447,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 120_000,
+	kernelMinified: 120_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -451,8 +460,8 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500.
-	lateSettingsMinified: 78_500,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000.
+	lateSettingsMinified: 81_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -464,7 +473,7 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
-	appsMinified: 420_500,
+	appsMinified: 421_000,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	surfacesMinified: 96_500,
@@ -497,7 +506,7 @@ export const CEILINGS = Object.freeze({
 	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
-	inboxMinified: 11_500,
+	inboxMinified: 12_000,
 });
 
 /** Group a module id by the package it belongs to. */

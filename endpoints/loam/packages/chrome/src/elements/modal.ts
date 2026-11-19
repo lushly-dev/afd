@@ -5,7 +5,7 @@
  * dialog it opens with `show()`, non-modal. Focus starts on the default answer, on cancel when it is `danger`, or on a
  * prompt's first field, and returns to the invoker; a dialog takes no focus when it opens. Escape cancels. It closes
  * when the kernel's state says so. Only a person's press on a button it drew, or their Escape, answers it, through the
- * private `onAnswer` its renderer set, with its own id: no event carries an answer, so nothing else on the page, an
+ * private callback its renderer bound (`bindAnswer`), with its own id: no event carries an answer, so nothing else on the page, an
  * app's element inside it included, answers as the person (step 4's review). What the kernel accepted is told to
  * `hearAnswers`' listeners, and what it refused shows in place.
  */
@@ -246,6 +246,20 @@ function answersOf(input: QuestionInput): OverlayActionV1[] {
 	];
 }
 
+/** A person's answer to a question, with the id of the question shown when they gave it. */
+export type AnswerFn = (overlayId: string, result: string, value?: unknown) => void;
+
+/**
+ * Each question's answer callback, held here and never on the element (the trust review's blocker 1): nothing that
+ * reaches the element, an app's own element inside it among them, can call or replace it.
+ */
+const ANSWERS = new WeakMap<object, AnswerFn>();
+
+/** Bind a question's answer to its renderer's callback; only the renderer, which imports this, does. */
+export function bindAnswer(question: LoamModal, answer: AnswerFn): void {
+	ANSWERS.set(question, answer);
+}
+
 export class LoamModal extends FASTElement {
 	declare input: QuestionInput | null;
 	declare from: string;
@@ -255,8 +269,6 @@ export class LoamModal extends FASTElement {
 	declare buttons: HTMLElement;
 	overlayId = '';
 	kind: QuestionOptions['kind'] = 'modal';
-	/** Set by its renderer alone: a person's answer, with the id of the question shown when they gave it. */
-	onAnswer: (overlayId: string, result: string, value?: unknown) => void = () => {};
 	#fields: PromptFields | null = null;
 	/** A `close` the shell's own `hide()` queued, which reports nothing whenever it arrives (the review's 6). */
 	#closing = false;
@@ -377,7 +389,7 @@ export class LoamModal extends FASTElement {
 	#answer(result: string): void {
 		if (this.overlayId === '') return;
 		const value = result !== 'cancel' && this.#fields ? this.#fields.read() : undefined;
-		this.onAnswer(this.overlayId, result, value);
+		ANSWERS.get(this)?.(this.overlayId, result, value);
 	}
 
 	handleCancel(event: Event): void {

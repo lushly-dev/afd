@@ -15,7 +15,7 @@ export { promptFields } from '../elements/prompt-fields.js';
 /** How the renderer shows a question, and who hears a person's answer to it, passed in from `surfaces`. */
 export interface QuestionHelpers {
 	optionsOf(overlay: OverlayV1): QuestionOptions;
-	answerFor(question: LoamModal): LoamModal['onAnswer'];
+	bindAnswer(question: LoamModal): void;
 	focusFallback(shell: LoamShell): void;
 }
 
@@ -34,7 +34,7 @@ export function createDialogs(shell: LoamShell, helpers: QuestionHelpers) {
 			for (const overlay of dialogs) {
 				if (shown.has(overlay.overlayId)) continue;
 				const question = shell.ownerDocument.createElement('loam-modal') as LoamModal;
-				question.onAnswer = helpers.answerFor(question);
+				helpers.bindAnswer(question);
 				shown.set(overlay.overlayId, question);
 				shell.shadowRoot?.append(question);
 				await question.show(

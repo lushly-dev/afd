@@ -144,7 +144,10 @@ export class EditorController implements FrameListener {
 			(event) =>
 				void this.#onAction((event as CustomEvent<EditorGroupAction & { group: string }>).detail)
 		);
-		hearModals(shell, this.#modals);
+		hearModals(shell, this.#modals, (tab, result) => {
+			// A person's `editor-close` from the palette: its prompt's Save or Discard closes the tab here (7.3).
+			if (result === 'save' || result === 'discard') void this.close(tab, result);
+		});
 	}
 
 	/** One read at a time, so a later answer never renders under an earlier one. */
@@ -615,19 +618,24 @@ export class EditorController implements FrameListener {
 	 * closes without it, Cancel keeps the tab. Focus goes to the tab that becomes active, or main. False when the person
 	 * kept editing, or the save they chose failed.
 	 */
-	async close(tab: string): Promise<boolean> {
+	async close(tab: string, answered?: 'save' | 'discard'): Promise<boolean> {
 		const visit = this.#visit;
 		const id = `${visit} ${tab}`;
 		this.#closing.add(id);
 		try {
-			return await this.#close(tab, visit, this.#at);
+			return await this.#close(tab, visit, this.#at, answered);
 		} finally {
 			this.#closing.delete(id);
 		}
 	}
 
 	/** The tab of `at`, the scope rendered when the person asked, whatever scope is active by its end. */
-	async #close(tab: string, visit: number, at: ScopeOf | undefined): Promise<boolean> {
+	async #close(
+		tab: string,
+		visit: number,
+		at: ScopeOf | undefined,
+		answered?: 'save' | 'discard'
+	): Promise<boolean> {
 		// Its editor, shown or parked while it saves: the person's Discard is the one way its draft goes.
 		const frame = this.#frames.get(tab) ?? this.#parking.get(tab);
 		const life = frame && (this.#lives.get(frame) as Life);
@@ -636,7 +644,7 @@ export class EditorController implements FrameListener {
 			this.#asking.add(asking);
 			try {
 				let saved = false;
-				if (frame?.autosaveMs !== undefined) {
+				if (answered === undefined && frame?.autosaveMs !== undefined) {
 					try {
 						await frame.save();
 						saved = true;
@@ -647,7 +655,8 @@ export class EditorController implements FrameListener {
 				if (!saved) {
 					// The Discard is of the draft as the prompt found it, wherever it is by then; typed into after, kept.
 					const edits = life?.edits;
-					const answer = await askClose(this.#kernel, this.#modals, tab, at && { scope: at });
+					const answer =
+						answered ?? (await askClose(this.#kernel, this.#modals, tab, at && { scope: at }));
 					if (answer === 'cancel') return false;
 					if (answer === 'save') {
 						if (!frame) return false;

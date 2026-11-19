@@ -228,6 +228,46 @@ describe('P4-E8: confirmations', () => {
 		await page.context().close();
 	});
 
+	it("blocker 1: a script's click or a dispatched event answers nothing, in the slot or the inbox", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await kernelCall(page, 'tally-add', { by: 2 });
+		await start(page, 'tally-reset', {}, 'person');
+		await expect.poll(() => slot(page).count()).toBe(1);
+		const forged = await page.evaluate(() => {
+			const modal = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-modal') as
+				| (HTMLElement & Record<string, unknown>)
+				| null;
+			const confirm = modal?.shadowRoot?.querySelector<HTMLButtonElement>('button.confirm');
+			confirm?.click();
+			confirm?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// The answer callback is not the element's to give away.
+			return { onAnswer: typeof modal?.onAnswer };
+		});
+		expect(forged.onAnswer).toBe('undefined');
+		await settle(page);
+		expect(await slot(page).count()).toBe(1);
+		expect(await total(page)).toBe(2);
+		await slot(page).locator('button', { hasText: 'Decline' }).click();
+		await expect.poll(async () => (await settled(page))?.error?.code).toBe('CONFIRMATION_DECLINED');
+		await agentCall(page, 'tally-reset', {});
+		await kernelCall(page, 'section-open', { section: 'inbox' });
+		const item = inbox(page).locator('.notice').first();
+		await expect
+			.poll(() => item.getByRole('button', { name: 'Confirm Reset the tally' }).count())
+			.toBe(1);
+		await item.evaluate((element) => {
+			const button = element.querySelector<HTMLButtonElement>('button.primary');
+			button?.click();
+			button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		});
+		await settle(page);
+		expect(await item.locator('.meta').nth(1).textContent()).toContain('Waiting for your answer');
+		expect(await total(page)).toBe(2);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
 	it('passes axe in three themes with a confirmation in the slot and one in the inbox', async () => {
 		const { page } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');

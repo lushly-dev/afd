@@ -236,6 +236,8 @@ export class LoamInbox extends HTMLElement {
 	#unsubscribe: (() => void) | null = null;
 	/** The notices whose action the person's press is running now. */
 	#acting = new Set<string>();
+	/** A confirmation's whole input, read by its id, where the list cut it (the trust review's blocker 9). */
+	#whole = new Map<string, unknown>();
 
 	constructor() {
 		super();
@@ -346,13 +348,17 @@ export class LoamInbox extends HTMLElement {
 		this.#status.textContent = text;
 	}
 
-	#button(label: string, run: () => unknown, primary = false): HTMLElement {
+	#button(label: string, run: () => unknown, primary = false, trusted = false): HTMLElement {
 		const made = el(
 			'button',
 			{ type: 'button', class: primary ? 'action primary' : 'action' },
 			label
 		);
-		made.addEventListener('click', () => void run());
+		// A confirmation's answer is a person's own press alone (the trust review's blocker 1): a script's `click()` or a
+		// dispatched event answers nothing.
+		made.addEventListener('click', (event) => {
+			if (!trusted || event.isTrusted) void run();
+		});
 		return made;
 	}
 
@@ -444,7 +450,13 @@ export class LoamInbox extends HTMLElement {
 			...(asked
 				? [
 						el('p', { class: 'body' }, asked.prompt),
-						el('p', { class: 'body input' }, inputWords(asked.input)),
+						el(
+							'p',
+							{ class: 'body input' },
+							this.#cut(notice)
+								? `The input is too long to list (${(asked.input as { bytes: number }).bytes} bytes): show it before you answer`
+								: inputWords(this.#whole.get(notice.id) ?? asked.input)
+						),
 					]
 				: []),
 			actions
@@ -464,12 +476,19 @@ export class LoamInbox extends HTMLElement {
 					this.#acting.delete(notice.id);
 				}
 			};
-			const confirm = this.#button('Confirm', answer('confirm'), !asked.danger);
-			confirm.setAttribute('aria-label', `Confirm ${notice.title}`);
-			if (asked.danger) confirm.classList.add('danger');
-			const decline = this.#button('Decline', answer('decline'));
+			const decline = this.#button('Decline', answer('decline'), false, true);
 			decline.setAttribute('aria-label', `Decline ${notice.title}`);
-			actions.append(decline, confirm);
+			// The person sees the whole input before Confirm is offered (blocker 9): read by its id, as a list never shows it.
+			if (this.#cut(notice)) {
+				const show = this.#button('Show the full input', () => this.#readWhole(notice.id));
+				show.setAttribute('aria-label', `Show the full input of ${notice.title}`);
+				actions.append(decline, show);
+			} else {
+				const confirm = this.#button('Confirm', answer('confirm'), !asked.danger, true);
+				confirm.setAttribute('aria-label', `Confirm ${notice.title}`);
+				if (asked.danger) confirm.classList.add('danger');
+				actions.append(decline, confirm);
+			}
 		}
 		if (notice.action && notice.state === undefined && notice.kind === 'notice') {
 			const { label } = notice.action;
@@ -510,6 +529,27 @@ export class LoamInbox extends HTMLElement {
 				)
 			);
 		return item;
+	}
+
+	/** Whether a list cut this confirmation's input, and its whole input is not read yet (10.2, blocker 9). */
+	#cut(notice: NotificationV1): boolean {
+		const input = notice.confirmation?.input as { truncated?: unknown } | undefined;
+		return input?.truncated === true && !this.#whole.has(notice.id);
+	}
+
+	/** Read one confirmation by its id, whose input comes whole, then show it. */
+	async #readWhole(id: string): Promise<void> {
+		const answer = (await this.kernel?.call<Page>('notification-list', {
+			notification: id,
+			body: true,
+		})) as Answer<Page> | undefined;
+		const found = answer?.success ? answer.data?.notifications[0] : undefined;
+		if (!found?.confirmation) {
+			if (answer) this.#say(failed(answer));
+			return;
+		}
+		this.#whole.set(id, found.confirmation.input);
+		this.#render();
 	}
 
 	/** A notice's link (10.1), formed as a toast's is, in the `overlays` chunk. */

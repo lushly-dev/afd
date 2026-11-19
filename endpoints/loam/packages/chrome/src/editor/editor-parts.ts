@@ -313,6 +313,8 @@ export async function askClose(
 	const asked = await kernel.call('editor-close', { tab }, scope);
 	if (asked.success) return 'closed';
 	let prompt = (asked.error?.details as { prompt?: { overlayId: string } } | undefined)?.prompt;
+	// Only a tab the kernel no longer holds is asked in the shell's own modal; any other refusal keeps the tab.
+	if (!prompt && asked.error?.code !== 'EDITOR_TAB_UNKNOWN') return 'cancel';
 	if (!prompt) {
 		const opened = await kernel.call<{ overlayId: string }>('modal-open', CLOSE_PROMPT);
 		prompt = opened.data;

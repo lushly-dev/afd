@@ -34,8 +34,11 @@ export function deepActiveElement(doc: Document = document): Element | null {
 	return active;
 }
 
-/** An answer the kernel accepted: the overlay and the result it closed with. */
-export type AnsweredListener = (overlayId: string, result: string) => void;
+/**
+ * An answer the kernel accepted: the overlay and the result it closed with, and for the shell's close prompt the tab it
+ * asks about (phase 4 specification, 7.3).
+ */
+export type AnsweredListener = (overlayId: string, result: string, tab?: string) => void;
 
 const answered = new WeakMap<object, Set<AnsweredListener>>();
 
@@ -49,6 +52,6 @@ export function hearAnswers(host: object, listener: AnsweredListener): () => voi
 }
 
 /** Tell `host`'s listeners an answer the kernel accepted; only the renderer, from `overlay-dismiss`'s result, does. */
-export function tellAnswered(host: object, overlayId: string, result: string): void {
-	for (const listener of [...(answered.get(host) ?? [])]) listener(overlayId, result);
+export function tellAnswered(host: object, overlayId: string, result: string, tab?: string): void {
+	for (const listener of [...(answered.get(host) ?? [])]) listener(overlayId, result, tab);
 }

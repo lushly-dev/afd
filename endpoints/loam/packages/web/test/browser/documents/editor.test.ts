@@ -748,6 +748,33 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	});
 
+	it("phase 4's 7.3: a person's own editor-close asks; Save saves then closes, Discard closes with no second close", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const tabName = () => editorView(page).then((view) => view?.[0]?.tabs[0]?.name);
+		const one = await createNote(page, 'One');
+		await open(page, one);
+		await textOf(page, 't1').click();
+		await page.keyboard.type('Kept by Save');
+		await expect.poll(tabName).toBe('One, unsaved');
+		// From the palette, not the tab's button: the kernel opens the prompt, and its answer acts here (the review's 12).
+		await kernelCall(page, 'editor-close', { tab: 't1' });
+		await page.locator('loam-modal dialog[open] button', { hasText: 'Save' }).click();
+		await expect.poll(() => stored(page, one)).toBe('Kept by Save');
+		await editorIdle(page);
+		expect((await editorView(page))?.[0]?.tabs).toEqual([]);
+		const two = await createNote(page, 'Two');
+		await open(page, two);
+		await textOf(page, 't2').click();
+		await page.keyboard.type('Thrown away');
+		await expect.poll(tabName).toBe('Two, unsaved');
+		await kernelCall(page, 'editor-close', { tab: 't2' });
+		await page.locator('loam-modal dialog[open] button', { hasText: 'Discard' }).click();
+		await editorIdle(page);
+		await expect.poll(() => editorView(page).then((view) => view?.[0]?.tabs ?? [])).toEqual([]);
+		await opened.context.close();
+	});
+
 	it('P2-D5: an agent marking an unsaved tab saved, then closing it, loses nothing: the tab is unsaved again, and a close saves first', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;

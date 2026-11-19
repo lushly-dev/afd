@@ -81,10 +81,17 @@ export function settleFocus(
  * The close prompt's answer, to the close that waits for it (phase 4 specification, 7.3): only what the kernel accepted,
  * told by the shell's renderer, never an event a page's element could send (phase 4's step 4 review).
  */
-export function hearModals(shell: LoamShell, modals: Map<string, (result: string) => void>): void {
-	hearAnswers(shell, (overlayId, result) => {
-		modals.get(overlayId)?.(result);
+export function hearModals(
+	shell: LoamShell,
+	modals: Map<string, (result: string) => void>,
+	orphan: (tab: string, result: string) => void
+): void {
+	hearAnswers(shell, (overlayId, result, tab) => {
+		const waiting = modals.get(overlayId);
 		modals.delete(overlayId);
+		if (waiting) waiting(result);
+		// A close prompt no close of this page waits for: the person's own `editor-close`, from the palette (7.3).
+		else if (tab !== undefined) orphan(tab, result);
 	});
 }
 
