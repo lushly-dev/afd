@@ -42,6 +42,21 @@ export const APPROVAL_REQUESTED_SCHEMA = {
 	required: ['approve'],
 } as const;
 
+/**
+ * The step of an `afd-batch` or `afd-pipe` an up-front approval was asked for, kept with the
+ * question in the signed `requestState` (#1414). The request that brings the answer runs the step
+ * on this input instead of validating what was sent again, so a schema whose defaults differ from
+ * one validation to the next (a random id, the time) still runs exactly what the human approved.
+ */
+export interface ApprovedStep {
+	/** The step's position in the request, 0-based. */
+	index: number;
+	/** The canonical JSON of the step's validated input, as the human was shown it. */
+	input: string;
+	/** A digest of the whole request as sent: the input serves that request and no other. */
+	call: string;
+}
+
 /** One approval asked of the human: a command, its validated input and the actor. */
 export interface ApprovalQuestion {
 	/** Keyed digest of the command, its validated input and the actor, under the signing key. */
@@ -54,6 +69,8 @@ export interface ApprovalQuestion {
 	expiresAt: number;
 	/** MAC of the binding, nonce and expiry under the approval secret. */
 	mac: string;
+	/** For an up-front approval, the step asked about (left out when its input is too long to keep). */
+	step?: ApprovedStep;
 }
 
 /** A call held for the human's approval, as recorded by the middleware. */
@@ -78,6 +95,8 @@ export interface AcceptedApproval {
 	nonce: string;
 	expiresAt: number;
 	mac: string;
+	/** The step the approval was asked for, when the question kept it. */
+	step?: ApprovedStep;
 }
 
 /** The human's answer to an earlier approval elicitation for one binding. */
@@ -165,6 +184,11 @@ export interface UpFrontStep {
 	input?: unknown;
 	/** Whether {@link input} holds the validated input. */
 	valid: boolean;
+	/**
+	 * The input as sent (after `$input` references are resolved), as canonical JSON: how the engine
+	 * finds the step it is about to run. Absent when {@link valid} is false.
+	 */
+	sent?: string;
 }
 
 /**
@@ -181,8 +205,21 @@ export interface UpFrontApproval {
 	call: string;
 	/** Whether a step runs only under a condition (`when`), so one may run while another is skipped. */
 	conditional: boolean;
-	/** The call's steps, worked out when the middleware first asks for them. */
-	steps(): readonly UpFrontStep[];
+	/**
+	 * The call's steps, worked out once, when the engine or the middleware first asks for them. A
+	 * step the human already approved in an earlier round of this request has the input approved
+	 * then; any other is validated now.
+	 */
+	steps(): Promise<readonly UpFrontStep[]>;
+	/**
+	 * The input validated up front for a step that runs `command` on `input` as sent, handed out
+	 * once per step (#1414). The server runs the step on it instead of on a second validation's
+	 * result, so the input that runs is the one the human approved even when the schema's defaults
+	 * differ from one validation to the next (a random id, the time). `undefined` for a command
+	 * with no approval policy and for a step that is not known up front or did not validate: the
+	 * step runs on its own validation, as usual.
+	 */
+	validated(command: string, input: unknown): Promise<{ input: unknown } | undefined>;
 	/**
 	 * Run one step through the up-front gate, with the approval middleware's own keys, nonce
 	 * store and policies (`deps`): nothing runs until the whole call is approved.
@@ -262,9 +299,11 @@ export function upFrontApproval(context: CommandContext | undefined): UpFrontApp
  * Remove the up-front approval from a step's own context before its handler runs, so a command
  * the handler runs never takes a step's approval. Each step runs with a context of its own. The
  * approval middleware does this (not the engine, which keeps the gate out of `/direct` hosts), so
- * only a handler behind an `mcp-elicitation` approval middleware is covered, which is the only
- * reader of the approval; a retry middleware placed before it retries the step on the ordinary
- * single-command path, which holds it again.
+ * only a handler behind an `mcp-elicitation` approval middleware is covered. The approval is read
+ * twice: by that middleware, and by the engine's up-front step hook, which takes the step's
+ * approved input (#1414). Without the middleware nothing is gated, so a nested command could at
+ * most take a later step's approved input as its own, never an approval. A retry middleware placed
+ * before it retries the step on the ordinary single-command path, which holds it again.
  */
 export function releaseUpFrontApproval(context: CommandContext): void {
 	delete (context as RelayContext)[UP_FRONT];

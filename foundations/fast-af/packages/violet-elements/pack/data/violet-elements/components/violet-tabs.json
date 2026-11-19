@@ -107,11 +107,6 @@
 				"basis": "declared",
 				"default": "var(--_shadow-control)",
 				"name": "--_panel-shadow"
-			},
-			{
-				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_border-subtle) 92%, transparent)",
-				"name": "--_tablist-divider"
 			}
 		],
 		"events": [

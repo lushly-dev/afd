@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	type AppDefinitionV1,
 	defineApp,
 	failure,
 	KIT_ELEMENT_NAMES_V1,
+	type LoamClientV1,
+	projectsOver,
 	SDK_VERSION,
+	settingsOver,
 	success,
 } from './index.js';
 
@@ -42,5 +45,96 @@ describe('the SDK root', () => {
 		expect(KIT_ELEMENT_NAMES_V1).toContain('loam-list');
 		// The documents specification's 9.2: an editor embeds another document by name.
 		expect(KIT_ELEMENT_NAMES_V1).toContain('loam-embed');
+	});
+});
+
+/** A client answering each command from `answers`, recording its calls. */
+function clientOf(answers: Record<string, unknown>) {
+	const call = vi.fn(async (name: string) => answers[name] as never);
+	return { client: { call } as unknown as LoamClientV1, call };
+}
+
+describe('settingsOver: the settings grant (phase 4 specification, 3.8)', () => {
+	it("reads a key's resolved value and a section's values by key", async () => {
+		const { client, call } = clientOf({
+			'setting-get': success({ value: 'Hi', from: 'workspace' }),
+			'setting-list': success({
+				values: [
+					{ section: 'hello.general', key: 'greeting', value: 'Hi' },
+					{ section: 'hello.general', key: 'shout', value: false },
+				],
+			}),
+		});
+		const settings = settingsOver(client);
+		expect(await settings.get('hello.general', 'greeting')).toBe('Hi');
+		expect(await settings.section('hello.general')).toEqual({ greeting: 'Hi', shout: false });
+		expect(call.mock.calls).toEqual([
+			['setting-get', { section: 'hello.general', key: 'greeting' }],
+			['setting-list', { section: 'hello.general' }],
+		]);
+	});
+
+	it("rejects with the refusal's code and suggestion", async () => {
+		const refusal = failure({
+			code: 'SETTING_NOT_OWNED',
+			message: "'other.prefs' is another app's section",
+			suggestion: "Read only this app's own sections",
+		});
+		const { client } = clientOf({ 'setting-get': refusal, 'setting-list': refusal });
+		const settings = settingsOver(client);
+		await expect(settings.get('other.prefs', 'x')).rejects.toMatchObject({
+			message: "'other.prefs' is another app's section",
+			code: 'SETTING_NOT_OWNED',
+			suggestion: "Read only this app's own sections",
+		});
+		await expect(settings.section('other.prefs')).rejects.toMatchObject({
+			code: 'SETTING_NOT_OWNED',
+		});
+	});
+
+	it('rejects a success with no data, and an error with no message, in its own words', async () => {
+		const { client } = clientOf({
+			'setting-get': { success: true },
+			'setting-list': { success: false },
+		});
+		const settings = settingsOver(client);
+		await expect(settings.get('hello.general', 'greeting')).rejects.toThrow(
+			'The setting could not be read'
+		);
+		await expect(settings.section('hello.general')).rejects.toMatchObject({
+			message: 'The setting could not be read',
+			code: undefined,
+		});
+	});
+});
+
+describe('projectsOver: the projects grant (phase 2 specification, 5)', () => {
+	const atlas = { id: 'prj_atlas', slug: 'atlas', name: 'Atlas' };
+
+	it('reads the active project, the list and one by id or slug', async () => {
+		const { client, call } = clientOf({
+			'project-get': success(atlas),
+			'project-list': success({ projects: [atlas] }),
+		});
+		const projects = projectsOver(client, 'prj_atlas');
+		expect(await projects.active()).toEqual(atlas);
+		expect(await projects.list()).toEqual([atlas]);
+		expect(await projects.get('atlas')).toEqual(atlas);
+		expect(call.mock.calls[0]).toEqual(['project-get', { project: 'prj_atlas' }]);
+	});
+
+	it('answers null and nothing for no project and for a refusal', async () => {
+		const refusal = failure({
+			code: 'PROJECT_NOT_FOUND',
+			message: 'No.',
+			suggestion: 'List them.',
+		});
+		const { client, call } = clientOf({ 'project-get': refusal, 'project-list': refusal });
+		expect(await projectsOver(client, undefined).active()).toBeNull();
+		expect(call).not.toHaveBeenCalled();
+		const projects = projectsOver(client, 'prj_gone');
+		expect(await projects.active()).toBeNull();
+		expect(await projects.get('gone')).toBeNull();
+		expect(await projects.list()).toEqual([]);
 	});
 });

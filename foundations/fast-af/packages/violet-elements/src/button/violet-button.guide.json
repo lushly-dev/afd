@@ -29,7 +29,7 @@
     },
     {
       "id": "button.appearance",
-      "text": "The default appearance is primary, so in a row of buttons set secondary, quiet or transparent on all but the main action, and danger on a destructive one.",
+      "text": "The default appearance is primary, so in a row of buttons set secondary or quiet on all but the main action, and danger on a destructive one. Transparent renders exactly as quiet and is kept for existing markup; write quiet.",
       "members": [
         "appearance"
       ]

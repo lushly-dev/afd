@@ -52,7 +52,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .control-shell {
@@ -73,31 +73,29 @@ const styles = css`
         block-size: var(--_target-size);
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
-        border: 1px solid var(--_field-border);
+        border: 1px solid var(--_border-subtle);
         border-radius: var(--_radius-md);
-        background: var(--_surface-page);
-        color: var(--color-text-primary, #18181b);
-        box-shadow: var(--_shadow-control);
+        background: var(--_field-background);
+        color: var(--_field-text);
+        box-shadow: var(--_field-shadow);
         transition:
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .control-frame:hover {
-        border-color: var(--_field-border-hover);
+        box-shadow: var(--_field-shadow-hover);
     }
 
     .control-frame:focus-within,
     .control-shell.open .control-frame {
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
-        transform: translateY(calc(var(--_space-inline-sm) / -4));
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     :host([disabled]) .control-frame,
     :host(:disabled) .control-frame {
-        opacity: 0.65;
+        opacity: 0.5;
         cursor: not-allowed;
     }
 
@@ -167,6 +165,9 @@ const styles = css`
         padding: 0;
         border: 0;
         background: transparent;
+        /* The calendar inside is the popup: it takes the floating surface and shadow. */
+        --violet-calendar-background: var(--_surface-floating);
+        --violet-calendar-shadow: var(--_shadow-floating);
     }
 
     .panel[hidden] {
@@ -182,12 +183,12 @@ const styles = css`
 
     .supporting {
         color: var(--_text-muted);
-        margin-block-start: var(--_space-stack-2xs);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
-        margin-block-start: var(--_space-stack-2xs);
+        color: var(--color-state-danger-foreground, #c42a1a);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .control-shell.open ~ .supporting,
@@ -505,6 +506,8 @@ export class VioletDatePicker extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
         this.#syncFormState();
@@ -724,5 +727,8 @@ if (!customElements.get("violet-date-picker")) {
         name: "violet-date-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

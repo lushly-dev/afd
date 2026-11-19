@@ -324,7 +324,7 @@ describe("violet-button", () => {
             expect(native.getAttribute("data-appearance")).toBe("danger");
 
             const style = getComputedStyle(native);
-            expect(channels(style.backgroundColor)).toEqual(channels("#b42318"));
+            expect(channels(style.backgroundColor)).toEqual(channels("#c42a1a"));
             expect(channels(style.color)).toEqual(channels("#ffffff"));
         });
 
@@ -344,10 +344,10 @@ describe("violet-button", () => {
             }
         });
 
-        it("keeps text legible on the fill, including the dark preset values", () => {
-            expect(contrast("#ffffff", "#b42318")).toBeGreaterThanOrEqual(4.5);
-            expect(contrast("#ffffff", "#c4301f")).toBeGreaterThanOrEqual(4.5);
-            expect(contrast("#ffffff", "#cf4030")).toBeGreaterThanOrEqual(4.5);
+        it("keeps text legible on the fill, under the pointer and pressed too", () => {
+            expect(contrast("#ffffff", "#c42a1a")).toBeGreaterThanOrEqual(4.5);
+            expect(contrast("#ffffff", "#ad2416")).toBeGreaterThanOrEqual(4.5);
+            expect(contrast("#ffffff", "#96200f")).toBeGreaterThanOrEqual(4.5);
         });
     });
 

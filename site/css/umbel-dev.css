@@ -1,0 +1,300 @@
+/* ============================================================
+   Umbel — the dev-side page (proposal)
+   ------------------------------------------------------------
+   Loaded after area-kit.css and umbel.css. This side shows one
+   recorded run of the real program line by line (the picker is
+   .record in area-kit.css), then the kinds
+   of plugin, what the host owns, the first-party plugins and
+   how to build it.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── Fig. 02: the repo's own commands, as a plugin ───────────── */
+
+.uyours {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.25fr) minmax(0, 1fr);
+	align-items: start;
+	gap: var(--space-5);
+	margin: var(--space-8) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.uyours li {
+	display: grid;
+	gap: var(--space-3);
+	min-width: 0;
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.uyours .mono,
+.uresult-note {
+	letter-spacing: var(--tracking-label);
+}
+
+.uyours .mono {
+	text-transform: uppercase;
+}
+
+.uyours pre {
+	margin: 0;
+	padding: var(--space-4);
+	overflow: auto;
+	background: var(--color-code-bg);
+	color: var(--color-code-text);
+	font: var(--t-label) / 1.7 var(--mono);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+/* The lines a person changed, in the file Umbel wrote. */
+.uyours pre span[data-changed] {
+	color: var(--accent-agent);
+	font-weight: var(--weight-medium);
+}
+
+.uyours p {
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.uresult {
+	margin-top: var(--space-8);
+}
+
+.uresult h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.uresult ul {
+	margin: var(--space-5) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.uresult li {
+	display: grid;
+	grid-template-columns: 9em minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: var(--space-5);
+	padding-block: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-line);
+	font-size: var(--t-small);
+}
+
+.uresult li:first-child {
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.uresult li code,
+.uresult .result-live code {
+	font: var(--weight-medium) var(--t-code) / 1.7 var(--mono);
+}
+
+.uresult li span:not(.mark) {
+	color: var(--color-text-muted);
+}
+
+.uresult-note {
+	max-width: 760px;
+	margin-top: var(--space-5);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+	letter-spacing: 0;
+}
+
+/* ── Fig. 04: the four kinds, and one plugin's grants ────────── */
+
+.ukinds {
+	margin: var(--space-8) 0 0;
+}
+
+.ukinds > div {
+	display: grid;
+	grid-template-columns: minmax(0, 0.5fr) minmax(0, 1fr) minmax(0, 1.4fr);
+	align-items: baseline;
+	gap: var(--space-5);
+	padding-block: var(--space-4);
+	border-top: var(--rule-thin) solid var(--color-line);
+}
+
+.ukinds > div:first-child {
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.ukinds > div:last-child {
+	border-bottom: var(--rule-thin) solid var(--color-line);
+}
+
+.ukinds dt code {
+	font: var(--weight-medium) var(--t-lead) / 1.2 var(--mono);
+	letter-spacing: -0.02em;
+}
+
+.ukinds dd {
+	margin: 0;
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.ukinds dd + dd {
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+}
+
+.ukinds .mark {
+	margin-right: var(--space-3);
+}
+
+.ugrants {
+	margin-top: var(--space-8);
+}
+
+.ugrants h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.ugrants ul {
+	margin: var(--space-5) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ugrants li {
+	display: grid;
+	grid-template-columns: 6em minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: var(--space-5);
+	padding-block: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-line);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.ugrants li:first-child {
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.ugrants li code,
+.ugrants .result-live code,
+.uplugins dt {
+	font: var(--weight-medium) var(--t-code) / 1.7 var(--mono);
+}
+
+.ugrants li span:not(.mark) {
+	color: var(--color-text-muted);
+}
+
+/* ── Fig. 03: what the host owns, and what it won't ──────────── */
+
+.uhost {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-5);
+	margin-top: var(--space-8);
+}
+
+.uhost > div {
+	padding: var(--space-5);
+	background: var(--afd-green-700);
+}
+
+.uhost h3 {
+	color: var(--accent-agent);
+	font: var(--weight-medium) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.uhost ul {
+	margin: var(--space-4) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.uhost li {
+	padding-block: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.uhost li b {
+	color: var(--color-on-dark);
+	font-weight: var(--weight-strong);
+}
+
+/* ── Fig. 05: the plugins that ship with it, on the agent's field ── */
+
+.uplugins {
+	columns: 2;
+	column-gap: var(--space-8);
+	margin: var(--heading-gap) 0 0;
+}
+
+.uplugins > div {
+	display: grid;
+	grid-template-columns: 7em minmax(0, 1fr);
+	gap: var(--space-4);
+	padding-block: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-on-color-line);
+	break-inside: avoid;
+}
+
+.uplugins dd {
+	margin: 0;
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.d-section--rest .d-lead code,
+.d-section--agent .d-lead code {
+	font: 0.9em var(--mono);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.uyours {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 850px) {
+	.ukinds > div {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-2);
+	}
+
+	.uhost {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.uplugins {
+		columns: 1;
+	}
+}
+
+@media (max-width: 620px) {
+	.ugrants li,
+	.uresult li {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.ugrants li span:not(.mark),
+	.uresult li span:not(.mark) {
+		grid-column: 1 / -1;
+		grid-row: 2;
+	}
+}

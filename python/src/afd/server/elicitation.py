@@ -31,6 +31,7 @@ from afd.server.approval_relay import (
     AcceptedApproval,
     ApprovalAnswer,
     ApprovalAnswers,
+    ApprovedStep,
     MISSING,
     StepsHold,
 )
@@ -254,13 +255,27 @@ def _questions(hold: StepsHold) -> list[dict[str, Any]]:
             "n": question.nonce,
             "x": question.expires_at,
             "m": question.mac,
+            # The step of a batch or pipeline asked about up front, and its validated input (#1414).
+            **(
+                {"s": question.step.index, "i": question.step.input, "c": question.step.call}
+                if question.step is not None
+                else {}
+            ),
         }
         for question in hold.questions
     ]
 
 
 def _accepted_approval(item: dict[str, Any]) -> AcceptedApproval:
-    return AcceptedApproval(binding=item["b"], nonce=item["n"], expires_at=item["x"], mac=item["m"])
+    index, input, call = item.get("s"), item.get("i"), item.get("c")
+    step = (
+        ApprovedStep(index, input, call)
+        if _is_int(index) and isinstance(input, str) and isinstance(call, str)
+        else None
+    )
+    return AcceptedApproval(
+        binding=item["b"], nonce=item["n"], expires_at=item["x"], mac=item["m"], step=step
+    )
 
 
 class RoundRelay:

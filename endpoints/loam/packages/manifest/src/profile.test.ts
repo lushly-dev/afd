@@ -106,8 +106,9 @@ describe("Loam's profile", () => {
 				surfaces: { properties: Record<string, unknown> };
 			};
 		};
-		// `p` reads as a URL's project segment (phase 2 specification, 4.3).
-		expect($defs.plugin.properties.id.not.enum).toEqual([...SHELL_DOMAINS_V1, 'afd', 'p']);
+		// `p` reads as a URL's project segment (phase 2 specification, 4.3); `loam` is the shell's settings namespace
+		// (phase 4 specification, 3.1).
+		expect($defs.plugin.properties.id.not.enum).toEqual([...SHELL_DOMAINS_V1, 'afd', 'p', 'loam']);
 		expect($defs.icon.enum).toEqual(ICONS_V1);
 		expect($defs.ui.properties.compositions.items.enum).toEqual(
 			COMPOSITIONS_V1.filter((entry) => entry.servedFrom === 1).map((entry) => entry.name)
@@ -126,6 +127,7 @@ describe("Loam's profile", () => {
 			'ui-project-summary',
 			'ui-documents',
 			'ui-new',
+			'ui-settings',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
 			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's,
@@ -144,7 +146,14 @@ describe("Loam's profile", () => {
 		const ajv = new Ajv2020({ ...AJV_OPTIONS });
 		ajv.addSchema(readCore());
 		const validateV1 = ajv.compile(readSchema('app-manifest', 1));
-		const versionTwo = ['/app/resource_keys', '/ui/project_summary', '/ui/documents', '/ui/new'];
+		const versionTwo = [
+			'/app/resource_keys',
+			'/ui/project_summary',
+			'/ui/documents',
+			'/ui/new',
+			// Phase 4's step 1: `ui.settings` is a key of version 2 (its 12.1).
+			'/ui/settings',
+		];
 		const errorsOf = (errors: readonly ValidatorError[] | null | undefined): string[] =>
 			(errors ?? [])
 				.filter((error) => error.keyword !== 'if')
@@ -159,7 +168,7 @@ describe("Loam's profile", () => {
 			const v2 = validateManifest(document);
 			// Step 4 reserves these ids for the shell (phase 2 specification, 4.3), and phase 3 `member` (12).
 			if (
-				['workspace', 'section', 'editor', 'new', 'member', 'p'].includes(
+				['workspace', 'section', 'editor', 'new', 'member', 'p', 'loam'].includes(
 					String(valueAt(document, '/plugin/id'))
 				)
 			) {

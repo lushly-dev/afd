@@ -422,7 +422,18 @@ result = await transport.call_tool("ping", {})
 await transport.disconnect()
 ```
 
+`failure(command_error, ...)` accepts the same result options as `success` (confidence,
+reasoning, sources, plan, alternatives, warnings, suggestions, metadata and undo fields),
+without a data payload. Both `define_command` and `server.command` accept `errors` and
+`execution_time` (`instant`, `fast`, `slow`, `long-running`); the server decorator also
+accepts `handoff` and `handoff_protocol`.
+
 ## Handoff Connections
+
+`create_handoff()` includes a fresh default reconnect policy: allowed, 3 attempts,
+1000 ms backoff. An explicit policy replaces it. The handoff client uses the same
+fallback for legacy handoffs; explicit `ReconnectionOptions` values win over metadata.
+Unset `max_attempts` and `backoff_ms` are `None` and inherit metadata or the default.
 
 Connect to streaming protocols (WebSocket, SSE) returned by handoff commands:
 
@@ -478,7 +489,19 @@ if result.success and is_handoff(result.data):
 
 ## Private in-process approvals
 
-`create_direct_registry` runs decorated commands through the server's validation and middleware.
+`create_direct_registry` runs decorated commands through the server's validation and middleware,
+with agent exposure checks by default (`interface="cli"` selects the CLI boundary). It lists
+only registered, exposed commands; raw `execute` refuses an unexposed command with
+`COMMAND_NOT_EXPOSED`, while `DirectClient.call` treats it as `UNKNOWN_TOOL`.
+`DirectClientOptions(allow=lambda name: name.startswith("item-"), middleware=[...])`
+(or the same keywords on `create_direct_client`) filters listing and calls, including
+pipeline steps and nested registry calls that forward the handler context. A nested
+call can narrow the policy but cannot widen it. Only an explicit `True` permits a name; false or a throwing predicate
+returns `COMMAND_NOT_ALLOWED` before lookup. Client middleware uses the server's
+`(name, input, context, next_fn)` signature and wraps each attempt in list order,
+outside registry middleware, within the call's total deadline. Thrown exceptions are
+redacted as `COMMAND_EXECUTION_ERROR`. Direct registries serve registered commands;
+MCP meta-tools and the in-process tool surface remain outside this boundary.
 `DirectClientOptions(on_approval_needed=...)` asks trusted application code with token-free
 metadata; only `True` permits one retry. Public call/pipeline contexts cannot approve, and
 held results, observers and journals receive no token. A deadline includes the human wait.

@@ -80,7 +80,9 @@ async function firstPaint(
 	then?: (page: Page) => Promise<void>
 ) {
 	const opened = await openPage(browser, `${site.origin}${path}`, {}, context);
-	const paths = await measureFirstPaint(opened.page);
+	// A typeface loads when text first needs its weight, before the mark or after it, so the fonts are left
+	// out: what is compared is the chunks (D159; `budget` measures the fonts in a row of their own).
+	const paths = (await measureFirstPaint(opened.page)).filter((path) => !/\.woff2$/.test(path));
 	await then?.(opened.page);
 	const bytes = Object.fromEntries(
 		site.log
@@ -177,7 +179,8 @@ describe('P2-E1: one first paint', () => {
 		const javascript = Object.entries(assets[0] as Record<string, number>)
 			.filter(([path]) => path.endsWith('.js'))
 			.reduce((sum, [, size]) => sum + size, 0);
-		expect(javascript).toBeLessThanOrEqual(304_000);
+		// `budget.mjs`'s `jsMinified`, raised under D115 by phase 5's step 2.
+		expect(javascript).toBeLessThanOrEqual(308_000);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

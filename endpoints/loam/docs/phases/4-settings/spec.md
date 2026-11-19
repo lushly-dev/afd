@@ -1,15 +1,17 @@
 # Phase 4 specification: settings, experiments, notifications, overlays
 
+Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for this area as its sub-issue.
+
 | Field | Value |
 | --- | --- |
 | Phase | 4, settings, experiments, notifications, overlays ([architecture section 9](../../architecture.md#9-phases)) |
-| Owner | The coordinator approves under the owner's delegation of 2026-11-01, after independent review, except the [questions for the owner](#questions-for-the-owner), which the owner answers; the phase 4 owning agent implements |
+| Owner | The coordinator approves under the owner's delegation of 2026-11-01, after independent review, except the [questions for the owner](#questions-for-the-owner), which the owner answered on 2026-11-18; the phase 4 owning agent implements |
 | Read first | [STATUS.md](../../STATUS.md), the [jobs](#jobs-and-scenarios) and their [scenarios](scenarios/), the [scope and projects specification](../2-scope-projects/spec.md) (its 3.4, 4.1, 7.3 and 2.4), the [documents specification](../2-documents/spec.md) (its 5.5), the [identity specification](../3-identity/spec.md) (its 3.1, 3.3, 3.4, 4.5, 6 and 7), the [hosts specification](../6-hosts/spec.md) (its 6 and 7), the [phase 1 specification](../1-app-contract/spec.md) (its 4 and 8), the [architecture](../../architecture.md), the [decision log](../../decisions.md) |
 | Elevation | Exact shapes, names, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
 
 ## Status
 
-- **State: Approved** 2026-11-13 by the coordinator under the owner's standing grant, after three review rounds (two reviews, a re-check with three job walks, and a second re-check). The questions for the owner stay open. The text follows each recommendation, and an answer that differs amends the named section before its step starts. The history:
+- **State: Approved** 2026-11-13 by the coordinator under the owner's standing grant, after three review rounds (two reviews, a re-check with three job walks, and a second re-check). **The owner answered Q1 to Q5 on 2026-11-18, each as recommended** (D154 to D158), so the text, written to each recommendation, stands unchanged. The history:
   - Written 2026-11-13 by the design sub-agent against `main` at `f7ecbd43`.
   - Revised the same day after two independent reviews of `445b2bd7` and the coordinator's rulings R1 to R6 ([Review 2026-11-13](#review-2026-11-13)).
   - That revision merged to `main` in [#1119](https://github.com/lushly-dev/afd/pull/1119) (`e7c813e1`) before its re-check ran.
@@ -21,7 +23,8 @@
     Every finding and its answer is in [Review 2026-11-13, second round](#review-2026-11-13-second-round).
   - **Revised a third time** after a re-check of `faa0c1d9` ("approvable once fixed", F1 to F11 and four nits) and the coordinator's rulings on F2 to F11 ([Re-check 2026-11-13, third round](#re-check-2026-11-13-third-round)).
 
-  - **Approved** 2026-11-13 by the coordinator at `203cb3a0`, under the owner's standing grant. D116 to D127 are decided with that approval, in the [decision log](../../decisions.md). The [questions for the owner](#questions-for-the-owner) stay open: Q1 and Q3 may amend D118, Q2 D119, and Q4 D116; Q5 orders the work and amends no decision.
+  - **Approved** 2026-11-13 by the coordinator at `203cb3a0`, under the owner's standing grant. D116 to D127 are decided with that approval, in the [decision log](../../decisions.md). The [questions for the owner](#questions-for-the-owner) stayed open: Q1 and Q3 could amend D118, Q2 D119, and Q4 D116; Q5 orders the work and amends no decision.
+  - **The owner's answers,** 2026-11-18: Q1 to Q5, each as recommended, recorded as D154 to D158 in the [decision log](../../decisions.md) and beside each [question](#questions-for-the-owner). No section changes: D116, D118 and D119 stand as written, and each now points at its answer. None of the [proposed amendments to other phases](#proposed-amendments-to-other-phases) lands with the answers: each lands with the step named beside it.
 - **Last verified:** 2026-11-13, against `main` at `92980528`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `overlays.ts:20` (`TOAST_CAP = 5`), `:28-49` (`OverlayStore`: `toast` and `modal` only), `:44` (`whenClosed`, internal);
@@ -42,7 +45,9 @@
   - **Issues read:** #857, #869, #877, #881, #710, #708.
   - **External:** the [trajectory refresh](#trajectory-refresh).
 - **Done:** this specification, its fourteen jobs as scenarios (all valid under `afd scenario validate`), and two revisions.
-- **Not done:** the owner's answers to Q1 to Q5; every step of the [plan](#20-implementation-plan), of which step 1 comes first, once phase 3's `HUMAN_REQUIRED` and its step 4 land ([1.2](#12-dependencies-on-phase-3s-steps)).
+- **Done since approval:** the owner's answers to Q1 to Q5, 2026-11-18 (D154 to D158).
+- **Done, step 1, the settings core** ([#1533](https://github.com/lushly-dev/afd/pull/1533), 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 1. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -1084,7 +1089,7 @@ Each step is one pull request, merged on green. **Steps 4, 6, 8 and 10 each get 
 | 8 | Autonomy | Section 4; E4. **Trust review** | `pnpm check`, `loam.yml` |
 | 9 | Experiments | Section 5, `experiment-settle`, R14; E5 | `pnpm check`, `loam.yml` |
 | 10 | Limits | Section 11 and `limit-usage-get`, **on their own**; E10. **Trust review** | `pnpm check`, `pnpm verify`, `loam.yml` |
-| 11 | Exit | Every row and scenario; #710 re-scoped; follow-ups filed | The check exits 0 |
+| 11 | Exit | Every row and scenario; #710 re-scoped; follow-ups filed; the architecture amendments all applied | The check exits 0 |
 
 **Order:**
 
@@ -1101,7 +1106,7 @@ Each step rebases before review. Names it adds to phase 3's lists are listed in 
 
 ## Questions for the owner
 
-**Asked 2026-11-13, and revised twice the same day after review.** The text is written to each recommendation.
+**Asked 2026-11-13, and revised twice the same day after review.** The text is written to each recommendation. **Answered by the owner on 2026-11-18, each as recommended** (D154 to D158), so no section changes.
 
 ### Q1. Who sets a project's autonomy, within the owners' bounds?
 
@@ -1116,10 +1121,14 @@ The question is who else may set a project's own level, which then stays within 
 - **Owners only.** The strictest option.
 - **Any member of the project.** The most self-service option. The tradeoff: one member can change, for everyone in the project, how far agents act unprompted, within the owners' bounds.
 
+**Answer (the owner, 2026-11-18; D154): owners and the project's creator,** as recommended. The creator may set the project's own autonomy within the owners' bounds only while they may still enter the project; for a project a team instance lists, only owners may. 4.3 stands.
+
 ### Q2. May a person opt out of a workspace-enabled experiment?
 
 - **Yes (recommended).** Nobody is held in an experiment they don't want.
 - **No.** Everyone sees the same thing. The tradeoff: a person stuck with a broken experiment waits for an owner.
+
+**Answer (the owner, 2026-11-18; D155): yes,** as recommended. A person may opt out of a workspace-enabled experiment. 5.2 stands.
 
 ### Q3. The default autonomy
 
@@ -1129,6 +1138,8 @@ Where nobody has set autonomy, the default decides what agents do. **It also bou
 - **Ask for everything.** The tradeoff: agents ask before every lookup, and people learn to click through.
 - **Act on everything.** The tradeoff: agents change things unprompted, and every project may then act too, until an owner tightens it.
 
+**Answer (the owner, 2026-11-18; D156): act on reads, ask before changes, and ask before any tool of a mounted server,** as recommended. Owners loosen it with the workspace's mode and ceiling. 4.2 stands. D145, decided after this question was asked, still makes a vouched server's reads `act`; phase 5's step 3 adds that to 4.2.
+
 ### Q4. May a person's agent write project-level settings?
 
 Every member of a project reads its project-level settings.
@@ -1136,9 +1147,11 @@ Every member of a project reads its project-level settings.
 - **No, people only (recommended).** This matches D110's "no agent changes who is in a project". In phase 4 it holds locally. On the hosted lane, everyone's project writes are refused anyway until phase 5 (section 13). After that, the hosted transport always acts as the person, so "no" is the only answer the hosted lane can serve.
 - **Yes, as the person.** It could be served locally only, until phase 5 gives connected agents a way to write over MCP. The tradeoff: one person's agent changes what every member sees.
 
+**Answer (the owner, 2026-11-18; D157): no, people only,** as recommended. A person's agent gets `HUMAN_REQUIRED`, with the hand-off, for a project-level write. 3.2 stands.
+
 ### Q5. Cut and rank the jobs
 
-The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revised after the job-list walk.
+The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) were proposed in this order, revised after the job-list walk.
 
 - **Accept the slice as ranked (recommended):**
   1. per-project settings;
@@ -1152,7 +1165,11 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revi
   Then the seven jobs outside the slice, in their order. **In phase 4, none of these is served to connected agents over MCP.** The agent jobs (7, 9 and 10) serve the in-process agent interface only, which has no consumer until phase 5's copilot.
 - **Cut, add or re-rank** any of them.
 
+**Answer (the owner, 2026-11-18; D158): the slice accepted as ranked,** then the seven jobs outside it in their order, none served to connected agents over MCP in phase 4.
+
 ## Proposed amendments to other phases
+
+Each lands with the step named beside it; none landed with the approval or with the owner's answers of 2026-11-18.
 
 - **A-P0-1 (step 6):** the palette's active-app filter is removed (step 6), and `createKeybindings` takes overrides and sequences (step 7).
 - **A-P1-1 (step 6):** the `palette` catalog row becomes "Filtered by scope, ranked by active app".
@@ -1183,10 +1200,10 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revi
 
 | ID | Proposed decision |
 | --- | --- |
-| D116 | Settings: a closed schema subset with no `pattern`; three levels; resolution person, project, workspace, default. One `settingWriteRule`, with `level` required. Workspace values are an owner's; project values a person's who may enter the project (agents per Q4). Writes record `updatedBy`, `agent:<id>` for agents, and take `expected`. `loam.settings` is not a view-state id. The grant reads only the app's own sections. A `HUMAN_REQUIRED` hands off `{ route, section, key, level }` |
+| D116 | Settings: a closed schema subset with no `pattern`; three levels; resolution person, project, workspace, default. One `settingWriteRule`, with `level` required. Workspace values are an owner's; project values a person's who may enter the project (agents per Q4, answered as D157: never). Writes record `updatedBy`, `agent:<id>` for agents, and take `expected`. `loam.settings` is not a view-state id. The grant reads only the app's own sections. A `HUMAN_REQUIRED` hands off `{ route, section, key, level }` |
 | D117 | Appearance, keybindings and the rail order are person settings. In `local`, appearance migrates on the first stage B and paints from `loam.settings`. In `provider`, it is per person, `loam.appearance.last` paints the signed-out page and stage A, and nothing migrates while signed out |
-| D118 | Autonomy rows at workspace or project level, narrowed to an instance and a command. A project row is bounded by the workspace's ceiling, or its general row, or the default, and by its rows for that app and command; then by the person's cap. At write time a general or instance project row with neither a workspace mode nor a ceiling is bounded by `ask`. The default follows Q3, with mounted tools at `ask`. Writes are human, refused in the handler with a hand-off, check access first, and refuse unknown commands; orphans are flagged to the owners who may enter the project. Advisory in phase 4, with a notice; enforced by phase 5, which also adds the "within limits" field |
-| D119 | Experiments: an author's stage, `changes` and `ends`; enablement per person and per workspace, tied to the `changes` digest; opt-out per Q2. `experiment-settle` deletes the enablements of removed experiments at the manifest's apply. Gates decide presence. An unload never loses a dirty tab. Changes are announced |
+| D118 | Autonomy rows at workspace or project level, narrowed to an instance and a command. A project row is bounded by the workspace's ceiling, or its general row, or the default, and by its rows for that app and command; then by the person's cap. At write time a general or instance project row with neither a workspace mode nor a ceiling is bounded by `ask`. The default follows Q3 (answered as D156), with mounted tools at `ask`. Writes are human, refused in the handler with a hand-off, check access first, and refuse unknown commands; orphans are flagged to the owners who may enter the project. Advisory in phase 4, with a notice; enforced by phase 5, which also adds the "within limits" field |
+| D119 | Experiments: an author's stage, `changes` and `ends`; enablement per person and per workspace, tied to the `changes` digest; opt-out per Q2 (answered as D155: yes). `experiment-settle` deletes the enablements of removed experiments at the manifest's apply. Gates decide presence. An unload never loses a dirty tab. Changes are announced |
 | D120 | The inbox: per person, filtered by scope, `source` derived from the path. At most one action, the source's own palette command (`NOTIFICATION_ACTION_FOREIGN` otherwise), never a human or owner command, never from an agent. Pending confirmations cannot be marked or archived by a non-human, and do not count against the quota. AFD's codes, with details |
 | D121 | The overlay manager complete. The agent interface opens toasts only, counted against its rate of 5 a minute and never evicting a shell or `danger` toast; every other kind and `palette-run` give `HUMAN_REQUIRED`. A human gesture is a chrome or palette call with no `caller` and an actor that is not `agent`. Only a human gesture confirms; a shell-owned overlay is closed only by a human gesture or its `for.caller`, whose cancel is `withdrawn` |
 | D122 | `palette-run` is human-only, fills the prompt it names, and its confirmation replaces the input prompt. `confirm_prompt` is enforced in process, after validation, line 0, access and grants and the decline window. Confirmations from an agent or a background app return `CONFIRMATION_PENDING` at once; the person confirms in the inbox, and the shell re-checks the same chain and runs the call once. A confirmation is keyed on (caller, command, input digest, scope); a re-call on that key before `expiresAt` returns its stored state and outcome. Withdrawal and expiry never open the decline window, which keys the same way and exempts only human gestures. `group` is phase 5's. The close prompt opens only for the person's own close |
@@ -1362,6 +1379,55 @@ A re-check of `faa0c1d9` found the second revision "approvable once fixed". It f
 | Q3's wording | "Until an owner sets a workspace mode or a ceiling", with the stricter default's bound on general rows |
 
 **Declined:** none.
+
+## Step 1, 2026-11-18
+
+The settings core, in [#1533](https://github.com/lushly-dev/afd/pull/1533), on `main` at `7f381a29`, after two independent reviews whose findings are answered below.
+
+**Built.**
+
+- **Manifest** (`packages/manifest`): `ui.settings` in `app-manifest.v2.json`, a key of version 2, with six closed definitions (`settingSection`, `settingLevels`, `settingSchema`, `settingKey`, `settingChoices`, `settingItems`); `settings.ts`, the types of 3.1, `checkSettingValue` (shared with the kernel's writes), and `settingRules`: `MANIFEST_SETTING_SCHEMA` (a shape outside the subset, `pattern`, `$ref`, `oneOf`, nesting, a key's levels outside its section's), `MANIFEST_SETTING_DEFAULT`, `MANIFEST_SETTINGS_LIMIT` (a ninth section), `MANIFEST_SETTINGS_MOUNTED`, `MANIFEST_DUPLICATE` for a repeated id, and the `MANIFEST_SETTING_SECRET` warning. The `settings` grant is served. Each code has a case in `profile-cases.json`.
+- **SDK:** `SettingsV1` and `settingsOver`; `settings` on a handler's context (native and a view's handler frame) and a native surface's, with the grant.
+- **Kernel interface 4:** `APP_CALLABLE_SHELL_COMMANDS_V2` (`setting-get` and `setting-list`, callable with the `settings` grant, for the app's own sections), `LoamKernelV4`, `KernelEventV4.settings` (the sections a call changed) and `ShellInfoV4`. Version 5 extends version 4; the shell reports 5.
+- **`late-settings`** (`kernel/src/late/settings.ts`, `setting-rules.ts`, `setting-sections.ts`), loaded inside `loadLate` beside `late-identity`: the five commands of 3.9; the pure `settingWriteRule`, `isHumanGesture`, `resolveSetting` and `sharedRecordUnavailable`; the shell's `loam.appearance` and `loam.documents`; the person's `loam.settings` and the workspace store's `setting` table (3.4); the hand-off; `OWNER_REQUIRED`; `loam.documents.trashDays` written through to `WorkspaceV1.trashDays` (A-P2-2); section 13's `SHARED_RECORD_UNAVAILABLE`; appearance taken over in both modes (3.6, A-P3-2). Phase 3's lists (A-P3-1): `HUMAN_COMMANDS` gains `notification-act` and `palette-run`, the re-read decides by `needsMembershipRead`, and `emphasis.sections` gains `settings` and `inbox`. `setting-*` joins the commands decided at the call's scope, so a project the caller may not enter is `PROJECT_NOT_FOUND`, and none of them is in `mcpOptions()`.
+- **Chrome:** the shell repaints when an event names `loam.appearance` or the person changes. A change of an app's own sections reaches its surfaces (3.8): a native surface's `settingsChanged(sections)` (`LoamSurfaceElementV1`), and a view's `ui/notifications/host-context-changed` with `dev.loam/settingsChanged` (`ViewHostContextV1`), only for an app with the `settings` grant and only its own sections (`chrome/src/apps/surface-calls.ts`'s `settingsHeard` and `deliverSettings`).
+- **E3 in Chromium:** `web/test/browser/appearance-settings.test.ts` (`local` signed out: the old record painted from the first frame, moved, and read back) and `web/test/browser/identity/appearance.test.ts` (`provider`, through the test-only auth host: two people keep their own, and the signed-out page and a reload paint `.last`).
+- **The runner:** `p4-base` in `kernel/scenarios/seeds.ts`; `kernel/src/scenarios.test.ts` runs phase 4's files from `scenarios/` here, as phase 5's step 1 left phase 5's in its own folder rather than moving them to `kernel/scenarios/`, with the same known-file guard and a table naming the step that makes each runnable. None runs in step 1: the three settings jobs need hello's `hello.general` (step 2), the rest later steps' commands.
+
+**Decided while building it,** each amending the section named:
+
+- **Where the person's record lives** (3.4): `loam.settings` (`loam.settings~<person>` in `provider` mode, `personalRecordId`'s id) is a row of the view-state store's table, as `loam.persona~<person>` is, and never registered with the view-state registry: `view-state-*` on it is `VIEW_STATE_NOT_FOUND` and `view-state-list` leaves it out by construction. Nothing of it is cached: every read and every write reads the row from the store, a write changes one key of what it read, and a read that fails fails the call rather than writing a record it never read. Only the appearance the shell paints is held in memory. `loam.appearance.last` is a row of the same table, and no view-state id either.
+- **The alias** (3.6): `loam.appearance` stays a registered view-state id. Its read is the appearance the shell paints; its record is the old one, which stage A's `hydrate` reads; `view-state-set` on it writes the person's keys as `appearance-set` does (a merge writes only the keys it names), with the registry's result shape and undo, so `SESSION_50` replays unchanged.
+- **What stage A paints** (3.6): the person's own keys, over the old record until it moves, over the defaults; signed out in `provider` mode, `.last` over the old record. A signed-in person with no value of their own paints the default, not `.last`.
+- **The move** (3.6, R12): `LateParts.migrate`, after stage A has hydrated and stage B's commands are registered (and after the persisted state is read in a kernel with no boot), runs one `setting-set { level: 'person', migrated: true }` per key the old record holds and the person has not set, through a palette call past the queue that carries the kernel's own `migration` context field, which no caller can set and the journal keeps. `migrated` is accepted only on a call with that field, the move itself or a replay of its entry, for `loam.appearance` at person level, so a person's refused `migrated` is refused again when it replays; from anyone else, the person's own palette included, it is `VALIDATION_ERROR`. The old row is deleted only when every move succeeded and the record read back holds every key for the same person; otherwise it stays, painted, for the next stage B. Never in a replay, and in `provider` mode never signed out.
+- **`.last`** (3.6, R4): written whenever a signed-in person's appearance is applied, after a write of `loam.appearance` and after a change of person, in a replay too (its store starts empty, so a signed-out `appearance-get` replays the same), and stamped with no call's clock. A paint carries a number: one overtaken by a later paint, or by a change of person while it read, paints nothing.
+- **`expected`** (3.2) is compared with what the key shows at the level written, resolving from that level down, read from the store: an undo's stored value and a reader's resolved value both match. The settings writes (`setting-set`, `setting-reset` and appearance's) run one at a time, so a write's `expected` check, size check and store write are one step against the current row: of two overlapping writes with the same `expected`, one writes and the other is `SETTING_CONFLICT`, which is retryable, as section 16 says.
+- **Results** (3.9): `setting-set`'s and `setting-reset`'s `value` and `from` are the caller's resolved value after the write, as the scenarios assert; `previous` is the value stored at that level before, `null` for none. The undo is `setting-set` with `previous` and `expected`, or `setting-reset` with `expected` when nothing was stored; `setting-reset`'s undo carries `expected` too, the value the level shows after the reset. Every read returns a detached copy, so no caller holds the kernel's schemas, defaults or stored values.
+- **The order of a write's refusals:** `PROJECT_NOT_FOUND` from the scope middleware; then `SETTING_USE_AUTONOMY`, `SETTING_NOT_FOUND` or `SETTING_NOT_OWNED`, `SETTING_LEVEL_UNAVAILABLE`, `SETTING_PROJECT_REQUIRED`, `HUMAN_REQUIRED` with its hand-off, `SHARED_RECORD_UNAVAILABLE`, `OWNER_REQUIRED`, `PROJECT_ARCHIVED` (or an app's key in a project its app cannot open, the app's own refusal), `VALIDATION_ERROR`, `SETTING_CONFLICT` and `SETTING_TOO_LARGE`. The agent interface gets its hand-off before the hosted refusal, as section 13's third obligation has it refused before any request.
+- **Output budgets** (3.9): TypeScript's AFD does not implement `outputBudget` yet (`spec/command-metadata.md`), and `toolMeta` may not carry a `dev.afd/` key. The budgets are declared in `SETTING_OUTPUT_BUDGETS`, and the kernel checks two in UTF-8 bytes, with or without a section named: `setting-schema-get` (16 KiB) and `setting-list` (64 KiB) answer AFD's `OUTPUT_BUDGET_EXCEEDED`, telling the caller to name a section, or within a named one a key.
+- **`writable`** (3.9) is computed for the caller with every refusal a write would meet, the project's included (`PROJECT_ARCHIVED`, an app the project does not open); with no `level`, at the narrowest level the key allows in the call's scope, the person's, else the project's in a project, else the workspace's.
+- **The manifest:** `ui.settings` is a key of version 2, since 12.1 adds no manifest version, and is refused under version 1 with the version, as phase 2's keys are. `ui.settings[].requires_experiment` is `MANIFEST_SURFACE_UNAVAILABLE` until step 9. `loam` is a reserved plugin id (`MANIFEST_ID_RESERVED`), since `loam.` is the shell's settings namespace. A section whose defaults alone are over 16 KiB is `MANIFEST_SETTING_SCHEMA`, since no value of it could ever be read or written; a section's and a key's titles and descriptions, and a key's enum values and titles, are display text, `MANIFEST_TEXT_INVALID` with a control or bidirectional character, as every other title is.
+- **An app's sections:** a full id is `<plugin.id>.<id>`, so two instances of one app share them; one in the shell's `loam.` namespace is never listed; a disabled app's are not listed. Whose a section is comes from the app that declared it, never from a prefix of its id: the grant reads the sections the calling app's plugin declared, and never the shell's.
+- **`needsMembershipRead`** (A-P3-1) lives in `late-identity`, exported from `kernel/src/late/session-settle.ts` beside the re-read it decides, and decides by `level: 'workspace'`, the level `settingWriteRule` makes an owner's for every section, rather than importing the rule across chunks.
+- **The E2 sweep** (P4-E2, `scope/settings-sweep.test.ts`): twins whose person's theme differs, whose app's declared section differs at workspace and project level, whose `loam.documents.trashDays` differs, and whose `setting` table differs by stray rows of a section no app declares. Of an answer outside section 19's exemptions, only a setting's own value is left out: `view-state-list`'s `loam.appearance` alias's state and `workspace-get`'s `trashDays`. With it, "the type and the scan": `AccessInputV2`'s keys, and no setting read in the access decision, the scope middleware, the port's refusals and its list (but its two grant-gated names), the owner check, the auth gate or the human check.
+- **The shell's sections:** `loam.appearance` and `loam.documents` only; 3.7's others arrive with the steps that build their editors and commands.
+- **`loam.documents.trashDays`** (A-P2-2): the `setting` row and `WorkspaceV1.trashDays` are written in one store batch, so the value shown and the retention applied never diverge.
+- **The host, for section 13:** decided from the deployment apart from its apps: a deployment the kernel was given names it at once (a version 4 file by its `host`, an older one `static`); with a boot, the projection stage B's loader reads. A `provider` deployment whose host is not known, before the loader answers, when it fails, or when a boot lists no app, counts as hosted and refuses shared writes: fail closed, since a provider is served by the hosted server (phase 6's `DEPLOYMENT_DESKTOP_PROVIDER` and `DEPLOYMENT_PROVIDER_NEEDS_HOST`).
+- **The runner:** a `[scope: …]` after a caller binds that app's port to the scope, as a surface's port is bound, and a step whose setup `app-open` fails fails.
+
+**Left for later steps:**
+
+- **Step 2:** E1's Chromium check of `settingsChanged` with hello's sections (the delivery is step 1's, unit-tested); the settings section, the palette's setting rows and the custom editors; hello's sections; and `p4-base`'s apps, tally's count and the document. The kernel package cannot depend on the apps (their tests depend on `@lushly-dev/loam-testing`, which depends on the kernel), so step 2 seeds them from a package that may, or through fixture ports serving the built packages. Hello's experiment waits for step 9.
+- **Steps 5 to 10:** the commands `HUMAN_COMMANDS` now names (`notification-act`, `palette-run`), and the rest of `APP_CALLABLE_SHELL_COMMANDS_V2`.
+- **The architecture's other amendments** (the overlay policy and "agents open toasts only", the new commands and domains, experiments, the deferred `menus` surface, the exit and the glossary) land with their steps; section 4's settings levels with 3.3's precedence landed here.
+
+**Measured.** D115, on Windows with Node 26.13.1: first paint 303,593 and 94,914 gzip, within its rows of 304,000 and 95,500 (section 14 estimated the step at 450 and 180). Raised, each to its measurement plus a margin: `kernelMinified` 116,800 to 118,000 (117,473); `lateMinified` 80,500 to 82,000 (81,246); `appsMinified` 395,700 to 417,500 (416,423), the manifest validator's `ui.settings` (`validate.generated.js` 329,227 to 357,289 bytes unminified). New: `lateSettingsMinified` 22,800 (20,698 plus 10%; section 14 estimated 26,000). `budget.mjs` records each. **Rebased onto `main` at `1465d4f5`** (phase 5's step 2 had raised `kernelMinified` to 118,000, `appsMinified` to 397,000 and first paint to 308,000 and 96,500 for its own code, and the Refined design had grown first paint and CSS): the kernel measured 118,693 and was raised to 119,500; first paint 307,956 and 96,069 gzip, inside phase 5's rows; `appsMinified` 417,099 of 417,500.
+
+**Verified.** 2026-11-18, on Windows 11 with Node 26.13.1: every unit test of Loam's packages and apps (the kernel 957, the manifest 1,064, chrome 224, the SDK 25, `loam-host` 211 with an owner-only temporary directory, among them), their typecheck, `budget`, `pnpm lint`, and the repository's portability, file-size, orphan, version, test-config, quarantine, boundary and skills checks; nine Chromium files (84 tests: `appearance-settings`, `shell`, `accessibility`, `boot`, `layout`, `budget`, `identity/persona`, `identity/sign-in`, `apps/console`). **Not run:** the rest of `test:browser`, whose script first builds the Specimen host with Cargo, ruled out on this machine by a parallel session's Rust build; `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and its Cargo gates. CI runs them.
+
+**After the reviews,** on the same machine: the kernel's units (974), the manifest's (1,068), the SDK's (30) and chrome's (226), every Loam package's and app's `test --coverage`, the typecheck of every Loam package and app, `node scripts/plugin-manifest.test.mjs` (its walker reads a `properties` map's values as subschemas, so a settings section's key map named `properties` is not mistaken for the keyword, and each settings definition is asserted closed), `pnpm test:tooling` (631) and `pnpm check` pass. `budget` passes with no row raised again: first paint 303,674 and 94,933 gzip; the kernel alone 117,594 (of 118,000); `late` 81,372 (of 82,000); `late-settings` 22,217 (of 22,800); `apps` 416,445 (of 417,500); `surfaces` 84,501 (of 85,000). Chromium: `identity/appearance.test.ts`, `appearance-settings.test.ts` and `apps/second-app.test.ts` pass. Not run: Cargo and Umbel.
+
+**After the rebase onto `1465d4f5`,** on the same machine, a full `pnpm verify --keep-going`: `check`, every Loam package's and app's `test --coverage` (the kernel 978, the manifest 1,078, the SDK 30, chrome 226, `loam-host` 211 among them), the typecheck, `test:browser` (432 and conformance 24), `test:mounted` (31) and the desktop's cargo gates passed. `budget` failed on the kernel row, raised as above. `test:walk` failed seed 32 on a reload's 30-second wait, and `test:hosted` two cases (a wait and the first paint's requested files) while the machine was loaded; each passed run again alone, the walk 15 of 15 and the hosted suite 28 of 28.
 
 ## Follow-ups
 

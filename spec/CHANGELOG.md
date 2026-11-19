@@ -21,7 +21,7 @@ version is separate from each implementation's own package version.
 - [`tool-strategies.md`](./tool-strategies.md): the MCP tool strategies (`individual`, `grouped`,
   `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
   definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
-  [`tool-strategies.json`](./tool-strategies.json).
+  [`vectors/tool-strategies.json`](./vectors/tool-strategies.json).
 - [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
   `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
   with the cases in [`mcp-resources.json`](./mcp-resources.json).
@@ -71,6 +71,21 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`tool-strategies.json`](./vectors/tool-strategies.json), the hybrid strategy's cases, moves into
+`vectors/` now that C++ serves the strategy and all four languages load it
+([#1202](https://github.com/lushly-dev/afd/issues/1202)). Its content does not change, so the
+version stays.
+
+[`tool-strategies.md`](./tool-strategies.md) makes the individual, grouped and lazy lists normative
+([#533](https://github.com/lushly-dev/afd/issues/533), decided by the owner on 2026-11-17): every
+strategy lists the five meta-tools first, in the hybrid order (`afd-discover`, `afd-detail`,
+`afd-call`, `afd-batch`, `afd-pipe`); `lazy` is the hybrid list with no first-class tools (the
+meta-tools and the context tools); grouped tools take TypeScript's shape, with `_meta.actions` and
+groups in order of their first command; and `grouped` is every language's default. TypeScript
+serves the lists; Python, Rust and C++ follow in their own steps, and the "Alignment" table records
+which. Clients that read `tools/list` see `afd-discover` and `afd-detail` in every strategy, so the
+version stays.
 
 [`command-metadata.md`](./command-metadata.md) adds approval evidence from an approver client and
 the approval display rules (Loam phase 5 step 0c, D146 and D150): a server may name approvers,

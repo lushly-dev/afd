@@ -164,7 +164,7 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 
 | Event | Meaning | The foreman's action |
 |---|---|---|
-| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
+| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed`, `review-unverified`, `node-missing` (its own `.nvmrc` names a Node the lane host lacks) | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
 | `ejection-limit` | A branch reached `cells.maxEjections` (counted by the lane, not an agent) | `cell-park` it with the diagnosis, or `lane-drop` it |
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
@@ -398,6 +398,7 @@ Lushly's lane assumes macOS. The plugin must not:
 | `lane.slots` | 1 | Validation concurrency against re-runs when `main` moves |
 | `cells.max` | 3 | Ready branches against host load and allowance |
 | `cells.issuesMax` | 1 | Small PRs against fewer cells for closely related issues |
+| `cells.claudeOnly` | true | Cells on Opus, as model routing says (2026-11-17), against spending every plan on cells |
 | `host.minFreeGb` | 8 | Room kept free on the host for validation |
 | `lane.queueTarget` | 2 | When the foreman starts another cell |
 | `lane.queueMax` | 10 | Queued branches before new ones are held |

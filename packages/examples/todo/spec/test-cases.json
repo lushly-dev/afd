@@ -1058,15 +1058,22 @@
 		},
 		{
 			"name": "tool_list_grouped",
-			"description": "The default tool list is TypeScript's grouped one: the meta-tools, then the todo and bootstrap groups",
-			"implementedBy": ["typescript", "rust", "cpp"],
+			"description": "The default tool list: the five meta-tools in the hybrid order, then the todo and bootstrap groups (#533)",
 			"notOn": ["umbel", "umbel-mounted"],
 			"setup": [],
 			"command": "tools/list",
 			"input": {},
 			"expect": {
 				"success": true,
-				"data.names": ["afd-batch", "afd-pipe", "afd-call", "afd-detail", "todo", "bootstrap"],
+				"data.names": [
+					"afd-discover",
+					"afd-detail",
+					"afd-call",
+					"afd-batch",
+					"afd-pipe",
+					"todo",
+					"bootstrap"
+				],
 				"data.actions.todo": [
 					"create",
 					"list",

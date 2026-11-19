@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -9,17 +9,16 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #ddeadf);
-        --_selection-text: var(--color-control-selected-foreground, #244635);
-        --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
-        --_surface-card: var(--color-surface-card, #faf9f5);
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_radius-sm: var(--radius-sm, 2px);
+        --_selection-background: var(--color-control-selected-background, #badecf);
+        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
+        --_selection-border: var(--color-control-selected-border, rgba(44, 94, 75, 0.5));
+        --_surface-card: var(--color-surface-card, #f8f9f3);
+        --_border-strong: var(--color-border-strong, #6b7d6e);
+        --_radius-sm: var(--radius-sm, 4px);
         --_size-font-md: var(--size-font-md, 14px);
         --_control-size: max(var(--_size-font-md), calc(var(--_target-size) * 0.5));
         --_type-body-line: var(--type-body-md-line, 20px);
-        --_type-caption-line: var(--type-caption-xs-line, 14px);
+        --_type-caption-line: var(--type-caption-xs-line, 16px);
     }
 
     :host([inline]) {
@@ -30,7 +29,7 @@ const styles = css`
     .root {
         display: inline-grid;
         grid-template-columns: auto minmax(0, 1fr);
-        gap: calc(var(--_space-inline-sm) * 2);
+        gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
         cursor: pointer;
@@ -70,6 +69,7 @@ const styles = css`
     }
 
     .box {
+        box-sizing: border-box;
         position: relative;
         display: inline-grid;
         place-items: center;
@@ -78,7 +78,6 @@ const styles = css`
         border: 1px solid var(--_border-strong);
         border-radius: var(--_radius-sm);
         background: var(--_surface-card);
-        box-shadow: var(--_shadow-control);
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
             border-color var(--_duration-fast) var(--_easing-standard),
@@ -132,12 +131,17 @@ const styles = css`
         transform: scaleX(1);
     }
 
-    .input:focus-visible + .box {
-        box-shadow:
-            var(--_shadow-control),
-            0 0 0 2px var(--_focus-ring);
+    .root:hover .input:not(:checked):not(:indeterminate):not(:disabled) + .box {
+        border-color: var(--_field-border-hover);
     }
 
+    .input:focus-visible + .box {
+        box-shadow:
+            0 0 0 2px var(--_surface-page),
+            0 0 0 4px var(--_focus-ring);
+    }
+
+    /* The state colours are for messages; an invalid mark takes the field's 3:1 invalid edge. */
     :host([invalid]) .box {
         border-color: var(--_danger-border);
     }
@@ -150,14 +154,20 @@ const styles = css`
     /* Supporting text often says why the control is unavailable, so it stays readable. */
     :host([disabled]) :is(.control-shell, .label),
     :host(:disabled) :is(.control-shell, .label) {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
+    /*
+     * The label sits on the first line beside the mark: its line is centred in the target by
+     * the inset, and supporting text runs on below it instead of pushing the label up.
+     */
     .content {
+        box-sizing: border-box;
         display: grid;
-        gap: var(--_space-stack-xs);
+        gap: var(--_space-stack-2xs);
         min-block-size: var(--_target-size);
-        align-content: center;
+        padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
+        align-content: start;
         min-inline-size: 0;
     }
 
@@ -167,23 +177,25 @@ const styles = css`
 
     :host([inline]) .content {
         min-block-size: auto;
+        padding-block: 0;
         align-content: center;
     }
 
     .label {
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
     }
 
     .supporting {
-        color: var(--_text-secondary);
+        color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
     }
 
     @media (forced-colors: active) {
-        .box {
+        .box,
+        .root:hover .input:not(:checked):not(:indeterminate):not(:disabled) + .box {
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
@@ -205,6 +217,7 @@ const styles = css`
         .input:focus-visible + .box {
             outline: 2px solid Highlight;
             outline-offset: 2px;
+            box-shadow: none;
         }
 
         :host([disabled]) .box,
@@ -239,7 +252,7 @@ const template = html<VioletCheckbox>`
             <span class="label" part="label" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
             </span>
-            <span class="supporting" part="supporting-text" ?hidden="${x => !x.hasSupporting}">
+            <span class="supporting" part="supporting-text" id="supporting-text" ?hidden="${x => !x.hasSupporting}">
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
         </span>
@@ -264,6 +277,9 @@ export class VioletCheckbox extends FASTElement {
     public static readonly formAssociated = true;
 
     readonly #internals: ElementInternals;
+    readonly #describedByObserver = new MutationObserver(() => this.#syncDescribedBy());
+    // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
+    readonly #handleFocusIn = (): void => this.#syncDescribedBy();
     #defaultChecked: boolean;
     #defaultIndeterminate: boolean;
 
@@ -350,6 +366,16 @@ export class VioletCheckbox extends FASTElement {
         this.#syncSupportingState();
         this.#syncControlState();
         this.#syncFormState();
+        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
+        this.addEventListener("focusin", this.#handleFocusIn);
+        // Targets rendered in the same update as the checkbox exist once that update has landed.
+        Updates.enqueue(() => this.#syncDescribedBy());
+    }
+
+    public disconnectedCallback(): void {
+        super.disconnectedCallback();
+        this.#describedByObserver.disconnect();
+        this.removeEventListener("focusin", this.#handleFocusIn);
     }
 
     public handleChange(event: Event): void {
@@ -365,6 +391,7 @@ export class VioletCheckbox extends FASTElement {
 
     public handleSupportingSlotChange(): void {
         this.#syncSupportingState();
+        this.#syncDescribedBy();
     }
 
     public formStateRestoreCallback(state: File | string | FormData | null): void {
@@ -497,6 +524,48 @@ export class VioletCheckbox extends FASTElement {
             control.setAttribute("aria-label", ariaLabel);
         } else {
             control.removeAttribute("aria-label");
+        }
+
+        this.#syncDescribedBy();
+    }
+
+    /**
+     * Describes the input by the host's `aria-describedby` targets and the slotted supporting text.
+     * Host IDREFs cannot cross the shadow boundary, so they are resolved in the host's root node and
+     * assigned through element reflection (`ariaDescribedByElements`). Without element reflection only
+     * the supporting text is linked, by an IDREF inside the shadow root.
+     */
+    #syncDescribedBy(): void {
+        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (!control) {
+            return;
+        }
+
+        const targets: Element[] = [];
+        const root = this.getRootNode() as Document | ShadowRoot;
+        for (const id of (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) {
+            const target = root.getElementById?.(id) ?? null;
+            if (target && !targets.includes(target)) {
+                targets.push(target);
+            }
+        }
+
+        const supporting = this.hasSupporting ? (this.shadowRoot?.getElementById("supporting-text") ?? null) : null;
+        if (supporting) {
+            targets.push(supporting);
+        }
+
+        const hasElementReflection: boolean = "ariaDescribedByElements" in control;
+        if (hasElementReflection) {
+            control.removeAttribute("aria-describedby");
+            control.ariaDescribedByElements = targets.length ? targets : null;
+            return;
+        }
+
+        if (supporting) {
+            control.setAttribute("aria-describedby", "supporting-text");
+        } else {
+            control.removeAttribute("aria-describedby");
         }
     }
 

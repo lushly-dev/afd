@@ -1,0 +1,6 @@
+pack_version = 1
+id = "library"
+plugin = "components"
+version = "1.0.0"
+title = "Component libraries"
+description = "The component library this space's agents are briefed on."

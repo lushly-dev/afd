@@ -684,6 +684,57 @@ export interface ManifestV2 {
 			 */
 			scope_levels?: ['workspace' | 'project', ...('workspace' | 'project')[]];
 		}[];
+		settings?: {
+			id: string;
+			title: string;
+			description?: string;
+			/**
+			 * @minItems 1
+			 */
+			levels: ['person' | 'workspace' | 'project', ...('person' | 'workspace' | 'project')[]];
+			schema: {
+				type: 'object';
+				properties: {
+					[k: string]: {
+						type: 'boolean' | 'string' | 'integer' | 'number' | 'array';
+						title: string;
+						description?: string;
+						/**
+						 * @minItems 1
+						 */
+						levels?: [
+							'person' | 'workspace' | 'project',
+							...('person' | 'workspace' | 'project')[]
+						];
+						default?: unknown;
+						/**
+						 * @minItems 1
+						 * @maxItems 32
+						 */
+						enum?: [string, ...string[]];
+						/**
+						 * @minItems 1
+						 * @maxItems 32
+						 */
+						enumTitles?: [string, ...string[]];
+						maxLength?: number;
+						minimum?: number;
+						maximum?: number;
+						items?: {
+							type: 'string';
+							/**
+							 * @minItems 1
+							 * @maxItems 32
+							 */
+							enum: [string, ...string[]];
+						};
+						maxItems?: number;
+						uniqueItems?: true;
+					};
+				};
+				additionalProperties: false;
+			};
+		}[];
 	};
 	native?: {
 		entry: string;
@@ -1138,6 +1189,23 @@ export interface DeploymentV4 {
 	host?: {
 		kind?: 'static' | 'hosted' | 'desktop';
 	};
+	copilot?: {
+		default?: string;
+		providers?: {
+			id: string;
+			kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test';
+			model: string;
+			endpoint?: string;
+			key?:
+				| {
+						keychain: string;
+						account: string;
+				  }
+				| {
+						file: string;
+				  };
+		}[];
+	};
 	apps: {
 		[k: string]: {
 			app: string;
@@ -1210,6 +1278,14 @@ export interface ProjectionV4 {
 	host?: {
 		kind: 'static' | 'hosted' | 'desktop';
 		kernel?: 'api/kernel';
+	};
+	copilot?: {
+		default: string;
+		providers: {
+			id: string;
+			kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test';
+			model: string;
+		}[];
 	};
 	apps: {
 		instance: string;

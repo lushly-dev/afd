@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
     Any,
+    Literal,
     Protocol,
     TypeVar,
     runtime_checkable,
@@ -36,6 +37,7 @@ from afd.core.batch import (
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
 from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, RandomSource, system_clock
+from afd.core.direct_allow import _is_allowed, _not_allowed
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CommandContext,
@@ -89,7 +91,7 @@ from afd.server.first_class import check_first_class_tools, normalize_first_clas
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
-from afd.server.approval_relay import bind_approval_relay
+from afd.server.approval_relay import bind_approval_relay, current_up_front_approval
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
     ConfirmationGate,
@@ -149,7 +151,7 @@ class ServerConfig:
     description: str | None = None
     transport: str | None = "fastmcp"
     middleware: list[CommandMiddleware] = field(default_factory=list)
-    tool_strategy: ToolStrategy = "individual"
+    tool_strategy: ToolStrategy = "grouped"
     contexts: list[ContextConfig] = field(default_factory=list)
     group_by: GroupByFn | None = None
     dev_mode: bool = False
@@ -286,6 +288,10 @@ class MCPServer:
         approval: ApprovalPolicy | None = None,
         version: str | None = None,
         title: str | None = None,
+        errors: list[str] | None = None,
+        execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None,
+        handoff: bool = False,
+        handoff_protocol: str | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -308,6 +314,10 @@ class MCPServer:
                 approval=approval,
                 version=version,
                 title=title,
+                errors=errors,
+                execution_time=execution_time,
+                handoff=handoff,
+                handoff_protocol=handoff_protocol,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -479,6 +489,8 @@ class MCPServer:
         Returns the command and the validated input that the middleware chain
         and the handler receive, or the failure that rejects the call.
         """
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
         interface = context.extra.get("interface") if context.extra else None
         active_context = self._context_state.get_active()
 
@@ -496,6 +508,7 @@ class MCPServer:
                 candidate.name
                 for candidate in self._get_command_index().values()
                 if _in_context(candidate, active_context)
+                and _is_allowed(context, candidate.name)
                 and (not interface or self._is_exposed_to(candidate, interface))
             ]
             return error(
@@ -619,6 +632,18 @@ class MCPServer:
         if isinstance(prepared, CommandResult):
             return prepared
         command, data = prepared
+
+        # A step of an afd-batch or afd-pipe approved up front runs on the input validated then
+        # (#1414): what the person was shown, not what this second validation gave (a default
+        # that is random or reads the clock differs, and the step would then match no approval
+        # after earlier steps ran). The step was still validated as sent just above, since a
+        # schema may check state an earlier step changed; only the value is kept. Only a command
+        # that may need approval: any other runs as it does on its own.
+        if getattr(command, "approval", None) not in (None, "not-required"):
+            up_front = current_up_front_approval()
+            approved = None if up_front is None else await up_front.validated(name, input)
+            if approved is not None:
+                data = approved[0]
 
         # Declared context fields, validated in context.extra before any middleware runs.
         invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
@@ -758,9 +783,15 @@ class MCPServer:
                         )
                     )
 
-                # FastMCP otherwise returns an unstructured ToolError. Route
-                # through AFD so unknown and private names share the D4 result.
-                return _tool_call_result(await server.route_tool_call(name, arguments))
+                # FastMCP otherwise returns an unstructured ToolError. Route through AFD so
+                # unknown and private names share the D4 result, and so a command the strategy
+                # does not list (every command under grouped or lazy) runs with the same
+                # confirmation and approval rounds as its own tool (spec/tool-strategies.md,
+                # "Routing").
+                try:
+                    return await server._serve_tool_call(name, arguments or {}, context)
+                except Exception as exc:
+                    return _tool_call_result(server._internal_error(name, exc))
 
             return await original_call_tool(
                 name,
@@ -1274,8 +1305,11 @@ class MCPServer:
         if ttl_ms is None:
             # With contexts, tools/list varies by _meta["dev.afd/context"], which SDK
             # clients leave out of their cache key, so the default is "always stale". The
-            # hybrid list never varies by context (H4), so it keeps the default.
-            varies = bool(self.config.contexts) and self.config.tool_strategy != "hybrid"
+            # hybrid and lazy lists never vary by context (H4, #533), so they keep the default.
+            varies = bool(self.config.contexts) and self.config.tool_strategy not in (
+                "hybrid",
+                "lazy",
+            )
             ttl_ms = 0 if varies else DEFAULT_TOOLS_LIST_TTL_MS
         if isinstance(ttl_ms, bool) or not isinstance(ttl_ms, int) or ttl_ms < 0:
             raise ValueError("tools_list_ttl_ms must be a non-negative integer")
@@ -1584,7 +1618,7 @@ def create_server(
     description: str | None = None,
     middleware: list[CommandMiddleware] | None = None,
     *,
-    tool_strategy: ToolStrategy = "individual",
+    tool_strategy: ToolStrategy = "grouped",
     contexts: list[ContextConfig] | None = None,
     group_by: GroupByFn | None = None,
     dev_mode: bool = False,
@@ -1620,8 +1654,9 @@ def create_server(
             reserved or repeated name, a ``meta`` key without a reverse-DNS prefix, with a
             reserved one or repeated) raises ``ValueError`` naming the field; a schema pydantic
             cannot use raises ``TypeError``.
-        tool_strategy: How commands become MCP tools: ``"individual"`` (the default), ``"grouped"``,
-            ``"lazy"`` or ``"hybrid"`` (``spec/tool-strategies.md``).
+        tool_strategy: How commands become MCP tools: ``"grouped"`` (the default, as in every
+            language), ``"individual"``, ``"lazy"`` or ``"hybrid"`` (``spec/tool-strategies.md``).
+            Every strategy lists the five meta-tools first.
         first_class_tools: With ``tool_strategy="hybrid"`` (required there, and refused with any
             other strategy), the commands to list as tools after the five meta-tools and the
             context tools, in order: 1 to 8 registered commands exposed to MCP, none a built-in

@@ -1058,8 +1058,25 @@ const log = server.getRequestLog();
 console.log('Requests made:', log.length);
 ```
 
-The mock server follows the real server's remote rules, so scenario tests see production
-semantics:
+The mock server runs commands through `createDirectRegistry` from `afd-server/direct`,
+using the production execution engine behind an in-memory MCP envelope. Pass commands
+created with `defineCommand` directly to preserve their Zod validation, defaults,
+transforms and unknown-key handling. Existing core `CommandDefinition` objects and mock
+helpers retain their historical input passthrough: their parameter schemas describe the
+tool but are not executable Zod schemas. Pass the original `defineCommand` definition,
+rather than its `toCommandDefinition()` result, when testing input validation.
+
+`MockServerOptions` accepts the registry's middleware, hooks, context definitions,
+declared context fields and clock/random/actor defaults. Each request's
+`_meta['dev.afd/context']` selects its context without retaining state, and declared
+context-field values are read from their configured `_meta` keys. Single calls and batch
+entries use the same validation and middleware. Completed handler results include the
+server engine's execution metadata. The default actor is `{ kind: 'agent' }`, as for
+production MCP; an explicit `actor` overrides it. Discovery advertises declared context
+fields. A batch can also carry these values in `arguments.meta`; conflicting `_meta` and
+`meta` values fail before any command runs.
+
+The mock keeps its command and batch surface:
 
 - Only commands with `expose: { mcp: true }` are listed and callable; any other command
   returns `COMMAND_NOT_EXPOSED`. Commands built with `createMockCommand`,

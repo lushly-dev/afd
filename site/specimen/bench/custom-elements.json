@@ -1,0 +1,117 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "change-bar.js",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "ChangeBar",
+					"customElement": true,
+					"tagName": "change-bar",
+					"members": [
+						{
+							"kind": "field",
+							"name": "disabled",
+							"type": { "text": "boolean" },
+							"default": "false",
+							"description": "Do not use. It is announced for every button in the bar. Use save-disabled."
+						},
+						{
+							"kind": "field",
+							"name": "dismissLabel",
+							"type": { "text": "string" },
+							"default": "'Dismiss'",
+							"description": "The icon button's accessible name."
+						},
+						{
+							"kind": "field",
+							"name": "label",
+							"type": { "text": "string" },
+							"default": "'Save'",
+							"description": "The main button's text."
+						},
+						{
+							"kind": "field",
+							"name": "saveDisabled",
+							"type": { "text": "boolean" },
+							"default": "false",
+							"description": "Switches off the main button, and only that button."
+						}
+					],
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": { "text": "boolean" },
+							"fieldName": "disabled",
+							"default": "false",
+							"description": "Do not use. It is announced for every button in the bar. Use save-disabled."
+						},
+						{
+							"name": "dismiss-label",
+							"type": { "text": "string" },
+							"fieldName": "dismissLabel",
+							"default": "'Dismiss'",
+							"description": "The icon button's accessible name."
+						},
+						{
+							"name": "label",
+							"type": { "text": "string" },
+							"fieldName": "label",
+							"default": "'Save'",
+							"description": "The main button's text."
+						},
+						{
+							"name": "save-disabled",
+							"type": { "text": "boolean" },
+							"fieldName": "saveDisabled",
+							"default": "false",
+							"description": "Switches off the main button, and only that button."
+						}
+					],
+					"slots": [
+						{
+							"name": "",
+							"description": "What is waiting, in a few words."
+						}
+					],
+					"events": [
+						{
+							"name": "discard",
+							"type": { "text": "CustomEvent" },
+							"description": "Discard was pressed."
+						},
+						{
+							"name": "dismiss",
+							"type": { "text": "CustomEvent" },
+							"description": "The icon button was pressed."
+						},
+						{
+							"name": "save",
+							"type": { "text": "CustomEvent" },
+							"description": "The main button was pressed."
+						}
+					],
+					"cssProperties": [
+						{
+							"name": "--bar-gap",
+							"default": "8px",
+							"description": "The space between the text and each button."
+						},
+						{
+							"name": "--bar-pad",
+							"default": "12px",
+							"description": "The padding inside the bar."
+						},
+						{
+							"name": "--bar-radius",
+							"default": "8px",
+							"description": "The corner radius of the buttons. The bar's is 4px more."
+						}
+					]
+				}
+			]
+		}
+	]
+}

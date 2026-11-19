@@ -970,7 +970,7 @@ Calls that cannot elicit fail with `APPROVAL_REQUIRED` and no token, as without 
 - the client declares no form elicitation;
 - a 2025-era HTTP request, or the legacy `/message` lane, which have no back channel.
 
-An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front, as a whole, before any step runs (#459): asking mid-run would rerun the earlier steps on the retry. One form lists every gated step's summary, command and validated input (a pipeline's `$input` references resolved), at most 20 of them, and on acceptance each gated step runs once on its own approval, bound to the whole request as sent and to its command, input and actor: an approval covers that exact batch or pipeline, never another call. Every nonce is spent before the first step runs, so a replayed retry runs nothing. A decline runs nothing (`reason: 'declined'`). A pipeline whose gated step takes its input from an earlier step (`$prev`, `$first`, `$steps`) cannot be shown to the human first, so it runs nothing and fails with `APPROVAL_REQUIRED`, `details.reason: 'input-not-known'` and the step's index and command: split it there and call that command on its own.
+An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front, as a whole, before any step runs (#459): asking mid-run would rerun the earlier steps on the retry. One form lists every gated step's summary, command and validated input (a pipeline's `$input` references resolved), at most 20 of them, and on acceptance each gated step runs once on its own approval, bound to the whole request as sent and to its command, input and actor: an approval covers that exact batch or pipeline, never another call. Every nonce is spent before the first step runs, so a replayed retry runs nothing. A step whose command has an approval policy runs on the input validated up front, and the retry reads each gated step's approved input back from the `requestState`, so a schema whose default is random or reads the clock (`.default(() => randomUUID())`) runs the input the human was shown (#1414). The step is still validated as sent when it runs, so a schema that checks state an earlier step changed fails it with `VALIDATION_ERROR`. The `requestState` is signed, not encrypted: the client can read the kept input, schema defaults and transforms included, so a gated command's schema must not compute a secret. A decline runs nothing (`reason: 'declined'`). A pipeline whose gated step takes its input from an earlier step (`$prev`, `$first`, `$steps`) cannot be shown to the human first, so it runs nothing and fails with `APPROVAL_REQUIRED`, `details.reason: 'input-not-known'` and the step's index and command: split it there and call that command on its own.
 
 Only the command the tool call routes to can use the relay, once: a command that a handler runs cannot elicit. An accepted approval that has expired or was already used is asked again, and the question says so. `onApprovalRequired` is not called on the relay path, since no token exists.
 
@@ -1349,14 +1349,14 @@ const server = createMcpServer({
 
 ## Tool Strategies
 
-`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. `afd-call`, `afd-batch` and `afd-pipe` are listed in every strategy.
+`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. Every strategy lists the five meta-tools first, in this order: `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` ([`spec/tool-strategies.md`](../../spec/tool-strategies.md#tool-lists), #533). Then:
 
-| Strategy | Tools listed |
+| Strategy | Tools listed after the meta-tools |
 |----------|--------------|
-| `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
+| `grouped` (default) | One tool per group. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
 | `individual` | One tool per command, with its full input schema and `_meta` |
-| `lazy` | `afd-discover` and `afd-detail` only |
-| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
+| `lazy` | The context tools when `contexts` are set, and nothing else |
+| `hybrid` | The context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
 
 A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
 
@@ -1392,7 +1392,7 @@ When a group's per-action schemas are small (at most 8,192 characters of JSON, a
 
 ## Lazy Strategy
 
-For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
+For servers with many commands, the `lazy` strategy lists the 5 meta-tools (and the context tools) instead of the commands:
 
 ```typescript
 const server = createMcpServer({

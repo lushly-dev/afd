@@ -82,12 +82,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-tooltip-background, var(--_surface-card))",
+				"default": "var( --violet-tooltip-background, var(--color-action-primary-background, var(--_surface-card)) )",
 				"name": "--_tooltip-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tooltip-border-color, var(--_border-subtle))",
+				"default": "var(--violet-tooltip-border-color, transparent)",
 				"name": "--_tooltip-border-color"
 			},
 			{
@@ -117,12 +117,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tooltip-radius, var(--_radius-md))",
+				"default": "var(--violet-tooltip-radius, calc(var(--_radius-md) - 2px))",
 				"name": "--_tooltip-radius"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tooltip-shadow, var(--_shadow-floating))",
+				"default": "var(--violet-tooltip-shadow, var(--_shadow-card))",
 				"name": "--_tooltip-shadow"
 			}
 		],

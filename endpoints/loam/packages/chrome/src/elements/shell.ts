@@ -14,7 +14,7 @@ import {
 	createDefaultAppearance,
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
-	type KernelEventV3,
+	type KernelEventV4,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
@@ -711,7 +711,7 @@ export class LoamShell extends FASTElement {
 			this.ownerDocument.defaultView?.history.replaceState(null, '', this.base);
 	}
 
-	#onEvent(event: KernelEventV3): void {
+	#onEvent(event: KernelEventV4): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
 		// A change of person: nothing of the leaving person's persona shows while the next one's is read (6.1; the
@@ -735,6 +735,10 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		if (!event.success || !event.mutation) return;
+		// The appearance is the person's `loam.appearance` setting, so a write of it, and a change of person, repaint
+		// (phase 4 specification, 3.6): the next person's own, or signed out the profile's last.
+		if (event.settings?.includes('loam.appearance') || event.actorChanged)
+			void this.#readAppearance();
 		if (/^(toast|modal)-/.test(event.command)) {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();
@@ -746,8 +750,12 @@ export class LoamShell extends FASTElement {
 		}
 		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
 		else if (event.actorChanged || event.command.startsWith('auth-')) {
-			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2).
-			if (event.actorChanged)
+			// The copilot's panel forgets its session and thread: a conversation is its person's (phase 5's 3.2), and in
+			// a `local` deployment a sign-in or a sign-out is a change of person too (phase 5's step 2).
+			if (
+				event.actorChanged ||
+				(event.success && (event.command === 'auth-sign-in' || event.command === 'auth-sign-out'))
+			)
 				(
 					this.shadowRoot?.querySelector('loam-copilot-panel') as { reset?(): void } | null
 				)?.reset?.();

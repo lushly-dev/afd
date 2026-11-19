@@ -3,10 +3,14 @@
  * every id of `violet-elements`' token interface (`tokens/interface.json`, which that package
  * owns and `theme:check` compares the tree with), and Loam's own shared ids beside them, which
  * the export carries too. The first 108 ids and their order are those of `violet-elements`'
- * registry, `registryVersion` 0.1.0. The values are that registry's light values (2.2), except
- * `color.text.muted` and `color.border.strong`, raised to meet the contrast floors (see the
- * specification's version 1 values), and the field borders the design document changed: resting
- * and invalid to 3:1, hover one step stronger than rest.
+ * registry, `registryVersion` 0.1.0.
+ *
+ * The values are AFD's theme, Refined (D159): the design system of the AFD site, settled on the
+ * site's review pages and approved by the owner on 2026-11-17. Ink on paper, mint for what is
+ * chosen, blue for focus; fields go toward the base (white here) with an inner cut, a soft mint
+ * behind a tick or a switch key, greyed tints behind messages; Inter for the interface, Space
+ * Grotesk for headings, IBM Plex Mono for code; rounded buttons and fields. The palette the
+ * components were first drawn in is Lushly's, and Lushly carries it as its own theme.
  */
 import { ref, type TreeToken } from './types.js';
 
@@ -14,57 +18,58 @@ const c = (name: string) => ref(`ref.color.${name}`);
 const space = (step: number) => ref(`ref.space.${step}`);
 
 export const COMPONENT_TOKENS: readonly TreeToken[] = [
-	// Surfaces.
-	{ id: 'color.surface.page', value: c('oat.50') },
-	{ id: 'color.surface.card', value: c('oat.100') },
-	{ id: 'color.surface.subtle', value: c('oat.200') },
-	{ id: 'color.surface.selected', value: c('sage.100') },
-	{ id: 'color.surface.floating', value: c('oat.200') },
-	// Text.
-	{ id: 'color.text.primary', value: c('ink.900') },
-	{ id: 'color.text.secondary', value: c('ink.700') },
-	{ id: 'color.text.muted', value: c('ink.500') },
-	// Borders and focus.
-	{ id: 'color.border.subtle', value: 'rgba(28, 26, 13, 0.10)' },
-	{ id: 'color.border.strong', value: 'rgba(28, 26, 13, 0.48)' },
-	{ id: 'color.focus.ring', value: 'rgba(24, 24, 27, 0.5)' },
-	// Selected controls.
-	{ id: 'color.control.selected.background', value: ref('color.surface.selected') },
-	{ id: 'color.control.selected.foreground', value: c('sage.800') },
-	{ id: 'color.control.selected.border', value: 'rgba(36, 70, 53, 0.22)' },
-	// Actions.
-	{ id: 'color.action.primary.background', value: c('tomato.600') },
-	{ id: 'color.action.primary.text', value: c('white') },
-	{ id: 'color.action.primary.hover', value: c('tomato.650') },
-	{ id: 'color.action.primary.pressed', value: c('tomato.700') },
-	{ id: 'color.action.secondary.background', value: c('oat.200') },
-	{ id: 'color.action.secondary.text', value: c('ink.900') },
-	{ id: 'color.action.secondary.border', value: 'rgba(28, 26, 13, 0.18)' },
-	{ id: 'color.action.secondary.hover', value: c('oat.300') },
-	{ id: 'color.action.secondary.pressed', value: c('oat.400') },
-	{ id: 'color.action.danger.background', value: c('red.700') },
+	// Surfaces: paper, with white for what floats and is raised.
+	{ id: 'color.surface.page', value: c('paper') },
+	{ id: 'color.surface.card', value: c('paper.bright') },
+	{ id: 'color.surface.subtle', value: c('paper.200') },
+	{ id: 'color.surface.selected', value: c('mint.wash') },
+	{ id: 'color.surface.floating', value: c('white') },
+	// Text: ink.
+	{ id: 'color.text.primary', value: c('ink') },
+	{ id: 'color.text.secondary', value: c('ink.soft') },
+	{ id: 'color.text.muted', value: c('stone.600') },
+	// Borders and focus: a quiet hairline, a control's edge that meets 3:1, the site's blue.
+	{ id: 'color.border.subtle', value: 'rgba(24, 27, 26, 0.10)' },
+	{ id: 'color.border.strong', value: c('sage.500') },
+	{ id: 'color.focus.ring', value: c('blue.ink') },
+	// Selected controls: a soft mint, marked in mint ink.
+	{ id: 'color.control.selected.background', value: c('mint.soft') },
+	{ id: 'color.control.selected.foreground', value: c('mint.ink') },
+	{ id: 'color.control.selected.border', value: 'rgba(44, 94, 75, 0.5)' },
+	// Actions: the main action is ink; the second is a wash of ink with no outline.
+	{ id: 'color.action.primary.background', value: c('ink') },
+	{ id: 'color.action.primary.text', value: c('paper') },
+	{ id: 'color.action.primary.hover', value: c('green.700') },
+	{ id: 'color.action.primary.pressed', value: c('green.800') },
+	{ id: 'color.action.secondary.background', value: 'rgba(24, 27, 26, 0.07)' },
+	{ id: 'color.action.secondary.text', value: c('ink') },
+	{ id: 'color.action.secondary.border', value: 'transparent' },
+	{ id: 'color.action.secondary.hover', value: 'rgba(24, 27, 26, 0.11)' },
+	{ id: 'color.action.secondary.pressed', value: 'rgba(24, 27, 26, 0.15)' },
+	{ id: 'color.action.danger.background', value: c('red.ink') },
 	{ id: 'color.action.danger.text', value: c('white') },
-	{ id: 'color.action.danger.hover', value: c('red.750') },
-	{ id: 'color.action.danger.pressed', value: c('red.800') },
-	// States.
-	{ id: 'color.state.success.background', value: c('green.50') },
-	{ id: 'color.state.success.text', value: c('green.800') },
-	{ id: 'color.state.success.border', value: 'rgba(22, 101, 52, 0.28)' },
-	{ id: 'color.state.warning.background', value: c('amber.50') },
+	{ id: 'color.action.danger.hover', value: c('red.800') },
+	{ id: 'color.action.danger.pressed', value: c('red.900') },
+	// States: greyed tints with no outline; high contrast draws the borders.
+	{ id: 'color.state.success.background', value: c('mint.wash') },
+	{ id: 'color.state.success.text', value: c('mint.ink') },
+	{ id: 'color.state.success.border', value: 'transparent' },
+	{ id: 'color.state.warning.background', value: c('amber.wash') },
 	{ id: 'color.state.warning.text', value: c('amber.800') },
-	{ id: 'color.state.warning.border', value: 'rgba(245, 158, 11, 0.34)' },
-	{ id: 'color.state.danger.background', value: c('red.50') },
-	{ id: 'color.state.danger.text', value: c('red.700') },
-	{ id: 'color.state.danger.border', value: 'rgba(220, 38, 38, 0.34)' },
-	// Fields.
-	{ id: 'color.field.background', value: ref('color.surface.page') },
-	{ id: 'color.field.background.readonly', value: ref('color.surface.subtle') },
+	{ id: 'color.state.warning.border', value: 'transparent' },
+	{ id: 'color.state.danger.background', value: c('red.wash') },
+	{ id: 'color.state.danger.text', value: c('red.ink') },
+	{ id: 'color.state.danger.border', value: 'transparent' },
+	// Fields go toward the base, white here, so a field reads as a place to type; a read-only one
+	// is a wash of ink.
+	{ id: 'color.field.background', value: c('white') },
+	{ id: 'color.field.background.readonly', value: 'rgba(24, 27, 26, 0.05)' },
 	{ id: 'color.field.text', value: ref('color.text.primary') },
 	{ id: 'color.field.placeholder', value: ref('color.text.muted') },
-	// The resting and invalid borders are the field's only boundary, so they meet 3:1 (design.md,
-	// 2026-11-01); hover stays one step stronger than rest.
-	{ id: 'color.field.border', value: ref('color.border.strong') },
-	{ id: 'color.field.border.hover', value: 'rgba(28, 26, 13, 0.64)' },
+	// The resting border is the field's top inner line (stone-500, 3:1 on the white field); hover is
+	// ink-soft, focus the focus ring and invalid the danger text.
+	{ id: 'color.field.border', value: c('stone.500') },
+	{ id: 'color.field.border.hover', value: c('ink.soft') },
 	{ id: 'color.field.border.focus', value: ref('color.focus.ring') },
 	{ id: 'color.field.border.invalid', value: ref('color.state.danger.text') },
 	// Type scale.
@@ -82,10 +87,11 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'weight.light', value: '100' },
 	{ id: 'weight.medium', value: '500' },
 	{ id: 'weight.semibold', value: '600' },
-	{ id: 'type.caption.xs.size', value: ref('size.font.xs') },
-	{ id: 'type.caption.xs.line', value: ref('size.line.xs') },
-	{ id: 'type.caption.xs.weight', value: ref('weight.medium') },
-	{ id: 'type.label.sm.size', value: ref('size.font.sm') },
+	// Refined's three working sizes: 12px captions at the regular weight, 13px labels, 14px body.
+	{ id: 'type.caption.xs.size', value: ref('size.font.sm') },
+	{ id: 'type.caption.xs.line', value: ref('size.line.sm') },
+	{ id: 'type.caption.xs.weight', value: ref('weight.regular') },
+	{ id: 'type.label.sm.size', value: '13px' },
 	{ id: 'type.label.sm.line', value: ref('size.line.sm') },
 	{ id: 'type.label.sm.weight', value: ref('weight.medium') },
 	{ id: 'type.body.md.size', value: ref('size.font.md') },
@@ -114,23 +120,25 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'space.stack.md', value: space(12) },
 	{ id: 'space.layout.sm', value: space(12) },
 	{ id: 'space.layout.md', value: space(24) },
-	// Radii.
-	{ id: 'radius.sm', value: '2px' },
-	{ id: 'radius.md', value: '4px' },
-	{ id: 'radius.lg', value: '6px' },
+	// Radii: rounding on buttons and fields (md), more on what floats (lg).
+	{ id: 'radius.sm', value: '4px' },
+	{ id: 'radius.md', value: '8px' },
+	{ id: 'radius.lg', value: '12px' },
 	{ id: 'radius.round', value: '9999px' },
-	// Elevation.
+	// Elevation: a hairline ring and a soft shadow, deeper for what floats.
 	{
 		id: 'shadow.control',
-		value: '0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04)',
+		value: '0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)',
 	},
 	{
 		id: 'shadow.card',
-		value: '0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06)',
+		value:
+			'0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06)',
 	},
 	{
 		id: 'shadow.floating',
-		value: '0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08)',
+		value:
+			'0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)',
 	},
 	// Layers.
 	{ id: 'z-index.base', value: '0' },
@@ -146,16 +154,20 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'duration.slow', value: '280ms' },
 	{ id: 'easing.standard', value: 'cubic-bezier(0.2, 0, 0, 1)' },
 	{ id: 'easing.emphasized', value: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-	// Type families, which the components read through 'font.family.body'; 'font.family.mono' is
-	// reserved in the interface, and its value is the console's monospace stack.
-	{ id: 'font.family.body', value: '"Montserrat", "Segoe UI", sans-serif' },
-	{ id: 'font.family.mono', value: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace' },
-	// Ids the components read before the interface listed them. Each takes its literal fallback in
-	// every theme, which is how they rendered before; better dark and high-contrast values are
-	// Loam's call (#659).
-	{ id: 'color.state.danger.foreground', value: c('red.700') },
-	{ id: 'color.state.success.foreground', value: '#245C36' },
+	// Type families: Inter for the interface, IBM Plex Mono for code and a command's name. Loam ships
+	// the three faces (`fonts/`, `loam-fonts.css`); elsewhere the stacks fall back to the system's.
+	{ id: 'font.family.body', value: '"Inter", system-ui, sans-serif' },
+	{ id: 'font.family.mono', value: '"IBM Plex Mono", ui-monospace, Consolas, monospace' },
+	// Ids the components read before the interface listed them (#659): an alert's icon, a raised
+	// key on a track, a pressed surface and the focus ring's width.
+	{ id: 'color.state.danger.foreground', value: c('red.ink') },
+	{ id: 'color.state.success.foreground', value: c('mint.ink') },
 	{ id: 'color.surface.highlight', value: c('white') },
-	{ id: 'color.surface.pressed', value: c('oat.300') },
+	{ id: 'color.surface.pressed', value: c('stone.200') },
 	{ id: 'size.focus-ring.width', value: '2px' },
+	// Ids the Refined design added to the interface (contractVersion 2): headings (the dialog's
+	// title, the text component's heading variants) in Space Grotesk, and a field's well, the soft
+	// inner shadow under its top rule, which dark deepens and high contrast removes (themes.ts).
+	{ id: 'font.family.heading', value: '"Space Grotesk", "Segoe UI", system-ui, sans-serif' },
+	{ id: 'shadow.well', value: 'inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)' },
 ];

@@ -148,7 +148,7 @@ export const consoleStyles = css`
 	}
 	.output pre {
 		margin: 0;
-		font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+		font-family: var(--font-family-mono);
 		font-size: var(--type-label-sm-size);
 		line-height: var(--type-label-sm-line);
 		white-space: pre-wrap;

@@ -132,7 +132,11 @@ export interface PersonaV1 {
 		density?: string;
 		theme?: string;
 	};
-	emphasis: { apps?: string[]; sections?: ('projects' | 'documents' | 'account')[] };
+	emphasis: {
+		apps?: string[];
+		/** Phase 4 widens it with `settings` and `inbox` (its A-P3-1). */
+		sections?: ('projects' | 'documents' | 'account' | 'settings' | 'inbox')[];
+	};
 	createdAt: number;
 	updatedAt: number;
 	updatedBy: string;

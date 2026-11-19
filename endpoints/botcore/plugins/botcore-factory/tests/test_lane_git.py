@@ -490,3 +490,70 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
     stray.mkdir()
     git.remove_checkout(str(stray))
     assert not stray.exists()
+
+
+def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeypatch):
+    """lushly-dev/afd#1352: after the slot merges the base in, ``.nvmrc`` is among the files the
+    branch changes against the base only when the branch changed it, so a Node missing for it
+    ejects that branch, while main's own bump (the slot holds it too) pauses the lane. A branch
+    that deletes it leaves the slot without one and ``.nvmrc`` among its changes (#1505)."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+
+    def commit(files: dict[str, str], message: str) -> str:
+        for name, text in files.items():
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text(text, encoding="utf-8")
+        run(["git", "add", "-A"])
+        run(["git", "commit", "-q", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    commit({".nvmrc": "26\n", "src/a.ts": "a\n"}, "base")
+    run(["git", "checkout", "-q", "-b", "bump"])
+    bump = commit({".nvmrc": "27\n", "src/a.ts": "a on 27\n"}, "bump")
+    run(["git", "checkout", "-q", "main"])
+    run(["git", "checkout", "-q", "-b", "feature"])
+    feature = commit({"src/b.ts": "b\n"}, "feature")
+    run(["git", "checkout", "-q", "main"])
+    main = commit({"docs/c.md": "c\n"}, "main moves")
+    git = CliGit(run)
+
+    slot = git.prepare_slot("1", "", bump)
+    assert git.merge_main(slot, main).clean
+    assert git.read_file(slot, ".nvmrc") == "27\n"
+    assert ".nvmrc" in git.changed_files(slot, main)
+
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, main).clean
+    assert ".nvmrc" not in git.changed_files(slot, main)
+
+    run(["git", "checkout", "-q", "-b", "drop", main])
+    run(["git", "rm", "-q", ".nvmrc"])
+    drop = commit({"src/d.ts": "d\n"}, "drop .nvmrc")  # lushly-dev/afd#1505.
+    run(["git", "checkout", "-q", "main"])
+    slot = git.prepare_slot("1", "", drop)
+    assert git.merge_main(slot, main).clean
+    assert git.read_file(slot, ".nvmrc") is None
+    assert ".nvmrc" in git.changed_files(slot, main)
+
+    bumped_main = commit({".nvmrc": "28\n"}, "main bumps .nvmrc")
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, bumped_main).clean
+    assert git.read_file(slot, ".nvmrc") == "28\n"  # Main's Node, which no branch answers for.
+    assert ".nvmrc" not in git.changed_files(slot, bumped_main)
+
+    run(["git", "rm", "-q", ".nvmrc"])
+    dropped_main = commit({}, "main deletes .nvmrc")  # Main's choice: no branch answers for it.
+    slot = git.prepare_slot("1", "", feature)
+    assert git.merge_main(slot, dropped_main).clean
+    assert git.read_file(slot, ".nvmrc") is None
+    assert ".nvmrc" not in git.changed_files(slot, dropped_main)

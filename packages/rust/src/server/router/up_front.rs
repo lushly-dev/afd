@@ -71,14 +71,19 @@ impl Call<'_> {
     /// The step of a batch or pipeline as the approval middleware sees it: its validated input,
     /// or none when it names no command the caller can run or does not validate.
     fn up_front_step(&self, index: usize, command: &str, input: Value) -> UpFrontStep {
-        let input = self
-            .exposed(command)
-            .and_then(|definition| self.server.inner.registry.validate(&definition, input).ok());
+        let validated = self.exposed(command).and_then(|definition| {
+            self.server
+                .inner
+                .registry
+                .validate(&definition, input.clone())
+                .ok()
+        });
         UpFrontStep {
             index,
             command: command.to_owned(),
             dynamic: false,
-            input,
+            sent: validated.is_some().then_some(input),
+            input: validated,
         }
     }
 
@@ -127,12 +132,14 @@ impl Call<'_> {
                         command: step.command.clone(),
                         dynamic: false,
                         input: None,
+                        sent: None,
                     },
                     Some(input) if reads_step_data(input) => UpFrontStep {
                         index,
                         command: step.command.clone(),
                         dynamic: true,
                         input: None,
+                        sent: None,
                     },
                     Some(input) => {
                         self.up_front_step(index, &step.command, resolve_variables(input, &context))

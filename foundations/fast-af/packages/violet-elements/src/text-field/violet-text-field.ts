@@ -22,7 +22,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .control-frame {
@@ -33,16 +33,15 @@ const styles = css`
         block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: 0;
-        border: 1px solid var(--_field-border);
+        border: 1px solid var(--_border-subtle);
         border-radius: var(--_radius-md);
-        background: var(--_surface-page);
-        color: var(--color-text-primary, #18181b);
-        box-shadow: var(--_shadow-control);
+        background: var(--_field-background);
+        color: var(--_field-text);
+        box-shadow: var(--_field-shadow);
         font-family: inherit;
         transition:
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .control {
@@ -50,7 +49,7 @@ const styles = css`
         min-inline-size: 0;
         border: 0;
         background: transparent;
-        color: var(--color-text-primary, #18181b);
+        color: var(--_field-text);
         box-shadow: none;
         font-family: inherit;
         font-size: var(--_control-body-size);
@@ -58,7 +57,7 @@ const styles = css`
     }
 
     .control::placeholder {
-        color: var(--_text-muted);
+        color: var(--_field-placeholder);
     }
 
     .control:focus {
@@ -66,22 +65,31 @@ const styles = css`
     }
 
     .control-frame:hover {
-        border-color: var(--_field-border-hover);
+        box-shadow: var(--_field-shadow-hover);
     }
 
     .control-frame:focus-within {
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
-        transform: translateY(calc(var(--_space-inline-sm) / -4));
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
+    }
+
+    /*
+     * A read-only field's fill is a wash of the text colour, too light behind the resting border
+     * and the placeholder: its top line takes the strong border and its placeholder the secondary
+     * text, so both keep their contrast on every surface (Loam's D159).
+     */
+    :host([readonly]) {
+        --_field-border: var(--_field-border-readonly);
+        --_field-placeholder: var(--_text-secondary);
     }
 
     :host([readonly]) .control-frame {
-        background: var(--_surface-subtle);
+        background: var(--_field-background-readonly);
     }
 
     :host([disabled]) .control-frame,
     :host(:disabled) .control-frame {
-        opacity: 0.65;
+        opacity: 0.5;
         cursor: not-allowed;
     }
 
@@ -109,7 +117,12 @@ const styles = css`
         color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
-        margin-block-start: var(--_space-stack-2xs);
+        margin-block-start: var(--_space-field-gap);
+    }
+
+    /* There is no error line here, so under an invalid value the supporting text is the reason. */
+    :host([invalid]) .supporting {
+        color: var(--color-state-danger-text, var(--_text-muted));
     }
 
     @media (forced-colors: active) {
@@ -342,6 +355,8 @@ export class VioletTextField extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
         this.$emit("input", { value: this.value });

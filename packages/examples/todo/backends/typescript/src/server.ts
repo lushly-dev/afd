@@ -32,7 +32,7 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
  * Main entry point.
  */
 async function main() {
-	// Browser access: the dev frontends from the README (ports 3000, 5173 and 5174)
+	// Browser access: the dev frontends from the README (ports 5173 and 5174)
 	// plus ALLOWED_ORIGINS. See server-options.ts.
 	const store = createStore(process.env);
 	// A SQLite database that cannot be opened fails here, not on the first command
@@ -69,8 +69,8 @@ async function main() {
 		console.error(`  afd connect ${server.getUrl()}/mcp`);
 		console.error('');
 		console.error('Or start a frontend (from packages/examples/todo):');
-		console.error('  pnpm dev:web     # http://localhost:3000');
-		console.error('  pnpm dev:react   # http://localhost:5173');
+		console.error('  pnpm dev:web     # http://localhost:5173');
+		console.error('  pnpm dev:react   # http://localhost:5174');
 		if (!DEV_MODE) {
 			console.error(`  Allowed browser origins: ${options.allowedOrigins?.join(', ')}`);
 		}

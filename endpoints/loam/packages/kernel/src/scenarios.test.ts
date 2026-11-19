@@ -1,6 +1,8 @@
 /**
  * Loam's scenario runner (phase 4 specification, Jobs and scenarios; phase 5 specification, the same). Each file
- * tagged `loam-runner` runs on a fresh seed from `kernel/scenarios/seeds.ts` (`seed:<name>`, default `p5-base`).
+ * tagged `loam-runner` runs on a fresh seed from `kernel/scenarios/seeds.ts` (`seed:<name>`, default its phase's:
+ * `p4-base` or `p5-base`). Each phase's files stay in its `docs/phases/<phase>/scenarios/`, where phase 5's step 1
+ * left its own, and run from there as their commands are built.
  * AFD's runner resolves step references and evaluates each step; this file reads each step's directives:
  *
  * - `[agent]`: the agent interface, as `shell-agent` for the person;
@@ -22,11 +24,36 @@ import {
 } from '@lushly-dev/afd-testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
-import { SEEDS, type SeededKernel } from '../scenarios/seeds.js';
+import { P4_PERSON, P4_PROJECTS, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
 
+const PHASE_4 = fileURLToPath(
+	new URL('../../../docs/phases/4-settings/scenarios/', import.meta.url)
+);
 const PHASE_5 = fileURLToPath(
 	new URL('../../../docs/phases/5-copilot/scenarios/', import.meta.url)
 );
+
+/**
+ * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 builds the settings core and
+ * `p4-base`, and no file runs yet: each needs hello's settings, the palette's setting rows, or a later step's commands.
+ */
+const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
+	'setting-per-project': "step 2: hello's `hello.general` and the apps in `p4-base`",
+	'setting-from-palette': "step 2: the palette's setting rows and the settings section",
+	'agent-changes-setting': "step 2: hello's `hello.general`",
+	'autonomy-per-command': 'step 8: autonomy',
+	'know-my-mode': 'step 8: autonomy',
+	'owner-ceiling': 'step 8: autonomy',
+	'opt-into-experiment': "step 9: experiments and hello's `hello.inspector-v2`",
+	'workspace-experiment-opt-out': 'step 9: experiments',
+	'decline-confirmation':
+		"step 6: confirmations, and the second app's command with a `confirm_prompt`",
+	'palette-prompts-for-input': "step 6: the palette's input prompt",
+	'inbox-action': "steps 5 and 6: the inbox and hello's guest book",
+	'agent-leaves-notice': 'step 5: the inbox',
+	'rebind-a-chord': 'step 7: keybindings',
+	'limit-refuses-call': 'step 10: limits',
+});
 
 /**
  * Phase 5's files, by the step that makes each runnable. `now` runs in this step; the rest wait for the commands,
@@ -46,15 +73,19 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'events-since-cursor': "milestone B's amendment: event-list",
 });
 
-const seedOf = (scenario: Scenario): string =>
-	(scenario.tags ?? []).find((tag) => tag.startsWith('seed:'))?.slice('seed:'.length) ?? 'p5-base';
+const seedOf = (scenario: Scenario, fallback: string): string =>
+	(scenario.tags ?? []).find((tag) => tag.startsWith('seed:'))?.slice('seed:'.length) ?? fallback;
 
-async function runFile(file: string): Promise<{ passed: boolean; detail: string }> {
-	const parsed = parseScenarioString(readFileSync(`${PHASE_5}${file}`, 'utf8'), file);
+async function runFile(
+	directory: string,
+	file: string,
+	fallback: string
+): Promise<{ passed: boolean; detail: string }> {
+	const parsed = parseScenarioString(readFileSync(`${directory}${file}`, 'utf8'), file);
 	if (!parsed.success) throw new Error(`${file}: ${parsed.error}`);
 	const scenario = parsed.scenario;
-	const make = SEEDS[seedOf(scenario)];
-	if (!make) throw new Error(`${file}: no seed '${seedOf(scenario)}'`);
+	const make = SEEDS[seedOf(scenario, fallback)];
+	if (!make) throw new Error(`${file}: no seed '${seedOf(scenario, fallback)}'`);
 	const directives = scenario.steps.map((step) => readDirectives(step.description ?? ''));
 	seeded = await make();
 	const { kernel } = seeded;
@@ -73,9 +104,16 @@ async function runFile(file: string): Promise<{ passed: boolean; detail: string 
 			const caller = directive.caller;
 			if (caller && 'agent' in caller) return kernel.agent.call(command, input, options);
 			if (caller) {
-				if (caller.inactive) await kernel.call('app-open', { instance: 'console' });
-				else await kernel.call('app-open', { instance: caller.instance });
-				return kernel.appPort(caller.instance).call(command, input) as Promise<CommandResult>;
+				// The step's setup: an app that does not open fails the step, rather than run as another (the review's G).
+				const opened = await kernel.call('app-open', {
+					instance: caller.inactive ? 'console' : caller.instance,
+				});
+				if (!opened.success) return opened as CommandResult<unknown>;
+				const port = kernel.appPort(caller.instance);
+				// A scope directive binds the port to that scope, as a surface's port is bound (phase 2 specification, 3.6).
+				return (
+					scope ? port.surface({ scope }).call(command, input) : port.call(command, input)
+				) as Promise<CommandResult>;
 			}
 			return kernel.call(command, input, options);
 		},
@@ -105,21 +143,55 @@ afterEach(async () => {
 	seeded = undefined;
 });
 
-describe("Loam's runner: phase 5's scenarios", () => {
-	const files = readdirSync(PHASE_5).filter((name) => name.endsWith('.scenario.yaml'));
+for (const [phase, directory, runs, fallback] of [
+	['phase 4', PHASE_4, RUNS_4, 'p4-base'],
+	['phase 5', PHASE_5, RUNS, 'p5-base'],
+] as const) {
+	describe(`Loam's runner: ${phase}'s scenarios`, () => {
+		const files = readdirSync(directory).filter((name) => name.endsWith('.scenario.yaml'));
 
-	it('knows every file, so none is left out by accident', () => {
-		expect(files.map((name) => name.replace('.scenario.yaml', '')).sort()).toEqual(
-			Object.keys(RUNS).sort()
-		);
+		it('knows every file, so none is left out by accident', () => {
+			expect(files.map((name) => name.replace('.scenario.yaml', '')).sort()).toEqual(
+				Object.keys(runs).sort()
+			);
+		});
+
+		for (const name of Object.keys(runs).filter((key) => runs[key] === 'now')) {
+			it(`passes ${name}`, async () => {
+				const { passed, detail } = await runFile(directory, `${name}.scenario.yaml`, fallback);
+				expect(passed, detail).toBe(true);
+			}, 30_000);
+		}
 	});
+}
 
-	for (const name of Object.keys(RUNS).filter((key) => RUNS[key] === 'now')) {
-		it(`passes ${name}`, async () => {
-			const { passed, detail } = await runFile(`${name}.scenario.yaml`);
-			expect(passed, detail).toBe(true);
-		}, 30_000);
-	}
+describe("Loam's runner: the p4-base seed", () => {
+	it('holds a local workspace signed in as its one person, an owner, and Atlas and Beacon by fixed id', async () => {
+		seeded = await (SEEDS['p4-base'] as () => Promise<SeededKernel>)();
+		const { kernel } = seeded;
+		const session = await kernel.call<{ user?: { id: string } }>('auth-session-get');
+		expect(session.data?.user?.id).toBe(P4_PERSON);
+		const listed = await kernel.call<{
+			projects: Array<{ id: string; slug: string; createdBy: string }>;
+		}>('project-list');
+		expect(
+			listed.data?.projects.map(({ id, slug, createdBy }) => ({ id, slug, createdBy }))
+		).toEqual(P4_PROJECTS.map(({ id, slug }) => ({ id, slug, createdBy: P4_PERSON })));
+		// An owner: a workspace value is theirs to set, in the project the directives name by id.
+		const set = await kernel.call('setting-set', {
+			section: 'loam.documents',
+			key: 'trashDays',
+			value: 14,
+			level: 'workspace',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
+		const scoped = await kernel.call(
+			'setting-get',
+			{ section: 'loam.documents', key: 'trashDays' },
+			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
+		);
+		expect(scoped.data).toMatchObject({ value: 14, from: 'workspace' });
+	});
 });
 
 describe("Loam's runner: the directives", () => {

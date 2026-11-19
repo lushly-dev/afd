@@ -12,7 +12,7 @@ import type { ContextConfig } from '@lushly-dev/afd-server';
 export const TODO_CONTEXTS: ContextConfig[] = [
 	{
 		name: 'todo-reading',
-		description: 'Review todos without changing them: list, get and stats only',
+		description: 'Review todos without changing them: list, get, stats and history only',
 		triggers: ['review', 'summarize', 'report', 'what is left'],
 	},
 	{

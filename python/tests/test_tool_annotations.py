@@ -9,7 +9,7 @@ MCP = ExposeOptions(mcp=True)
 
 
 def _server():
-    server = create_server("annotations")
+    server = create_server("annotations", tool_strategy="individual")
 
     @server.command(name="todo-purge", description="Delete all", mutation=True, expose=MCP)
     async def purge(input):

@@ -372,14 +372,16 @@ class Machine(Protocol):
         """Whether this user can create symlinks (Windows needs Developer Mode)."""
         ...
 
-    def tool_version(self, tool: str) -> str | None:
-        """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing."""
+    def tool_version(self, tool: str, path: Sequence[str] = ()) -> str | None:
+        """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing.
+        ``path`` (directories) is searched before ``PATH`` and put first on the ``PATH`` the
+        tool runs with, as a lane job step's is: the ``.nvmrc`` Node's bin directory."""
         ...
 
     def node_bin(self, spec: str) -> str | None:
-        """The directory holding the ``node`` a version manager (fnm, nvm) installed for
-        ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest match), or None
-        when no installed Node matches it."""
+        """The directory holding the ``node`` a version manager (fnm, nvm, nvm-windows)
+        installed for ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest
+        match), or None when no installed Node matches it."""
         ...
 
 

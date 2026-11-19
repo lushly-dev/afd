@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+	<title>Alfred</title>
+	<!-- The compass at rest: one bar in a ring, leaning like the AFD slash. -->
+	<defs>
+		<clipPath id="window"><circle cx="50" cy="50" r="39"/></clipPath>
+	</defs>
+	<circle cx="50" cy="50" r="50" fill="#a3ebcd"/>
+	<polygon clip-path="url(#window)" points="55.95,0 80.45,0 44.05,100 19.55,100" fill="#181b1a"/>
+</svg>

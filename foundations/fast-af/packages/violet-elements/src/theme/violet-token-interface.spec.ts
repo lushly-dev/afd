@@ -9,18 +9,12 @@ import {
     type VioletTokenInterface,
 } from "./violet-theme-css";
 
-declare global {
-    interface ImportMeta {
-        glob(patterns: string[], options: { query: string; import: string; eager: true }): Record<string, unknown>;
-    }
-}
-
 // Every source file the package ships: specs, stories and the generated theme data read no token.
-const sources = import.meta.glob(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
+const sources = import.meta.glob<string>(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
     query: "?raw",
     import: "default",
     eager: true,
-}) as Record<string, string>;
+});
 
 const TOKEN_TYPES = new Set<string>(VIOLET_TOKEN_TYPES);
 
@@ -30,6 +24,8 @@ const TOKEN_TYPES = new Set<string>(VIOLET_TOKEN_TYPES);
  */
 const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
     1: "0fd1c3c87bff39e5d24aa8e0f846e569f469bc1194fac6a8d298f595adb3eebd",
+    // The Refined design: font.family.heading, shadow.well and the five color.field.* ids fields read.
+    2: "a62b51f27974d98d9c78da13bd0d5ac8e5f91d0fbb8423cfff5f5148b1d34638",
 };
 
 /**
@@ -134,11 +130,10 @@ describe("the token interface (tokens/interface.json)", () => {
             expect(TOKEN_TYPES.has(entry.type), `${id} has type ${entry.type}`).toBe(true);
         }
         expect(contract.tokens["font.family.body"]).toEqual({ property: "--font-family-body", type: "fontFamily" });
-        expect(contract.tokens["font.family.mono"]).toEqual({
-            property: "--font-family-mono",
-            type: "fontFamily",
-            reserved: true,
-        });
+        // Read by the tool-call card since contract version 2, so no longer reserved.
+        expect(contract.tokens["font.family.mono"]).toEqual({ property: "--font-family-mono", type: "fontFamily" });
+        expect(contract.tokens["font.family.heading"]).toEqual({ property: "--font-family-heading", type: "fontFamily" });
+        expect(contract.tokens["shadow.well"]).toEqual({ property: "--shadow-well", type: "shadow" });
     });
 
     it("is supplied in full by the built-in default set, in every preset", () => {

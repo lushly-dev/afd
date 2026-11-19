@@ -20,11 +20,10 @@ import { createHistoryMiddleware } from './history.js';
 export type Env = Readonly<Record<string, string | undefined>>;
 
 /**
- * Ports of the dev frontends in the todo README: `pnpm dev:web` (`npx serve`,
- * port 3000) and the Vite dev servers of both frontends (5173, and 5174 when
- * both run at once).
+ * Ports of the dev frontends in the todo README: the Vite dev servers of the
+ * FAST-AF page (`pnpm dev:web`, 5173) and the React page (`pnpm dev:react`, 5174).
  */
-export const DEV_FRONTEND_PORTS = [3000, 5173, 5174] as const;
+export const DEV_FRONTEND_PORTS = [5173, 5174] as const;
 
 /** The dev frontends' origins, on both loopback names. */
 export function devFrontendOrigins(): string[] {

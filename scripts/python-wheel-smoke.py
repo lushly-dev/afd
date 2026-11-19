@@ -53,7 +53,11 @@ async def check(extra: str) -> None:
         # Construction is lazy; exercise the FastMCP registration boundary too,
         # without starting a process or listening on a network port.
         mcp = server._create_mcp_server()
-        assert "smoke-ping" in {tool.name for tool in await mcp.list_tools()}
+        tools = await mcp.list_tools()
+        # The default grouped list: the five meta-tools, then the `smoke` group.
+        assert "afd-call" in {tool.name for tool in tools}
+        grouped = next(tool for tool in tools if tool.name == "smoke")
+        assert [action["command"] for action in grouped.meta["actions"]] == ["smoke-ping"]
     elif extra != "cli":
         raise ValueError(f"Unknown extra: {extra}")
 

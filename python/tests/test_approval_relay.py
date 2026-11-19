@@ -169,8 +169,12 @@ async def test_every_single_command_route_asks(mode):
         grouped, mode, prompts, "accept", tool="todo", arguments={"action": "clear", "params": {}}
     )
     assert via_group["success"] is True
-    assert calls == ["clear:all", "clear:all"]
-    assert len(prompts) == 2
+    # A command the grouped list does not show, called by its own name (spec/tool-strategies.md,
+    # "Routing"), is asked as its own tool is.
+    by_name = await _call(_server(calls, tool_strategy="grouped"), mode, prompts, "accept")
+    assert by_name["success"] is True
+    assert calls == ["clear:all", "clear:all", "clear:all"]
+    assert len(prompts) == 3
 
 
 async def test_a_client_without_elicitation_gets_no_token():
@@ -210,6 +214,12 @@ async def test_a_confirmation_then_an_approval_are_asked_in_turn(mode):
     assert prompts[0] == "Delete every todo?"
     assert prompts[1].startswith("Clear all\n")
     assert len(prompts) == 2
+    # The same under grouped, where todo-clear is not listed and is called by its own name.
+    grouped = _server(calls, confirmations="require-human", tool_strategy="grouped")
+    by_name = await _call(grouped, mode, prompts, "accept")
+    assert by_name["success"] is True
+    assert prompts[2] == "Delete every todo?"
+    assert prompts[3].startswith("Clear all\n")
 
 
 async def test_a_command_run_inside_another_cannot_ask():
@@ -617,3 +627,200 @@ async def test_a_spent_batch_approval_is_asked_again_saying_why():
     assert again.input_requests["approval"].params.message.startswith(
         "The earlier approval expired, was already used or no longer matches"
     )
+
+
+# ── A step runs on the input approved up front (#1414) ───────────────────────────────────────
+
+
+def _notes(calls):
+    """A server with a gated command whose defaults differ from one validation to the next."""
+    import uuid
+
+    from pydantic import BaseModel, Field
+
+    class NoteAdd(BaseModel):
+        text: str
+        id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+
+    server = _server(calls)
+
+    @server.command(
+        name="note-add",
+        description="Add a note",
+        mutation=True,
+        approval="required",
+        input_schema=NoteAdd,
+        expose=MCP,
+    )
+    async def add(input):
+        calls.append(f"add:{input.id}")
+        return success({"id": input.id})
+
+    return server
+
+
+def _shown(message):
+    """``add:<id>`` for each ``note-add`` step a question shows."""
+    return [
+        f"add:{json.loads(line[len('Input: '):])['id']}"
+        for line in message.splitlines()
+        if line.startswith("Input: ") and '"id"' in line
+    ]
+
+
+NOTES = {
+    "commands": [
+        {"command": "todo-get", "input": {}},
+        {"command": "note-add", "input": {"text": "milk"}},
+    ]
+}
+
+
+@pytest.mark.parametrize("mode", MODES)
+async def test_a_gated_batch_step_with_a_random_default_runs_on_the_approved_input(mode):
+    calls, prompts = [], []
+    result = await _call(_notes(calls), mode, prompts, "accept", tool="afd-batch", arguments=NOTES)
+    assert result["success"] is True, result
+    # Asked once; the ungated step ran once, and the gated one on the id the human was shown.
+    assert len(prompts) == 1
+    assert len(_shown(prompts[0])) == 1
+    assert calls == ["get", *_shown(prompts[0])]
+
+
+@pytest.mark.parametrize("mode", MODES)
+async def test_a_gated_pipeline_step_with_a_random_default_runs_on_the_approved_input(mode):
+    calls, prompts = [], []
+    request = {
+        "input": {"text": "eggs"},
+        "steps": [
+            {"command": "todo-get"},
+            {"command": "note-add", "input": {"text": "$input.text"}},
+        ],
+    }
+    result = await _call(_notes(calls), mode, prompts, "accept", tool="afd-pipe", arguments=request)
+    assert [step["status"] for step in result["steps"]] == ["success", "success"], result
+    assert len(prompts) == 1
+    assert calls == ["get", *_shown(prompts[0])]
+
+
+@pytest.mark.parametrize("mode", MODES)
+async def test_two_steps_sent_alike_each_run_on_their_own_approved_input(mode):
+    calls, prompts = [], []
+    step = {"command": "note-add", "input": {"text": "milk"}}
+    result = await _call(
+        _notes(calls), mode, prompts, "accept", tool="afd-batch", arguments={"commands": [step, step]}
+    )
+    assert result["success"] is True, result
+    shown = _shown(prompts[0])
+    assert len(set(shown)) == 2
+    assert sorted(calls) == sorted(shown)
+
+
+async def test_an_approved_input_does_not_run_in_another_request():
+    calls = []
+    server = _notes(calls)
+    asked = await _ask(server, "afd-batch", NOTES)
+    other = {"commands": [NOTES["commands"][0], {"command": "note-add", "input": {"text": "bleach"}}]}
+    retried = await _retry(server, asked.request_state, APPROVE, "afd-batch", other)
+    # Refused, or asked again about the new request: either way nothing ran.
+    assert _refused(retried) or type(retried).__name__ == "InputRequiredResult"
+    assert calls == []
+
+
+def test_an_approved_input_the_schema_does_not_read_back_is_validated_again():
+    from afd.server.approval_relay import _batch_steps
+
+    def validate(command, input):
+        # Unknown keys are dropped, as a schema that strips them does.
+        return True, {"text": input["text"], "id": input.get("id", "fresh")}
+
+    request = {"commands": [{"command": "note-add", "input": {"text": "milk"}}]}
+    kept = _batch_steps(request, validate, {0: '{"id":"shown","text":"milk"}'})
+    assert kept[0].input == {"text": "milk", "id": "shown"}
+    assert kept[0].sent == '{"text":"milk"}'
+    for altered in ("{", '{"extra":1,"id":"shown","text":"milk"}', '{"id":"shown"}'):
+        again = _batch_steps(request, validate, {0: altered})
+        assert again[0].valid and again[0].input == {"text": "milk", "id": "fresh"}
+
+
+def _items(calls, *, gated_server=True):
+    """A server whose ``item-touch`` and ``item-wipe`` schemas check the store: the item must
+    exist. ``gated_server=False`` installs no approval middleware."""
+    from pydantic import BaseModel, field_validator
+
+    store = {1}
+
+    class Existing(BaseModel):
+        id: int
+
+        @field_validator("id")
+        @classmethod
+        def exists(cls, value):
+            if value not in store:
+                raise ValueError("No such item")
+            return value
+
+    server = _server(calls) if gated_server else create_server("relay-test")
+
+    @server.command(
+        name="item-remove",
+        description="Remove an item",
+        mutation=True,
+        input_schema={"type": "object", "properties": {"id": {"type": "integer"}}},
+        expose=MCP,
+    )
+    async def remove(input):
+        store.discard(input["id"])
+        calls.append(f"remove:{input['id']}")
+        return success({"removed": input["id"]})
+
+    @server.command(
+        name="item-touch", description="Touch an item", mutation=True, input_schema=Existing, expose=MCP
+    )
+    async def touch(input):
+        calls.append(f"touch:{input.id}")
+        return success({"touched": input.id})
+
+    @server.command(
+        name="item-wipe",
+        description="Wipe an item",
+        mutation=True,
+        approval="required",
+        input_schema=Existing,
+        expose=MCP,
+    )
+    async def wipe(input):
+        calls.append(f"wipe:{input.id}")
+        return success({"wiped": input.id})
+
+    return server
+
+
+def _codes(result):
+    return [(item["result"].get("error") or {}).get("code") for item in result["results"]]
+
+
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("gated_server", [True, False])
+@pytest.mark.parametrize("second", ["item-touch", "item-wipe"])
+async def test_a_step_is_still_validated_when_it_runs(mode, gated_server, second):
+    """A schema that checks state an earlier step changed fails the step, approved or not."""
+    calls, prompts = [], []
+    request = {
+        "commands": [
+            {"command": "item-remove", "input": {"id": 1}},
+            {"command": second, "input": {"id": 1}},
+        ]
+    }
+    result = await _call(
+        _items(calls, gated_server=gated_server),
+        mode,
+        prompts,
+        "accept",
+        tool="afd-batch",
+        arguments=request,
+    )
+    assert _codes(result) == [None, "VALIDATION_ERROR"], result
+    assert calls == ["remove:1"]
+    # Asked about the gated step only where a middleware gates it: it was valid then.
+    assert len(prompts) == (1 if gated_server and second == "item-wipe" else 0)

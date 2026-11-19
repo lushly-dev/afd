@@ -7,50 +7,59 @@ export type VioletSpinnerSize = "sm" | "md" | "lg";
 const styles = css`
     ${violetSurfaceTokenDefaults}
 
+    /* The sizes follow the scale: a mark (16px), the default (24px) and a control (32px). */
     :host {
         display: inline-flex;
-        --_spinner-size: var(--_target-size-compact, 24px);
-        --_spinner-track: color-mix(in srgb, var(--_border-subtle) 65%, transparent);
-        --_spinner-stroke: 2px;
+        --_spinner-size: 24px;
     }
 
     :host([size="sm"]) {
-        --_spinner-size: var(--_target-size-compact, 24px);
-    }
-
-    :host([size="md"]) {
-        --_spinner-size: var(--_target-size-natural, 32px);
+        --_spinner-size: 16px;
     }
 
     :host([size="lg"]) {
-        --_spinner-size: var(--_target-size-comfortable, 44px);
-        --_spinner-stroke: 3px;
+        --_spinner-size: 32px;
     }
 
     .spinner {
-        box-sizing: border-box;
+        display: inline-flex;
         inline-size: var(--_spinner-size);
         block-size: var(--_spinner-size);
-        border-radius: var(--_radius-round);
-        border: var(--_spinner-stroke) solid var(--_spinner-track);
-        border-block-start-color: currentColor;
-        animation: spin 0.8s linear infinite;
         color: var(--_text-secondary);
     }
 
-    @keyframes spin {
+    /* Trace: a run travels the edge of a rounded square, the ring redrawn in the shape of a control. */
+    .mark {
+        display: block;
+        inline-size: 100%;
+        block-size: 100%;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.5;
+    }
+
+    .rest {
+        opacity: 0.2;
+    }
+
+    .run {
+        stroke-dasharray: 28 72;
+        animation: trace 1s linear infinite;
+    }
+
+    @keyframes trace {
         from {
-            transform: rotate(0deg);
+            stroke-dashoffset: 0;
         }
 
         to {
-            transform: rotate(360deg);
+            stroke-dashoffset: -100;
         }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .spinner {
-            animation-duration: 1.6s;
+        .run {
+            animation-duration: 3s;
         }
     }
 
@@ -58,8 +67,11 @@ const styles = css`
         .spinner {
             forced-color-adjust: none;
             color: Highlight;
-            border-color: GrayText;
-            border-block-start-color: Highlight;
+        }
+
+        .rest {
+            stroke: GrayText;
+            opacity: 1;
         }
     }
 `;
@@ -71,14 +83,19 @@ const template = html<VioletSpinner>`
         role="${x => (x.decorative ? "presentation" : "img")}"
         aria-hidden="${x => (x.decorative ? "true" : "false")}"
         aria-label="${x => (x.decorative ? null : x.accessibleLabel)}"
-    ></span>
+    >
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect class="rest" x="3" y="3" width="18" height="18" rx="3"></rect>
+            <rect class="run" x="3" y="3" width="18" height="18" rx="3" pathLength="100"></rect>
+        </svg>
+    </span>
 `;
 
 /**
  * Compact indeterminate loading indicator.
  *
  * @summary Token-driven spinner for local loading and waiting states.
- * @csspart spinner - The animated circular indicator.
+ * @csspart spinner - The animated indicator: a run that travels the edge of a rounded square.
  */
 export class VioletSpinner extends FASTElement {
     declare public label: string;

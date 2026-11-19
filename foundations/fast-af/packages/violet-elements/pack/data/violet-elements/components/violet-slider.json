@@ -124,6 +124,7 @@
 			{
 				"basis": "observed",
 				"default": false,
+				"description": "Kept so existing markup stays valid; it has no effect. The rail is always filled from the minimum to the value.",
 				"name": "show-fill",
 				"property": "showFill",
 				"rules": [
@@ -191,7 +192,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"default": "var(--color-state-danger-border, transparent)",
 				"name": "--_danger-border"
 			},
 			{
@@ -201,18 +202,13 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_rail-background"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf))",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-fill"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
-				"name": "--_shadow-floating"
 			},
 			{
 				"basis": "declared",
@@ -221,12 +217,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "calc(var(--_target-size) * 0.625)",
+				"default": "calc(var(--_target-size) * 0.5)",
 				"name": "--_thumb-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_rail-background)",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_tick-color"
 			},
 			{
@@ -298,7 +294,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.aria-label",
 		"field.input-change",
 		"field.label",
@@ -346,6 +342,11 @@
 			"basis": "authored",
 			"id": "slider.events",
 			"text": "Each arrow-key step fires both input and change. A pointer drag fires input while moving and one change on release."
+		},
+		{
+			"basis": "authored",
+			"id": "slider.fill",
+			"text": "The rail is always filled from the minimum to the value. The show-fill attribute is kept for existing markup and changes nothing, so leave it off."
 		},
 		{
 			"basis": "authored",

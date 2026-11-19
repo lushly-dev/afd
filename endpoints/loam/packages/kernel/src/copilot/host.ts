@@ -115,6 +115,8 @@ interface SessionState {
 	/** This turn's model requests, refusals journaled and panel events. */
 	rounds: number;
 	refusals: number;
+	/** The trusted transport's code for this run's last failed request, which a failed run reports (4.2, 14). */
+	modelCode?: string;
 	events: number;
 }
 
@@ -352,6 +354,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 		controller: AbortController
 	): Promise<void> {
 		const usage = new UsageReader(run.provider.kind);
+		const sentBytes = new TextEncoder().encode(JSON.stringify(body)).length;
 		let bytes = 0;
 		let status = 200;
 		let code: string | undefined;
@@ -381,10 +384,14 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			clearTimeout(deadline);
 			state.streams.delete(stream);
 		}
-		// The turn's tokens are counted from the provider's stream, never from the runtime (4.4).
+		// The turn's tokens are counted from the provider's stream, never from the runtime (4.4). A stream that said
+		// nothing of its usage (a server that does not report it) is counted from its bytes, a token for every four,
+		// so the turn's limits still bind (step 2's trust review).
 		if (state.run === run) {
-			state.usage.inputTokens += usage.input;
-			state.usage.outputTokens += usage.output;
+			const counted = usage.input > 0 || usage.output > 0;
+			state.usage.inputTokens += counted ? usage.input : Math.ceil(sentBytes / 4);
+			state.usage.outputTokens += counted ? usage.output : Math.ceil(bytes / 4);
+			if (code && code !== 'MODEL_STREAM_LIMIT') state.modelCode = code;
 		}
 		if (code) status = status >= 400 ? status : 502;
 		state.model.postMessage({ key: 'done', stream, status, ...(code ? { code } : {}) });
@@ -418,7 +425,8 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 				if (message.state === 'done') end(state, run, { state: 'done' });
 				else if (message.state === 'limit')
 					end(state, run, { state: 'stopped', stoppedBy: 'limit' });
-				else end(state, run, { state: 'failed', failure: { code } });
+				// The transport's code, when a request failed, is the trusted one: the runtime's is its own reading of it.
+				else end(state, run, { state: 'failed', failure: { code: state.modelCode ?? code } });
 				return;
 			}
 			const copy = panelEvent(message.event);
@@ -523,6 +531,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			state.usage = { inputTokens: 0, outputTokens: 0 };
 			state.rounds = 0;
 			state.refusals = 0;
+			state.modelCode = undefined;
 			state.events = 0;
 			run.signal.addEventListener(
 				'abort',

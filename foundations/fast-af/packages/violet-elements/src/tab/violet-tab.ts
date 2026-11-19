@@ -25,6 +25,7 @@ const styles = css`
         cursor: pointer;
         font-family: inherit;
         font-size: var(--_control-body-size);
+        font-weight: 500;
         line-height: var(--_type-body-line);
         outline: none;
         user-select: none;
@@ -36,10 +37,12 @@ const styles = css`
             box-shadow var(--_duration-base) var(--_easing-standard),
             transform var(--_duration-fast) var(--_easing-standard);
 
-        --_selection-text: var(--color-control-selected-foreground, #244635);
+        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
         --_tab-border: color-mix(in srgb, var(--_border-subtle) 88%, transparent);
-        --_tab-hover: color-mix(in srgb, var(--_surface-subtle) 42%, white);
-        --_tab-closed-resting: color-mix(in srgb, var(--_surface-card) 86%, white);
+        --_tab-key-background: var(--color-action-secondary-background, var(--_surface-subtle));
+        --_tab-key-border: var(--color-action-secondary-border, transparent);
+        --_tab-hover: var(--_tab-key-background);
+        --_tab-closed-resting: var(--_surface-subtle);
         --_tab-indicator-thickness: 2px;
         --_tab-selected-accent-thickness: var(--_tab-indicator-thickness);
     }
@@ -49,13 +52,13 @@ const styles = css`
     }
 
     :host([aria-selected="true"]) {
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
     :host([disabled]),
     :host([aria-disabled="true"]) {
         cursor: not-allowed;
-        opacity: 0.55;
+        opacity: 0.5;
     }
 
     :host(:focus-visible) {
@@ -75,6 +78,10 @@ const styles = css`
         max-inline-size: 100%;
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: calc(var(--_space-inline-sm) + 2px) var(--_space-inline-sm);
+    }
+
+    :host([data-appearance="open"]) .surface {
+        padding-block: var(--_space-inline-sm);
     }
 
     .label {
@@ -101,12 +108,24 @@ const styles = css`
     :host([data-appearance="open"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover),
     :host([data-appearance="mixed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: var(--_tab-hover);
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
+    /* An open tab is a key: the one you are on is filled, as a pressed secondary button is. */
+    :host([data-appearance="open"]) {
+        border-radius: var(--_radius-md);
+    }
+
+    :host([data-appearance="open"][aria-selected="true"]) {
+        background: var(--_tab-key-background);
+        border-color: var(--_tab-key-border);
+    }
+
+    /* The fill alone is too faint to mark the open tab (WCAG 1.4.11), so the key also carries
+       the selection line, inside its foot. */
     :host([data-appearance="open"][aria-selected="true"]) .indicator {
-        inset-inline: 0;
-        inset-block-end: calc(var(--_space-inline-sm) * -1);
+        inset-inline: var(--_space-inline-md);
+        inset-block-end: 3px;
         inline-size: auto;
         block-size: var(--_tab-indicator-thickness);
         opacity: 1;
@@ -131,7 +150,7 @@ const styles = css`
 
     :host([data-appearance="closed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: color-mix(in srgb, var(--_surface-page) 90%, var(--_tab-closed-resting));
-        color: var(--_text-primary, var(--color-text-primary, #18181b));
+        color: var(--_text-primary, var(--color-text-primary, #181b1a));
     }
 
     :host([data-appearance="closed"][aria-selected="true"]),
@@ -167,15 +186,14 @@ const styles = css`
         padding-inline-end: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
     }
 
-    :host([data-orientation="vertical"][data-appearance="open"]),
     :host([data-orientation="vertical"][data-appearance="mixed"]:not([aria-selected="true"])) {
         border-radius: var(--_radius-md);
     }
 
     :host([data-orientation="vertical"][data-appearance="open"][aria-selected="true"]) .indicator {
-        inset-inline-start: calc(var(--_space-inline-md) * -0.5);
+        inset-inline-start: 3px;
         inset-inline-end: auto;
-        inset-block: 0;
+        inset-block: var(--_space-inline-sm);
         inline-size: var(--_tab-indicator-thickness);
         block-size: auto;
         transform: scaleY(1);
@@ -209,6 +227,12 @@ const styles = css`
         block-size: auto;
         opacity: 1;
         transform: none;
+    }
+
+    @media (forced-colors: active) {
+        :host([data-appearance="open"][aria-selected="true"]) .indicator {
+            background: Highlight;
+        }
     }
 `;
 

@@ -302,13 +302,14 @@
       }
     },
     {
-      "id": "event.native-input",
-      "text": "A host listener for input also receives the inner control's native input event, which has no detail. Read the host's value property, or skip events without detail.",
+      "id": "event.input-once",
+      "text": "Each edit reaches a host input listener once, as the element's own CustomEvent with the new value in detail. The inner control's native input event stays inside the shadow root.",
       "appliesTo": {
         "tags": [
           "violet-color-picker",
           "violet-combobox",
           "violet-date-picker",
+          "violet-range-slider",
           "violet-slider",
           "violet-text-area",
           "violet-text-field",

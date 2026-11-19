@@ -5,6 +5,7 @@
 
 import type { BatchRequest, PipelineRequest } from '@lushly-dev/afd-core';
 import { resolveVariables } from '@lushly-dev/afd-core';
+import { canonicalJson } from './approval-crypto.js';
 import type { UpFrontStep } from './approval-relay.js';
 import type { ZodCommandDefinition } from './schema.js';
 import { validateInputEnhanced } from './validation.js';
@@ -35,18 +36,60 @@ export function readsStepData(value: unknown, depth = 0): boolean {
 	return items.some((item) => readsStepData(item, depth + 1));
 }
 
+/**
+ * What a step's input was before validation, as canonical JSON: the engine finds the step it is
+ * about to run by it. `undefined` for an input canonical JSON cannot spell, which matches no step.
+ */
+export function sentKey(input: unknown): string | undefined {
+	try {
+		return input === undefined ? 'undefined' : canonicalJson(input);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * The canonical validated input the human approved for each step in an earlier round of the same
+ * request, by step index (#1414).
+ */
+export type ApprovedInputs = ReadonlyMap<number, string>;
+
+/**
+ * The input approved earlier, as the schema reads it back: the same value (so what runs is what
+ * was approved), with what JSON cannot carry (a coerced date) restored. `undefined` when the
+ * schema does not read it back unchanged; the step is then validated as sent.
+ */
+function restored(
+	definition: ZodCommandDefinition,
+	approved: string
+): { input: unknown } | undefined {
+	try {
+		const result = validateInputEnhanced(definition.inputSchema, JSON.parse(approved));
+		return result.success && canonicalJson(result.data) === approved
+			? { input: result.data }
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function validated(
 	commands: readonly ZodCommandDefinition[],
 	index: number,
 	command: string,
-	input: unknown
+	input: unknown,
+	approved?: string
 ): UpFrontStep {
 	const definition = commands.find((candidate) => candidate.name === command);
 	if (!definition) return { index, command, dynamic: false, valid: false };
+	const kept = approved === undefined ? undefined : restored(definition, approved);
+	if (kept) {
+		return { index, command, dynamic: false, valid: true, input: kept.input, sent: sentKey(input) };
+	}
 	try {
 		const result = validateInputEnhanced(definition.inputSchema, input);
 		return result.success
-			? { index, command, dynamic: false, valid: true, input: result.data }
+			? { index, command, dynamic: false, valid: true, input: result.data, sent: sentKey(input) }
 			: { index, command, dynamic: false, valid: false };
 	} catch {
 		// The step fails validation when it runs too.
@@ -57,10 +100,11 @@ function validated(
 /** The steps of an `afd-batch`: every item's input is known up front. */
 export function batchSteps(
 	request: BatchRequest,
-	commands: readonly ZodCommandDefinition[]
+	commands: readonly ZodCommandDefinition[],
+	approved?: ApprovedInputs
 ): UpFrontStep[] {
 	return request.commands.map((item, index) =>
-		validated(commands, index, item.command, item.input)
+		validated(commands, index, item.command, item.input, approved?.get(index))
 	);
 }
 
@@ -70,7 +114,8 @@ export function batchSteps(
  */
 export function pipelineSteps(
 	request: PipelineRequest,
-	commands: readonly ZodCommandDefinition[]
+	commands: readonly ZodCommandDefinition[],
+	approved?: ApprovedInputs
 ): UpFrontStep[] {
 	// Resolved values are copies, so validation cannot change the request.
 	const context = { pipelineInput: request.input, steps: [] };
@@ -88,6 +133,6 @@ export function pipelineSteps(
 		} catch {
 			return { index, command: step.command, dynamic: false, valid: false };
 		}
-		return validated(commands, index, step.command, input);
+		return validated(commands, index, step.command, input, approved?.get(index));
 	});
 }

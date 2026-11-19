@@ -173,15 +173,31 @@ def success(
 def failure(
     err: CommandError,
     *,
+    confidence: Optional[float] = None,
+    reasoning: Optional[str] = None,
+    sources: Optional[List[Source]] = None,
+    plan: Optional[List[PlanStep]] = None,
+    alternatives: Optional[List[Alternative[Any]]] = None,
     warnings: Optional[List[Warning]] = None,
+    suggestions: Optional[List[str]] = None,
     metadata: Optional[ResultMetadata] = None,
+    undo_command: Optional[str] = None,
+    undo_args: Optional[dict[str, Any]] = None,
 ) -> CommandResult[Any]:
     """Create a failed command result from a CommandError.
     
     Args:
         err: The error details.
+        confidence: Quality confidence score (0-1).
+        reasoning: Human-readable explanation.
+        sources: Information sources used.
+        plan: Steps in a multi-step operation.
+        alternatives: Other options considered.
         warnings: Non-fatal warnings to include.
+        suggestions: Helpful next steps for the user.
         metadata: Execution metadata.
+        undo_command: Command name for undoing this operation.
+        undo_args: Arguments to pass to the undo command.
         
     Returns:
         CommandResult with success=False.
@@ -193,8 +209,16 @@ def failure(
     return CommandResult(
         success=False,
         error=err,
+        confidence=confidence,
+        reasoning=reasoning,
+        sources=sources,
+        plan=plan,
+        alternatives=alternatives,
         warnings=warnings,
+        suggestions=suggestions,
         metadata=metadata,
+        undo_command=undo_command,
+        undo_args=undo_args,
     )
 
 

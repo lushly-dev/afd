@@ -73,6 +73,21 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--violet-control-caption-size, var(--type-caption-xs-size, 12px))",
+				"name": "--_control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
+				"name": "--_option-mark"
+			},
+			{
+				"basis": "declared",
+				"default": "0.6875rem",
+				"name": "--_option-mark-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5))",
 				"name": "--_option-padding-inline-end"
 			},
@@ -83,23 +98,23 @@
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-state-success-foreground, #245c36) 30%, transparent)",
-				"name": "--_selected-border"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--color-surface-subtle, #f0efe6)",
+				"default": "var(--color-surface-subtle, #e9e5de)",
 				"name": "--_surface-active"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #f0efe6)",
+				"default": "var(--color-surface-subtle, #e9e5de)",
 				"name": "--_surface-hover"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-state-success-background, #e3f1e7) 58%, transparent)",
+				"default": "var(--color-surface-selected, #dfeae3)",
 				"name": "--_surface-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-caption-xs-line, 16px)",
+				"name": "--_type-caption-line"
 			}
 		],
 		"events": [

@@ -51,6 +51,8 @@ export interface AppCallContextV1 {
 	readonly scope: ScopeV1;
 	/** Present with the `projects` grant (phase 2 specification, 5). */
 	readonly projects?: ProjectsV1;
+	/** Present with the `settings` grant: this app's own sections (phase 4 specification, 3.8). */
+	readonly settings?: SettingsV1;
 }
 
 /** Where a call runs: a workspace, and a project in it (phase 2 specification, 3.1). Ids, never names. */
@@ -77,6 +79,42 @@ export function projectsOver(client: LoamClientV1, active: string | undefined): 
 			return result.success && result.data ? result.data.projects : [];
 		},
 		get,
+	};
+}
+
+/**
+ * What the `settings` grant gives an app (phase 4 specification, 3.8): its own sections' resolved values, for the
+ * call's person and scope, read through `setting-get` and `setting-list`. Another app's section is
+ * `SETTING_NOT_OWNED`; no app writes a setting.
+ */
+export interface SettingsV1 {
+	/** A key's resolved value. Rejects with the refusal's code, `SETTING_NOT_FOUND` or `SETTING_NOT_OWNED` among them. */
+	get<T = unknown>(section: string, key: string): Promise<T>;
+	/** A section's resolved values, by key. */
+	section(section: string): Promise<Record<string, unknown>>;
+}
+
+/** {@link SettingsV1} over a client that may call `setting-get` and `setting-list`, as the `settings` grant lets it. */
+export function settingsOver(client: LoamClientV1): SettingsV1 {
+	const refused = (error: { code?: string; message?: string; suggestion?: string } | undefined) =>
+		Object.assign(new Error(error?.message ?? 'The setting could not be read'), {
+			code: error?.code,
+			suggestion: error?.suggestion,
+		});
+	return {
+		async get<T>(section: string, key: string): Promise<T> {
+			const result = await client.call<{ value: T }>('setting-get', { section, key });
+			if (!result.success || !result.data) throw refused(result.error);
+			return result.data.value;
+		},
+		async section(section: string) {
+			const result = await client.call<{ values: Array<{ key: string; value: unknown }> }>(
+				'setting-list',
+				{ section }
+			);
+			if (!result.success || !result.data) throw refused(result.error);
+			return Object.fromEntries(result.data.values.map((row) => [row.key, row.value]));
+		},
 	};
 }
 
@@ -270,6 +308,8 @@ export interface AppContextV1 {
 	readonly overlays: OverlaysV1;
 	/** A surface's, with the `documents` grant (documents specification, 11). */
 	readonly documents?: DocumentsV1;
+	/** With the `settings` grant: this app's own sections (phase 4 specification, 3.8). */
+	readonly settings?: SettingsV1;
 	/**
 	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
 	 * only: a view calls `app-route-set` through its client.
@@ -338,6 +378,11 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	route?: string;
 	/** The level the selection was made at, in a dual-scope app's sidebar. */
 	selectionLevel?: 'workspace' | 'project';
+	/**
+	 * With the `settings` grant: called when this app's own sections changed, by full id (phase 4 specification, 3.8).
+	 * Read them again with `context.settings`.
+	 */
+	settingsChanged?(sections: string[]): void;
 }
 
 /**

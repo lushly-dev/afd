@@ -5,14 +5,15 @@
  */
 
 import type { AppPortV2 } from '@lushly-dev/loam-kernel';
-import type {
-	AppContextV1,
-	CommandResult,
-	DocumentRecordV1,
-	DocumentsV1,
-	LinkRowV1,
-	ModalInputV1,
-	ToastInputV1,
+import {
+	type AppContextV1,
+	type CommandResult,
+	type DocumentRecordV1,
+	type DocumentsV1,
+	type LinkRowV1,
+	type ModalInputV1,
+	settingsOver,
+	type ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 
 /** A refusal as a rejection, with its code and suggestion, for what an app awaits rather than reads. */
@@ -53,13 +54,17 @@ export function documentsOver(call: AppPortV2['call']): DocumentsV1 {
 export function surfaceCalls(
 	port: Pick<AppPortV2, 'instance' | 'waitOverlay' | 'manifest'>,
 	call: AppPortV2['call']
-): Pick<AppContextV1, 'client' | 'navigate' | 'overlays' | 'documents'> {
+): Pick<AppContextV1, 'client' | 'navigate' | 'overlays' | 'documents' | 'settings'> {
 	const { instance } = port;
 	return {
 		client: { call },
 		// The `documents` grant's reads and open, over the same caller (documents specification, 11).
 		...(port.manifest?.grants?.some((grant) => grant.name === 'documents')
 			? { documents: documentsOver(call) }
+			: {}),
+		// The `settings` grant's reads of the app's own sections (phase 4 specification, 3.8).
+		...(port.manifest?.grants?.some((grant) => grant.name === 'settings')
+			? { settings: settingsOver({ call }) }
 			: {}),
 		async navigate(route: string) {
 			const moved = await call('app-route-set', { instance, path: route });
@@ -74,4 +79,41 @@ export function surfaceCalls(
 			},
 		},
 	};
+}
+
+/**
+ * The sections a change names that `manifest`'s app hears (phase 4 specification, 3.8): only with the `settings` grant,
+ * and only the sections it declares itself, by full id.
+ */
+export function settingsHeard(
+	manifest: AppPortV2['manifest'] | undefined,
+	sections: readonly string[]
+): string[] {
+	if (!manifest?.grants?.some((grant) => grant.name === 'settings')) return [];
+	const own = new Set(
+		((manifest.ui?.settings ?? []) as Array<{ id: string }>).map(
+			(section) => `${manifest.plugin.id}.${section.id}`
+		)
+	);
+	return sections.filter((section) => own.has(section));
+}
+
+/**
+ * Tell each surface its app's sections changed (3.8): a native surface's mount calls its element's `settingsChanged`,
+ * a view's frame sends `host-context-changed` with `dev.loam/settingsChanged`. One surface that throws stops no other.
+ */
+export function deliverSettings(surfaces: Iterable<unknown>, sections: readonly string[]): number {
+	if (sections.length === 0) return 0;
+	let told = 0;
+	for (const surface of surfaces) {
+		const target = surface as { settingsChanged?(changed: string[]): void };
+		if (typeof target?.settingsChanged !== 'function') continue;
+		try {
+			target.settingsChanged([...sections]);
+			told++;
+		} catch (cause) {
+			(globalThis as { reportError?(error: unknown): void }).reportError?.(cause);
+		}
+	}
+	return told;
 }

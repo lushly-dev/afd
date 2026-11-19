@@ -1,0 +1,84 @@
+{
+	"specimens": [
+		{
+			"id": "bar",
+			"title": "Change bar/Ready",
+			"module": "./change-bar.specimens.js",
+			"exportName": "Ready",
+			"component": "change-bar"
+		},
+		{
+			"id": "bar-token-changed",
+			"title": "Change bar/Token changed",
+			"module": "./change-bar.specimens.js",
+			"exportName": "TokenChanged"
+		},
+		{
+			"id": "bar-relabelled",
+			"title": "Change bar/Relabelled",
+			"module": "./change-bar.specimens.js",
+			"exportName": "Relabelled",
+			"component": "change-bar"
+		},
+		{
+			"id": "bar-disabled",
+			"title": "Change bar/Disabled",
+			"module": "./change-bar.specimens.js",
+			"exportName": "Disabled"
+		},
+		{
+			"id": "bar-disabled-fixed",
+			"title": "Change bar/Disabled, fixed",
+			"module": "./change-bar.specimens.js",
+			"exportName": "DisabledFixed",
+			"component": "change-bar"
+		},
+		{
+			"id": "bar-unnamed",
+			"title": "Change bar/Unnamed",
+			"module": "./change-bar.specimens.js",
+			"exportName": "Unnamed"
+		},
+		{
+			"id": "checks-events",
+			"title": "Checks/Events",
+			"module": "./change-bar.checks.js",
+			"exportName": "Events"
+		},
+		{
+			"id": "checks-label",
+			"title": "Checks/Label",
+			"module": "./change-bar.checks.js",
+			"exportName": "Label"
+		},
+		{
+			"id": "checks-save-disabled",
+			"title": "Checks/Save disabled",
+			"module": "./change-bar.checks.js",
+			"exportName": "SaveDisabled"
+		},
+		{
+			"id": "receipt",
+			"title": "Receipt/Printed",
+			"module": "./themes.specimens.js",
+			"exportName": "Receipt",
+			"themes": { "supported": ["light"], "reason": "Paper is white. A receipt prints the same in every theme." }
+		},
+		{
+			"id": "empty-state",
+			"title": "Empty state/Nothing to save",
+			"module": "./themes.specimens.js",
+			"exportName": "Empty"
+		}
+	],
+	"manifest": "./custom-elements.json",
+	"guides": ["./guides/*.guide.json"],
+	"pack": {
+		"library": "bench",
+		"title": "The Specimen pages' bench",
+		"prefix": "change-",
+		"directory": "../pack",
+		"package": "./library.json",
+		"import": "afd-site-bench/{module}"
+	}
+}

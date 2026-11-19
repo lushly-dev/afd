@@ -3,6 +3,7 @@ import { userEvent } from "vitest/browser";
 
 import "../button/violet-button";
 import "../segment/violet-segment";
+import type { VioletSegment } from "../segment/violet-segment";
 import "./violet-segmented-control";
 import type { VioletSegmentedControl } from "./violet-segmented-control";
 
@@ -58,9 +59,22 @@ describe("violet-segmented-control", () => {
         expect(control.checkValidity()).toBe(true);
     });
 
+    // Regression: the validation anchor came from the segment list cached until slotchange, so removing the
+    // Tab stop and invalidating in one update passed a removed segment to setValidity, which threw.
+    it("does not throw when the Tab stop is removed and the group is invalidated in the same update", async () => {
+        const control = await renderControl();
+        control.querySelector('violet-segment[value="overview"]')?.remove();
+
+        expect(() => {
+            control.required = true;
+            control.invalid = true;
+        }).not.toThrow();
+        expect(control.validity.customError).toBe(true);
+    });
+
     it("selects a segment on click", async () => {
         const control = await renderControl();
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
 
         (segments[1]?.shadowRoot?.querySelector(".button") as HTMLButtonElement | null)?.click();
         await nextFrame();
@@ -71,7 +85,7 @@ describe("violet-segmented-control", () => {
 
     it("moves selection with arrow keys", async () => {
         const control = await renderControl();
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         const firstButton = segments[0]?.shadowRoot?.querySelector(".button") as HTMLButtonElement | null;
 
         firstButton?.focus();
@@ -85,7 +99,7 @@ describe("violet-segmented-control", () => {
     it("emits change when arrow, Home and End keys move the selection", async () => {
         const control = await renderControl();
         const changes = trackChanges(control);
-        control.querySelector("violet-segment")?.focus();
+        control.querySelector<VioletSegment>("violet-segment")?.focus();
 
         await userEvent.keyboard("{ArrowRight}");
         await userEvent.keyboard("{ArrowRight}");
@@ -96,13 +110,13 @@ describe("violet-segmented-control", () => {
 
         expect(changes).toEqual(["planting", "irrigation", "planting", "irrigation", "overview", "irrigation"]);
         expect(control.value).toBe("irrigation");
-        expect(document.activeElement).toBe(control.querySelectorAll("violet-segment")[2]);
+        expect(document.activeElement).toBe(control.querySelectorAll<VioletSegment>("violet-segment")[2]);
     });
 
     it("does not emit change when a key leaves the selection where it was", async () => {
         const control = await renderControl();
         const changes = trackChanges(control);
-        control.querySelector("violet-segment")?.focus();
+        control.querySelector<VioletSegment>("violet-segment")?.focus();
 
         await userEvent.keyboard("{Home}");
 
@@ -118,7 +132,7 @@ describe("violet-segmented-control", () => {
                 <violet-segment value="irrigation">Irrigation</violet-segment>
             </violet-segmented-control>
         `);
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         (document.getElementById("before") as HTMLButtonElement).focus();
 
         await userEvent.tab();
@@ -145,7 +159,7 @@ describe("violet-segmented-control", () => {
         (document.getElementById("before") as HTMLButtonElement).focus();
 
         await userEvent.tab();
-        expect(document.activeElement).toBe(control.querySelectorAll("violet-segment")[1]);
+        expect(document.activeElement).toBe(control.querySelectorAll<VioletSegment>("violet-segment")[1]);
 
         await userEvent.tab();
         expect(document.activeElement?.id).toBe("after");
@@ -159,7 +173,7 @@ describe("violet-segmented-control", () => {
                 <violet-segment value="irrigation">Irrigation</violet-segment>
             </violet-segmented-control>
         `);
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         (document.getElementById("before") as HTMLButtonElement).focus();
 
         await userEvent.tab();
@@ -185,7 +199,7 @@ describe("violet-segmented-control", () => {
                 <violet-segment value="irrigation">Irrigation</violet-segment>
             </violet-segmented-control>
         `);
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         const before = document.getElementById("before") as HTMLButtonElement;
 
         segments[0].disabled = true;
@@ -213,7 +227,7 @@ describe("violet-segmented-control", () => {
                 <violet-segment value="irrigation">Irrigation</violet-segment>
             </violet-segmented-control>
         `);
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         const before = document.getElementById("before") as HTMLButtonElement;
 
         segments[2].setAttribute("disabled", "");
@@ -238,7 +252,7 @@ describe("violet-segmented-control", () => {
                 <violet-segment value="planting">Planting</violet-segment>
             </violet-segmented-control>
         `);
-        const segments = control.querySelectorAll("violet-segment");
+        const segments = control.querySelectorAll<VioletSegment>("violet-segment");
         const before = document.getElementById("before") as HTMLButtonElement;
 
         segments[0].disabled = true;
@@ -272,14 +286,14 @@ describe("violet-segmented-control", () => {
 
                 const button = document.querySelector("violet-button") as HTMLElement;
                 const group = document.querySelector("violet-segmented-control") as HTMLElement;
-                const segment = document.querySelector("violet-segment") as HTMLElement;
+                const segment = document.querySelector<VioletSegment>("violet-segment") as HTMLElement;
                 const inner = segment.shadowRoot?.querySelector(".button") as HTMLElement;
 
                 const style = getComputedStyle(inner);
                 expect(Number.parseFloat(style.paddingLeft)).toBeGreaterThan(0);
                 expect(Number.parseFloat(style.paddingRight)).toBeGreaterThan(0);
                 expect(Number.isNaN(Number.parseFloat(style.minHeight))).toBe(false);
-                expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 6);
+                expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 4);
                 expect(group.getBoundingClientRect().height).toBeCloseTo(button.getBoundingClientRect().height, 0);
             }
         });

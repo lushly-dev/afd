@@ -171,12 +171,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_border-strong"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-subtle, rgba(28, 26, 13, 0.10))",
+				"default": "var(--color-border-subtle, rgba(24, 27, 26, 0.10))",
 				"name": "--_border-subtle"
 			},
 			{
@@ -186,32 +186,32 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #ddeadf)",
+				"default": "var(--color-control-selected-background, #badecf)",
 				"name": "--_control-selected-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"default": "var(--color-control-selected-border, rgba(44, 94, 75, 0.5))",
 				"name": "--_control-selected-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_control-selected-foreground"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-background, #fbe2e2)",
+				"default": "var(--color-state-danger-background, #f7e4df)",
 				"name": "--_error-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"default": "var(--color-state-danger-border, transparent)",
 				"name": "--_error-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-text, #b42318)",
+				"default": "var(--color-state-danger-text, #c42a1a)",
 				"name": "--_error-text"
 			},
 			{
@@ -226,7 +226,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-focus-ring, rgba(24, 24, 27, 0.5))",
+				"default": "var(--color-focus-ring, #146ba0)",
 				"name": "--_focus-ring"
 			},
 			{
@@ -251,7 +251,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-md, 4px)",
+				"default": "var(--radius-md, 8px)",
 				"name": "--_radius-md"
 			},
 			{
@@ -276,7 +276,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06))",
+				"default": "var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06))",
 				"name": "--_shadow-card"
 			},
 			{
@@ -301,27 +301,27 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-card, #faf9f5)",
+				"default": "var(--color-surface-card, #f8f9f3)",
 				"name": "--_surface-card"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-floating, #f0efe6)",
+				"default": "var(--color-surface-floating, #ffffff)",
 				"name": "--_surface-floating"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-page, #fffefa)",
+				"default": "var(--color-surface-page, #f4f0ea)",
 				"name": "--_surface-page"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-selected, #ddeadf)",
+				"default": "var(--color-surface-selected, #dfeae3)",
 				"name": "--_surface-selected"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #f0efe6)",
+				"default": "var(--color-surface-subtle, #e9e5de)",
 				"name": "--_surface-subtle"
 			},
 			{
@@ -341,17 +341,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-muted, #616775)",
+				"default": "var(--color-text-muted, #5e6460)",
 				"name": "--_text-muted"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-primary, #18181b)",
+				"default": "var(--color-text-primary, #181b1a)",
 				"name": "--_text-primary"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-secondary, #414651)",
+				"default": "var(--color-text-secondary, #48534b)",
 				"name": "--_text-secondary"
 			},
 			{

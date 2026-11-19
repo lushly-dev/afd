@@ -91,32 +91,27 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_border-strong"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
+				"default": "var(--radius-sm, 4px)",
+				"name": "--_radius-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-round, 9999px)",
-				"name": "--_radius-full"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--color-control-selected-background, #ddeadf)",
+				"default": "var(--color-control-selected-background, #badecf)",
 				"name": "--_selection-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"default": "var(--color-control-selected-border, rgba(44, 94, 75, 0.5))",
 				"name": "--_selection-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-text"
 			},
 			{
@@ -131,7 +126,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-card, #faf9f5)",
+				"default": "var(--color-surface-card, #f8f9f3)",
 				"name": "--_surface-card"
 			},
 			{
@@ -146,27 +141,27 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-muted, #616775)",
-				"name": "--_thumb-resting"
-			},
-			{
-				"basis": "declared",
-				"default": "clamp(16px, calc(var(--_track-block-size) - 4px), 20px)",
+				"default": "calc(var(--_track-block-size) - (var(--_track-padding) * 2))",
 				"name": "--_thumb-size"
 			},
 			{
 				"basis": "declared",
-				"default": "clamp(20px, calc(var(--_target-size) - 10px), 24px)",
+				"default": "var(--_type-body-line)",
 				"name": "--_track-block-size"
 			},
 			{
 				"basis": "declared",
-				"default": "1px",
+				"default": "0px",
 				"name": "--_track-border-width"
 			},
 			{
 				"basis": "declared",
-				"default": "calc(var(--_track-block-size) * 2)",
+				"default": "0 0 0 0 transparent",
+				"name": "--_track-edge"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_track-block-size) * 1.8)",
 				"name": "--_track-inline-size"
 			},
 			{
@@ -181,7 +176,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-caption-xs-line, 14px)",
+				"default": "var(--type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
 			}
 		],

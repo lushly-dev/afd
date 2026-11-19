@@ -135,7 +135,13 @@
 			}
 		],
 		"commands": [],
-		"cssProperties": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_focus-ring) 55%, transparent)",
+				"name": "--violet-option-active-ring"
+			}
+		],
 		"events": [
 			{
 				"basis": "declared",
@@ -192,7 +198,7 @@
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
 		"a11y.managed",
-		"event.native-input",
+		"event.input-once",
 		"field.label",
 		"field.label-required",
 		"field.placeholder",

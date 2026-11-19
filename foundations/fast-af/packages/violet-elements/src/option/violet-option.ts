@@ -14,10 +14,13 @@ const styles = css`
 
     :host {
         display: block;
-        --_surface-hover: var(--color-surface-subtle, #f0efe6);
-        --_surface-active: var(--color-surface-subtle, #f0efe6);
-        --_surface-selected: color-mix(in srgb, var(--color-state-success-background, #e3f1e7) 58%, transparent);
-        --_selected-border: color-mix(in srgb, var(--color-state-success-foreground, #245c36) 30%, transparent);
+        --_surface-hover: var(--color-surface-subtle, #e9e5de);
+        --_surface-active: var(--color-surface-subtle, #e9e5de);
+        --_surface-selected: var(--color-surface-selected, #dfeae3);
+        --_option-mark: var(--color-control-selected-foreground, #2c5e4b);
+        --_option-mark-size: 0.6875rem;
+        --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));
+        --_type-caption-line: var(--type-caption-xs-line, 16px);
         --_option-padding-inline-start: var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5));
         --_option-padding-inline-end: var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5));
     }
@@ -28,9 +31,11 @@ const styles = css`
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
         gap: var(--_space-inline-sm);
+        position: relative;
         min-block-size: var(--_target-size);
         padding-inline-start: var(--_option-padding-inline-start);
-        padding-inline-end: var(--_option-padding-inline-end);
+        /* Room for the mark, so choosing a row does not move its text. */
+        padding-inline-end: calc(var(--_option-padding-inline-end) + 1.25rem);
         padding-block: var(--_space-inline-sm);
         border: 1px solid transparent;
         border-radius: var(--_radius-md);
@@ -39,21 +44,32 @@ const styles = css`
         cursor: pointer;
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
-            border-color var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-fast) var(--_easing-standard);
     }
 
+    /*
+     * The row the keys are on is tinted. Its ring is drawn only when the list that holds it says
+     * the keyboard is there (--violet-option-active-ring), not on a list at rest.
+     */
     .control.active {
         background: var(--_surface-active);
-        border-color: color-mix(in srgb, var(--_focus-ring) 40%, transparent);
+        box-shadow: inset 0 0 0 1px var(--violet-option-active-ring, transparent);
     }
 
     :host([selected]) .control {
         background: var(--_surface-selected);
-        border-color: var(--_selected-border);
     }
 
-    .control.active.selected {
-        border-color: color-mix(in srgb, var(--_focus-ring) 45%, var(--_selected-border));
+    /* Chosen is marked, not only tinted. */
+    :host([selected]) .control::after {
+        content: "";
+        position: absolute;
+        inset-inline-end: calc(var(--_option-padding-inline-end) - 2px);
+        inset-block-start: calc(var(--_space-inline-sm) + (var(--_type-body-line) - var(--_option-mark-size)) / 2);
+        inline-size: var(--_option-mark-size);
+        block-size: var(--_option-mark-size);
+        background: var(--_option-mark);
+        clip-path: polygon(14% 44%, 0 59%, 37% 100%, 100% 16%, 84% 0, 35% 62%);
     }
 
     .control:not(.disabled):hover {
@@ -63,7 +79,7 @@ const styles = css`
     .control.disabled {
         color: var(--_text-secondary);
         cursor: not-allowed;
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
     .before,
@@ -76,7 +92,6 @@ const styles = css`
 
     .content {
         display: grid;
-        gap: 2px;
         min-inline-size: 0;
     }
 
@@ -112,7 +127,12 @@ const styles = css`
         :host([selected]) .control {
             border-color: Highlight;
             background: Highlight;
+            box-shadow: none;
             color: HighlightText;
+        }
+
+        :host([selected]) .control::after {
+            background: HighlightText;
         }
 
         .control.disabled {

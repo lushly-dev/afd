@@ -1,0 +1,41 @@
+[
+	{
+		"name": null,
+		"title": "AFD (draft)"
+	},
+	{
+		"name": "calm",
+		"title": "Calm",
+		"note": "A shell theme for long sessions: soft lines, a gentle lift for what floats, moderate rounding, colour kept for meaning."
+	},
+	{
+		"name": "refined-grotesk",
+		"title": "Refined, in Space Grotesk",
+		"note": "Refined with a different face for interface text, to compare."
+	},
+	{
+		"name": "refined-plex",
+		"title": "Refined, in IBM Plex Sans",
+		"note": "Refined with a different face for interface text, to compare."
+	},
+	{
+		"name": "refined-ported",
+		"title": "Refined, tokens only",
+		"note": "Refined without its patch, for components that already carry the changes (add bundle=ported)."
+	},
+	{
+		"name": "refined",
+		"title": "Refined",
+		"note": "Round two: a plain UI face, one control height, three type sizes, and depth in named levels (well, page, band, key, raised, floating) in place of outlines."
+	},
+	{
+		"name": "ruled",
+		"title": "Ruled",
+		"note": "The site in print: a 3px corner on controls, square panels, one resting rule under a field, ink on mint for what is chosen, hard shadows only under what floats."
+	},
+	{
+		"name": "touch",
+		"title": "Touch",
+		"note": "Soft keys on paper: rounded, a little taller, filled with a quiet tint instead of outlined, with soft depth instead of hard edges."
+	}
+]

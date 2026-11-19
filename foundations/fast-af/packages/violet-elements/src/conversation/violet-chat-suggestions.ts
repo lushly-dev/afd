@@ -7,8 +7,8 @@ const styles = css`
 
     :host {
         display: block;
-        --_suggestion-font-size: var(--violet-suggestion-font-size, var(--_caption-size, 12px));
-        --_suggestion-line-height: var(--violet-suggestion-line-height, var(--_caption-line, 16px));
+        --_suggestion-font-size: var(--violet-suggestion-font-size, var(--_body-size, 14px));
+        --_suggestion-line-height: var(--violet-suggestion-line-height, var(--_body-line, 20px));
     }
 
     .root {
@@ -22,25 +22,27 @@ const styles = css`
         flex-wrap: nowrap;
     }
 
+    /* Filled like a secondary button, and the same height; round, because it is a suggestion. */
     ::slotted(*) {
         all: unset;
         box-sizing: border-box;
         display: inline-flex;
         align-items: center;
-        padding: var(--_space-sm) var(--_space-md);
-        border: var(--_card-border-width, 1px) solid var(--_border-subtle);
+        min-block-size: var(--size-target-natural, 32px);
+        padding: 0 var(--_space-md);
+        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, transparent);
         border-radius: var(--_radius-round, 9999px);
+        background: var(--color-action-secondary-background, var(--_surface-subtle));
         font-size: var(--_suggestion-font-size);
         line-height: var(--_suggestion-line-height);
-        color: var(--_text-primary, #1c1a0d);
+        color: var(--_text-primary, #181b1a);
         cursor: pointer;
         transition: background 0.15s ease, border-color 0.15s ease;
         white-space: nowrap;
     }
 
     ::slotted(*:hover) {
-        background: var(--_surface-hover, rgba(28, 26, 13, 0.06));
-        border-color: var(--_text-secondary, #414651);
+        background: var(--_surface-hover, rgba(24, 27, 26, 0.06));
     }
 
     ::slotted(*:focus-visible) {

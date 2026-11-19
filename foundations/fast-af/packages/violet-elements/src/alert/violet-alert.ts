@@ -16,43 +16,42 @@ const styles = css`
     :host {
         display: block;
         color: var(--_text-primary);
-        --_alert-radius: var(--violet-alert-radius, calc(var(--_radius-md) * 1.5));
+        --_alert-radius: var(--violet-alert-radius, var(--_radius-lg));
         --_alert-padding: var(--violet-alert-padding, var(--_space-md));
-        --_alert-gap: var(--violet-alert-gap, var(--_space-md));
-        --_alert-icon-size: var(--violet-alert-icon-size, 1.125rem);
+        --_alert-gap: var(--violet-alert-gap, var(--_space-sm));
+        --_alert-icon-size: var(--violet-alert-icon-size, 1rem);
         --_alert-title-size: var(--violet-alert-title-size, var(--_body-size));
         --_alert-title-line: var(--violet-alert-title-line, var(--_body-line));
         --_alert-body-size: var(--violet-alert-body-size, var(--_body-size));
         --_alert-body-line: var(--violet-alert-body-line, var(--_body-line));
         --_alert-meta-size: var(--violet-alert-meta-size, var(--_caption-size));
-        --_alert-border: var(--violet-alert-border, var(--_border-subtle));
-        --_alert-surface: var(--violet-alert-surface, var(--_surface-card));
+        /* The tone is the fill, the icon and the words; a plain or info alert is the quiet surface. */
+        --_alert-border: var(--violet-alert-border, transparent);
+        --_alert-surface: var(--violet-alert-surface, var(--_surface-subtle));
         --_alert-emphasis: var(--violet-alert-emphasis, var(--_text-secondary));
         --_alert-shadow: var(--violet-alert-shadow, none);
     }
 
     :host([tone="info"]) {
-        --_alert-surface: color-mix(in srgb, var(--_surface-card) 72%, var(--_surface-subtle));
-        --_alert-border: color-mix(in srgb, var(--_border-subtle) 70%, var(--_focus-ring));
         --_alert-emphasis: var(--_text-secondary);
     }
 
     :host([tone="success"]) {
-        --_alert-surface: var(--color-state-success-background, #E3F1E7);
-        --_alert-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
-        --_alert-emphasis: var(--color-state-success-text, #166534);
+        --_alert-surface: var(--color-state-success-background, #dfeae3);
+        --_alert-border: var(--color-state-success-border, transparent);
+        --_alert-emphasis: var(--color-state-success-text, #2c5e4b);
     }
 
     :host([tone="warning"]) {
-        --_alert-surface: var(--color-state-warning-background, #FDEBCC);
-        --_alert-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_alert-surface: var(--color-state-warning-background, #f3e8d2);
+        --_alert-border: var(--color-state-warning-border, transparent);
         --_alert-emphasis: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_alert-surface: var(--color-state-danger-background, #FBE2E2);
-        --_alert-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_alert-emphasis: var(--color-state-danger-text, #B42318);
+        --_alert-surface: var(--color-state-danger-background, #f7e4df);
+        --_alert-border: var(--color-state-danger-border, transparent);
+        --_alert-emphasis: var(--color-state-danger-text, #c42a1a);
     }
 
     .frame {
@@ -70,14 +69,13 @@ const styles = css`
         gap: var(--_alert-gap);
     }
 
+    /* The icon alone, on the title's line. */
     .leading {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        inline-size: calc(var(--_alert-icon-size) + var(--_space-sm));
-        block-size: calc(var(--_alert-icon-size) + var(--_space-sm));
-        border-radius: var(--_radius-round);
-        background: color-mix(in srgb, var(--_alert-emphasis) 12%, transparent);
+        inline-size: var(--_alert-icon-size);
+        block-size: var(--_alert-title-line);
         color: var(--_alert-emphasis);
         flex: 0 0 auto;
     }
@@ -114,7 +112,7 @@ const styles = css`
         color: var(--_alert-emphasis);
         font-size: var(--_alert-title-size);
         line-height: var(--_alert-title-line);
-        font-weight: 600;
+        font-weight: 500;
     }
 
     .title[hidden] {
@@ -147,9 +145,11 @@ const styles = css`
         margin: 0;
     }
 
+    /* The button is centred on the title's line and sits out to the alert's inset. */
     .dismiss {
         flex: 0 0 auto;
-        margin-block-start: calc(var(--_space-stack-2xs) * -1);
+        margin-block-start: calc((var(--_alert-title-line) - var(--size-target-natural, 32px)) / 2);
+        margin-inline-end: calc(var(--_space-stack-xs) * -1);
         color: var(--_alert-emphasis);
     }
 
@@ -178,9 +178,7 @@ const styles = css`
         }
 
         .leading {
-            background: Canvas;
             color: ButtonText;
-            outline: 1px solid ButtonText;
         }
     }
 `;

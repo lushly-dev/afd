@@ -112,8 +112,8 @@ async def test_server_discover_describes_the_server():
         assert MODERN in result["supportedVersions"]
         assert "afd-discover" in result["instructions"]
         assert "dev.afd/context" in result["instructions"]
-        # The fixture configures contexts, so the default freshness hint is 0.
-        assert result["ttlMs"] == 0
+        # A lazy list does not vary by context, so it keeps the default (#533).
+        assert result["ttlMs"] == 300000
         assert result["cacheScope"] == "public"
 
 

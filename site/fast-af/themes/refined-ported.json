@@ -1,0 +1,5 @@
+{
+	"title": "Refined, tokens only",
+	"note": "Refined without its patch, for components that already carry the changes (add bundle=ported).",
+	"extends": "refined"
+}

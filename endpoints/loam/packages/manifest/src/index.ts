@@ -25,10 +25,25 @@ export {
 	type BootAppV2,
 	type BootProjectionV2,
 	type BootRefusalV2,
+	type CopilotProjectionProviderV1,
+	type CopilotProjectionV1,
+	copilotOf,
 	type IdentityMethodV1,
 	type IdentityV1,
 	readBoot,
 } from './read-boot.js';
+// Phase 4's settings (its 3.1): the types, and the check of a value the kernel's `late-settings` chunk shares.
+export {
+	checkSettingValue,
+	keyLevels,
+	MANIFEST_SETTINGS_MAX,
+	SETTING_LEVELS_V1,
+	SETTING_SECTION_MAX_BYTES,
+	type SettingKeyV1,
+	type SettingLevelV1,
+	type SettingSchemaV1,
+	type SettingSectionV1,
+} from './settings.js';
 export type {
 	DeploymentRead,
 	DeploymentRefusal,

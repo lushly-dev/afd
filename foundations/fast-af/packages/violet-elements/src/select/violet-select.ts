@@ -46,7 +46,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .trigger {
@@ -57,11 +57,11 @@ const styles = css`
         inline-size: 100%;
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
-        border: 1px solid var(--_field-border);
+        border: 1px solid var(--_border-subtle);
         border-radius: var(--_radius-md);
-        background: var(--_surface-page);
-        color: var(--color-text-primary, #18181b);
-        box-shadow: var(--_shadow-control);
+        background: var(--_field-background);
+        color: var(--_field-text);
+        box-shadow: var(--_field-shadow);
         cursor: pointer;
         font-family: inherit;
         font-size: var(--_control-body-size);
@@ -69,25 +69,23 @@ const styles = css`
         text-align: start;
         transition:
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .trigger:hover {
-        border-color: var(--_field-border-hover);
+        box-shadow: var(--_field-shadow-hover);
     }
 
     .trigger:focus-visible,
     .control-shell.open .trigger {
         outline: none;
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
-        transform: translateY(calc(var(--_space-inline-sm) / -4));
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     :host([disabled]) .trigger,
     :host(:disabled) .trigger {
-        opacity: 0.65;
+        opacity: 0.5;
         cursor: not-allowed;
     }
 
@@ -104,17 +102,18 @@ const styles = css`
     }
 
     .value[data-placeholder="true"] {
-        color: var(--_text-muted);
+        color: var(--_field-placeholder);
     }
 
     .caret {
-        inline-size: 0.5rem;
-        block-size: 0.5rem;
+        inline-size: 0.4375rem;
+        block-size: 0.4375rem;
         flex: 0 0 auto;
+        margin-inline-end: 2px;
         border-inline-end: 1.5px solid currentColor;
         border-block-end: 1.5px solid currentColor;
+        color: var(--_text-muted);
         transform: translateY(-1px) rotate(45deg);
-        opacity: 0.8;
     }
 
     .panel {
@@ -126,10 +125,11 @@ const styles = css`
         max-inline-size: calc(100vw - 8px);
         max-block-size: min(18rem, 60vh);
         padding: var(--_space-inline-sm);
-        border: thin solid var(--_border-subtle);
-        border-radius: calc(var(--_radius-md) * 2);
+        /* The list floats on its surface and shadow. The edge is kept, clear, for forced colours. */
+        border: thin solid transparent;
+        border-radius: var(--_radius-lg);
         overflow: hidden;
-        background: var(--_surface-card);
+        background: var(--_surface-floating);
         box-shadow: var(--_shadow-floating);
         color: inherit;
     }
@@ -150,6 +150,11 @@ const styles = css`
         outline: none;
     }
 
+    /* The keys are in this list while it is open, so its active row draws its ring. */
+    .listbox ::slotted(violet-option) {
+        --violet-option-active-ring: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
+    }
+
     .supporting,
     .error {
         margin: 0;
@@ -159,12 +164,12 @@ const styles = css`
 
     .supporting {
         color: var(--_text-muted);
-        margin-block-start: var(--_space-stack-2xs);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
-        margin-block-start: var(--_space-stack-2xs);
+        color: var(--color-state-danger-foreground, #c42a1a);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .control-shell.open ~ .supporting,
@@ -174,6 +179,7 @@ const styles = css`
 
     @media (forced-colors: active) {
         .trigger,
+        .trigger:hover,
         .panel {
             forced-color-adjust: none;
             border-color: ButtonText;

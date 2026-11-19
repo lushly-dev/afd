@@ -1,5 +1,7 @@
 # Language parity closure: status
 
+Epic: [#1551](https://github.com/lushly-dev/afd/issues/1551). File new work for this area as its sub-issue.
+
 Read this before the [plan](parity-closure.plan.md). Last reconciled 2026-11-13 against `main`
 at `1024546b`, using the [capability matrix](../../../language-parity.md), merged history and
 the linked tracking issues. This audit did not rerun the four language suites.
@@ -10,7 +12,7 @@ the linked tracking issues. This audit did not rerun the four language suites.
 | --- | --- | --- |
 | 0. Original in-flight fixes | Done | The plan records #286, #289, #301, #304 to #306 and #315 |
 | 1. Shared contract | Implemented at `1.0-rc`; declaration open | The stabilization candidate merged in #367; all four suites load the validation, executor-control and pipeline-reference vectors. Contract 1.0 remains [#541](https://github.com/lushly-dev/afd/issues/541) |
-| 2. Engine alignment | Partial | Python runtime [#545](https://github.com/lushly-dev/afd/issues/545) and [name cleanup](../python-parity/STATUS.md); Rust runtime [#546](https://github.com/lushly-dev/afd/issues/546); C++ [#547](https://github.com/lushly-dev/afd/issues/547); TypeScript MockServer [#544](https://github.com/lushly-dev/afd/issues/544). The matrix distinguishes landed fixes from remaining gaps |
+| 2. Engine alignment | Partial | Python runtime API/boundary candidate [#545](https://github.com/lushly-dev/afd/issues/545), remaining executor consolidation [#1535](https://github.com/lushly-dev/afd/issues/1535), and [name cleanup](../python-parity/STATUS.md); Rust runtime [#546](https://github.com/lushly-dev/afd/issues/546); C++ [#547](https://github.com/lushly-dev/afd/issues/547); TypeScript MockServer [#544](https://github.com/lushly-dev/afd/issues/544). The matrix distinguishes landed fixes from remaining gaps |
 | 3. Surfaces | Partial | TypeScript/Python dual-era MCP and clients landed in #391 to #393. Rust's optional server landed in #394 and its strategies, meta-tools and contexts in #526. C++'s opt-in `afd::mcp_stdio` target and command-to-tool helpers landed for [#341](https://github.com/lushly-dev/afd/issues/341) (stdio, individual tools); Python CLI batch/stream [#548](https://github.com/lushly-dev/afd/issues/548) and defaults [#542](https://github.com/lushly-dev/afd/issues/542) remain |
 | 4. Remaining decisions | Partial | Intended differences are recorded in the matrix; Python application auth remains [#549](https://github.com/lushly-dev/afd/issues/549) |
 
@@ -33,6 +35,37 @@ After rebasing onto `eeea8be1`, the kernel measures 115,401 of 115,500 bytes (1,
 ejected candidate). With esbuild 0.28.2, the registry host returns from 39,879 to 39,071 and the
 tool-surface host from 74,118 to 73,310; their ceilings return to 39,100 and 74,000. No Loam
 ceiling changes. `pnpm -F @lushly-dev/loam-web budget` and server entry-point tests pass.
+
+## TypeScript MockServer candidate (#544)
+
+Implemented on `lush/fleet-544-mockserver-server-engine`: `MockMcpServer` uses
+`createDirectRegistry` from the transport-free server entry. Production Zod definitions
+retain their validation and input transforms; core definitions and mock helpers are adapted
+with their historical input passthrough. Single calls and batch entries
+share server middleware, suggestions, error handling and request-scoped contexts, including
+declared context fields. Defect 20 in the matrix is updated. Focused mock and scenario tests
+cover the candidate; the lane owns full validation and landing.
+
+## Python runtime candidate (#545)
+
+Implemented on `lush/fleet-545-python-wave2-runtime`:
+
+- `failure()` forwards all non-payload result options, with camelCase wire output.
+- `define_command` and `MCPServer.command` retain `errors` and `execution_time`;
+  the server decorator also forwards `handoff` and `handoff_protocol`.
+- `DirectClient` applies a fail-closed `allow` predicate to discovery, calls and pipe
+  steps, with the policy carried into nested calls that forward context. Ordered client middleware wraps each registry attempt within the existing
+  total deadline and returns redacted failures for exceptions. The validating
+  registry retains exposure checks on raw execute and lists only callable commands.
+- `create_handoff` supplies the shared reconnect policy (allowed, 3 attempts, 1000 ms).
+  The client inherits metadata or this fallback; explicitly supplied options win.
+
+The one-executor item is split to [#1535](https://github.com/lushly-dev/afd/issues/1535)
+(`status:planned`, `execution:integrative`): consolidating the core registry,
+SimpleRegistry, MockServer and DirectClient.pipe, plus public batch/stream executors,
+is a separate architectural PR. Per-call contexts/tool surfaces and server deadlines
+remain the matrix's existing gaps. Focused regressions cover this candidate; full
+validation and landing belong to the lane.
 
 ## Historical checkpoints
 

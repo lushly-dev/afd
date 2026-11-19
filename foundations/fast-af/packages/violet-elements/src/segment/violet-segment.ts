@@ -10,8 +10,11 @@ const styles = css`
         display: block;
         flex: 1 1 0;
 
-        --_segment-selected-background: var(--violet-segment-selected-background, var(--_surface-page));
-        --_segment-selected-border: var(--violet-segment-selected-border, var(--_border-subtle));
+        --_segment-selected-background: var(
+            --violet-segment-selected-background,
+            var(--color-surface-highlight, var(--_surface-card))
+        );
+        --_segment-selected-border: var(--violet-segment-selected-border, transparent);
         --_segment-selected-shadow: var(--violet-segment-selected-shadow, var(--_shadow-control));
     }
 
@@ -21,19 +24,19 @@ const styles = css`
         align-items: center;
         justify-content: center;
         inline-size: 100%;
-        /* The group adds 2px padding and a 1px border per side, so the control matches a button's height. */
-        min-block-size: calc(var(--_target-size) - 6px);
+        /* The group adds 2px padding per side, so the control matches a button's height. */
+        min-block-size: calc(var(--_target-size) - 4px);
         padding: 0 var(--_space-md);
         border: 1px solid transparent;
         border-radius: calc(var(--_radius-md) - 2px);
         background: transparent;
-        color: inherit;
+        color: var(--_text-secondary);
         cursor: pointer;
         font: inherit;
         font-size: var(--_control-body-size);
         font-weight: var(--_type-label-weight);
         /* Never taller than the target minus the group chrome and the border, so compact controls stay button-sized. */
-        line-height: min(var(--_type-body-line), calc(var(--_target-size) - 8px));
+        line-height: min(var(--_type-body-line), calc(var(--_target-size) - 6px));
         text-align: center;
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
@@ -43,7 +46,7 @@ const styles = css`
     }
 
     .button:hover {
-        background: color-mix(in srgb, var(--_surface-page) 55%, transparent);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .button:focus-visible {
@@ -55,17 +58,18 @@ const styles = css`
         background: var(--_segment-selected-background);
         border-color: var(--_segment-selected-border);
         box-shadow: var(--_segment-selected-shadow);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     :host([disabled]) .button,
     :host([aria-disabled="true"]) .button {
         cursor: not-allowed;
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
     @media (forced-colors: active) {
-        .button {
+        .button,
+        .button:hover {
             forced-color-adjust: none;
             color: ButtonText;
         }
@@ -153,8 +157,8 @@ export class VioletSegment extends FASTElement {
         this.ariaDisabled = disabled ? "true" : null;
     }
 
-    public focusButton(): void {
-        this.buttonElement?.focus();
+    public focusButton(options?: FocusOptions): void {
+        this.buttonElement?.focus(options);
     }
 
     public handleClick(): void {

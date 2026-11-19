@@ -44,6 +44,8 @@ export interface ScopeSeen {
 	personaChanged?: true;
 	/** A type's instance command that changed this document succeeded (documents specification, 5.7). */
 	document?: string;
+	/** The settings sections whose values this call changed, by full id (phase 4 specification, 3.8). */
+	settings?: string[];
 }
 
 export interface ScopeRuntime {

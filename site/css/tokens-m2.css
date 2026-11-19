@@ -153,7 +153,7 @@
 	--rule-thin: 1px;
 	--rule: 2px;
 	--rule-heavy: 3px;
-	--radius: 4px; /* controls only; fields and panels are square */
+	--radius: 4px; /* refined.css sets the interface radii (8px controls, 14px panels) */
 	--shadow-offset: 8px 8px 0;
 	--crop-size: 18px;
 

@@ -13,17 +13,17 @@ const styles = css`
     :host {
         display: grid;
 
-        --_selection-fill: color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf));
-        --_rail-background: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
+        /* The rail is a well, filled to the value; the thumb is the end of the fill, in its colour. */
+        --_selection-fill: var(--color-control-selected-foreground, #2c5e4b);
+        --_rail-background: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
+        --_danger-border: var(--color-state-danger-border, transparent);
         --_radius-full: var(--radius-round, 9999px);
-        --_thumb-size: calc(var(--_target-size) * 0.625);
+        --_thumb-size: calc(var(--_target-size) * 0.5);
         --_track-size: calc(var(--_target-size) * 0.125);
         --_control-block-size: var(--_target-size);
         --_vertical-track-size: calc(var(--_target-size) * 4);
         --_tick-size: 6px;
-        --_tick-color: var(--_rail-background);
+        --_tick-color: var(--color-border-strong, #6b7d6e);
         --_slider-percent: 50%;
     }
 
@@ -37,7 +37,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .control-shell {
@@ -104,7 +104,6 @@ const styles = css`
     }
 
     .fill {
-        display: none;
         position: absolute;
         inset-inline-start: 0;
         inset-block-start: 0;
@@ -114,9 +113,7 @@ const styles = css`
         background: var(--_selection-fill);
     }
 
-    :host([show-fill]) .fill {
-        display: block;
-    }
+
 
     :host([orientation="vertical"]) .fill {
         inset-block-start: auto;
@@ -152,10 +149,12 @@ const styles = css`
         inset-block-start: 50%;
         inline-size: var(--_thumb-size);
         block-size: var(--_thumb-size);
+        box-sizing: border-box;
+        /* The edge is inside the size and clear; it shows only in forced colours. */
+        border: 1px solid transparent;
         border-radius: var(--_radius-full);
-        background: var(--_surface-page);
-        border: 1px solid var(--_border-subtle);
-        box-shadow: var(--_shadow-floating);
+        background: var(--_selection-fill);
+        box-shadow: var(--_shadow-control);
         transform: translate(-50%, -50%);
         transition:
             transform var(--_duration-base) var(--_easing-standard),
@@ -171,8 +170,8 @@ const styles = css`
 
     .control-shell:focus-within .thumb {
         box-shadow:
-            var(--_shadow-floating),
-            0 0 0 2px var(--_focus-ring);
+            0 0 0 2px var(--_surface-page),
+            0 0 0 4px var(--_focus-ring);
     }
 
     :host([disabled]) .input,
@@ -187,7 +186,7 @@ const styles = css`
 
     :host([disabled]) .visual,
     :host(:disabled) .visual {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
     :host([disabled]) .rail,
@@ -202,8 +201,7 @@ const styles = css`
 
     :host([disabled]) .thumb,
     :host(:disabled) .thumb {
-        background: color-mix(in srgb, var(--_surface-page) 72%, var(--_surface-subtle));
-        box-shadow: var(--_shadow-control);
+        box-shadow: none;
     }
 
     :host([invalid]) .rail {
@@ -220,12 +218,12 @@ const styles = css`
 
     .supporting {
         color: var(--_text-muted);
-        margin-block-start: var(--_space-stack-2xs);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
-        margin-block-start: var(--_space-stack-2xs);
+        color: var(--color-state-danger-foreground, #c42a1a);
+        margin-block-start: var(--_space-field-gap);
     }
 
     @media (forced-colors: active) {
@@ -366,6 +364,10 @@ export class VioletSlider extends FASTElement {
      */
     declare public readonly effectiveDisabled: boolean;
     declare public invalid: boolean;
+    /**
+     * Kept so existing markup stays valid; it has no effect. The rail is always filled from the
+     * minimum to the value.
+     */
     declare public showFill: boolean;
     declare public showTicks: boolean;
 
@@ -554,6 +556,8 @@ export class VioletSlider extends FASTElement {
     }
 
     public handleInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement | null;
         this.value = input?.value ?? this.value;
         this.$emit("input", { value: this.value });
@@ -789,5 +793,8 @@ if (!customElements.get("violet-slider")) {
         name: "violet-slider",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

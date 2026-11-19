@@ -10,33 +10,30 @@ const styles = css`
     :host {
         display: block;
 
+        --_target-size: var(--violet-target-size, var(--size-target-natural, 32px));
+        --_control-body-size: var(--violet-control-body-size, var(--_body-size));
         --_accordion-item-border-width: var(--violet-accordion-item-border-width, 1px);
         --_accordion-item-border-color: var(--violet-accordion-item-border-color, var(--_border-subtle));
-        --_accordion-item-background: var(--violet-accordion-item-background, var(--_surface-page));
+        --_accordion-item-background: var(--violet-accordion-item-background, transparent);
         --_accordion-item-background-hover: var(--violet-accordion-item-background-hover, var(--_surface-subtle));
-        --_accordion-item-background-expanded: var(--violet-accordion-item-background-expanded, var(--_surface-card));
+        --_accordion-item-background-expanded: var(--violet-accordion-item-background-expanded, transparent);
         --_accordion-item-padding-inline: var(--violet-accordion-item-padding-inline, var(--_space-md));
-        --_accordion-item-padding-block: var(--violet-accordion-item-padding-block, var(--_space-sm));
+        /* A one-line heading makes a row one target and one small space tall. */
+        --_accordion-item-padding-block: var(
+            --violet-accordion-item-padding-block,
+            calc((var(--_target-size) + var(--_space-sm) - var(--_body-line)) / 2)
+        );
         --_accordion-item-gap: var(--violet-accordion-item-gap, var(--_space-sm));
     }
 
-    :host(:first-of-type) .item {
-        border-start-start-radius: var(--_radius-md);
-        border-start-end-radius: var(--_radius-md);
-    }
-
-    :host(:last-of-type) .item {
-        border-end-start-radius: var(--_radius-md);
-        border-end-end-radius: var(--_radius-md);
-    }
-
+    /* The accordion is the panel; an item is a section of it, ruled off from the one above. */
     .item {
-        border: var(--_accordion-item-border-width) solid var(--_accordion-item-border-color);
+        border-block-start: var(--_accordion-item-border-width) solid var(--_accordion-item-border-color);
         background: var(--_accordion-item-background);
         overflow: clip;
     }
 
-    :host(:not(:first-of-type)) .item {
+    :host(:first-of-type) .item {
         border-block-start-width: 0;
     }
 
@@ -87,16 +84,17 @@ const styles = css`
         min-inline-size: 0;
         font-size: var(--_control-body-size);
         font-weight: var(--_type-label-weight);
-        line-height: var(--_type-body-line);
+        line-height: var(--_body-line);
     }
 
     .indicator {
-        inline-size: 0.625rem;
-        block-size: 0.625rem;
+        inline-size: 0.4375rem;
+        block-size: 0.4375rem;
         flex: 0 0 auto;
+        margin-inline-end: 2px;
         border-inline-end: 1.5px solid currentColor;
         border-block-end: 1.5px solid currentColor;
-        opacity: 0.8;
+        color: var(--_text-muted);
         transform: rotate(45deg);
         transition: transform var(--_duration-fast) var(--_easing-standard);
     }
@@ -106,7 +104,6 @@ const styles = css`
     }
 
     .panel {
-        border-block-start: var(--_accordion-item-border-width) solid var(--_accordion-item-border-color);
         background: var(--_accordion-item-background-expanded);
     }
 
@@ -115,10 +112,10 @@ const styles = css`
     }
 
     .panel-content {
-        padding: var(--_space-md) var(--_accordion-item-padding-inline);
+        padding: 0 var(--_accordion-item-padding-inline) var(--_space-md);
         color: var(--_text-secondary);
         font-size: var(--_control-body-size);
-        line-height: var(--_type-body-line);
+        line-height: var(--_body-line);
     }
 
     @media (forced-colors: active) {

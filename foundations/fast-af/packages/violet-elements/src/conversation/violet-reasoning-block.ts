@@ -9,18 +9,21 @@ const styles = css`
 
     :host {
         display: block;
-        --_reasoning-bg: var(--violet-reasoning-bg, var(--_surface-subtle, rgba(28, 26, 13, 0.04)));
-        --_reasoning-border: var(--violet-reasoning-border, var(--_border-subtle));
+        --_reasoning-bg: var(--violet-reasoning-bg, transparent);
+        --_reasoning-border: var(--violet-reasoning-border, transparent);
         --_reasoning-font-size: var(--violet-reasoning-font-size, var(--_caption-size, 12px));
         --_reasoning-line-height: var(--violet-reasoning-line-height, var(--_caption-line, 16px));
         --_reasoning-toggle-size: var(--violet-reasoning-toggle-size, var(--_body-size, 14px));
     }
 
+    /*
+     * A line of muted text that opens, not a box. A host that wants the box sets the fill and the
+     * edge; the edge is a ring, so it takes no room while it is clear.
+     */
     .root {
         border-radius: var(--_radius-md);
-        border: var(--_card-border-width, 1px) solid var(--_reasoning-border);
         background: var(--_reasoning-bg);
-        overflow: hidden;
+        box-shadow: 0 0 0 var(--_card-border-width, 1px) var(--_reasoning-border);
     }
 
     .toggle {
@@ -29,26 +32,25 @@ const styles = css`
         display: flex;
         align-items: center;
         gap: var(--_space-sm);
-        inline-size: 100%;
-        padding: var(--_space-sm) var(--_space-md);
+        border-radius: var(--_radius-sm);
         font-size: var(--_reasoning-toggle-size);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-muted);
         cursor: pointer;
     }
 
     .toggle:hover {
-        background: var(--_surface-hover, rgba(28, 26, 13, 0.06));
+        color: var(--_text-primary);
     }
 
     .toggle:focus-visible {
         outline: none;
-        box-shadow: inset 0 0 0 2px var(--_focus-ring);
+        box-shadow: 0 0 0 2px var(--_focus-ring);
     }
 
     .chevron {
         display: inline-flex;
         transition: transform 0.2s ease;
-        --violet-icon-size: var(--_reasoning-toggle-size);
+        --violet-icon-size: var(--_reasoning-line-height);
     }
 
     :host([expanded]) .chevron {
@@ -68,11 +70,13 @@ const styles = css`
         display: inline-block;
     }
 
+    /* The text hangs under the label, clear of the chevron. */
     .content {
-        padding: 0 var(--_space-md) var(--_space-sm);
+        padding-block-start: var(--_space-stack-xs);
+        padding-inline-start: calc(var(--_reasoning-line-height) + var(--_space-sm));
         font-size: var(--_reasoning-font-size);
         line-height: var(--_reasoning-line-height);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-muted);
         white-space: pre-wrap;
         word-break: break-word;
     }
@@ -99,8 +103,8 @@ const styles = css`
     @media (forced-colors: active) {
         .root {
             forced-color-adjust: none;
-            border-color: ButtonText;
             background: Canvas;
+            box-shadow: 0 0 0 var(--_card-border-width, 1px) ButtonText;
         }
 
         .toggle:hover {

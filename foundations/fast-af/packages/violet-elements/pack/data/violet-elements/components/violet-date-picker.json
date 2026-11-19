@@ -177,6 +177,16 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--_surface-floating)",
+				"name": "--violet-calendar-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_shadow-floating)",
+				"name": "--violet-calendar-shadow"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--_type-body-size-compact)",
 				"name": "--violet-control-body-size"
 			},
@@ -251,7 +261,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.input-change",
 		"field.label",
 		"field.label-required",
@@ -287,7 +297,7 @@
 		{
 			"basis": "authored",
 			"id": "date-picker.events",
-			"text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input. The native input's own input event also reaches host listeners, without detail."
+			"text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input."
 		},
 		{
 			"basis": "authored",

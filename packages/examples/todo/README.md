@@ -15,7 +15,7 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
   its definitions match.
 
 This example is being brought up to date with current AFD; the plan and its progress are in
-[docs/features/active/todo-reference](../../../docs/features/active/todo-reference/STATUS.md).
+[docs/features/complete/todo-reference](../../../docs/features/complete/todo-reference/STATUS.md).
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -62,10 +62,10 @@ pnpm test:conformance:cpp
 ```
 
 The runner spawns every backend over stdio, the TypeScript and Python ones with
-`TODO_STORE_TYPE=memory` (the Rust backend through `cargo run -- stdio`). It runs every
+`TODO_STORE_TYPE=memory` (the Rust backend as its built binary, `todo-backend-rust stdio`). It runs every
 case in [spec/test-cases.json](./spec/test-cases.json) that the backend's language implements and
-exits non-zero if any case fails. The TypeScript, Python and Rust backends also have an approval
-suite (`pnpm test:conformance:ts --suite approvals`, and `:py`, `:rs`), the TypeScript backend a run of AFD's
+exits non-zero if any case fails. Every backend also has an approval
+suite (`pnpm test:conformance:ts --suite approvals`, and `:py`, `:rs`, `:cpp`), the TypeScript backend a run of AFD's
 own `validate --surface --strict` and `scenario run` against it (`pnpm test:scenarios:ts`), and
 `pnpm test:interop` runs both side by side on one SQLite database, each reading what the other
 wrote, and has each create a new database the other then opens; the
@@ -182,7 +182,7 @@ on `/mcp`, so the page should work against it too; that pairing is not tested ye
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
 
 Both frontends talk MCP on `/mcp`; neither uses the deprecated `/message` lane. The TypeScript
-and Rust backends accept browser requests from the dev frontends' origins (`http://localhost:3000`, `http://localhost:5173` and
+and Rust backends accept browser requests from the dev frontends' origins (`http://localhost:5173` and
 `5174`, also on `127.0.0.1`) and refuse other origins with 403; add yours with
 `ALLOWED_ORIGINS`. The Python backend is a stdio MCP server without that HTTP endpoint, so use it
 from an MCP client (see below) and the conformance suite rather than the web frontends.
@@ -193,32 +193,28 @@ All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp
 
 ```jsonc
 {
-  "mcpServers": {
+  "servers": {
     // TypeScript backend (stdio transport - auto-starts)
     "afd-todo-ts": {
       "command": "node",
-      "args": ["packages/examples/todo/backends/typescript/dist/server.js"],
-      "disabled": false
+      "args": ["packages/examples/todo/backends/typescript/dist/server.js"]
     },
     
     // Python backend (stdio transport - auto-starts)
     "afd-todo-python": {
       "command": "uv",
-      "args": ["run", "--project", "packages/examples/todo/backends/python", "todo-server"],
-      "disabled": true
+      "args": ["run", "--project", "packages/examples/todo/backends/python", "todo-server"]
     },
     
     // C++ backend (stdio transport - build it first: pnpm test:conformance:cpp)
     "afd-todo-cpp": {
-      "command": "packages/examples/todo/backends/cpp/build/release/todo-server-cpp",
-      "disabled": true
+      "command": "packages/examples/todo/backends/cpp/build/release/todo-server-cpp"
     },
 
     // Rust backend (stdio transport - auto-starts; cargo builds it on first use)
     "afd-todo-rust": {
       "command": "cargo",
-      "args": ["run", "--quiet", "--manifest-path", "packages/examples/todo/backends/rust/Cargo.toml", "--", "stdio"],
-      "disabled": true
+      "args": ["run", "--quiet", "--manifest-path", "packages/examples/todo/backends/rust/Cargo.toml", "--", "stdio"]
     }
   }
 }
@@ -235,8 +231,8 @@ All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp
 
 ### Switching Backends
 
-1. **Enable ONE backend** - Set `"disabled": false` for the desired backend
-2. **Disable others** - Set `"disabled": true` (they share the same tool names)
+1. **Keep ONE backend** - Leave the entry for the backend you want
+2. **Remove the others** - Delete or comment out their entries (they share the same tool names)
 3. **Reload VS Code** - Or use Command Palette → "MCP: Restart Servers"
 
 ### Rust Backend over HTTP
@@ -273,15 +269,14 @@ The source of truth for this example is the [test-cases.json](./spec/test-cases.
 | `todo-history` | Recent changes: who, when, and each change's undo | reading, editing | |
 
 `todo-restore` and `todo-history` came to TypeScript with the
-[to-do reference plan](../../../docs/features/active/todo-reference/todo-reference.proposal.md)'s
+[to-do reference plan](../../../docs/features/complete/todo-reference/todo-reference.proposal.md)'s
 phase 2, and to the other three backends in phase 5. Every backend implements all 13 commands.
 
 ### Undo, history and approvals
 
 Every change says how to take it back. Its result carries `undoCommand` and `undoArgs`: run that
 command with those arguments, through `afd-call` or the `todo` group tool, since `undoCommand` names
-a command, not a tool (the C++ server lists each command as its own tool, so there it is the tool's
-name too). Toggling and editing undo with `todo-update`; creating with `todo-delete`;
+a command, not a tool. Toggling and editing undo with `todo-update`; creating with `todo-delete`;
 deleting with `todo-restore`. A delete keeps the todo out of every list but
 `todo-list { deleted: true }` until `todo-clear { deleted: true }` or `{ all: true }` removes it,
 so a todo deleted by mistake can be found and restored long after.
@@ -315,7 +310,7 @@ several servers, in any of the four languages, accept each other's approval toke
 
 ### Contexts
 
-The TypeScript, Python and Rust servers configure two contexts, so an agent can scope itself
+All four servers configure two contexts, so an agent can scope itself
 before it works:
 
 - `todo-reading` shows only `todo-list`, `todo-get`, `todo-stats` and `todo-history`. A command
@@ -325,9 +320,7 @@ before it works:
 
 With no context entered every command is visible. `afd-context-list`, `afd-context-enter` and
 `afd-context-exit` manage them; on the stateless `/mcp` endpoint a request names its context in
-`_meta["dev.afd/context"]` instead. The C++ backend declares each command's contexts but does
-not serve them: the library's `afd::mcp_stdio` has no context tools yet
-([#1425](https://github.com/lushly-dev/afd/issues/1425)).
+`_meta["dev.afd/context"]` instead.
 
 Clients that never enter a context are unaffected, with three visible differences: `tools/list`
 includes the three context tools (in the `bootstrap` group under the TypeScript server's default

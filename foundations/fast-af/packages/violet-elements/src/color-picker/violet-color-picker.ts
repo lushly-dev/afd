@@ -61,7 +61,7 @@ const styles = css`
         font-size: var(--_control-label-size);
         font-weight: var(--_type-label-weight);
         line-height: var(--_type-label-line);
-        margin-block-end: var(--_space-stack-xs);
+        margin-block-end: var(--_space-field-gap);
     }
 
     .control-shell {
@@ -83,34 +83,32 @@ const styles = css`
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: calc(var(--_space-stack-xs) + 2px);
-        border: 1px solid var(--_field-border);
+        border: 1px solid var(--_border-subtle);
         border-radius: var(--_radius-md);
-        background: var(--_surface-page);
-        color: inherit;
-        box-shadow: var(--_shadow-control);
+        background: var(--_field-background);
+        color: var(--_field-text);
+        box-shadow: var(--_field-shadow);
         cursor: pointer;
         text-align: start;
         transition:
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .trigger:hover {
-        border-color: var(--_field-border-hover);
+        box-shadow: var(--_field-shadow-hover);
     }
 
     .trigger:focus-visible,
     .control-shell.open .trigger {
         outline: none;
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
-        transform: translateY(calc(var(--_space-inline-sm) / -4));
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     :host([disabled]) .trigger,
     :host(:disabled) .trigger {
-        opacity: 0.65;
+        opacity: 0.5;
         cursor: not-allowed;
     }
 
@@ -135,7 +133,7 @@ const styles = css`
         white-space: nowrap;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .trigger-value.placeholder {
@@ -224,7 +222,7 @@ const styles = css`
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
         font-weight: 600;
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
     }
 
     .hex-field {
@@ -391,12 +389,12 @@ const styles = css`
 
     .supporting {
         color: var(--_text-muted);
-        margin-block-start: var(--_space-stack-2xs);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #b42318);
-        margin-block-start: var(--_space-stack-2xs);
+        color: var(--color-state-danger-foreground, #c42a1a);
+        margin-block-start: var(--_space-field-gap);
     }
 
     .control-shell.open ~ .supporting,
@@ -861,6 +859,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleHexInput(event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         this.hexDraft = input.value;
 
@@ -897,6 +897,8 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public handleChannelInput(channel: "h" | "s" | "l", event: Event): void {
+        // The native `input` is composed and would reach the host as a second event; this element emits its own.
+        event.stopPropagation();
         const input = event.currentTarget as HTMLInputElement;
         const nextValue = Number(input.value);
         this.updateChannel(channel, nextValue);
@@ -1149,5 +1151,8 @@ if (!customElements.get("violet-color-picker")) {
         name: "violet-color-picker",
         template,
         styles,
+        shadowOptions: {
+            delegatesFocus: true,
+        },
     });
 }

@@ -1975,9 +1975,15 @@ importers:
       '@lushly-dev/afd-core':
         specifier: workspace:*
         version: link:../core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../server
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^5.1.0

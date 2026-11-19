@@ -357,6 +357,9 @@ jobs:
         run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted
       - name: Todo conformance (stock umbel, mounted Rust backend, MCP 2026-07-28)
         run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern
+      # Modern only, as for umbel-todo: the mount reaches the Rust backend over Streamable HTTP.
+      - name: Confirmations (stock umbel, mounted Rust backend, MCP 2026-07-28)
+        run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern
       # `afd validate --surface --strict` and the todo JTBD scenarios against umbel-todo with
       # hello and todo enabled.
       - name: AFD clients (afd validate --surface, afd scenario run)

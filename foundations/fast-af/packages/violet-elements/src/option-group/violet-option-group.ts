@@ -16,9 +16,8 @@ const styles = css`
         padding-inline: calc(var(--_space-sm) * 1.5);
         color: var(--_text-secondary);
         font-size: var(--_caption-size);
-        font-weight: 600;
+        font-weight: 500;
         line-height: var(--_caption-line);
-        letter-spacing: 0.02em;
     }
 
     :host([disabled]) .label {

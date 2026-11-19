@@ -116,6 +116,7 @@ import {
 } from "./violet-data-grid-selection";
 import {
   autosizedColumnWidth as computeAutosizedColumnWidth,
+  cssLengthToPixels,
   minimumColumnWidth as computeMinimumColumnWidth,
   renderedColumnWidth as computeRenderedColumnWidth,
   resolvedColumnWidth as resolveGridColumnWidth,
@@ -552,12 +553,12 @@ const fullTableTemplate = html<VioletDataGrid>`
             aria-colcount="${(x) => String(x.logicalColumnCount)}"
                 >
         <colgroup>
+            <!-- With selection off the selection cells are hidden, so the column is hidden too: a hidden <col>
+                 creates no column slot, and a visible one would shift every cell one slot to the left. -->
             <col
                 class="selection-column"
-                style="${(x) =>
-                  x.selectionMode === "none"
-                    ? "width:0;inline-size:0;min-inline-size:0;max-inline-size:0;"
-                    : "width:var(--_selection-column-size);inline-size:var(--_selection-column-size);min-inline-size:var(--_selection-column-size);max-inline-size:var(--_selection-column-size);"}"
+                ?hidden="${(x) => x.selectionMode === "none"}"
+                style="width:var(--_selection-column-size);inline-size:var(--_selection-column-size);min-inline-size:var(--_selection-column-size);max-inline-size:var(--_selection-column-size);"
             />
                 ${repeat(
               (x) => x.presentedColumns,
@@ -1305,7 +1306,7 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public get columnSpan(): number {
-    return this.presentedColumns.length + 1;
+        return this.logicalColumnCount;
   }
 
   public get logicalRowCount(): number {
@@ -2197,10 +2198,15 @@ export class VioletDataGrid extends FASTElement {
             return false;
         }
 
+        // Step from the column's own width when it is absolute: a table narrower than the grid stretches its
+        // columns, so the drawn width is larger, and stepping from it would grow the column by more than a step.
+        const declared = this.resolvedColumnWidth(columnId)?.trim();
+        const declaredPixels =
+            declared && /^\d+(\.\d+)?(px|rem)$/.test(declared) ? cssLengthToPixels(declared) : null;
         const width = computeKeyboardResizedColumnWidth({
             key: event.key,
             shiftKey: event.shiftKey,
-            currentWidth: this.renderedColumnWidth(columnId),
+            currentWidth: declaredPixels ?? this.renderedColumnWidth(columnId),
             minimumWidth: this.minimumColumnWidth(columnId),
             rtl: getComputedStyle(this).direction === "rtl",
         });

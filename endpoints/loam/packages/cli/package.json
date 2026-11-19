@@ -21,6 +21,10 @@
 			"types": "./dist/check.d.ts",
 			"import": "./dist/check.js"
 		},
+		"./copilot-key": {
+			"types": "./dist/copilot-key.d.ts",
+			"import": "./dist/copilot-key.js"
+		},
 		"./deployment": {
 			"types": "./dist/deployment.d.ts",
 			"import": "./dist/deployment.js"

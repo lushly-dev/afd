@@ -57,6 +57,20 @@ export interface StdioMountAccess {
 }
 
 /**
+ * How the desktop's Rust host reaches a copilot provider (phase 5 specification, 4.2): written only into a desktop
+ * deployment's `models.json`, never into what is served. A key's place, never a key: a keychain entry, or a file
+ * whose path is resolved against the deployment file's directory. A `test` provider has no entry: the page answers
+ * it.
+ */
+export interface ModelAccess {
+	id: string;
+	kind: 'anthropic' | 'openai' | 'openai-compatible';
+	model: string;
+	endpoint?: string;
+	key?: { keychain: string; account: string } | { file: string };
+}
+
+/**
  * The desktop's origins on this platform (phase 6 specification, 10.2): Tauri serves a custom protocol at
  * `<scheme>://localhost` on macOS and Linux and at `http://<scheme>.localhost` on Windows.
  */
@@ -110,6 +124,8 @@ export interface DeploymentAnalysis {
 	mounts: MountAccess[];
 	/** A desktop deployment's `stdio` instances (10.4); empty for every other kind. */
 	stdioMounts: StdioMountAccess[];
+	/** A desktop deployment's copilot providers but `test` (phase 5 specification, 4.2); empty for every other kind. */
+	models: ModelAccess[];
 }
 
 /** What `deployment check` says of a `local` deployment (phase 3 specification, 2.1). */
@@ -392,7 +408,14 @@ export async function secretPaths(
 	const bearers = Object.values(deployment.apps).flatMap(({ bearer_file }) =>
 		bearer_file === undefined ? [] : [resolve(base, bearer_file)]
 	);
-	return Promise.all([config, ...bearers].map(realish));
+	// A copilot provider's key file (phase 5 specification, 4.1): a credential like a bearer's.
+	const keys =
+		deployment.deployment_version === 4
+			? (deployment.copilot?.providers ?? []).flatMap(({ key }) =>
+					key !== undefined && 'file' in key ? [resolve(base, key.file)] : []
+				)
+			: [];
+	return Promise.all([config, ...bearers, ...keys].map(realish));
 }
 
 /** A package is served whole, so nothing secret may sit inside one. */
@@ -480,6 +503,7 @@ export async function analyzeDeployment(
 		instances: [],
 		mounts: [],
 		stdioMounts: [],
+		models: [],
 	};
 	const unreadable = (message: string, suggestion: string): DeploymentAnalysis => ({
 		...empty,
@@ -612,6 +636,24 @@ export async function analyzeDeployment(
 			}
 		}
 	}
+	const models: ModelAccess[] = [];
+	if (desktop && deployment.deployment_version === 4) {
+		for (const { id, kind, model, endpoint, key } of deployment.copilot?.providers ?? []) {
+			if (kind === 'test') continue;
+			models.push({
+				id,
+				kind,
+				model,
+				// The reader allowed it; stored without a trailing `/`, so the host appends the kind's path once.
+				...(endpoint !== undefined ? { endpoint: endpoint.replace(/\/+$/, '') } : {}),
+				...(key === undefined
+					? {}
+					: 'file' in key
+						? { key: { file: fromBase(key.file) } }
+						: { key: { keychain: key.keychain, account: key.account } }),
+			});
+		}
+	}
 	instanceRefusals.push(...domainFindings(instances));
 	warnings.push(...instances.flatMap(projectWarnings));
 	refusals.push(...(await secretsServed(config, deployment, instances)));
@@ -633,6 +675,7 @@ export async function analyzeDeployment(
 		instances,
 		mounts,
 		stdioMounts,
+		models,
 	};
 }
 

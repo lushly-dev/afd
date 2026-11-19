@@ -1,0 +1,62 @@
+{
+	"title": "Touch",
+	"note": "Soft keys on paper: rounded, a little taller, filled with a quiet tint instead of outlined, with soft depth instead of hard edges.",
+	"added": {
+		"stone-150": [
+			"#e2e5de",
+			"between stone-100 and stone-200: a quiet fill (a track, a skeleton, a read-only field) that still shows on paper, where stone-100 is only a 3% step"
+		]
+	},
+	"light": {
+		"radius.sm": "4px",
+		"radius.md": "8px",
+		"radius.lg": "12px",
+		"size.target.compact": "32px",
+		"size.target.natural": "32px",
+		"type.body.md.size": "15px",
+		"type.label.sm.size": "13px",
+		"type.caption.xs.size": "12px",
+		"shadow.control": "0 1px 0 @ink/0.08, 0 1px 3px @ink/0.08",
+		"shadow.card": "0 0 0 1px @stone-200, 0 1px 2px @ink/0.05",
+		"shadow.floating": "0 0 0 1px @ink/0.10, 0 2px 6px @ink/0.08, 0 16px 32px -8px @ink/0.20",
+		"color.action.primary.hover": "@green-700",
+		"color.action.primary.pressed": "@black",
+		"color.action.secondary.background": "@ink/0.07",
+		"color.action.secondary.border": "@ink/0",
+		"color.action.secondary.hover": "@ink/0.12",
+		"color.action.secondary.pressed": "@ink/0.18",
+		"color.border.strong": "@sage-500",
+		"color.border.subtle": "@stone-200",
+		"color.surface.subtle": "@stone-150",
+		"color.field.border": "@sage-500",
+		"color.field.background": "@stone-100",
+		"color.field.background.readonly": "@stone-150"
+	},
+	"dark": {
+		"shadow.control": "0 1px 0 @black/0.5, 0 1px 3px @black/0.4",
+		"shadow.card": "0 0 0 1px @ink-soft, 0 1px 2px @black/0.4",
+		"shadow.floating": "0 0 0 1px @paper/0.14, 0 2px 6px @black/0.4, 0 16px 32px -8px @black/0.7",
+		"color.action.primary.hover": "@white",
+		"color.action.secondary.background": "@paper/0.10",
+		"color.action.secondary.border": "@paper/0",
+		"color.action.secondary.hover": "@paper/0.16",
+		"color.action.secondary.pressed": "@paper/0.22",
+		"color.field.background": "@green-800",
+		"color.field.background.readonly": "@green-700"
+	},
+	"high-contrast": {},
+	"css": [
+		"fields (text-field, text-area, select, combobox, date-picker, time-picker, date-range-picker): .control-frame paints var(--_surface-page); no component reads color.field.background, color.field.text, color.field.placeholder or color.field.border.focus. Paint the frame with color.field.background (this theme sets stone-100 light, green-800 dark), the text with color.field.text, the placeholder with color.field.placeholder. That gives the filled field. Keep the 1px color.field.border at rest (sage-500, 3.75 to 1 on the fill) so the field stays findable with low vision; on hover the edge goes to color.field.border.hover (ink); on focus the edge takes color.field.border.focus and the 2px focus ring stays. Drop the resting box-shadow: var(--_shadow-control) from field frames: a filled well should not cast a shadow, a key should.",
+		"radius: add a control radius token (radius.control, 8px here) read by button, icon-button, the field frames, segment, slider, pagination and the pickers, and leave radius.md to surfaces (card, alert, menu, popover, listbox, option, tooltip, accordion-item, tree, tab, progress, skeleton). Today one value has to serve both, so a theme cannot keep cards ruled while rounding buttons. Menu and calendar compute calc(var(--_radius-md) * 2) and listbox * 1.25; they should read radius.lg so floating panels are set in one place.",
+		"segmented-control: .group reads var(--_radius-lg), which violetFieldTokenDefaults never defines, so the track is square in every theme. Give it border-radius: calc(control radius + 2px), border-color: transparent and no box-shadow (the tint of color.surface.subtle is the track). segment, :host([checked]) .button: background var(--color-surface-card) instead of the page colour, border-color transparent, keep box-shadow: var(--_shadow-control). That is the tinted track with a raised thumb.",
+		"button, icon-button: .control:active should sit below rest (transform: translateY(1px); box-shadow: none), not at rest, so a press is felt. Primary and danger keep shadow.control on hover as now.",
+		"option (and tree-item, menu-item) selected: background color-mix of color.state.success.background at 58% with a 30% success border reads faint and borrows the success colour. Use background: var(--color-surface-selected) at full strength, no border, border-radius: calc(control radius - 2px), and a trailing check in color.control.selected.foreground. A selected row is then a soft mint pill that reads at a glance.",
+		"tab: add a pill treatment for appearance=\"open\": selected tab background var(--color-action-secondary-background), border-radius control radius, color text.primary, no underline indicator; unselected tabs text.muted with the same fill on hover. Keep the underline for tabs that sit on a ruled panel.",
+		"type: the field and action defaults subtract 1px from body, label and caption on a fine pointer (13/11/10px with the base tokens, 10px captions). Remove that step. This theme raises type.body.md.size, type.label.sm.size and type.caption.xs.size by 1px so a desktop renders 14/12/11, the site's ramp; with the step removed they go back to 14/12/11 as tokens.",
+		"date-picker, time-picker, date-range-picker, color-picker: the size attribute defaults to natural, while text-field, select and button follow the pointer (compact on a fine pointer). Default to the same automatic size. This theme sets size.target.natural equal to compact (32px) only so a date field is the same height as the field beside it; natural should be 36px once fixed.",
+		"checkbox .box: add box-sizing: border-box. It is 18px where the radio beside it is 16px.",
+		"slider .thumb: use box-shadow: var(--_shadow-control), not shadow.floating (a thumb is a control, not a popover); draw .rail in color.surface.subtle and show .fill by default in the selected colour, so the value reads without a dark full-width rail.",
+		"button appearance=\"quiet\": label in color.text.primary; with color.text.secondary and a hairline edge it reads as disabled next to a filled secondary button.",
+		"calendar: it has both border: 1px solid border.subtle and box-shadow: shadow.card, which is itself the card's edge; drop one so the edge is not doubled."
+	]
+}

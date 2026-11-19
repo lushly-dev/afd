@@ -41,7 +41,7 @@ steps:
         suggestion: { contains: cells.issuesMax }
   - description: Registering before the cell starts claims its issue and assigns the plan
     command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [101], route: sol/high }
+    input: { branch: fix/parser-empty-input, issues: [101], route: opus/medium }
     expect:
       success: true
       data:

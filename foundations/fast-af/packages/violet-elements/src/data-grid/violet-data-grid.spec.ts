@@ -233,6 +233,28 @@ describe("violet-data-grid", () => {
         document.body.innerHTML = "";
     });
 
+    // Regression: with selection off, the selection <col> and the spacer rows' extra column still made a
+    // column slot that no visible cell filled, so every cell sat one slot to the left and took the wider
+    // of its own width and its left neighbour's (a 100px column after a 200px one was drawn 200px wide).
+    for (const selectionMode of ["none", "single"] as const) {
+        it(`gives each column its own width with selection-mode="${selectionMode}"`, async () => {
+            const columns = [
+                { id: "title", label: "Title", width: "200px", value: (row: TestRow) => row.commonName },
+                { id: "category", label: "Category", width: "100px", value: (row: TestRow) => row.status },
+            ] as VioletDataGridColumn<TestRow>[];
+            const grid = await renderGrid({ columns, selectionMode });
+            await nextFrames(2);
+
+            const header = (id: string) =>
+                grid.shadowRoot?.querySelector(`th[data-column-id="${id}"]`) as HTMLElement;
+            const title = header("title").getBoundingClientRect().width;
+            const category = header("category").getBoundingClientRect().width;
+
+            expect(title).toBeGreaterThan(0);
+            expect(Math.abs(title - category * 2)).toBeLessThanOrEqual(2);
+        });
+    }
+
     // Regression: the sticky-header rules set `z-index: var(--_layer-raised)`,
     // but the data grid never declared that token. An undefined custom property
     // makes the declaration invalid at computed-value time, so it was dropped

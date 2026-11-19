@@ -51,6 +51,7 @@ export const SUITES = [
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element build' },
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element test:chromium' },
 			{ gate: 'components', run: 'pnpm -F "@lushly-dev/violet-elements..." build' },
+			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements typecheck' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements verify:exports' },
 			{ gate: 'components', run: 'node scripts/fast-af-generated.mjs' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements lint' },
@@ -342,6 +343,9 @@ export const SUITES = [
 			},
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted' },
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern' },
+			{
+				run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern',
+			},
 			// The script resolves CARGO_TARGET_DIR inside Bash, including on Windows' cmd.exe.
 			{
 				run: 'bash endpoints/umbel/tests/scripts/external-clients.sh',

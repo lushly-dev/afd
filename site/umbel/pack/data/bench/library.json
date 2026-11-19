@@ -1,0 +1,20 @@
+{
+	"components": [
+		{
+			"digest": "sha256:b14cc288c4ac16100ed8fbfd0cc7c97041e6b8306e3ed9f57c9936ce48711da0",
+			"status": "preview",
+			"summary": "A bar that says changes are waiting, with buttons to save them, discard them or put the bar away.",
+			"tag": "change-bar"
+		}
+	],
+	"digest": "sha256:6db13a92a2ec8cc382bb5864ffba2f0cf2b09c73e2938a202da71530c7daf4e3",
+	"format": 1,
+	"library": "bench",
+	"package": {
+		"name": "afd-site-bench",
+		"version": "0.1.0"
+	},
+	"prefix": "change-",
+	"rules": "sha256:5c7fbad0ea1b8196a1aa852078c75e2c8d73c41fc09ec7a707f444cfadb9e78e",
+	"title": "The Specimen pages' bench"
+}
