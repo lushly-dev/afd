@@ -1,0 +1,121 @@
+{
+	"limit": 2000,
+	"files": ["docs/language-parity.md", "endpoints/loam/docs/STATUS.md"],
+	"capped": [
+		{
+			"file": "docs/language-parity.md",
+			"startsWith": "| Updated |",
+			"max": 300,
+			"reason": "Held every date since October on one line, 2,126 characters; it holds no dates now"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| [Decision log](decisions.md) |",
+			"max": 300,
+			"reason": "Listed every decision since D22 on one line, 2,049 characters; it names none now"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 3. Identity |",
+			"max": 900,
+			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 4. Settings, experiments, notifications, overlays |",
+			"max": 1000,
+			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 5. Bus, copilot and mounted servers |",
+			"max": 1900,
+			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line. It listed every merged step, 2,708 characters"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 6. Hosts and distribution |",
+			"max": 1200,
+			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line. It listed every merged step, 1,357 characters"
+		}
+	],
+	"grandfathered": [
+		{
+			"file": "docs/language-parity.md",
+			"startsWith": "| MCP authorization ([`spec/authorization.md`]",
+			"length": 2576,
+			"sha256": "e893c6e3c0521d0983da5910c59cbe475782d1ed0d5f7993bc120130a776d015",
+			"reason": "One feature's row across four languages, written before the limit; split it when it next changes"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 4, scope and stores: merged in ",
+			"length": 2379,
+			"sha256": "2064b72a786059e59f9c2bb94c1d237a5b8c229586519d350dab735216b36d7c",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 5, the URL scheme: merged in ",
+			"length": 3113,
+			"sha256": "ba4bdf8f9e417828d764ba45eac108ba60ded25b3da240d0342a40b02530f6bf",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 6, the rail and the parts: merged in ",
+			"length": 4067,
+			"sha256": "4a402a919356ed5b78a5843c878f5d1c09da3b3c83a83de673828d9cc53628c6",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 7, the projects section: merged in ",
+			"length": 4017,
+			"sha256": "276721be3eb803d68c5557661f274f0328f45adb06bdf00bd08a3c248ca501c8",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 8, mounted scope: merged in ",
+			"length": 3913,
+			"sha256": "9d79269648a3a29306a09cf37ddffa90c57dc0aae68ecfccc41434849af4326d",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 9, document records: merged in ",
+			"length": 5507,
+			"sha256": "ece71663dd183e32e35d6d43a9c3deb41e7f7401636974069fdec809736b64fb",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 10, the editor area and `notes`: merged in ",
+			"length": 4776,
+			"sha256": "78b66eab5c2c72b60697fbbae35ef56a62d961eaf3cb9477bca31a4ecdac3b30",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 11, New and the documents section: merged in ",
+			"length": 2788,
+			"sha256": "e0ffd018aa83d495a930d1cc0953569cb4aaba853a74e565ab4d5448d4e41a39",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 12, references, embed and view editors: merged in ",
+			"length": 3559,
+			"sha256": "f9b31683f5e0634a0a1cf8320dda18c309c4c2bde243f3ca000c94ad052d99c9",
+			"reason": "Phase 2 exited 2026-11-09; its step records are history nobody edits"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | The forged `Origin`, with a control (",
+			"length": 3401,
+			"sha256": "eb012a1c901e8d1511197518655d244c5d1e872576733b8289aa89f362e8ea58",
+			"reason": "One session-log entry, written once on 2026-11-17 before the limit"
+		}
+	]
+}
