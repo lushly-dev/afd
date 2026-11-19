@@ -39,12 +39,15 @@ steps:
           byAccount: { '0': { account: 1, places: 120 } }
           proposal: 1
           digest: { matches: '^[A-Za-z0-9_-]{43}$' }
-  - description: Asked as a preview with that digest, it gives the preview alone, with no page of items
+  - description: Asked as a preview with that digest, it gives the verb, the query and the proposer, with no page of items
     command: mail-operation-show
     input: { operation: "${{ steps[1].data.operation }}", digest: "${{ steps[2].data.preview.digest }}" }
     expect:
       success: true
       data:
+        command: mail-trash
+        query: { trust: content }
+        proposal: { proposer: { exists: true } }
         preview: { approvable: true, proposal: 1 }
         items: { notExists: true }
   - description: Asked as a preview with another digest, it shows nothing
