@@ -129,7 +129,7 @@ waits for Gmail has a line of its own.
 
 - E3: Reply sets. Not started.
 
-- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is drafted, for review, on `lush/mail-f-spec`; the engine's changes it plans wait for D3 and E3, and the native app waits for Loam's phase 5 (D132).
+- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is drafted and revised after its first review, for review, on `lush/mail-f-spec`. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
 - G: Composition with a connected Umbel. Not started.
 
@@ -137,6 +137,10 @@ waits for Gmail has a line of its own.
 
 How each step was verified: one line each, newest first within its phase. A step adds its line at
 the top of its phase's list, and a phase that starts adds its heading above the others.
+
+### Verified: phase F
+
+- 2026-11-19 UTC for step F's specification, on `lush/mail-f-spec` with `main` at `5a631f89` merged in: its five scenario files parsed and validated by `afd scenario validate`, the dry-run validation and the coverage report (29 steps); nothing built or run.
 
 ### Verified: phase D
 
@@ -280,6 +284,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-19 | Step F's specification drafted | [`plugin.spec.md`](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) written against `main` at `d890d02d`, with five scenario files checked by AFD's parser and coverage report: an approver role on tokens, the four commands released over MCP with previews, revisions and digests (`PREVIEW_CHANGED`), units from reply sets, taint per account, the hand mount and the native app's shape. Three questions for the owner. Not reviewed; nothing built. |
+| 2026-11-19 | Step F's specification revised | Two independent reviews (both "revise") checked against the code: discovery through `afd-help`, the desktop transport's MCP version, a proposal's generation, claims on units, the approver token's real power, whole previews with caps, the revision checked before the hold, the app's send slice before Loam's step 7, and the reply scenario fixed. Q4 and Q5 added. Not built. |
 
 ### Sessions: phase G, composition with a connected Umbel
 

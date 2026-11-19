@@ -7,7 +7,7 @@
 # What a scenario cannot show: that the held result carries no `details.approvalToken` (an
 # error's details cannot be asserted), and that an approver's evidence releases the send (every
 # step runs as one caller, and the runner cannot set `_meta`). Both are the engine's tests F-T3
-# and F-T5.
+# and F-T4.
 name: An agent cannot send, though it can see the command
 description: >-
   When an agent connected over MCP asks the mail engine to send, I want the send held for me

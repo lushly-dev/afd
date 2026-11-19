@@ -3,9 +3,9 @@
 # `afd scenario run <dir> --server <url>` and an ordinary agent's token. The data is invented.
 # mail-f-base holds mailbox 9, "Notifications", in the person's account 1, with 120 messages, and
 # the default policy: an agent trashes at most 50 messages a call.
-# What a scenario cannot show: the approval itself, held for every caller here, and that an
-# approved call naming a digest the preview no longer gives changes nothing (the engine's test
-# F-T7). Each step runs as the same agent, so the proposer and the caller are one.
+# What a scenario cannot show: the approval itself, held for every caller here, and that a
+# proposal dismissed and proposed again between the hold and an approved retry changes nothing
+# (the engine's test F-T7). Each step runs as the same agent, so the proposer and the caller are one.
 name: Approve exactly what an agent proposed
 description: >-
   When an agent proposes a change larger than it may make alone, I want to approve it from a
@@ -37,7 +37,16 @@ steps:
         preview:
           approvable: true
           byAccount: { '0': { account: 1, places: 120 } }
+          proposal: 1
           digest: { matches: '^[A-Za-z0-9_-]{43}$' }
+  - description: An approval naming another digest is refused before it is held
+    command: mail-operation-approve
+    input: { operation: "${{ steps[1].data.operation }}", digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+        suggestion: { contains: mail-operation-show }
   - description: Its approval, naming that digest, is held for the person
     command: mail-operation-approve
     input: { operation: "${{ steps[1].data.operation }}", digest: "${{ steps[2].data.preview.digest }}" }

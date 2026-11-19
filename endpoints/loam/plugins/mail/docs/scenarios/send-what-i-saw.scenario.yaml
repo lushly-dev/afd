@@ -5,9 +5,11 @@
 # ada@example.com asks whether Thursday works. The draft commands' keys are step D3's; the first
 # step F pull request aligns this file with D3 as merged.
 # What a scenario cannot show: the send itself. Every step runs as one ordinary agent, whose send
-# is held, so the steps show what the preview gives and that each change raises the revision.
-# That an approved send naming an older revision fails with PREVIEW_CHANGED and sends nothing is
-# the engine's test F-T7, with an approver's token on the scripted servers.
+# is held, so the steps show what the preview gives, that each change raises the revision, and
+# that a send naming any revision but the current one is refused before it is held, so no
+# approval is ever issued for a version the person was not shown. That a draft changed between
+# the hold and an approved retry sends nothing is the engine's test F-T7, with an approver's token
+# on the scripted servers.
 name: Only what I saw is sent
 description: >-
   When I approve sending a draft, I want exactly the version I saw to go, with the account and
@@ -56,3 +58,25 @@ steps:
         draft:
           revision: 2
           content: { body: { contains: invoice } }
+  - description: A send naming the revision before the change is refused before it is held
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+        suggestion: { contains: mail-draft-show }
+  - description: So is a send naming a revision the draft has not reached
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 3 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: A send naming the revision shown is held for the person
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 2 }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
