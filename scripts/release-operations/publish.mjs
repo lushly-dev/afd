@@ -124,8 +124,11 @@ export function assertPackedProvenance(file, name = file, root = undefined) {
 	for (const record of Object.values(envelope.records))
 		if (!read(`${prefix}${record.manifest}`).equals(committed(record.manifest)))
 			throw new Error(`Packed ${name} ${record.manifest} is not ${directory}'s; pack it again`);
+	// Packing adds only the digests the committed envelope leaves out.
+	const kept = JSON.parse(committed('provenance.json').toString('utf8'));
 	const unstamped = structuredClone(envelope);
-	delete unstamped.records.adaptations.sha256;
+	for (const [key, record] of Object.entries(unstamped.records))
+		if (!('sha256' in (kept.records?.[key] ?? {}))) delete record.sha256;
 	if (`${JSON.stringify(unstamped, null, 2)}\n` !== committed('provenance.json').toString('utf8'))
 		throw new Error(`Packed ${name} provenance.json is not ${directory}'s; pack it again`);
 	return true;
