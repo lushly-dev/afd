@@ -78,6 +78,20 @@ mergeability, and it would duplicate content in the one-line cells.
 5. **Merge queue** (the owner's decision: yes, after 1 to 4 land). `merge_group` is added wherever
    `ci-ok` depends on it, the commit-credit check runs on the queue's commit, and `prepare-pr`
    enqueues instead of merging directly. Until the queue is live the current merge rule stands.
+   It landed in parts, since a queue turned on before CI answers on its commits blocks every
+   merge: CI ready for `merge_group` (#1615), the factory's lane and gateway able to enqueue, then
+   the queue itself with `prepare-pr`'s step 9.
+
+   **Trial, 2026-11-19 UTC.** A ruleset required the queue on a throwaway branch cut from
+   `main`, and three pull requests went through it (#1617 to #1619); the ruleset and the branch
+   are deleted. Two queued together merged 8 minutes after they were enqueued, a third alone in
+   under 4. For a docs-only change every path-filtered workflow skipped its real jobs; for a
+   one-line change in `python/`, the Python, Alfred, Botcore, Botcore factory and Health
+   workflows and the TypeScript and Python conformance leg ran. The queue's squash kept a
+   single commit's message; for two commits and a merge of the base it wrote the pull request's
+   title and one bullet per commit, without the merge. No `Co-authored-by:` line appeared for
+   commits authored with the owner's address. Not exercised: a group that fails, and a commit
+   by a second author.
 
 Order: 1, 2 and 3 are independent and start together; 4 follows 1; 5 is last. [STATUS.md](STATUS.md)
 arrives with pull request 1, so 2 and 3 mark their own rows after they merge `main` with it.
@@ -86,7 +100,8 @@ arrives with pull request 1, so 2 and 3 mark their own rows after they merge `ma
 
 - Merge only when CI is green and an independent review has approved that exact head:
   `gh pr merge --squash --match-head-commit <full sha>`, never GitHub auto-merge, until pull
-  request 5 replaces this with the queue.
+  request 5 replaces this with the queue (then `gh pr merge --match-head-commit <full sha>`
+  enqueues that head).
 - After each merge, confirm it landed on `main` by content.
 - Other sessions edit the same files while this lands. Pull requests 1 and 4 put their branches
   in conflict once; neither rewrites what their rows mean.

@@ -88,20 +88,20 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Merge only when authorized.** `main`'s one required check is `ci-ok`, the verdict that every workflow on the head passed ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would merge whatever head is there when `ci-ok` passes, not the one you reviewed (the factory lane's pinned auto-merge is the exception, because the lane owns every push). Never merge with `--admin`, which skips `ci-ok`. With the user's authorization and every check on the exact head green, bind the merge to that head and give it the branch's commit messages as its body:
+9. **Enqueue only when authorized.** `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would enqueue whatever head is there when `ci-ok` passes, not the one you reviewed, and `gh pr merge` enables it by itself when the checks have not finished, so enqueue only after step 8 reads every check green. Never merge with `--admin`, which bypasses the queue and `ci-ok`. With the user's authorization, bind the enqueue to the head you verified:
 
    ```bash
-   body="$(mktemp)"
-   gh pr view <n> --json commits --jq '.commits[]
-       | select(.messageHeadline | test("^Merge (remote-tracking )?(branch|commit) ") | not)
-       | .messageHeadline + "\n\n" + .messageBody + "\n"' \
-     | grep -viE '^[[:space:]]*co-authored-by[[:space:]]*:' > "$body"
-   gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8> --body-file "$body"
+   gh pr merge <n> --match-head-commit <full headRefOid verified in step 8>
    ```
 
-   Without `--body-file`, GitHub writes its default squash message, which adds a `Co-authored-by:` line for every commit author whose address isn't the merging account's. That credits a retired address or an agent as a co-author on `main`. `ci-ok` can't see it, because it checks only the branch's commits. `main-credit.yml` flags it after the merge, when `main` can no longer be changed. The body keeps each commit's own `Assisted-by:` trailers.
+   - **The queue writes the squash message; no body can be passed.** A pull request of one commit keeps that commit's message. With more, the subject is the pull request's title and each commit's message follows as a bullet, merges of `main` left out. So the title is the commit subject on `main`: keep it in step 7's `<type>(scope): description` form, and the commits' own `Assisted-by:` trailers carry the credit.
+   - **A `Co-authored-by:` line fails the queue.** GitHub adds one for a commit author whose address isn't the pull request author's account. `ci-ok` reads the queue's commit and refuses it, so the pull request leaves the queue instead of crediting a retired address or an agent on `main`. Re-author those commits with the owner's identity, push, and go back to step 8.
+   - **Wait for it to land.** The pull request stays `OPEN` while queued (minutes for a docs change, as long as its suites for a unit). Read `gh pr view <n> --json state,mergedAt`; where the harness can watch a pull request, watch it and end the turn. `MERGED` is the only success.
+   - **Removed from the queue**, it is open and no longer queued: its group failed, it conflicted with a pull request ahead of it, or it was pushed to (a push to a queued pull request removes it). Read the failed run (`gh run list --event merge_group`, the branch `gh-readonly-queue/main/pr-<n>-…`), fix it, and return to step 8 before enqueueing again. Never re-enqueue a failure unread.
+   - A short SHA is rejected; re-reading the head at enqueue time would bind whatever is there now. A mismatch sends you back to step 8.
+   - A pull request that changes `pnpm-lock.yaml` needs no turn of its own: the queue tests each one on top of those ahead of it.
 
-   A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Lane mode
 
