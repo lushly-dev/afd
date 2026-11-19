@@ -662,6 +662,27 @@ function newRules(manifest: ManifestV2, found: Findings): void {
 }
 
 /** Loam's rules, for a manifest that passed the schema. */
+/**
+ * `confirm` is the shell's word (phase 4 specification, 7.2): a command that declares a `confirm_prompt` may not take an
+ * input of that name, so `confirm: true` is always refused naming `confirmation-get`, and never reads as an answer.
+ */
+function confirmRules(manifest: ManifestV2, found: Findings): void {
+	(manifest.commands ?? []).forEach((command, index) => {
+		if ((command as { confirm_prompt?: unknown }).confirm_prompt === undefined) return;
+		const properties =
+			(command.input_schema as { properties?: unknown } | string | undefined) ?? {};
+		if (typeof properties === 'string') return;
+		const declared = (properties as { properties?: Record<string, unknown> }).properties ?? {};
+		if (!Object.hasOwn(declared, 'confirm')) return;
+		found.refuse(
+			'MANIFEST_CONFIRM_UNAVAILABLE',
+			`/commands/${index}/input_schema/properties/confirm`,
+			'A command with a `confirm_prompt` may not take an input named `confirm`: the shell confirms it, and `confirm: true` never does.',
+			'Name the input something else.'
+		);
+	});
+}
+
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
 	versionRules(manifest, found);
@@ -679,5 +700,6 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	settingRules(manifest, found.refuse.bind(found), found.warnings);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
+	confirmRules(manifest, found);
 	return found;
 }

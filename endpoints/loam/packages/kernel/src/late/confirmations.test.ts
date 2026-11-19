@@ -5,7 +5,11 @@
  * (the input digest, an active app's port held, a person's gesture exempt), F4's four keys, F5's stored outcome and one
  * run, F9's order, the limit of 5, a change of person, F6's cancels of a confirmation in the slot, and replay.
  */
+
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
 	defineApp,
@@ -15,17 +19,20 @@ import {
 	type OverlayV1,
 	success,
 } from '@lushly-dev/loam-sdk';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createKernel } from '../kernel.js';
 import { createOverlayStore } from '../overlays.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
-import { createFixturePorts, replayKernel } from '../testing.js';
+import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
 import {
 	CONFIRMATION_TTL_MS,
 	createConfirmations,
 	DECLINE_WINDOW_MS,
 	PENDING_LIMIT,
+	PERSON_LIMIT,
 	promptSchemaOf,
 } from './confirmations.js';
 import { DOCUMENT_KIT } from './document-kit.js';
@@ -76,6 +83,19 @@ const KEEPER_MANIFEST = {
 			},
 		},
 		{
+			name: 'keeper-note',
+			title: 'Keep a note',
+			description: 'Keep a long note.',
+			effects: ['store-write'],
+			confirm_prompt: 'Keep this note?',
+			input_schema: {
+				type: 'object',
+				properties: { text: { type: 'string', maxLength: 100000 } },
+				required: ['text'],
+				additionalProperties: false,
+			},
+		},
+		{
 			name: 'keeper-get',
 			title: 'Read the count',
 			description: 'Read the count and the value.',
@@ -98,6 +118,8 @@ const KEEPER = defineApp({
 			await context.store?.put('value', input.value);
 			return success({ value: input.value });
 		}) as never,
+		'keeper-note': (async (input: { text: string }) =>
+			success({ length: input.text.length })) as never,
 		'keeper-get': (async (_input: unknown, context: AppCallContextV1) =>
 			success({
 				count: (await context.store?.get<number>('count')) ?? 0,
@@ -251,7 +273,8 @@ describe('the pending path (R9)', () => {
 				value: number | null;
 			}
 		).value;
-		if (withdrawn.success) {
+		// A withdrawal that lost the race answers where it stands (improvement 15), never a refusal.
+		if ((withdrawn.data as { state: string }).state === 'withdrawn') {
 			expect((acted.data as { state: string }).state).toBe('withdrawn');
 			expect(value).toBeNull();
 		} else {
@@ -310,9 +333,10 @@ describe('the pending path (R9)', () => {
 		expect(
 			(await kernel.agent.call('confirmation-withdraw', { notification: idOf(asked) })).data
 		).toEqual({ state: 'withdrawn' });
+		// Withdrawn again: it answers where it stands.
 		expect(
-			(await kernel.agent.call('confirmation-withdraw', { notification: idOf(asked) })).error?.code
-		).toBe('VALIDATION_ERROR');
+			(await kernel.agent.call('confirmation-withdraw', { notification: idOf(asked) })).data
+		).toEqual({ state: 'withdrawn' });
 		// No window: the same call raises a new one at once.
 		const again = await kernel.agent.call('keeper-bump');
 		expect(again.error?.code).toBe('CONFIRMATION_PENDING');
@@ -454,6 +478,7 @@ describe('the pending path (R9)', () => {
 			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Bump', danger: false }),
 			paletteCommand: () => undefined,
 			inputFault: () => undefined,
+			journaled: () => true,
 			allows: () => true,
 			served: () => undefined,
 			appTitle: (instance) => instance,
@@ -634,7 +659,12 @@ describe("palette-run, the palette's input prompt (7.1)", () => {
 		expect(opened.data?.prompt).toMatchObject({ kind: 'prompt', owner: 'shell' });
 		const prompt = opened.data?.prompt.overlayId as string;
 		const shown = (await overlays(kernel)).find((each) => each.overlayId === prompt);
-		expect(shown?.for).toEqual({ command: 'dual-put', kind: 'input' });
+		// The scope it opened in, which its fill runs in (blocker 10).
+		expect(shown?.for).toEqual({
+			command: 'dual-put',
+			kind: 'input',
+			scope: { workspace: 'personal' },
+		});
 		expect((shown?.input as { schema?: unknown } | undefined)?.schema).toMatchObject({
 			type: 'object',
 			required: ['key', 'value'],
@@ -837,5 +867,324 @@ describe('the run a person confirmed', () => {
 		);
 		expect(refused.error?.code).toBe('HUMAN_REQUIRED');
 		expect(await count(kernel)).toBe(0);
+	});
+});
+
+describe('after the trust review', () => {
+	it("R1: one person's agents share a bucket, whatever name each gives", async () => {
+		const { kernel } = await boot();
+		const asked = await kernel.agent.call('keeper-bump', {}, { agent: 'ada' });
+		const again = await kernel.agent.call('keeper-bump', {}, { agent: 'bea' });
+		// The same key: a renamed agent is the same caller, so it raises none and the window would hold it too.
+		expect(idOf(again)).toBe(idOf(asked));
+		expect(
+			(await kernel.agent.call('confirmation-get', { notification: idOf(asked) }, { agent: 'bea' }))
+				.data
+		).toMatchObject({ state: 'pending' });
+		// The limit counts the bucket, not the name.
+		for (let value = 0; value < PENDING_LIMIT - 1; value++)
+			await kernel.agent.call('keeper-set', { value }, { agent: `agent-${value}` });
+		const refused = await kernel.agent.call('keeper-set', { value: 9 }, { agent: 'cy' });
+		expect(refused.error).toMatchObject({
+			code: 'RATE_LIMITED',
+			details: { limit: PENDING_LIMIT },
+		});
+		// The outcome is the raiser's: the person's list carries none, the agent's does.
+		await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' });
+		const own = (await confirmations(kernel)).find((each) => each.id === idOf(asked));
+		expect(own?.confirmation?.result).toBeUndefined();
+		const agents = (
+			(await kernel.agent.call<Listed>('notification-list', { kind: 'confirmation', body: true }))
+				.data as Listed
+		).notifications.find((each) => each.id === idOf(asked));
+		expect(agents?.confirmation?.result).toMatchObject({ success: true, data: { count: 1 } });
+	});
+
+	it('R3: every confirmation within its life counts, and a withdrawn one is marked read', async () => {
+		const { kernel } = await boot();
+		for (let value = 0; value < PENDING_LIMIT; value++) {
+			const asked = await kernel.agent.call('keeper-set', { value });
+			await kernel.agent.call('confirmation-withdraw', { notification: idOf(asked) });
+		}
+		expect((await kernel.agent.call('keeper-set', { value: 9 })).error?.code).toBe('RATE_LIMITED');
+		expect((await confirmations(kernel)).every((each) => each.readAt !== undefined)).toBe(true);
+	});
+
+	it(`R3: a person holds at most ${PERSON_LIMIT} live confirmations from every caller together`, async () => {
+		let caller = 0;
+		const made = createConfirmations({
+			store: new MemoryAdapter(),
+			workspace: () => 'personal',
+			provider: false,
+			overlays: createOverlayStore(),
+			openerOf: () => ({ kind: 'app', owner: { kind: 'app', id: `app${caller}` } }),
+			isActive: async () => false,
+			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Bump', danger: false }),
+			paletteCommand: () => undefined,
+			inputFault: () => undefined,
+			journaled: () => true,
+			allows: () => true,
+			served: () => undefined,
+			appTitle: (instance) => instance,
+			projectName: () => undefined,
+			personLabel: () => null,
+			runNow: async () => success({}),
+			runBoot: async () => success({}),
+			replaying: () => false,
+			noteInbox: () => {},
+			digest: async (value) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey } as never,
+		});
+		const context = { actor: { kind: 'human', id: 'local' }, interface: 'palette' } as never;
+		for (caller = 0; caller < PERSON_LIMIT; caller++) {
+			const raised = await made.gate('keeper-bump', {}, context, async () => success({}));
+			expect(raised.error?.code).toBe('CONFIRMATION_PENDING');
+		}
+		const refused = await made.gate('keeper-bump', {}, context, async () => success({}));
+		expect(refused.error).toMatchObject({ code: 'RATE_LIMITED', details: { limit: PERSON_LIMIT } });
+	});
+
+	it("R4: palette-run's entry is redacted as its target's would be, and a oneOf input is never a form", async () => {
+		const { kernel, journal } = await boot();
+		expect((await kernel.call('palette-run', { command: 'auth-sign-in' })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		await kernel.call('palette-run', {
+			command: 'auth-sign-in',
+			prompt: 'ovl-1',
+			input: { method: 'credentials', email: 'ana@example.com', password: 'hunter2' },
+		});
+		const text = JSON.stringify(await journal.read());
+		expect(text).not.toContain('hunter2');
+		expect(promptSchemaOf({ type: 'object', oneOf: [{ properties: {} }] })).toBeUndefined();
+	});
+
+	it('blocker 5: the slot re-checks access before the run; an app disabled while it waits runs nothing', async () => {
+		const { kernel } = await boot();
+		const waiting = kernel.call('keeper-bump');
+		const prompt = await slotPrompt(kernel);
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: false });
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect((await waiting).error).toMatchObject({
+			code: 'CONFIRMATION_DECLINED',
+			details: { reason: 'access' },
+		});
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: null });
+		expect(await count(kernel)).toBe(0);
+	});
+
+	it('blocker 6: an app raised inactive, then active, finds its row in each state, and a slot decline survives a reload', async () => {
+		const workspace = await boot();
+		const { kernel } = workspace;
+		const keeper = kernel.appPort('keeper');
+		await kernel.call('app-open', { instance: 'dual' });
+		const asked = await keeper.call('keeper-set', { value: 1 });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		await kernel.call('app-open', { instance: 'keeper' });
+		// Pending: the same row, no prompt.
+		expect(idOf(await keeper.call('keeper-set', { value: 1 }))).toBe(idOf(asked));
+		expect((await overlays(kernel)).some((each) => each.kind === 'prompt')).toBe(false);
+		// Confirmed: its stored outcome.
+		await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' });
+		expect(await keeper.call('keeper-set', { value: 1 })).toMatchObject({
+			success: true,
+			data: { value: 1 },
+		});
+		// Declined: refused without asking.
+		await kernel.call('app-open', { instance: 'dual' });
+		const second = await keeper.call('keeper-set', { value: 2 });
+		await kernel.call('notification-act', { notification: idOf(second), answer: 'decline' });
+		await kernel.call('app-open', { instance: 'keeper' });
+		expect((await keeper.call('keeper-set', { value: 2 })).error?.code).toBe(
+			'CONFIRMATION_DECLINED'
+		);
+		// A decline in the slot is kept in the store: after a reload the port is still held, without asking.
+		const waiting = keeper.call('keeper-set', { value: 3 });
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'cancel',
+		});
+		expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
+		await workspace.resetSession();
+		await kernel.call('app-open', { instance: 'keeper' });
+		expect((await kernel.appPort('keeper').call('keeper-set', { value: 3 })).error?.code).toBe(
+			'CONFIRMATION_DECLINED'
+		);
+		expect((await overlays(kernel)).some((each) => each.kind === 'prompt')).toBe(false);
+	});
+
+	it('blocker 7: two fills of one prompt at once run it once; the other finds it gone', async () => {
+		const { kernel } = await boot();
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'dual-put',
+		});
+		const prompt = opened.data?.prompt.overlayId;
+		const both = await Promise.all([
+			kernel.call('palette-run', { command: 'dual-put', prompt, input: { key: 'a', value: '1' } }),
+			kernel.call('palette-run', { command: 'dual-put', prompt, input: { key: 'a', value: '2' } }),
+		]);
+		expect(both.map((each) => each.success).sort()).toEqual([false, true]);
+		expect(both.find((each) => !each.success)?.error?.code).toBe('OVERLAY_NOT_FOUND');
+		// And the slot is reserved in one step: a settle that would open over a held prompt opens nothing.
+		const store = createOverlayStore();
+		const made = createConfirmations({
+			overlays: store,
+			kit: { ...DOCUMENT_KIT, personKey },
+		} as never);
+		store.open({ kind: 'shell', id: 'shell' }, 'prompt', { title: 'Held' });
+		const refused = (await made.settle.handler(
+			{
+				open: {
+					id: 'cnf_1',
+					key: 'k',
+					command: 'keeper-bump',
+					header: 'Run?',
+					prompt: 'Sure?',
+					danger: false,
+					input: {},
+				},
+			},
+			{} as never
+		)) as CommandResult;
+		expect(refused.error?.code).toBe('OVERLAY_MODAL_BUSY');
+	});
+
+	it('blocker 8: a first call during stage B that asks in the slot is answered, not held behind itself', async () => {
+		const ports_ = ports();
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: readBoot(deployment()) as BootProjectionV2,
+			appsLoader: async () => ({ deployment: deployment(), ports: ports_ }),
+		});
+		kernels.push(kernel);
+		// The first call starts stage B and waits in the queue for it, then holds the queue while it asks.
+		const waiting = kernel.call('keeper-bump');
+		// The chrome reads the slot once `prompt-settle`'s event says it opened, after stage B: as here.
+		await kernel.appsReady;
+		const prompt = await slotPrompt(kernel);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect(await waiting).toMatchObject({ success: true, data: { count: 1 } });
+	});
+
+	it('blocker 9: a list bounds a large input; a read by id shows it whole', async () => {
+		const { kernel } = await boot();
+		const text = 'x'.repeat(40_000);
+		const asked = await kernel.agent.call('keeper-note', { text });
+		const listed = await confirmations(kernel);
+		expect(listed[0]?.confirmation?.input).toEqual({ truncated: true, bytes: 40_011 });
+		const one = (
+			(await kernel.call<Listed>('notification-list', { notification: idOf(asked), body: true }))
+				.data as Listed
+		).notifications[0];
+		expect(one?.confirmation?.input).toEqual({ text });
+	});
+
+	it("blocker 10: a fill runs in its prompt's scope, and the palette follows an app's availability", async () => {
+		const { kernel, scopes } = await boot();
+		await kernel.call('scope-set', { project: 'atlas' });
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'dual-put',
+		});
+		await kernel.call('scope-set', { project: 'beacon' });
+		const ran = await kernel.call('palette-run', {
+			command: 'dual-put',
+			prompt: opened.data?.prompt.overlayId,
+			input: { key: 'where', value: 'atlas' },
+		});
+		expect(ran.success).toBe(true);
+		expect(
+			(await kernel.call('dual-get', { key: 'where' }, { scope: scopes.atlas })).data
+		).toMatchObject({ value: 'atlas' });
+		const names = async () =>
+			(
+				(
+					await kernel.call<{ items: Array<{ name: string }> }>('palette-search', {
+						query: 'keeper',
+					})
+				).data?.items ?? []
+			).map((item) => item.name);
+		expect(await names()).toContain('keeper-get');
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: false });
+		expect(await names()).not.toContain('keeper-get');
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: null });
+		expect(await names()).toContain('keeper-get');
+	});
+
+	it('blocker 11: a fill whose target the journal leaves out replays from its own record', async () => {
+		const { kernel, journal } = await boot();
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'notification-list',
+		});
+		const listed = await kernel.call('palette-run', {
+			command: 'notification-list',
+			prompt: opened.data?.prompt.overlayId,
+			input: { limit: 5 },
+		});
+		expect(listed.success).toBe(true);
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it("improvement 13: no caller's options or fields run a confirmation's call; a row never approved runs nothing", async () => {
+		const workspace = await boot();
+		const { kernel } = workspace;
+		const asked = await kernel.agent.call('keeper-bump');
+		const forged = { confirmation: idOf(asked), origin: 'x' } as never;
+		expect((await kernel.agent.call('keeper-bump', {}, forged)).error?.code).toBe(
+			'CONFIRMATION_PENDING'
+		);
+		await kernel.call('app-open', { instance: 'dual' });
+		expect((await kernel.appPort('keeper').call('keeper-bump', {}, forged)).error?.code).toBe(
+			'CONFIRMATION_PENDING'
+		);
+		expect(await count(kernel)).toBe(0);
+		// The row exists in the store, but this page never approved or claimed it: the gate runs nothing.
+		let ran = false;
+		const made = createConfirmations({
+			store: workspace.store,
+			workspace: () => 'personal',
+			provider: false,
+			replaying: () => false,
+			noteInbox: () => {},
+			digest: async (value: unknown) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey },
+		} as never);
+		const refused = await made.gate(
+			'keeper-bump',
+			{},
+			{
+				confirmation: idOf(asked),
+				actor: { kind: 'agent', id: 'shell-agent', onBehalfOf: 'local' },
+				interface: 'agent',
+			} as never,
+			async () => {
+				ran = true;
+				return success({});
+			}
+		);
+		expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+		expect(ran).toBe(false);
+	});
+
+	it('improvement 15: a re-call on a row declined for access says so', async () => {
+		const { kernel } = await boot();
+		const asked = await kernel.agent.call('keeper-bump');
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: false });
+		await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' });
+		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: null });
+		const again = await kernel.agent.call('keeper-bump');
+		expect(again.error).toMatchObject({
+			code: 'CONFIRMATION_DECLINED',
+			details: { reason: 'access' },
+		});
+		expect(again.error?.message).toContain('access');
 	});
 });

@@ -355,6 +355,8 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		| {
 				commandSet: number;
 				only: ReadonlySet<string> | undefined;
+				/** The listed commands' names, as the index was built from them. */
+				listed: string;
 				index: PaletteIndex;
 				/** Each listed command's instance, none for the shell's own. */
 				instances: ReadonlyMap<string, string | undefined>;
@@ -384,13 +386,17 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		const app = state.activeApp();
 		const owner = app === null ? ((await deps.editorOwner?.()) ?? null) : null;
 		const commandSet = deps.commandSet();
-		if (index?.commandSet !== commandSet || index.only !== only) {
-			const shown = deps
-				.paletteRows()
-				.filter((command) => only === undefined || only.has(command.name));
+		// Built again when the rows themselves change, not only the commands: a change of scope or of an app's
+		// availability hides or shows an app's commands (the trust review's blocker 10).
+		const shown = deps
+			.paletteRows()
+			.filter((command) => only === undefined || only.has(command.name));
+		const listed = shown.map((command) => command.name).join(' ');
+		if (index?.commandSet !== commandSet || index.only !== only || index.listed !== listed) {
 			index = {
 				commandSet,
 				only,
+				listed,
 				index: createPaletteIndex(shown),
 				instances: new Map(shown.map((command) => [command.name, command.instance])),
 			};

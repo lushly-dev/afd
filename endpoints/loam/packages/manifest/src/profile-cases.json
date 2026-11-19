@@ -6130,6 +6130,19 @@
 			"key": "commands[0].confirm_prompt"
 		},
 		{
+			"id": "refused-confirm-prompt-confirm-input",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/confirm_prompt": "Greet them?",
+				"/commands/0/input_schema/properties/confirm": { "type": "boolean" }
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIRM_UNAVAILABLE",
+			"key": "commands[0].input_schema.properties.confirm",
+			"suggestion": "Name the input"
+		},
+		{
 			"id": "refused-confirm-prompt-control",
 			"base": "native",
 			"set": {

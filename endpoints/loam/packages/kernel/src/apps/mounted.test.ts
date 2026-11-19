@@ -865,12 +865,13 @@ describe('section 3.3: nothing writes an instance', () => {
 		const offending = registries.palette
 			.listCommands()
 			.filter(({ name }) => !INTERNAL_COMMANDS.includes(name))
-			// `palette-run`'s `command` is a palette command's name (phase 4 specification, 7.1), never a command line.
-			.filter(({ name }) => name !== 'palette-run')
-			.filter(({ inputSchema }) => {
+			.filter(({ name, inputSchema }) => {
 				const properties = Object.keys(
 					(inputSchema as { properties?: Record<string, unknown> }).properties ?? {}
-				);
+				)
+					// `palette-run`'s `command` alone is a palette command's name (phase 4 specification, 7.1), never a command
+					// line; its other keys are checked as any command's.
+					.filter((key) => !(name === 'palette-run' && key === 'command'));
 				return properties.some((key) => /^(command|url|bearer.*|cwd)$/.test(key));
 			})
 			.map(({ name }) => name);

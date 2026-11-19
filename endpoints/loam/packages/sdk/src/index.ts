@@ -771,6 +771,10 @@ export interface OverlayV1 extends OverlayRefV1 {
 		kind?: 'input' | 'confirmation' | 'close';
 		/** A confirmation's input, as it will run, shown beneath the prompt (7.1's R15, 7.2). */
 		input?: unknown;
+		/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
+		scope?: ScopeV1;
+		/** The close prompt: the tab whose close it asks about (7.3). */
+		tab?: string;
 	};
 	/** On an app's dialog, modal or prompt: the scope it was opened in, which its element's mount keeps (D83). */
 	scope?: ScopeV1;

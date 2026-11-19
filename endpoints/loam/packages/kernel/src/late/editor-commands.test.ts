@@ -353,7 +353,7 @@ describe('P2-D5: the editor commands', () => {
 			?.prompt as OverlayRefV1;
 		expect(prompt).toMatchObject({ kind: 'prompt', owner: 'shell' });
 		const [shown] = await prompts();
-		expect(shown?.for).toEqual({ command: 'editor-close', kind: 'close' });
+		expect(shown?.for).toEqual({ command: 'editor-close', kind: 'close', tab: 't1' });
 		expect(
 			(
 				shown?.input as

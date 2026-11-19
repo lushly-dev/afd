@@ -53,7 +53,7 @@ export function defineAppCommand(
 		mutation: deriveMutation(command.effects),
 		// A `confirm: true` never confirms in Loam (phase 4 specification, 7.2): refused here, naming what does.
 		input:
-			prompt !== undefined && !Object.hasOwn((schema.properties ?? {}) as object, 'confirm')
+			prompt !== undefined
 				? z
 						.custom<unknown>(
 							(value) =>

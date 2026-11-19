@@ -48,6 +48,11 @@ export const DECLINE_WINDOW_MS = 60_000;
 export const PENDING_LIMIT = 5;
 /** Ended confirmations kept per person past their key's life, the newest; older ones go when a new one is raised. */
 export const ENDED_KEPT = 50;
+/**
+ * At most this many confirmations a person holds within their 10-minute life, from every caller together (the trust
+ * review's R3): no set of callers fills the person's inbox, which confirmations do not count against.
+ */
+export const PERSON_LIMIT = 50;
 
 const ID = /^ntf_[a-z0-9]{16}$/;
 
@@ -60,12 +65,37 @@ export type StoredConfirmation = NotificationV1 & {
 	/** The actor that asked, and the interface it asked through: the shell's run is the same call (7.2). */
 	cactor?: Actor;
 	ciface: 'palette' | 'agent';
+	/**
+	 * Who raised it, as the kernel tells callers apart (the trust review's R1): an app's instance, or the agent
+	 * interface's bucket, one per person (the copilot apart), since an agent's name is the caller's own choice. The key,
+	 * the limits and who reads or withdraws it go by it; `source` and `confirmation.caller` only say who asked.
+	 */
+	cbucket: string;
+	/** A decline in the slot, kept so the window holds across a reload and the inbox's path (blocker 6). */
+	cslot?: true;
 	/** The act's claim, as a notice's (step 5): a confirm runs once. */
 	claim?: string;
 };
 
 /** The fields a row carries that no list shows (10.2). */
-export const KERNEL_ONLY_FIELDS = ['ckey', 'cactor', 'ciface', 'claim'] as const;
+export const KERNEL_ONLY_FIELDS = [
+	'ckey',
+	'cactor',
+	'ciface',
+	'cbucket',
+	'cslot',
+	'claim',
+] as const;
+
+/** Who a caller is to its confirmations (R1): an app's instance, the agent interface's bucket, or the person. */
+export const bucketOf = (opener: Opener): string | undefined =>
+	opener.kind === 'app'
+		? opener.owner.id
+		: opener.kind === 'agent'
+			? opener.bucket
+			: opener.kind === 'shell'
+				? 'person'
+				: undefined;
 
 /** The state a row stands in now: a pending one past its `expiresAt` has expired (7.2), which no write records. */
 export function stateNow(record: ConfirmationRecordV1, now: number): ConfirmationStateV1 {
@@ -105,6 +135,8 @@ export interface ConfirmationDeps {
 	paletteCommand(command: string): { definition: ZodCommandDefinition; json: unknown } | undefined;
 	/** Why `input` does not fit the command's own schema, or undefined when it does. */
 	inputFault(command: ZodCommandDefinition, input: unknown): string | undefined;
+	/** Whether the journal records a call of `command`: one it does not leaves no entry for a replay to run (11). */
+	journaled(command: string): boolean;
 	/** `decideAccess` on a scope: whether the actor may enter it now, line 0 included. */
 	allows(actor: AccessActorV1, scope: ScopeV1): boolean;
 	/**
@@ -190,6 +222,15 @@ const jsonOf = (value: unknown): unknown => {
 	return text === undefined ? null : JSON.parse(text);
 };
 
+/** A list's bound on a confirmation's input (blocker 9): past it, a list shows its size, and a read by id the whole. */
+export const LISTED_INPUT_BYTES = 2_048;
+
+/** A confirmation's input as a list shows it: whole when small, else `{ truncated: true, bytes }`. */
+export const summaryOf = (input: unknown): unknown => {
+	const bytes = new TextEncoder().encode(JSON.stringify(input) ?? 'null').length;
+	return bytes <= LISTED_INPUT_BYTES ? input : { truncated: true, bytes };
+};
+
 /** A run's outcome as a confirmation keeps it: its success, data and error, never its timing (a replay's differs). */
 const outcomeOf = (result: CommandResult): unknown =>
 	jsonOf({
@@ -197,6 +238,9 @@ const outcomeOf = (result: CommandResult): unknown =>
 		...(result.data !== undefined ? { data: result.data } : {}),
 		...(result.error !== undefined ? { error: result.error } : {}),
 	});
+
+/** What makes a schema more than plain fields: the palette's prompt cannot ask for it. */
+const COMPOSED = ['oneOf', 'anyOf', 'allOf', 'not', 'if', '$ref', 'patternProperties'] as const;
 
 /** The keywords a plain field may carry (6.4): no `pattern`, since an app gives the shell no regular expression. */
 const FIELD_KEYS = [
@@ -218,6 +262,8 @@ const FIELD_KEYS = [
 export function promptSchemaOf(json: unknown): PromptSchemaV1 | undefined {
 	const schema = json as { type?: unknown; properties?: unknown; required?: unknown } | undefined;
 	if (schema?.type !== 'object') return undefined;
+	// A choice of shapes, a reference or a condition is no form of plain fields (blocker 4: a top-level `oneOf`).
+	if (COMPOSED.some((word) => word in (schema as object))) return undefined;
 	const properties = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
 	if (typeof properties !== 'object' || Array.isArray(properties)) return undefined;
 	const keys = Object.keys(properties);
@@ -226,6 +272,7 @@ export function promptSchemaOf(json: unknown): PromptSchemaV1 | undefined {
 	const fields: Record<string, PromptFieldV1> = {};
 	for (const key of keys) {
 		const property = properties[key] ?? {};
+		if (COMPOSED.some((word) => word in property)) return undefined;
 		const type = property.type;
 		if (type !== 'string' && type !== 'number' && type !== 'integer' && type !== 'boolean')
 			return undefined;
@@ -281,7 +328,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				row.workspace === deps.workspace() &&
 				row.kind === 'confirmation' &&
 				ID.test(row.id) &&
-				typeof row.ckey === 'string'
+				typeof row.ckey === 'string' &&
+				typeof row.cbucket === 'string'
 		);
 	}
 
@@ -331,8 +379,12 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	const declined = (command: string, details?: Record<string, unknown>) =>
 		fail(
 			'CONFIRMATION_DECLINED',
-			`The person declined '${command}'`,
-			'Ask the person before trying again; do not repeat the call',
+			details?.reason === 'access'
+				? `'${command}' was not run: access to it changed before it could`
+				: `The person declined '${command}'`,
+			details?.reason === 'access'
+				? 'Check that the app is enabled here and that you may enter this scope, then ask again'
+				: 'Ask the person before trying again; do not repeat the call',
 			details ? { details } : {}
 		);
 	const expired = (command: string) =>
@@ -387,14 +439,79 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		});
 	}
 
-	/** Slot declines' windows, by key (R16): a slot confirmation is never in the store, so its window is memory. */
-	const windows = new Map<string, number>();
 	/** Slot confirmations, by id: opened by `prompt-settle`, answered in the slot. */
 	const slots = new Map<string, SlotRecord>();
-	/** The confirmations a person confirmed whose run the shell is making now, by id (live only). */
-	const approved = new Map<string, { command: string; key: string }>();
+	/**
+	 * The confirmations a person confirmed whose run this page is making now, by id (live only), with the claim this page
+	 * wrote: the run is allowed only while the stored row still holds that claim (R2).
+	 */
+	const approved = new Map<string, { command: string; key: string; claim: string }>();
+	/** The input prompts a fill has taken, so a second fill of the same prompt finds none (blocker 7). */
+	const consumed = new Set<string>();
 	/** A replay's runs by the trace that made them (`origin`), so that call answers from it and runs nothing again. */
 	const ran = new Map<string, CommandResult>();
+
+	/**
+	 * What the rows already say of a key (F5, R16), on the person's chain, for the inbox's path and the active app's slot
+	 * alike (blocker 6): a decline within its window, or the key's live row (pending, declined, or confirmed with its
+	 * stored outcome). Undefined when a new confirmation may be raised.
+	 */
+	async function priorAnswer(
+		rows: readonly StoredConfirmation[],
+		key: string,
+		name: string,
+		now: number
+	): Promise<CommandResult | undefined> {
+		const same = rows
+			.filter((row) => row.ckey === key)
+			.sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1));
+		/** Refused without asking (R16): counted on the declined row, which the inbox lists "Declined automatically". */
+		const refuseAgain = async (row: StoredConfirmation) => {
+			await putBack({
+				...row,
+				confirmation: {
+					...row.confirmation,
+					declinedAgain: (row.confirmation.declinedAgain ?? 0) + 1,
+				},
+			});
+			return declined(
+				name,
+				row.confirmation.reason === 'access' ? { reason: 'access' } : undefined
+			);
+		};
+		// The decline window (F9's step 4), on the same key, from any declined row of it, a slot's among them.
+		const windowed = same.find(
+			(row) =>
+				row.confirmation.state === 'declined' &&
+				row.confirmation.reason === 'person' &&
+				(row.confirmation.answeredAt ?? 0) + DECLINE_WINDOW_MS > now
+		);
+		if (windowed) return refuseAgain(windowed);
+		// A re-call on the same key before its `expiresAt` raises none (F5): its stored state answers.
+		const live = same.find(
+			(row) =>
+				now < row.confirmation.expiresAt &&
+				row.confirmation.state !== 'withdrawn' &&
+				row.cslot === undefined
+		);
+		if (!live) return undefined;
+		const state = stateNow(live.confirmation, now);
+		if (state === 'pending') return pending(live);
+		if (state === 'declined') return refuseAgain(live);
+		if (state === 'confirmed' && live.confirmation.result !== undefined)
+			return structuredClone(live.confirmation.result) as CommandResult;
+		return undefined;
+	}
+
+	/** The re-check before a confirmed run (7.2, blocker 5): access, then the app's enablement, load and the caller's own. */
+	const refusedAccess = (
+		actor: unknown,
+		command: string,
+		caller: string | undefined,
+		scope: ScopeV1
+	): boolean =>
+		!deps.allows(actor as AccessActorV1, scope) ||
+		deps.served(command, caller, scope) !== undefined;
 
 	// ─── The slot (a person's gesture, the active app's port) ──────────────────────
 
@@ -459,7 +576,15 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				return closed ? { result: closed.result, reason: closed.reason } : undefined;
 			})());
 		slots.delete(id);
-		if (answer?.result === 'confirm') return next();
+		const scope = scopeOf(call);
+		if (answer?.result === 'confirm') {
+			// Re-checked just before the run, as the inbox's path is (blocker 5): the app may have gone while the slot waited.
+			if (
+				refusedAccess(call.actor, name, opener.kind === 'app' ? opener.owner.id : undefined, scope)
+			)
+				return declined(name, { reason: 'access' });
+			return next();
+		}
 		if (answer?.reason === 'person') {
 			return fail(
 				'SESSION_CHANGED',
@@ -469,8 +594,49 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		// The raising app's own cancel is `withdrawn` (6.5, F6), which never opens the window.
 		if (answer?.reason === 'withdrawn') return declined(name, { reason: 'withdrawn' });
-		// A person's gesture is exempt from the window (N8); the active app's port is held by it.
-		if (opener.kind === 'app') windows.set(key, kit.callNow(call) + DECLINE_WINDOW_MS);
+		// Only a person's own decline opens the window: a prompt the shell closed for another reason does not.
+		if (answer?.reason !== 'user' || !overlays.closedByPerson(record.overlayId))
+			return declined(name, { reason: answer?.reason ?? 'closed' });
+		// A person's gesture is exempt from the window (N8); the active app's port is held by it, kept in the store (blocker
+		// 6), so a reload and the inbox's path see it.
+		const person = personOf(call);
+		if (opener.kind === 'app' && person !== undefined) {
+			await serial(person, async () => {
+				const now = kit.callNow(call);
+				const row: StoredConfirmation = {
+					id: newId(call, 'ntf'),
+					workspace: deps.workspace(),
+					person,
+					source: opener.owner.id,
+					kind: 'confirmation',
+					title: asked.title.slice(0, 120),
+					tone: asked.danger ? 'danger' : 'warning',
+					confirmation: {
+						command: name,
+						caller: opener.owner.id,
+						input: summaryOf(jsonOf(input)),
+						header: headerOf(opener, asked.title, scope, call).slice(0, 200),
+						prompt: asked.prompt,
+						title: asked.title,
+						...(asked.danger ? { danger: true } : {}),
+						expiresAt: now + DECLINE_WINDOW_MS,
+						state: 'declined',
+						reason: 'person',
+						answeredAt: now,
+					},
+					scope,
+					createdAt: now,
+					// Not news: the person answered it in the slot.
+					readAt: now,
+					ckey: key,
+					ciface: 'palette',
+					cbucket: opener.owner.id,
+					cslot: true,
+				};
+				await putBack(row);
+			});
+			deps.noteInbox(call);
+		}
 		return declined(name);
 	}
 
@@ -485,74 +651,46 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		input: unknown,
 		person: string
 	): Promise<CommandResult> {
-		const caller = opener.owner.id;
+		const caller = bucketOf(opener) as string;
 		const scope = scopeOf(call);
 		// The person's inbox may change whatever this answers: the Inbox count reads again (10.3).
 		deps.noteInbox(call);
 		return serial(person, async () => {
 			const now = kit.callNow(call);
 			const rows = await rowsOf(person);
-			const same = rows
-				.filter((row) => row.ckey === key)
-				.sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1));
-			/** Refused without asking (R16): counted on the declined row, which the inbox lists "Declined automatically". */
-			const refuseAgain = async (row: StoredConfirmation) => {
-				await putBack({
-					...row,
-					confirmation: {
-						...row.confirmation,
-						declinedAgain: (row.confirmation.declinedAgain ?? 0) + 1,
-					},
-				});
-				return declined(name);
-			};
-			// The decline window (F9's step 4), on the same key, from any declined row of it.
-			const windowed = same.find(
-				(row) =>
-					row.confirmation.state === 'declined' &&
-					(row.confirmation.answeredAt ?? 0) + DECLINE_WINDOW_MS > now
+			const prior = await priorAnswer(rows, key, name, now);
+			if (prior) return prior;
+			// R3: every confirmation a caller raised within its 10-minute life counts, answered or not, so asking and
+			// withdrawing at once fills nothing; and the person holds at most PERSON_LIMIT from every caller together.
+			const living = rows.filter(
+				(row) => row.cslot === undefined && now < row.createdAt + CONFIRMATION_TTL_MS
 			);
-			if (windowed || (windows.get(key) ?? 0) > now) {
-				return windowed ? refuseAgain(windowed) : declined(name);
-			}
-			// A re-call on the same key before its `expiresAt` raises none (F5): its stored state answers.
-			const live = same.find(
-				(row) => now < row.confirmation.expiresAt && row.confirmation.state !== 'withdrawn'
-			);
-			if (live) {
-				const state = stateNow(live.confirmation, now);
-				if (state === 'pending') return pending(live);
-				if (state === 'declined') return refuseAgain(live);
-				if (state === 'confirmed' && live.confirmation.result !== undefined)
-					return structuredClone(live.confirmation.result) as CommandResult;
-			}
-			// At most 5 pending per caller (7.2), counted at once with the insert, on the person's chain.
-			const theirs = rows.filter(
-				(row) => row.source === caller && stateNow(row.confirmation, now) === 'pending'
-			);
-			if (theirs.length >= PENDING_LIMIT) {
-				const soonest = Math.min(...theirs.map((row) => row.confirmation.expiresAt));
+			const limited = (held: readonly StoredConfirmation[], limit: number, who: string) => {
+				const soonest = Math.min(...held.map((row) => row.createdAt + CONFIRMATION_TTL_MS));
 				return fail(
 					'RATE_LIMITED',
-					`At most ${PENDING_LIMIT} confirmations wait for the person from one caller`,
+					`At most ${limit} confirmations ${who} within 10 minutes`,
 					'Wait for one to be answered or expire, then call again',
 					{
 						retryable: true,
-						details: { limit: PENDING_LIMIT, retryAfterMs: Math.max(1, soonest - now) },
+						details: { limit, retryAfterMs: Math.max(1, soonest - now) },
 					}
 				);
-			}
+			};
+			const theirs = living.filter((row) => row.cbucket === caller);
+			if (theirs.length >= PENDING_LIMIT) return limited(theirs, PENDING_LIMIT, 'from one caller');
+			if (living.length >= PERSON_LIMIT) return limited(living, PERSON_LIMIT, 'for one person');
 			const record: StoredConfirmation = {
 				id: newId(call, 'ntf'),
 				workspace: deps.workspace(),
 				person,
-				source: caller,
+				source: opener.owner.id,
 				kind: 'confirmation',
 				title: asked.title.slice(0, 120),
 				tone: asked.danger ? 'danger' : 'warning',
 				confirmation: {
 					command: name,
-					caller,
+					caller: opener.owner.id,
 					input: jsonOf(input),
 					...(asked.group !== undefined ? { group: asked.group } : {}),
 					header: headerOf(opener, asked.title, scope, call).slice(0, 200),
@@ -567,6 +705,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				ckey: key,
 				...(call.actor !== undefined ? { cactor: jsonOf(call.actor) as Actor } : {}),
 				ciface: call.interface === 'agent' ? 'agent' : 'palette',
+				cbucket: caller,
 			};
 			// Ended ones past their key's life go, oldest first, keeping the newest few (no person's inbox grows forever).
 			const ended = rows
@@ -610,14 +749,22 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		const person = personOf(call);
 		if (person === undefined) return noPerson();
-		const caller = opener.kind === 'shell' ? 'person' : opener.owner.id;
+		const caller = bucketOf(opener) as string;
 		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.group);
 		const slot =
 			opener.kind === 'shell' || (opener.kind === 'app' && (await deps.isActive(opener.owner.id)));
 		if (slot) {
-			// The window (F9's step 4) holds an active app's port too; only a person's gesture is exempt (N8).
-			if (opener.kind === 'app' && (windows.get(key) ?? 0) > kit.callNow(call))
-				return declined(name);
+			// The window and the key's live row (F9's step 4, F5) hold an active app's port too, whatever path raised the row
+			// (blocker 6); only a person's gesture is exempt (N8). Not in a replay, whose entry already asked.
+			if (opener.kind === 'app' && !(call.confirmation !== undefined && deps.replaying())) {
+				const prior = await serial(person, async () =>
+					priorAnswer(await rowsOf(person), key, name, kit.callNow(call))
+				);
+				if (prior) {
+					deps.noteInbox(call);
+					return prior;
+				}
+			}
 			return inSlot(name, call, next, key, opener, asked, input);
 		}
 		return inInbox(
@@ -653,7 +800,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		approved.delete(id);
 		const key =
 			row && person !== undefined
-				? await keyOf(person, row.source, name, input, scopeOf(call), row.confirmation.group)
+				? await keyOf(person, row.cbucket, name, input, scopeOf(call), row.confirmation.group)
 				: undefined;
 		const allowed = deps.replaying()
 			? row !== undefined && key === row.ckey
@@ -661,7 +808,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				live.command === name &&
 				live.key === key &&
 				row?.confirmation.state === 'pending' &&
-				row.claim !== undefined;
+				row.claim === live.claim;
 		if (!row || !allowed) {
 			return fail(
 				'HUMAN_REQUIRED',
@@ -741,6 +888,18 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		input: settleInput,
 		jsonSchema: { type: 'object', additionalProperties: true } as JsonSchema,
 		async handler(input) {
+			const { open } = input;
+			// Checked and reserved in one step, with no await between (blocker 7): the slot is free once the prompt this
+			// replaces closes, or nothing opens.
+			const held = overlays.modalOpen();
+			if (open && held && held.overlayId !== input.close) {
+				return fail(
+					'OVERLAY_MODAL_BUSY',
+					'A modal or a prompt is already open, so the shell cannot ask to confirm this',
+					'Answer or close it, then call again',
+					{ retryable: true }
+				);
+			}
 			if (input.close !== undefined && overlays.get(input.close)) {
 				overlays.close(
 					input.close,
@@ -748,7 +907,6 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					input.reason ?? 'user'
 				);
 			}
-			const { open } = input;
 			if (!open) return kit.success({});
 			const prompt: PromptInputV1 = {
 				title: open.header,
@@ -797,11 +955,16 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	): Promise<StoredConfirmation | CommandResult<never>> {
 		const opener = deps.openerOf(context);
 		const person = personOf(context);
-		const caller = opener.kind === 'app' || opener.kind === 'agent' ? opener.owner.id : undefined;
+		// By bucket (R1): the raising app's instance, or any agent of the same person on the agent interface, which share
+		// one, or the copilot for its own.
+		const caller = opener.kind === 'app' || opener.kind === 'agent' ? bucketOf(opener) : undefined;
 		const row =
 			person === undefined || caller === undefined
 				? undefined
-				: (await rowsOf(person)).find((each) => each.id === notification && each.source === caller);
+				: (await rowsOf(person)).find(
+						(each) =>
+							each.id === notification && each.cbucket === caller && each.cslot === undefined
+					);
 		if (!row || !deps.allows(context.actor as AccessActorV1, row.scope)) {
 			return fail(
 				'NOTIFICATION_NOT_FOUND',
@@ -840,7 +1003,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		},
 	});
 
-	const withdrawOne = kit.define<typeof oneInput, { state: 'withdrawn' }>({
+	const withdrawOne = kit.define<typeof oneInput, { state: ConfirmationStateV1; running?: true }>({
 		name: 'confirmation-withdraw',
 		title: 'Withdraw a confirmation',
 		description:
@@ -858,16 +1021,18 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			return serial(person, async () => {
 				const stored = (await rowsOf(person)).find((each) => each.id === row.id) ?? row;
 				const state = stateNow(stored.confirmation, kit.callNow(context));
+				// One that ended, or is running, answers where it stands (improvement 15): nothing changes.
 				if (state !== 'pending' || stored.claim !== undefined) {
-					return fail(
-						'VALIDATION_ERROR',
-						`It is no longer waiting: it is ${stored.claim !== undefined ? 'running' : state}`,
-						'Read its outcome with confirmation-get'
-					);
+					return kit.success({
+						state,
+						...(stored.claim !== undefined ? { running: true } : {}),
+					});
 				}
+				// Withdrawn before the person acted on it is not news (R3): marked read.
 				await putBack({
 					...stored,
 					confirmation: { ...stored.confirmation, state: 'withdrawn' },
+					...(stored.readAt === undefined ? { readAt: kit.callNow(context) } : {}),
 				});
 				return kit.success({ state: 'withdrawn' as const });
 			});
@@ -972,7 +1137,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						...(schema ? { schema } : {}),
 						confirmLabel: 'Run',
 					} as PromptInputV1,
-					{ for: { command: definition.name, kind: 'input' } }
+					// The scope it opened in, which its fill runs in whatever is active then (blocker 10).
+					{ for: { command: definition.name, kind: 'input', scope: scopeOf(context) } }
 				);
 				return kit.success({ prompt });
 			}
@@ -983,6 +1149,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				overlays.ownerOf(input.prompt)?.kind !== 'shell' ||
 				asked?.kind !== 'input' ||
 				asked.command !== input.command ||
+				consumed.has(input.prompt) ||
 				!definition
 			) {
 				return notOpen(input.prompt);
@@ -997,20 +1164,33 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					{ details: { overlay: input.prompt } }
 				);
 			}
+			// Taken at once, with no await since the check (blocker 7): a second fill finds no prompt open. Released when the
+			// fill ends, so a prompt a refusal left open can be filled again.
+			const promptId = input.prompt;
+			consumed.add(promptId);
+			// A target the journal does not record leaves no entry to replay: this call's own outcome is replayed instead,
+			// answered from its record (blocker 11).
+			if (!deps.journaled(input.command)) (context as { replay?: string }).replay = 'recorded';
 			const fields: Record<string | symbol, unknown> = {
 				origin: traceId,
 				...(context.actor !== undefined ? { actor: context.actor } : {}),
-				scope: scopeOf(context),
+				// The scope the prompt opened in, whatever is active now (blocker 10).
+				scope: asked.scope ?? scopeOf(context),
 			};
-			if (deps.askedFor(input.command)) {
-				// Its confirmation replaces the input prompt in the slot, showing the input (R15).
-				fields[REPLACES] = input.prompt;
-			} else {
-				// The prompt is answered, journaled before the run, so a replay closes it before the run as this did.
-				const closed = await deps.runBoot('prompt-settle', { close: input.prompt, reason: 'user' });
-				if (!closed.success) return closed;
+			let result: CommandResult;
+			try {
+				if (deps.askedFor(input.command)) {
+					// Its confirmation replaces the input prompt in the slot, showing the input (R15).
+					fields[REPLACES] = promptId;
+				} else {
+					// The prompt is answered, journaled before the run, so a replay closes it before the run as this did.
+					const closed = await deps.runBoot('prompt-settle', { close: promptId, reason: 'user' });
+					if (!closed.success) return closed;
+				}
+				result = await deps.runNow('palette', input.command, input.input ?? {}, fields);
+			} finally {
+				consumed.delete(promptId);
 			}
-			const result = await deps.runNow('palette', input.command, input.input ?? {}, fields);
 			// The run's own journal sequence is its entry's, never this call's: a replay answers without it.
 			const { 'dev.loam/seq': _seq, ...metadata } = (result.metadata ?? {}) as Record<
 				string,
@@ -1039,6 +1219,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const person = notice.person;
 		const now = kit.callNow(context);
 		deps.noteInbox(context);
+		// A replay's run for this act ran at its own entry; this act answers from the row it wrote (improvement 15).
+		if (context.traceId !== undefined) ran.delete(context.traceId);
 		/**
 		 * Read, decided and claimed on the person's chain (the reviews' race): a withdrawal, an expiry's re-call or another
 		 * answer never lands between the read and the claim. The run itself is outside it.
@@ -1084,10 +1266,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
 				const caller = row.ciface === 'palette' ? row.source : undefined;
-				if (
-					!deps.allows(row.cactor as AccessActorV1, row.scope) ||
-					deps.served(row.confirmation.command, caller, row.scope) !== undefined
-				) {
+				if (refusedAccess(row.cactor, row.confirmation.command, caller, row.scope)) {
 					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
 					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
 				}
@@ -1097,14 +1276,18 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				const claimed = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
 				if (claimed?.claim !== claim) return { done: kit.success({ state: 'pending' as const }) };
 				acting.add(row.id);
-				return { claimed: claimed };
+				return { claimed: { ...claimed, claim } };
 			}
 		);
 		if ('done' in decided) return decided.done;
 		const row = decided.claimed;
 		const caller = row.ciface === 'palette' ? row.source : undefined;
 		try {
-			approved.set(row.id, { command: row.confirmation.command, key: row.ckey });
+			approved.set(row.id, {
+				command: row.confirmation.command,
+				key: row.ckey,
+				claim: row.claim as string,
+			});
 			const result = await deps.runNow(
 				row.ciface,
 				row.confirmation.command,
@@ -1167,7 +1350,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				for (const row of await rowsOf(whose)) {
 					if (stateNow(row.confirmation, now) !== 'pending' || row.claim !== undefined) continue;
 					if (!match(row)) continue;
-					await putBack({ ...row, confirmation: { ...row.confirmation, state: 'withdrawn' } });
+					await putBack({
+						...row,
+						confirmation: { ...row.confirmation, state: 'withdrawn' },
+						...(row.readAt === undefined ? { readAt: now } : {}),
+					});
 					count++;
 				}
 				return count;

@@ -25,7 +25,7 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
-import { KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
+import { KERNEL_ONLY_FIELDS, stateNow, summaryOf } from './confirmations.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PushRate } from './push-rate.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
@@ -116,6 +116,8 @@ export interface NotificationDeps {
 		fields: { parent: string; scope: ScopeV1; actor?: unknown }
 	): Promise<CommandResult>;
 	kit: SettingsKit & Pick<DocumentKit, 'projectNotFound'>;
+	/** Who a caller is to its confirmations (7.2, R1): the raising app's instance or the agent interface's bucket. */
+	bucketOf?(context: CommandContext): string | undefined;
 	/** Step 6's answer to a confirmation (7.2), a person's `notification-act { answer }`. Absent: none is answered. */
 	answer?(
 		row: NotificationV1,
@@ -157,10 +159,11 @@ const newestFirst = (a: NotificationV1, b: NotificationV1): number =>
 
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-/** A pending confirmation (R10), raised by step 6: protected, whether or not it has expired since. */
-const pendingConfirmation = (notice: NotificationV1): boolean =>
+/** A confirmation waiting for the person now (R10): protected while pending, and no longer once expired. */
+const pendingConfirmation = (notice: NotificationV1, now: number): boolean =>
 	notice.kind === 'confirmation' &&
-	(notice.confirmation as { state?: unknown } | undefined)?.state === 'pending';
+	notice.confirmation !== undefined &&
+	stateNow(notice.confirmation, now) === 'pending';
 
 /** Unread, and so never dropped (10.1): no `readAt`, and not archived. */
 const unread = (notice: NotificationV1): boolean =>
@@ -583,14 +586,24 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 	 * A row as the list gives it (10.2): whose it is (6.6); `body` and a confirmation's `input` only when asked; never
 	 * the act's claim.
 	 */
-	const shown = (row: StoredNotice, body: boolean, now: number): NotificationV1 => {
+	const shown = (
+		row: StoredNotice,
+		body: boolean,
+		now: number,
+		reader: { bucket?: string; one: boolean }
+	): NotificationV1 => {
 		const copy = structuredClone(row);
+		const raisedBy = (row as { cbucket?: string }).cbucket;
 		for (const field of KERNEL_ONLY_FIELDS)
 			delete (copy as unknown as Record<string, unknown>)[field];
-		// A pending confirmation past its 10 minutes is listed `expired` (7.2): no write records it.
 		if (copy.confirmation) {
 			const record = copy.confirmation as ConfirmationRecordV1;
+			// A pending confirmation past its 10 minutes is listed `expired` (7.2): no write records it.
 			record.state = stateNow(record, now);
+			// Its outcome is the raiser's, as `confirmation-get` gives it (R1); a list bounds its input, a read by id shows it
+			// whole, so the person sees all of it before confirming (blocker 9).
+			if (raisedBy === undefined || raisedBy !== reader.bucket) delete record.result;
+			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
 		}
 		const from = deps.fromOf(copy.source);
 		if (from) copy.from = from;
@@ -654,14 +667,19 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				.sort(newestFirst);
 			const limit = input.limit ?? NOTIFICATION_PAGE;
 			const unreadCount = all.filter(unread).length;
+			const reader = {
+				one: input.notification !== undefined,
+				...((b) => (b === undefined ? {} : { bucket: b }))(deps.bucketOf?.(context)),
+			};
 			const page: NotificationV1[] = [];
 			// The budget (10.2): a page ends early rather than past it, with the cursor to the rest.
 			let bytes = bytesOf({ notifications: [], cursor: 'x'.repeat(40), unread: unreadCount });
 			for (const row of matching) {
 				if (page.length >= limit) break;
-				const item = shown(row, input.body === true, kit.callNow(context));
+				const item = shown(row, input.body === true, kit.callNow(context), reader);
 				const size = bytesOf(item) + 1;
-				if (bytes + size > NOTIFICATION_LIST_BUDGET) {
+				// A read of one notice by id shows it whole (blocker 9): a confirmation's input is bounded by the call's own.
+				if (bytes + size > NOTIFICATION_LIST_BUDGET && !reader.one) {
 					if (page.length > 0) break;
 					// One row past the budget alone: a bounded refusal, never a page past it.
 					return fail(
@@ -723,7 +741,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if ('notification' in input) {
 					const row = rows.find((each) => each.id === input.notification);
 					if (!row) return notFound(input.notification);
-					if (pendingConfirmation(row) && !human) {
+					if (pendingConfirmation(row, kit.callNow(context)) && !human) {
 						return fail(
 							'HUMAN_REQUIRED',
 							'A confirmation waiting for the person is read or archived only by the person',
@@ -742,7 +760,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					chosen = rows.filter(
 						(row) =>
 							(input.source === undefined || row.source === input.source) &&
-							(human || !pendingConfirmation(row))
+							(human || !pendingConfirmation(row, kit.callNow(context)))
 					);
 				}
 				const at = kit.callNow(context);

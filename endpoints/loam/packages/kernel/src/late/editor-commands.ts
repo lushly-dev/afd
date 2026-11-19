@@ -505,7 +505,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 								{ id: 'cancel', label: 'Cancel' },
 							],
 						} as PromptInputV1,
-						{ for: { command: 'editor-close', kind: 'close' } }
+						{ for: { command: 'editor-close', kind: 'close', tab: input.tab } }
 					);
 					return {
 						...refused,

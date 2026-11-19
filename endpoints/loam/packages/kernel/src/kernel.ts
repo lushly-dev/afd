@@ -123,6 +123,21 @@ export function kernelJournalOptions(
 	};
 }
 
+/**
+ * `palette-run`'s target input redacted as the target's own entry is (phase 4's 7.1, the trust review's R4): `redact`
+ * applied to `{ command, input }` of the call it runs, so no secret reaches the journal through the wrapper.
+ */
+export function redactWrapped(
+	record: JournalRecord,
+	redact: (record: JournalRecord) => JournalRecord
+): JournalRecord {
+	const input = record.input as { command?: unknown; input?: unknown } | null;
+	if (record.command !== 'palette-run' || typeof input?.command !== 'string' || !('input' in input))
+		return record;
+	const inner = redact({ ...record, command: input.command, input: input.input });
+	return { ...record, input: { ...input, input: inner.input } };
+}
+
 /** Remove `input.password` from an `auth-sign-in` record. */
 export function redactJournalRecord(record: JournalRecord): JournalRecord {
 	if (record.command !== 'auth-sign-in') return record;
@@ -375,7 +390,10 @@ export async function createKernelParts(
 	// One journal middleware, shared by every registry, so they share one journal sequence.
 	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
 		...kernelJournalOptions(),
-		redact: (record) => apps.redact(redactJournalRecord(record)),
+		redact: (record) => {
+			const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
+			return redactWrapped(own(record), own);
+		},
 	});
 
 	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
@@ -486,6 +504,7 @@ export async function createKernelParts(
 				},
 				agentCommands: () => registries.agent.listCommands(),
 				paletteCommands: () => registries.palette.listCommands(),
+				journaled: (name) => !UNJOURNALED_COMMANDS.includes(name),
 				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
 				runNow: (iface, name, input, fields) =>
 					execute(iface, name, input, {}, fields as KernelCallFields),
@@ -686,6 +705,9 @@ export async function createKernelParts(
 			// Not truthiness: a frame's call may name its parent with an empty trace ID.
 			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
+			// The slot's read and answer, once stage B has ended: a queued call waiting on its prompt holds the queue, so
+			// they never wait behind it (phase 4's 7.2, the trust review's blocker 8).
+			(stageBEnded && (name === 'overlay-list' || name === 'overlay-dismiss')) ||
 			// The agent interface waits for stage B, whose `late/` names its actor (phase 3 specification, 3.1).
 			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)

@@ -295,11 +295,14 @@ describe("P2-D8: (kernel unit) the palette's document rows (8.2)", () => {
 		).toBe(true);
 		// An app opened ranks first; the editor owner's are still listed, after it (A-P0-1).
 		await kernel.call('app-open', { instance: 'dual' });
-		const after = await names('');
+		// Both apps have a `-reach` command, equally matched: the active app's ranks first.
+		const after = await names('reach');
 		const firstProbe = after.findIndex((name) => name.startsWith('probe-'));
 		const lastDual = after.findLastIndex((name) => name.startsWith('dual-'));
 		expect(lastDual).toBeGreaterThanOrEqual(0);
-		expect(firstProbe === -1 || firstProbe > lastDual).toBe(true);
+		// Still listed, and after the active app's (A-P0-1).
+		expect(firstProbe).not.toBe(-1);
+		expect(firstProbe).toBeGreaterThan(lastDual);
 	});
 });
 
