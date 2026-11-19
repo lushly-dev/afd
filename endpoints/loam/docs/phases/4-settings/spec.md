@@ -1993,7 +1993,7 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 - **`identity/persona.test.ts` P3-E2** (step 6, A-P1-1): the active app's commands rank before the persona, so the case searches with no app active and the persona's order alone decides.
 - None of the three came from the merge with step 10.
 
-**Measured after the fourth round,** D115: `lateSettingsMinified` 91,779, its row raised from 91,200 to 92,500. First paint 314,281 and 98,524 gzip, and the kernel alone 124,857, are within their rows. `budget.mjs` records each.
+**Measured after the fourth round,** D115: `lateSettingsMinified` 91,964, its row raised from 91,200 to 92,500. First paint 314,281 and 98,524 gzip, and the kernel alone 124,857, are within their rows. `budget.mjs` records each.
 
 ## Step 10, 2026-11-19
 

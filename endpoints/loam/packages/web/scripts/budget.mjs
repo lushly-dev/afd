@@ -455,8 +455,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `lateMinified` to 113,800 (113,255: both steps' wiring); `lateSettingsMinified` to 91,200 (90,579: the confirmations
  * beside the limits' section and commands); `appsMinified` to 426,500 (425,879: the port's limits beside the
  * manifest's `confirm_prompt`). Every other row within its ceiling.
- * Step 6's fourth round, under D115, the same machine: `lateSettingsMinified` 91,200 to 92,500 (90,579 to 91,779,
- * +1,200): the one re-check before every confirmed run, the recorded route in a replay, a settle bound to its row and
+ * Step 6's fourth round, under D115, the same machine: `lateSettingsMinified` 91,200 to 92,500 (90,579 to 91,964,
+ * +1,385): the one re-check before every confirmed run, the recorded route in a replay, a settle bound to its row and
  * merged onto it, and the key and the bound held through a decline's write. First paint 314,281 and 98,524 gzip, the
  * kernel alone 124,857 (forwarded results redacted, never failing), within their rows.
  */
@@ -514,7 +514,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,779, set to 92,500.
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500.
 	lateSettingsMinified: 92_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
