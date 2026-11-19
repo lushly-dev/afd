@@ -4,6 +4,7 @@
  */
 
 import type { MembershipV1 } from '../scope/access.js';
+import type { WorkspaceAppV1 } from '../scope/records.js';
 
 /**
  * Whether `person` is a Loam owner: in `provider` mode, a member whose role is `owner` or `admin` (D96);
@@ -14,3 +15,13 @@ export const isOwner = (membership: MembershipV1, person: string | undefined): b
 	const role = person === undefined ? undefined : membership.members.get(person);
 	return role === 'owner' || role === 'admin';
 };
+
+/**
+ * Whether a team instance lists `slug` (phase 3 specification, 7.3; D87, D110, D154): an instance still listed whose
+ * audience is `team` and whose `projects` names it. A person's own mounted instance listing a project serves that
+ * person alone, so it makes nothing an owner's. The one rule for a project's create, its members and its own rows.
+ */
+export const teamListed = (apps: readonly WorkspaceAppV1[], slug: string): boolean =>
+	apps.some(
+		(app) => app.listed !== null && app.audience === 'team' && (app.projects ?? []).includes(slug)
+	);

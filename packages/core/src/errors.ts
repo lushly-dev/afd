@@ -173,6 +173,9 @@ export const ErrorCodes = {
 
 	// Tasks (spec/command-metadata.md, "Tasks")
 	TASK_TOKEN_EXPIRED: 'TASK_TOKEN_EXPIRED',
+
+	// App calls (spec/command-metadata.md, "App-to-app calls")
+	CALL_NOT_GRANTED: 'CALL_NOT_GRANTED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

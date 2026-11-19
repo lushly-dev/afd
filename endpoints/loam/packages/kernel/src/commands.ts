@@ -5,12 +5,16 @@
 
 import type { ExposeOptions } from '@lushly-dev/afd-server/define';
 
-/** Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. */
+/**
+ * Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. Never `apps`:
+ * an app reaches a shell command only through its port's own list (phase 1 specification, 5.3).
+ */
 export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
 	palette: true,
 	agent: true,
 	mcp: false,
 	cli: false,
+	apps: false,
 });
 
 /**
@@ -31,6 +35,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'agent-member-settle',
 	// The kernel's record of how a copilot turn ended (phase 5 specification, 3.4).
 	'copilot-turn-settle',
+	// The autonomy rows a manifest's apply orphaned, flagged (phase 4 specification, 4.2).
+	'autonomy-settle',
 ]);
 
 /**

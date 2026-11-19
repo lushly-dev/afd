@@ -1,0 +1,426 @@
+{
+	"description": "App-to-app calls and the apps exposure flag (spec/command-metadata.md, App-to-app calls; Loam phase 5 step 0b, D30). Written by hand; TypeScript and Rust run every case. See the README for how to build each case's registry.",
+	"gaps": {
+		"python": "https://github.com/lushly-dev/afd/issues/1513",
+		"cpp": "https://github.com/lushly-dev/afd/issues/1513"
+	},
+	"refusal": {
+		"code": "CALL_NOT_GRANTED",
+		"message": "This app may not call that command",
+		"suggestion": "Ask the deployer for a calls grant that names the command; the command must also set expose.apps",
+		"retryable": false
+	},
+	"exposure": [
+		{
+			"description": "no expose: the defaults, apps off",
+			"expose": null,
+			"exposed": {
+				"palette": true,
+				"agent": true,
+				"mcp": false,
+				"cli": false,
+				"apps": false
+			}
+		},
+		{
+			"description": "an empty expose: the defaults, apps off",
+			"expose": {},
+			"exposed": {
+				"palette": true,
+				"agent": true,
+				"mcp": false,
+				"cli": false,
+				"apps": false
+			}
+		},
+		{
+			"description": "apps alone keeps the other defaults",
+			"expose": {
+				"apps": true
+			},
+			"exposed": {
+				"palette": true,
+				"agent": true,
+				"mcp": false,
+				"cli": false,
+				"apps": true
+			}
+		},
+		{
+			"description": "apps false",
+			"expose": {
+				"apps": false
+			},
+			"exposed": {
+				"palette": true,
+				"agent": true,
+				"mcp": false,
+				"cli": false,
+				"apps": false
+			}
+		},
+		{
+			"description": "every other flag on does not imply apps",
+			"expose": {
+				"palette": true,
+				"agent": true,
+				"mcp": true,
+				"cli": true
+			},
+			"exposed": {
+				"palette": true,
+				"agent": true,
+				"mcp": true,
+				"cli": true,
+				"apps": false
+			}
+		},
+		{
+			"description": "apps without the agent",
+			"expose": {
+				"apps": true,
+				"agent": false,
+				"palette": false
+			},
+			"exposed": {
+				"palette": false,
+				"agent": false,
+				"mcp": false,
+				"cli": false,
+				"apps": true
+			}
+		}
+	],
+	"registry": {
+		"commands": [
+			{
+				"name": "tally-get",
+				"expose": {
+					"apps": true
+				}
+			},
+			{
+				"name": "tally-add",
+				"expose": {}
+			},
+			{
+				"name": "tally-reset",
+				"expose": {
+					"mcp": true,
+					"agent": false,
+					"palette": false
+				}
+			}
+		],
+		"input": {
+			"type": "object",
+			"properties": {
+				"by": {
+					"type": "integer",
+					"default": 1
+				}
+			},
+			"additionalProperties": false
+		},
+		"grants": {
+			"checklist": ["tally-get", "tally-add", "tally-missing"],
+			"notes": ["tally-add"]
+		}
+	},
+	"calls": [
+		{
+			"description": "a granted caller calls a command exposed to apps",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"data": {
+					"command": "tally-get",
+					"by": 1
+				}
+			}
+		},
+		{
+			"description": "a granted call's input is validated and defaulted as any other",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {
+					"by": 3
+				},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"data": {
+					"command": "tally-get",
+					"by": 3
+				}
+			}
+		},
+		{
+			"description": "a caller with no grant",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps",
+				"caller": "hello"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "a caller granted other commands only",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps",
+				"caller": "notes"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "no caller on the context",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "granted, but the command does not set expose.apps",
+			"grant": "grants",
+			"call": {
+				"name": "tally-add",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "granted, but the command is exposed to MCP and not to apps",
+			"grant": "grants",
+			"call": {
+				"name": "tally-reset",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "granted by name, but no such command: the same answer",
+			"grant": "grants",
+			"call": {
+				"name": "tally-missing",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "an unknown name, not granted: the same answer",
+			"grant": "grants",
+			"call": {
+				"name": "tally-nothing",
+				"input": {},
+				"interface": "apps",
+				"caller": "hello"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "no callGrant installed refuses every app call",
+			"grant": "none",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "a callGrant that throws refuses",
+			"grant": "throws",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "invalid input from an ungranted caller is refused, not validated",
+			"grant": "grants",
+			"call": {
+				"name": "tally-get",
+				"input": {
+					"by": "two"
+				},
+				"interface": "apps",
+				"caller": "hello"
+			},
+			"expect": {
+				"refused": true
+			}
+		},
+		{
+			"description": "invalid input from a granted caller fails validation",
+			"grant": "grants",
+			"validates": true,
+			"call": {
+				"name": "tally-get",
+				"input": {
+					"by": "two"
+				},
+				"interface": "apps",
+				"caller": "checklist"
+			},
+			"expect": {
+				"code": "VALIDATION_ERROR"
+			}
+		},
+		{
+			"description": "the agent interface ignores grants",
+			"grant": "grants",
+			"call": {
+				"name": "tally-add",
+				"input": {},
+				"interface": "agent",
+				"caller": "hello"
+			},
+			"expect": {
+				"data": {
+					"command": "tally-add",
+					"by": 1
+				}
+			}
+		},
+		{
+			"description": "apps does not take a command off the agent's default",
+			"grant": "none",
+			"call": {
+				"name": "tally-get",
+				"input": {},
+				"interface": "agent"
+			},
+			"expect": {
+				"data": {
+					"command": "tally-get",
+					"by": 1
+				}
+			}
+		},
+		{
+			"description": "an unexposed command from the agent interface is still COMMAND_NOT_EXPOSED",
+			"grant": "grants",
+			"call": {
+				"name": "tally-reset",
+				"input": {},
+				"interface": "agent",
+				"caller": "checklist"
+			},
+			"expect": {
+				"code": "COMMAND_NOT_EXPOSED"
+			}
+		},
+		{
+			"description": "a call with no interface is trusted and runs",
+			"grant": "none",
+			"call": {
+				"name": "tally-add",
+				"input": {}
+			},
+			"expect": {
+				"data": {
+					"command": "tally-add",
+					"by": 1
+				}
+			}
+		}
+	],
+	"batches": [
+		{
+			"description": "each item of an app's batch is checked on its own",
+			"grant": "grants",
+			"caller": "checklist",
+			"interface": "apps",
+			"items": [
+				{
+					"command": "tally-get",
+					"input": {}
+				},
+				{
+					"command": "tally-add",
+					"input": {}
+				},
+				{
+					"command": "tally-nothing",
+					"input": {}
+				}
+			],
+			"expect": [
+				{
+					"data": {
+						"command": "tally-get",
+						"by": 1
+					}
+				},
+				{
+					"refused": true
+				},
+				{
+					"refused": true
+				}
+			]
+		},
+		{
+			"description": "a batch's own context cannot name the caller",
+			"grant": "grants",
+			"interface": "apps",
+			"requestContext": {
+				"caller": "checklist"
+			},
+			"items": [
+				{
+					"command": "tally-get",
+					"input": {}
+				}
+			],
+			"expect": [
+				{
+					"refused": true
+				}
+			]
+		}
+	]
+}

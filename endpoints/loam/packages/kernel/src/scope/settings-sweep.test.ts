@@ -1,8 +1,10 @@
 /**
- * P4-E2's units (phase 4 specification, section 2 and 19): settings grant nothing. "The type and the scan", as P3-E2's,
+ * P4-E2's units (phase 4 specification, section 2 and 19): settings, and from step 8 autonomy, grant nothing. "The type and the scan", as P3-E2's,
  * and phase 3's E2 sweep (`persona-sweep`) on twin stores whose one person differs only in settings: in one twin their
  * own theme is light, an app's declared section holds a workspace value and a project value, `loam.documents.trashDays`
- * is 7, and the `setting` table also holds stray rows of a section no app declares; in the other each declared value
+ * is 7, the `setting` table also holds stray rows of a section no app declares, and the `autonomy` table holds the
+ * workspace's mode and ceiling, a command row and the restricted project's row, beside the person's own cap (step 8);
+ * in the other each declared value
  * is written at its default. The theme differs until the sweep's own `appearance-set`, which sets the same theme in
  * both, and the rest throughout. Every registered command, through a person and through an agent, in both modes, must
  * answer with equal `ok`, `error.code` and `data`, but the `data` of section 19's exemptions, which read settings or
@@ -49,6 +51,10 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 	'setting-get',
 	'setting-set',
 	'setting-reset',
+	// Step 8's: autonomy's rows, resolution and cap are what the twins differ by (4.4).
+	'autonomy-get',
+	'autonomy-list',
+	'autonomy-set',
 	'appearance-get',
 	'app-list',
 	'app-get',
@@ -225,7 +231,23 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		value: set ? 7 : 30,
 		level: 'workspace',
 	});
+	// Step 8's autonomy (P4-E2): the workspace's mode, ceiling and a command row, an owner's; in the other twin the same
+	// calls remove them, so both kernels' clocks read alike.
+	const autonomy = async (input: Record<string, unknown>) => {
+		const written = await kernel.call('autonomy-set', input);
+		expect(written.success, JSON.stringify(written.error)).toBe(true);
+	};
+	await autonomy({ level: 'workspace', mode: set ? 'act' : null, ceiling: set ? 'act' : null });
+	await autonomy({
+		level: 'workspace',
+		instance: 'dual',
+		command: 'dual-put',
+		mode: set ? 'act' : null,
+	});
 	if (mode === 'provider') await signIn(workspace);
+	// Citadel's own row, its creator's (D154), and the person's own cap.
+	await autonomy({ level: 'project', project: citadel, mode: set ? 'act' : null });
+	await autonomy({ level: 'person', cap: set ? 'act' : null });
 	if (set) {
 		// Shared rows of a section no app declares now, at both levels: what a stale row could say, it grants nothing.
 		const stamp = { updatedAt: 1, updatedBy: 'mock-user-olu@example.com' };
@@ -324,6 +346,11 @@ describe('P4-E2: settings grant nothing', { timeout: 30_000 }, () => {
 			const days = async (held: Twin) =>
 				(await held.kernel.call<{ trashDays: number }>('workspace-get')).data?.trashDays;
 			expect([await days(first), await days(second)]).toEqual([7, 30]);
+			// And by autonomy: the rows and the cap (step 8).
+			const rows = async (held: Twin) =>
+				(await held.kernel.call<{ rows: unknown[]; cap: string | null }>('autonomy-list')).data;
+			expect(await rows(first)).toMatchObject({ rows: { length: 3 }, cap: 'act' });
+			expect(await rows(second)).toMatchObject({ rows: [], cap: null });
 			const commands = first.registries.palette.listCommands();
 			const shell = new Set<string>(SHELL_COMMAND_NAMES);
 			let called = 0;
@@ -385,7 +412,9 @@ describe('P4-E2: the type and the scan (section 19)', () => {
 		);
 		for (const [path, source] of Object.entries(sources)) {
 			expect(source.length, path).toBeGreaterThan(0);
-			expect(source, path).not.toMatch(/setting|SETTING_|loam\.settings|resolveSetting/i);
+			expect(source, path).not.toMatch(
+				/setting|SETTING_|loam\.settings|resolveSetting|autonomy|AUTONOMY_|resolveAutonomy/i
+			);
 		}
 	});
 });

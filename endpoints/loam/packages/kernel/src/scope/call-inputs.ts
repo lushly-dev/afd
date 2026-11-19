@@ -137,6 +137,10 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'setting-get': { section: 'loam.appearance', key: 'theme' },
 	'setting-set': { section: 'loam.appearance', key: 'theme', value: 'dark', level: 'person' },
 	'setting-reset': { section: 'loam.appearance', key: 'theme', level: 'person' },
+	// Phase 4's step 8: autonomy, each naming the twin's project, which no caller here may enter (4.3, 4.4).
+	'autonomy-get': { command: 'project-get', instance: 'shell', project: PROJECT },
+	'autonomy-list': { project: PROJECT },
+	'autonomy-set': { level: 'project', project: PROJECT, mode: 'ask' },
 };
 
 /**

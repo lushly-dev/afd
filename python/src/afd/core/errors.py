@@ -168,6 +168,10 @@ class ErrorCodes:
     # Tasks (spec/command-metadata.md, "Tasks")
     TASK_TOKEN_EXPIRED = "TASK_TOKEN_EXPIRED"
 
+    # App calls (spec/command-metadata.md, "App-to-app calls"). Python does not emit it yet
+    # (https://github.com/lushly-dev/afd/issues/1513); the shared catalog lists it.
+    CALL_NOT_GRANTED = "CALL_NOT_GRANTED"
+
 
 def create_error(
     code: str,

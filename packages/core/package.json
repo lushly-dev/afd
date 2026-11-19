@@ -36,6 +36,10 @@
 			"types": "./dist/direct-allow.d.ts",
 			"import": "./dist/direct-allow.js"
 		},
+		"./internal/app-calls": {
+			"types": "./dist/app-calls.d.ts",
+			"import": "./dist/app-calls.js"
+		},
 		"./commands": {
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"

@@ -31,6 +31,7 @@ import type { DocumentKit } from './document-kit.js';
 import {
 	checkKnownValue,
 	isHumanGesture,
+	isHumanKey,
 	type KnownSectionV1,
 	type ResolvedSettingV1,
 	resolveSetting,
@@ -44,6 +45,8 @@ import {
 import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
 import type { SettingRows } from './shell-commands.js';
 
+export { createAutonomy } from './autonomy.js';
+export { resolveAutonomy } from './autonomy-rules.js';
 export {
 	HUMAN_SETTING_KEYS,
 	isHumanGesture,
@@ -171,6 +174,27 @@ export interface Settings {
 	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
 	 */
 	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
+	/**
+	 * A key of the person's own record that only its own command writes, as `loam.autonomy.cap` (4.1): read from the
+	 * store at each call, and written one at a time with the `setting-*` writes, so neither loses the other's.
+	 */
+	/**
+	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (3.2, F2):
+	 * `autonomy-set` at every level, and `setting-set` or `setting-reset` of a shared value or a human key. The copilot's
+	 * gate lets these through, so they answer `HUMAN_REQUIRED` from their handlers.
+	 */
+	refusesAgent(name: string, input: unknown): boolean;
+	ownValue(
+		section: string,
+		key: string,
+		context: CommandContext
+	): Promise<StoredSettingV1 | undefined>;
+	writeOwn(
+		section: string,
+		key: string,
+		entry: StoredSettingV1 | undefined,
+		context: CommandContext
+	): Promise<StoredSettingV1 | undefined>;
 }
 
 const LEVELS = ['person', 'workspace', 'project'] as const;
@@ -1178,6 +1202,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 	};
 
 	function target(to: string, context: CommandContext): { path: string } | CommandResult<never> {
+		// The autonomy section (4.5), whose own commands write it: its route, and the cap's key (3.2's hand-off).
+		if (to === 'loam.autonomy' || to === 'loam.autonomy.cap')
+			return { path: to === 'loam.autonomy' ? to : 'loam.autonomy/cap' };
 		const known = sections().find(
 			(entry) => to === entry.fullId || to.startsWith(`${entry.fullId}.`)
 		);
@@ -1211,6 +1238,35 @@ export function createSettings(deps: SettingsDeps): Settings {
 			return Array.isArray(value) ? (value as string[]) : [];
 		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
+		refusesAgent(name, input) {
+			if (name === 'autonomy-set') return true;
+			if (name !== 'setting-set' && name !== 'setting-reset') return false;
+			const asked =
+				typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+			if (asked.level === 'workspace' || asked.level === 'project') return true;
+			return (
+				asked.level === 'person' &&
+				typeof asked.section === 'string' &&
+				typeof asked.key === 'string' &&
+				isHumanKey(asked.section, asked.key)
+			);
+		},
+		async ownValue(section, key, context) {
+			return storedOf((await readRecord(deps.recordId(personKeyOf(context))))[section]?.[key]);
+		},
+		writeOwn: (section, key, entry, context) =>
+			serial(async () => {
+				const id = deps.recordId(personKeyOf(context));
+				const record = await readRecord(id);
+				const held = record[section] ?? {};
+				const previous = storedOf(held[key]);
+				if (entry) held[key] = entry;
+				else delete held[key];
+				if (Object.keys(held).length === 0) delete record[section];
+				else record[section] = held;
+				await writeRecord(id, record, kit.callNow(context));
+				return previous;
+			}),
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);

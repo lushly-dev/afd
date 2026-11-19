@@ -68,6 +68,7 @@ fn error_codes_match_the_shared_catalog() {
         error_codes::OUTPUT_BUDGET_EXCEEDED,
         error_codes::INSUFFICIENT_SCOPE,
         error_codes::TASK_TOKEN_EXPIRED,
+        error_codes::CALL_NOT_GRANTED,
     ];
     assert_eq!(catalog.as_slice(), expected.as_slice());
 }
