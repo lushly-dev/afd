@@ -1,0 +1,26 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["source"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"source": {
+			"type": "string",
+			"description": "The markup or code to check, at most 262 144 UTF-8 bytes; read as text, never rendered or run"
+		},
+		"library": {
+			"type": "string",
+			"description": "Check only against this library"
+		},
+		"versions": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
+			},
+			"description": "The versions the caller has installed, npm package name to version, at most 32 entries"
+		}
+	}
+}
