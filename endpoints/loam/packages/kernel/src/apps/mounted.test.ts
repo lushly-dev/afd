@@ -1644,16 +1644,21 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 		expect([...other.problems.values()]).toEqual([
 			"The handler did not call 'work-a-read', which the journal records",
 		]);
-		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The head
-		// takes it, as a schema's default may fill an input in, and the call that follows cannot match.
+		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The input is
+		// the validated one, defaults filled in, so `{}` matches only a recorded `{}`: the head is not it.
 		const swapped = nestedReplay([
 			recordedEntry(1, { n: 1 }, 'one', 3),
 			recordedEntry(2, {}, 'empty', 4),
 		]);
-		swapped.answer('outer-1', 'work-a-read', {});
-		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		expect(swapped.answer('outer-1', 'work-a-read', {})).toBeUndefined();
+		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 })?.data).toBe('one');
 		swapped.finish('outer-1');
 		expect(swapped.problems.size).toBe(1);
+		// #859: never a subset, either way: a recorded `{ filter: 'a' }` is not `{}`, nor is `{}` one with a key.
+		const filtered = nestedReplay([recordedEntry(1, { filter: 'a' }, 'filtered')]);
+		expect(filtered.answer('outer-1', 'work-a-read', {})).toBeUndefined();
+		expect(filtered.answer('outer-1', 'work-a-read', { filter: 'a', more: 1 })).toBeUndefined();
+		expect(filtered.answer('outer-1', 'work-a-read', { filter: 'a' })?.data).toBe('filtered');
 	});
 
 	it('refuses a recorded call past validation, and lets validation answer as it did live, with no transport', async () => {

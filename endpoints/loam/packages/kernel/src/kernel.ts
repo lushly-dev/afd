@@ -25,6 +25,7 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
+import * as z from 'zod/mini';
 import { appearanceFrom } from './appearance.js';
 import {
 	type AppsRuntime,
@@ -212,7 +213,8 @@ export interface KernelParts {
 /** What only `replayKernel` asks of a kernel. */
 export interface KernelPartsInternals {
 	/**
-	 * A nested call's answer from the journal, in place of running it (7.6). Undefined runs it: a refusal
+	 * A nested call's answer from the journal, in place of running it (7.6), given its input validated by the
+	 * command's schema, as the journal records it; a call the schema refuses is never asked. Undefined runs it: a refusal
 	 * before the middleware leaves no entry, and answers the same again. A recorded call (`replay:
 	 * 'recorded'`) that passes validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`,
 	 * before its handler could reach a server, and the outer call is reported diverged (phase 2
@@ -680,6 +682,24 @@ export async function createKernelParts(
 		return mine;
 	}
 
+	/**
+	 * `input` as the registry validates it and the journal records it (JSON), for a replay's nested call;
+	 * undefined for a name the kernel does not hold or an input its schema refuses, which only running it answers.
+	 */
+	function validatedInput(name: string, input: unknown): { input: unknown } | undefined {
+		const command = [...current.commands, ...bootOnly].find((each) => each.name === name);
+		if (!command) return undefined;
+		try {
+			const parsed = z.safeParse(command.inputSchema, input);
+			if (!parsed.success) return undefined;
+			const text = JSON.stringify(parsed.data);
+			return { input: text === undefined ? null : JSON.parse(text) };
+		} catch {
+			// A schema callback that throws: the registry answers it as a `VALIDATION_ERROR`.
+			return undefined;
+		}
+	}
+
 	async function execute<T>(
 		iface: KernelInterfaceV0,
 		name: string,
@@ -696,8 +716,11 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
-		if (fields.parent !== undefined) {
-			const answered = internals.answerNested?.(fields.parent, name, input);
+		if (fields.parent !== undefined && internals.answerNested) {
+			// The input as the journal holds it, validated by the command's schema, so the record is matched on
+			// every key: a call the schema refuses takes no entry, and is refused again as it was live.
+			const validated = validatedInput(name, input ?? {});
+			const answered = validated && internals.answerNested(fields.parent, name, validated.input);
 			if (answered) return answered as CommandResult<T>;
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
