@@ -4,6 +4,8 @@ All notable changes to the Python `afd` package are documented here. The package
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, a minor release may break the API.
 
+Changes that are not released yet are the files in [`.changeset/`](../.changeset/README.md) that name `afd-python`, one per pull request. `pnpm version-track python` writes them here as a dated section when a release is prepared, so nothing is added under `Unreleased` by hand.
+
 ## [Unreleased]
 
 ## [0.11.0] - 2026-11-18

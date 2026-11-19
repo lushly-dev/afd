@@ -1,0 +1,6 @@
+{
+	"name": "afd-python",
+	"version": "0.11.0",
+	"private": true,
+	"description": "Changesets stub for the Python afd release track. It holds the version that pnpm version-track python copies to pyproject.toml and __version__; it is never published to npm."
+}

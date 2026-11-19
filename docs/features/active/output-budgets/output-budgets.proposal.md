@@ -140,7 +140,7 @@ This pull request:
 | [`spec/journal.md`](../../../../spec/journal.md) | The optional `outputBudget` entry field, its place in the context digest and its replay |
 | [`spec/error-codes.md`](../../../../spec/error-codes.md) | `OUTPUT_BUDGET_EXCEEDED`, specified and not yet in the catalog (below) |
 | [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md) | Three acceptance rows, all Planned |
-| [`spec/CHANGELOG.md`](../../../../spec/CHANGELOG.md) | An entry under `1.0-rc`, and the new page in the scope. `spec/VERSION` stays `1.0-rc`: additive changes during the release candidate are recorded under it, as the hybrid strategy's and resources' were, and `scripts/check-versions.mjs` checks only that the four constants equal `VERSION` |
+| [`spec/CHANGELOG.md`](../../../../spec/CHANGELOG.md) | An entry under `1.0-rc`, written as an `afd-spec` fragment in `.changeset/`, and the new page in the scope. `spec/VERSION` stays `1.0-rc`: additive changes during the release candidate are recorded under it, as the hybrid strategy's and resources' were, and `scripts/check-versions.mjs` checks only that the four constants equal `VERSION` |
 | [`docs/language-parity.md`](../../../language-parity.md) | Two rows, Planned in every language |
 
 No wire fixture, existing vector or tool list changes. [`meta-tools.json`](../../../../spec/meta-tools.json)

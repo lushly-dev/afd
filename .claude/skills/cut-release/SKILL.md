@@ -9,7 +9,7 @@ argument-hint: npm | python | rust | cpp | botcore
 
 # Cut Release
 
-AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the admitted units in `scripts/release/inventory.json`; `botcore` publishes `lushly-botcore` alone, and Specimen's four units, `fast-element`, `violet-elements` and `violet-npm` publish an npm prerelease under `preview`. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask.
+AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the admitted units in `scripts/release/inventory.json`; `botcore` publishes `lushly-botcore` alone, and Specimen's four units, `fast-element`, `violet-elements` and `violet-npm` publish an npm prerelease under `preview`. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask. The three `*-changes` units are the private stubs that hold a track's version for Changesets (below); nothing publishes them.
 
 **Publishing is irreversible and is the maintainer's job.** An agent prepares the release PR: version, changelog and docs. It does not push tags, create GitHub Releases, merge the npm version PR (merging it publishes), run a publish workflow, or change repository or registry settings. The one exception is when the session's user, in the current turn, names that irreversible step ("push the `rust-v0.2.2` tag", "merge the version PR"); a request to cut, ship or prepare a release is not that. Then run only the named step, on the reviewed merge commit.
 
@@ -19,32 +19,35 @@ AFD's four implementations each follow semver on their own API, with their own v
 |---|---|---|---|---|
 | npm: the nine `afd-npm` packages | each `package.json`, set by Changesets | `packages/*/CHANGELOG.md`, by Changesets | `@lushly-dev/<package>@X.Y.Z`, by the release finalizer | `release.yml` to npm |
 | npm preview: Specimen's eight packages, `fast-element`, `violet-elements` and Violet's five | each `package.json`, set by Changesets as `X.Y.Z-preview.N` | each package's `CHANGELOG.md`, by Changesets | `@lushly-dev/<package>@X.Y.Z-preview.N`, by the release finalizer | `release.yml` to npm under `preview`, with GitHub prereleases |
-| Python `afd` | `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py` | `python/CHANGELOG.md` | `python-vX.Y.Z` | `publish-python.yml` to PyPI |
+| Python `afd` | `python/package.json` (the private stub `afd-python`), set by Changesets; `pnpm version-track python` copies it to `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py` | `python/CHANGELOG.md`, by `pnpm version-track python` | `python-vX.Y.Z` | `publish-python.yml` to PyPI |
 | Rust `afd` crate | `packages/rust/Cargo.toml` | `packages/rust/CHANGELOG.md` | `rust-vX.Y.Z` | `publish-rust.yml` to crates.io |
 | C++ `afd-cpp` | `project(afd VERSION …)` in `packages/cpp/CMakeLists.txt` | `packages/cpp/CHANGELOG.md` | `cpp-vX.Y.Z` | Nothing: consumers fetch the tag with CMake |
-| Botcore `lushly-botcore` | `endpoints/botcore/pyproject.toml` and `__version__` in `endpoints/botcore/src/botcore/__init__.py` | `endpoints/botcore/CHANGELOG.md` | `botcore-vX.Y.Z` | `publish-botcore.yml` to PyPI |
+| Botcore `lushly-botcore` | `endpoints/botcore/package.json` (the private stub `lushly-botcore`), set by Changesets; `pnpm version-track botcore` copies it to `endpoints/botcore/pyproject.toml` and `__version__` in `endpoints/botcore/src/botcore/__init__.py` | `endpoints/botcore/CHANGELOG.md`, by `pnpm version-track botcore` | `botcore-vX.Y.Z` | `publish-botcore.yml` to PyPI |
 
 Read current versions from those manifests, and published ones from the registries and `git tag -l`. The private root `package.json` version is not a release; never set one there.
 
 - The root `CHANGELOG.md` is an index; never add release notes to it.
-- No no-op changeset for Python, Rust, C++, Botcore or docs-only work. A docs or package-description fix waits for the next release; never claim a published artifact changed.
-- A hotfix has no separate path: branch from `main` (there are no `release/*` branches), add a `patch` changeset or the track's changelog entry, and follow the track's steps.
+- No no-op changeset for Rust, C++ or docs-only work, and no no-op fragment for Python or Botcore. A docs or package-description fix waits for the next release; never claim a published artifact changed.
+- A hotfix has no separate path: branch from `main` (there are no `release/*` branches), add a `patch` changeset (for Python or Botcore, a `patch` fragment that names its stub) or the Rust or C++ changelog entry, and follow the track's steps.
 - Until the new version or tag is verified, install snippets stay on the last published one. Then update package READMEs, skills, `site/index.html`, `site/js/runtime.js` and `site/llms.txt` together.
 
 ## Contract version
 
-`spec/VERSION` (now `1.0-rc`) versions the shared contract: `spec/wire`, `spec/pipeline-variables.md`, `spec/vectors` and the conformance suite. Each implementation exports the version it implements (`AFD_CONTRACT_VERSION`, `afd.CONTRACT_VERSION`, Rust `afd::CONTRACT_VERSION`, C++ `afd::contract_version`). It stays `1.0-rc` until all four languages load every vector file, and changes only through the shared specification process, never in a release. Name it in the changelog section and the tag message; `node scripts/check-versions.mjs` fails when a constant or the Contract row of `docs/language-parity.md` disagrees.
+`spec/VERSION` (now `1.0-rc`) versions the shared contract: `spec/wire`, `spec/pipeline-variables.md`, `spec/vectors` and the conformance suite. Each implementation exports the version it implements (`AFD_CONTRACT_VERSION`, `afd.CONTRACT_VERSION`, Rust `afd::CONTRACT_VERSION`, C++ `afd::contract_version`). It stays `1.0-rc` until all four languages load every vector file, and changes only through the shared specification process, never in a release. Name it in the changelog section (`pnpm version-track python` writes that line) and the tag message; `node scripts/check-versions.mjs` fails when a constant or the Contract row of `docs/language-parity.md` disagrees.
+
+The version in `spec/package.json` (the private stub `afd-spec`) is not the contract version. Changesets needs a semver number to consume a fragment, so that one only counts folds of `spec/CHANGELOG.md`: `pnpm version-track spec` moves the pending contract entries into the changelog under the heading of the version in `spec/VERSION`, and never writes `spec/VERSION` or a constant. It is not a release, so run it whenever fragments that name `afd-spec` are pending and a release PR is being prepared, or when asked.
 
 ## Every release
 
 - The track's CI and `conformance.yml` are green on the exact candidate, and again on the merge commit.
-- Python, Rust, C++ and Botcore changelogs get a dated section, breaking changes first with migration notes, under a new empty `Unreleased` section.
-- `node scripts/check-versions.mjs --write` sets the Version row of `docs/language-parity.md`; check its Distribution row by hand and set its Updated date.
+- Each changelog gets a dated section, breaking changes first with migration notes, under an empty `Unreleased` section. For Rust and C++ write it by hand from the entries under `Unreleased`. For Python and Botcore `pnpm version-track <track>` writes it from the fragments in `.changeset/` that name the track's stub, and takes the version from their bumps; read the result, then add an introduction or migration notes to the dated section by hand where the fragments lack them. Never set those two versions, write a section or add under their `Unreleased` by hand: `pnpm check:tracks` (in `pnpm check` and the pre-push hook) fails when the stub, `pyproject.toml`, `__version__` and the newest section disagree, and on anything under `Unreleased`.
+- `pnpm version-track` runs Changesets on the stub alone, in a disposable worktree, and writes to the checkout only what the track owns. It needs `uv` for the locks and the provenance records; `--skip-tools` skips them and prints each command still owed, and `--date YYYY-MM-DD` sets the section's date (default today, UTC). If a lock fails part-way, the version is already written and its fragments are gone, so do not run the step again: the error lists every command still to run, in order.
+- `node scripts/check-versions.mjs --write` sets the Version row of `docs/language-parity.md`; check its Distribution row by hand.
 - Verify what the registry or tag actually serves. Never retry a successful publication because a response looked stale.
 
 ## npm (Changesets)
 
-1. On every push to `main`, `release.yml` opens or refreshes the version PR, `chore: release packages` on `changeset-release/main`, through `pnpm version-packages`, which also updates the parity docs and commits `.release/npm-intent.json`. `pnpm release:select` shows the selection locally.
+1. On every push to `main`, `release.yml` opens or refreshes the version PR, `chore: release packages` on `changeset-release/main`, through `pnpm version-packages`, which also updates the parity docs and commits `.release/npm-intent.json`. `pnpm release:select` shows the selection locally. It never selects the three track stubs (their units have no route) and leaves their fragments in `.changeset/` for the track's own step, although `pnpm changeset status` lists `afd-python`, `lushly-botcore` and `afd-spec` among the packages to bump.
 2. **Release failures on `main` are silent.** Nothing alerts on a red `release.yml`; read `gh run list --workflow Release --branch main` before assuming a version PR or a publish happened.
 3. Review the version PR: the intent, all nine manifests, internal peer ranges, `peerDependenciesMeta` and `pnpm changeset status --verbose`. Exercise optional peers absent and present, especially auth commands and view-state with and without local-db.
 4. **The version PR starts without CI.** `release.yml` opens it with `GITHUB_TOKEN`, whose events start no workflows. A person closes and reopens it, and every check must pass before merge (#470 tracks a fix).
@@ -59,12 +62,11 @@ Keep `workspace:^` on internal peer dependencies and `onlyUpdatePeerDependentsWh
 
 ## Python (PyPI)
 
-1. Set the version in `pyproject.toml` and `__version__`; `check-versions` fails if they disagree.
-2. Run `uv lock` in `python/` and in each project that locks it as an editable source, `git grep -l -E 'editable = "(\.\./)+python"' -- '*uv.lock'` (alfred, Botcore, Health and the todo backend today). Their workflows fail on a stale lock.
-3. Update the compare links at the bottom of `python/CHANGELOG.md`.
-4. Commit `chore(python): release afd X.Y.Z`; merge after `python.yml` passes. Run the gate as CI does (`uv sync --frozen --all-extras`): a stale local `.venv` on another interpreter fails test collection with misleading import errors.
-5. **Maintainer** tags the merge commit and pushes the tag: `git tag -a python-vX.Y.Z <merge-sha> -m "afd Python X.Y.Z; AFD contract <spec/VERSION>"`. `publish-python.yml` checks the tag against admission and `pyproject.toml`, runs `python.yml` and uploads. A GitHub Release on the tag (`--latest=false`) reruns it, skipping existing files.
-6. Verify: download the published wheel, match its SHA-256 to PyPI's, and install base, client, server and CLI in fresh environments on Python 3.10 to 3.12.
+1. On a branch from `main`, run `pnpm version-track python`. The fragments that name `afd-python` give the bump (`minor` for a capability or, before 1.0, a breaking change; `patch` for a fix); with none it refuses, because there is nothing to release. In one step it sets the version in `python/package.json`, `pyproject.toml` and `__version__`, writes the dated section with its contract line, moves the compare links at the bottom of `python/CHANGELOG.md`, deletes the fragments it consumed, runs `uv lock` in `python/` and in each project that locks it as an editable source (alfred, Botcore and its Factory plugin, Health and the todo backend today; their workflows fail on a stale lock), records the Botcore lockfile it rewrote in Botcore's provenance (only files that provenance already lists), and updates `docs/language-parity.md`.
+2. Read the new section in `python/CHANGELOG.md` and edit it where the release needs more than its entries: migration notes under the breaking changes, entries that say the same thing merged.
+3. Commit `chore(python): release afd X.Y.Z`; merge after `python.yml` passes. Run the gate as CI does (`uv sync --frozen --all-extras`): a stale local `.venv` on another interpreter fails test collection with misleading import errors.
+4. **Maintainer** tags the merge commit and pushes the tag: `git tag -a python-vX.Y.Z <merge-sha> -m "afd Python X.Y.Z; AFD contract <spec/VERSION>"`. `publish-python.yml` checks the tag against admission and `pyproject.toml`, runs `python.yml` and uploads. A GitHub Release on the tag (`--latest=false`) reruns it, skipping existing files.
+5. Verify: download the published wheel, match its SHA-256 to PyPI's, and install base, client, server and CLI in fresh environments on Python 3.10 to 3.12.
 
 ## Rust (crates.io)
 
@@ -87,8 +89,8 @@ A new crate's first version is a one-time manual upload, because crates.io offer
 
 The first AFD release, 0.6.0, waits for the owner steps in the [handoff record](../../../docs/features/complete/platform-monorepo/botcore-handoff.md): `lushly-dev/botcore` loses its PyPI publisher before AFD's is added, so two repositories never publish at once.
 
-1. Set the version in `endpoints/botcore/pyproject.toml` and `__version__`, keeping them equal, then run `uv lock` in `endpoints/botcore`.
-2. These are imported files: re-hash their rows in both `adaptations.json` copies (`endpoints/botcore/provenance/` and `src/botcore/provenance/`), and the `adaptations` digest in both `provenance.json` copies, with an `IMPORT_REASONS` entry in `scripts/record_provenance.py` for each. The provenance test and `package_smoke.py` fail otherwise.
+1. On a branch from `main`, run `pnpm version-track botcore`. The fragments that name `lushly-botcore` give the bump, as for Python. It sets the version in `endpoints/botcore/package.json`, `pyproject.toml` and `__version__`, writes the dated section in `endpoints/botcore/CHANGELOG.md`, deletes the fragments it consumed, runs `uv lock` in `endpoints/botcore` and in each project that locks it as an editable source (alfred, Health and the Factory plugin today), and then records every imported file it rewrote that Botcore's provenance already lists (the changelog, the stub, `pyproject.toml`, `__init__.py`, `uv.lock`) in both provenance copies with `scripts/record_provenance.py --refresh`.
+2. Read the new section and give it its introduction where the fragments carry none: one paragraph on what the release is for. The provenance test and `package_smoke.py` fail on an imported file changed after step 1, so record that edit: `uv run --directory endpoints/botcore --no-project python scripts/record_provenance.py --refresh --reason "<what changed>" CHANGELOG.md`.
 3. Commit `chore(botcore): release lushly-botcore X.Y.Z`; merge after `botcore.yml` passes.
 4. **Maintainer** tags the merge commit `botcore-vX.Y.Z` (annotated) and pushes it. `publish-botcore.yml` checks the tag against admission and `pyproject.toml`, runs `botcore.yml`, builds, inspects the `lushly_botcore-X.Y.Z` wheel and sdist into a receipt, and uploads after re-verifying it. A GitHub Release on the tag (`--latest=false`) reruns it, skipping existing files.
 5. Verify <https://pypi.org/pypi/lushly-botcore/json>: the version, the uploaded files' SHA-256 against the receipt, and a fresh install on Python 3.11 and 3.12 that imports `botcore` and reports the version.
