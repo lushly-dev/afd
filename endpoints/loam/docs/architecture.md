@@ -270,11 +270,15 @@ Catalog version 1 and what phase 1 serves of it are in the
 Focus returns to the invoker; modals trap focus; every overlay carries its
 owner id, and the overlay manager refuses an open from an app that is not
 active unless the kind is `toast` or the call is a `global` from the shell.
-**Agents open toasts only** (phase 4, D121): the agent interface's toast is
-`agent:<id>`'s, at most 5 a minute, and every other kind it opens is
-`HUMAN_REQUIRED`. An app's or an agent's overlay shows whose it is ("From
-<app>"; "From <agent>, for <person>"), set by the kernel; the shell's own
-carries none.
+**Agents open toasts only** (phase 4, D121), the target phase 4 reaches with
+its step 4: the agent interface's toast is `agent:<id>`'s, at most 5 a minute
+for the agent interface per person (the copilot apart), and its popover is
+`HUMAN_REQUIRED`; until step 4 its `modal-open` still opens as the shell's,
+and its dialogs, prompts and `palette-run` arrive refused with their steps. An
+agent cancels or dismisses an overlay but never confirms one. An app's or an
+agent's overlay shows whose it is ("From <app>"; "From <agent>, for
+<person>"), set by the kernel from the owner's kind, never its id; the shell's
+own carries none, and no app title says "Loam".
 
 How an app reaches the registry and the surfaces. Every edge goes to the
 shell; there is no edge between apps.

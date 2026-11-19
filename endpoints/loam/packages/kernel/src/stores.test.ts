@@ -59,7 +59,7 @@ const DEPLOYER_KEYS = [
 
 /**
  * Two named exemptions. Phase 4's step 3 adds `popover-open`'s menu item `command`, a command's name (its 6.4),
- * pending the coordinator's ruling in that step's record. The first (phase 3 specification, Status, step 6,
+ * kept by the coordinator on 2026-11-18 (that step's record, R-a). The first (phase 3 specification, Status, step 6,
  * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
  * `projects` anywhere else in their input, is still scanned.

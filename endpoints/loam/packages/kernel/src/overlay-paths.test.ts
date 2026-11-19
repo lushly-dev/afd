@@ -568,14 +568,14 @@ describe("whose an overlay is, by kind (the review's R-d)", () => {
 describe("owner lines (6.6, the review's R-c and 8)", () => {
 	it('names a duplicate title by its instance, and never a title that says Loam', () => {
 		const apps = [
-			{ instance: 'notes', title: 'Notes' },
-			{ instance: 'notes2', title: 'notes' },
-			{ instance: 'odd', title: 'Loam notes' },
-			{ instance: 'ok', title: 'Loamy notes' },
+			{ instance: 'memo', title: 'Memo' },
+			{ instance: 'memo2', title: 'memo' },
+			{ instance: 'odd', title: 'Loam memo' },
+			{ instance: 'ok', title: 'Loamy memo' },
 		];
-		expect(ownerTitle(apps, 'notes')).toBe('Notes (notes)');
+		expect(ownerTitle(apps, 'memo')).toBe('Memo (memo)');
 		expect(ownerTitle(apps, 'odd')).toBe('odd');
-		expect(ownerTitle(apps, 'ok')).toBe('Loamy notes');
+		expect(ownerTitle(apps, 'ok')).toBe('Loamy memo');
 		expect(ownerTitle(apps, 'gone')).toBe('gone');
 	});
 

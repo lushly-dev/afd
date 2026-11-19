@@ -43,8 +43,8 @@ const styles = css`
 		position-area: block-end span-inline-end;
 		position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
 		box-sizing: border-box;
-		min-inline-size: 12rem;
-		max-inline-size: min(92vw, 24rem);
+		min-inline-size: min(92vw, var(--shell-size-sidebar-min));
+		max-inline-size: min(92vw, var(--shell-size-main-min));
 		margin: var(--space-stack-xs);
 		padding-block: var(--space-stack-sm);
 		padding-inline: var(--space-inline-md);

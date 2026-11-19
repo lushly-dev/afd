@@ -361,6 +361,8 @@ export class AppSurfaces implements ShellApps {
 			// that then failed (3.4).
 			rescoped ||
 			(event.mutation && /^(toast|modal|popover|overlay)-/.test(command)) ||
+			// A change of person closes every overlay (phase 4 specification, 6.2), in `local` mode with no switch.
+			/^(auth-sign-(in|out)|session-settle)$/.test(command) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
 			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))
 		) {

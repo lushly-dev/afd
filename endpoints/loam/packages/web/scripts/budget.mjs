@@ -307,7 +307,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 85,000 to 88,200 (87,677, +3,176): the toast's owner line, link and sticky timer, the region's F6 stop, the anchor
  * finder the kernel's `overlayAnchors` asks, and the `overlays` chunk's loader. New row: `overlaysMinified`, the
  * chrome's `overlays` chunk (`loam-popover`, its layer and a toast's link), 6,336 against section 14's 11,000, at 58%,
- * so lowered by phase 0's rule to its measurement plus 10%, 6,970; step 4's dialogs raise it.
+ * so lowered by phase 0's rule to its measurement plus 10%, 6,970; step 4's dialogs raise it. After the step's two
+ * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
+ * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
+ * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -335,7 +338,7 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
-	lateMinified: 88_500,
+	lateMinified: 91_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
