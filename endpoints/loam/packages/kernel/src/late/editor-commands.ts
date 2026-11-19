@@ -505,7 +505,20 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 								{ id: 'cancel', label: 'Cancel' },
 							],
 						} as PromptInputV1,
-						{ for: { command: 'editor-close', kind: 'close', tab: input.tab } }
+						// Its tab, scope and document (step 6's second round, 2): tab ids repeat per project, so the chrome acts
+						// on an answer only where all three still match.
+						{
+							for: {
+								command: 'editor-close',
+								kind: 'close',
+								tab: input.tab,
+								scope: here(context),
+								...((document) => (document ? { document } : {}))(
+									before.groups.flatMap((group) => group.tabs).find((tab) => tab.id === input.tab)
+										?.document
+								),
+							},
+						}
 					);
 					return {
 						...refused,

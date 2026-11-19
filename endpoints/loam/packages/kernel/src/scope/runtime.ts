@@ -31,6 +31,11 @@ export interface QueuedTicket {
 	person: string | undefined;
 	behind?: QueuedTicket;
 	left?: string | undefined;
+	/**
+	 * Let the calls queued behind this one go on while it waits on a person's answer in the slot (phase 4's 7.2): the
+	 * answer, and the chrome's reads that draw the question, come after it.
+	 */
+	release?: () => void;
 }
 
 /** What a call's event carries of its scope, kept by trace ID as `seqs` is (11.1). */

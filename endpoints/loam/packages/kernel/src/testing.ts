@@ -383,6 +383,16 @@ export async function replayKernel(
 	}
 	const nested = nestedReplay(ordered);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
+	/**
+	 * The calls whose run, journaled as its own entry with `origin` (phase 4's 7.1, 7.2), the replay answers from its
+	 * record: that call answers from its own record too, as it could not run its child again (step 6's second round, 7).
+	 */
+	const recordedOrigins = new Set(
+		ordered.flatMap((entry) => {
+			const origin = entry.context?.origin;
+			return typeof origin === 'string' && answeredFromRecord(entry) ? [origin] : [];
+		})
+	);
 	const auth = new MockAuthAdapter();
 	// The users the journal's `auth-*` results name, so a settled person reads back as they were recorded.
 	const users = new Map<string, User>();
@@ -466,7 +476,11 @@ export async function replayKernel(
 					await parts.resetSession();
 				}
 				const entry = byTrace.get(context.traceId);
-				if (entry && answeredFromRecord(entry)) {
+				if (
+					entry &&
+					(answeredFromRecord(entry) ||
+						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)))
+				) {
 					recorded.push(entry.seq);
 					if (entry.command === 'app-instance-refresh' && entry.result.success) {
 						const { instance, catalog } = entry.result.data as {

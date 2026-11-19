@@ -95,7 +95,7 @@ const dismissInput = z.strictObject({
 	overlayId: text(64),
 	/** `confirm`, `cancel`, or the id of one of the overlay's actions (6.4). */
 	result: z.optional(z.string().check(z.regex(ACTION_ID))),
-	reason: z.optional(z.enum(['timeout', 'user', 'anchor'])),
+	reason: z.optional(z.enum(['timeout', 'user', 'anchor', 'withdrawn'])),
 	/** A menu popover's picked item (6.4), with `result: 'confirm'`. */
 	item: z.optional(z.number().check(z.int(), z.minimum(0), z.maximum(POPOVER_MENU_ITEMS - 1))),
 	/** A prompt's answer (6.4), with `result: 'confirm'`. */
@@ -509,7 +509,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			properties: {
 				overlayId: textJson(64),
 				result: { type: 'string', pattern: ACTION_ID.source },
-				reason: { type: 'string', enum: ['timeout', 'user', 'anchor'] },
+				reason: { type: 'string', enum: ['timeout', 'user', 'anchor', 'withdrawn'] },
 				item: { type: 'integer', minimum: 0, maximum: POPOVER_MENU_ITEMS - 1 },
 				value: {} as JsonSchema,
 			},
@@ -571,6 +571,21 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				return kernelFailure(
 					'VALIDATION_ERROR',
 					"reason 'anchor' closes a popover whose anchor left the page, and only the shell says so",
+					"Dismiss it with reason 'user', or leave reason out"
+				);
+			}
+			// `withdrawn` is the shell's word for its own question closed with no person's gesture (step 6's second round, 6):
+			// a cancel that is never the person's decline, so it opens no window.
+			if (
+				input.reason === 'withdrawn' &&
+				(opener.kind !== 'shell' ||
+					owner.kind !== 'shell' ||
+					overlays.forOf(input.overlayId) === undefined ||
+					answers)
+			) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"reason 'withdrawn' is the shell's own, for its question closed with no answer",
 					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}
@@ -638,7 +653,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				result,
 				rule === 'withdrawn' ? 'withdrawn' : (input.reason ?? 'user'),
 				value,
-				opener.kind === 'shell'
+				opener.kind === 'shell' && input.reason !== 'withdrawn'
 			);
 			return success(outcome as OverlayResultV1);
 		},

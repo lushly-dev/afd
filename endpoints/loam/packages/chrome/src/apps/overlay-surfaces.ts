@@ -125,7 +125,7 @@ export class OverlaySurfaces {
 	 * What the kernel accepted is told to `hearAnswers`; what it refused shows in that question, which stays open.
 	 */
 	#answerFor(question: LoamModal): AnswerFn {
-		return (overlayId, result, value) =>
+		return (overlayId, result, value, reason) =>
 			void (async () => {
 				const asked = this.#asks.get(overlayId);
 				// The palette's input prompt runs its command with what it collected (phase 4 specification, 7.1); a confirm_prompt
@@ -157,7 +157,7 @@ export class OverlaySurfaces {
 				const answered = await this.#kernel.call<OverlayResultV1>('overlay-dismiss', {
 					overlayId,
 					result,
-					reason: 'user',
+					reason: reason ?? 'user',
 					...(value !== undefined ? { value } : {}),
 				});
 				if (answered.success && answered.data) {
@@ -166,7 +166,13 @@ export class OverlaySurfaces {
 						this.#shell,
 						overlayId,
 						answered.data.result,
-						asked?.kind === 'close' ? asked.tab : undefined
+						asked?.kind === 'close' && asked.tab !== undefined
+							? {
+									tab: asked.tab,
+									...(asked.scope ? { scope: asked.scope } : {}),
+									...(asked.document ? { document: asked.document } : {}),
+								}
+							: undefined
 					);
 					return;
 				}

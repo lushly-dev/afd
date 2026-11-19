@@ -4,7 +4,7 @@
  * the controller passes. In the `editor` chunk.
  */
 
-import { hearAnswers } from '../elements/events.js';
+import { type AskedClose, hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
@@ -84,14 +84,14 @@ export function settleFocus(
 export function hearModals(
 	shell: LoamShell,
 	modals: Map<string, (result: string) => void>,
-	orphan: (tab: string, result: string) => void
+	orphan: (asked: AskedClose, result: string) => void
 ): void {
-	hearAnswers(shell, (overlayId, result, tab) => {
+	hearAnswers(shell, (overlayId, result, asked) => {
 		const waiting = modals.get(overlayId);
 		modals.delete(overlayId);
 		if (waiting) waiting(result);
 		// A close prompt no close of this page waits for: the person's own `editor-close`, from the palette (7.3).
-		else if (tab !== undefined) orphan(tab, result);
+		else if (asked !== undefined) orphan(asked, result);
 	});
 }
 

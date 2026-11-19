@@ -661,7 +661,6 @@ function newRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
-/** Loam's rules, for a manifest that passed the schema. */
 /**
  * `confirm` is the shell's word (phase 4 specification, 7.2): a command that declares a `confirm_prompt` may not take an
  * input of that name, so `confirm: true` is always refused naming `confirmation-get`, and never reads as an answer.
@@ -683,6 +682,7 @@ function confirmRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
+/** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
 	versionRules(manifest, found);

@@ -1892,6 +1892,31 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Verified after the review,** 2026-11-19, the same machine: `test --coverage` for the kernel, chrome, the SDK, the manifest and web; the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; Chromium: `confirmations` (7), `inbox`, `documents/editor`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `apps/second-app`, `scope/first-paint`, `budget`, `autonomy` and `documents/new`. Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
 
+**Second round,** 2026-11-19: two re-checks of `a4fe0ab4` (one approved, one "revise"), each finding verified before its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **Redaction through wrappers** (R4). By trace, `redactWrapped` redacted one level only, so a refused `palette-run` wrapping another of `auth-sign-in` kept the password. It now recurses, each level by its own target's rule, drops an input no command names, and redacts `prompt-settle`'s `open.input` as its command's own (units). The cost: a confirmation of a command whose input the journal redacts replays its prompt's `for.input` redacted, which only a command with such a field would show.
+2. **The close prompt's scope** (7.3): `for` now carries the tab, the scope and the document. The chrome acts on Save or Discard only where the shown scope and the tab's document are the ones asked about; otherwise a toast says nothing was closed (Chromium: a person's `editor-close` of Atlas's `t1` with Beacon's `t1` shown closes neither).
+3. **Startup with a prompt to answer** (7.2): **confirmed in Chromium.** With stage B held, a person's first call that asks in the slot was never drawn, since the shell's own stage-B reads (`persona-list`, the rail) queued behind it. A queued call now releases the queue once it starts waiting on the person (`QueuedTicket.release`), so what follows goes on in order. Round one's bypass of `overlay-list` and `overlay-dismiss` is removed, so agents' and ports' dismissals keep queue order. The Chromium case answers the prompt through the shell.
+4. **The archive gate:** the slot's re-check (and the inbox's) includes line 6, a mutation under an archived project. A unit failed without it and passes with it.
+5. **Bucket namespaces** (R1): `app:<instance>`, `agents:<person>`, `copilot:<person>` and `person`, since an instance may be named `person`. One rule, `ownedBy`, decides `confirmation-get`, `-withdraw` and a list's `result` (unit).
+6. **Trusted declines:** a `close` of the slot's dialog with no Escape of the person's before it, such as a script's `close()`, answers `overlay-dismiss { reason: 'withdrawn' }`. That reason is the shell's alone, on its own question. The confirmation ends withdrawn, saying "its question closed without the person's answer", and opens no window (unit and Chromium). The inbox's Chromium case selected `button.primary`, but tally's reset is destructive, so its Confirm is `danger`: the forged click hit nothing and the case passed vacuously. It now selects both buttons by name, with no optional chaining.
+7. **Replay of a fill whose child the replay answers from its record** (a recorded query such as `app-list`): confirmed (`REPLAY_DIVERGED`). `replayKernel` now answers a call from its own record when its run, by `origin`, is answered from the record (unit).
+8. **A large result:** a list bounds a stored result as it bounds input, and a read by id shows it whole. A unit failed before (the raiser's page broke) and passes now.
+9. **Slot declines bounded:** a slot decline's write removes ended windows and keeps at most 20 live per person, in one batch (unit).
+
+**Improvements:**
+
+- **10:** Chromium: a tally package with a long-input `confirm_prompt` command; the inbox shows "too long to list", withholds Confirm, and offers it once "Show the full input" has read the whole.
+- **11:** a switch is held while the shell's question is open, so no `app-switch` closes it. A close the person did not make ends withdrawn and opens no window (unit).
+- **12:** the scope test gives its fill an explicit Beacon scope and asserts Atlas, not Beacon, received the write.
+- **13:** the two-kernel concern is test-only: the browser host takes the journal's lock, so a store has one kernel per origin (R2); the test host's shared store is a fixture. A unit shows a run whose stored claim is another writer's runs nothing.
+- **14:** rows without `cbucket` came only from `aab0bbda`, which never shipped, so no migration is needed.
+- **15:** `loamRules`' JSDoc is restored.
+
+**Measured after the second round,** D115: first paint 310,909 and 97,013 gzip, `jsGzip` raised from 97,000 to 97,500; `lateMinified` 110,023, its row 110,500; `lateSettingsMinified` 81,152, its row 81,500; `editorMinified` 36,153, its row 36,500. `budget.mjs` records each.
+
+**Verified after the second round,** the same machine: `test --coverage` for the kernel (1,212), chrome (247), the SDK (34), the manifest (1,107) and web (53); the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; fourteen Chromium files, 191 tests (`confirmations` with the stage-B, withdrawn-close and long-input cases, `documents/editor` with the cross-project close, `inbox`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `scope/first-paint`, `budget` and `boot`). Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |

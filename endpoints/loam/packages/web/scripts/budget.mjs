@@ -407,6 +407,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * fill's consume and scope, and the list's bounded input. `appsMinified` 420,500 to 421,000 (420,134 to 420,544,
  * +410): the manifest's refusal of a `confirm` input beside a `confirm_prompt`. `inboxMinified` 11,500 to 12,000
  * (11,340 to 11,941, +601): a cut input shown whole before Confirm, and the trusted press.
+ * Step 6's second round, under D115, the same machine: `jsGzip` 97,000 to 97,500 (96,945 to 97,013, +68; minified
+ * 310,909 of 311,000): a queued call's release (`QueuedTicket.release`) and the recursive redaction of wrapped inputs.
+ * `lateMinified` 110,000 to 110,500 (109,568 to 110,023, +455): the release, the archive re-check and the bucket's
+ * namespace wired. `lateSettingsMinified` 81,000 to 81,500 (80,506 to 81,152, +646): namespaced buckets with one
+ * ownership rule, the bounded slot declines, a listed result bounded, and the archive re-check. `editorMinified`
+ * 36,000 to 36,500 (35,912 to 36,153, +241): the close prompt's answer acting only where its scope and document match.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -435,7 +441,7 @@ export const CEILINGS = Object.freeze({
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 97_000,
+	jsGzip: 97_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -455,13 +461,13 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 110_000,
+	lateMinified: 110_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000.
-	lateSettingsMinified: 81_000,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500.
+	lateSettingsMinified: 81_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -499,7 +505,7 @@ export const CEILINGS = Object.freeze({
 	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
 	sectionsMinified: 51_000,
 	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
-	editorMinified: 36_000,
+	editorMinified: 36_500,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,

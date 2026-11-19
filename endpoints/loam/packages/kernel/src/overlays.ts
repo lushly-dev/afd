@@ -87,8 +87,9 @@ export interface OverlayFor {
 	input?: unknown;
 	/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
 	scope?: ScopeV1;
-	/** The close prompt: the tab whose close it asks about (7.3). */
+	/** The close prompt: the tab whose close it asks about (7.3), and its document. */
 	tab?: string;
+	document?: string;
 }
 
 /** What `open` takes besides the input: whose line the shell shows, and when it opened, on the call's clock. */

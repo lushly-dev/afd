@@ -144,9 +144,20 @@ export class EditorController implements FrameListener {
 			(event) =>
 				void this.#onAction((event as CustomEvent<EditorGroupAction & { group: string }>).detail)
 		);
-		hearModals(shell, this.#modals, (tab, result) => {
-			// A person's `editor-close` from the palette: its prompt's Save or Discard closes the tab here (7.3).
-			if (result === 'save' || result === 'discard') void this.close(tab, result);
+		hearModals(shell, this.#modals, (asked, result) => {
+			// A person's `editor-close` from the palette: its prompt's Save or Discard closes the tab here (7.3), only
+			// where its scope and document are the ones shown, since a tab id repeats per project (second round, 2).
+			if (result !== 'save' && result !== 'discard') return;
+			const here = keyOf(this.#at) === keyOf(asked.scope);
+			const document = tabIn(this.#state, asked.tab)?.document;
+			if (!here || (asked.document !== undefined && document !== asked.document)) {
+				void this.#kernel.call('toast-show', {
+					message: 'That close was asked for a tab that is not shown here, so nothing was closed',
+					tone: 'warning',
+				});
+				return;
+			}
+			void this.close(asked.tab, result);
 		});
 	}
 

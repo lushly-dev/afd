@@ -804,6 +804,12 @@ export async function createLateParts(
 		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
 		replaying: () => deps.internals?.replaying === true,
 		noteInbox: (context) => deps.scope.note(context.traceId, { inbox: true }),
+		archived: (command, scope) =>
+			scope.project !== undefined &&
+			deps.scope.projects.get(scope.project)?.status === 'archived' &&
+			deps.isMutation(command),
+		releaseQueue: (context) =>
+			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
 		digest: async (value) => {
 			const bytes = new TextEncoder().encode(canonical(value));
 			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));

@@ -773,8 +773,9 @@ export interface OverlayV1 extends OverlayRefV1 {
 		input?: unknown;
 		/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
 		scope?: ScopeV1;
-		/** The close prompt: the tab whose close it asks about (7.3). */
+		/** The close prompt: the tab whose close it asks about (7.3), and its document. */
 		tab?: string;
+		document?: string;
 	};
 	/** On an app's dialog, modal or prompt: the scope it was opened in, which its element's mount keeps (D83). */
 	scope?: ScopeV1;

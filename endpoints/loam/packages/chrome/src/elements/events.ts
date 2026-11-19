@@ -34,11 +34,15 @@ export function deepActiveElement(doc: Document = document): Element | null {
 	return active;
 }
 
-/**
- * An answer the kernel accepted: the overlay and the result it closed with, and for the shell's close prompt the tab it
- * asks about (phase 4 specification, 7.3).
- */
-export type AnsweredListener = (overlayId: string, result: string, tab?: string) => void;
+/** What the shell's close prompt asks about (phase 4 specification, 7.3): its tab, scope and document. */
+export interface AskedClose {
+	tab: string;
+	scope?: { workspace: string; project?: string };
+	document?: string;
+}
+
+/** An answer the kernel accepted: the overlay and the result it closed with, and what a close prompt asked about. */
+export type AnsweredListener = (overlayId: string, result: string, asked?: AskedClose) => void;
 
 const answered = new WeakMap<object, Set<AnsweredListener>>();
 
@@ -52,6 +56,11 @@ export function hearAnswers(host: object, listener: AnsweredListener): () => voi
 }
 
 /** Tell `host`'s listeners an answer the kernel accepted; only the renderer, from `overlay-dismiss`'s result, does. */
-export function tellAnswered(host: object, overlayId: string, result: string, tab?: string): void {
-	for (const listener of [...(answered.get(host) ?? [])]) listener(overlayId, result, tab);
+export function tellAnswered(
+	host: object,
+	overlayId: string,
+	result: string,
+	asked?: AskedClose
+): void {
+	for (const listener of [...(answered.get(host) ?? [])]) listener(overlayId, result, asked);
 }

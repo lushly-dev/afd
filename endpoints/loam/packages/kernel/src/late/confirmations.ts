@@ -53,6 +53,8 @@ export const ENDED_KEPT = 50;
  * review's R3): no set of callers fills the person's inbox, which confirmations do not count against.
  */
 export const PERSON_LIMIT = 50;
+/** At most this many live slot declines a person's store keeps (step 6's second round, 9), the newest. */
+export const SLOT_KEPT = 20;
 
 const ID = /^ntf_[a-z0-9]{16}$/;
 
@@ -87,15 +89,29 @@ export const KERNEL_ONLY_FIELDS = [
 	'claim',
 ] as const;
 
-/** Who a caller is to its confirmations (R1): an app's instance, the agent interface's bucket, or the person. */
+/**
+ * Who a caller is to its confirmations (R1), each in a namespace of its own (step 6's second round, 5), so an instance
+ * named `person` or `agents` is never the shell's or an agent's: `app:<instance>`, the agent interface's `agents:<person>`
+ * or `copilot:<person>`, or `person` for a person's own gesture.
+ */
 export const bucketOf = (opener: Opener): string | undefined =>
 	opener.kind === 'app'
-		? opener.owner.id
+		? `app:${opener.owner.id}`
 		: opener.kind === 'agent'
 			? opener.bucket
 			: opener.kind === 'shell'
 				? 'person'
 				: undefined;
+
+/**
+ * The one ownership rule (R1; second round, 5): whether `bucket` raised `row`, so it may `confirmation-get` it,
+ * `confirmation-withdraw` it, and see its stored result in a list. A person's own gesture owns none.
+ */
+export const ownedBy = (
+	row: { cbucket?: unknown; cslot?: unknown },
+	bucket: string | undefined
+): boolean =>
+	bucket !== undefined && bucket !== 'person' && row.cslot === undefined && row.cbucket === bucket;
 
 /** The state a row stands in now: a pending one past its `expiresAt` has expired (7.2), which no write records. */
 export function stateNow(record: ConfirmationRecordV1, now: number): ConfirmationStateV1 {
@@ -160,6 +176,10 @@ export interface ConfirmationDeps {
 	/** Boot's own: `prompt-settle`, journaled before the answer it waits for. */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	replaying(): boolean;
+	/** Whether `command` is a mutation under an archived project in `scope` (line 6; step 6's second round, 4). */
+	archived(command: string, scope: ScopeV1): boolean;
+	/** Release the queue a queued call holds, as it starts waiting on a person (7.2; step 6's second round, 3). */
+	releaseQueue(context: CommandContext): void;
 	/** Mark the call's kernel event: its inbox changed, though the call may have failed (`CONFIRMATION_PENDING`). */
 	noteInbox(context: CommandContext): void;
 	/** SHA-256 of canonical JSON, as the copilot's input digest (phase 5's 3.4). */
@@ -381,7 +401,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			'CONFIRMATION_DECLINED',
 			details?.reason === 'access'
 				? `'${command}' was not run: access to it changed before it could`
-				: `The person declined '${command}'`,
+				: details?.reason === 'withdrawn'
+					? `'${command}' was not run: its question closed without the person's answer`
+					: `The person declined '${command}'`,
 			details?.reason === 'access'
 				? 'Check that the app is enabled here and that you may enter this scope, then ask again'
 				: 'Ask the person before trying again; do not repeat the call',
@@ -511,7 +533,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		scope: ScopeV1
 	): boolean =>
 		!deps.allows(actor as AccessActorV1, scope) ||
-		deps.served(command, caller, scope) !== undefined;
+		deps.served(command, caller, scope) !== undefined ||
+		// Line 6 again: a project archived while it waited takes no mutation (step 6's second round, 4).
+		deps.archived(command, scope);
 
 	// ─── The slot (a person's gesture, the active app's port) ──────────────────────
 
@@ -561,6 +585,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			});
 			if (!opened.success) return opened;
 		}
+		// From here it waits on the person: the calls behind it go on (step 6's second round, 3).
+		deps.releaseQueue(call);
 		const record = slots.get(id);
 		if (!record) {
 			return fail(
@@ -594,9 +620,10 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		// The raising app's own cancel is `withdrawn` (6.5, F6), which never opens the window.
 		if (answer?.reason === 'withdrawn') return declined(name, { reason: 'withdrawn' });
-		// Only a person's own decline opens the window: a prompt the shell closed for another reason does not.
+		// Only a person's own decline opens the window: a prompt closed for any other reason, the shell's switch or a close
+		// with no gesture of theirs among them, ends `withdrawn`, never their decline (second round, 6 and 11).
 		if (answer?.reason !== 'user' || !overlays.closedByPerson(record.overlayId))
-			return declined(name, { reason: answer?.reason ?? 'closed' });
+			return declined(name, { reason: 'withdrawn', closed: answer?.reason ?? 'closed' });
 		// A person's gesture is exempt from the window (N8); the active app's port is held by it, kept in the store (blocker
 		// 6), so a reload and the inbox's path see it.
 		const person = personOf(call);
@@ -630,10 +657,27 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					readAt: now,
 					ckey: key,
 					ciface: 'palette',
-					cbucket: opener.owner.id,
+					cbucket: bucketOf(opener) as string,
 					cslot: true,
 				};
-				await putBack(row);
+				// Bounded (step 6's second round, 9): a window that ended goes, and at most SLOT_KEPT live ones stay, the
+				// newest, written with this one in one batch.
+				const slotted = (await rowsOf(person))
+					.filter((each) => each.cslot === true)
+					.sort((a, b) => b.createdAt - a.createdAt);
+				const gone = [
+					...slotted.filter((each) => each.confirmation.expiresAt <= now),
+					...slotted.filter((each) => each.confirmation.expiresAt > now).slice(SLOT_KEPT - 1),
+				];
+				const { summary } = await store.batch([
+					...gone.map((each) => ({
+						method: 'DELETE' as const,
+						path: `/${TABLE}/${encodeURIComponent(each.id)}`,
+					})),
+					{ method: 'PUT', path: `/${TABLE}/${encodeURIComponent(row.id)}`, body: row },
+				]);
+				if (summary.failed > 0)
+					throw new Error(`The store could not write the confirmation '${row.id}'`);
 			});
 			deps.noteInbox(call);
 		}
@@ -957,14 +1001,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const person = personOf(context);
 		// By bucket (R1): the raising app's instance, or any agent of the same person on the agent interface, which share
 		// one, or the copilot for its own.
-		const caller = opener.kind === 'app' || opener.kind === 'agent' ? bucketOf(opener) : undefined;
+		const caller = bucketOf(opener);
 		const row =
-			person === undefined || caller === undefined
+			person === undefined
 				? undefined
-				: (await rowsOf(person)).find(
-						(each) =>
-							each.id === notification && each.cbucket === caller && each.cslot === undefined
-					);
+				: (await rowsOf(person)).find((each) => each.id === notification && ownedBy(each, caller));
 		if (!row || !deps.allows(context.actor as AccessActorV1, row.scope)) {
 			return fail(
 				'NOTIFICATION_NOT_FOUND',
@@ -1180,8 +1221,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			let result: CommandResult;
 			try {
 				if (deps.askedFor(input.command)) {
-					// Its confirmation replaces the input prompt in the slot, showing the input (R15).
+					// Its confirmation replaces the input prompt in the slot, showing the input (R15); this call waits on it.
 					fields[REPLACES] = promptId;
+					deps.releaseQueue(context);
 				} else {
 					// The prompt is answered, journaled before the run, so a replay closes it before the run as this did.
 					const closed = await deps.runBoot('prompt-settle', { close: promptId, reason: 'user' });

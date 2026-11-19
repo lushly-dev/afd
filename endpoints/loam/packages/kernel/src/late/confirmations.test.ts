@@ -21,19 +21,22 @@ import {
 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createKernel } from '../kernel.js';
+import { createKernel, redactJournalRecord, redactWrapped } from '../kernel.js';
 import { createOverlayStore } from '../overlays.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
 import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
 import {
+	bucketOf,
 	CONFIRMATION_TTL_MS,
 	createConfirmations,
 	DECLINE_WINDOW_MS,
+	ownedBy,
 	PENDING_LIMIT,
 	PERSON_LIMIT,
 	promptSchemaOf,
+	SLOT_KEPT,
 } from './confirmations.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 
@@ -118,8 +121,7 @@ const KEEPER = defineApp({
 			await context.store?.put('value', input.value);
 			return success({ value: input.value });
 		}) as never,
-		'keeper-note': (async (input: { text: string }) =>
-			success({ length: input.text.length })) as never,
+		'keeper-note': (async (input: { text: string }) => success({ text: input.text })) as never,
 		'keeper-get': (async (_input: unknown, context: AppCallContextV1) =>
 			success({
 				count: (await context.store?.get<number>('count')) ?? 0,
@@ -488,6 +490,8 @@ describe('the pending path (R9)', () => {
 			runBoot: async () => success({}),
 			replaying: () => false,
 			noteInbox: () => {},
+			releaseQueue: () => {},
+			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		});
@@ -857,6 +861,8 @@ describe('the run a person confirmed', () => {
 			provider: false,
 			replaying: () => false,
 			noteInbox: () => {},
+			releaseQueue: () => {},
+			archived: () => false,
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		} as never);
 		const refused = await made.gate(
@@ -900,6 +906,30 @@ describe('after the trust review', () => {
 		expect(agents?.confirmation?.result).toMatchObject({ success: true, data: { count: 1 } });
 	});
 
+	it("second round's 5: an app named person or agents is never the shell's or an agent's bucket", () => {
+		const person = bucketOf({ kind: 'shell', owner: { kind: 'shell', id: 'shell' } });
+		const named = bucketOf({ kind: 'app', owner: { kind: 'app', id: 'person' } });
+		const agents = bucketOf({
+			kind: 'agent',
+			owner: { kind: 'agent', id: 'agent:a' },
+			bucket: 'agents:local',
+		});
+		expect(named).toBe('app:person');
+		expect(
+			new Set([
+				person,
+				named,
+				agents,
+				bucketOf({ kind: 'app', owner: { kind: 'app', id: 'agents' } }),
+			]).size
+		).toBe(4);
+		// One rule for get, withdraw and a list's result: the raiser's bucket alone, never a person's own gesture.
+		expect(ownedBy({ cbucket: 'app:person' }, named)).toBe(true);
+		expect(ownedBy({ cbucket: 'person' }, person)).toBe(false);
+		expect(ownedBy({ cbucket: 'app:person' }, person)).toBe(false);
+		expect(ownedBy({ cbucket: 'app:keeper', cslot: true }, 'app:keeper')).toBe(false);
+	});
+
 	it('R3: every confirmation within its life counts, and a withdrawn one is marked read', async () => {
 		const { kernel } = await boot();
 		for (let value = 0; value < PENDING_LIMIT; value++) {
@@ -932,6 +962,8 @@ describe('after the trust review', () => {
 			runBoot: async () => success({}),
 			replaying: () => false,
 			noteInbox: () => {},
+			releaseQueue: () => {},
+			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		});
@@ -954,8 +986,35 @@ describe('after the trust review', () => {
 			prompt: 'ovl-1',
 			input: { method: 'credentials', email: 'ana@example.com', password: 'hunter2' },
 		});
+		// A wrapper inside a wrapper, refused: each level is redacted by its own target's rule (second round, 1).
+		await kernel.call('palette-run', {
+			command: 'palette-run',
+			prompt: 'ovl-1',
+			input: {
+				command: 'auth-sign-in',
+				prompt: 'ovl-2',
+				input: { method: 'credentials', email: 'ana@example.com', password: 'hunter2' },
+			},
+		});
 		const text = JSON.stringify(await journal.read());
 		expect(text).not.toContain('hunter2');
+		// And a confirmation's input the slot journals is redacted as its command's own entry would be.
+		const sign = { method: 'credentials', email: 'a@b.c', password: 'hunter3' };
+		const redacted = redactWrapped(
+			{
+				command: 'prompt-settle',
+				input: { open: { id: 'cnf_1', command: 'auth-sign-in', input: sign } },
+			} as never,
+			(record) => redactJournalRecord(record)
+		);
+		expect(JSON.stringify(redacted)).not.toContain('hunter3');
+		// An input no command names is dropped, never kept.
+		expect(
+			redactWrapped(
+				{ command: 'palette-run', input: { input: { password: 'x' } } } as never,
+				(r) => r
+			).input
+		).toEqual({});
 		expect(promptSchemaOf({ type: 'object', oneOf: [{ properties: {} }] })).toBeUndefined();
 	});
 
@@ -970,6 +1029,19 @@ describe('after the trust review', () => {
 			details: { reason: 'access' },
 		});
 		await kernel.call('workspace-app-set', { instance: 'keeper', enabled: null });
+		expect(await count(kernel)).toBe(0);
+	});
+
+	it("second round's 4: a project archived while the slot waits takes no run", async () => {
+		const { kernel, scopes } = await boot();
+		const waiting = kernel.call('keeper-bump', {}, { scope: scopes.atlas });
+		const prompt = await slotPrompt(kernel);
+		expect((await kernel.call('project-archive', { project: 'atlas' })).success).toBe(true);
+		await kernel.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' });
+		expect((await waiting).error).toMatchObject({
+			code: 'CONFIRMATION_DECLINED',
+			details: { reason: 'access' },
+		});
 		expect(await count(kernel)).toBe(0);
 	});
 
@@ -1091,12 +1163,26 @@ describe('after the trust review', () => {
 			command: 'dual-put',
 		});
 		await kernel.call('scope-set', { project: 'beacon' });
-		const ran = await kernel.call('palette-run', {
-			command: 'dual-put',
-			prompt: opened.data?.prompt.overlayId,
-			input: { key: 'where', value: 'atlas' },
-		});
+		// The fill names Beacon outright as its call's scope: the prompt's own, Atlas, still decides (second round, 12).
+		const ran = await kernel.call(
+			'palette-run',
+			{
+				command: 'dual-put',
+				prompt: opened.data?.prompt.overlayId,
+				input: { key: 'where', value: 'atlas' },
+			},
+			{ scope: scopes.beacon }
+		);
 		expect(ran.success).toBe(true);
+		expect(
+			(
+				await kernel.call<{ value?: unknown }>(
+					'dual-get',
+					{ key: 'where' },
+					{ scope: scopes.beacon }
+				)
+			).data?.value
+		).not.toBe('atlas');
 		expect(
 			(await kernel.call('dual-get', { key: 'where' }, { scope: scopes.atlas })).data
 		).toMatchObject({ value: 'atlas' });
@@ -1133,6 +1219,178 @@ describe('after the trust review', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
+	it("second round's 7: a fill of a query the replay answers from its record replays from that record", async () => {
+		const { kernel, journal } = await boot();
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'app-list',
+		});
+		const listed = await kernel.call('palette-run', {
+			command: 'app-list',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(listed.success).toBe(true);
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it("second round's 8: a large stored result never breaks the raiser's list; a read by id shows it whole", async () => {
+		const { kernel } = await boot();
+		const text = 'y'.repeat(40_000);
+		const asked = await kernel.agent.call('keeper-note', { text });
+		await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' });
+		const page = await kernel.agent.call<Listed>('notification-list', { kind: 'confirmation' });
+		expect(page.success).toBe(true);
+		expect((page.data as Listed).notifications[0]?.confirmation?.result).toMatchObject({
+			truncated: true,
+		});
+		const one = (
+			(await kernel.agent.call<Listed>('notification-list', { notification: idOf(asked) }))
+				.data as Listed
+		).notifications[0];
+		expect(one?.confirmation?.result).toMatchObject({ success: true, data: { text } });
+	});
+
+	it("second round's 9: a person's slot declines are bounded, and ended windows go", async () => {
+		const { kernel, store, advance } = await boot();
+		await kernel.call('app-open', { instance: 'keeper' });
+		const keeper = kernel.appPort('keeper');
+		const slotted = async () =>
+			(await store.list<{ cslot?: true; kind: string }>('notification')).data.filter(
+				(row) => row.cslot === true
+			).length;
+		for (let value = 0; value < SLOT_KEPT + 3; value++) {
+			const waiting = keeper.call('keeper-set', { value });
+			await kernel.call('overlay-dismiss', {
+				overlayId: (await slotPrompt(kernel)).overlayId,
+				result: 'cancel',
+			});
+			expect((await waiting).error?.code).toBe('CONFIRMATION_DECLINED');
+		}
+		expect(await slotted()).toBe(SLOT_KEPT);
+		advance(DECLINE_WINDOW_MS + 1);
+		const waiting = keeper.call('keeper-set', { value: 99 });
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'cancel',
+		});
+		await waiting;
+		expect(await slotted()).toBe(1);
+	});
+
+	it("second round's 6 and 11: a close with no person's gesture is withdrawn, opens no window, and a switch cannot close it", async () => {
+		const { kernel } = await boot();
+		await kernel.call('app-open', { instance: 'keeper' });
+		const keeper = kernel.appPort('keeper');
+		const waiting = keeper.call('keeper-set', { value: 5 });
+		const prompt = await slotPrompt(kernel);
+		// A switch is held while the shell's question is open: no `app-switch` closes it (step 4).
+		expect((await kernel.call('app-open', { instance: 'dual' })).success).toBe(false);
+		expect((await overlays(kernel)).some((each) => each.overlayId === prompt.overlayId)).toBe(true);
+		// Only the shell says `withdrawn`, and only on its own question.
+		expect(
+			(
+				await kernel.agent.call('overlay-dismiss', {
+					overlayId: prompt.overlayId,
+					result: 'cancel',
+					reason: 'withdrawn',
+				})
+			).error?.code
+		).toBe('HUMAN_REQUIRED');
+		await kernel.call('overlay-dismiss', {
+			overlayId: prompt.overlayId,
+			result: 'cancel',
+			reason: 'withdrawn',
+		});
+		const ended = await waiting;
+		expect(ended.error).toMatchObject({
+			code: 'CONFIRMATION_DECLINED',
+			details: { reason: 'withdrawn' },
+		});
+		expect(ended.error?.message).not.toContain('The person declined');
+		// No window: asked again at once.
+		const again = keeper.call('keeper-set', { value: 5 });
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'confirm',
+		});
+		expect((await again).data).toEqual({ value: 5 });
+	});
+
+	it("second round's 13: a run whose stored claim is not this page's runs nothing", async () => {
+		const store = new MemoryAdapter();
+		let ran = false;
+		const agent = { kind: 'agent', id: 'shell-agent', onBehalfOf: 'local' };
+		const made = createConfirmations({
+			store,
+			workspace: () => 'personal',
+			provider: false,
+			overlays: createOverlayStore(),
+			openerOf: (context: { interface?: string }) =>
+				context.interface === 'agent'
+					? {
+							kind: 'agent',
+							owner: { kind: 'agent', id: 'agent:shell-agent' },
+							bucket: 'agents:local',
+						}
+					: { kind: 'shell', owner: { kind: 'shell', id: 'shell' } },
+			isActive: async () => false,
+			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Bump', danger: false }),
+			paletteCommand: () => undefined,
+			inputFault: () => undefined,
+			journaled: () => true,
+			allows: () => true,
+			served: () => undefined,
+			archived: () => false,
+			appTitle: (instance: string) => instance,
+			projectName: () => undefined,
+			personLabel: () => null,
+			// Another writer claims the row between this page's claim and its run: the gate must refuse.
+			runNow: async (
+				_iface: string,
+				name: string,
+				input: unknown,
+				fields: Record<string, unknown>
+			) => {
+				const id = fields.confirmation as string;
+				await store.update('notification', id, { claim: 'another-page' } as never);
+				return made.gate(
+					name,
+					input,
+					{ ...fields, actor: agent, interface: 'agent' } as never,
+					async () => {
+						ran = true;
+						return success({});
+					}
+				);
+			},
+			runBoot: async () => success({}),
+			replaying: () => false,
+			releaseQueue: () => {},
+			noteInbox: () => {},
+			digest: async (value: unknown) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey },
+		} as never);
+		const raised = await made.gate(
+			'keeper-bump',
+			{},
+			{ actor: agent, interface: 'agent' } as never,
+			async () => success({})
+		);
+		const id = idOf(raised);
+		const row = (await store.get('notification', id)) as never;
+		const answered = await made.answer(row, 'confirm', {
+			actor: { kind: 'human', id: 'local' },
+			interface: 'palette',
+			traceId: 't1',
+		} as never);
+		expect(ran).toBe(false);
+		expect((answered.data as { state: string }).state).toBe('declined');
+	});
+
 	it("improvement 13: no caller's options or fields run a confirmation's call; a row never approved runs nothing", async () => {
 		const workspace = await boot();
 		const { kernel } = workspace;
@@ -1154,6 +1412,8 @@ describe('after the trust review', () => {
 			provider: false,
 			replaying: () => false,
 			noteInbox: () => {},
+			releaseQueue: () => {},
+			archived: () => false,
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
 		} as never);

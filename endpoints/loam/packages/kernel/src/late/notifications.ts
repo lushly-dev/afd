@@ -25,7 +25,7 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
-import { KERNEL_ONLY_FIELDS, stateNow, summaryOf } from './confirmations.js';
+import { KERNEL_ONLY_FIELDS, ownedBy, stateNow, summaryOf } from './confirmations.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PushRate } from './push-rate.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
@@ -602,8 +602,11 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			record.state = stateNow(record, now);
 			// Its outcome is the raiser's, as `confirmation-get` gives it (R1); a list bounds its input, a read by id shows it
 			// whole, so the person sees all of it before confirming (blocker 9).
-			if (raisedBy === undefined || raisedBy !== reader.bucket) delete record.result;
+			if (!ownedBy({ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot }, reader.bucket))
+				delete record.result;
 			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
+			// And its stored outcome, as its input (step 6's second round, 8): a large result never breaks a page.
+			if (!reader.one && record.result !== undefined) record.result = summaryOf(record.result);
 		}
 		const from = deps.fromOf(copy.source);
 		if (from) copy.from = from;

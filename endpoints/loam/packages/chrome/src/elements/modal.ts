@@ -246,8 +246,16 @@ function answersOf(input: QuestionInput): OverlayActionV1[] {
 	];
 }
 
-/** A person's answer to a question, with the id of the question shown when they gave it. */
-export type AnswerFn = (overlayId: string, result: string, value?: unknown) => void;
+/**
+ * A person's answer to a question, with the id of the question shown when they gave it; `withdrawn` when the dialog
+ * closed with no gesture of theirs before it (step 6's second round, 6).
+ */
+export type AnswerFn = (
+	overlayId: string,
+	result: string,
+	value?: unknown,
+	reason?: 'withdrawn'
+) => void;
 
 /**
  * Each question's answer callback, held here and never on the element (the trust review's blocker 1): nothing that
@@ -292,6 +300,7 @@ export class LoamModal extends FASTElement {
 		options: QuestionOptions = { kind: 'modal' }
 	): Promise<void> {
 		this.overlayId = overlayId;
+		this.#escaped = false;
 		this.kind = options.kind;
 		this.input = input;
 		this.from = options.from ?? '';
@@ -386,11 +395,14 @@ export class LoamModal extends FASTElement {
 		this.#fields?.first?.setAttribute('aria-invalid', 'true');
 	}
 
-	#answer(result: string): void {
+	#answer(result: string, reason?: 'withdrawn'): void {
 		if (this.overlayId === '') return;
 		const value = result !== 'cancel' && this.#fields ? this.#fields.read() : undefined;
-		ANSWERS.get(this)?.(this.overlayId, result, value);
+		ANSWERS.get(this)?.(this.overlayId, result, value, reason);
 	}
+
+	/** A person's own Escape since it opened: the browser's close that follows is theirs (second round, 6). */
+	#escaped = false;
 
 	handleCancel(event: Event): void {
 		event.preventDefault();
@@ -407,10 +419,14 @@ export class LoamModal extends FASTElement {
 			this.#closing = false;
 			return;
 		}
-		if (this.overlayId !== '' && !this.dialog.open) this.#answer('cancel');
+		// The browser closed it on a person's Escape: their cancel. Closed with no gesture of theirs, as a script's
+		// `close()` does: the question ends `withdrawn`, which never counts as the person's decline (second round, 6).
+		if (this.overlayId !== '' && !this.dialog.open)
+			this.#answer('cancel', this.#escaped ? undefined : 'withdrawn');
 	}
 
 	handleKeydown(event: KeyboardEvent): boolean {
+		if (event.key === 'Escape' && event.isTrusted) this.#escaped = true;
 		if (this.kind === 'dialog') {
 			// A non-modal dialog has no cancel event of its own: a person's Escape cancels it here.
 			if (event.key === 'Escape' && !event.defaultPrevented && event.isTrusted) {

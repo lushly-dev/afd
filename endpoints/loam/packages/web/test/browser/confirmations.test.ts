@@ -8,6 +8,9 @@
  * `documents/editor.test.ts`'s.
  */
 
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -19,6 +22,7 @@ import {
 	focused,
 	kernelCall,
 	openApp,
+	openPage,
 	openShell,
 	packApp,
 	serveDeployment,
@@ -239,8 +243,9 @@ describe('P4-E8: confirmations', () => {
 				| (HTMLElement & Record<string, unknown>)
 				| null;
 			const confirm = modal?.shadowRoot?.querySelector<HTMLButtonElement>('button.confirm');
-			confirm?.click();
-			confirm?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			if (!confirm) throw new Error('No Confirm button in the slot');
+			confirm.click();
+			confirm.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 			// The answer callback is not the element's to give away.
 			return { onAnswer: typeof modal?.onAnswer };
 		});
@@ -256,16 +261,119 @@ describe('P4-E8: confirmations', () => {
 		await expect
 			.poll(() => item.getByRole('button', { name: 'Confirm Reset the tally' }).count())
 			.toBe(1);
+		// Both buttons, by name: tally's reset is destructive, so its Confirm is `danger`, not `primary`.
 		await item.evaluate((element) => {
-			const button = element.querySelector<HTMLButtonElement>('button.primary');
-			button?.click();
-			button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			for (const name of ['Confirm Reset the tally', 'Decline Reset the tally']) {
+				const button = element.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`);
+				if (!button) throw new Error(`No button named ${name}`);
+				button.click();
+				button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			}
 		});
 		await settle(page);
 		expect(await item.locator('.meta').nth(1).textContent()).toContain('Waiting for your answer');
 		expect(await total(page)).toBe(2);
 		expect(errors).toEqual([]);
 		await page.context().close();
+	});
+
+	it("second round's 6: a script's close of the slot's dialog withdraws the question, and holds nothing back", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'tally');
+		await kernelCall(page, 'tally-add', { by: 2 });
+		await start(page, 'tally-reset', {}, 'tally');
+		await expect.poll(() => slot(page).count()).toBe(1);
+		await page.evaluate(() => {
+			const modal = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-modal');
+			const dialog = modal?.shadowRoot?.querySelector('dialog');
+			if (!dialog) throw new Error('No dialog');
+			dialog.close();
+		});
+		await expect.poll(async () => (await settled(page))?.error?.details?.reason).toBe('withdrawn');
+		// No window: the port asks again at once.
+		await start(page, 'tally-reset', {}, 'tally');
+		await expect.poll(() => slot(page).count()).toBe(1);
+		await slot(page).locator('button', { hasText: 'Decline' }).click();
+		await expect.poll(async () => (await settled(page))?.error?.code).toBe('CONFIRMATION_DECLINED');
+		expect(await total(page)).toBe(2);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it("second round's 10: a long input is shown whole before Confirm is offered", async () => {
+		// Tally's package with one more command, a long note under a `confirm_prompt`: raising and listing it calls no
+		// handler.
+		const packed = await packApp('tally');
+		const copy = await mkdtemp(join(tmpdir(), 'loam-tally-note-'));
+		await cp(packed, copy, { recursive: true });
+		const file = join(copy, 'app-manifest.json');
+		const manifest = JSON.parse(await readFile(file, 'utf8')) as { commands: unknown[] };
+		manifest.commands.push({
+			name: 'tally-note',
+			title: 'Keep a note',
+			description: 'Keep a long note.',
+			effects: ['store-write'],
+			confirm_prompt: 'Keep this note?',
+			input_schema: {
+				type: 'object',
+				properties: { text: { type: 'string', maxLength: 100000 } },
+				required: ['text'],
+				additionalProperties: false,
+			},
+		});
+		await writeFile(file, JSON.stringify(manifest));
+		const long = await serveDeployment({
+			config: deploymentFile(deploymentEntry('tally', copy, { order: 10 })),
+		});
+		const { page, errors } = await openShell(browser, long.origin);
+		try {
+			const text = `${'z'.repeat(5000)} the end`;
+			const asked = (await agentCall(page, 'tally-note', { text })) as Result;
+			expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+			await kernelCall(page, 'section-open', { section: 'inbox' });
+			const item = inbox(page).locator('.notice').first();
+			const show = item.getByRole('button', { name: 'Show the full input of Keep a note' });
+			await expect.poll(() => show.count()).toBe(1);
+			expect(await item.getByRole('button', { name: 'Confirm Keep a note' }).count()).toBe(0);
+			expect(await item.locator('.input').textContent()).toContain('too long to list');
+			await show.click();
+			await expect.poll(() => item.locator('.input').textContent()).toContain('the end');
+			await expect
+				.poll(() => item.getByRole('button', { name: 'Confirm Keep a note' }).count())
+				.toBe(1);
+			await item.getByRole('button', { name: 'Decline Keep a note' }).click();
+			expect(errors).toEqual([]);
+		} finally {
+			await page.context().close();
+			await long.close();
+			await rm(copy, { recursive: true, force: true });
+		}
+	});
+
+	it("second round's 3: a person's first call during stage B asks in the slot, and is answered through the shell", async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		// Stage B held: the call below is queued behind it, and waits on the person once it runs.
+		await context.route('**/assets/late-*', async (route) => {
+			await held;
+			await route.continue();
+		});
+		const { page, errors } = await openPage(browser, site.origin, {}, context);
+		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+		await page.waitForFunction(
+			() => performance.getEntriesByName('first-contentful-paint').length > 0
+		);
+		await start(page, 'tally-reset', {}, 'person');
+		release();
+		// The chrome's own stage B reads (the persona, the rail) must not wait behind the call that waits on the person.
+		await expect.poll(() => slot(page).count(), { timeout: 15_000 }).toBe(1);
+		await slot(page).locator('button', { hasText: 'Confirm' }).click();
+		await expect.poll(async () => (await settled(page))?.success, { timeout: 15_000 }).toBe(true);
+		expect(errors).toEqual([]);
+		await context.close();
 	});
 
 	it('passes axe in three themes with a confirmation in the slot and one in the inbox', async () => {

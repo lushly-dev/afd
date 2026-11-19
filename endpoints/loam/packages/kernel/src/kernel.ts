@@ -131,11 +131,28 @@ export function redactWrapped(
 	record: JournalRecord,
 	redact: (record: JournalRecord) => JournalRecord
 ): JournalRecord {
-	const input = record.input as { command?: unknown; input?: unknown } | null;
-	if (record.command !== 'palette-run' || typeof input?.command !== 'string' || !('input' in input))
-		return record;
-	const inner = redact({ ...record, command: input.command, input: input.input });
-	return { ...record, input: { ...input, input: inner.input } };
+	/**
+	 * `holder`'s `input`, redacted as `holder.command`'s own entry would be, through every wrapper inside it (step 6's
+	 * second round, 1); dropped when no command names it, since no rule can say what it holds.
+	 */
+	const within = (holder: Record<string, unknown>): Record<string, unknown> => {
+		const { input: inner, ...rest } = holder;
+		if (!('input' in holder)) return holder;
+		if (typeof holder.command !== 'string') return rest;
+		const done = redactWrapped(
+			redact({ ...record, command: holder.command, input: inner }),
+			redact
+		);
+		return { ...rest, input: done.input };
+	};
+	const input = record.input as Record<string, unknown> | null;
+	if (typeof input !== 'object' || input === null) return record;
+	if (record.command === 'palette-run') return { ...record, input: within(input) };
+	// A confirmation the slot opens journals the input it asks about (7.2): redacted as its command's own.
+	const open = input.open as Record<string, unknown> | null | undefined;
+	if (record.command === 'prompt-settle' && typeof open === 'object' && open !== null)
+		return { ...record, input: { ...input, open: within(open) } };
+	return record;
 }
 
 /** Remove `input.password` from an `auth-sign-in` record. */
@@ -705,9 +722,6 @@ export async function createKernelParts(
 			// Not truthiness: a frame's call may name its parent with an empty trace ID.
 			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
-			// The slot's read and answer, once stage B has ended: a queued call waiting on its prompt holds the queue, so
-			// they never wait behind it (phase 4's 7.2, the trust review's blocker 8).
-			(stageBEnded && (name === 'overlay-list' || name === 'overlay-dismiss')) ||
 			// The agent interface waits for stage B, whose `late/` names its actor (phase 3 specification, 3.1).
 			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)
@@ -720,7 +734,12 @@ export async function createKernelParts(
 		const drained = () => {
 			if (queue === tail) queue = undefined;
 		};
-		const tail: Promise<unknown> = mine.then(drained, drained);
+		// A call that waits on a person's answer releases the queue (phase 4's 7.2): what comes after it, the answer and
+		// the chrome's reads that draw the question among them, goes on in order (step 6's second round, 3).
+		const released = new Promise<void>((resolve) => {
+			ticket.release = resolve;
+		});
+		const tail: Promise<unknown> = Promise.race([mine, released]).then(drained, drained);
 		queue = tail;
 		return mine;
 	}
