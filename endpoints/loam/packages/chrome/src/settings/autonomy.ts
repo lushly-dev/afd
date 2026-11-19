@@ -1,7 +1,9 @@
 /**
  * @fileoverview `loam-autonomy-section` (phase 4 specification, 4.5, 3.5 and 13), the settings tree's Autonomy entry:
  * the advisory notice above the rows, the workspace's rows with its mode and ceiling, the active project's rows, the
- * person's own cap, and why a command gets its mode, the chain `autonomy-get` gives. Every read and write is a command
+ * person's own cap, and why a command gets its mode, the chain `autonomy-get` gives. It reads the scope it shows alone,
+ * `{ project }` in a project and `{ level: 'workspace' }` otherwise, a page at a time, so the general controls and the
+ * cap always show however many rules a workspace holds; "Show more rules" reads the next page. Every read and write is a command
  * (`autonomy-list`, `autonomy-get`, `autonomy-set`), made in the scope the panel shows, so a write never lands in
  * another project. Each control the caller may not use is disabled with the reason `autonomy-list` gives; on a hosted
  * `provider` deployment the cap's field is section 13's message instead. Native controls, as the settings section's.
@@ -33,6 +35,7 @@ interface Listed {
 	ceiling: Mode | null;
 	cap: Mode | null;
 	writable: { workspace: Writable; project?: Writable; cap: Writable };
+	cursor: string | null;
 }
 
 /** Why a part is not the caller's to change, in words. */
@@ -71,7 +74,12 @@ export class LoamAutonomySection extends SettingsElement {
 	scope: PanelScope = { workspace: '' };
 	project: { id: string; name: string } | null = null;
 	apps: ReadonlyArray<{ instance: string; title: string }> = [];
+	/** Rows per page of `autonomy-list` (its default). */
+	pageSize = 100;
+	/** A key the route names, `cap`: revealed and focused once the section shows it (3.2's hand-off). */
+	target: string | undefined;
 	#reads = 0;
+	#listed: Listed | undefined;
 	#status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
 	#body = el('div', { class: 'fields' });
 	#explained = el('div', { class: 'section', id: 'autonomy-explained' });
@@ -98,18 +106,51 @@ export class LoamAutonomySection extends SettingsElement {
 			Promise.resolve({ success: false })) as Promise<Answer<T>>;
 	}
 
-	/** Read the rows again and draw them; a read overtaken by a later one draws nothing. */
+	/** The scope shown, as `autonomy-list` reads it: the project's rows in a project, the workspace's otherwise. */
+	#asked(): Record<string, unknown> {
+		return {
+			...(this.project ? { project: this.project.id } : { level: 'workspace' }),
+			limit: this.pageSize,
+		};
+	}
+
+	/** Read the first page again and draw it; a read overtaken by a later one draws nothing. */
 	async read(): Promise<void> {
 		const generation = ++this.#reads;
-		const scope = this.scope;
-		const project = this.project;
-		const listed = await this.#call<Listed>('autonomy-list', {}, scope);
+		const listed = await this.#call<Listed>('autonomy-list', this.#asked(), this.scope);
 		if (generation !== this.#reads) return;
 		if (!listed.success || !listed.data) {
 			this.#body.replaceChildren(el('p', {}, failed(listed)));
 			return;
 		}
-		const { rows, ceiling, cap, writable } = listed.data;
+		this.#listed = listed.data;
+		this.#draw();
+	}
+
+	/** The next page, its rows after those shown. */
+	async #more(): Promise<void> {
+		const held = this.#listed;
+		if (!held?.cursor) return;
+		const generation = ++this.#reads;
+		const next = await this.#call<Listed>(
+			'autonomy-list',
+			{ ...this.#asked(), cursor: held.cursor },
+			this.scope
+		);
+		if (generation !== this.#reads) return;
+		if (!next.success || !next.data) {
+			this.#status.textContent = `More rules could not be read. ${failed(next)}`;
+			return;
+		}
+		this.#listed = { ...next.data, rows: [...held.rows, ...next.data.rows] };
+		this.#draw();
+		this.#status.textContent = `${next.data.rows.length} more rules are shown.`;
+	}
+
+	#draw(): void {
+		const scope = this.scope;
+		const project = this.project;
+		const { rows, ceiling, cap, writable, cursor } = this.#listed as Listed;
 		const general = rows.find((row) => row.id === 'workspace/-/*/*');
 		const parts: HTMLElement[] = [
 			this.#level(
@@ -140,8 +181,18 @@ export class LoamAutonomySection extends SettingsElement {
 				)
 			);
 		}
+		if (cursor) parts.push(button('Show more rules', () => this.#more(), { id: 'autonomy-more' }));
 		parts.push(this.#cap(cap, writable.cap, scope), this.#explain(scope));
 		this.#body.replaceChildren(...parts);
+		// The cap's link (`#cap`): its control, or section 13's message in its place, shown and focused once.
+		if (this.target === 'cap') {
+			this.target = undefined;
+			const shown =
+				this.shadowRoot?.querySelector<HTMLElement>('#autonomy-cap') ??
+				this.shadowRoot?.querySelector<HTMLElement>('#cap');
+			shown?.scrollIntoView({ block: 'nearest' });
+			shown?.focus();
+		}
 	}
 
 	/** Write, say how it went in words, and read again either way. */
@@ -281,7 +332,8 @@ export class LoamAutonomySection extends SettingsElement {
 			button(
 				'Add rule',
 				() => {
-					if (!mode.select.value || !app.value) return;
+					// Never sent when the caller may not set this level, whatever the button's state says.
+					if (off || !mode.select.value || !app.value) return;
 					return this.#set(
 						{
 							...at,
@@ -311,7 +363,7 @@ export class LoamAutonomySection extends SettingsElement {
 		if (writable.reason === 'SHARED_RECORD_UNAVAILABLE')
 			return el(
 				'section',
-				{ class: 'section', 'aria-label': 'Your cap', id: 'cap' },
+				{ class: 'section', 'aria-label': 'Your cap', id: 'cap', tabindex: '-1' },
 				title,
 				el('p', { class: 'note' }, HOSTED_CAP)
 			);
@@ -321,7 +373,7 @@ export class LoamAutonomySection extends SettingsElement {
 		);
 		return el(
 			'section',
-			{ class: 'section', 'aria-label': 'Your cap', id: 'cap' },
+			{ class: 'section', 'aria-label': 'Your cap', id: 'cap', tabindex: '-1' },
 			title,
 			hint,
 			field.box,

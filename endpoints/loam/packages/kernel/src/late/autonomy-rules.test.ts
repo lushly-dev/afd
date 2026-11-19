@@ -164,27 +164,65 @@ describe('resolution (4.2)', () => {
 		expect(resolveAutonomy({ rows: [], command: WRITE, cap: 'act' }).mode).toBe('ask');
 	});
 
-	it('ignores orphans and rows of other projects, and a workspace row holding a ceiling alone', () => {
+	it('decides by no orphan, but bounds by it (R1); ignores other projects and a ceiling-only general row', () => {
+		const orphan = {
+			...row({ level: 'workspace', instance: 'counter', command: 'counter-get', mode: 'suggest' }),
+			orphan: true as const,
+		};
 		const rows = [
-			{
-				...row({
-					level: 'workspace',
-					instance: 'counter',
-					command: 'counter-get',
-					mode: 'suggest',
-				}),
-				orphan: true as const,
-			},
+			orphan,
 			row({ level: 'project', project: 'prj_beacon', mode: 'suggest' }),
 			row({ level: 'workspace', ceiling: 'act' }),
 		];
-		expect(resolveAutonomy({ rows, command: READ, project: 'prj_atlas' })).toMatchObject({
-			mode: 'act',
+		const resolved = resolveAutonomy({ rows, command: READ, project: 'prj_atlas' });
+		expect(resolved).toMatchObject({
+			mode: 'suggest',
 			from: 'default',
+			ceilings: [{ id: orphan.id, mode: 'suggest' }],
 		});
+		expect(resolved.chain.map(({ id, as }) => [id, as])).toEqual([
+			['default', 'mode'],
+			[orphan.id, 'ceiling'],
+		]);
+		// Flagging a restrictive row never loosens: the same rows unflagged resolve the same mode.
+		const whole = resolveAutonomy({ rows: [{ ...orphan, orphan: undefined }], command: READ });
+		expect(whole.mode).toBe('suggest');
+		// An orphan for another command of the instance bounds nothing here.
+		expect(resolveAutonomy({ rows, command: { ...READ, name: 'counter-list' } }).mode).toBe('act');
+		// An orphaned instance row bounds every command of the instance, and a project's orphan its project only.
+		const instanceOrphan = {
+			...row({ level: 'workspace', instance: 'counter', mode: 'ask' }),
+			orphan: true as const,
+		};
+		expect(resolveAutonomy({ rows: [instanceOrphan], command: READ }).mode).toBe('ask');
+		const projectOrphan = {
+			...row({ level: 'project', project: 'prj_atlas', instance: 'counter', mode: 'suggest' }),
+			orphan: true as const,
+		};
 		expect(
-			resolveAutonomy({ rows, command: READ, project: 'prj_atlas' }).chain.map(({ id }) => id)
-		).toEqual(['default']);
+			resolveAutonomy({ rows: [projectOrphan], command: READ, project: 'prj_atlas' }).mode
+		).toBe('suggest');
+		expect(
+			resolveAutonomy({ rows: [projectOrphan], command: READ, project: 'prj_beacon' }).mode
+		).toBe('act');
+	});
+
+	it('bounds a project row at write time by an orphaned workspace row too (R1)', () => {
+		const orphan = {
+			...row({
+				level: 'workspace',
+				instance: 'counter',
+				command: 'counter-reset',
+				mode: 'suggest',
+			}),
+			orphan: true as const,
+		};
+		expect(writeBound([orphan], { level: 'project', instance: 'counter', command: RESET })).toEqual(
+			{
+				id: orphan.id,
+				mode: 'suggest',
+			}
+		);
 	});
 
 	it('resolves a mounted tool to ask until a row says otherwise', () => {
@@ -238,14 +276,21 @@ describe('the write-time bound (4.2, F8)', () => {
 	});
 });
 
-describe('orphans (4.2)', () => {
+describe('orphans (4.2; R1, R2)', () => {
+	const tracked = (fields: Parameters<typeof row>[0], app = 'plugin:counter') => ({
+		...row(fields),
+		app,
+	});
 	const rows = [
 		row({ level: 'workspace', mode: 'ask' }),
-		row({ level: 'workspace', instance: 'counter', command: 'counter-reset', mode: 'ask' }),
-		row({ level: 'workspace', instance: 'gone', mode: 'ask' }),
-		row({ level: 'workspace', instance: 'work', command: 'work-read', mode: 'ask' }),
+		tracked({ level: 'workspace', instance: 'counter', command: 'counter-reset', mode: 'ask' }),
+		tracked({ level: 'workspace', instance: 'gone', mode: 'ask' }, 'plugin:gone'),
+		tracked(
+			{ level: 'workspace', instance: 'work', command: 'work-read', mode: 'ask' },
+			'mounted:umbel:http:w'
+		),
 		{
-			...row({
+			...tracked({
 				level: 'project',
 				project: 'prj_atlas',
 				instance: 'counter',
@@ -255,11 +300,18 @@ describe('orphans (4.2)', () => {
 			orphan: true as const,
 		},
 	];
+	const known = (commands: string[] | undefined, identity = 'plugin:counter') => ({
+		identity,
+		commands: commands === undefined ? undefined : new Set(commands),
+	});
 
-	it('flags a row whose instance or command is gone, and unflags one backed again', () => {
-		const commands = new Map([['counter', new Set(['counter-add', 'counter-get'])]]);
-		const changes = orphanChanges(rows, new Set(['shell', 'counter', 'work']), (instance) =>
-			instance === 'work' ? undefined : (commands.get(instance) ?? new Set())
+	it('flags a row whose instance or command is gone, and unflags one backed again by the same app', () => {
+		const changes = orphanChanges(rows, (instance) =>
+			instance === 'counter'
+				? known(['counter-add', 'counter-get'])
+				: instance === 'work'
+					? known(undefined, 'mounted:umbel:http:w')
+					: undefined
 		);
 		expect(changes).toEqual({
 			orphaned: ['workspace/-/counter/counter-reset', 'workspace/-/gone/*'],
@@ -267,16 +319,36 @@ describe('orphans (4.2)', () => {
 		});
 	});
 
-	it("judges a mounted instance's command only once its catalog is known", () => {
-		const unknown = orphanChanges(rows, new Set(['counter', 'work']), (instance) =>
-			instance === 'work' ? undefined : new Set(['counter-reset', 'counter-add'])
+	it('leaves every flag as it is while a catalog or an identity is unknown', () => {
+		const unknown = orphanChanges(rows, (instance) =>
+			instance === 'gone'
+				? undefined
+				: known(undefined, instance === 'work' ? 'mounted:umbel:http:w' : 'plugin:counter')
 		);
-		expect(unknown.orphaned).not.toContain('workspace/-/work/work-read');
-		const known = orphanChanges(
-			rows,
-			new Set(['counter', 'work']),
-			() => new Set(['counter-reset'])
+		expect(unknown).toEqual({ orphaned: ['workspace/-/gone/*'], restored: [] });
+		const noIdentity = orphanChanges(rows, () => ({ identity: undefined, commands: new Set() }));
+		expect(noIdentity).toEqual({ orphaned: [], restored: [] });
+	});
+
+	it('flags a row whose instance now runs another app, and a command name alone never backs it (R2)', () => {
+		const swapped = orphanChanges(rows, (instance) =>
+			instance === 'counter'
+				? known(['counter-add', 'counter-reset'], 'plugin:impostor')
+				: known(['work-read'], 'mounted:umbel:http:other')
 		);
-		expect(known.orphaned).toContain('workspace/-/work/work-read');
+		expect(swapped.orphaned).toEqual([
+			'workspace/-/counter/counter-reset',
+			'workspace/-/gone/*',
+			'workspace/-/work/work-read',
+		]);
+		expect(swapped.restored).toEqual([]);
+		// A row stored with no identity is never backed.
+		const bare = [
+			{ ...row({ level: 'workspace', instance: 'counter', mode: 'ask' }), orphan: true as const },
+		];
+		expect(orphanChanges(bare, () => known(['counter-add']))).toEqual({
+			orphaned: [],
+			restored: [],
+		});
 	});
 });

@@ -318,7 +318,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `autonomy-set` with its N9 check order and hand-off, and boot's `autonomy-settle`; about a third of it is the three
  * commands' descriptions, input schemas and refusals in words. `settingsMinified` 36,000 to 40,000 (32,094 to 39,323,
  * +7,229): `loam-autonomy-section`, its words and the tree's Autonomy entry. First paint 308,800 and 96,345 gzip,
- * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring.
+ * within its rows (`autonomy-settle` joins `BOOT_ONLY`); `late` 83,668 of 84,000, the chunk's wiring. After the step's
+ * trust review, with descriptions and refusal text trimmed first (-471): `lateSettingsMinified` 43,500 to 45,500 (42,595
+ * to 44,544: identity and catalog state per instance, the workspace in the row's key, `autonomy-list`'s pages, the
+ * identifier checks and the copilot's hand-off rule); `settingsMinified` 40,000 to 41,000 (39,323 to 40,198: the
+ * section's pages and the cap's link). First paint 308,836 and 96,360 gzip; `late` 83,989 of 84,000.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -357,7 +361,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 43_500,
+	lateSettingsMinified: 45_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -395,7 +399,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 40_000,
+	settingsMinified: 41_000,
 	editorMoveMinified: 4_205,
 });
 

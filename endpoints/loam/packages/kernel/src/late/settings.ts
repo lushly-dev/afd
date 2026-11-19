@@ -31,6 +31,7 @@ import type { DocumentKit } from './document-kit.js';
 import {
 	checkKnownValue,
 	isHumanGesture,
+	isHumanKey,
 	type KnownSectionV1,
 	type ResolvedSettingV1,
 	resolveSetting,
@@ -177,6 +178,12 @@ export interface Settings {
 	 * A key of the person's own record that only its own command writes, as `loam.autonomy.cap` (4.1): read from the
 	 * store at each call, and written one at a time with the `setting-*` writes, so neither loses the other's.
 	 */
+	/**
+	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (3.2, F2):
+	 * `autonomy-set` at every level, and `setting-set` or `setting-reset` of a shared value or a human key. The copilot's
+	 * gate lets these through, so they answer `HUMAN_REQUIRED` from their handlers.
+	 */
+	refusesAgent(name: string, input: unknown): boolean;
 	ownValue(
 		section: string,
 		key: string,
@@ -1231,6 +1238,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 			return Array.isArray(value) ? (value as string[]) : [];
 		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
+		refusesAgent(name, input) {
+			if (name === 'autonomy-set') return true;
+			if (name !== 'setting-set' && name !== 'setting-reset') return false;
+			const asked =
+				typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+			if (asked.level === 'workspace' || asked.level === 'project') return true;
+			return (
+				asked.level === 'person' &&
+				typeof asked.section === 'string' &&
+				typeof asked.key === 'string' &&
+				isHumanKey(asked.section, asked.key)
+			);
+		},
 		async ownValue(section, key, context) {
 			return storedOf((await readRecord(deps.recordId(personKeyOf(context))))[section]?.[key]);
 		},

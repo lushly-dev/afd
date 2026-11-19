@@ -136,6 +136,8 @@ export class LoamSettingsSection extends SettingsElement {
 	 * control left from before a change of scope writes where it shows, never in the new scope.
 	 */
 	#current = new Map<string, { row: ValueRow; level: Level; scope: PanelScope }>();
+	/** Whether the route's key is still to be given to the autonomy section, once per navigation (`#cap`). */
+	#targetPending = false;
 	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5). */
 	#hashHeard = () => {
 		const key = decodeURIComponent(location.hash.slice(1));
@@ -250,6 +252,7 @@ export class LoamSettingsSection extends SettingsElement {
 		if (selected && 'success' in selected) return failedRead(selected);
 		this.#selected = selected;
 		this.#target = target;
+		this.#targetPending = target !== undefined;
 		// A key named by the link chooses the level: the narrowest its own levels allow here (3.5).
 		const levels = outline?.keys.find((each) => each.key === target)?.levels;
 		if (levels) this.level = this.#narrowest(levels) ?? null;
@@ -547,6 +550,10 @@ export class LoamSettingsSection extends SettingsElement {
 			shown.scope = this.scope;
 			shown.project = this.project;
 			shown.apps = this.apps.map(({ instance, title }) => ({ instance, title }));
+			if (this.#targetPending) {
+				this.#targetPending = false;
+				shown.target = this.#target;
+			}
 			if (!held) panel.replaceChildren(shown);
 			this.#current.clear();
 			await shown.read();

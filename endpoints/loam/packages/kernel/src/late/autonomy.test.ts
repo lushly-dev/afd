@@ -4,7 +4,8 @@
  * `scenarios.test.ts`; the pure rules are in `autonomy-rules.test.ts`; P4-E2's sweep in `scope/settings-sweep.test.ts`.
  */
 
-import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import { MemoryJournalSink, success } from '@lushly-dev/afd-core';
+import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type {
 	IdentityV1,
 	ManifestV1,
@@ -14,6 +15,7 @@ import type {
 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { createKernelParts } from '../kernel.js';
 import type { MembershipV1 } from '../scope/access.js';
 import {
@@ -114,9 +116,10 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 		);
 		expect(there.data).toMatchObject({ instance: 'dual', mode: 'ask', from: 'workspace/-/*/*' });
 		const listed = await kernel.call<Listed>('autonomy-list');
+		// The general rows first, then by id (step 8's blocker 7).
 		expect(listed.data?.rows.map(({ id }) => id)).toEqual([
-			`project/${projects.atlas.id}/dual/*`,
 			'workspace/-/*/*',
+			`project/${projects.atlas.id}/dual/*`,
 		]);
 		expect(listed.data).toMatchObject({ ceiling: 'act', cap: null });
 		expect(
@@ -311,7 +314,7 @@ describe('the bounds (4.2, F8): AUTONOMY_ABOVE_CEILING', () => {
 });
 
 describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
-	it('refuses a row naming no registered instance or command, and lets a row be removed whatever it names', async () => {
+	it('refuses a row naming no registered instance or command, and its removal unless that row is held', async () => {
 		const { kernel } = await workspace();
 		for (const input of [
 			{ instance: 'dual', command: 'dual-erase' },
@@ -327,6 +330,7 @@ describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
 			});
 			expect(refused.error?.code, JSON.stringify(input)).toBe('AUTONOMY_COMMAND_UNKNOWN');
 		}
+		// A removal of a target that is not there removes nothing it did not name (blocker 6).
 		expect(
 			(
 				await kernel.call('autonomy-set', {
@@ -335,11 +339,30 @@ describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
 					command: 'dual-erase',
 					mode: null,
 				})
-			).success
-		).toBe(true);
+			).error?.code
+		).toBe('AUTONOMY_COMMAND_UNKNOWN');
 		expect((await kernel.call('autonomy-get', { command: 'dual-erase' })).error?.code).toBe(
 			'AUTONOMY_COMMAND_UNKNOWN'
 		);
+	});
+
+	it('refuses an identifier that is not one before building a key: never `*`, a slash or a space', async () => {
+		const { kernel, store } = await workspace();
+		for (const input of [
+			{ instance: '*', mode: 'ask' },
+			{ instance: 'dual', command: '*', mode: 'ask' },
+			{ instance: 'du/al', mode: null },
+			{ instance: 'dual', command: 'dual put', mode: null },
+			{ instance: 'Dual', mode: 'ask' },
+		]) {
+			const refused = await kernel.call('autonomy-set', { level: 'workspace', ...input });
+			expect(refused.error?.code, JSON.stringify(input)).toBe('VALIDATION_ERROR');
+		}
+		expect(
+			(await kernel.call('autonomy-set', { level: 'project', project: 'a/b', mode: 'ask' })).error
+				?.code
+		).toBe('PROJECT_NOT_FOUND');
+		expect((await store.list(AUTONOMY_TABLE)).data).toEqual([]);
 	});
 });
 
@@ -696,8 +719,8 @@ describe('orphans (4.2): flagged at the manifest’s apply', () => {
 	});
 });
 
-/** A mounted server whose one tool is a read, as `apps/mounted.test.ts`'s fake transport answers discovery. */
-function mountedTransport(): MountTransportV2 {
+/** A mounted server whose tools are reads, as `apps/mounted.test.ts`'s fake transport answers discovery. */
+function mountedTransport(tools: () => string[] = () => ['files-read']): MountTransportV2 {
 	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
 	return {
 		connect: async () => ({ protocolVersion: '2025-11-25' }),
@@ -706,7 +729,11 @@ function mountedTransport(): MountTransportV2 {
 			if (tool === 'afd-help')
 				return asResult({
 					success: true,
-					data: { toolStrategy: 'hybrid', firstClassTools: [], commands: [{ name: 'files-read' }] },
+					data: {
+						toolStrategy: 'hybrid',
+						firstClassTools: [],
+						commands: tools().map((name) => ({ name })),
+					},
 				});
 			if (tool === 'afd-detail')
 				return asResult({
@@ -725,6 +752,166 @@ function mountedTransport(): MountTransportV2 {
 		async close() {},
 	};
 }
+
+const UMBEL = {
+	manifest_version: 1,
+	protocol: 1,
+	plugin: {
+		id: 'umbel',
+		title: 'Umbel',
+		version: '0.1.0',
+		description: 'A mounted host, for these tests.',
+		kind: 'mounted',
+		domains: ['umbel'],
+	},
+	mount: { prefix: 'umbel', transport: 'http' },
+} as ManifestV1;
+
+/** A kernel with the mounted instance `work`, its catalog read, over `store`; `route` names its server. */
+async function mountedKernel(
+	store: DataAdapter,
+	tools: () => string[] = () => ['files-read'],
+	route = 'mounts/work/mcp',
+	instance = 'work',
+	generation = 'test'
+) {
+	const journal = new MemoryJournalSink();
+	const parts = await createKernelParts({
+		store,
+		storeKind: 'memory',
+		journal,
+		auth: new (await import('@lushly-dev/afd-auth')).MockAuthAdapter(),
+		environment: createFixedEnvironment(),
+		host: 'test',
+		deployment: {
+			deployment_version: 2,
+			generation,
+			workspace: { id: 'personal', name: 'Personal' },
+			sandbox_origin: null,
+			apps: [
+				{
+					instance,
+					app: 'umbel',
+					package: 'apps/work/',
+					prefix: instance,
+					audience: 'person',
+					transport: 'http',
+					route,
+				},
+			],
+		} as ProjectionV3,
+		ports: {
+			...createFixturePorts({ 'apps/work/': { manifest: UMBEL } }),
+			mountTransport: async () => mountedTransport(tools),
+		},
+	});
+	kernels.push(parts.kernel);
+	await parts.kernel.startInstances();
+	return Object.assign(parts, { journal });
+}
+
+describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
+	const flags = async (kernel: LoamKernelV5) =>
+		Object.fromEntries(
+			((await kernel.call<Listed>('autonomy-list')).data?.rows ?? []).map((row) => [
+				row.id,
+				row.orphan ?? false,
+			])
+		);
+
+	it('keeps a restrictive row through a disable, a reload and a re-enable: the tool still only suggests', async () => {
+		const store = new MemoryAdapter();
+		const first = await mountedKernel(store);
+		await first.kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		const set = await first.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'work',
+			command: 'work-files-read',
+			mode: 'suggest',
+		});
+		expect(set.data).toMatchObject({ row: { app: 'mounted:umbel:http:mounts/work/mcp' } });
+		expect(
+			(await first.kernel.call('workspace-app-set', { instance: 'work', enabled: false })).success
+		).toBe(true);
+		expect(await flags(first.kernel)).toEqual({
+			'workspace/-/*/*': false,
+			'workspace/-/work/work-files-read': false,
+		});
+		await first.kernel.dispose();
+		// Reloaded while disabled: its catalog is unknown, never empty, so the flag stays as it is.
+		const second = await mountedKernel(store);
+		expect(await flags(second.kernel)).toEqual({
+			'workspace/-/*/*': false,
+			'workspace/-/work/work-files-read': false,
+		});
+		expect(
+			(await second.kernel.call('workspace-app-set', { instance: 'work', enabled: true })).success
+		).toBe(true);
+		await second.kernel.call('app-instance-refresh', { instance: 'work' });
+		expect(
+			(await second.kernel.call<Data>('autonomy-get', { command: 'work-files-read' })).data?.mode
+		).toBe('suggest');
+		expect(await flags(second.kernel)).toEqual({
+			'workspace/-/*/*': false,
+			'workspace/-/work/work-files-read': false,
+		});
+	});
+
+	it('flags a command a refresh drops, still bounds by it, and unflags it when the same server has it again', async () => {
+		let tools = ['files-read', 'files-write'];
+		const { kernel, journal } = await mountedKernel(new MemoryAdapter(), () => tools);
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		await kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'work',
+			mode: 'act',
+		});
+		await kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'work',
+			command: 'work-files-write',
+			mode: 'suggest',
+		});
+		tools = ['files-read'];
+		await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect((await flags(kernel))['workspace/-/work/work-files-write']).toBe(true);
+		expect(
+			(await journal.read()).filter(({ command }) => command === 'autonomy-settle')
+		).toHaveLength(1);
+		tools = ['files-read', 'files-write'];
+		await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect((await flags(kernel))['workspace/-/work/work-files-write']).toBe(false);
+		expect(
+			(await kernel.call<Data>('autonomy-get', { command: 'work-files-write' })).data?.mode
+		).toBe('suggest');
+	});
+
+	it('orphans a row whose instance now names another server, and the command name alone never backs it (R2)', async () => {
+		const store = new MemoryAdapter();
+		const first = await mountedKernel(store);
+		await first.kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		await first.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'work',
+			command: 'work-files-read',
+			mode: 'suggest',
+		});
+		await first.kernel.dispose();
+		// A later deployment names another server for the same instance.
+		const second = await mountedKernel(store, undefined, 'mounts/other/mcp', 'work', 'moved');
+		expect((await flags(second.kernel))['workspace/-/work/work-files-read']).toBe(true);
+		await second.kernel.call('app-instance-refresh', { instance: 'work' });
+		expect((await flags(second.kernel))['workspace/-/work/work-files-read']).toBe(true);
+		// R1: still a bound, so the new server's tool of the same name only suggests until a person decides again.
+		expect(
+			(await second.kernel.call<Data>('autonomy-get', { command: 'work-files-read' })).data
+		).toMatchObject({
+			mode: 'suggest',
+			from: 'workspace/-/*/*',
+			ceilings: [{ id: 'workspace/-/work/work-files-read', mode: 'suggest' }],
+		});
+	});
+});
 
 describe('mounted tools (4.2, D156)', () => {
 	it('resolve ask by default, even a read', async () => {
@@ -806,5 +993,238 @@ describe('P4-E15: autonomy replays', () => {
 			ports: createFixturePorts(scopedPackages()),
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});
+
+describe('the store (step 8 blocker 2): one browser, two workspaces', () => {
+	const other = () => ({
+		...scopedDeployment(),
+		generation: 'other',
+		workspace: { id: 'other', name: 'Other' },
+	});
+
+	it("never merges one workspace's row into another's, nor reads a row stored without its workspace's key", async () => {
+		const store = new MemoryAdapter();
+		// A row in the old shape, keyed by its id alone: not this workspace's, so never read and never merged into.
+		await store.create<Record<string, unknown>>(AUTONOMY_TABLE, {
+			id: 'workspace/-/*/*',
+			workspace: 'personal',
+			level: 'workspace',
+			mode: 'act',
+			ceiling: 'act',
+			updatedAt: 1,
+			updatedBy: 'local',
+		});
+		const first = await workspace({ store, empty: true });
+		expect((await first.kernel.call<Listed>('autonomy-list')).data).toMatchObject({
+			rows: [],
+			ceiling: null,
+		});
+		await first.kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		await first.kernel.dispose();
+		const second = await workspace({ store, empty: true, deployment: other() as ProjectionV3 });
+		expect((await second.kernel.call<Listed>('autonomy-list')).data).toMatchObject({
+			rows: [],
+			ceiling: null,
+		});
+		const written = await second.kernel.call<Data>('autonomy-set', {
+			level: 'workspace',
+			mode: 'suggest',
+		});
+		expect(written.data).toMatchObject({ row: { mode: 'suggest' }, previous: null });
+		expect((written.data?.row as Data) ?? {}).not.toHaveProperty('ceiling');
+		await second.kernel.dispose();
+		const again = await workspace({ store, empty: true });
+		expect((await again.kernel.call<Listed>('autonomy-list')).data).toMatchObject({
+			rows: [{ id: 'workspace/-/*/*', mode: 'ask', ceiling: 'act' }],
+			ceiling: 'act',
+		});
+	});
+});
+
+describe("D154's team-listed rule (step 8 blocker 3): only a `team` instance makes a project an owner's", () => {
+	const listing = (audience: 'team' | 'person') => {
+		const deployment = scopedDeployment();
+		return {
+			...deployment,
+			apps: deployment.apps.map((app) =>
+				app.instance === 'tasks' ? { ...app, audience, projects: ['vault'] } : app
+			),
+		} as ProjectionV3;
+	};
+
+	it("a person's own instance listing the project leaves its creator its rows and its members", async () => {
+		const { kernel } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: listing('person'),
+		});
+		await signIn(kernel, 'bea@example.com');
+		const made = await kernel.call<{ id: string }>('project-create', {
+			name: 'Vault',
+			slug: 'vault',
+		});
+		expect(made.success, JSON.stringify(made.error)).toBe(true);
+		const vault = made.data?.id as string;
+		expect(
+			(await kernel.call('autonomy-set', { level: 'project', project: vault, mode: 'ask' })).success
+		).toBe(true);
+		expect(
+			(
+				await kernel.call('project-update', {
+					project: vault,
+					access: { mode: 'restricted', members: [BEA, CY] },
+				})
+			).success
+		).toBe(true);
+	});
+
+	it('a team instance listing it makes both an owner’s', async () => {
+		const { kernel } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: listing('team'),
+		});
+		await signIn(kernel, 'bea@example.com');
+		expect(
+			(await kernel.call('project-create', { name: 'Vault', slug: 'vault' })).error?.code
+		).toBe('OWNER_REQUIRED');
+	});
+});
+
+describe('autonomy-list in pages (step 8 blocker 7) and its writable (improvement 9)', () => {
+	it('pages any number of rows within the budget, the general rows always first', async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		// 600 rows, more than one answer could hold: written as the store keeps them, under this workspace's key.
+		await store.batch(
+			Array.from({ length: 600 }, (_, index) => {
+				const id = `workspace/-/dual/dual-x${String(index).padStart(3, '0')}`;
+				return {
+					method: 'PUT' as const,
+					path: `/${AUTONOMY_TABLE}/${encodeURIComponent(`personal/${id}`)}`,
+					body: {
+						id: `personal/${id}`,
+						rowId: id,
+						workspace: 'personal',
+						level: 'workspace',
+						instance: 'dual',
+						command: `dual-x${String(index).padStart(3, '0')}`,
+						app: 'plugin:dual',
+						mode: 'suggest',
+						updatedAt: 1,
+						updatedBy: 'local',
+					},
+				};
+			})
+		);
+		const seen: string[] = [];
+		let cursor: string | null | undefined;
+		let pages = 0;
+		do {
+			const page = await kernel.call<Listed & { cursor: string | null }>('autonomy-list', {
+				...(cursor ? { cursor } : {}),
+			});
+			expect(page.success, JSON.stringify(page.error)).toBe(true);
+			if (pages === 0) expect(page.data?.rows[0]?.id).toBe('workspace/-/*/*');
+			expect(page.data?.ceiling).toBe('act');
+			seen.push(...(page.data?.rows ?? []).map(({ id }) => id));
+			cursor = page.data?.cursor;
+			pages++;
+		} while (cursor);
+		expect(pages).toBe(7);
+		expect(new Set(seen).size).toBe(601);
+		expect((await kernel.call('autonomy-list', { limit: 201 })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		expect(
+			(await kernel.call<Listed>('autonomy-list', { limit: 2 })).data?.rows.map(({ id }) => id)
+		).toEqual(['workspace/-/*/*', 'workspace/-/dual/dual-x000']);
+	});
+
+	it("reports an archived project's rows not writable, as the write refuses them", async () => {
+		const { kernel, projects } = await workspace();
+		await kernel.call('project-archive', { project: projects.beacon.id });
+		expect(
+			(await kernel.call<Listed>('autonomy-list', { project: projects.beacon.id })).data?.writable
+				.project
+		).toEqual({ writable: false, reason: 'PROJECT_ARCHIVED' });
+	});
+});
+
+describe("the instance id `shell` (step 8's R4, beside step 3's reservation)", () => {
+	it("knows a host's own command as the shell's, from the live registry", async () => {
+		const echo = defineCommand({
+			name: 'host-echo',
+			description: 'The host’s own command',
+			input: z.object({}),
+			async handler() {
+				return success({ ok: true });
+			},
+		}) as unknown as ZodCommandDefinition;
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new (await import('@lushly-dev/afd-auth')).MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			commands: [echo],
+		});
+		kernels.push(parts.kernel);
+		expect(
+			(await parts.kernel.call<Data>('autonomy-get', { command: 'host-echo' })).data
+		).toMatchObject({ instance: 'shell', mode: 'act' });
+		const set = await parts.kernel.call<Data>('autonomy-set', {
+			level: 'workspace',
+			instance: 'shell',
+			command: 'host-echo',
+			mode: 'ask',
+		});
+		expect(set.data).toMatchObject({ row: { app: 'loam' } });
+		// An internal command is not a shell command a row may name.
+		expect(
+			(
+				await parts.kernel.call('autonomy-set', {
+					level: 'workspace',
+					instance: 'shell',
+					command: 'app-call-refuse',
+					mode: 'ask',
+				})
+			).error?.code
+		).toBe('AUTONOMY_COMMAND_UNKNOWN');
+	});
+
+	it('never takes an app deployed as `shell` for the shell: its rows are orphaned and it is refused', async () => {
+		const store = new MemoryAdapter();
+		const first = await mountedKernel(store);
+		await first.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance: 'shell',
+			command: 'project-create',
+			mode: 'suggest',
+		});
+		await first.kernel.dispose();
+		// A mounted instance names itself, so one may be deployed as `shell` until phase 4's step 3 reserves the id.
+		const second = await mountedKernel(store, undefined, 'mounts/shell/mcp', 'shell', 'taken');
+		expect((await second.kernel.call<Listed>('autonomy-list')).data?.rows).toMatchObject([
+			{ id: 'workspace/-/shell/project-create', app: 'loam', orphan: true },
+		]);
+		for (const input of [
+			{ instance: 'shell', command: 'project-create', mode: 'ask' },
+			{ instance: 'shell', command: 'shell-files-read', mode: 'ask' },
+		]) {
+			expect(
+				(await second.kernel.call('autonomy-set', { level: 'workspace', ...input })).error?.code,
+				JSON.stringify(input)
+			).toBe('AUTONOMY_COMMAND_UNKNOWN');
+		}
+		expect(
+			(await second.kernel.call('autonomy-get', { command: 'project-create' })).error?.code
+		).toBe('AUTONOMY_COMMAND_UNKNOWN');
+		// Still a bound (R1), so no tool of that name loosens past it.
+		expect((await second.kernel.call<Listed>('autonomy-list')).data?.rows[0]?.mode).toBe('suggest');
 	});
 });

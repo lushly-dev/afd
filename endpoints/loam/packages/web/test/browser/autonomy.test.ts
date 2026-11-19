@@ -38,6 +38,14 @@ afterAll(async () => {
 });
 
 const NOTICE = 'Agents can read this. Loam enforces it from phase 5.';
+
+/** The id of the deepest focused element, through shadow roots. */
+const deepest = (page: Page) =>
+	page.evaluate(() => {
+		let element: Element | null = document.activeElement;
+		while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+		return element?.id;
+	});
 const autonomy = (page: Page) =>
 	page.locator('loam-main loam-settings-section loam-autonomy-section');
 
@@ -90,13 +98,13 @@ describe('P4-E4: the autonomy section', () => {
 		await panel.locator('#add-project-app').selectOption('tally');
 		await expect
 			.poll(() => panel.locator('#add-project-command option').allTextContents())
-			.toContain('Reset the tally');
-		await panel.locator('#add-project-command').selectOption('tally-reset');
+			.toContain('Add to the tally');
+		await panel.locator('#add-project-command').selectOption('tally-add');
 		await panel.locator('#add-project-mode').selectOption('ask');
 		await panel.getByRole('button', { name: 'Add rule' }).nth(1).click();
 		await expect.poll(() => panel.locator('.status').textContent()).toBe('The new rule is saved.');
 		await expect
-			.poll(() => panel.locator(`[data-row="project/${atlas}/tally/tally-reset"]`).count())
+			.poll(() => panel.locator(`[data-row="project/${atlas}/tally/tally-add"]`).count())
 			.toBe(1);
 
 		// The chain: why each command gets its mode here.
@@ -108,28 +116,28 @@ describe('P4-E4: the autonomy section', () => {
 				.toMatch(new RegExp(`^${command}:`));
 			return panel.locator('#autonomy-explained').innerText();
 		};
-		expect(await explain('tally-add')).toContain('tally-add: Act');
-		expect(await explain('tally-add')).toContain(
+		expect(await explain('tally-get')).toContain('tally-get: Act');
+		expect(await explain('tally-get')).toContain(
 			"Act, from the project Atlas's rule for every app and command"
 		);
-		expect(await explain('tally-add')).toContain(
+		expect(await explain('tally-get')).toContain(
 			"Bounded to Act by the workspace's rule for every app and command"
 		);
-		expect(await explain('tally-reset')).toContain('tally-reset: Ask first');
-		expect(await kernelCall(page, 'autonomy-get', { command: 'tally-reset' })).toMatchObject({
-			data: { mode: 'ask', from: `project/${atlas}/tally/tally-reset` },
+		expect(await explain('tally-add')).toContain('tally-add: Ask first');
+		expect(await kernelCall(page, 'autonomy-get', { command: 'tally-add' })).toMatchObject({
+			data: { mode: 'ask', from: `project/${atlas}/tally/tally-add` },
 		});
 
 		// The person's own cap, which only lowers.
 		await panel.locator('#autonomy-cap').selectOption('suggest');
 		await expect.poll(() => panel.locator('.status').textContent()).toBe('Your cap is saved.');
-		expect(await explain('tally-add')).toContain('Your own cap: Suggest only');
+		expect(await explain('tally-get')).toContain('Your own cap: Suggest only');
 		expect(await kernelCall(page, 'autonomy-list')).toMatchObject({ data: { cap: 'suggest' } });
 
 		// Removing a rule, in words: the rule's own select.
-		await panel.locator(`[data-row="project/${atlas}/tally/tally-reset"] select`).selectOption('');
+		await panel.locator(`[data-row="project/${atlas}/tally/tally-add"] select`).selectOption('');
 		await expect
-			.poll(() => panel.locator(`[data-row="project/${atlas}/tally/tally-reset"]`).count())
+			.poll(() => panel.locator(`[data-row="project/${atlas}/tally/tally-add"]`).count())
 			.toBe(0);
 		await page.close();
 	});
@@ -158,6 +166,33 @@ describe('P4-E4: the autonomy section', () => {
 		await kernelCall(page, 'section-open', { section: 'settings', target: 'loam.autonomy.cap' });
 		await expect.poll(() => new URL(page.url()).hash).toBe('#cap');
 		await expect.poll(() => autonomy(page).count()).toBe(1);
+		// The section reveals and focuses the cap's control (improvement 10).
+		await expect.poll(() => deepest(page)).toBe('autonomy-cap');
+		await page.close();
+	});
+
+	it('reads its scope a page at a time, the general controls and the cap always shown', async () => {
+		const { page } = await inAtlas();
+		for (const input of [
+			{ level: 'workspace', mode: 'ask', ceiling: 'act' },
+			{ level: 'workspace', instance: 'tally', mode: 'ask' },
+			{ level: 'workspace', instance: 'tally', command: 'tally-add', mode: 'ask' },
+			{ level: 'workspace', instance: 'tally', command: 'tally-get', mode: 'act' },
+		])
+			expect(await kernelCall(page, 'autonomy-set', input)).toMatchObject({ success: true });
+		const panel = autonomy(page);
+		await panel.evaluate(async (element) => {
+			const section = element as HTMLElement & { pageSize: number; read(): Promise<void> };
+			section.pageSize = 2;
+			await section.read();
+		});
+		await expect.poll(() => panel.locator('[data-row]').count()).toBe(1);
+		expect(await panel.locator('#workspace-mode').inputValue()).toBe('ask');
+		expect(await panel.locator('#workspace-ceiling').inputValue()).toBe('act');
+		expect(await panel.locator('#autonomy-cap').count()).toBe(1);
+		await panel.locator('#autonomy-more').click();
+		await expect.poll(() => panel.locator('[data-row]').count()).toBe(3);
+		await expect.poll(() => panel.locator('#autonomy-more').count()).toBe(0);
 		await page.close();
 	});
 

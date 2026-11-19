@@ -23,12 +23,21 @@ import {
 	type AutonomyRowV1,
 	above,
 	autonomyRowId,
+	COMMAND_NAME,
+	INSTANCE_ID,
+	type InstanceStateV1,
 	orphanChanges,
 	resolveAutonomy,
+	SHELL_IDENTITY,
 	writeBound,
 } from './autonomy-rules.js';
 import type { DocumentKit } from './document-kit.js';
-import { type StoredSettingV1, settingRoute, sharedRecordUnavailable } from './setting-rules.js';
+import {
+	isHumanGesture,
+	type StoredSettingV1,
+	settingRoute,
+	sharedRecordUnavailable,
+} from './setting-rules.js';
 
 /** The workspace store's table of autonomy rows (4.1). */
 export const AUTONOMY_TABLE = 'autonomy';
@@ -39,6 +48,9 @@ export const CAP_KEY = 'cap';
 
 /** Most commands one bulk `autonomy-get` reads (4.4). */
 export const AUTONOMY_BULK_MAX = 50;
+
+/** `autonomy-list`'s page (4.4, amended by step 8): rows per page by default, and at most. */
+export const AUTONOMY_PAGE = { default: 100, max: 200 } as const;
 
 /**
  * Each command's output budget, in UTF-8 bytes (D115), as `SETTING_OUTPUT_BUDGETS` declares the settings': TypeScript's
@@ -72,14 +84,19 @@ export interface AutonomyDeps {
 	store: DataAdapter;
 	scope: ScopeRuntime;
 	apps(): AppsRuntime;
-	/** The shell's command names: the commands a row for the instance `shell` may name. */
-	shellCommands(): readonly string[];
+	/**
+	 * Every registered command's name, the live registry's (R4): those no app owns and the kernel keeps internal are the
+	 * shell's, the host's own `KernelOptions.commands` among them.
+	 */
+	commandNames(): readonly string[];
+	/** The commands no caller reaches (`INTERNAL_COMMANDS`, boot's own among them). */
+	internal(name: string): boolean;
 	isMutation(name: string): boolean;
 	/** Section 13's hosted `provider` deployment, which refuses every `autonomy-set`. */
 	hosted(): boolean;
 	/** Whether `person` is an owner, on the membership the kernel holds (phase 3 specification, 7.1; D96). */
 	isOwner(person: string | undefined): boolean;
-	/** Whether a team instance lists the project's slug, whose autonomy only owners set (D87, D110, D154). */
+	/** Whether an instance whose audience is `team` lists the project's slug: then only owners set it (D87, D110, D154). */
 	teamListed(project: ProjectV1): boolean;
 	/** The person's own value of a key in their `loam.settings`, and its write, serialized with the settings' writes. */
 	ownValue(
@@ -107,15 +124,27 @@ export interface Autonomy {
 	commands: ZodCommandDefinition[];
 	/** Boot's own `autonomy-settle`, run at the manifest's apply: in `BOOT_ONLY`, so no caller reaches it. */
 	settleCommand: ZodCommandDefinition;
-	/** What the apply's settle would change now: the rows the apps no longer back, and those they back again. */
+	/**
+	 * What a settle would change now: the rows the apps no longer back, and those they back again. Run after each stage
+	 * B's apply and after each catalog install or change of an instance (`app-instance-refresh`, `workspace-app-set`).
+	 */
 	orphanChanges(): Promise<{ orphaned: string[]; restored: string[] }>;
 }
 
-/** A stored row, with the workspace it belongs to. */
+/** A row as the kernel holds it, with the workspace it belongs to. */
 type StoredRow = AutonomyRowV1 & { workspace: string };
+
+/**
+ * A row as the store keeps it (blocker 2 of the trust review): its key holds the workspace, `<workspace>/<row id>`, so
+ * rows of two workspaces sharing one browser's store never meet, and `rowId` is the row's own id.
+ */
+type PhysicalRow = Omit<StoredRow, 'id'> & { id: string; rowId: string };
 
 /** The fields of a row a result shows: never the store's `workspace`. */
 const shownRow = ({ workspace: _w, ...row }: StoredRow): AutonomyRowV1 => structuredClone(row);
+
+/** A listed row's order: the general rows first, so the first page always holds them, then by id. */
+const sortKey = (row: AutonomyRowV1): string => `${row.instance === undefined ? 0 : 1}${row.id}`;
 
 const isMode = (value: unknown): value is AutonomyModeV1 =>
 	typeof value === 'string' && (AUTONOMY_MODES as readonly string[]).includes(value);
@@ -133,13 +162,23 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 
 	/** Every row of this workspace, read from the store at each call: nothing is cached, so nothing is written back whole. */
 	async function readRows(): Promise<StoredRow[]> {
-		const listed = await store.list<StoredRow>(AUTONOMY_TABLE);
+		const listed = await store.list<PhysicalRow>(AUTONOMY_TABLE);
+		const workspace = scope.workspace.id;
+		// A row with no `rowId`, or keyed for another workspace, is not this workspace's: never read, never merged.
 		return listed.data
-			.filter((row) => row.workspace === scope.workspace.id && typeof row.id === 'string')
+			.filter(
+				(row) =>
+					row.workspace === workspace &&
+					typeof row.rowId === 'string' &&
+					row.id === keyOf(row.rowId)
+			)
+			.map(({ rowId, ...row }) => ({ ...row, id: rowId }))
 			.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	}
 
-	const path = (id: string) => `/${AUTONOMY_TABLE}/${encodeURIComponent(id)}`;
+	const keyOf = (id: string) => `${scope.workspace.id}/${id}`;
+	const path = (id: string) => `/${AUTONOMY_TABLE}/${encodeURIComponent(keyOf(id))}`;
+	const physical = (row: StoredRow): PhysicalRow => ({ ...row, id: keyOf(row.id), rowId: row.id });
 
 	/**
 	 * A row written whole, in place of what was held: a store's `PUT` merges fields into a row it has, so a field the
@@ -147,7 +186,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 	 */
 	const replace = (id: string, held: boolean, body: StoredRow | undefined): BatchOperation[] => [
 		...(held ? [{ method: 'DELETE' as const, path: path(id) }] : []),
-		...(body ? [{ method: 'PUT' as const, path: path(id), body }] : []),
+		...(body ? [{ method: 'PUT' as const, path: path(id), body: physical(body) }] : []),
 	];
 
 	/** One write at a time: a write's bounds are read from the rows, so two overlapping writes would both pass. */
@@ -175,13 +214,31 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 				(row.project !== undefined && enterable(row.project, context) !== undefined)
 		);
 
+	/** The shell's commands, from the live registry: no app owns them and no caller is kept from them (R4). */
+	function shellCommands(): Set<string> {
+		const owners = deps.apps().owners;
+		return new Set(deps.commandNames().filter((name) => !owners.has(name) && !deps.internal(name)));
+	}
+
+	/**
+	 * Whether an app instance is named `shell`, which makes the instance id `shell` mean two things (R4). Phase 4's step
+	 * 3 reserves `shell` and `loam` as instance ids; until it lands, autonomy refuses a row or a read naming `shell` while
+	 * an app holds that id, and a shell row never matches the app, whose identity is never {@link SHELL_IDENTITY}.
+	 */
+	const shellTaken = (): boolean =>
+		deps
+			.apps()
+			.summaries()
+			.some((app) => app.instance === 'shell');
+
 	/** The instance registering each command, from the apps, and the shell's own. */
 	function commandOf(name: string, instance?: string): AutonomyCommandV1 | undefined {
 		const owner = deps.apps().owners.get(name);
-		const shell = deps.shellCommands().includes(name);
+		const shell = !owner && shellCommands().has(name);
 		const at = instance ?? owner?.instance ?? (shell ? 'shell' : undefined);
 		if (at === undefined) return undefined;
-		if (at === 'shell' ? !shell : owner?.instance !== at || !instanceKnown(at)) return undefined;
+		if (at === 'shell' ? !shell || shellTaken() : owner?.instance !== at || !instanceKnown(at))
+			return undefined;
 		return {
 			name,
 			instance: at,
@@ -192,7 +249,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 
 	/** An instance a row may name: `shell`, or one the deployment has that the workspace has not disabled (4.1). */
 	function instanceKnown(instance: string): boolean {
-		if (instance === 'shell') return true;
+		if (instance === 'shell') return !shellTaken();
 		if (scope.workspaceApps.get(instance)?.overrides.enabled === false) return false;
 		return deps
 			.apps()
@@ -200,11 +257,58 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			.some((app) => app.instance === instance);
 	}
 
+	/**
+	 * What the kernel knows of an instance now (R2; blocker 1): the identity of its app, and its catalog only while it
+	 * is known. A mounted instance's identity is its deployment entry's app, transport and route, the server it names;
+	 * its catalog is known once a discovery installed one and while it is enabled. A native or view app's identity is
+	 * its manifest's plugin id, and its catalog is known while it is ready and enabled. Anything else is unknown.
+	 */
+	function stateOf(instance: string): InstanceStateV1 | undefined {
+		const apps = deps.apps();
+		if (instance === 'shell' && !shellTaken())
+			return { identity: SHELL_IDENTITY, commands: shellCommands() };
+		const summary = apps.summaries().find((app) => app.instance === instance);
+		if (!summary) return undefined;
+		const enabled = scope.workspaceApps.get(instance)?.overrides.enabled !== false;
+		const owned = () =>
+			new Set(
+				[...apps.owners].flatMap(([name, owner]) => (owner.instance === instance ? [name] : []))
+			);
+		const mounted = apps.instances().find((row) => row.instance === instance);
+		if (mounted) {
+			const entry = scope.workspaceApps.get(instance);
+			const identity = entry
+				? `mounted:${entry.app}:${entry.transport ?? 'http'}:${entry.route ?? ''}`
+				: undefined;
+			const known =
+				enabled && mounted.state === 'ready' && mounted.discoveredAt !== undefined
+					? owned()
+					: undefined;
+			return { identity, commands: known };
+		}
+		let plugin: string | undefined;
+		try {
+			plugin = apps.port(instance).manifest.plugin.id;
+		} catch {
+			plugin = undefined;
+		}
+		return {
+			// An app holding the id `shell` whose identity cannot be read is still not the shell: its shell rows go (R4).
+			identity:
+				plugin === undefined
+					? instance === 'shell'
+						? 'unreadable:shell'
+						: undefined
+					: `plugin:${plugin}`,
+			commands: enabled && summary.state === 'ready' && plugin !== undefined ? owned() : undefined,
+		};
+	}
+
 	const unknownCommand = (what: string) =>
 		fail(
 			'AUTONOMY_COMMAND_UNKNOWN',
 			`There is no ${what} here`,
-			"List the app's commands with app-command-list, and name its instance, or shell for the shell's own"
+			'List the commands with app-command-list'
 		);
 
 	/** The person's cap, or undefined for none: read from their own record, skipped when it no longer validates. */
@@ -251,7 +355,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		name: 'autonomy-get',
 		title: 'Read the autonomy mode',
 		description:
-			"Read whether an agent may act, should ask, or only suggest before a command, for your person here, and why: the mode, the row it came from, each bound and the person's cap. Name up to 50 commands at once with commands",
+			'Read whether an agent acts, asks or only suggests before a command here, and why. Up to 50 at once with commands',
 		category: 'setting',
 		mutation: false,
 		executionTime: 'instant',
@@ -337,8 +441,8 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		if ((context as KernelFieldContext).caller !== undefined)
 			return fail('CALL_NOT_GRANTED', 'No app sets autonomy', 'Let the person set it in the shell');
 		const key = level === 'person' ? CAP_KEY : undefined;
-		if ((context.actor as AccessActorV1)?.kind === 'agent')
-			return handOff(level, key ?? '', context);
+		// Only a human gesture writes (3.2, 6.5): an agent, the copilot among them, gets the hand-off.
+		if (!isHumanGesture(context)) return handOff(level, key ?? '', context);
 		if (sharedRecordUnavailable(deps.hosted(), 'autonomy-set', { level })) return hostedRefusal();
 		if (level === 'person') return undefined;
 		const person = kit.personKey(context.actor as AccessActorV1);
@@ -363,7 +467,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			key === CAP_KEY
 				? 'Only your person sets their own autonomy cap'
 				: 'Only a person sets how far agents act on their own',
-			`Ask your person to set it in the shell's settings, at ${route}, or leave them a notice that links there`,
+			`Ask your person to set it at ${route}`,
 			{ route, section: AUTONOMY_SECTION, key, level }
 		);
 	};
@@ -387,6 +491,8 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 	const listInput = z.strictObject({
 		level: z.optional(z.enum(['workspace', 'project'])),
 		project: z.optional(NAME),
+		cursor: z.optional(z.string().check(z.minLength(1), z.maxLength(600))),
+		limit: z.optional(z.int().check(z.minimum(1), z.maximum(AUTONOMY_PAGE.max))),
 	});
 	type Writable = { writable: boolean; reason?: string };
 	const autonomyList = kit.define<
@@ -396,12 +502,13 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			ceiling: AutonomyModeV1 | null;
 			cap: AutonomyModeV1 | null;
 			writable: { workspace: Writable; project?: Writable; cap: Writable };
+			cursor: string | null;
 		}
 	>({
 		name: 'autonomy-list',
 		title: 'List the autonomy rows',
 		description:
-			"List the workspace's autonomy rows and those of the projects you may enter, with the workspace's ceiling and your own cap; orphaned rows are flagged. Name a project or a level to narrow it",
+			'List the autonomy rows of the workspace and the projects you may enter, a page at a time, with the ceiling and your cap',
 		category: 'setting',
 		mutation: false,
 		executionTime: 'instant',
@@ -411,6 +518,8 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			properties: {
 				level: { type: 'string', enum: ['workspace', 'project'] },
 				project: NAME_JSON,
+				cursor: { type: 'string', minLength: 1, maxLength: 600 },
+				limit: { type: 'integer', minimum: 1, maximum: AUTONOMY_PAGE.max },
 			},
 			additionalProperties: false,
 		},
@@ -422,14 +531,29 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			}
 			const all = await readRows();
 			const general = all.find((row) => row.id === autonomyRowId({ level: 'workspace' }));
-			const rows = visible(all, context)
+			const matching = visible(all, context)
 				.filter((row) => input.level === undefined || row.level === input.level)
 				.filter(
 					(row) => project === undefined || row.level === 'workspace' || row.project === project.id
 				)
-				.map(shownRow);
+				.sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : 1));
+			// A page from after the cursor, the general rows always on the first (blocker 7).
+			const after =
+				input.cursor === undefined
+					? matching
+					: matching.filter((row) => sortKey(row) > (input.cursor as string));
+			const limit = input.limit ?? AUTONOMY_PAGE.default;
+			const page = after.slice(0, limit);
+			const rows = page.map(shownRow);
+			const cursor = after.length > limit ? sortKey(page[page.length - 1] as StoredRow) : null;
 			const shown = (refused: CommandResult<never> | undefined): Writable =>
 				refused ? { writable: false, reason: refused.error?.code as string } : { writable: true };
+			// As the write decides it: an archived project after the owner check (improvement 9).
+			const projectWritable = (held: ProjectV1): Writable =>
+				shown(
+					writeRefusal('project', held, context) ??
+						(held.status === 'archived' ? kit.archivedRefusal(held) : undefined)
+				);
 			const inScope =
 				project ??
 				(() => {
@@ -443,16 +567,17 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 				// Computed for the caller, as `setting-list`'s `writable` is (3.9), so the section shows only what they may set.
 				writable: {
 					workspace: shown(writeRefusal('workspace', undefined, context)),
-					...(inScope ? { project: shown(writeRefusal('project', inScope, context)) } : {}),
+					...(inScope ? { project: projectWritable(inScope) } : {}),
 					cap: shown(writeRefusal('person', undefined, context)),
 				},
+				cursor,
 			};
 			const budget = AUTONOMY_OUTPUT_BUDGETS['autonomy-list']?.maxBytes ?? 0;
 			if (bytesOf(data) > budget) {
 				return fail(
 					'OUTPUT_BUDGET_EXCEEDED',
 					`The rows are over this command's budget of ${budget} bytes`,
-					'Name a project or a level: autonomy-list { project } or { level }',
+					'Ask for fewer rows: autonomy-list { limit }, then { cursor }',
 					{ maxBytes: budget }
 				);
 			}
@@ -477,7 +602,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		name: 'autonomy-set',
 		title: 'Set autonomy',
 		description:
-			"Set how far agents act on their own: a workspace or project row, for an app or one command, or your own cap with level person. A person's command: an agent is handed the place to send its person",
+			"Set how far agents act on their own: a workspace or project row, or your own cap with level person. A person's command",
 		category: 'setting',
 		mutation: true,
 		undoable: true,
@@ -568,6 +693,21 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			);
 		if (input.mode === undefined && input.ceiling === undefined)
 			return invalid('Nothing to set', 'Give mode, or ceiling on the workspace’s general row');
+		// Identifiers by their syntax before any key is built from them: never `*`, `/` or anything else (blocker 6).
+		if (input.instance !== undefined && !INSTANCE_ID.test(input.instance))
+			return invalid(
+				'That is not an instance id',
+				"Give the app's instance, such as files, or shell"
+			);
+		if (
+			input.command !== undefined &&
+			(input.command.length > 128 || !COMMAND_NAME.test(input.command))
+		)
+			return invalid(
+				'That is not a command name',
+				'Give the command by its name, such as files-read'
+			);
+		if (input.project !== undefined && input.project.includes('/')) return kit.projectNotFound();
 		// 2. The project's access, so one the caller may not enter is byte-identical to phase 2's refusal.
 		const project = input.project === undefined ? undefined : enterable(input.project, context);
 		if (input.project !== undefined && !project) return kit.projectNotFound();
@@ -575,23 +715,33 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		// The human check with its hand-off (3.2), then section 13's refusal, then 3: the owner check (D154).
 		if ((context as KernelFieldContext).caller !== undefined)
 			return fail('CALL_NOT_GRANTED', 'No app sets autonomy', 'Let the person set it in the shell');
-		if ((context.actor as AccessActorV1)?.kind === 'agent')
-			return handOff(input.level, id, context);
+		if (!isHumanGesture(context)) return handOff(input.level, id, context);
 		const refused = writeRefusal(input.level, project, context);
 		if (refused) return refused;
 		if (project?.status === 'archived') return kit.archivedRefusal(project);
 		const rows = await readRows();
 		const held = rows.find((row) => row.id === id);
-		// 4. The instance and command must exist; a removal need not, so an orphaned row can always be removed.
+		// 4. The instance and command must exist. A removal of a row whose target has gone is allowed only for the row held,
+		// named field for field, so an orphan can always be removed and nothing else (blocker 6).
 		const removing = !input.mode && !input.ceiling;
 		let command: AutonomyCommandV1 | undefined;
-		if (!removing && input.instance !== undefined) {
-			if (input.command !== undefined) {
-				command = commandOf(input.command, input.instance);
-				if (!command) return unknownCommand(`command '${input.command}' of '${input.instance}'`);
-			} else if (!instanceKnown(input.instance)) {
-				return unknownCommand(`instance '${input.instance}'`);
-			}
+		let identity: string | undefined;
+		if (input.instance !== undefined) {
+			const what =
+				input.command === undefined
+					? `instance '${input.instance}'`
+					: `command '${input.command}' of '${input.instance}'`;
+			if (input.command !== undefined) command = commandOf(input.command, input.instance);
+			const known =
+				input.command !== undefined ? command !== undefined : instanceKnown(input.instance);
+			identity = known ? stateOf(input.instance)?.identity : undefined;
+			const exact =
+				held !== undefined &&
+				held.level === input.level &&
+				held.project === input.project &&
+				held.instance === input.instance &&
+				held.command === input.command;
+			if ((!known || identity === undefined) && !(removing && exact)) return unknownCommand(what);
 		}
 		// 5. The bounds a project row meets (4.2's F8): an owner sets them, and the refusal says so.
 		const mode = input.mode === undefined ? held?.mode : (input.mode ?? undefined);
@@ -601,7 +751,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 				return fail(
 					'AUTONOMY_ABOVE_CEILING',
 					`'${input.mode}' is above the workspace's bound '${bound.mode}' (${bound.id === 'default' ? 'the default' : bound.id})`,
-					`Choose ${bound.mode} or stricter, or ask an owner of the workspace to raise the bound: an owner sets the workspace's mode, ceiling and rows`,
+					`Choose ${bound.mode} or stricter, or ask an owner to raise the bound`,
 					{ bound: bound.id, mode: bound.mode }
 				);
 			}
@@ -618,6 +768,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 						...(input.project !== undefined ? { project: input.project } : {}),
 						...(input.instance !== undefined ? { instance: input.instance } : {}),
 						...(input.command !== undefined ? { command: input.command } : {}),
+						...(identity !== undefined ? { app: identity } : {}),
 						...(mode !== undefined ? { mode } : {}),
 						...(ceiling !== undefined ? { ceiling } : {}),
 						updatedAt: at,
@@ -652,29 +803,8 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 
 	// ─── The manifest's apply (4.2): orphans ───────────────────────────────────
 
-	/** Each instance's commands, as the apps register them; undefined for a mounted one whose catalog is not read yet. */
-	function commandsByInstance(): (instance: string) => ReadonlySet<string> | undefined {
-		const apps = deps.apps();
-		const held = new Map<string, Set<string>>([['shell', new Set(deps.shellCommands())]]);
-		for (const [name, owner] of apps.owners) {
-			const set = held.get(owner.instance) ?? new Set<string>();
-			set.add(name);
-			held.set(owner.instance, set);
-		}
-		const mounted = new Set(apps.mountedInstances());
-		return (instance) =>
-			held.get(instance) ?? (mounted.has(instance) ? undefined : new Set<string>());
-	}
-
 	async function changes(): Promise<{ orphaned: string[]; restored: string[] }> {
-		const instances = new Set([
-			'shell',
-			...deps
-				.apps()
-				.summaries()
-				.map((app) => app.instance),
-		]);
-		return orphanChanges(await readRows(), instances, commandsByInstance());
+		return orphanChanges(await readRows(), stateOf);
 	}
 
 	const IDS = z
@@ -684,7 +814,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 	const settle = kit.define<typeof settleInput, { orphaned: number; restored: number }>({
 		name: 'autonomy-settle',
 		description:
-			"Boot's own: flag the autonomy rows a manifest's apply left naming no instance or command, and unflag those named again",
+			"Boot's own: flag the autonomy rows the apps no longer back, and unflag those backed again",
 		category: 'setting',
 		mutation: true,
 		executionTime: 'instant',
@@ -692,8 +822,8 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		jsonSchema: {
 			type: 'object',
 			properties: {
-				orphaned: { type: 'array', items: { type: 'string' } },
-				restored: { type: 'array', items: { type: 'string' } },
+				orphaned: { type: 'array', maxItems: 10_000, items: { type: 'string', maxLength: 512 } },
+				restored: { type: 'array', maxItems: 10_000, items: { type: 'string', maxLength: 512 } },
 			},
 			required: ['orphaned', 'restored'],
 			additionalProperties: false,

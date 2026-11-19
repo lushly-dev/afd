@@ -1,7 +1,7 @@
 /**
  * @fileoverview Autonomy's pure rules (phase 4 specification, 4.1 and 4.2; D118, D156): the record, a row's id, the
  * default, resolution with its ceilings and the person's cap, the bound a project row meets when it is written (F8),
- * and which rows a manifest's apply leaves orphaned. In the `late-settings` chunk; phase 5's step 3 enforces with
+ * and which rows the apps leave orphaned. In the `late-settings` chunk; phase 5's step 3 enforces with
  * {@link resolveAutonomy} (its D145), so its shape is 4.2's: `{ mode, from, ceilings, cap, chain }`.
  */
 
@@ -20,13 +20,23 @@ export interface AutonomyRowV1 {
 	/** A command `instance` registers. */
 	command?: string;
 	/**
+	 * **Amended (step 8, R2):** the identity of the app the owner decided about, stored with a row naming an instance:
+	 * {@link SHELL_IDENTITY} for the shell's, `plugin:<plugin id>` for a native or view app, and for a mounted instance
+	 * `mounted:<app>:<transport>:<route>` as its deployment entry names its server. A row whose instance's identity
+	 * changes is orphaned, and only the same identity backs it again.
+	 */
+	app?: string;
+	/**
 	 * The mode. **Amended (step 8):** absent only on the workspace's general row while it holds a `ceiling` alone, so an
 	 * owner can let projects go further without changing the workspace's own mode from the default.
 	 */
 	mode?: AutonomyModeV1;
 	/** The workspace's general row only. */
 	ceiling?: AutonomyModeV1;
-	/** Set by the manifest's apply when `command` or `instance` no longer exists; ignored by resolution. */
+	/**
+	 * Set when `command` or `instance` no longer exists, or the instance's app changed (R2). **Amended (step 8, R1):**
+	 * ignored as a mode, but still a bound wherever it would apply, so flagging a row never loosens a resolution.
+	 */
 	orphan?: true;
 	updatedAt: number;
 	updatedBy: string;
@@ -64,6 +74,18 @@ export interface AutonomyResolutionV1 {
 /** The id of the default in a chain. */
 export const DEFAULT_ID = 'default';
 
+/**
+ * The shell's identity on its rows (R4): `loam`, the plugin id no app may take (`MANIFEST_ID_RESERVED`), so a row for
+ * the shell's commands never matches an app, even one deployed as an instance named `shell` before phase 4's step 3
+ * reserves that instance id.
+ */
+export const SHELL_IDENTITY = 'loam';
+
+/** An instance id, as a deployment entry names one (phase 1 specification, 4.2); never `*`. */
+export const INSTANCE_ID = /^[a-z][a-z0-9]{0,31}$/;
+/** A command's name, as the registry holds one (AFD's `domain-action`); never `*`. */
+export const COMMAND_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
 /** A row's id (4.1). */
 export const autonomyRowId = (row: {
 	level: 'workspace' | 'project';
@@ -91,14 +113,15 @@ export const defaultMode = (
 /** The strictest default, a general or instance project row's bound when the workspace sets neither (F8). */
 export const STRICTEST_DEFAULT: AutonomyModeV1 = 'ask';
 
-/** The rows that may decide, bound or explain: not orphaned, and at workspace level or of `project`. */
+/** The rows of the workspace and of `project`, the orphans with them only when `orphans` is set. */
 function live(
 	rows: readonly AutonomyRowV1[],
-	project: string | undefined
+	project: string | undefined,
+	orphans = false
 ): Map<string, AutonomyRowV1> {
 	const kept = new Map<string, AutonomyRowV1>();
 	for (const row of rows) {
-		if (row.orphan) continue;
+		if (row.orphan && !orphans) continue;
 		if (row.level === 'project' && (project === undefined || row.project !== project)) continue;
 		kept.set(row.id, row);
 	}
@@ -171,6 +194,14 @@ export function resolveAutonomy(input: {
 			mode = lowerOf(mode, bound.mode);
 		}
 	}
+	// R1: an orphan decides nothing, but each that names this instance, and this command or none, still bounds it.
+	for (const row of live(input.rows, project, true).values()) {
+		if (!row.orphan || !row.mode || row.instance !== command.instance) continue;
+		if (row.command !== undefined && row.command !== command.name) continue;
+		ceilings.push({ id: row.id, mode: row.mode });
+		chain.push({ id: row.id, mode: row.mode, as: 'ceiling' });
+		mode = lowerOf(mode, row.mode);
+	}
 	const cap = input.cap ?? null;
 	if (cap !== null) {
 		chain.push({ id: 'cap', mode: cap, as: 'cap' });
@@ -196,14 +227,16 @@ export function writeBound(
 ): { id: string; mode: AutonomyModeV1 } | undefined {
 	if (target.level !== 'project') return undefined;
 	const held = live(rows, undefined);
+	// R1: the workspace's rows for the instance and the command bound it even when orphaned.
+	const all = live(rows, undefined, true);
 	const bounds = [
 		workspaceBound(held, target.command ? defaultMode(target.command) : STRICTEST_DEFAULT),
 		target.instance === undefined
 			? undefined
-			: held.get(autonomyRowId({ level: 'workspace', instance: target.instance })),
+			: all.get(autonomyRowId({ level: 'workspace', instance: target.instance })),
 		target.command === undefined
 			? undefined
-			: held.get(
+			: all.get(
 					autonomyRowId({
 						level: 'workspace',
 						instance: target.instance,
@@ -221,27 +254,39 @@ export function writeBound(
 }
 
 /**
- * Which rows a manifest's apply finds orphaned or whole again (4.2): a row naming an instance the deployment no longer
- * has, or a command that instance no longer registers. `commandsOf` answers an instance's commands, or undefined when
- * they are not known yet (a mounted server before its catalog is read), which judges only the instance.
+ * What the kernel knows of an instance now: undefined when the deployment no longer has it; its app's `identity`
+ * (R2), undefined when it cannot be read; and its `commands`, undefined while its catalog is unknown (a mounted server
+ * not yet read, a disabled or refused instance), never an empty set in their place.
+ */
+export interface InstanceStateV1 {
+	identity: string | undefined;
+	commands: ReadonlySet<string> | undefined;
+}
+
+/**
+ * Which rows the apps leave orphaned, and which they back again (4.2; amended by step 8's R1 and R2): a row naming an
+ * instance the deployment no longer has, an instance whose app is not the one the row was decided for, or a command a
+ * known catalog no longer holds. An unknown identity or catalog decides nothing: the row's flag stays as it is. A row
+ * is backed again only by the same identity, and for a command row, by a known catalog holding the command.
  */
 export function orphanChanges(
 	rows: readonly AutonomyRowV1[],
-	instances: ReadonlySet<string>,
-	commandsOf: (instance: string) => ReadonlySet<string> | undefined
+	stateOf: (instance: string) => InstanceStateV1 | undefined
 ): { orphaned: string[]; restored: string[] } {
 	const orphaned: string[] = [];
 	const restored: string[] = [];
 	for (const row of rows) {
 		if (row.instance === undefined) continue;
-		const known = commandsOf(row.instance);
-		const gone =
-			!instances.has(row.instance) ||
-			(row.command !== undefined && known !== undefined && !known.has(row.command));
-		const undecided =
-			row.command !== undefined && known === undefined && instances.has(row.instance);
-		if (gone && !row.orphan) orphaned.push(row.id);
-		else if (!gone && !undecided && row.orphan) restored.push(row.id);
+		const state = stateOf(row.instance);
+		let gone: boolean | undefined;
+		if (state === undefined) gone = true;
+		else if (state.identity === undefined) gone = undefined;
+		else if (row.app !== state.identity) gone = true;
+		else if (row.command === undefined) gone = false;
+		else if (state.commands === undefined) gone = undefined;
+		else gone = !state.commands.has(row.command);
+		if (gone === true && !row.orphan) orphaned.push(row.id);
+		else if (gone === false && row.orphan) restored.push(row.id);
 	}
 	return { orphaned: orphaned.sort(), restored: restored.sort() };
 }

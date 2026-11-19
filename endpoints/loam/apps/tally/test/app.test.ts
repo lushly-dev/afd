@@ -18,9 +18,6 @@ describe('tally', () => {
 		expect(after.data).toEqual({ total: 5, history: [1, 4] });
 		const read = await kernel.agent.call<{ total: number }>('tally-get');
 		expect(read.data?.total).toBe(5);
-		const reset = await kernel.call<{ total: number; history: number[] }>('tally-reset');
-		expect(reset.data).toEqual({ total: 0, history: [] });
-		expect((await kernel.call<{ total: number }>('tally-add', { by: 2 })).data?.total).toBe(2);
 		const { report } = await replay();
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});

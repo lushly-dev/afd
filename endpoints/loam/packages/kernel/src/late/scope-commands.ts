@@ -33,7 +33,7 @@ import type {
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import { canOpen, setMain } from './main-state.js';
-import { isOwner } from './owners.js';
+import { isOwner, teamListed } from './owners.js';
 import type { ShellStores } from './stores.js';
 
 /**
@@ -288,10 +288,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	}
 
 	/** Whether `slug` is one a `workspace-app` record still listed names in `projects` (7.3). */
-	const listedSlug = (slug: string): boolean =>
-		scope.workspaceApps
-			.all()
-			.some((app) => app.listed !== null && (app.projects ?? []).includes(slug));
+	const listedSlug = (slug: string): boolean => teamListed(scope.workspaceApps.all(), slug);
 	const ownerOf = (context: CommandContext): boolean =>
 		isOwner(scope.membership, personKey(context.actor));
 	/**

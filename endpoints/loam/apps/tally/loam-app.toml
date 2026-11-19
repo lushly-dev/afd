@@ -27,14 +27,6 @@ effects = ["store-write"]
 input_schema = "schemas/tally-add.input.json"
 
 [[commands]]
-name = "tally-reset"
-title = "Reset the tally"
-description = "Set the tally's total back to zero and clear its history."
-category = "tally"
-effects = ["store-write"]
-input_schema = { type = "object", properties = {}, additionalProperties = false }
-
-[[commands]]
 name = "tally-get"
 title = "Read the tally"
 description = "Read the tally's total and the amounts that were added to it."

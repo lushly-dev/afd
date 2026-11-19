@@ -123,6 +123,12 @@ export interface CopilotDeps {
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	/** Commands no agent may run: `HUMAN_COMMANDS` and `OWNER_COMMANDS`, never listed for the copilot. */
 	humanOnly(name: string): boolean;
+	/**
+	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (phase 4's 3.2):
+	 * `autonomy-set`, and a shared or human key's `setting-set` or `setting-reset`. Let through, so the copilot reads
+	 * `HUMAN_REQUIRED` with the place to send its person, never `AUTONOMY_UNAVAILABLE`. Absent: none.
+	 */
+	handlerRefuses?(name: string, input: unknown): boolean;
 	/** Commands `listCommands` never reports. */
 	internal(name: string): boolean;
 	/** `sha256:` and the hex SHA-256 of canonical JSON. */
@@ -797,13 +803,14 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 
 	// ─── The gate (6.1) ───────────────────────────────────────────────────────
 
-	const gate: CommandMiddleware = async (name, _input, context, next) => {
+	const gate: CommandMiddleware = async (name, input, context, next) => {
 		const trace = (context as { trace?: CopilotTraceV1 }).trace;
 		// The copilot's own calls only, and only its top-level call: a nested call runs inside the call this gate let
 		// through, and its own checks (a handler's nested mutation is refused) still apply.
 		if (trace === undefined || context.parent !== undefined || context.caller !== undefined)
 			return next();
 		if (name === COPILOT_PORT_REFUSE) return next();
+		if (deps.handlerRefuses?.(name, input) === true) return next();
 		if (deps.isMutation(name)) {
 			return fail(
 				'AUTONOMY_UNAVAILABLE',

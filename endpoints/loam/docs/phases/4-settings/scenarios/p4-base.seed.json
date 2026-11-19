@@ -1,5 +1,5 @@
 {
-	"$comment": "What the seed p4-base holds beyond its workspace, person and projects (the specification's Jobs and scenarios), read by Loam's runner, kernel/scenarios/seeds.ts, which names no app itself. Each app is loaded from its own source (dir, manifest, module, relative to endpoints/loam); console is the runner's fixture app. Each document is written to the store before the kernel starts, so its id is fixed; each call runs after sign-in; each check is what the seed's own test asserts.",
+	"$comment": "What the seed p4-base holds beyond its workspace, person and projects (the specification's Jobs and scenarios), read by Loam's runner, kernel/scenarios/seeds.ts, which names no app itself. Each app is loaded from its own source (dir, manifest, module, relative to endpoints/loam); console is the runner's fixture app; an app's fixtureCommands are the seed's own mutations that change nothing, for a job naming a command the app does not ship yet. Each document is written to the store before the kernel starts, so its id is fixed; each call runs after sign-in; each check is what the seed's own test asserts.",
 	"apps": [
 		{
 			"instance": "hello",
@@ -7,7 +7,18 @@
 			"manifest": "manifests/native.toml",
 			"module": "src/native.ts"
 		},
-		{ "instance": "tally", "dir": "apps/tally", "module": "src/native.ts" },
+		{
+			"instance": "tally",
+			"dir": "apps/tally",
+			"module": "src/native.ts",
+			"fixtureCommands": [
+				{
+					"name": "tally-reset",
+					"title": "Reset the tally (fixture)",
+					"description": "The scenarios' stand-in for the reset step 6 ships with its confirm_prompt: it changes nothing."
+				}
+			]
+		},
 		{ "instance": "checklist", "dir": "apps/checklist", "module": "src/app.ts" },
 		{ "instance": "console", "fixture": "console" }
 	],
