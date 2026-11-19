@@ -17,6 +17,7 @@ from botcore_factory.world import (
     HostRecord,
     Issue,
     MergeOutcome,
+    MergeProgress,
     Plan,
     PullRequest,
     WorldError,
@@ -138,32 +139,106 @@ class FixtureGitHub:
         """Bound to ``head``: a check reported for another head of the PR is not this one's.
         ``outcomes.checksByHead[head]`` wins over ``outcomes.checks[branch]``."""
         found = self._prs()[str(pr)]
+        by_head = self.store.data.get("outcomes", {}).get("checksByHead", {})
+        if head in by_head:  # Also a merge queue's commit, which is no head of the PR.
+            return str(by_head[head])
         if found.get("head") and found["head"] != head:
             return "missing"
-        by_head = self.store.data.get("outcomes", {}).get("checksByHead", {})
-        if head in by_head:
-            return str(by_head[head])
         return _outcome(self.store, "checks", found["branch"], "success")
 
     def merge_pr(self, pr: int, head: str) -> None:
         """``outcomes.mergePr[branch]``: ``fail: ...`` refuses; ``lands-then-fail: ...`` merges
-        and still reports a failure, as a timed-out API call can."""
+        and still reports a failure, as a timed-out API call can.
+
+        With ``mergeQueue.required`` the request queues the pull request instead, as GitHub
+        does behind a required merge queue: it stays ``OPEN`` in the queue, with the commit the
+        queue built for it (``group@<pr>``), until ``mergeQueue.outcomes[branch]`` settles it
+        (``merge_progress``)."""
         found = self._prs()[str(pr)]
         result = _outcome(self.store, "mergePr", found["branch"], "ok")
         if result.startswith("fail"):
             raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge failed")
         if found.get("head") and found["head"] != head:
             raise WorldError(f"Head branch was modified: PR {pr}'s head is {found['head']}")
-        found["state"] = "MERGED"
-        found["mergedHead"] = head
-        found["mergeCommit"] = f"main@{pr}"
-        self.store.data.setdefault("main", {})["head"] = f"main@{pr}"
+        if (self.store.data.get("mergeQueue") or {}).get("required"):
+            # What ``gh pr merge`` does there: into the queue, the pull request being ready.
+            self._queue(pr, found, head)
+        else:
+            self._merge(pr, found, head, f"main@{pr}")
         self.store.save()
         if result.startswith("lands-then-fail"):
             raise WorldError(result.split(":", 1)[1].strip() if ":" in result else "timed out")
 
+    def enqueue_pr(self, pr: int, head: str) -> None:
+        """Into the merge queue, bound to ``head``; ``outcomes.mergePr[branch]`` scripts a
+        refusal or a lost answer as for ``merge_pr``. A base without a queue refuses."""
+        found = self._prs()[str(pr)]
+        result = _outcome(self.store, "mergePr", found["branch"], "ok")
+        if result.startswith("fail"):
+            raise WorldError(result.removeprefix("fail").lstrip(": ") or "enqueue failed")
+        if not (self.store.data.get("mergeQueue") or {}).get("required"):
+            raise WorldError("Merge queue is not enabled for the base branch")
+        if found.get("head") and found["head"] != head:
+            raise WorldError(
+                f"Failed to add PR #{pr}: expected head oid does not match the current head oid"
+            )
+        self._queue(pr, found, head)
+        self.store.save()
+        if result.startswith("lands-then-fail"):
+            raise WorldError(result.split(":", 1)[1].strip() if ":" in result else "timed out")
+
+    def _queue(self, pr: int, found: dict, head: str) -> None:
+        found["queuedHead"] = head
+        found.setdefault("queue", {"state": "QUEUED", "position": 1, "groupHead": f"group@{pr}"})
+
+    def _merge(self, pr: int, found: dict, head: str, commit: str) -> None:
+        found["state"] = "MERGED"
+        found["mergedHead"] = head
+        found["mergeCommit"] = commit
+        self.store.data.setdefault("main", {})["head"] = commit
+
     def pr_state(self, pr: int) -> str:
         return self._prs()[str(pr)]["state"]
+
+    def merge_progress(self, pr: int) -> MergeProgress:
+        """A queued pull request is settled here, on a read, once the fixture says how:
+        ``mergeQueue.outcomes[branch]`` is ``merge`` (the queue's commit becomes the base's
+        head) or ``remove`` / ``remove: <reason>`` (it leaves the queue, still open). Without
+        one it stays queued. ``outcomes.mergeProgress`` scripts a failed read."""
+        _fail(self.store, "mergeProgress")
+        found = self._prs()[str(pr)]
+        queue = self.store.data.get("mergeQueue") or {}
+        entry = found.get("queue")
+        outcome = str((queue.get("outcomes") or {}).get(found["branch"], "wait"))
+        if entry and found["state"] == "OPEN" and outcome != "wait":
+            found.pop("queue")
+            found["removedAt"] = FixtureClock(self.store).stamp()
+            found["removedCommit"] = entry["groupHead"]
+            if outcome.startswith("remove"):
+                found["removalReason"] = outcome.removeprefix("remove").lstrip(": ")
+            else:
+                found["removalReason"] = "merged"
+                self._merge(pr, found, found.get("queuedHead", ""), entry["groupHead"])
+            self.store.save()
+            entry = None
+        entry = entry or {}
+        return MergeProgress(
+            state=found["state"],
+            head=found.get("head", ""),
+            queue_required=bool(queue.get("required")),
+            queued=bool(entry),
+            waiting=bool(found.get("autoMerge")) and found["state"] == "OPEN",
+            queue_state=entry.get("state", ""),
+            position=entry.get("position"),
+            group_head=entry.get("groupHead", ""),
+            removed_at=found.get("removedAt", ""),
+            removal_reason=found.get("removalReason", ""),
+            removed_commit=found.get("removedCommit", ""),
+        )
+
+    def commit_message(self, commit: str) -> str:
+        """``commitMessages[commit]``: a commit's message (a merge queue's squash)."""
+        return str(self.store.data.get("commitMessages", {}).get(commit, ""))
 
     def merge_commit(self, pr: int) -> str | None:
         return self._prs()[str(pr)].get("mergeCommit")
@@ -357,6 +432,11 @@ class FixtureGit:
         _fail(self.store, "push", branch)
         pushed = self.store.data.setdefault("pushed", {})
         remote = pushed.get(branch)
+        if any(
+            pr["branch"] == branch and pr["state"] == "OPEN" and pr.get("queue")
+            for pr in self.store.data.get("prs", {}).values()
+        ):  # GitHub locks the head branch of a pull request in a merge queue.
+            raise WorldError(f"! [remote rejected] {branch} (protected branch hook declined)")
         if lease and remote not in (None, lease):
             raise WorldError(f"! [rejected] {branch} (stale info): origin has {remote}")
         if not lease and remote not in (None, head):

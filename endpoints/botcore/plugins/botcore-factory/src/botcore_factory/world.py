@@ -145,6 +145,49 @@ class MergeOutcome:
 
 
 @dataclass(frozen=True)
+class MergeProgress:
+    """Where a pull request stands, read after the lane asked GitHub to merge it.
+
+    A base that takes merges only through a merge queue answers the request by queueing the pull
+    request: it is still ``OPEN``, and merges minutes later when the queue's own run of the
+    required check passes, or leaves the queue unmerged. Everything here is GitHub's answer,
+    never configuration, so one lane is right before and after a queue is turned on.
+    """
+
+    #: ``OPEN``, ``MERGED`` or ``CLOSED``.
+    state: str = "OPEN"
+    #: The pull request's head commit now (empty when the read does not say).
+    head: str = ""
+    #: Its base takes merges only through a merge queue.
+    queue_required: bool = False
+    #: It is in the merge queue now.
+    queued: bool = False
+    #: Auto-merge is set on it: GitHub queues or merges it once its requirements pass.
+    waiting: bool = False
+    #: The queue's word for the entry (``QUEUED``, ``AWAITING_CHECKS``, ``MERGEABLE``,
+    #: ``UNMERGEABLE``, ``LOCKED``), and its place in the queue.
+    queue_state: str = ""
+    position: int | None = None
+    #: The queue entry's head commit, as GitHub names it while the entry is there.
+    group_head: str = ""
+    #: When GitHub last took it out of a merge queue (GitHub's clock; empty: never), and why:
+    #: ``merged`` for a merge, which is logged as a removal too, ``failed_checks`` when the
+    #: required check failed on the queue's commit, or another word of GitHub's.
+    removed_at: str = ""
+    removal_reason: str = ""
+    #: The commit the queue had built for it when it let it go: the pull request squashed, with
+    #: the message GitHub wrote, onto the base and whatever was queued ahead (the removal
+    #: event's ``beforeCommit``; read on lushly-dev/afd#1621, whose squash carried the
+    #: ``Co-authored-by:`` line its group failed for).
+    removed_commit: str = ""
+
+    @property
+    def pending(self) -> bool:
+        """GitHub holds the request: nothing more is asked of the lane but to wait."""
+        return self.state == "OPEN" and (self.queued or self.waiting)
+
+
+@dataclass(frozen=True)
 class Completed:
     """A finished process run."""
 
@@ -203,8 +246,26 @@ class GitHub(Protocol):
         ...
 
     def merge_pr(self, pr: int, head: str) -> None:
-        """Squash-merge the PR, only if its head is still ``head``. A failure may still have
-        merged it: read ``pr_state`` before deciding."""
+        """Ask GitHub to squash-merge the PR, only if its head is still ``head``. Returning
+        does not mean it merged: a base behind a merge queue queues it instead, and a failure
+        may still have merged or queued it. Read ``merge_progress`` before deciding."""
+        ...
+
+    def enqueue_pr(self, pr: int, head: str) -> None:
+        """Add the PR to its base's merge queue, only if its head is still ``head`` (GraphQL
+        ``enqueuePullRequest`` with ``expectedHeadOid``). It never sets auto-merge, which
+        ``gh pr merge`` does there when a required check has not finished. GitHub then locks
+        the head branch: nothing can be pushed to it until it merged or left the queue. A
+        failure may still have queued it: read ``merge_progress`` before deciding."""
+        ...
+
+    def merge_progress(self, pr: int) -> MergeProgress:
+        """Where the PR stands: merged, closed, in a merge queue, waiting to join one, or
+        open with nothing pending."""
+        ...
+
+    def commit_message(self, commit: str) -> str:
+        """The full message of ``commit`` (a merge queue's squash commit)."""
         ...
 
     def pr_state(self, pr: int) -> str:

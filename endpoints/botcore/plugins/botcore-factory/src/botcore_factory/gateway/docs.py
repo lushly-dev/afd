@@ -58,6 +58,26 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
    auto-merge bound to the head, by the repository's merge method (a merge commit unless
    the configuration says squash). A closed pull request is PR_CLOSED. pr-merge with
    cancel turns auto-merge off, whatever the head is now.
+   Where main takes merges only through a merge queue (GitHub says so on the pull request;
+   nothing is configured), nothing merges at once: the answer is state queued with
+   mergeQueue {required, queued, state?, position?}. A pull request whose required check
+   passed is added to the queue bound to the head (queued true); one whose check still runs
+   gets auto-merge bound to the head, and GitHub queues it when the check passes (queued
+   false until then). GitHub locks a queued pull request's branch: branch-push to it is
+   refused until it merged or left the queue. The queue writes the squash message itself and
+   adds a Co-authored-by line for every commit author who is not the pull request's. It
+   merges minutes later, or leaves the queue unmerged: poll pr-status, which carries the
+   same mergeQueue while the pull request is open, with removed {at, reason} once a queue
+   let it go (failed_checks: the queue's run of the checks failed, so the same head will
+   fail again; merged: GitHub logs a merge so too, a second before state reads merged).
+   Open, queued false and autoMerge false on two reads a minute apart means it left the
+   queue. cancel takes it out of the queue too and answers what GitHub then shows
+   (STILL_QUEUED if it is still set to merge). NOT_QUEUED: GitHub took the request and
+   shows nothing for it.
+   Not yet tried on GitHub: a pull request the gateway's App opened is not the owner's, so
+   the queue's squash may credit the owner as a co-author, which a base that refuses
+   co-authors (AFD's ci-ok) removes from the queue. Until the App's credit is tested, do
+   not serve a repository that has both a merge queue and that check.
 
 ## Reading GitHub settled
 

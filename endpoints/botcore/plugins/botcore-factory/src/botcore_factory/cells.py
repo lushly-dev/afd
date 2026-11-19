@@ -17,7 +17,7 @@ from botcore_factory.claims import Claim, claim_body, format_time, parse_time, r
 from botcore_factory.events import answer, emit
 from botcore_factory.intake import not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
-from botcore_factory.lane_base import counted_ejections
+from botcore_factory.lane_base import MERGE_QUEUED, counted_ejections
 from botcore_factory.records import last_ejection
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import Plan, WorldError
@@ -430,6 +430,17 @@ def drop(factory: Factory, branch: str, reason: str) -> dict:
         raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the cell is dropped")
     with factory.store.update(f"lane-drop {branch}") as state:
         cell = find(state, branch)
+        for entry in state["queue"]:
+            if entry["branch"] == branch and entry.get("state") == MERGE_QUEUED:
+                raise Refusal(
+                    "MERGE_QUEUED",
+                    f"{branch} is in GitHub's merge queue as PR {entry.get('pr')}: it would "
+                    "merge there after the lane forgot it",
+                    "Wait: the lane lands it when it merges and ejects it when it leaves the "
+                    "queue. To stop it, remove the pull request from the merge queue on "
+                    "GitHub, lane-resume if the lane is paused, wait for its `ejected` event "
+                    "(a minute or two), then lane-drop",
+                )
         was_full = len(seated(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in seated(state)
         for entry in [*state["queue"], *state["held"]]:

@@ -749,3 +749,234 @@ async def test_concurrent_claims_on_one_issue_leave_one_holder(tmp_path):
     results = await asyncio.gather(*calls)
     assert sum(result.success for result in results) == 1
     assert {r.error.code for r in results if not r.success} == {"ALREADY_CLAIMED"}
+
+
+# ── A merge queue on main ───────────────────────────────────────────────
+
+
+def behind_a_queue(run, number: int, head: str, **overrides):
+    """A gateway whose pull request ``number`` targets a base with a merge queue, validated."""
+    gateway = run(**overrides)
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == number).update(
+            mergeQueue={"required": True}
+        )
+    )
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=head, result="passed", summary="ok"
+    ).success
+    return gateway
+
+
+def test_without_a_queue_pr_merge_and_pr_status_name_none(run):
+    gateway = run()
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR44_HEAD, result="passed", summary="ok"
+    ).success
+    assert "mergeQueue" not in gateway("lane", "pr-status", repo=REPO, number=44).data
+    merged = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert merged.data == {"state": "merged", "autoMerge": False, "changed": True}
+
+
+def test_behind_a_queue_a_green_pull_request_is_queued_never_merged_directly(run, monkeypatch):
+    def direct(self, repo, number, head, method):
+        raise AssertionError("A required merge queue refuses a direct merge")
+
+    monkeypatch.setattr(FakeGitHub, "merge_pull", direct)
+    gateway = behind_a_queue(run, 44, PR44_HEAD, mergeMethods={REPO: "squash"})
+    queued = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    # Its check passed: into the queue itself, bound to the head, and no auto-merge.
+    assert queued.data == {
+        "state": "queued",
+        "autoMerge": False,
+        "changed": True,
+        "mergeQueue": {"required": True, "queued": True, "state": "QUEUED", "position": 1},
+    }
+    assert "Added 44 to the merge queue" in queued.reasoning
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
+    assert pull["state"] == "open" and pull["mergeQueue"]["head"] == PR44_HEAD
+    # The caller waits on pr-status, which carries the same entry while it is open.
+    status = gateway("lane", "pr-status", repo=REPO, number=44).data
+    assert status["state"] == "open" and status["mergeQueue"] == queued.data["mergeQueue"]
+    again = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert again.data["changed"] is False and again.data["mergeQueue"]["queued"] is True
+    assert "already in the merge queue" in again.reasoning
+
+
+def test_behind_a_queue_a_pull_request_whose_check_runs_waits_to_join_it(run):
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    queued = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
+    assert queued.data == {
+        "state": "queued",
+        "autoMerge": True,
+        "changed": True,
+        "mergeQueue": {"required": True, "queued": False},
+    }
+    assert "once its checks pass" in queued.reasoning
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 47)
+    assert pull["autoMergeHead"] == PR47_HEAD and pull["state"] == "open"
+
+
+def test_behind_a_queue_nothing_left_to_wait_for_is_enqueued_at_the_head(run, monkeypatch):
+    from botcore_factory.gateway.github import AlreadyMergeable
+
+    def clean(self, repo, number, head, method):
+        raise AlreadyMergeable()
+
+    monkeypatch.setattr(FakeGitHub, "enable_auto_merge", clean)
+    gateway = behind_a_queue(run, 47, PR47_HEAD)  # Its check still ran when it was read.
+    queued = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
+    assert queued.data["state"] == "queued" and queued.data["autoMerge"] is False
+    assert queued.data["mergeQueue"]["queued"] is True
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 47)
+    assert pull["state"] == "open" and pull["mergeQueue"]["head"] == PR47_HEAD
+
+
+def test_behind_a_queue_a_head_that_moves_is_head_moved(run, monkeypatch):
+    from botcore_factory.gateway.github import HeadMoved
+
+    def moved(self, repo, number, head):
+        raise HeadMoved("9" * 40)
+
+    monkeypatch.setattr(FakeGitHub, "enqueue_pull", moved)
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    result = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert result.error.code == "HEAD_MOVED" and result.error.details["head"] == "9" * 40
+    assert "before it was queued" in result.error.message
+
+
+def test_a_queued_pull_request_keeps_its_claim_until_it_merges(run):
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 44).update(branch="fix/perf")
+    )
+    holder = {"branch": "fix/perf", "machine": "workstation"}
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[103], holder=holder).success
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 44).update(closes=[103])
+    )
+    assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).data["state"] == (
+        "queued"
+    )
+    claims = gateway("lane", "claim-list", repo=REPO).data["claims"]
+    assert [claim["number"] for claim in claims] == [103]
+
+
+def test_cancel_takes_a_pull_request_out_of_the_queue(run):
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
+    cancelled = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
+    assert cancelled.data == {
+        "state": "open",
+        "autoMerge": False,
+        "changed": True,
+        "mergeQueue": {"required": True, "queued": False},
+    }
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
+    assert pull["mergeQueue"] == {"required": True} and pull["autoMerge"] is False
+    # Open, not queued and no auto-merge: what a pull request the queue let go looks like.
+    status = gateway("lane", "pr-status", repo=REPO, number=44).data
+    assert (status["state"], status["autoMerge"]) == ("open", False)
+    assert status["mergeQueue"] == {"required": True, "queued": False}
+    again = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
+    assert again.data["changed"] is False
+
+
+def test_pr_status_says_why_the_queue_let_a_pull_request_go(run):
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    gone = {"at": "2030-02-03T10:01:00Z", "reason": "failed_checks"}
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 44).update(
+            mergeQueue={"required": True, "removed": gone}
+        )
+    )
+    status = gateway("lane", "pr-status", repo=REPO, number=44).data
+    assert status["mergeQueue"] == {"required": True, "queued": False, "removed": gone}
+
+
+def test_cancel_follows_auto_merge_into_the_queue(run, monkeypatch):
+    """Auto-merge became a queue entry between the read and the write: cancelling reads again
+    and takes it out of the queue, and reports what GitHub then shows."""
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["autoMerge"]
+    disable = FakeGitHub.disable_auto_merge
+
+    def raced(self, repo, number):
+        # GitHub turned auto-merge into a queue entry first, so it refuses to turn it off.
+        with self._write(repo) as data:
+            pull = self._pull(data, number)
+            pull.update(autoMerge=False, autoMergeHead=None)
+            self._enqueue(pull, PR47_HEAD)
+        disable(self, repo, number)
+
+    monkeypatch.setattr(FakeGitHub, "disable_auto_merge", raced)
+    cancelled = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert cancelled.data == {
+        "state": "open",
+        "autoMerge": False,
+        "changed": True,
+        "mergeQueue": {"required": True, "queued": False},
+    }
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 47)
+    assert pull["mergeQueue"] == {"required": True}
+
+
+def test_cancel_that_cannot_dequeue_says_it_is_still_queued(run, monkeypatch):
+    monkeypatch.setattr(FakeGitHub, "dequeue_pull", lambda self, repo, number: None)
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
+    result = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD, cancel=True)
+    assert result.error.code == "STILL_QUEUED" and "pr-status" in result.error.suggestion
+
+
+def test_a_pull_request_closed_as_it_was_queued_is_not_reported_queued(run, monkeypatch):
+    enqueue = FakeGitHub.enqueue_pull
+
+    def closed(self, repo, number, head):
+        entry = enqueue(self, repo, number, head)
+        with self._write(repo) as data:
+            self._pull(data, number).update(state="closed", mergeQueue={"required": True})
+        return entry
+
+    monkeypatch.setattr(FakeGitHub, "enqueue_pull", closed)
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    result = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert result.error.code == "PR_CLOSED" and "pr-status" in result.error.suggestion
+
+
+def test_an_enqueue_github_answered_is_reported_though_the_next_read_trails(run, monkeypatch):
+    def trailing(self, repo, number, head):
+        return {"state": "QUEUED", "position": 3}  # Taken; the read after shows nothing yet.
+
+    monkeypatch.setattr(FakeGitHub, "enqueue_pull", trailing)
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    queued = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert queued.data["mergeQueue"] == {
+        "required": True,
+        "queued": True,
+        "state": "QUEUED",
+        "position": 3,
+    }
+
+
+def test_auto_merge_github_does_not_show_is_not_reported_queued(run, monkeypatch):
+    monkeypatch.setattr(FakeGitHub, "enable_auto_merge", lambda self, *args: None)
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
+    assert result.error.code == "NOT_QUEUED" and "pr-merge again" in result.error.suggestion
+
+
+def test_a_refusal_to_turn_auto_merge_off_is_reported_not_swallowed(run, monkeypatch):
+    from botcore_factory.gateway.github import GitHubRefused
+
+    def forbidden(self, repo, number):
+        raise GitHubRefused(200, "Resource not accessible by integration")
+
+    gateway = behind_a_queue(run, 47, PR47_HEAD)
+    assert gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["autoMerge"]
+    monkeypatch.setattr(FakeGitHub, "disable_auto_merge", forbidden)
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert result.error.code == "STILL_QUEUED"
+    assert "Resource not accessible by integration" in result.error.message
+    assert result.error.details["refused"] == "Resource not accessible by integration"
+    assert "permission" in result.error.suggestion

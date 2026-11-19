@@ -356,6 +356,9 @@ class Gateway:
         if state == "merged":
             data["mergedAt"] = pull.get("mergedAt")
         if state == "open":
+            if pull.get("mergeQueue"):
+                # Open, not queued and no auto-merge after a queued pr-merge: it left the queue.
+                data["mergeQueue"] = self._queued(pull, changed=False)["mergeQueue"]
             data["mergeable"] = MERGEABLE.get(pull.get("mergeable"), "pending")
             data["requiredCheck"] = self.required_check(repo, pull)
             data["checks"] = [
@@ -723,14 +726,7 @@ class Gateway:
                 number=number,
             )
         if cancel:
-            changed = bool(pull.get("autoMerge"))
-            if changed:
-                self.spend("pr-merge")
-                self.github.disable_auto_merge(repo, number)
-            return success(
-                {"state": "open", "autoMerge": False, "changed": changed},
-                reasoning=f"Auto-merge {'turned off' if changed else 'was already off'}",
-            )
+            return self._cancel(repo, pull)
         if pull["head"] != head:
             raise refuse(
                 "HEAD_MOVED",
@@ -739,6 +735,64 @@ class Gateway:
                 head=pull["head"],
             )
         return self._merge(repo, pull)
+
+    def _cancel(self, repo: str, pull: dict) -> CommandResult:
+        """Turn auto-merge off and take the pull request out of the merge queue, then say what
+        GitHub shows, never what was asked: auto-merge can become a queue entry between the
+        read and the write, so it is read again and cancelled once more before answering."""
+        number = pull["number"]
+        changed = dequeued = False
+        refused = ""  # What GitHub said when it would not turn auto-merge off.
+        for _ in range(2):
+            queued = bool((pull.get("mergeQueue") or {}).get("queued"))
+            if not pull.get("autoMerge") and not queued:
+                break
+            if not changed:
+                self.spend("pr-merge")
+            changed = True
+            if pull.get("autoMerge"):
+                # Refused when it is no longer set (it became a queue entry): the next read
+                # says whether that was why. Any other refusal is reported below.
+                try:
+                    self.github.disable_auto_merge(repo, number)
+                except GitHubRefused as exc:
+                    refused = exc.message
+            if queued:
+                self.github.dequeue_pull(repo, number)
+                dequeued = True
+            pull = self.pull_or_refuse(repo, number)
+        state = self.pull_state(pull)
+        if state == "merged":
+            return success(
+                {"state": "merged", "autoMerge": False, "changed": False},
+                reasoning=f"Pull request {number} merged before it could be cancelled",
+            )
+        queue = self._queued(pull, changed=changed).get("mergeQueue")
+        data: dict[str, Any] = {
+            "state": state,
+            "autoMerge": bool(pull.get("autoMerge")),
+            "changed": changed,
+            **({"mergeQueue": queue} if queue else {}),
+        }
+        if data["autoMerge"] or (queue or {}).get("queued"):
+            if refused:
+                raise refuse(
+                    "STILL_QUEUED",
+                    f"Pull request {number} is still set to merge: GitHub refused to turn "
+                    f"auto-merge off ({refused})",
+                    "Read GitHub's answer: a permission the gateway lacks is the owner's to "
+                    "grant; otherwise call pr-status, then pr-merge with cancel again",
+                    number=number,
+                    refused=refused,
+                )
+            raise refuse(
+                "STILL_QUEUED",
+                f"Pull request {number} is still set to merge after cancelling twice",
+                "Call pr-status, then pr-merge with cancel again; GitHub may be re-queueing it",
+                number=number,
+            )
+        off = "taken out of the merge queue" if dequeued else "turned off"
+        return success(data, reasoning=f"Auto-merge {off if changed else 'was already off'}")
 
     def _merge(self, repo: str, pull: dict) -> CommandResult:
         number, head = pull["number"], pull["head"]
@@ -763,12 +817,16 @@ class Gateway:
                 f"Pull request {number} conflicts with main",
                 "Merge main into the branch, validate again and push the new head",
             )
-        if pull.get("autoMerge"):
+        queue = pull.get("mergeQueue") or {}
+        if queue.get("queued") or pull.get("autoMerge"):
+            where = "in the merge queue" if queue.get("queued") else "queued to merge"
             return success(
-                {"state": "queued", "autoMerge": True, "changed": False},
-                reasoning=f"Pull request {number} is already queued to merge",
+                self._queued(pull, changed=False),
+                reasoning=f"Pull request {number} is already {where}",
             )
         self.spend("pr-merge")
+        if queue.get("required"):
+            return self._enqueue(repo, pull)
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
             return self._merge_now(repo, pull)
@@ -791,6 +849,93 @@ class Gateway:
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
         )
+
+    def _queued(self, pull: dict, *, changed: bool) -> dict[str, Any]:
+        """pr-merge's answer for a pull request GitHub holds to merge later: ``state`` is
+        ``queued``. ``mergeQueue`` is there only where the base has a merge queue: ``queued``
+        says whether the pull request is in it yet (``state`` and ``position`` as GitHub gives
+        them) or waits on auto-merge to join it. The caller waits on pr-status."""
+        data: dict[str, Any] = {
+            "state": "queued",
+            "autoMerge": bool(pull.get("autoMerge")),
+            "changed": changed,
+        }
+        queue = pull.get("mergeQueue")
+        if queue:
+            data["mergeQueue"] = {
+                key: queue[key]
+                for key in ("required", "queued", "state", "position", "removed")
+                if queue.get(key) is not None
+            }
+            data["mergeQueue"].setdefault("required", False)
+            data["mergeQueue"].setdefault("queued", False)
+        return data
+
+    def _enqueue(self, repo: str, pull: dict) -> CommandResult:
+        """The base takes merges only through a merge queue, which refuses a direct merge.
+
+        A pull request whose required check passed is added to the queue itself, bound to the
+        head (``enqueuePullRequest``): GitHub answers a head that moved with an error and
+        changes nothing, and sets no auto-merge. One whose check still runs gets auto-merge
+        bound to the head, which GitHub turns into a queue entry when its requirements pass;
+        where GitHub answers that nothing is left to wait for, it is added to the queue. The
+        queue squashes by its own configuration and writes the message itself, so the method
+        is the repository's only because GitHub refuses one it does not allow.
+        """
+        number, head = pull["number"], pull["head"]
+        method = self.config.merge_method(repo)
+        entry: dict | None = None  # GitHub's own answer to the enqueue, when one was made.
+        try:
+            if self.required_check(repo, pull)["state"] == "passed":
+                entry = self.github.enqueue_pull(repo, number, head)
+            else:
+                try:
+                    self.github.enable_auto_merge(repo, number, head, method)
+                except AlreadyMergeable:
+                    entry = self.github.enqueue_pull(repo, number, head)
+        except MergeMethodNotAllowed:
+            raise self._merge_method_refusal(repo, method) from None
+        except HeadMoved as moved:
+            raise refuse(
+                "HEAD_MOVED",
+                f"Pull request {number}'s head moved to {moved.head} before it was queued",
+                "The branch moved: validate its current head, record it, and merge that head",
+                head=moved.head,
+            ) from None
+        now = self.pull_or_refuse(repo, number)
+        state = self.pull_state(now)
+        if state == "merged":
+            self._release_on_merge(repo, pull)
+            return success(
+                {"state": "merged", "autoMerge": False, "changed": True},
+                reasoning=f"Merged {number} at {head[:12]}",
+            )
+        if state == "closed":
+            raise refuse(
+                "PR_CLOSED",
+                f"Pull request {number} was closed as it was queued",
+                "Call pr-status; reopen it on GitHub, or open a new one with pr-open",
+                number=number,
+            )
+        data = self._queued(now, changed=True)
+        queue = data.setdefault("mergeQueue", {"required": True, "queued": False})
+        if entry is not None and not queue.get("queued"):
+            # GitHub took it into the queue; the read after it trails or already shows it gone.
+            # What GitHub answered is reported, and pr-status says what became of it.
+            queue.update(queued=True, **{k: v for k, v in entry.items() if v is not None})
+        if queue.get("queued"):
+            said = f"Added {number} to the merge queue at {head[:12]}"
+        elif data["autoMerge"]:
+            said = f"Set {number} to join the merge queue at {head[:12]} once its checks pass"
+        else:
+            raise refuse(
+                "NOT_QUEUED",
+                f"GitHub took the request, but pull request {number} shows neither a queue "
+                "entry nor auto-merge",
+                "Call pr-status: if it is open and not queued, call pr-merge again",
+                number=number,
+            )
+        return success(data, reasoning=f"{said}; pr-status says when it merged or left the queue")
 
     def _merge_now(self, repo: str, pull: dict) -> CommandResult:
         number, head = pull["number"], pull["head"]

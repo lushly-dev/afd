@@ -25,6 +25,7 @@ from botcore_factory.world import (
     HostRecord,
     Issue,
     MergeOutcome,
+    MergeProgress,
     PullRequest,
     World,
     WorldError,
@@ -262,7 +263,12 @@ class GhGitHub:
         return "missing"
 
     def merge_pr(self, pr: int, head: str) -> None:
-        """A squash bound to ``head``, with the branch's messages as its body (``squash_body``)."""
+        """A squash bound to ``head``, with the branch's messages as its body (``squash_body``).
+
+        Behind a merge queue ``gh`` exits 0 once the pull request is queued (or set to join the
+        queue when its requirements pass), bound to the same head; the queue writes the squash
+        message itself, so the body is not used there. ``merge_progress`` says which happened.
+        """
         body = squash_body(self._commits(pr))
         self.run(
             ["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head]
@@ -286,6 +292,50 @@ class GhGitHub:
     def pr_state(self, pr: int) -> str:
         data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "state"]), "gh pr")
         return str(data.get("state", "OPEN"))
+
+    def enqueue_pr(self, pr: int, head: str) -> None:
+        node = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "id"]), "gh pr")
+        if not node.get("id"):
+            raise WorldError(f"GitHub gave no id for PR {pr}")
+        raw = self.run(
+            ["gh", "api", "graphql", "-f", f"query={_ENQUEUE}"]
+            + ["-f", f"id={node['id']}", "-f", f"head={head}"]
+        )
+        found = parse_json(raw, "gh api graphql")
+        if found.get("errors") or not (found.get("data") or {}).get("enqueuePullRequest"):
+            raise WorldError(f"GitHub did not queue PR {pr}: {raw.strip()[:300]}")
+
+    def merge_progress(self, pr: int) -> MergeProgress:
+        """One GraphQL read: ``gh pr view`` has no field for the merge queue's entry."""
+        owner, _, name = self.repository().partition("/")
+        raw = self.run(
+            ["gh", "api", "graphql", "-f", f"query={_MERGE_PROGRESS}"]
+            + ["-f", f"owner={owner}", "-f", f"name={name}", "-F", f"number={pr}"]
+        )
+        found = parse_json(raw, "gh api graphql")
+        node = ((found.get("data") or {}).get("repository") or {}).get("pullRequest")
+        if not isinstance(node, dict) or not node.get("state"):
+            raise WorldError(f"GitHub returned no pull request {pr}: {raw.strip()[:200]}")
+        entry = node.get("mergeQueueEntry") or {}
+        removed = ((node.get("timelineItems") or {}).get("nodes") or [{}])[-1] or {}
+        return MergeProgress(
+            state=str(node["state"]),
+            head=str(node.get("headRefOid") or ""),
+            queue_required=bool(node.get("isMergeQueueEnabled")),
+            queued=bool(node.get("isInMergeQueue") or entry),
+            waiting=node.get("autoMergeRequest") is not None,
+            queue_state=str(entry.get("state") or ""),
+            position=entry.get("position"),
+            group_head=str((entry.get("headCommit") or {}).get("oid") or ""),
+            removed_at=str(removed.get("createdAt") or ""),
+            removal_reason=str(removed.get("reason") or ""),
+            removed_commit=str((removed.get("beforeCommit") or {}).get("oid") or ""),
+        )
+
+    def commit_message(self, commit: str) -> str:
+        path = f"repos/{self.repository()}/commits/{commit}"
+        data = parse_json(self.run(["gh", "api", path]), "gh api commit")
+        return str((data.get("commit") or {}).get("message") or "")
 
     def merge_commit(self, pr: int) -> str | None:
         data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "mergeCommit"]), "gh pr")
@@ -340,6 +390,26 @@ class GhGitHub:
             raise WorldError(f"{path} lists more {key} than were read")
         return items
 
+
+#: Into the merge queue, bound to the head: GitHub answers a head that moved with "expected
+#: head oid does not match the current head oid" and changes nothing.
+_ENQUEUE = """mutation($id: ID!, $head: GitObjectID!) {
+  enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+    mergeQueueEntry { state position }
+  }
+}"""
+
+#: A pull request's merge state, its merge queue entry and the last time a queue let it go.
+_MERGE_PROGRESS = """query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+    state headRefOid isMergeQueueEnabled isInMergeQueue
+    autoMergeRequest { enabledAt }
+    mergeQueueEntry { state position headCommit { oid } }
+    timelineItems(last: 1, itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT]) {
+      nodes { ... on RemovedFromMergeQueueEvent { createdAt reason beforeCommit { oid } } }
+    }
+  } }
+}"""
 
 #: A state's weight: the worst of several runs of one name is what that name is.
 _WEIGHT = {"success": 0, "skipped": 1, "cancelled": 2, "pending": 3, "failure": 4}
@@ -623,7 +693,42 @@ class CliGit:
                 raise WorldError(f"Cannot move {path} aside to remove it: {again}") from again
         _remove_detached(self.target, trash)
 
-    _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
+    #: The lane commits as itself. ``committer.*`` is set too: it outranks ``user.*``, so a
+    #: host that configures it would otherwise commit the lane's merges as someone else.
+    _IDENTITY = (
+        *("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost"),
+        *("-c", "committer.name=botcore-factory", "-c", "committer.email=factory@localhost"),
+    )
+
+    def _branch_author(self, path: str) -> str:
+        """Who a merge of the base is authored as: the author of the branch's newest commit of
+        its own (first parents only, no merges, so never an earlier merge of the lane's nor a
+        commit main brought in), as ``Name <email>``.
+
+        GitHub's own squash message credits every commit author but the pull request's with a
+        ``Co-authored-by:`` line. Merging directly, the lane writes the body itself
+        (``squash_body``); a merge queue writes its own and takes none, so a merge commit
+        authored as ``botcore-factory`` puts that line into the queue's squash. Authored as
+        the branch's own author it adds nobody. An author that cannot be read is an error,
+        never a merge authored as the lane after all.
+        """
+        found = self.run(
+            ["git", "-C", path, "log", "-1", "--first-parent", "--no-merges"]
+            + ["--format=%an%n%ae", "HEAD"]
+        )
+        name, email = [*(line.strip() for line in found.splitlines()), "", ""][:2]
+        if not name or not email:
+            raise WorldError(f"The author of the branch in {path} cannot be read")
+        return f"{name} <{email}>"
+
+    def _author_merge(self, path: str, author: str) -> None:
+        """Record ``author`` on the merge commit ``git merge`` just made. ``git merge`` takes no
+        author, and ``GIT_AUTHOR_*`` in the lane's environment outranks any configuration;
+        ``--author`` outranks both."""
+        self.run(
+            ["git", "-C", path, *self._IDENTITY, "commit", "--amend", "--no-edit"]
+            + ["--no-verify", "--quiet", "--author", author]
+        )
 
     def _unmerged(self, path: str) -> tuple[str, ...]:
         found = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
@@ -632,9 +737,11 @@ class CliGit:
     def merge_main(
         self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
     ) -> MergeOutcome:
-        identity = list(self._IDENTITY)
+        author, before = self._branch_author(path), self.head(path)
         # A conflict exits nonzero; the unmerged paths say so, and the merge is aborted.
-        self.run(["git", "-C", path, *identity, "merge", "--no-edit", "--quiet", main], None, False)
+        self.run(
+            ["git", "-C", path, *self._IDENTITY, "merge", "--no-edit", "--quiet", main], None, False
+        )
         files = self._unmerged(path)
         if files:
             if keep_open is not None and keep_open(files):
@@ -644,6 +751,14 @@ class CliGit:
         # No conflict is not a merge: the base must now be in the head's history.
         if not self._ancestor(path, main):
             raise WorldError(f"Merging {main} into the slot did not happen")
+        # Only a commit this merge created is re-authored: its parents are the head it merged
+        # into and the base. A fast-forward moved the head onto the base's own commit (a merge
+        # commit of the base's, whose first parent may be that head, included): amending it
+        # would copy main's commit, and main would no longer be in the branch's history.
+        made = self.run(["git", "-C", path, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
+        base = self.run(["git", "-C", path, "rev-parse", "--verify", f"{main}^{{commit}}"]).strip()
+        if made and made[0] not in (before, base) and made[1:] == [before, base]:
+            self._author_merge(path, author)
         return MergeOutcome(True, head=self.head(path))
 
     def finish_merge(self, path: str) -> MergeOutcome:
@@ -653,8 +768,10 @@ class CliGit:
             return MergeOutcome(False, conflicts=files)
         # A commit runs pre-commit, which a clean ``git merge`` never does: the repository's
         # hooks would check every file main brought in, before the slot is even installed.
+        author = self._branch_author(path)
         self.run(
             ["git", "-C", path, *self._IDENTITY, "commit", "--no-edit", "--no-verify", "--quiet"]
+            + ["--author", author]
         )
         return MergeOutcome(True, head=self.head(path))
 

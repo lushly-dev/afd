@@ -57,6 +57,8 @@ WORLD_KEYS = frozenset(
         "outcomes",
         "main",
         "prs",
+        "mergeQueue",  # required, and outcomes by branch: what the queue does with each.
+        "commitMessages",  # A commit's message, by commit (a merge queue's squash).
         "nextPr",
         "pushed",
         "checkouts",
