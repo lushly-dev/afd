@@ -32,8 +32,9 @@ for:
   trigger, the path gate, commit credit and the verdict on the queue's commit). [#1627](https://github.com/lushly-dev/afd/pull/1627): the
   factory's lane and gateway enqueue; the live lane was restarted on that code before the queue
   went on. [#1625](https://github.com/lushly-dev/afd/pull/1625): `prepare-pr`'s step 9 enqueues; it is the first pull request to land
-  through the queue. Two trials on a throwaway branch are recorded in the plan. Left: the
-  release App's credit, [#1624](https://github.com/lushly-dev/afd/issues/1624).
+  through the queue. Two trials on a throwaway branch are recorded in the plan. `release.yml` makes the commit of a
+  version pull request it opened as that pull request's author (this pull request, for [#1624](https://github.com/lushly-dev/afd/issues/1624)). Left: a
+  version pull request opened by the release App has not been through the queue.
 
 ## Measure
 
