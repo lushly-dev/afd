@@ -246,6 +246,10 @@ export const SUITES = [
 			},
 			{ cwd: 'packages/rust', run: 'cargo test' },
 			{ cwd: 'packages/rust', run: 'cargo test --no-default-features' },
+			{
+				cwd: 'packages/rust',
+				run: 'cargo test --all-features --lib --test batch_controls_vectors',
+			},
 			{ cwd: 'packages/rust', run: 'cargo test --features server' },
 			{ cwd: 'packages/rust', run: 'cargo test --features server-auth' },
 			{ cwd: 'packages/rust', run: 'cargo test --features journal-file-shared' },
