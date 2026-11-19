@@ -177,8 +177,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   branch's own changes count, against a base the lane fetches, so main's gate changes a rebase or
   merge brings in do not),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
-  (names the stage, with its first lines, and the adapter's `install` command for a worktree
-  never installed), `MERGE_QUEUED` (the branch's pull request is in
+  (names the stage, with its first lines, and the adapter's `install` command for a new or
+  rebased worktree not installed since), `MERGE_QUEUED` (the branch's pull request is in
   GitHub's merge queue, which locks the branch), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,

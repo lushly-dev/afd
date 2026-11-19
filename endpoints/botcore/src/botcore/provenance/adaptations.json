@@ -1346,7 +1346,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "674d9ad248b696ad827771c986774c4d27b19247aa660444ffa3e47c9243081d",
+      "current_import_sha256": "d52a384f41de27b66b824cb2ec8e4ed6cf7544feaaa0217d34f9832ae7d83ca8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"
@@ -1522,7 +1522,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "20befbde2644b5d836c480e4b80d0f736fbd61517884c40e9f2f79800204d9a1",
+      "current_import_sha256": "63e1c765cbc56165c8f5263864d19e3fb17837c6b2821cc8f4742219c1923900",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"
@@ -1709,7 +1709,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fe6319bdf8ebb610db03054bba3998a1dfa2adbf5429e8bcbe8414344de89012",
+      "current_import_sha256": "1c4b6821bde8b0272c8e1fa1089f9bc2ccff8e53a52ee2913d38dd77d8bdda0a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"

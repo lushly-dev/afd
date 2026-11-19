@@ -161,12 +161,13 @@ def _prequeue(factory: Factory, worktree: str) -> list[dict]:
             fix = f"fix what {stage.name} reports in the worktree, commit, then lane-enqueue again"
             install, extra = factory.config.install, {}
             if install:
-                # A new cell worktree has no dependencies, so every stage fails on a missing tool
-                # rather than on the branch (lushly-dev/afd#1594): name the command that fixes it.
+                # A new cell worktree has no dependencies, so the first stage fails on a missing
+                # tool rather than on the branch (lushly-dev/afd#1594): name the command to run.
                 extra["install"] = list(install)
                 fix = (
-                    f"If the worktree was never installed (a new one), run `{shlex.join(install)}` "
-                    f"in it and lane-enqueue again, with nothing to commit. Otherwise {fix}"
+                    f"If the worktree is new or rebased and not installed since, run "
+                    f"`{shlex.join(install)}` in it (and build what the stage imports), then "
+                    f"lane-enqueue again, with nothing to commit. Otherwise {fix}"
                 )
             raise Refusal(
                 "PREQUEUE_FAILED",
