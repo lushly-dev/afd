@@ -283,6 +283,17 @@ jobs:
         if: steps.selection.outputs.selectable == 'true' && steps.pr-token.outputs.token == ''
         run: echo "::warning::No release App token; the release pull request is opened with GITHUB_TOKEN and starts no workflows. Close and reopen it to run its checks, or give the App Pull requests write access."
 
+      # main merges through a merge queue, whose squash gains a Co-authored-by line for a commit
+      # whose author is not the pull request's, and ci-ok refuses that line (#1624). The Changesets
+      # action commits with the identity git already has, so this gives it the version pull
+      # request's author: the open pull request's, or the account whose token will open one.
+      - name: Set the release pull request author
+        if: steps.selection.outputs.selectable == 'true'
+        run: node scripts/release-pr-author.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_SLUG: ${{ steps.pr-token.outputs.token != '' && steps.pr-token.outputs.app-slug || '' }}
+
       # Publication is independent of pending fragments held in other families.
       - name: Create selected release PR
         if: steps.selection.outputs.selectable == 'true'
@@ -298,6 +309,15 @@ jobs:
           pr-title: 'chore: release packages'
           commit-message: 'chore: release packages'
           github-token: ${{ steps.pr-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+      # The same property read back from GitHub, which is what the queue's squash goes by. It
+      # fails when the pull request changed hands between the two steps above, or when the action
+      # stops committing with the identity git holds.
+      - name: Check the release pull request author
+        if: steps.selection.outputs.selectable == 'true'
+        run: node scripts/release-pr-author.mjs --verify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   recover:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
