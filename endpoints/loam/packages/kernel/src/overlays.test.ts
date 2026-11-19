@@ -11,10 +11,12 @@ async function boot() {
 }
 
 describe('toast-show and modal-open', () => {
-	it('gives each overlay a counted id and the shell as owner of a person or agent', async () => {
+	it("gives each overlay a counted id and the shell as a person's owner, and refuses an agent's modal", async () => {
 		const { kernel } = await boot();
 		const first = await kernel.call<OverlayRefV1>('toast-show', toast);
-		const second = await kernel.agent.call<OverlayRefV1>('modal-open', modal);
+		// An agent opens toasts only (phase 4 specification, 6.1): its modal opens nothing, and takes no id.
+		expect((await kernel.agent.call('modal-open', modal)).error?.code).toBe('HUMAN_REQUIRED');
+		const second = await kernel.call<OverlayRefV1>('modal-open', modal);
 		expect(first.data).toEqual({
 			overlayId: 'ovl-1',
 			owner: 'shell',

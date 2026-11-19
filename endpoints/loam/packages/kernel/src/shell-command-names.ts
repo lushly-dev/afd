@@ -34,6 +34,9 @@ export const SHELL_COMMAND_NAMES = [
 	'toast-show',
 	'modal-open',
 	'popover-open',
+	// Phase 4's step 4 (its 6.1): the dialog and the prompt.
+	'dialog-open',
+	'prompt-open',
 	'overlay-dismiss',
 	'overlay-list',
 	'scope-get',

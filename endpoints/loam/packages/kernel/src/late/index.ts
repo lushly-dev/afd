@@ -136,6 +136,15 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 /** The signed-out commands as a set, the palette's filter on a signed-out `provider` page (2.1). */
 const SIGNED_OUT_SET: ReadonlySet<string> = new Set(SIGNED_OUT_COMMANDS);
 
+/** The overlays no MCP caller opens (phase 4 specification, 6.1): only a person, an app or the agent interface does. */
+const MCP_UNSERVED_OVERLAYS: ReadonlySet<string> = new Set([
+	'toast-show',
+	'popover-open',
+	'dialog-open',
+	'modal-open',
+	'prompt-open',
+]);
+
 /** JSON with object keys sorted at every level, as AFD's journal digests it: a turn's call's `inputDigest` (phase 5's 3.4). */
 const canonical = (value: unknown): string => {
 	const sort = (item: unknown): unknown =>
@@ -594,6 +603,8 @@ export async function createLateParts(
 				pushRate,
 				humanGesture: isHumanGesture,
 				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
+				isView: (instance) =>
+					deps.summaries().find((app) => app.instance === instance)?.kind === 'view',
 				// The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6).
 				personLabel: () => {
 					const session = deps.auth.getSession();
@@ -750,7 +761,12 @@ export async function createLateParts(
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
-		internal: [...createPortRefusals(), ...copilot.internal],
+		internal: [
+			...createPortRefusals(),
+			...copilot.internal,
+			// The shell's strip under the title bar (phase 4 specification, 6.1).
+			byName.get('overlay-global-set') as ZodCommandDefinition,
+		],
 		copilot,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
@@ -798,11 +814,10 @@ export async function createLateParts(
 					!OWNER_COMMANDS.includes(command.name) &&
 					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
 					command.category !== 'copilot' &&
-					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor a toast or a
-					// popover, which only a person, an app or the agent interface opens (6.1).
+					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor an overlay, which
+					// only a person, an app or the agent interface opens (6.1).
 					command.category !== 'setting' &&
-					command.name !== 'toast-show' &&
-					command.name !== 'popover-open'
+					!MCP_UNSERVED_OVERLAYS.has(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

@@ -161,7 +161,7 @@ export function createAppPort(options: AppPortOptions): {
 		if (binding.parent !== undefined && host.isMutation(command))
 			return refuse('app-nested-refuse');
 		if (binding.readOnly && host.isMutation(command)) return refuse('app-embed-refuse');
-		if (record.kind === 'view' && command === 'modal-open') {
+		if (record.kind === 'view' && (command === 'modal-open' || command === 'prompt-open')) {
 			// One at a time, and none while the view's modal is open, so the cooldown is checked once that
 			// modal has closed. Checked only on arrival, a call sent while it was open could reach the kernel
 			// just after a person closed it, and open the next before the cooldown began (#1054).

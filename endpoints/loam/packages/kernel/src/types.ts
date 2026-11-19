@@ -627,6 +627,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	'setting-get',
 	'setting-list',
 	'popover-open',
+	'dialog-open',
+	'prompt-open',
 ] as const;
 
 /**

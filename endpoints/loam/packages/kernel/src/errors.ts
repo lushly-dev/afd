@@ -86,6 +86,8 @@ export type LoamKernelErrorCode =
 	// Phase 4's overlays (its section 16), from its step 3.
 	| 'OVERLAY_ANCHOR_NOT_FOUND'
 	| 'OVERLAY_ITEM_RESERVED'
+	| 'OVERLAY_LIMIT'
+	| 'OVERLAY_ELEMENT_VIEW'
 	| 'RATE_LIMITED'
 	| 'SCOPE_PROJECT_REQUIRED'
 	| 'SCOPE_WORKSPACE_UNKNOWN'
