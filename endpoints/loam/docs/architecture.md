@@ -273,9 +273,10 @@ active unless the kind is `toast` or the call is a `global` from the shell.
 **Agents open toasts only** (phase 4, D121, since its step 4): the agent
 interface's toast is `agent:<id>`'s, at most 5 a minute for the agent
 interface per person (the copilot apart), and its popover, dialog, modal and
-prompt are `HUMAN_REQUIRED` (`palette-run` joins them with step 6). An agent,
-like any caller but a person's gesture or the owning app, cancels or dismisses
-an app's overlay but never confirms or acts on one; the shell's own close only
+prompt are `HUMAN_REQUIRED` (`palette-run` joins them with step 6). The agent
+interface, or any path with no app of its own, cancels or dismisses an app's
+overlay but never confirms or acts on one; another app's port touches none of
+it (`OVERLAY_NOT_OWNER`, step 4's R1); the shell's own close only
 by a person's gesture, or by the caller a kernel prompt names in its `for`,
 whose cancel ends it `withdrawn` (F6). An app's or an
 agent's overlay shows whose it is ("From <app>"; "From <agent>, for

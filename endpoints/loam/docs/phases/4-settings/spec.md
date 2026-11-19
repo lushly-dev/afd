@@ -594,10 +594,10 @@ export interface ExperimentV1 {
 | --- | --- | --- | --- | --- | --- |
 | toast | `toast-show` | Timed, 1 to 30 s; `sticky` never times out | Dismissed. Sticky ones, and those `toastSticky` selects, also land in the inbox | The toast region | 5 on screen; a sixth dismisses the oldest |
 | popover | `popover-open` | Light dismiss | Closed | Anchored, top layer | One per invoker |
-| dialog | `dialog-open` | Until closed | Parked and restored; with `cancelOnLeave`, cancelled | Top layer, non-modal | 3 per instance (`OVERLAY_LIMIT`) |
+| dialog | `dialog-open` | Until closed | Parked and restored; with `cancelOnLeave`, cancelled | Non-modal (`show()`), above the parts; not the top layer, so a modal makes it inert (step 4) | 3 per instance (`OVERLAY_LIMIT`) |
 | modal | `modal-open` | Until closed | Cancelled | Top layer, the rest inert | **The overlay slot** |
 | prompt | `prompt-open`, `palette-run`, a confirmation in the slot, the close prompt | Until answered | Cancelled | As a modal, in the slot | The slot |
-| global | The internal `overlay-global-set` | Until its condition ends | Survives | Top layer, a strip under the title bar | One per id |
+| global | The internal `overlay-global-set` | Until its condition ends | Survives | A strip under the title bar, above the parts; not the top layer (step 4) | One per id |
 
 **Who may open which kind, on each path (R8):**
 
@@ -1580,7 +1580,7 @@ Overlays II, dialogs, modals, prompts, the slot and the answer rule, on `lush/lo
 - **A prompt's `schema`** (6.4) is plain fields, `string`, `number`, `integer` or `boolean`, with `enum`, `minLength`, `maxLength`, `minimum` and `maximum`, and **no `pattern`**, since an app gives the shell no regular expression (section 17). With none, the value is one line of text of up to 1,000 characters. A value is at most 16,384 characters as JSON.
 - **The global strip** (6.1): `{ id; message?; tone? }`, no `message` closing it (`withdrawn`); no one dismisses it, `VALIDATION_ERROR`; a change of person closes it with everything else, and the condition's owner sets it again.
 - **F6's rule covers every shell overlay**, not only prompts: an agent or a port may no longer dismiss the shell's toast, popover, dialog or modal (`HUMAN_REQUIRED`, where an app's port had `OVERLAY_NOT_OWNER`).
-- **Dialogs are not in the top layer** (6.1, 6.3): `show()` leaves a dialog in the shell's tree, so it sits above the parts by `z-index.popover` and goes inert under a modal, as a non-modal surface should.
+- **Dialogs are not in the top layer** (6.1, 6.3): `show()` leaves a dialog in the shell's tree, so it sits above the parts by `z-index.popover` and goes inert under a modal, as a non-modal surface should; 6.1's placement says so since the review.
 
 **Left for later steps:**
 
@@ -1590,6 +1590,30 @@ Overlays II, dialogs, modals, prompts, the slot and the answer rule, on `lush/lo
 **Measured.** D115, on Windows with Node 26.13.1, against `main` at `42f9e1c1`: first paint 308,987 (+21) of 309,500 and the kernel alone 118,973 (+79), within their rows; `lateMinified` 93,000 to 103,000 (92,316 to 102,425, +10,109, over the step's re-estimated 6,000: three commands' written JSON Schemas, the prompt's field schema and value check, and the answer rule); `lateEditorMinified` 15,305 to 15,400 (15,336, +32); `surfacesMinified` 88,200 to 97,000 (96,469, +8,526 on step 3's 87,943: the slot's and a dialog's renderer, the prompt's fields and `loam-global`). The `overlays` chunk is unchanged at 6,608: this step's chrome is in `surfaces`, with the modal it extends. `budget.mjs` records each.
 
 **Verified.** 2026-11-19, on Windows 11 with Node 26.13.1, before the reviews: `test --coverage` for the kernel (1,058, 18 of them new in `overlay-slot.test.ts`), the manifest (1,103), chrome (243) and the SDK (30), and web's (53); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; eleven Chromium files (156 tests: `apps/dialogs`, new, with `apps/overlays`, `apps/popovers`, `apps/accessibility`, `apps/view`, `apps/second-app`, `shell`, `accessibility`, `documents/editor`, `scope/first-paint` and `budget`), `apps/dialogs` covering step 3's two deferred cases, a native editor's anchor and a failed menu pick's toast; `check-doc-lines`; and `pnpm check`. Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite, Cargo, `loam.yml` and `pnpm verify`.
+
+**After the trust review,** 2026-11-19: two independent reviews of `ae831bc8` (both "revise": 3 and 9 blockers) and the coordinator's rulings R1 to R4. Each amends the section named, and supersedes what the record above says otherwise:
+
+- **R1, another app's overlay** (amends 6.5): "anyone else may only cancel or dismiss" means the shell's own non-human paths and the agent interface, never another app. An unrelated app's port gets `OVERLAY_NOT_OWNER` for any answer, cancel or dismiss of another app's overlay, as phase 1 has it. An explicit `result: 'dismissed'` is accepted wherever leaving the result out gives `dismissed` (a toast, a popover). The architecture's paragraph says the same.
+- **R2, MCP:** `overlay-dismiss` and `overlay-list` join the overlay commands no MCP caller is served, so its `none` path neither lists nor closes an overlay.
+- **R3, chunks:** dialogs, a prompt's fields and `loam-global` move into the lazy `overlays` chunk (`chrome/src/apps/questions.ts`), which loads with the first popover, dialog, prompt or strip; phase 1's modal shell stays in `surfaces`. `main` and the branch were measured again from clean builds in one tree (below).
+- **R4, gates:** the coordinator runs `pnpm verify` on the final head.
+
+**Fixed,** by the reviews' numbers:
+
+- **1, the specification:** a replacement holding `` $` `` had copied the whole specification into this record. It was rebuilt from `main`'s text with only this step's additions, and Markdown is no longer written through a string replacement.
+- **2, the answer path:** a question is answered only by a person's trusted press on a button it drew, or their Escape, through a private `onAnswer` its renderer set, with its own id; no event carries an answer or a value, so neither an app's `element` inside it nor any other element answers as the person (a forged `loam-modal-result` and a script's `click()` answer nothing, in Chromium). The editor's discard hears only what the kernel accepted (`hearAnswers`, in first paint, which the `surfaces` and `editor` chunks share). The rest of the page, which can reach `shell.kernel` itself (D54), is unchanged.
+- **3, a view's waiting question:** a view's `modal-open` or `prompt-open` held behind its open one is refused `SESSION_CHANGED` when a change of person or a reload came while it waited, and the slot stays empty. `reason: 'timeout'` is the shell's toast timer only: anyone else's, or on another kind, is `VALIDATION_ERROR`, so no view passes it to close its modal without the cooldown.
+- **4, a tab's owner:** the chrome reads overlays again after any `editor-*` call, `document-open` and a change of main, so a dialog parks and returns with its app's tab (Chromium, between a note and a checklist).
+- **5, scope** (D83): an app's dialog, modal or prompt records the scope it opened in (`OverlayV1.scope`); its element's mount takes that scope, never the active one; a change of scope cancels, `app-switch`, every app's question opened in another, parked dialogs included, so none is restored in another project. **Chosen:** cancel, not keep: a parked dialog's element and port were bound to the scope left.
+- **6, the reused `<dialog>`:** the `close` the shell's own `hide()` queued never reports, whenever it arrives, so closing one question and opening the next at once cancels nothing.
+- **7, a view's answer:** `dev.loam/overlay-result { overlayId }`, the view SDK's `overlayResult`, answers a view its own overlay's result; another owner's id is `OVERLAY_NOT_OWNER`, tested through a real view frame.
+- **8, a prompt's value:** the answer is exactly what was submitted, never the prompt's starting value: none, or `null`, fails the schema; a cleared number is left out; a schema-valid empty text is kept.
+- **10, focus:** a dialog takes no focus when it opens (`show()` would move it; it goes back). **For step 6:** a prompt with `for` must not focus confirm, but cancel or the dialog, so a person typing elsewhere cannot confirm with Enter.
+- **11 to 16:** dialogs restacked on every render; the strips one persistent polite live region whose text changes, never hidden; 6.1's placement for a dialog and the strip corrected (neither is in the top layer: `show()` keeps a dialog in the shell's tree, where a modal makes it inert, and the strip is fixed under the title bar above the parts); a schema whose bounds cross, or whose choices are not of its field's type, refused, and a `select` with no starting value picks nothing; `element` refused from any app that is not native, a mounted tool's too (`OVERLAY_ELEMENT_VIEW`); a `cancel` action may not be `danger` or the default; the overlay state between switches journaled through `overlay-list`, so a replay compares each park and restore.
+
+**Measured again,** D115, `main` at `42f9e1c1` and the branch from clean package builds in one tree, on Windows with Node 26.13.1: first paint 308,966 to 309,167 (+201) and 96,387 to 96,477 gzip, within their rows; `late` 92,316 to 103,981 (+11,665), its row 93,000 to 104,500; `apps` 417,370 to 418,055 (+685), 417,500 to 418,500; `view` 26,043 to 26,236 (+193), 26,100 to 26,400; `surfaces` 87,996 to 93,192 (+5,196), 88,200 to 93,500; `overlays` 6,608 to 10,766 (+4,158, at 98% of section 14's 11,000), 6,970 to 11,000; `late-editor` 15,304 to 15,336, within 15,400; `editor` 35,393 to 35,361. The record's first `surfaces` figure, 96,469, read a stale chrome build.
+
+**Verified after the review.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,064), chrome (243), the SDK (30), the manifest (1,103) and web (53); the typecheck of every Loam package; chrome's `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; Chromium: `apps/dialogs` (9) and `apps/view` with its new frame case, beside `apps/overlays`, `apps/popovers`, `apps/accessibility`, `apps/second-app`, `shell`, `accessibility`, `documents/editor`, `scope/first-paint` and `budget`. Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo, which the coordinator runs (R4).
 
 ## Follow-ups
 
