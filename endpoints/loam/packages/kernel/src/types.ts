@@ -537,6 +537,11 @@ export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {
 	rail: boolean;
 	/** Whether it can open in the active scope, as the rail shows. */
 	available: boolean;
+	/**
+	 * Its place in the person's own rail order, `loam.rail.order`, from 0, when the list names it (phase 4
+	 * specification, 3.7; R8, D75): the rail puts these first, in this order, after the persona's emphasis.
+	 */
+	railRank?: number;
 }
 
 /** What `shell-info-get` returns from version 2. */

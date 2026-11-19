@@ -9,6 +9,7 @@ import {
 	type CommandContext,
 	type CommandResult,
 	type JournalEntry,
+	type JournalRecord,
 	MemoryJournalSink,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
@@ -21,10 +22,13 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
+import * as z from 'zod/mini';
 import type { AppearanceV0 } from './appearance.js';
+import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
-import { createKernelParts, type KernelPartsInternals } from './kernel.js';
+import { createKernelParts, type KernelPartsInternals, redactJournalRecord } from './kernel.js';
+import { DOCUMENT_INPUT_MAX_BYTES } from './late/document-types.js';
 import type { LayoutStateV0 } from './layout.js';
 import type { MembershipV1 } from './scope/access.js';
 import { CALL_MARK } from './scope/runtime.js';
@@ -169,26 +173,71 @@ function answeredFromRecord(entry: JournalEntry): boolean {
 	);
 }
 
-/**
- * Whether the validated input a journal holds is what `given` asks for. A schema may fill in a default,
- * so only what the call names must match.
- */
-function sameCall(recorded: unknown, given: unknown): boolean {
-	if (given === undefined) return true;
-	if (Array.isArray(given)) {
+/** Whether two JSON values are equal: every key, every item, in any key order. */
+function sameJson(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (Array.isArray(a) || Array.isArray(b)) {
 		return (
-			Array.isArray(recorded) &&
-			recorded.length === given.length &&
-			given.every((item, index) => sameCall(recorded[index], item))
+			Array.isArray(a) &&
+			Array.isArray(b) &&
+			a.length === b.length &&
+			a.every((item, index) => sameJson(item, b[index]))
 		);
 	}
-	if (typeof given === 'object' && given !== null) {
-		if (typeof recorded !== 'object' || recorded === null) return false;
-		return Object.entries(given).every(([key, value]) =>
-			sameCall((recorded as Record<string, unknown>)[key], value)
-		);
+	if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false;
+	const left = Object.keys(a);
+	const right = b as Record<string, unknown>;
+	return (
+		left.length === Object.keys(b).length &&
+		left.every(
+			(key) =>
+				Object.hasOwn(right, key) && sameJson((a as Record<string, unknown>)[key], right[key])
+		)
+	);
+}
+
+/**
+ * `input` as the registry validates it and the journal records it (JSON); undefined for a name the kernel does not
+ * hold or an input its schema refuses, which only running the call answers (#859).
+ */
+function validatedInput(
+	command: ZodCommandDefinition | undefined,
+	input: unknown
+): { input: unknown } | undefined {
+	if (!command) return undefined;
+	try {
+		const parsed = z.safeParse(command.inputSchema, input);
+		if (!parsed.success) return undefined;
+		const text = JSON.stringify(parsed.data);
+		return { input: text === undefined ? null : JSON.parse(text) };
+	} catch {
+		// A schema callback that throws: the registry answers it as a `VALIDATION_ERROR`.
+		return undefined;
 	}
-	return recorded === given;
+}
+
+/**
+ * Whether `given`, validated by the command's schema, is the call `recorded` journals: the whole input, after the
+ * journal's own redactions (`input.password` removed; an input the kernel's 256 KiB bound refused, which it marks
+ * `replay: 'recorded'`, kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
+ * The journal records the input after the handler ran, so a handler that changes its own input is recorded changed,
+ * and a nested call into it no longer matches: the replay reports it diverged rather than answer the wrong entry.
+ * So would a schema default that is not deterministic (one read from the clock or a random source), which the kernel's
+ * schemas do not have.
+ */
+function sameCall(recorded: JournalEntry, given: unknown): boolean {
+	let journaled = redactJournalRecord({
+		command: recorded.command,
+		input: given,
+	} as JournalRecord).input;
+	if (
+		recorded.context?.replay === 'recorded' &&
+		recorded.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE' &&
+		new TextEncoder().encode(JSON.stringify(journaled) ?? '').length > DOCUMENT_INPUT_MAX_BYTES
+	) {
+		journaled = oversizedInput(journaled);
+	}
+	return sameJson(recorded.input, journaled);
 }
 
 /**
@@ -213,10 +262,17 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 		 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
 		 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges.
 		 */
-		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
+		answer(
+			parent: string,
+			name: string,
+			input: unknown,
+			command: ZodCommandDefinition | undefined
+		): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
-			if (next?.command !== name || !sameCall(next.input, input)) return undefined;
+			if (next?.command !== name) return undefined;
+			const validated = validatedInput(command, input);
+			if (!validated || !sameCall(next, validated.input)) return undefined;
 			queue?.shift();
 			return next.result;
 		},
@@ -363,7 +419,13 @@ export async function replayKernel(
 	startPage(session);
 	// Shared with the kernel, which reads it at each call, so a kept kernel goes live when the replay ends.
 	const internals: KernelPartsInternals = {
-		answerNested: (parent, name, input) => nested.answer(parent, name, input),
+		answerNested: (parent, name, input, commands) =>
+			nested.answer(
+				parent,
+				name,
+				input,
+				commands.find((command) => command.name === name)
+			),
 		nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 		replaying: true,
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).

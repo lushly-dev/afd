@@ -1,5 +1,5 @@
 //! The hybrid tool strategy (`spec/tool-strategies.md`, H1 to H8): every case of the shared
-//! `spec/tool-strategies.json` over Streamable HTTP and a stdio-shaped connection, in both MCP
+//! `spec/vectors/tool-strategies.json` over Streamable HTTP and a stdio-shaped connection, in both MCP
 //! eras, plus the checks the cases cannot express (tools equal the individual strategy's, the
 //! context hook, confirmations, the panic guard and `afd-help`).
 #![cfg(feature = "server")]
@@ -46,8 +46,9 @@ impl CommandHandler for Boom {
 }
 
 fn cases() -> Value {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/tool-strategies.json");
-    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/tool-strategies.json"))
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/vectors/tool-strategies.json");
+    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/vectors/tool-strategies.json"))
         .expect("valid JSON")
 }
 

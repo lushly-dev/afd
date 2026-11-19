@@ -640,6 +640,52 @@ describe('P2-E1: (kernel unit) a project layout a person wrote', () => {
 	});
 });
 
+describe('#861: loam.scope survives a reload made at once', () => {
+	it('boots the next page in the project scope-set entered, with no flush, and replays the same', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		const atlas = await first.kernel.call('scope-set', { project: 'atlas' });
+		expect(atlas.success).toBe(true);
+		// A reload that waits for neither `pagehide`'s flush nor the debounce: the first page is still live.
+		const second = await scoped({
+			store,
+			journal,
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+		});
+		expect((await second.kernel.call('scope-get')).data).toMatchObject({
+			scope: first.scopes.atlas,
+			pending: false,
+		});
+		expect((await second.kernel.call('scope-set', { project: null })).success).toBe(true);
+		const { report } = await replayOf(await journal.read());
+		expect(report.diverged).toBe(false);
+		await second.kernel.dispose();
+		await first.kernel.dispose();
+	});
+
+	it('writes through the scope a sign-out leaves, which the scope middleware moves after the handler', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		const vault = await enterRestricted(first);
+		const stored = async () =>
+			((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value;
+		expect(await stored()).toEqual({ project: vault.id });
+		expect((await first.kernel.call('auth-sign-out')).success).toBe(true);
+		// The person may no longer enter Vault: the store holds the workspace as soon as the call resolves.
+		expect(await stored()).toEqual({ project: null });
+		const second = await scoped({
+			store,
+			journal,
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+		});
+		expect((await second.kernel.call('scope-get')).data).toMatchObject({ scope: WORKSPACE });
+		await second.kernel.dispose();
+		await first.kernel.dispose();
+	});
+});
+
 describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 	type Scoped = { scope: ScopeV1; project: ProjectV1 | null; pending: boolean };
 	const scopeOf = async (workspace: ScopedWorkspace) =>

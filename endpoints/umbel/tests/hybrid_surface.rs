@@ -20,7 +20,7 @@ fn names(value: &Value) -> Vec<String> {
         .collect()
 }
 
-// server_hybrid.rs: first-class tools equal the individual strategy's tools
+// tool_strategies_vectors.rs: first-class tools equal the individual strategy's tools
 #[tokio::test]
 async fn each_first_class_tool_equals_the_individual_tool_of_the_same_registry() {
     let dir = minimal();
@@ -55,7 +55,7 @@ async fn the_first_class_tools_are_workspace_show_then_event_list() {
     assert_eq!(host.first_class_tools(), ["workspace-show", "event-list"]);
 }
 
-// server_hybrid.rs: afd-help reports the strategy and the first-class set
+// tool_strategies_vectors.rs: afd-help reports the strategy and the first-class set
 #[tokio::test]
 async fn afd_help_reports_the_strategy_and_the_first_class_tools_on_every_lane() {
     let dir = minimal();

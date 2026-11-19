@@ -16,6 +16,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
+import { createPaletteIndex } from '../palette-index.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
@@ -44,7 +45,7 @@ import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
-import { archivedRefusal, canOpen, setMain } from './main-state.js';
+import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands, ownerTitle } from './overlay-commands.js';
 import { isOwner } from './owners.js';
@@ -211,6 +212,11 @@ export interface LateParts {
 	 * its stop of every running turn (phase 5 specification, 3.2, 6.1).
 	 */
 	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
+	/**
+	 * Right inside the journal, before the scope middleware, whose own changes of person and scope it must see too:
+	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
+	 */
+	writeThrough: CommandMiddleware;
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
@@ -542,6 +548,7 @@ export async function createLateParts(
 				also
 			);
 		},
+		paletteIndex: createPaletteIndex,
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	const scoped = createScopeCommands({
@@ -549,6 +556,7 @@ export async function createLateParts(
 		stores,
 		lateScope,
 		applied: () => applied,
+		settingTarget: (target, context) => (settings as Settings).target(target, context),
 	});
 	// The agents' push rate (phase 4 specification, 6.1, 10.2): their toasts now, the inbox's pushes with step 5.
 	const pushRate = createPushRate();
@@ -560,6 +568,7 @@ export async function createLateParts(
 				writeAppearance: (patch, context) => (settings as Settings).writeAppearance(patch, context),
 				editorOwner: editor.owner,
 				documentRows: rows,
+				settingRows: () => settings?.rows,
 				desktop: () => desktop,
 				// A signed-out `provider` page lists only the signed-out commands, filtered before the search ranks (2.1, I4).
 				paletteOnly: () =>
@@ -652,6 +661,29 @@ export async function createLateParts(
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
+	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
+	const appList = byName.get('app-list') as ZodCommandDefinition;
+	byName.set('app-list', {
+		...appList,
+		async handler(input: unknown, context: CommandContext) {
+			const result = (await appList.handler(input, context)) as CommandResult<{
+				apps: Array<{ instance: string; railRank?: number }>;
+			}>;
+			if (!result.success || !result.data) return result;
+			// A read that fails leaves the rail in the workspace's order: the list itself stands.
+			const order = (await settings?.railOrder(context).catch(() => undefined)) ?? [];
+			if (order.length === 0) return result;
+			return {
+				...result,
+				data: {
+					...result.data,
+					apps: result.data.apps.map((app) =>
+						order.includes(app.instance) ? { ...app, railRank: order.indexOf(app.instance) } : app
+					),
+				},
+			};
+		},
+	} as ZodCommandDefinition);
 	// The kernel's wrapper of `auth-sign-in`, and a signed-out `provider` page's palette (phase 3 specification, 2.1, 4.6).
 	byName.set(
 		'auth-sign-in',
@@ -720,6 +752,7 @@ export async function createLateParts(
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: [...createPortRefusals(), ...copilot.internal],
 		copilot,
+		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,

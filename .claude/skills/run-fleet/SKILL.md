@@ -30,6 +30,7 @@ Run from the primary checkout on current `main`, on the lane host; cells run the
 - **Not running:** `lane-start`. Paused by its own trouble: fix what `pauseReason` names, then `lane-resume`. Never resume a pause the owner made.
 - **Open events first:** act on every `openEvents` entry, as [the runbook](references/runbook.md#events) says, before starting anything. A foreman that died may have read them.
 - Read the runbook's [host notes](references/runbook.md#host-notes) for the machine.
+- **Woken late** (by a schedule, a retry, a queued message, or a resume after a usage limit): before you act, compare the message that started you with `lane-status` and the state of its issues and PRs. A run that waited may wake hours after its brief. If another session already did the work, or the owner has changed the plan since, take nothing and pass no `session`; report what you found and stop.
 
 ## Pick work and start a cell
 
@@ -48,3 +49,9 @@ After acting, leave one background `factory call lane-wait '{"consumer": "forema
 ## Finish
 
 `lane-drop` any cell that will not come back, then wait for `queue-empty`: the lane may still be running `main`'s coverage. Then `event-resolve` it, `lane-report` and `lane-stop`. Relay the merged PRs, what was ejected and why, the report's numbers, and what remains. Never delete a worktree or lock you did not make, or report dropped work as shipped.
+
+Then tidy T3 Code, so that nothing from the run wakes later on an outdated brief:
+
+- **Archive** each thread you started whose cell merged or was `lane-drop`ped, along with its reviewers and your helpers (`t3_thread_organize` with `action: "archive"`; the `environmentId` is the lane host's, as for `delegate_task`). Archive them rather than settling them: a settled thread stays in the list. Read each thread's last message first, and skip any with an open PR or unfinished work.
+- **Delete** every scheduled task you created for the run, such as a retry, whether or not it has run (`delete_scheduled_task`). Never touch one you did not create.
+- Leave your own thread for the owner to archive.

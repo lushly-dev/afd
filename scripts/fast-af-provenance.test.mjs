@@ -145,6 +145,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// default (D159, #1430) rewrote the literal fallbacks of the gantt's styles and the tab panel,
 	// gave the message status its danger colour, took the message media's fallbacks to AFD's values
 	// and added a read-only spec to the text area: 450. The form control hosts (#1385) adapted the
-	// grid's keyboard resize spec: 449. A removed file's record is kept but not counted.
-	assert(checked > 448, `only ${checked} unchanged upstream files`);
+	// grid's keyboard resize spec: 449. Slotted content under forced colours (#1575) adapted the
+	// alert's, the card's and the dialog's specs: 446. A removed file's record is kept but not
+	// counted.
+	assert(checked > 445, `only ${checked} unchanged upstream files`);
 });

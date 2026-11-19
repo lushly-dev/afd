@@ -63,8 +63,8 @@ harness has its own base-sync tool, merge with that instead.
 - **Diverged:** don't force it. Run the landing check: the commits may be
   squash-merged already, another task's unlanded work, or real WIP. Report which;
   new work usually gets a fresh branch off `origin/main`.
-- **Branch carries task work:** `git merge --no-edit "$base_sha"` at natural
-  checkpoints instead.
+- **Branch carries task work:** `pnpm base:sync` at natural checkpoints instead
+  (`prepare-pr` step 1 says what it reports).
 
 Then run `pnpm install --frozen-lockfile`, and in a fresh worktree even if nothing
 moved. A moved base can change the lockfile, which the type checker cannot see. The

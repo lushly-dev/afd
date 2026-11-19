@@ -638,8 +638,10 @@ export function createPersona(deps: PersonaDeps) {
 					const first = (item: PaletteItem): boolean =>
 						item.kind === 'document'
 							? sections.has('documents')
-							: apps.has(instances.get(item.name) as string) ||
-								sections.has(SECTION_OF[categoryOf(item.name) as string] as string);
+							: item.kind === 'setting'
+								? sections.has('settings')
+								: apps.has(instances.get(item.name) as string) ||
+									sections.has(SECTION_OF[categoryOf(item.name) as string] as string);
 					return {
 						...result,
 						data: {

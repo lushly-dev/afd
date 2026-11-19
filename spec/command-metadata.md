@@ -405,11 +405,39 @@ evaluates each step's policy on it:
 4. **The retry runs** only when, for every gated step, the request carries a distinct accepted
    question whose binding is that step's, whose MAC verifies and which has not expired. Two
    identical steps need two questions. Every nonce is spent before any step runs, so a replay of
-   the retry runs nothing and is asked again. Each gated step then runs on one unused approval of
-   its own binding, once; a gated step without one (a policy that changed its mind, or a schema
-   whose defaults differ between validations, such as a random or time-based default) fails with
-   `APPROVAL_REQUIRED` and runs nothing, though earlier steps may have run. A step whose batch or
-   pipeline already timed out or was cancelled never starts.
+   the retry runs nothing and is asked again. A step whose input is known up front and whose
+   command has an approval policy then runs on the input validated up front, not on the result
+   of the validation made when it runs, so the input a gated step runs on is the one the human
+   was shown (#1414). The step is still validated as sent when it runs, and a step that no longer
+   validates (its schema checks state an earlier step changed) fails with `VALIDATION_ERROR`, as
+   it does on its own; a step of a command without an approval policy runs on its own validation
+   (TypeScript and Python count `not-required` as no policy here; Rust counts any declared
+   policy, which changes nothing since its validation gives one result). Steps sent alike (the
+   same command and input) take their approved inputs in the order they run, so where one is
+   skipped by a `when` condition or they run in parallel, a step may run on the input shown for
+   its twin: every input that runs was shown and approved, once.
+   Each gated step runs on one unused approval of its own binding, once; a gated step without one
+   (a policy that changed its mind) fails with `APPROVAL_REQUIRED` and runs nothing, though
+   earlier steps may have run. A step whose batch or pipeline already timed out or was cancelled
+   never starts.
+
+   A schema whose defaults differ from one validation to the next (a random id, the time) gives
+   the retry another input than the one approved, since the retry validates the request anew.
+   TypeScript and Python, whose schemas can compute a default, therefore keep each gated step's
+   index and canonical validated input with its question in the `requestState`, beside a digest
+   of the whole request as sent, at most 32,768 characters of input for one question (UTF-16 code
+   units in TypeScript, code points in Python; steps are kept in order while they fit). The retry
+   of that same request gives the step the kept input, read back through the command's schema,
+   when the schema reads it back to the same canonical JSON; a step whose kept input is missing,
+   too long or not read back unchanged is validated as sent, and asked about again when the
+   result differs from what was approved. The kept input is only where a step's input comes
+   from: the step still needs an accepted question of its own binding, so a kept input that is
+   not the one approved is asked about, never run. A replay of an approved retry is asked about
+   the same kept input again. TypeScript's `requestState` is signed, not encrypted, so the client
+   can read the kept input in full, where the question shows its first 1,000 characters; Python's
+   is sealed. Rust's and C++'s validation computes nothing (a default is a constant of the
+   schema), so the retry validates to the same input and nothing is kept; C++ runs each step on
+   the validation made when it runs, which is that same input.
 5. **Anything else is asked again**, saying why when the request carried approvals that did not
    hold: an expired, spent or mismatched approval, or one for a changed batch.
 
@@ -787,7 +815,7 @@ follows `destructive`, `false` when it is unset.
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None` | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Yes, for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`) |
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
-| Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
+| Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Yes |
 | `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
 | Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | N/A: no confirmation gate |
 | `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | Planned (`afd::mcp_stdio` has no `HumanRelay`) |

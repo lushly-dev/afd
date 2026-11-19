@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let content slotted into `violet-alert`, `violet-card` and `violet-dialog` take the system colours under forced colours (#1575). Each surface opted out with `forced-color-adjust: none`, which slotted content inherited, so with a dark contrast theme its text kept the theme's dark colours on the black surface. Only what each component paints itself now opts out. `violet-toast`, `violet-snackbar` and the three conversation cards, which are drawn in a `violet-card`, keep what they paint opted out and let what is slotted into them take the system colours too.
+
 - Make form control hosts dependable without shadow-root workarounds (#1385): one `input` event per edit, the element's own; host `focus()` reaching the control in eight controls that ignored it; `violet-checkbox` described by its supporting text and the host's `aria-describedby`; and `violet-data-grid` columns keeping their own widths with `selection-mode="none"`, with keyboard resize stepping from the column's own width.
 
 - Fix active option rows to read the contract color.surface.subtle token in every theme (#659).

@@ -6,7 +6,7 @@
 
 import { css, FASTElement, html, observable, ref } from '@lushly-dev/fast-element';
 import type { AppContextV1, LoamSurfaceElementV1 } from '@lushly-dev/loam-sdk';
-import { onGreetingsChanged } from './handlers.js';
+import { DEFAULT_GREETING, greetingOf, onGreetingsChanged } from './handlers.js';
 
 const cardTemplate = html<HelloCard>`<slot></slot>`;
 const cardStyles = css`
@@ -38,6 +38,7 @@ interface TextField extends HTMLElement {
 
 const mainTemplate = html<HelloMain>`
 	<h1>Hello</h1>
+	<p class="greets">${(x) => x.greets}</p>
 	<div class="form" role="group" aria-label="Greet someone">
 		<violet-text-field ${ref('field')} label="Name" autocomplete="off"></violet-text-field>
 		<violet-button class="greet" appearance="primary" @click="${(x) => x.greet()}">Greet</violet-button>
@@ -87,14 +88,18 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 	declare selection: string | null;
 	declare greeting: string;
 	declare answer: string;
+	/** What Hello greets with here, from its settings (phase 4 specification, 3.8). */
+	declare greets: string;
 	declare field: TextField;
 	#stopListening: (() => void) | undefined;
+	#reads = 0;
 
 	constructor() {
 		super();
 		this.selection = null;
 		this.greeting = '';
 		this.answer = '';
+		this.greets = `Greets with ${DEFAULT_GREETING}`;
 	}
 
 	override connectedCallback(): void {
@@ -102,6 +107,35 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 		// A command may run from anywhere: the palette, an agent, the header or a chord.
 		this.#stopListening = onGreetingsChanged(() => void this.#publishCount());
 		void this.#publishCount();
+		void this.#readSettings();
+	}
+
+	/** Hello's own sections changed (3.8): read the greeting, and the project's board, again. */
+	settingsChanged(sections: string[]): void {
+		if (sections.some((section) => section.startsWith('hello.'))) void this.#readSettings();
+	}
+
+	/** The greeting that applies here, and in a project its guest board's name; the last read wins. */
+	async #readSettings(): Promise<void> {
+		const read = ++this.#reads;
+		const settings = this.context?.settings;
+		const greeting = await greetingOf({ ...(settings ? { settings } : {}) });
+		// The board is a project's alone: read at project level, which a call at workspace level is refused
+		// (`SETTING_PROJECT_REQUIRED`), so outside a project nothing is said of it, not even its default.
+		const listed = settings
+			? await this.context?.client.call<{ values: Array<{ key: string; value: unknown }> }>(
+					'setting-list',
+					{ section: 'hello.project', level: 'project' }
+				)
+			: undefined;
+		const board = listed?.success
+			? listed.data?.values.find(({ key }) => key === 'board')?.value
+			: undefined;
+		if (read !== this.#reads) return;
+		this.greets =
+			typeof board === 'string'
+				? `Greets with ${greeting}, on the ${board} board`
+				: `Greets with ${greeting}`;
 	}
 
 	override disconnectedCallback(): void {
@@ -148,6 +182,7 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 observable(HelloMain.prototype, 'selection');
 observable(HelloMain.prototype, 'greeting');
 observable(HelloMain.prototype, 'answer');
+observable(HelloMain.prototype, 'greets');
 
 const inspectorTemplate = html<HelloInspector>`
 	<x-card>${(x) => (x.selection ? `Greeted ${x.selection}` : 'Select a name in the list')}</x-card>

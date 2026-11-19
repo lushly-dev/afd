@@ -299,6 +299,9 @@ pub(crate) struct UpFrontStep {
     pub(crate) dynamic: bool,
     /// The validated input of a step that is not dynamic; `None` when it does not validate.
     pub(crate) input: Option<Value>,
+    /// The input as sent (after `$input` references are resolved): how the registry finds the
+    /// step it is about to run. `None` for a step that never runs on [`UpFrontStep::input`].
+    pub(crate) sent: Option<Value>,
 }
 
 /// An approval the human gave up front, taken once by a step bound to it.
@@ -336,6 +339,8 @@ pub(crate) struct UpFrontApproval {
     /// The call's tag under each approval key, which the middleware computes once.
     pub(crate) call_tags: std::sync::OnceLock<Vec<String>>,
     refusal: Mutex<Option<CommandError>>,
+    /// The positions in `steps` whose validated input the registry already took.
+    taken: Mutex<Vec<usize>>,
 }
 
 impl UpFrontApproval {
@@ -355,7 +360,25 @@ impl UpFrontApproval {
             plan: futures_util::lock::Mutex::new(None),
             call_tags: std::sync::OnceLock::new(),
             refusal: Mutex::new(None),
+            taken: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The input validated up front for a step that runs `command` on `input` as sent, handed
+    /// out once per step, so two steps sent alike take one each (#1414). The registry runs the
+    /// step on it instead of on a second validation's result: the input that runs is the one
+    /// the human was shown. `None` for a step that is not known up front or did not validate;
+    /// it runs on its own validation, as usual.
+    pub(crate) fn validated(&self, command: &str, input: &Value) -> Option<Value> {
+        let mut taken = self.taken.lock().unwrap_or_else(PoisonError::into_inner);
+        let at = self.steps.iter().enumerate().position(|(at, step)| {
+            step.command == command
+                && step.input.is_some()
+                && step.sent.as_ref() == Some(input)
+                && !taken.contains(&at)
+        })?;
+        taken.push(at);
+        self.steps[at].input.clone()
     }
 
     /// Record that nothing may run; the first refusal wins.

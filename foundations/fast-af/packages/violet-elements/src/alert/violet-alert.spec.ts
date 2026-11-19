@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-alert";
 import type { VioletAlert } from "./violet-alert";
@@ -20,6 +21,32 @@ async function renderAlert(
     await customElements.whenDefined("violet-alert");
     await nextFrame();
     return document.querySelector("violet-alert") as VioletAlert;
+}
+
+/**
+ * Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or restores the media
+ * Playwright emulates by default, so later spec files on the page do not follow the host's settings.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-alert", () => {
@@ -58,5 +85,42 @@ describe("violet-alert", () => {
         dismissButton?.click();
 
         expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it("lets slotted content take the system colours while the frame keeps its own", async () => {
+            await emulateForcedColors(true);
+            const alert = await renderAlert(`
+                <violet-alert tone="danger">
+                    <span slot="title">Could not save</span>
+                    <span class="body">The file is locked.</span>
+                    <a slot="actions" href="#retry" style="color: rgb(24, 27, 26)">Retry</a>
+                </violet-alert>
+            `);
+
+            const canvasText = systemColor("CanvasText");
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            for (const selector of ['[slot="title"]', ".body"]) {
+                const element = alert.querySelector(selector) as HTMLElement;
+                expect(getComputedStyle(element).forcedColorAdjust).toBe("auto");
+                expect(getComputedStyle(element).color).toBe(canvasText);
+            }
+            // A link keeps its own system colour, never the theme's.
+            const action = alert.querySelector('[slot="actions"]') as HTMLElement;
+            expect(getComputedStyle(action).forcedColorAdjust).toBe("auto");
+            expect(getComputedStyle(action).color).toBe(systemColor("LinkText"));
+
+            const card = alert.shadowRoot?.querySelector(".frame") as HTMLElement;
+            const root = card.shadowRoot?.querySelector(".root") as HTMLElement;
+            const leading = alert.shadowRoot?.querySelector(".leading") as HTMLElement;
+            expect(getComputedStyle(root).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(root).backgroundColor).toBe(systemColor("Canvas"));
+            expect(getComputedStyle(leading).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
+        });
     });
 });

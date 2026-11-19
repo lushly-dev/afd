@@ -14,6 +14,24 @@ not, so an agent never has to scan the code to learn what is current. It follows
 - Write down follow-ups that are not yet issues, with the date and who raised them. Link the issue
   when one exists.
 - Never delete history. Mark an entry superseded and point to what replaced it.
+- A step edits its own lines and no others: its line under [Steps](#steps), made before it starts
+  (a step split in several pull requests has a line for each), one line under
+  [Verification](#verification), one row in the session log and any follow-up rows. Its line's
+  state is "not started", "in progress" with the pull request, or "merged as #N".
+- No sentence or cell says which steps are done, not done, next or latest: read the step lines.
+  Such a summary is one line every step rewrites, so every open branch conflicts on it.
+- A new line goes in its phase's or its area's list or table, at the end of a table and the top of
+  a verification list. Two pull requests from different areas then insert at different places; two
+  from the same area still insert at the same place, and the second to merge keeps both.
+- A line stays within the limit in `scripts/policy/doc-line-limits.json`, which
+  `scripts/check-doc-lines.mjs` enforces. A longer line already here is listed there and frozen: it
+  may get shorter, never longer. A record that needs more room goes in the
+  [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md) or the
+  plugin's `docs/`, linked from its line. Git history keeps the wording of what was moved.
+- A frozen line is not edited. When a frozen follow-up's status changes, add a row to its area's
+  table that names the old row by its date and first words and gives the new status. A frozen
+  line that has gone stale may lose the stale clause (record its new length and `sha256` in the
+  policy); nothing is added to it.
 - The interface is a Loam plugin, and what mail needs from Loam is in the
   [Loam status](../../../../endpoints/loam/docs/STATUS.md). This file holds the plan's steps and
   points there for the detail; when they disagree, the area's ledger wins.
@@ -21,17 +39,10 @@ not, so an agent never has to scan the code to learn what is current. It follows
 ## Status block
 
 - **State:** active; phase 0 decided, phase A approved. One part of phase 0's probe, Gmail's API, moved to the engine's first step. The owner decided on phase 0's numbers on
-  2026-11-11 and approved the [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md) the same day. Phase B is under way: step B1, the engine's skeleton, and both halves of step B2, the store, are merged. Step B3, iCloud sync and adding an account at the terminal, is merged, as is step B4 in its three parts: the evidence code reads from a message, the read commands and search, and a message over 1 MiB. Step B5 is in three pull requests: the first, the server, and the second, the server's work in the background and a call's limits, are merged; the third, `mail-account-remove` and the pass with nothing new, is merged. Step B7, the acceptance run, is in two pull requests: the iCloud half, run on 2026-11-13, is merged; the Gmail half follows steps B0 and B6. Step B0 needs an OAuth client the owner creates in Google's console; on 2026-11-14 the owner deferred the Gmail steps (B0, B6 and B7's Gmail half) and asked to go on with iCloud. Phase C is under way on iCloud: step C1, senders and the report on Q2 and the stream stories, is merged. Step C2 is in two pull requests: the first, screening classes, the person's decisions and agents' suggestions, is merged; the second, stream stories, is merged as [#1240](https://github.com/lushly-dev/afd/pull/1240). Step C3, bursts, is merged as [#1273](https://github.com/lushly-dev/afd/pull/1273): the owner said on 2026-11-15 to build it on made-up floods, since the flood they remember was deleted and Gmail has had none. The owner's server has run it since 2026-11-16 UTC; its store was upgraded and found no burst; since 2026-11-17 UTC it runs the bursts' third rule. Phase D has begun, on the scripted servers: step D1 is in three pull requests; the first, selections and the person's policy, is merged as [#1429](https://github.com/lushly-dev/afd/pull/1429), the second, the change commands at the provider with operations, resume, cancel and undo, is merged as [#1450](https://github.com/lushly-dev/afd/pull/1450); and the third, a change over the policy as a proposal the person approves at the terminal, is in review as [#1469](https://github.com/lushly-dev/afd/pull/1469). On 2026-11-14 the owner chose to group stream stories by list id or else by sender.
-  Nothing else of the engine or the app is implemented.
-- **Last verified:** 2026-11-17 UTC for step D1's third part, proposals, on its branch from `main` at `dbb9f027`: the crate was built, linted and tested on macOS with Rust 1.98.0, 377 tests passing and the five measurement and live-account tests ignored as before; migration 14 tested on a store at version 13 (every operation, item, id, reference and the next id kept); proposals tested over the scripted IMAP server (an agent's change, resume and undo over the policy proposed and nothing asked of the provider, a wrong count refused, the person's no and yes at a scripted terminal, the preview's query, counts and known senders, a summary with no text from mail, the five a caller, dismissal by the person and by the proposer only, expiry after seven days, mail that moved before the approval left alone, and an approval on a server run as its work). After the independent review, approvals taken while a proposal was open were tested against its approval, dismissal, expiry and screening that is not ready, with the middleware's real token; and the review's blocker, an account that could not be removed after an undo proposal was dismissed, was tested against the code before the fix and failed there. Nothing live was run; no build reached the owner's server. Before that, 2026-11-17 UTC for step D1's second part, the change commands and operations, on its branch from `main` at `b7468e7d`: the crate was built, linted and tested on macOS with Rust 1.98.0, 363 tests passing and the five measurement and live-account tests ignored as before; the change commands tested over the scripted IMAP server with and without `MOVE` (archive, trash, label as a move and a copy, mark, each undone; a wrong count, an expired selection, the frozen set, the policy for agents and scripts, the person asked above the count at a terminal, the server's work and a cancel), the connection dropped before each command of a run and after each change with its answer lost, each message found moved once. The four tests added for the review's blockers were run against the reviewed code and failed there. Nothing live was run; no build reached the owner's server. Before that, 2026-11-17 UTC for step D1's first part, selections and the policy, on its branch from `main` at `feca7208`: the crate was built, linted and tested on macOS with Rust 1.98.0, 339 tests passing and the five measurement and live-account tests ignored as before; selections tested in the store (what each field selects, two copies of a message in a mailbox, unreturned messages, a burst's story, the cap a caller, a rebuild and an account's removal) and through the commands over the scripted IMAP server (the journal keeping no mail, the policy set only by the person at the terminal); and the 4.4 limits measured at 500 000 messages while other sessions loaded the machine (load 7.6 at the start): every selection made within a second, the whole account's 500 250 messages in 0.62 seconds, against a call's 60; every limit met but import, 474 a second, whose code this change does not touch (the plugin's `docs/limits-500000-d1.results.json`). Nothing live was run. Before that, 2026-11-17 UTC for the bursts' third rule, on its branch from `main` at `91de6663`: the crate was built, linted and tested on macOS with Rust 1.98.0, 34 burst tests among them, and the 4.4 limits measured beside `main` in turn while other sessions loaded the machine, every limit but import met by both and import alike (368 to 380 a second against 379 and 477; the plugin's `docs/limits-500000-c3-rule3*.results.json`). Before that, 2026-11-16 UTC for step C3's limits, measured again on the Mac's own disk with no other session running: `main` at `70d6c136` (bursts) met every limit of the specification's 4.4 twice, importing 511 and 513 messages a second against 521 for `main` just before bursts (the plugin's `docs/limits-500000-c3-idle*.results.json`). Before that, 2026-11-16 UTC for Windows portability in [#1318](https://github.com/lushly-dev/afd/pull/1318), on Rust 1.98.0: native fmt and clippy passed, 302 tests passed and five existing measurement/live-account tests stayed ignored. Before that, 2026-11-15 for step C3's senders' minimum, on its branch from `main` at `b21c98f2`: the crate was built, linted and tested on macOS with Rust 1.98.0, and the report run again on the copy of the owner's iCloud store, which found no burst (the plugin's `docs/live-icloud-c3-senders.results.json`). Before that, 2026-11-15 for step C3, on the same branch: the crate was built, linted and tested on macOS with Rust 1.98.0; bursts tested in the store against finding them from nothing after each change and through random sequences over two accounts, and through the commands over the scripted IMAP server; the limits of the specification's 4.4 measured at 500 000 messages beside `main`, one after the other, while another session loaded the machine (431 a second against `main`'s 407: no cost the noise shows; neither met the limit under that load; the plugin's `docs/limits-500000-c3.results.json`); and the report run on the copy of the owner's iCloud store (the plugin's `docs/live-icloud-c3.results.json`). Before that, 2026-11-15 for step C2's second part, on its branch from `main` at `8da5804b`: the crate was built, linted and tested on macOS with Rust 1.98.0; stories tested in the store, after each change against making every story from nothing, across a rebuild over several batches and through random sequences, and through the commands over the scripted IMAP server; the limits of the specification's 4.4 measured again at 500 000 messages on the Mac's own disk, every one met (import 515 a second, `main` 569 the same day; the plugin's `docs/limits-500000-c2.results.json`). Then, after the owner merged it, the screening and stories report run on a copy of the owner's iCloud store in an encrypted image on the external drive (the plugin's `docs/live-icloud-c2.results.json`): 447 stories hold 99.5% of the listed bulk mail, the queue is 4 793 messages from 1 610 senders, and blocking the sender of 272 282 messages takes 12.8 seconds. Not yet run on a copy of the owner's store (`engine/tests/live_screening.rs` now reports stories), which waits for the copy from the other Mac. Before that, 2026-11-14 for step C2's first part, on its branch from `main` at `2a1253bc`, after the review's fixes: the crate was built, linted and tested on macOS with Rust 1.98.0; classes, decisions and suggestions tested in the store, after each change against classing everything from nothing and across a rebuild over several batches, and through the commands over the scripted IMAP server and at a scripted terminal. Not yet run on a copy of the owner's store (`engine/tests/live_screening.rs` now reports it); that waits for the copy from the other Mac. Before that, 2026-11-14 against `main` at `545316f2` for step C1: the crate was built, linted and tested on macOS with Rust 1.98.0, senders tested in the store and through the commands over the scripted IMAP server, and the report run on a copy of the store step B7 synced, every message derived again (counts and milliseconds in the plugin's `docs/live-icloud-c1.results.json`). Before that, 2026-11-13 against `main` at `381add98` for the iCloud half of step B7: the crate was built, linted and tested on macOS with Rust 1.98.0, and the release build's `serve` synced the owner's iCloud account from empty to synced in the real data directory, reading only, then read it from the command line and by an agent over MCP and measured the limits of the specification's 4.4 (counts and milliseconds in the plugin's `docs/live-icloud-b7.results.json`). Before that, 2026-11-13 against `main` at `e4c972a5` for the third part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, removing an account tested against two scripted IMAP servers, and passes of sync run against the owner's iCloud account, reading only, before and after a pass took one request a mailbox (counts and milliseconds in the plugin's `docs/live-icloud-b5.results.json`). Before that, 2026-11-13 against `main` at `1024546b` for the second part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, the server's work tested against the scripted IMAP server in process. Nothing live was run. Before that, 2026-11-13 against `main` at `92980528` for the first part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, the server tested in process and as the built program with a temporary data directory, a forwarded call, `mcp` refused and a request to end included. Nothing live was run. Before that, 2026-11-12 against `main` at `f8c10f17` for the third part of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, a message over 1 MiB synced, opened and its file opened against the scripted IMAP server, and the new fuzz target and the whole-message one run with nightly Rust. Before that, 2026-11-12 against `main` at `a308bfc3` for the second part of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, the read commands tested against the scripted IMAP server. Before that, 2026-11-12 against `main` at `20fe616f` for the first half of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, each fuzz target run for a minute with nightly Rust, and the header blocks of the owner's iCloud account read once for two counts (in the plugin's `docs/live-icloud-b4.results.json`). Before that, 2026-11-11 against `main` at `d7b2bb1f` for the second half of step B3: the crate was built, linted and tested on macOS with Rust 1.98.0, adding an account tested against the scripted IMAP server with the keychain in memory. The macOS keychain itself and the terminal's hidden password entry were not exercised by a test. Before that, 2026-11-11 against `main` at `545bcfd5` for the first half of step B3: the crate was built, linted and tested on macOS with Rust 1.98.0, sync tested against the scripted IMAP server, and one pass of sync run against the owner's iCloud account, reading only (counts in the plugin's `docs/live-icloud-b3.results.json`). Before that, 2026-11-11 against `main` at `5bdc2c09` for the second half of step B2: the crate was built, linted and tested on macOS with Rust 1.98.0, and the limits of the specification's 4.4 measured at 500 000 messages. Before that, 2026-11-11 against `main` at `193b7cd1` for the first half of step B2: the crate was built, linted and tested on macOS with Rust 1.98.0, and the header recording measured there. Before that, 2026-11-11 against `main` at `e04a852e` for step B1: the engine's skeleton was built, linted and tested on macOS with Rust 1.98.0, and the repository's script tests run. Before that, 2026-11-11 against `main` at `d2c30f72` for the engine's specification: the
-  `afd` crate's README and, in its source, the context hook, the approval middleware and the
-  journal recorder; `spec/command-metadata.md` (exposure, tasks); `loam.yml`'s path filters; Umbel's
-  D67, D115 and D153. No code was built or run. Before that, 2026-11-10 against `main` at `880a18c4`. Read: `packages/rust` (its README,
-  `Cargo.toml` features and the command metadata in `src/commands.rs`) and `spec/command-metadata.md`
-  ("Approvals"); the Loam proposal, architecture (sections 8 and 9), decisions (D20, D41, D56, D63,
-  D95, D100, D106), the phase 1 specification (sections 2 and 7), the phase 6 specification
-  (section 10.4) and status; the Umbel README, architecture (principles, section 5) and decisions
-  (D106, D115); the MCP Tasks proposal; the feature index. No code was built or run.
+  2026-11-11 and approved the [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md) the same day. Each step's state is its line under [Steps](#steps).
+  Nothing of the engine or the app is implemented beyond what those lines record.
+- **Last verified:** each verification is its own line under [Verification](#verification),
+  newest first within its phase.
 - **Done:** the [proposal and plan](mail.proposal.md): its first version merged 2026-11-10 in
   [#969](https://github.com/lushly-dev/afd/pull/969), and its revision to a Loam plugin the same day
   in [#973](https://github.com/lushly-dev/afd/pull/973). Reviews are in the
@@ -48,11 +59,166 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | 0 | 0.3 Store measurement | Run 2026-11-10 with a default shape: every Q3 threshold met at 100 000 and 500 000 messages ([results](prototype/README.md#the-store-measurement)). Run again 2026-11-11 with the iCloud census's shape: every threshold met |
 | 0 | 0.4 The owner's decision | Done 2026-11-11: go on; extractors left out of the first specification; screening as a lookup first, with the rest for a model to rank (the proposal's section 11, answers 8 to 10) |
 | A | The engine's specification | Done: [approved](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md) 2026-11-11 by the owner's merge of [#995](https://github.com/lushly-dev/afd/pull/995). His answers to its four choices, which added M28 and M29, merged as [#999](https://github.com/lushly-dev/afd/pull/999). The document moved to the plugin's folder with step B1 |
-| B to E | The connector and log; relationships and stream stories; reversible commands and send; records and reply sets (extractors deferred) | In progress. Step B1 (the plugin folder, the engine crate's skeleton, the `loam-plugins.yml` workflow, L8) merged as [#1003](https://github.com/lushly-dev/afd/pull/1003). Step B2's first half (the data directory and its lock, the log, migrations, the tables that are not derived) merged as [#1004](https://github.com/lushly-dev/afd/pull/1004); its second half (derived tables, the index, `mail-rebuild`, the limits of the specification's 4.4, all met at 500 000 messages) merged as [#1026](https://github.com/lushly-dev/afd/pull/1026). Step B3 is split in two pull requests, as B2 was: the first (the provider interface, IMAP, the scripted IMAP server, iCloud sync, `mail-sync`, `mail-status`) merged as [#1036](https://github.com/lushly-dev/afd/pull/1036); the second (`mail-account-add`, `mail-account-list`, the keychain, the command line's approval of a person's command) merged as [#1042](https://github.com/lushly-dev/afd/pull/1042). Messages over 1 MiB moved to step B4. Step B4 is split in three pull requests: the first (evidence, parse limits, fuzz targets, the decisions on the authentication header and shared subjects) merged as [#1051](https://github.com/lushly-dev/afd/pull/1051); the second (labels, the read commands, `mail-search`, cleaning HTML, fetching a body when opened) merged as [#1060](https://github.com/lushly-dev/afd/pull/1060); the third (a message over 1 MiB) merged as [#1068](https://github.com/lushly-dev/afd/pull/1068). Step B5 is split in three pull requests: the first (`serve`, tokens, the layer and two routes, stdio, the command line forwarding to a server, the journal) merged as [#1138](https://github.com/lushly-dev/afd/pull/1138); the second (sync in the background, `mail-sync` and `mail-rebuild` as the server's work, a call's limits, a rebuild that lets other commands run) merged as [#1144](https://github.com/lushly-dev/afd/pull/1144); the third (`mail-account-remove`, and the pass with nothing new measured on the owner's account and brought to one request a mailbox) merged as [#1177](https://github.com/lushly-dev/afd/pull/1177). Step B7, the acceptance run, is split in two pull requests: the iCloud half (run 2026-11-13: synced from empty, read from the command line and over MCP, every measured limit of 4.4 met; the body batch raised to 400 and the data directory's files all made the owner's alone) merged as [#1187](https://github.com/lushly-dev/afd/pull/1187); the Gmail half follows B0 and B6. Step B6, Gmail, waits for step B0's OAuth client. Step B0 waits for an OAuth client the owner creates; on 2026-11-14 the owner deferred the Gmail steps and asked to go on with iCloud. Step C1 (the tables `recipient` and `sender`, `mail-sender-list` and `mail-sender-show`, and the report on Q2 and the stream stories, run on a copy of the owner's iCloud store) merged as [#1214](https://github.com/lushly-dev/afd/pull/1214); its Gmail half waits for step B6. Step C2 is split in two pull requests (the specification's section 15): the first (screening classes, the person's decisions, an address the person adds as theirs, agents' suggestions, screening that waits until nothing is stale, `mail-message-list`) merged as [#1225](https://github.com/lushly-dev/afd/pull/1225); the second (stream stories, by list id or else sender, as the owner chose on 2026-11-14: migration 9's `story_member`, `story_shape`, `story_kind` and `story`, and `mail-story-list`, `mail-story-open` and `mail-story-changes`) merged as [#1240](https://github.com/lushly-dev/afd/pull/1240). Step C3 (first contacts and bursts, migration 10) merged as [#1273](https://github.com/lushly-dev/afd/pull/1273), with the limits measured again with no other session running in [#1348](https://github.com/lushly-dev/afd/pull/1348), the tests of junk and long floods in [#1363](https://github.com/lushly-dev/afd/pull/1363) and the bursts' third rule (migration 11) in [#1401](https://github.com/lushly-dev/afd/pull/1401). Step D1 is split in three pull requests (the specification's section 15): the first (selections and the person's policy, migration 12) merged as [#1429](https://github.com/lushly-dev/afd/pull/1429); the second (`mail-archive`, `mail-label`, `mail-mark` and `mail-trash` within the policy, and operations with their batches, resume, cancel and undo, migration 13, on the scripted IMAP server) merged as [#1450](https://github.com/lushly-dev/afd/pull/1450); the third (a change, a resume or an undo over the policy as a proposal, five a caller for seven days, `mail-operation-approve` after its preview and `mail-operation-dismiss`, migration 14) is in review as [#1469](https://github.com/lushly-dev/afd/pull/1469) |
-| F | The Loam plugin: the mount and the native app | Not started; needs Loam's phase 5 and phase 6's desktop lane, M3, where it runs (Loam's D132, 2026-11-16) |
-| G | Composition with a connected Umbel | Not started |
+| B to G | B to E, the engine: the connector and log; relationships and stream stories; reversible commands and send; records and reply sets (extractors deferred). F, the Loam plugin. G, composition with a connected Umbel | Each step has its own line under [Steps of phases B to G](#steps-of-phases-b-to-g), and a step split in several pull requests a line for each |
+
+### Steps of phases B to G
+
+One line per step, or per pull request of a step split in several, in the order of the
+[specification's plan](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md#15-implementation-plan).
+A blank line parts them, because git reports a conflict when two branches change adjacent lines.
+Phases F and G have one line each until their steps are planned. A half of a merged step that
+waits for Gmail has a line of its own.
+
+- B0: The Gmail API probe. Not started. It waits for an OAuth client the owner creates in Google's console; on 2026-11-14 the owner deferred the Gmail steps (B0, B6 and B7's Gmail half) and asked to go on with iCloud.
+
+- B1: the plugin folder, the engine crate's skeleton, the `loam-plugins.yml` workflow, L8. Merged as [#1003](https://github.com/lushly-dev/afd/pull/1003).
+
+- B2, first half: the data directory and its lock, the log, migrations, the tables that are not derived. Merged as [#1004](https://github.com/lushly-dev/afd/pull/1004).
+
+- B2, second half: derived tables, the index, `mail-rebuild`, the limits of the specification's 4.4, all met at 500 000 messages. Merged as [#1026](https://github.com/lushly-dev/afd/pull/1026).
+
+- B3, first of two pull requests, as B2 was: the provider interface, IMAP, the scripted IMAP server, iCloud sync, `mail-sync`, `mail-status`. Merged as [#1036](https://github.com/lushly-dev/afd/pull/1036).
+
+- B3, second: `mail-account-add`, `mail-account-list`, the keychain, the command line's approval of a person's command. Merged as [#1042](https://github.com/lushly-dev/afd/pull/1042). Messages over 1 MiB moved to step B4.
+
+- B4, first of three pull requests: evidence, parse limits, fuzz targets, the decisions on the authentication header and shared subjects. Merged as [#1051](https://github.com/lushly-dev/afd/pull/1051).
+
+- B4, second: labels, the read commands, `mail-search`, cleaning HTML, fetching a body when opened. Merged as [#1060](https://github.com/lushly-dev/afd/pull/1060).
+
+- B4, third: a message over 1 MiB. Merged as [#1068](https://github.com/lushly-dev/afd/pull/1068).
+
+- B5, first of three pull requests: `serve`, tokens, the layer and two routes, stdio, the command line forwarding to a server, the journal. Merged as [#1138](https://github.com/lushly-dev/afd/pull/1138).
+
+- B5, second: sync in the background, `mail-sync` and `mail-rebuild` as the server's work, a call's limits, a rebuild that lets other commands run. Merged as [#1144](https://github.com/lushly-dev/afd/pull/1144).
+
+- B5, third: `mail-account-remove`, and the pass with nothing new measured on the owner's account and brought to one request a mailbox. Merged as [#1177](https://github.com/lushly-dev/afd/pull/1177).
+
+- B6: Gmail sync through the API. Not started. It waits for step B0's OAuth client.
+
+- B7, the acceptance run, the iCloud half: run 2026-11-13: synced from empty, read from the command line and over MCP, every measured limit of 4.4 met; the body batch raised to 400 and the data directory's files all made the owner's alone. Merged as [#1187](https://github.com/lushly-dev/afd/pull/1187).
+
+- B7, the acceptance run, the Gmail half. Not started. It follows B0 and B6.
+
+- C1: the tables `recipient` and `sender`, `mail-sender-list` and `mail-sender-show`, and the report on Q2 and the stream stories, run on a copy of the owner's iCloud store. Merged as [#1214](https://github.com/lushly-dev/afd/pull/1214); its Gmail half waits for step B6.
+
+- C1, the Gmail half of the report. Not started. It waits for step B6 (the follow-up of 2026-11-14).
+
+- C2, first of two pull requests (the specification's section 15): screening classes, the person's decisions, an address the person adds as theirs, agents' suggestions, screening that waits until nothing is stale, `mail-message-list`. Merged as [#1225](https://github.com/lushly-dev/afd/pull/1225).
+
+- C2, second: stream stories, by list id or else sender, as the owner chose on 2026-11-14: migration 9's `story_member`, `story_shape`, `story_kind` and `story`, and `mail-story-list`, `mail-story-open` and `mail-story-changes`. Merged as [#1240](https://github.com/lushly-dev/afd/pull/1240).
+
+- C3: first contacts and bursts, migration 10. Merged as [#1273](https://github.com/lushly-dev/afd/pull/1273), with the limits measured again with no other session running in [#1348](https://github.com/lushly-dev/afd/pull/1348), the tests of junk and long floods in [#1363](https://github.com/lushly-dev/afd/pull/1363) and the bursts' third rule (migration 11) in [#1401](https://github.com/lushly-dev/afd/pull/1401). The owner said on 2026-11-15 to build it on made-up floods, since the flood they remember was deleted and Gmail has had none. The owner's server has run it since 2026-11-16 UTC; its store was upgraded and found no burst; since 2026-11-17 UTC it runs the bursts' third rule.
+
+- C3, the Gmail half. Not started. It waits for the OAuth client, as steps B0 and B6 do (the follow-up of 2026-11-14).
+
+- D1, first of three pull requests (the specification's section 15), on the scripted servers: selections and the person's policy, migration 12. Merged as [#1429](https://github.com/lushly-dev/afd/pull/1429).
+
+- D1, second: `mail-archive`, `mail-label`, `mail-mark` and `mail-trash` within the policy, and operations with their batches, resume, cancel and undo, migration 13, on the scripted IMAP server. Merged as [#1450](https://github.com/lushly-dev/afd/pull/1450).
+
+- D1, third: a change, a resume or an undo over the policy as a proposal, five a caller for seven days, `mail-operation-approve` after its preview and `mail-operation-dismiss`, migration 14; the person approves it at the terminal. Merged as [#1469](https://github.com/lushly-dev/afd/pull/1469) (2026-11-18 UTC).
+
+- D1, the scripted Gmail API's half. Not started. It waits for step B6 (the specification's section 15).
+
+- D2: The four remote commands on iCloud and Gmail. Not started.
+
+- D3: Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze`. Not started.
+
+- E1: Records. Not started.
+
+- E2: Proposed stories. Not started.
+
+- E3: Reply sets. Not started.
+
+- F: The Loam plugin: the mount and the native app. Not started; needs Loam's phase 5 and phase 6's desktop lane, M3, where it runs (Loam's D132, 2026-11-16).
+
+- G: Composition with a connected Umbel. Not started.
+
+## Verification
+
+How each step was verified: one line each, newest first within its phase. A step adds its line at
+the top of its phase's list, and a phase that starts adds its heading above the others.
+
+### Verified: phase D
+
+- 2026-11-17 UTC for step D1's third part, proposals, on its branch from `main` at `dbb9f027`: the crate was built, linted and tested on macOS with Rust 1.98.0, 377 tests passing and the five measurement and live-account tests ignored as before; migration 14 tested on a store at version 13 (every operation, item, id, reference and the next id kept); proposals tested over the scripted IMAP server (an agent's change, resume and undo over the policy proposed and nothing asked of the provider, a wrong count refused, the person's no and yes at a scripted terminal, the preview's query, counts and known senders, a summary with no text from mail, the five a caller, dismissal by the person and by the proposer only, expiry after seven days, mail that moved before the approval left alone, and an approval on a server run as its work). After the independent review, approvals taken while a proposal was open were tested against its approval, dismissal, expiry and screening that is not ready, with the middleware's real token; and the review's blocker, an account that could not be removed after an undo proposal was dismissed, was tested against the code before the fix and failed there. Nothing live was run; no build reached the owner's server.
+- 2026-11-17 UTC for step D1's second part, the change commands and operations, on its branch from `main` at `b7468e7d`: the crate was built, linted and tested on macOS with Rust 1.98.0, 363 tests passing and the five measurement and live-account tests ignored as before; the change commands tested over the scripted IMAP server with and without `MOVE` (archive, trash, label as a move and a copy, mark, each undone; a wrong count, an expired selection, the frozen set, the policy for agents and scripts, the person asked above the count at a terminal, the server's work and a cancel), the connection dropped before each command of a run and after each change with its answer lost, each message found moved once. The four tests added for the review's blockers were run against the reviewed code and failed there. Nothing live was run; no build reached the owner's server.
+- 2026-11-17 UTC for step D1's first part, selections and the policy, on its branch from `main` at `feca7208`: the crate was built, linted and tested on macOS with Rust 1.98.0, 339 tests passing and the five measurement and live-account tests ignored as before; selections tested in the store (what each field selects, two copies of a message in a mailbox, unreturned messages, a burst's story, the cap a caller, a rebuild and an account's removal) and through the commands over the scripted IMAP server (the journal keeping no mail, the policy set only by the person at the terminal); and the 4.4 limits measured at 500 000 messages while other sessions loaded the machine (load 7.6 at the start): every selection made within a second, the whole account's 500 250 messages in 0.62 seconds, against a call's 60; every limit met but import, 474 a second, whose code this change does not touch (the plugin's `docs/limits-500000-d1.results.json`). Nothing live was run.
+
+### Verified: phase C
+
+- 2026-11-17 UTC for the bursts' third rule, on its branch from `main` at `91de6663`: the crate was built, linted and tested on macOS with Rust 1.98.0, 34 burst tests among them, and the 4.4 limits measured beside `main` in turn while other sessions loaded the machine, every limit but import met by both and import alike (368 to 380 a second against 379 and 477; the plugin's `docs/limits-500000-c3-rule3*.results.json`).
+- 2026-11-16 UTC for step C3's limits, measured again on the Mac's own disk with no other session running: `main` at `70d6c136` (bursts) met every limit of the specification's 4.4 twice, importing 511 and 513 messages a second against 521 for `main` just before bursts (the plugin's `docs/limits-500000-c3-idle*.results.json`).
+- 2026-11-15 for step C3's senders' minimum, on its branch from `main` at `b21c98f2`: the crate was built, linted and tested on macOS with Rust 1.98.0, and the report run again on the copy of the owner's iCloud store, which found no burst (the plugin's `docs/live-icloud-c3-senders.results.json`).
+- 2026-11-15 for step C3, on the same branch: the crate was built, linted and tested on macOS with Rust 1.98.0; bursts tested in the store against finding them from nothing after each change and through random sequences over two accounts, and through the commands over the scripted IMAP server; the limits of the specification's 4.4 measured at 500 000 messages beside `main`, one after the other, while another session loaded the machine (431 a second against `main`'s 407: no cost the noise shows; neither met the limit under that load; the plugin's `docs/limits-500000-c3.results.json`); and the report run on the copy of the owner's iCloud store (the plugin's `docs/live-icloud-c3.results.json`).
+- 2026-11-15 for step C2's second part, on its branch from `main` at `8da5804b`: the crate was built, linted and tested on macOS with Rust 1.98.0; stories tested in the store, after each change against making every story from nothing, across a rebuild over several batches and through random sequences, and through the commands over the scripted IMAP server; the limits of the specification's 4.4 measured again at 500 000 messages on the Mac's own disk, every one met (import 515 a second, `main` 569 the same day; the plugin's `docs/limits-500000-c2.results.json`). Then, after the owner merged it, the screening and stories report run on a copy of the owner's iCloud store in an encrypted image on the external drive (the plugin's `docs/live-icloud-c2.results.json`): 447 stories hold 99.5% of the listed bulk mail, the queue is 4 793 messages from 1 610 senders, and blocking the sender of 272 282 messages takes 12.8 seconds. Not yet run on a copy of the owner's store (`engine/tests/live_screening.rs` now reports stories), which waits for the copy from the other Mac.
+- 2026-11-14 for step C2's first part, on its branch from `main` at `2a1253bc`, after the review's fixes: the crate was built, linted and tested on macOS with Rust 1.98.0; classes, decisions and suggestions tested in the store, after each change against classing everything from nothing and across a rebuild over several batches, and through the commands over the scripted IMAP server and at a scripted terminal. Not yet run on a copy of the owner's store (`engine/tests/live_screening.rs` now reports it); that waits for the copy from the other Mac.
+- 2026-11-14 against `main` at `545316f2` for step C1: the crate was built, linted and tested on macOS with Rust 1.98.0, senders tested in the store and through the commands over the scripted IMAP server, and the report run on a copy of the store step B7 synced, every message derived again (counts and milliseconds in the plugin's `docs/live-icloud-c1.results.json`).
+
+### Verified: phase B
+
+- 2026-11-13 against `main` at `381add98` for the iCloud half of step B7: the crate was built, linted and tested on macOS with Rust 1.98.0, and the release build's `serve` synced the owner's iCloud account from empty to synced in the real data directory, reading only, then read it from the command line and by an agent over MCP and measured the limits of the specification's 4.4 (counts and milliseconds in the plugin's `docs/live-icloud-b7.results.json`).
+- 2026-11-13 against `main` at `e4c972a5` for the third part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, removing an account tested against two scripted IMAP servers, and passes of sync run against the owner's iCloud account, reading only, before and after a pass took one request a mailbox (counts and milliseconds in the plugin's `docs/live-icloud-b5.results.json`).
+- 2026-11-13 against `main` at `1024546b` for the second part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, the server's work tested against the scripted IMAP server in process. Nothing live was run.
+- 2026-11-13 against `main` at `92980528` for the first part of step B5: the crate was built, linted and tested on macOS with Rust 1.98.0, the server tested in process and as the built program with a temporary data directory, a forwarded call, `mcp` refused and a request to end included. Nothing live was run.
+- 2026-11-12 against `main` at `f8c10f17` for the third part of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, a message over 1 MiB synced, opened and its file opened against the scripted IMAP server, and the new fuzz target and the whole-message one run with nightly Rust.
+- 2026-11-12 against `main` at `a308bfc3` for the second part of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, the read commands tested against the scripted IMAP server.
+- 2026-11-12 against `main` at `20fe616f` for the first half of step B4: the crate was built, linted and tested on macOS with Rust 1.98.0, each fuzz target run for a minute with nightly Rust, and the header blocks of the owner's iCloud account read once for two counts (in the plugin's `docs/live-icloud-b4.results.json`).
+- 2026-11-11 against `main` at `d7b2bb1f` for the second half of step B3: the crate was built, linted and tested on macOS with Rust 1.98.0, adding an account tested against the scripted IMAP server with the keychain in memory. The macOS keychain itself and the terminal's hidden password entry were not exercised by a test.
+- 2026-11-11 against `main` at `545bcfd5` for the first half of step B3: the crate was built, linted and tested on macOS with Rust 1.98.0, sync tested against the scripted IMAP server, and one pass of sync run against the owner's iCloud account, reading only (counts in the plugin's `docs/live-icloud-b3.results.json`).
+- 2026-11-11 against `main` at `5bdc2c09` for the second half of step B2: the crate was built, linted and tested on macOS with Rust 1.98.0, and the limits of the specification's 4.4 measured at 500 000 messages.
+- 2026-11-11 against `main` at `193b7cd1` for the first half of step B2: the crate was built, linted and tested on macOS with Rust 1.98.0, and the header recording measured there.
+- 2026-11-11 against `main` at `e04a852e` for step B1: the engine's skeleton was built, linted and tested on macOS with Rust 1.98.0, and the repository's script tests run.
+
+### Verified: phases 0 and A
+
+- 2026-11-11 against `main` at `d2c30f72` for the engine's specification: the `afd` crate's README and, in its source, the context hook, the approval middleware and the journal recorder; `spec/command-metadata.md` (exposure, tasks); `loam.yml`'s path filters; Umbel's D67, D115 and D153. No code was built or run.
+- 2026-11-10 against `main` at `880a18c4`. Read: `packages/rust` (its README, `Cargo.toml` features and the command metadata in `src/commands.rs`) and `spec/command-metadata.md` ("Approvals"); the Loam proposal, architecture (sections 8 and 9), decisions (D20, D41, D56, D63, D95, D100, D106), the phase 1 specification (sections 2 and 7), the phase 6 specification (section 10.4) and status; the Umbel README, architecture (principles, section 5) and decisions (D106, D115); the MCP Tasks proposal; the feature index. No code was built or run.
+
+### Verified: work outside the plan's steps
+
+- 2026-11-16 UTC for Windows portability in [#1318](https://github.com/lushly-dev/afd/pull/1318), on Rust 1.98.0: native fmt and clippy passed, 302 tests passed and five existing measurement/live-account tests stayed ignored.
 
 ## Follow-ups not yet issues
+
+A new row goes at the end of its area's table. The last table holds every area's rows raised to
+2026-11-18; a row there is still edited in place when its status changes, unless it is frozen.
+
+### Follow-ups: phase B, the connector and log
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase C, relationships and stream stories
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase D, reversible commands and send
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase E, records and reply sets
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase F, the Loam plugin
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase G, composition with a connected Umbel
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: every other area
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: to 2026-11-18, every area
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
@@ -85,6 +251,46 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | 2026-11-17 UTC | Step D1's second part | How fast a change runs at iCloud is not measured: a change of up to 1 000 messages runs inside a call, by the policy's own bound, and a call on a server hands what is left to the server's work at three quarters of its time, so a slow provider costs time, not a failure. Step D2, the commands on the owner's account, measures it. A message that already carried the delete flag from another client carries it into the mailbox it is moved to; none has been seen | Open, for step D2 |
 
 ## Session log
+
+A session adds its row at the end of its area's table. The last table holds every area's rows to
+2026-11-18 and takes no new row.
+
+### Sessions: phase B, the connector and log
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase C, relationships and stream stories
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase D, reversible commands and send
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase E, records and reply sets
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase F, the Loam plugin
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase G, composition with a connected Umbel
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: every other area
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: to 2026-11-18, every area
 
 | Date | Session | What changed |
 | --- | --- | --- |

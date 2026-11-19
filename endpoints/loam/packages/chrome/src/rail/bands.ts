@@ -32,11 +32,12 @@ export function bandFor(
 
 /**
  * The one comparator of both bands, R8's seam: the active persona's emphasized apps first, in the order it
- * names them (phase 3 specification, 6.2), then `order`, then the instance. Emphasis orders and never hides.
+ * names them (phase 3 specification, 6.2), then the person's own rail order, `railRank` (phase 4 specification,
+ * 3.7), then `order`, then the instance. Emphasis and the person's order arrange and never hide.
  */
 export const railOrder = (
-	a: Pick<AppSummaryV2, 'order' | 'instance'>,
-	b: Pick<AppSummaryV2, 'order' | 'instance'>,
+	a: Pick<AppSummaryV2, 'order' | 'instance' | 'railRank'>,
+	b: Pick<AppSummaryV2, 'order' | 'instance' | 'railRank'>,
 	emphasis: readonly string[] = []
 ): number => {
 	// An emphasized app's place in the list, and every other's after them all.
@@ -44,6 +45,7 @@ export const railOrder = (
 		(emphasis.indexOf(app.instance) + emphasis.length + 1) % (emphasis.length + 1);
 	return (
 		rank(a) - rank(b) ||
+		(a.railRank ?? 1e9) - (b.railRank ?? 1e9) ||
 		a.order - b.order ||
 		(a.instance < b.instance ? -1 : a.instance > b.instance ? 1 : 0)
 	);

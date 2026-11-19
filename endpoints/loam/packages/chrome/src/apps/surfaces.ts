@@ -120,8 +120,6 @@ export class AppSurfaces implements ShellApps {
 	#prepared: AppList | null = null;
 	#rendered = false;
 	#missedSwitch = false;
-	/** A selection set before an app's surfaces exist reaches them when they do. */
-	#selectionWritten = false;
 	/** The scope and route the surfaces now rendering are created in: read at each render. */
 	#state: MainStateV1 | null = null;
 	/** A change of scope since the last render: what was parked belongs to the scope it left (7.6). */
@@ -370,7 +368,6 @@ export class AppSurfaces implements ShellApps {
 			this.#enqueue(() => this.#overlays.read());
 		}
 		if (!event.success) return;
-		if (command === 'app-selection-set') this.#selectionWritten = true;
 		const showing = this.#showing;
 		if (showing === null) return;
 		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
@@ -446,7 +443,6 @@ export class AppSurfaces implements ShellApps {
 			deepActiveElement(this.#shell.ownerDocument)?.classList.contains('project-home') === true;
 		const focusLeaves = this.#leave();
 		this.#showing = active;
-		if (changed) this.#selectionWritten = false;
 		await this.#shell.readLayout();
 		await Updates.next();
 		if (fromHome && active === null) focusMainHeading(this.#shell);
@@ -803,7 +799,9 @@ export class AppSurfaces implements ShellApps {
 		this.#enqueue(async () => {
 			if (stale()) return;
 			await this.#readStatus(port.instance);
-			if (!stale() && this.#selectionWritten) await this.#readSelection(port.instance);
+			// The kernel holds the entering app's selection: read it at every mount, so a selection set at any moment
+			// around the open, before or after the queued sync, reaches the surfaces (phase 4's step 2 reviews, 7).
+			if (!stale()) await this.#readSelection(port.instance);
 		});
 	}
 

@@ -21,7 +21,7 @@ export {
 	LoamSectionEntry,
 	SECTION_OPEN_EVENT,
 } from './elements/app-entry.js';
-export { LoamAppNav, LoamRail, LoamTabbar, SETTINGS_TOOLTIP } from './elements/app-nav.js';
+export { LoamAppNav, LoamRail, LoamTabbar } from './elements/app-nav.js';
 export { LoamEmptyState } from './elements/empty-state.js';
 export { ACTION_EVENT, type ChromeAction } from './elements/events.js';
 export { LoamMain } from './elements/main.js';

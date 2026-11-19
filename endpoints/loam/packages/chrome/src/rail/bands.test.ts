@@ -76,4 +76,17 @@ describe('P2-E3: bandFor (7.1)', () => {
 		// An emphasized instance the band does not hold changes nothing of the rest.
 		expect(sorted(['gone', 'c'])).toEqual(['c', 'a', 'b', 'd']);
 	});
+
+	it("R8: puts the person's own rail order next, after the persona's emphasis, hiding none (phase 4's 3.7)", () => {
+		const rows = [
+			{ order: 10, instance: 'a' },
+			{ order: 20, instance: 'b', railRank: 1 },
+			{ order: 30, instance: 'c' },
+			{ order: 40, instance: 'd', railRank: 0 },
+		];
+		const sorted = (emphasis: string[]) =>
+			[...rows].sort((x, y) => railOrder(x, y, emphasis)).map((entry) => entry.instance);
+		expect(sorted([])).toEqual(['d', 'b', 'a', 'c']);
+		expect(sorted(['c'])).toEqual(['c', 'd', 'b', 'a']);
+	});
 });

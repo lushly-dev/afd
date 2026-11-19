@@ -169,6 +169,26 @@ describe('P2-E13: E1: hello loads native', () => {
 		await opened.context.close();
 	});
 
+	// Phase 4's step 2 reviews, 7: the selection is sent before the open's queued sync starts, in the same task.
+	it('reaches a selection set before the surfaces start to show the app', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await agentCall(page, 'hello-greet', { name: 'Ada' });
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { agent: { call(name: string, input: unknown): Promise<unknown> } };
+			};
+			await Promise.all([
+				shell.kernel.agent.call('app-open', { instance: 'hello' }),
+				shell.kernel.agent.call('app-selection-set', { instance: 'hello', id: 'Ada' }),
+			]);
+		});
+		await expect
+			.poll(() => page.locator('hello-main x-card.selected').textContent())
+			.toContain('Selected: Ada');
+		await opened.context.close();
+	});
+
 	it('runs its chord only while it is active', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

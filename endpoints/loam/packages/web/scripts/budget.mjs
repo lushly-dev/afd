@@ -299,6 +299,19 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * phase 5's step 2 had raised `kernelMinified` to 118,000 and `appsMinified` to 397,000 for its own code and the
  * Refined design first paint and CSS: the kernel 118,693, raised to 119,500; `late` 81,372 of 82,000; `apps` 417,099
  * of 417,500; first paint 307,956 and 96,069 gzip, within phase 5's rows.
+ * Phase 4's step 2 (the settings section and the palette) added a row and raised four under D115, measured on its
+ * branch from `main` at `99055637` on Windows with Node 26.13.1, against step 1's figures above. `jsMinified` 308,000
+ * to 308,500 (307,956 to 308,160, +204; gzip 96,132 of 96,500): `~/settings` in the router with a key as its
+ * fragment, the rail's comparator reading the person's `railRank`, and the shell refreshing the rail when `loam.rail`
+ * changes. `lateMinified` 82,000 to 84,000 (81,372 to 82,866, +1,494): `palette-search`'s `kind` filter and its
+ * setting rows' merge by score then name, `section-open`'s `target`, and `app-list`'s rows given the person's rail
+ * order. `lateSettingsMinified` 22,800 to 30,500 (22,217 to 27,782, +5,565): the shell's `loam.rail`,
+ * `loam.keybindings` and `loam.notifications` with their checks, the palette's setting index, `section-open`'s target
+ * and the rail order. `urlMinified` 5,700 to 6,400 (6,077): the settings section's sync and its fragment. New row:
+ * `settingsMinified` 36,000, section 14's estimate (30,242: the section, the console's form model with native
+ * controls, and the three custom editors; with the console's Violet controls it measured 75,453, so the section's
+ * fields are native, as the account and documents sections' are). The manifest's settings checks, shared by
+ * `late-settings` and `apps`, are named `setting-checks` so they never read as the `settings` chunk; `apps` 417,105.
  * Phase 4's step 3 (overlays I: toasts, popovers, the F6 stop), under D115, on Windows with Node 26.13.1: `jsMinified`
  * 308,000 to 308,400 (308,140, +184: the toast region's F6 stop, `PART_ORDER`'s `toasts`, and the shell's
  * `overlayAnchors`; section 14 estimated 300 and 120, and gzip stays 96,115 of 96,500). `lateMinified` 82,000 to 88,500
@@ -324,7 +337,14 @@ export const CEILINGS = Object.freeze({
 	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
 	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
 	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
-	jsMinified: 308_400,
+	// Raised from 308,000 to 309,500 under D115 by the replay and journal follow-ups (#859, #861, #663): measured
+	// against `main` at `626187de`, 307,984 to 308,570 (+586) and 96,272 gzip, within its row. Nearly all of it is
+	// `IndexedDbJournalSink`'s `last` read (#663), a key cursor back from the end so the status bar reads one entry
+	// at boot rather than the whole journal; the rest the kernel's chain placing `late`'s write-through (#861).
+	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
+	// the rail); measured with that merged, 308,782, which this ceiling holds.
+	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
+	jsMinified: 309_500,
 	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
@@ -338,12 +358,13 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
-	lateMinified: 91_000,
+	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
+	lateMinified: 93_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 22_800,
+	lateSettingsMinified: 30_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -351,7 +372,7 @@ export const CEILINGS = Object.freeze({
 	signInMinified: 10_500,
 	accountMenuMinified: 5_400,
 	accountMinified: 28_000,
-	urlMinified: 5_700,
+	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	appsMinified: 417_500,
@@ -381,6 +402,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
+	settingsMinified: 36_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 6_970,
 });
@@ -666,6 +688,11 @@ async function measurePage() {
 	// embeds, since the `editor` chunk is at its ceiling: after the surfaces, which hold the kit's loader.
 	const embed = closure(/^assets\/embed-/, afterSurfaces);
 	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
+	// The settings section (phase 4 specification, 3.5 and 14), loaded by the URL's chunk when main first shows it:
+	// the section, the console's schema form and the three custom editors, after the surfaces as the rest are.
+	const settingsSection = closure(/^assets\/settings-/, afterSurfaces);
+	if (settingsSection.size === 0)
+		throw new Error('budget: the build has no `settings` chunk to measure');
 	// Phase 4's overlay renderer (its 14): popovers, and a toast's link, loaded with the first, after the surfaces.
 	const overlaysChunk = closure(/^assets\/overlays-/, afterSurfaces);
 	if (overlaysChunk.size === 0)
@@ -726,6 +753,7 @@ async function measurePage() {
 		documentsMinified: sizeOf(documents),
 		newMinified: sizeOf(newMenu),
 		embedMinified: sizeOf(embed),
+		settingsMinified: sizeOf(settingsSection),
 		editorMoveMinified: sizeOf(editorMove),
 		overlaysMinified: sizeOf(overlaysChunk),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
@@ -827,6 +855,10 @@ const ROWS = [
 	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
 	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
 	['embedMinified', 'The `embed` chunk, `loam-embed` and its link, minified'],
+	[
+		'settingsMinified',
+		'The `settings` chunk, the settings section, its form and three editors, minified',
+	],
 	[
 		'editorMoveMinified',
 		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",

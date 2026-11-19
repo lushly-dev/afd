@@ -2,8 +2,8 @@
  * @fileoverview `loam-rail` and `loam-tabbar`: `navigation`, "Apps", with two bands and a divider (phase 2
  * specification, 7.1 and 7.2). The top band, "Project apps", holds Projects, the project switcher,
  * Documents, then the apps that belong under a project; the bottom band, "Workspace apps", the apps with
- * no project now. Settings is last, outside the bands, `aria-disabled` and focusable with "Settings arrive
- * in phase 4". `RailBands` (`../rail/rail-bands.ts`) owns the app entries; no slot takes them. The bands
+ * no project now. Settings is last, outside the bands, and opens the settings section (phase 4 specification,
+ * 3.5). `RailBands` (`../rail/rail-bands.ts`) owns the app entries; no slot takes them. The bands
  * scroll, and one `loam-tooltip` in this shadow root serves every entry, in the top layer, so no list
  * clips it (7.5, #709). Its chunk loads on the first hover, focus or press here, which it is then given.
  */
@@ -11,8 +11,6 @@
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
 import { registerChromeIcons } from './icons.js';
 import { partHost } from './styles.js';
-
-export const SETTINGS_TOOLTIP = 'Settings arrive in phase 4';
 
 const template = html<LoamAppNav>`
 	<div class="bands">
@@ -37,10 +35,9 @@ const template = html<LoamAppNav>`
 	<ul class="end" aria-label="Settings">
 		<loam-section-entry
 			class="settings"
+			section="settings"
 			label="Settings"
 			icon="system/settings"
-			dimmed
-			tip="Settings arrive in phase 4"
 			variant="${(x) => x.variant}"
 		></loam-section-entry>
 	</ul>

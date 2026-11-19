@@ -54,9 +54,12 @@ import type { LoamResizeHandle } from './resize-handle.js';
 import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
 
-/** What the shell reads the last sequence number from at boot. */
+/**
+ * What the shell reads the last sequence number from at boot: a `JournalSink`, asked for its last entry alone
+ * (#663). A reader that returns more, as one written before `last`, still ends with it.
+ */
 export interface JournalReader {
-	read(): Promise<readonly { seq: number }[]>;
+	read(range: { last: number }): Promise<readonly { seq: number }[]>;
 }
 
 /** The address the title bar's "Sign in" uses with the Mock adapter (6.5). */
@@ -474,7 +477,7 @@ export class LoamShell extends FASTElement {
 		);
 		this.router = router;
 
-		const entries = (await this.journal?.read()) ?? [];
+		const entries = (await this.journal?.read({ last: 1 })) ?? [];
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
@@ -741,6 +744,8 @@ export class LoamShell extends FASTElement {
 		// (phase 4 specification, 3.6): the next person's own, or signed out the profile's last.
 		if (event.settings?.includes('loam.appearance') || event.actorChanged)
 			void this.#readAppearance();
+		// The person's own rail order (phase 4 specification, 3.7; R8).
+		if (event.settings?.includes('loam.rail')) void this.rail.refresh();
 		if (/^(toast|modal)-/.test(event.command)) {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();

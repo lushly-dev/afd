@@ -6,8 +6,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
 
 ## How to keep this file
 
-- "Done" means merged to `main` with evidence linked. Anything else is "in progress" or "open",
-  with what remains spelled out.
+- "Done" means merged to `main` with evidence linked, or, for what the bench keeps outside the
+  repository until phase 0 ends, finished with its record or hash named here. Anything else is
+  "in progress" or "open", with what remains spelled out.
 - Record how you verified it, the command or check, and the absolute date.
 - Write down follow-ups that are not yet issues, with the date and who raised them. Link the issue
   when one exists.
@@ -29,7 +30,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
   budget, and its bare arm, and an independent reader reviewed it. Its rules for "go" are not
-  confirmed. Nothing in it is built.
+  confirmed. Its application, held material and reference build are built; its runner is not
+  finished, and no session has run.
 - **In progress:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15 and merged in
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
@@ -43,38 +45,44 @@ shape of the [Patterns status](../patterns/STATUS.md).
   an in-memory store, and tests that run all seventeen jobs (113 of 113 steps pass) and check
   the 74 results against the commands' output schemas. An independent reviewer read it in two
   passes.
-- **In progress:** the bench's held material, written 2026-11-15 and kept outside the
-  repository on the second machine's external drive, as the owner decided. Its first stage, the
-  checks and the two held-back jobs, is frozen; the SHA-256 of its manifest is
+- **Done:** the bench's held material, written 2026-11-15 and kept outside the repository on
+  the second machine's external drive, as the owner decided. Its first stage, the checks and
+  the two held-back jobs, was frozen on 2026-11-15; the SHA-256 of its manifest is
   `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Its second stage, the
-  faults, the persona cards and the walk scripts, is drafted and is frozen before the first
-  counted walk ([bench.md](bench.md#status)).
+  faults with their proofs, the persona cards and the walk scripts, was frozen on 2026-11-18,
+  before any walk; the SHA-256 of its manifest is
+  `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4` ([bench.md](bench.md#status)).
 - **In progress:** the bench's runner, written 2026-11-15 and kept, like the held material,
   outside the repository on the second machine's external drive, as a local repository with no
   remote: its code that matches the checks shows how builds are scored. It sets up each
   session, runs it, checks its tool calls for leaks, keeps the budget and scores the story file
-  through Specimen. Its walks, readers and statistics are not written. See
+  through Specimen. Its walks, readers and statistics are not written. Its pinned commit has
+  moved four times as `main` gained what the bench uses, last to `f4eeba0c` on 2026-11-18; at
+  each move the checks were confirmed to stand and the reference build was scored again. See
   [the runner](#the-runner).
-- **In progress:** the bench's reference build, built 2026-11-15 and kept beside the runner,
-  outside the repository, since it answers every task. It passes all 308 checks, runs each
-  screen's jobs end to end, and was reviewed by three models, with every finding that needed a
-  change fixed. It waits for the owner's look; the faults, persona cards and walks are then
-  settled against it and frozen. See [the reference build](#the-reference-build).
+- **Done:** the bench's reference build, built 2026-11-15 and kept beside the runner, outside
+  the repository, since it answers every task. It passes all 308 checks and runs each screen's
+  jobs end to end. Three models reviewed it, then a panel of five lenses in four rounds, with
+  three more checking the fixes, and the owner looked at every state; the owner approved it on 2026-11-18. A copy of it holds
+  the twelve faults, each proved present there and absent from the clean build. See
+  [the reference build](#the-reference-build).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
 - **Blocked on:** the owner confirming the bench's rules for "go". That is due before the first
   run of step 0.1 and does not hold up building the bench, whose domain and budget the owner
-  approved. Before any session of phase 0 runs, the runner is finished, the owner has looked at
-  the reference build, the faults, persona cards and walks are settled against it and frozen, and
-  the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
+  approved. Before any session of phase 0 runs, the runner's walks and readers are written and
+  the four pilots give what a session takes. The pilots, like every session, need the owner's
+  word, since they spend the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open
   and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-16 for section 5.10 and the two facts it added to section 2: the
+- **Last verified:** 2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its
+  scripted browser runs clean), the twelve faults' proofs on both builds, three runs each, and the stage 2
+  manifest. 2026-11-16 for section 5.10 and the two facts it added to section 2: the
   link check and an independent review, below. Otherwise 2026-11-15, the runner's tests and dry runs on the second machine, the
   reference build's 308 checks, its runs end to end and its reviews, the link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
   and results, the reviews below, and the seed library's tests, `pnpm check` and `pnpm verify`
@@ -98,9 +106,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
-| The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first counted walk, once the reference build exists | [`bench.md`](bench.md#status) |
+| The bench: the held material | Done. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, frozen 2026-11-15, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults with their proofs, five persona cards and four walk scripts, settled against the reference build after the owner's look, reviewed once more and frozen 2026-11-18, its manifest's SHA-256 `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4` | [`bench.md`](bench.md#status) |
 | The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Walks, readers and step 0.2's statistics are not. Recorded in #1253 | [The runner](#the-runner) |
-| The bench: the reference build | In progress. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks, every walked job runs end to end, and three reviewers of different models reviewed it. The owner looks at it before faults are planted | [The reference build](#the-reference-build) |
+| The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds | [The reference build](#the-reference-build) |
 | The bench: the pilots | Not started | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
@@ -111,10 +119,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is mostly a specification.** Its application is built and merged in #1239
-  (2026-11-15), and its checks and held-back jobs are written and frozen outside the
-  repository; its faults, persona cards and walk scripts are drafted there, and its reference
-  build is not written, and its runner is written without walks, readers or statistics.
+- **The bench is mostly built and has not run.** Its application is built and merged in #1239
+  (2026-11-15). Outside the repository, its held material is written and frozen, its reference
+  build is approved and a copy of it holds the faults, and its runner is written without walks,
+  readers or statistics.
   Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its
   rules for "go" are proposed and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
@@ -479,7 +487,8 @@ the last run of phase 0. What it does, without its check matching:
   found by the leak check, and reported $0.119 at list prices.
 - **Not written:** walks with the personas through Botcore's `cdp_*` commands, the journal and
   reading a path for step 0.4; the readers of steps 0.1 and 0.3; step 0.2's statistics; arm 2's
-  statements in the brief and arm 3's skill.
+  statements and their wiring into the brief, which Umbel can now serve (#1394); and arm 3's
+  skill.
 
 ## The reference build
 
@@ -523,8 +532,43 @@ without its screens:
   one build reviewed once by each, at unmatched effort, with a verifier of the same model as one
   reviewer and the same family as two, who knew which reviewer wrote which finding: it suggests that a second family adds findings and that Fable 5.2 is the
   broader Claude reviewer here, and it shows neither.
-- **Not done:** the owner's look; the faults planted in a copy, with each proof run on both
-  builds; and the freeze of the faults, the persona cards and the walk scripts as stage 2.
+- **Reviewed again by a panel of five lenses** from 2026-11-15 to 2026-11-16: jobs and ease,
+  accessibility, design system, visual design and content. In round 1 Claude Fable 5.2 held
+  every lens; from round 2 it kept the visual lens and Claude Opus 5.5 took the other four. Each
+  round's reports were merged and checked by a verifier on Claude Opus 5.5, who reproduced every
+  blocker in a browser, and the fixes were made on Claude Opus 5.5:
+
+  | Round | Reports | Items once merged | Blockers | Major | Polish | Confirmed | Partly real | Not real |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | 1 | 5 | 72, from 96 findings | 5 | 41 | 26 | 67 | 5 | 3 |
+  | 2 | 5 | 71 | 3 | 20 | 48 | 69 | 2 | 2 |
+  | 3 | 5 | 57 | 2 | 17 | 38 | 56 | 1 | 0 |
+  | 4 | 4 | 30, from 25 findings and 5 notes | 4 | 11 | 15 | 24 findings and the 5 notes | 1 | 1 further note |
+
+  The severity columns count the merged items; the verdict columns count what the verifier
+  judged, and an item judged not real was dropped before the merge. Of round 4's eleven notes,
+  five became items and one was not real; the rest repeated a finding or a decision, or were
+  Violet's own problems. Rounds 5 to 7 checked the
+  fixes with four reviewers, then two and two, and round 8 fixed what round 7 found. Most of
+  what rounds 3 to 7 found was in how a screen behaves under repeated presses.
+- **The owner's look,** on 2026-11-16: all 50 states, 11 marked for a change, 1 marked right and
+  38 left as they were. Round 9 answered the 11 in two steps, the layout on Claude Fable 5.2 and the words
+  and an accessibility check on Claude Opus 5.5, rewording 46 of the 50 states. One note asked
+  for a command the seed library does not have, to add a variety at intake; the owner decided
+  it waits until after phase 0 ([#1380](https://github.com/lushly-dev/afd/issues/1380)). The owner
+  looked again, on a phone, and approved the build on 2026-11-18.
+- **Scored again at each new pin:** 308 of 308 at `c3884d85`, `3ea05bb6`, `42473ccc` and
+  `f4eeba0c`, the last with AFD's Refined theme as Violet's default, with every one of the
+  build's own scripted runs in a browser clean (no model session).
+- **Seeded with the twelve faults** on 2026-11-18, in a copy of the build with one commit for
+  each fault, three aimed at each modality. Eight of the twelve were reworded to fit the build
+  as it is. Each fault is aimed at one modality and leaves the others a way past it. Before the freeze an
+  independent reader on Claude Opus 5.5 ran the proofs and probed both builds. It found three
+  blockers (two faults that showed less than their rows said, and one a keyboard user could see
+  past) and five improvements, and all were taken. Each proof then ran three times on each
+  build: absent from the clean build and present in the seeded one, all twelve, every time.
+- **Not done:** the pilots and the walks. The build and its seeded copy are committed with the
+  record after the last run of phase 0.
 
 ## What was read to write it
 
@@ -602,5 +646,8 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's held material | The owner agreed to keep the held material in a private folder on the second machine's external drive and to write it before the runner and the reference build. It was written outside the repository: checks for every state, twelve faults, five persona cards, a walk script for each screen and two held-back jobs. Two reviews changed it: the faults, cards and walks now wait to be frozen until the reference build exists, the held-back jobs were replaced, and the checks were tightened. The checks and the held-back jobs were frozen, their manifest's hash recorded here, and the folder placed on the second machine. `bench.md` now proposes how step 0.4 reads a path |
 | 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how the probe read some page text and in what the leak check missed, both fixed, the second with a sandbox under every session, and eight improvements, seven taken and one put to the owner. Walks, readers and statistics are not written |
 | 2026-11-15 | The bench's runner, the owner's decisions | The owner agreed with the four recommendations put after #1253: a second smoke session, which ran and cost $0.119 once the sandbox let Claude Code start; the open question on reading one kind of control, settled; the neighbouring proposals removed from every arm's tree; and the week's reset taken from the owner's screenshot |
-| 2026-11-15 | The bench's reference build | The owner approved the reference build's design and a reviewer of another model family, and asked whether that reviewer adds new insight and how Opus 5.5 compares with Fable 5.2. The build was written outside the repository: four screens, their stories and the running app with its journal, passing all 308 checks and running each walked job end to end. Three reviewers (Codex, Opus 5.5, Fable 5.2) reviewed it on one brief; a verifier checked their findings, the 30 that needed a change were fixed, and a second pass checked the fixes. The runner now renders stories with animation settled. The comparison is in the reference build's section. It waits for the owner's look |
+| 2026-11-15 | The bench's reference build | The owner approved the reference build's design and a reviewer of another model family, and asked whether that reviewer adds new insight and how Opus 5.5 compares with Fable 5.2. The build was written outside the repository: four screens, their stories and the running app with its journal, passing all 308 checks and running each walked job end to end. Three reviewers (Codex, Opus 5.5, Fable 5.2) reviewed it on one brief; a verifier checked their findings, the 30 that needed a change were fixed, and a second pass checked the fixes. The runner now renders stories with animation settled. The comparison is in the reference build's section. It waits for the owner's look (superseded: the owner looked on 2026-11-16 and approved the build on 2026-11-18, in the rows below) |
 | 2026-11-16 | Where the parts live | A review of what FAST-AF added for AFD found its command layer and trust fields unused, and that Loam and Lushly render results in the application and build the same pieces themselves. The owner set the test for the component layer, asked for the plan as epic #1385 and for this amendment: section 5.10 places each part (presentation in `violet-elements` with plain properties, normalisation in AFD's browser client, wording in the application, interface state in `afd-view-state`), section 2 gains the two facts, and question 13 records the decision. Nothing was built |
+| 2026-11-16 | The reference build's panel and the owner's look | A panel of five lenses reviewed the reference build in rounds 1 to 4, and fewer reviewers checked the fixes in rounds 5 to 7; round 8 fixed what round 7 found. Most of it was how a screen behaves under repeated presses. The pinned commit moved to `c3884d85`. The owner looked at all 50 states and marked 11, and round 9 answered them. Counts are in the reference build's section; nothing here quotes the screens |
+| 2026-11-17 | Arm 2's delivery, and a variety at intake | The owner agreed to land arm 2's delivery before step 0.1 (#1394): a consumer profile's statements are served once in every brief for that consumer, never shed, with briefs byte for byte unchanged when none is set. The pinned commit moved to `3ea05bb6`. The owner decided the bench gains no command to add a variety in phase 0 (#1380) |
+| 2026-11-18 | The faults, and the freeze of stage 2 | The pinned commit moved to `42473ccc`, then to `f4eeba0c` with AFD's Refined theme as Violet's default; the checks stand and the reference build passes all 308 at each. The owner looked at it again on a phone and approved it. The twelve faults were planted in a copy, eight reworded to fit the build, and each proof ran three times on both builds with the expected result every time. An independent reviewer read the faults, proofs and walks, stage 2 was frozen, and its manifest's hash recorded here. `bench.md` now says stage 2 was frozen before any walk, the pilots' included, as the held material's own record says. Recorded in #1574 |

@@ -22,14 +22,50 @@ should never have to scan the codebase to learn what is current.
   with date and evidence, done, not done, follow-ups. This file aggregates
   those blocks; the phase folder holds the detail (decisions D20 and D24).
 - **Dates are absolute.** Never "last week".
+- **A step edits its own lines and no others.** Every planned step of a phase
+  in progress has one line under its phase's **Steps**, made before the step
+  starts: `not started`, `in progress` with the branch or pull request, or
+  done or merged with the date and the pull request. A step changes that line,
+  adds one row to its area's table in the session log and, if it raises any,
+  rows to its area's table in the follow-ups. It edits no other line. A
+  first-class plugin's steps are in its own status file or specification.
+  A blank line parts the step lines not done yet, because
+  git reports a conflict when two branches change adjacent lines.
+  A step that reaches the exit also updates its phase's row in the Phases
+  table, which names no step as done or next. A specification outside the
+  numbered phases (auth profiles, a world, the component journal) keeps its
+  steps in its own status block.
+- **No sentence or cell says which steps are done, not done, next or latest.**
+  Read the step lines: a step can start when it is not started and the steps
+  its plan's Order names for it are done. Such a summary is one line every
+  step rewrites, so every open branch conflicts on it though nothing
+  disagrees. The rows of the Documents and Phases tables are not added to: a
+  decision goes in [decisions.md](decisions.md), a step on its own line.
+- **A new row goes at the end of its area's table,** never into the table
+  that ends 2026-11-18. Two pull requests from different areas then insert at
+  different places. Two from the same area still insert at the same place:
+  the one that merges second keeps both rows.
+- **A line stays within the limit** in `scripts/policy/doc-line-limits.json`,
+  which `scripts/check-doc-lines.mjs` enforces. A longer line that was already
+  here is listed there and frozen: it may get shorter, never longer. A record
+  that needs more room goes in the specification, linked from its line. Git
+  history keeps the wording of what was moved or shortened.
+- **A frozen line is not edited.** When a frozen follow-up's status changes, add a row to its area's
+  table that names the old row by its date and first words and gives the new status. A frozen
+  line that has gone stale may lose the stale clause (record its new length and `sha256` in the
+  policy); nothing is added to it.
 
 ## Documents
+
+Each row says what was true of its document when the row was last written, to 2026-11-18 at
+the latest: a row is history, and several are frozen. Where a row and a step line or a
+plugin's own status disagree about a step, the step line or that status is current.
 
 | Document | State | Evidence | Verified |
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; principles 8 and 9, section 7 and the glossary amended 2026-11-11 for standing records (D157, step A1 of the Ideas plan, decided under the owner's direction; he has not yet read the wording); the host services catalog's records row, the libraries table, the manifest and store traits lines of section 5, section 7 and the glossary amended 2026-11-11 for indexed and matched records (D158 to D171, the first part of step A2, the same standing: under the owner's direction, not yet read by him); the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519); D157 in the Ideas plan's step A1 pull request | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main`. 2026-11-11 for D157, against `main` at `08cdb38d`: D9, D53, D63, D68, D70, D71, D74, D98 and D115, principles 7 to 10 and the context plugin's `verified_only` read; an independent review and its focused pass; links resolve; no Rust built |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D198 (D198: the `components` plugin's component build, Component Briefs step D2, 2026-11-17, components specification A29; D196 and D197: the [component journal specification](phases/1-plugin-contract/component-journal.spec.md), 2026-11-17, decided under the owner's delegation for #1382, implementing D195; D192 to D195: the owner's answers of 2026-11-16 to the world 1.1.0 specification's section 8; D189 to D191: the [world 1.1.0 specification](phases/1-plugin-contract/world-1.1.spec.md), 2026-11-16, decided under the owner's delegation for #1364; D182 to D188: the [auth profiles specification](phases/5-auth-hosted/auth-profiles.spec.md), D182 the owner's decision of 2026-11-12 on the principle and D183 to D188 decided under his direction, not yet read by him; D181: a phishing-resistant multi-factor login counts as user verification; D173 to D180: the [Ideas plugin](plugins/ideas/spec.md)'s version 1 and its [review host specification](plugins/ideas/host-review.spec.md), decided 2026-11-12 under the owner's direction, not yet read by him; D172: the doctor runs a compiled plugin's own pack check on each space override (A23, D172, the owner's decision of 2026-11-11); D158 to D171, a plugin's host specifications, declared record kinds, standing computed at read, the record lane, finding, matching, a meaning lane and its gate, decided 2026-11-11 under the owner's direction with the [records host specification](plugins/ideas/host-records.spec.md) for the Ideas plan's step A2; he has not yet read them; revised the same day after an independent review (four blockers and nine improvements, all taken) and a focused pass on that revision (one blocker and six improvements, all taken); D162 refines D157 in two places (the word-for-word check is the compiled plugin's; a person's say-so covers only a source that did not reach the host as a command's input) and D161 in one (the deployment sets what verified means and a consumer asks per call, with no space-wide switch), D158 refines D150, and O4 is answered for record lanes only; D157, standing records, decided 2026-11-11 under the owner's direction for the Ideas plan, in its step A1's pull request, after an independent review; he has not yet read the wording; it amends D9 and is read with D98; D150 to D156 decided 2026-11-10 with the `components` plugin specification's approval in #964; D131 to D149 decided 2026-11-09 with the phase 6 specification's approval; D106 to D130 decided 2026-11-04 with the phase 5 specification's approval, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04: D110 to D124, D129 and D130 record those answers, D116 amends D99, D120 amends D101 and D123 closes O5; D90 to D105 with the phase 4 specification, approved 2026-11-03 under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, after an independent review and a revision; D91, D93, D94 and D98 to D104 record those answers; D68 to D89 with the phase 3 specification, approved 2026-11-02 under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02, [#685](https://github.com/lushly-dev/afd/pull/685); D51 to D67 proposed with the phase 2 specification, in review, amended 2026-11-01 by its revision; D40 and D42 annotated); open decisions O1 and O4; O5 closed as D123 on 2026-11-04; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review; D157 in the Ideas plan's step A1 pull request | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564; 2026-11-10: D150 to D156 checked against the `components` specification and `main` at `a1c52b37` (D131 to D149 as the phase 6 specification records). 2026-11-11 for D157, against `main` at `08cdb38d`: D9, D53, D63, D68, D70, D71, D74, D98 and D115, principles 7 to 10 and the context plugin's `verified_only` read; an independent review and its focused pass; links resolve; no Rust built |
+| [Decision log](decisions.md) | Every decision, each with its date and who made it, and the open decisions after them. This cell names none of them: what it listed to D198 is [below the table](#decision-log-what-this-table-listed-to-d198), and a pull request that adds a decision does not edit this row | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review; D157 in the Ideas plan's step A1 pull request | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564; 2026-11-10: D150 to D156 checked against the `components` specification and `main` at `a1c52b37` (D131 to D149 as the phase 6 specification records). 2026-11-11 for D157, against `main` at `08cdb38d`: D9, D53, D63, D68, D70, D71, D74, D98 and D115, principles 7 to 10 and the context plugin's `verified_only` read; an independent review and its focused pass; links resolve; no Rust built |
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1; W1 to W4, W11, W16 and the store, search, parsing and tree-sitter library rows refreshed 2026-11-01 for phase 2; W1, W2, W5, movement 3 and the SQLite and rusqlite rows refreshed and W18 added 2026-11-01 for phase 3; W18 and the `chacha20poly1305` row refreshed 2026-11-02; W1, W2, W5, W7 and the elicitation specification re-checked 2026-11-03 for phase 4 (no row changed); W1, W2, W5, W7, the MCP Authorization, authorization server discovery, security considerations and elicitation pages, the enterprise-managed authorization and Tasks extensions, and the IETF drafts checked 2026-11-03 for phase 5 (a Refreshes row; URL-mode elicitation changes the design) | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
 | [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
@@ -46,6 +82,30 @@ should never have to scan the codebase to learn what is current.
 | [Component journal specification](phases/1-plugin-contract/component-journal.spec.md) | Written 2026-11-17 for [#1382](https://github.com/lushly-dev/afd/issues/1382), D196 and D197, decided under the owner's delegation for that issue and implementing his D195: configuration version 7's `[plugins.<id>.journal]`, added in place by D188's rule, sets `plain` or `digest` with `keep` for a component instance, per instance and per command; the host writes it into the instance's manifest before seal, so pipelines inherit it and `plugin-show` reports each command's `journal` with `setBy`. Revised after an independent review (two blockers fixed). Step 2, the host, implemented 2026-11-17 in its pull request | [#1395](https://github.com/lushly-dev/afd/pull/1395); step 2 in its pull request | 2026-11-17 against `main` at `80d53bdd`, by reading the cited files; no code built |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
+### Decision log: what this table listed, to D198
+
+Moved here from the Decision log row on 2026-11-19 UTC and frozen: [decisions.md](decisions.md) is
+the record, so a pull request that adds a decision adds no line here.
+
+- D198: the `components` plugin's component build, Component Briefs step D2, 2026-11-17, components specification A29.
+- D196 and D197: the [component journal specification](phases/1-plugin-contract/component-journal.spec.md), 2026-11-17, decided under the owner's delegation for #1382, implementing D195.
+- D192 to D195: the owner's answers of 2026-11-16 to the world 1.1.0 specification's section 8.
+- D189 to D191: the [world 1.1.0 specification](phases/1-plugin-contract/world-1.1.spec.md), 2026-11-16, decided under the owner's delegation for #1364.
+- D182 to D188: the [auth profiles specification](phases/5-auth-hosted/auth-profiles.spec.md), D182 the owner's decision of 2026-11-12 on the principle and D183 to D188 decided under his direction, not yet read by him.
+- D181: a phishing-resistant multi-factor login counts as user verification.
+- D173 to D180: the [Ideas plugin](plugins/ideas/spec.md)'s version 1 and its [review host specification](plugins/ideas/host-review.spec.md), decided 2026-11-12 under the owner's direction, not yet read by him.
+- D172: the doctor runs a compiled plugin's own pack check on each space override (A23, D172, the owner's decision of 2026-11-11).
+- D158 to D171, a plugin's host specifications, declared record kinds, standing computed at read, the record lane, finding, matching, a meaning lane and its gate, decided 2026-11-11 under the owner's direction with the [records host specification](plugins/ideas/host-records.spec.md) for the Ideas plan's step A2; he has not yet read them; revised the same day after an independent review (four blockers and nine improvements, all taken) and a focused pass on that revision (one blocker and six improvements, all taken); D162 refines D157 in two places (the word-for-word check is the compiled plugin's; a person's say-so covers only a source that did not reach the host as a command's input) and D161 in one (the deployment sets what verified means and a consumer asks per call, with no space-wide switch), D158 refines D150, and O4 is answered for record lanes only.
+- D157, standing records, decided 2026-11-11 under the owner's direction for the Ideas plan, in its step A1's pull request, after an independent review; he has not yet read the wording; it amends D9 and is read with D98.
+- D150 to D156 decided 2026-11-10 with the `components` plugin specification's approval in #964.
+- D131 to D149 decided 2026-11-09 with the phase 6 specification's approval.
+- D106 to D130 decided 2026-11-04 with the phase 5 specification's approval, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04: D110 to D124, D129 and D130 record those answers, D116 amends D99, D120 amends D101 and D123 closes O5.
+- D90 to D105 with the phase 4 specification, approved 2026-11-03 under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, after an independent review and a revision; D91, D93, D94 and D98 to D104 record those answers.
+- D68 to D89 with the phase 3 specification, approved 2026-11-02 under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02, [#685](https://github.com/lushly-dev/afd/pull/685).
+- D51 to D67 proposed with the phase 2 specification, in review, amended 2026-11-01 by its revision.
+- D40 and D42 annotated.
+- As of 2026-11-18: open decisions O1 and O4; O5 closed as D123 on 2026-11-04; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583).
+
 ## Phases
 
 | Phase | State | Owner | Evidence | Next gate |
@@ -56,10 +116,10 @@ should never have to scan the codebase to learn what is current.
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
 | 3. Memory and context | Specification approved and merged ([#685](https://github.com/lushly-dev/afd/pull/685), `e4c91f30`, with D86 to D89 written in after it); step 1 (shapes and configuration) done 2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729), `ed9a8539`; step 2 (the memory trait and suite) done 2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`; step 3a (the embedded memory store) done 2026-11-03 in [#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`; step 3b (sealing and the key file) done 2026-11-03 in [#737](https://github.com/lushly-dev/afd/pull/737), `8d51ee13`; step 4 (host services and the journal digest) done 2026-11-03 in [#740](https://github.com/lushly-dev/afd/pull/740), `d945bbbf`; step 5 (the memory plugin's writing side) done 2026-11-03 in [#742](https://github.com/lushly-dev/afd/pull/742), `0e3a501a`; step 6 (the memory plugin's reading and lifecycle commands) done 2026-11-03 in [#743](https://github.com/lushly-dev/afd/pull/743), `800856ad`; step 7a (the shared helpers: the locator string and `is_stale` in `umbel-okf`) done 2026-11-03 in [#744](https://github.com/lushly-dev/afd/pull/744), `8f124810`; step 7b (the `context` plugin) done 2026-11-03 in [#745](https://github.com/lushly-dev/afd/pull/745), `c8689ebc`; step 8 (the `umbel-first-party` binary and the `umbel-hook` harness adapter) done 2026-11-03 in [#746](https://github.com/lushly-dev/afd/pull/746), `ab5b321d`; step 9 (import and export) done 2026-11-03 in [#747](https://github.com/lushly-dev/afd/pull/747), `4e46de1b`; step 10 (the exit: `leak_probes.rs`, `poisoning.rs`, `forget_bytes.rs` and `exit_memory.rs` in `first-party/tests`) done 2026-11-03 in the step 10 pull request. **Done 2026-11-03: exit criterion met** (see Phase 3 below) | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685); step 1: [#729](https://github.com/lushly-dev/afd/pull/729); step 2: [#733](https://github.com/lushly-dev/afd/pull/733); step 3a: [#736](https://github.com/lushly-dev/afd/pull/736); step 3b: [#737](https://github.com/lushly-dev/afd/pull/737); step 4: [#740](https://github.com/lushly-dev/afd/pull/740); step 5: [#742](https://github.com/lushly-dev/afd/pull/742); step 6: [#743](https://github.com/lushly-dev/afd/pull/743); step 7a: [#744](https://github.com/lushly-dev/afd/pull/744); step 7b: [#745](https://github.com/lushly-dev/afd/pull/745); step 8: [#746](https://github.com/lushly-dev/afd/pull/746); step 9: [#747](https://github.com/lushly-dev/afd/pull/747); step 10: the step 10 pull request | None for phase 3. Phase 4 is unblocked |
 | 4. Curator | Specification approved 2026-11-03 ([spec](phases/4-curator/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, merged in [#749](https://github.com/lushly-dev/afd/pull/749), `4a9462c0`; step 1 (shapes) done 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751), `e7aeff70`; step 2 (host) done 2026-11-03 in [#753](https://github.com/lushly-dev/afd/pull/753), `83639abb`; step 3a (knowledge: record and journal) done 2026-11-03 in [#754](https://github.com/lushly-dev/afd/pull/754), `37af26c9`; step 3b (knowledge: the drafted path) done 2026-11-03 in [#763](https://github.com/lushly-dev/afd/pull/763), `4a6b2de4`; step 3c (knowledge: verifying drafts) done 2026-11-03 in [#765](https://github.com/lushly-dev/afd/pull/765), `7e52e337`; step 4 (curator: candidates) done 2026-11-03 in [#767](https://github.com/lushly-dev/afd/pull/767), `0d46a9a0`; step 5 (curator: runs) done 2026-11-03 in [#768](https://github.com/lushly-dev/afd/pull/768), `9ea18e73`; step 6 (auto-approval) done 2026-11-03 in [#770](https://github.com/lushly-dev/afd/pull/770), `6e1c0a0a`; step 7 (the binary and the exit: `umbel-first-party` links the curator, `curator_leaks.rs` and `exit_curator.rs` in `first-party/tests`) done 2026-11-03 in the step 7 pull request. **Done 2026-11-03: exit criterion met** (see Phase 4 below) | Phase 4 owning agent | [Specification](phases/4-curator/spec.md), [#749](https://github.com/lushly-dev/afd/pull/749); step 1: [#751](https://github.com/lushly-dev/afd/pull/751); step 2: [#753](https://github.com/lushly-dev/afd/pull/753); step 3a: [#754](https://github.com/lushly-dev/afd/pull/754); step 3b: [#763](https://github.com/lushly-dev/afd/pull/763); step 3c: [#765](https://github.com/lushly-dev/afd/pull/765); step 4: [#767](https://github.com/lushly-dev/afd/pull/767); step 5: [#768](https://github.com/lushly-dev/afd/pull/768); step 6: [#770](https://github.com/lushly-dev/afd/pull/770); step 7: the step 7 pull request | None for phase 4. Phase 7 now needs phases 5 and 6 |
-| 5. Auth and hosted | Specification approved 2026-11-04 ([spec](phases/5-auth-hosted/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04, after an independent review and a revision; step 0a (the AFD spec, documents and cases only) done 2026-11-07 in the step 0a pull request; step 0b (AFD's Rust `server-auth` feature) done 2026-11-07 in the step 0b pull request; step 0c (#532: confirmation state bound to the principal in TypeScript, Python and Rust) done 2026-11-07 in the step 0c pull request; step 0d (AFD's Rust host-verified mode, `HumanRelay`, relay evidence and the form-mode approval relay) done 2026-11-07 in the step 0d pull request; step 0e (AFD's Rust MCP Tasks: `task`, `TaskStore` and the `tasks/*` handlers) done 2026-11-07, completing the AFD prerequisites 0a to 0e; step 1 (Umbel's shapes: section 2's schemas, configuration and manifest version 5 parsing, constants) done 2026-11-07 on `lush/umbel-p5-1-shapes`; step 1b (`umbel-testkit-idp` and `tests/no_auth_server.rs`) done 2026-11-07 in the step 1b pull request; step 2a (the host's listener and layers: TLS with `client_auth`, section 6.3's order, the metadata, the per-IP limit, the context hook version 1 skeleton) done 2026-11-08 in the step 2a pull request; step 2b (the host's verification and principal: the `KeySource`, the verifier and introspection, section 4.1's mapping to principal version 1, claim groups, equivalents, an interim scope rule) done 2026-11-08 on `lush/umbel-p5-2b-verification`; step 2c (the doctor's hosted profile, `auth-show`, `workspace-show`'s hosted answer, each issuer's `ca_file`) done 2026-11-08 on `lush/umbel-p5-2c-doctor`; step 3 (the host's scopes, access, shared state and limits) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-3); step 3's follow-up to AFD (hidden commands unknown before validation) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-afds-hidden-commands); step 7 (the stores' exact filtering: BM25 statistics per reader filter for knowledge and memory, sealed positions, readable-only totals; a shipped build now serves `oauth`) done 2026-11-08 on `lush/umbel-p5-7-exact-filtering`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-7); step 4 (the host's gateway mode: the pinned channel, a verified single-use assertion per request, the scope ceiling's meet, no metadata; a shipped build now serves `gateway`) done 2026-11-08 on `lush/umbel-p5-4-gateway`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-4); step 5 (the person page: the OpenID Connect relying party, decisions in `state/shared/person.sqlite3`, Umbel's `HumanRelay`, the CLI's URL flow, envelope version 3) done 2026-11-08 on `lush/umbel-p5-5-person-page`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-5); step 5b (the person page in mode `gateway` on a listener of its own, with its own TLS and public origin, which browsers reach directly and never through the gateway: the owner's decision of 2026-11-09; mode `gateway` now serves verified commands with it) done 2026-11-09 on `lush/umbel-p5-5b-gateway-person-page`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-5b); step 6 (knowledge's relay: `knowledge-approve` and `knowledge-reject` decided over MCP on the person page in an area that sets `approve_over_mcp`; proposal version 3 written) done 2026-11-09 on `lush/umbel-p5-6-knowledge-relay`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-6); step 8 (tasks: the shared task store, owner-checked, durable, bounded and leased, each task ended at its token's `exp`; a gateway task never outlives its assertion) done 2026-11-09 on `lush/umbel-p5-8-tasks`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-8); step 9 (usage: one content-free record per metered MCP HTTP request in `state/usage/usage.sqlite3`, written off the request path; `usage-list` shows a caller its own, everyone's to `usage.readers` and the operator) done 2026-11-10 on `lush/umbel-p5-9-usage`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-9); step 10 (memory: `memory-confirm` over MCP on the person page, `editors`, `memory-erase` with the two-person rule, the library's own assurance) merged in [#1180](https://github.com/lushly-dev/afd/pull/1180) (2026-11-13), with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-10); steps 11 and 12 next | Phase 5 owning agent | [Specification](phases/5-auth-hosted/spec.md), on `lush/umbel-phase-5-spec` | Steps 11 and 12, in the plan's order |
-| 6. Backends | Specification written 2026-11-09 ([spec](phases/6-backends/spec.md)) and revised the same day after its independent review; **approved 2026-11-09** with the owner's answers (PostgreSQL first, several servers behind one address in this phase, a 30-day default recovery window); implementation not started. Steps 2 and 4e wait on phase 5's steps 8 to 11 (tasks, usage, `memory-erase`, the erasure sweep), and step 11 on phase 5's exit | Phase 6 owning agent | [Specification](phases/6-backends/spec.md), on `lush/umbel-phase-6-spec-approved` | Step 1 of its plan, beside phase 5's remaining steps |
+| 5. Auth and hosted | Specification approved 2026-11-04 ([spec](phases/5-auth-hosted/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04, after an independent review and a revision. Each step's state is its line under [phase detail](#phase-5-auth-and-hosted) | Phase 5 owning agent | [Specification](phases/5-auth-hosted/spec.md), on `lush/umbel-phase-5-spec` | Its exit criterion, after the steps not yet done, in the plan's order |
+| 6. Backends | Specification written 2026-11-09 ([spec](phases/6-backends/spec.md)) and revised the same day after its independent review; **approved 2026-11-09** with the owner's answers (PostgreSQL first, several servers behind one address in this phase, a 30-day default recovery window). Each step's state is its line under [phase detail](#phase-6-backends). Steps 2 and 4e wait on phase 5's steps 8 to 11 (tasks, usage, `memory-erase`, the erasure sweep), and step 11 on phase 5's exit | Phase 6 owning agent | [Specification](phases/6-backends/spec.md), on `lush/umbel-phase-6-spec-approved` | Its steps in the plan's order, beside phase 5's remaining steps |
 | 7. Distribution and guides | Not started | None | None | Phases 5 and 6 exit criteria met (phase 4's was met 2026-11-03) |
-| Further first-class plugins | Unblocked 2026-11-01 (phase 2 exit criterion met). `components` (Component Briefs, phase C): specification approved 2026-11-10 (#964), decisions D150 to D156; step C1 implemented: the crate, the reader with every check of the format, the scan, `components-list`, `components-open` and the graceful refusal; step C2 implemented 2026-11-11: `components-brief` (tags and source, sections and basis per section, shared rules once, `known`, `versions`, fitting to the budget, `render: "text"`); step C3 implemented 2026-11-11: the `components-guide` skill on the three delivery paths, `components-brief` as the fifth first-party suggestion (seven first-class tools with the built-ins, under the cap of eight), and the plugin as `plugin-show` and the doctor show it, with no host change; step C4 implemented 2026-11-11: the reader reads pack format 1, and FAST-AF's pack as Specimen exported it is served as a space override in `fast_af.rs` and `facts.rs` (criteria 1, 3 and 7 on the real library; criterion 2 measured and not met); step C5 done 2026-11-12, served to this repository's agents through `.mcp.json` (A21, A22); after C3, the doctor runs a compiled plugin's own pack check on each space override (A23, D172, the owner's decision of 2026-11-11). `ideas` (the Ideas plan, version 1, the daily loop): specification written 2026-11-12, decisions D173 to D180, with its review host specification; steps C1 to C4 merged (#1091, #1099, #1106, #1145): the crate compiled into `umbel-first-party`, capture, match, ask, find, open, the guide, export and import, review staged by an agent and confirmed in bulk at a terminal or on the local page, and the review report; step C5's repository part implemented 2026-11-13 on `lush/ideas-c5-first-use` (the `ideas-guide` skill, the README's local instance with the instructions paragraph and the settings, a walk-through of it), not merged | `components`: its owning agent. `ideas`: the Ideas plan's owning agent | [Components specification](plugins/components/spec.md); [Ideas plugin specification](plugins/ideas/spec.md) | `components`: the owner's answer on criterion 2, then step C5. `ideas`: the owner's own first use, which is C5's exit, pending. Others: each gets its own specification (D18, D150) |
+| Further first-class plugins | Unblocked 2026-11-01 (phase 2 exit criterion met). `components` and `ideas` are specified and built in steps of their own plans; each one's state is in its own status, linked from [phase detail](#further-first-class-plugins) | `components`: its owning agent. `ideas`: the Ideas plan's owning agent | [Components specification](plugins/components/spec.md); [Ideas plugin specification](plugins/ideas/spec.md) | Each plugin's own, in its status. Others: each gets its own specification (D18, D150) |
 
 ## Phase detail
 
@@ -90,7 +150,7 @@ should never have to scan the codebase to learn what is current.
 - **Done:** the hybrid tool strategy (D27) in Rust,
   `ToolStrategy::Hybrid` with `McpServer::with_first_class_tools`, merged in
   [#560](https://github.com/lushly-dev/afd/pull/560) as `57c731d2` with all 25
-  checks green; `tests/server_hybrid.rs` runs every case of
+  checks green; `tests/tool_strategies_vectors.rs` runs every case of
   `spec/tool-strategies.json` over stdio and Streamable HTTP in both MCP eras.
   Python ([#555](https://github.com/lushly-dev/afd/pull/555), `51f8d9d8`) and
   TypeScript ([#556](https://github.com/lushly-dev/afd/pull/556), `0d9720a1`)
@@ -2060,24 +2120,7 @@ on another local branch and push to that remote name.
 
 - **State:** specification **approved 2026-11-04, under the owner's 2026-10-31 delegation, with the owner's answers of
   2026-11-04** (D24), after an independent review (36 findings and 7 nits, all holding, 3 in part) and a revision on
-  2026-11-03; **step 0a done 2026-11-07** (documents and cases only); **step 0b done 2026-11-07** (AFD's Rust
-  `server-auth`); **step 0c done 2026-11-07** (#532); **step 0d done 2026-11-07** (AFD's Rust host-verified mode,
-  `HumanRelay`, relay evidence and the form-mode approval relay); **step 0e done 2026-11-07** (AFD's Rust MCP Tasks),
-  which completes the AFD prerequisites 0a to 0e; **step 1 done 2026-11-07** (Umbel's shapes); **step 1b done 2026-11-07** (`umbel-testkit-idp`, the test identity
-  provider, and the host's `tests/no_auth_server.rs`); **step 2a done 2026-11-08** (the host's listener and layers);
-  **step 2b done 2026-11-08** (the host's verification and principal); **step 2c done 2026-11-08** (the host's
-  doctor and introspection); **step 3 done 2026-11-08** (the host's scopes, access, shared state and limits),
-  with its follow-up to AFD (hidden commands) **done 2026-11-08**; **step 7 done 2026-11-08** (the stores' exact
-  filtering; **a shipped build serves `oauth`**); **step 4 done 2026-11-08** (the host's gateway mode; **a shipped
-  build serves `gateway`**), with its follow-up to AFD (the decision before dispatch for a host's own layer) **done
-  2026-11-08**; **step 5 done 2026-11-08** (the person page; **`person.mcp` commands are served over MCP** in mode
-  `oauth`); **step 5b done 2026-11-09** (the person page in mode `gateway`, on a listener of its own that browsers
-  reach directly, the owner's decision of 2026-11-09; **mode `gateway` serves verified commands** with it); **step 6
-  done 2026-11-09** (knowledge's relay: **`knowledge-approve` and `knowledge-reject` are served over MCP**, decided
-  on the person page, in an area that sets `approve_over_mcp`; proposal version 3); **step 8 done 2026-11-09**
-  (tasks: **long jobs run as MCP tasks** in the hosted modes, shared by every process behind the URL); **step 9 done
-  2026-11-10** (usage: **every metered MCP HTTP request has one content-free record**, read back with `usage-list`);
-  **steps 10 to 12 next**. Last
+  2026-11-03. Last
   verified 2026-11-03 against `main` at `e5b4e43c` (the specification's Status lists every file and line read; no Rust
   built), and for step 0a on 2026-11-07 against `main` at `ceefba8c` (below).
 - **Done:** [the specification](phases/5-auth-hosted/spec.md), with D106 to D130 decided and the architecture amendments they
@@ -2803,9 +2846,32 @@ on another local branch and push to that remote name.
   held through key destruction. A deterministic test failed on the old transaction gap
   (an intervening invalidate was erased despite the stale plan); the regression also covers
   a newly written target. Full gate and focused-review receipts travel with this PR.
-- **Not done:** steps 11 and 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan); step 10 merged in [#1180](https://github.com/lushly-dev/afd/pull/1180).
-- **Next:** 11 needs 3 (and builds its outbox row into the erasure steps step 10 shares between forget and erase);
-  12 needs all. Heavy steps follow the plan's build note. Steps 5 to 12 take `umbel-testkit-idp` from
+- **Steps** ([plan](phases/5-auth-hosted/spec.md#16-implementation-plan); one line each, so parallel pull requests touch different lines):
+  - 0a, the AFD spec, documents and cases only: done 2026-11-07 in the step 0a pull request.
+  - 0b, AFD's Rust `server-auth` feature: done 2026-11-07 in the step 0b pull request.
+  - 0c, #532: confirmation state bound to the principal in TypeScript, Python and Rust: done 2026-11-07 in the step 0c pull request.
+  - 0d, AFD's Rust host-verified mode, `HumanRelay`, relay evidence and the form-mode approval relay: done 2026-11-07 in the step 0d pull request.
+  - 0e, AFD's Rust MCP Tasks: `task`, `TaskStore` and the `tasks/*` handlers: done 2026-11-07, completing the AFD prerequisites 0a to 0e.
+  - 1, Umbel's shapes: section 2's schemas, configuration and manifest version 5 parsing, constants: done 2026-11-07 on `lush/umbel-p5-1-shapes`.
+  - 1b, `umbel-testkit-idp` and `tests/no_auth_server.rs`: done 2026-11-07 in the step 1b pull request. `umbel-testkit-idp` is the test identity provider.
+  - 2a, the host's listener and layers: TLS with `client_auth`, section 6.3's order, the metadata, the per-IP limit, the context hook version 1 skeleton: done 2026-11-08 in the step 2a pull request.
+  - 2b, the host's verification and principal: the `KeySource`, the verifier and introspection, section 4.1's mapping to principal version 1, claim groups, equivalents, an interim scope rule: done 2026-11-08 on `lush/umbel-p5-2b-verification`.
+  - 2c, the doctor's hosted profile, `auth-show`, `workspace-show`'s hosted answer, each issuer's `ca_file`: done 2026-11-08 on `lush/umbel-p5-2c-doctor`. Introspection moved to step 2b.
+  - 3, the host's scopes, access, shared state and limits: done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-3).
+  - 3's follow-up to AFD, hidden commands unknown before validation: done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-afds-hidden-commands).
+  - 4, the host's gateway mode: the pinned channel, a verified single-use assertion per request, the scope ceiling's meet, no metadata; a shipped build now serves `gateway`: done 2026-11-08 on `lush/umbel-p5-4-gateway`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-4). Its follow-up to AFD (the decision before dispatch for a host's own layer) was done 2026-11-08.
+  - 5, the person page: the OpenID Connect relying party, decisions in `state/shared/person.sqlite3`, Umbel's `HumanRelay`, the CLI's URL flow, envelope version 3: done 2026-11-08 on `lush/umbel-p5-5-person-page`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-5). `person.mcp` commands are served over MCP in mode `oauth`.
+  - 5b, the person page in mode `gateway` on a listener of its own, with its own TLS and public origin, which browsers reach directly and never through the gateway: the owner's decision of 2026-11-09; mode `gateway` now serves verified commands with it: done 2026-11-09 on `lush/umbel-p5-5b-gateway-person-page`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-5b).
+  - 6, knowledge's relay: `knowledge-approve` and `knowledge-reject` decided over MCP on the person page in an area that sets `approve_over_mcp`; proposal version 3 written: done 2026-11-09 on `lush/umbel-p5-6-knowledge-relay`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-6).
+  - 7, the stores' exact filtering: BM25 statistics per reader filter for knowledge and memory, sealed positions, readable-only totals; a shipped build now serves `oauth`: done 2026-11-08 on `lush/umbel-p5-7-exact-filtering`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-7).
+  - 8, tasks: the shared task store, owner-checked, durable, bounded and leased, each task ended at its token's `exp`; a gateway task never outlives its assertion: done 2026-11-09 on `lush/umbel-p5-8-tasks`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-8). Long jobs run as MCP tasks in the hosted modes, shared by every process behind the URL.
+  - 9, usage: one content-free record per metered MCP HTTP request in `state/usage/usage.sqlite3`, written off the request path; `usage-list` shows a caller its own, everyone's to `usage.readers` and the operator: done 2026-11-10 on `lush/umbel-p5-9-usage`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-9).
+  - 10, memory: `memory-confirm` over MCP on the person page, `editors`, `memory-erase` with the two-person rule, the library's own assurance: merged in [#1180](https://github.com/lushly-dev/afd/pull/1180) (2026-11-13), with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-10).
+
+  - 11, the erasure sweep: not started. It needs step 3, and builds its outbox row into the erasure steps step 10 shares between forget and erase.
+
+  - 12, the exit: not started. It needs every other step.
+- **Build notes:** heavy steps follow the plan's build note. Steps 5 to 12 take `umbel-testkit-idp` from
   `[dev-dependencies]`.
 - **Waiting on the owner:** nothing. The gateway question was decided 2026-11-09 (a separate direct address), and
   step 5b built it; step 6's rejection reason was settled by the coordinator (the person reads and confirms it).
@@ -2813,7 +2879,90 @@ on another local branch and push to that remote name.
   its own, allowed only for the operator), and step 10 built it.
 - **Follow-ups:** the [specification's list](phases/5-auth-hosted/spec.md#follow-ups).
 
+### Phase 6. Backends
+
+- **State:** specification approved 2026-11-09; its row in the [Phases](#phases) table and the
+  [specification](phases/6-backends/spec.md) carry the rest.
+- **Steps** ([plan](phases/6-backends/spec.md#11-implementation-plan); one line each, made before the step starts, so parallel pull requests touch different lines):
+  - 1, shapes: not started.
+
+  - 2, traits version 3 and the embedded backend certified: not started.
+
+  - 3, test clusters: not started.
+
+  - 4a, PostgreSQL: connections, roles, migration: not started.
+
+  - 4b, PostgreSQL: encryption and the keyring: not started.
+
+  - 4c, PostgreSQL: documents and graph: not started.
+
+  - 4d, PostgreSQL: index: not started.
+
+  - 4e, PostgreSQL: memory: not started.
+
+  - 4f, PostgreSQL: certified: not started.
+
+  - 5, the host: backends per space: not started.
+
+  - 6, archives: not started.
+
+  - 7, moves: not started.
+
+  - 8, operations: not started.
+
+  - 9, shared deployments: not started.
+
+  - 10, store-held collections: not started.
+
+  - 11, the exit: not started.
+
+### Further first-class plugins
+
+- **Where each plugin's steps are:** `components` in the
+  [Component Briefs status](../../../docs/features/complete/component-briefs/STATUS.md) and the
+  [components specification](plugins/components/spec.md)'s amendments; `ideas` in the
+  [Ideas status](../../../docs/features/active/ideas/STATUS.md). A plugin's step edits those and its
+  rows in the session log, not the Phases table.
+- **`components`, as the Phases table gave it to 2026-11-18:** specification approved 2026-11-10 (#964), decisions D150 to D156; step C1 implemented: the crate, the reader with every check of the format, the scan, `components-list`, `components-open` and the graceful refusal; step C2 implemented 2026-11-11: `components-brief` (tags and source, sections and basis per section, shared rules once, `known`, `versions`, fitting to the budget, `render: "text"`); step C3 implemented 2026-11-11: the `components-guide` skill on the three delivery paths, `components-brief` as the fifth first-party suggestion (seven first-class tools with the built-ins, under the cap of eight), and the plugin as `plugin-show` and the doctor show it, with no host change; step C4 implemented 2026-11-11: the reader reads pack format 1, and FAST-AF's pack as Specimen exported it is served as a space override in `fast_af.rs` and `facts.rs` (criteria 1, 3 and 7 on the real library; criterion 2 measured and not met); step C5 done 2026-11-12, served to this repository's agents through `.mcp.json` (A21, A22); after C3, the doctor runs a compiled plugin's own pack check on each space override (A23, D172, the owner's decision of 2026-11-11).
+- **`ideas`, as the Phases table gave it to 2026-11-18:** specification written 2026-11-12, decisions D173 to D180, with its review host specification; steps C1 to C4 merged (#1091, #1099, #1106, #1145): the crate compiled into `umbel-first-party`, capture, match, ask, find, open, the guide, export and import, review staged by an agent and confirmed in bulk at a terminal or on the local page, and the review report; step C5's repository part implemented 2026-11-13 on `lush/ideas-c5-first-use` (the `ideas-guide` skill, the README's local instance with the instructions paragraph and the settings, a walk-through of it), not merged.
+- **The next gate, as the Phases table gave it to 2026-11-18:** `components`: the owner's answer on criterion 2, then step C5. `ideas`: the owner's own first use, which is C5's exit, pending.
+
 ## Follow-ups not yet issues
+
+A new row goes at the end of its area's table. The last table holds every area's rows raised
+to 2026-11-18; a row there is still edited in place when its status changes, unless it is frozen.
+
+### Follow-ups: phase 5, auth and hosted
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: phase 6, backends
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: the plugin contract, worlds and the component journal
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: the `components` plugin
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: the `ideas` plugin and its host records
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: every other area
+
+| Date | Raised by | Follow-up | Status |
+| --- | --- | --- | --- |
+
+### Follow-ups: to 2026-11-18, every area
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
@@ -2905,6 +3054,41 @@ on another local branch and push to that remote name.
 | 2026-11-17 | Component journal specification | A deployer-chosen journal mode for a mounted tool, the same `[plugins.<id>.journal]` key on a mounted instance | Open, the first deployer who needs it |
 
 ## Session log
+
+A session adds its row at the end of its area's table. The last table holds every area's rows
+to 2026-11-18 and takes no new row.
+
+### Sessions: phase 5, auth and hosted
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: phase 6, backends
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: the plugin contract, worlds and the component journal
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: the `components` plugin
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: the `ideas` plugin and its host records
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: every other area
+
+| Date | Session | What changed |
+| --- | --- | --- |
+
+### Sessions: to 2026-11-18, every area
 
 | Date | Session | What changed |
 | --- | --- | --- |
