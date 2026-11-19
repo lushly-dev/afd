@@ -722,3 +722,36 @@ describe('the merge-group contract, after the review of its last fix', () => {
 		);
 	});
 });
+
+describe('the verdict, held against a failure that passes', () => {
+	const verdict = (text) => problems(text, 'ci-ok.yml');
+	const step = '      - run: make check';
+
+	it('refuses continue-on-error and a condition in flow form', () => {
+		for (const [to, named] of [
+			[
+				`${step}\n        continue-on-error: \${{ github.event_name == 'merge_group' }}`,
+				/continue-on-error:/,
+			],
+			[`      - { if: "github.event_name != 'merge_group'", run: make check }`, /- \{ if:/],
+			['      -  if: false\n         run: make check', /- {2}if: false/],
+			['      - { run: make check, continue-on-error: true }', /continue-on-error: true/],
+		]) {
+			const found = verdict(edit(unfiltered, step, to));
+			assert.equal(found.length, 1, found.join('\n'));
+			assert.match(found[0], /job check of the verdict has a condition/);
+			assert.match(found[0], named);
+		}
+		// The control: a step named for what it does, holding the words but not the keys.
+		assert.deepEqual(
+			verdict(
+				edit(
+					unfiltered,
+					step,
+					'      - name: Check, or continue on error if asked\n        run: make check'
+				)
+			),
+			[]
+		);
+	});
+});

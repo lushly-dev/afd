@@ -99,6 +99,12 @@ export const PULL_REQUEST_ONLY = {
 	},
 };
 
+/**
+ * A key that makes a job or step of the verdict conditional, or lets its failure pass, in block
+ * or flow form. Not seen: a `run:` script that reads the event and exits early by itself.
+ */
+const CONDITIONAL = /(^\s*(-\s+)?|[{,]\s*)(if|continue-on-error)\s*:/;
+
 /** A status function in a job's `if` runs it although a job it needs was skipped. */
 const STATUS_FUNCTION = /\b(always|cancelled|failure|success)\s*\(/i;
 
@@ -339,7 +345,7 @@ export function mergeGroupProblems(workflows) {
 		// merge group could pass it without the credit check or the wait having run.
 		if (file === VERDICT)
 			for (const [id, job] of jobs)
-				for (const line of job.block.split('\n').filter((each) => /^\s*(- )?if:/.test(each)))
+				for (const line of job.block.split('\n').filter((each) => CONDITIONAL.test(each)))
 					say(
 						`job ${id} of the verdict has a condition: "${line.trim()}". The required check runs every step for a pull request and for its merge group`
 					);
