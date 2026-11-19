@@ -922,7 +922,11 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 		// `notification-list` is not journaled (as `persona-list`): a journaled read of the notice, whose answer the
 		// replay must reproduce, so it holds only if the replayed settle wrote the same notice.
 		expect((await kernel.call('notification-read', { all: true })).data).toEqual({ read: 1 });
-		const { report } = await replayKernel(await journal.read(), {
+		const live = (await kernel.call('notification-list', { body: true })).data;
+		// Not an empty inbox, so the comparison below says something.
+		expect((live as { notifications: unknown[] }).notifications.length).toBeGreaterThan(0);
+		const { report, kernel: replayed } = await replayKernel(await journal.read(), {
+			keep: true,
 			deployment: {
 				deployment_version: 2,
 				generation: 'test',
@@ -949,6 +953,13 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 		expect(report.entries.some(({ command }) => command === 'autonomy-settle')).toBe(true);
 		expect(report.entries.some(({ command }) => command === 'notification-read')).toBe(true);
 		expect(report.entries.some(({ command }) => command === 'notification-list')).toBe(false);
+		// The notice itself, not only its count: the replayed kernel's inbox equals the live one's, body and all.
+		if (!replayed) throw new Error('replayKernel kept no kernel');
+		try {
+			expect((await replayed.call('notification-list', { body: true })).data).toEqual(live);
+		} finally {
+			await replayed.dispose();
+		}
 	});
 
 	it('orphans a row whose instance now names another server, and the command name alone never backs it (R2)', async () => {

@@ -768,16 +768,27 @@ describe('replay (P4-E15)', () => {
 		expect(
 			(await kernel.call('notification-archive', { all: true, source: 'probe' })).data
 		).toEqual({ archived: 2 });
-		const { report } = await replayKernel(await journal.read(), {
+		const live = (await kernel.call('notification-list', { body: true })).data;
+		// Not an empty inbox, so the comparison below says something.
+		expect((live as { notifications: unknown[] }).notifications.length).toBeGreaterThan(0);
+		const { report, kernel: replayed } = await replayKernel(await journal.read(), {
+			keep: true,
 			deployment: probeDeployment([entry('probe'), entry('sums')]),
 			ports: ports(),
 		});
 		expect(report.diverged).toBe(false);
 		expect(report.same).toBe(report.entries.length);
-		const replayed = report.entries.map(({ command }) => command);
-		expect(replayed).toContain('notification-read');
-		expect(replayed).toContain('notification-archive');
-		expect(replayed).not.toContain('notification-list');
+		const commands = report.entries.map(({ command }) => command);
+		expect(commands).toContain('notification-read');
+		expect(commands).toContain('notification-archive');
+		expect(commands).not.toContain('notification-list');
+		// The notices themselves, not only their counts: the replayed kernel's inbox equals the live one's, body and all.
+		if (!replayed) throw new Error('replayKernel kept no kernel');
+		try {
+			expect((await replayed.call('notification-list', { body: true })).data).toEqual(live);
+		} finally {
+			await replayed.dispose();
+		}
 	});
 });
 
