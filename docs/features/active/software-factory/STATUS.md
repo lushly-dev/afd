@@ -29,6 +29,22 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### An ejection lists every failing test, 2026-11-19
+
+Branch `fleet/lane-full-failures-1607`, for
+[#1607](https://github.com/lushly-dev/afd/issues/1607). In fleet run-8, #546 broke three Umbel
+tests with one cause and the lane found one per ejection, so the branch used all three and was
+dropped.
+
+- The lane validates with `pnpm verify --keep-going`; every local `cargo test` step runs with
+  `--no-fail-fast` and each multi-package test step with `pnpm --no-bail` (a tooling test keeps
+  both), so one run reaches every failure.
+- The lane reads failing tests from the job's whole log, not the 200-line tail: cargo, vitest,
+  pytest, node:test, TAP, CTest and Playwright. The `ejected` event's `lines` end with a count
+  and up to 50; the `ejected` record keeps up to 5,000 as `failures`, the total as `failureCount`.
+- Not done: `prepare-pr lane` still runs no suites before enqueue (the issue's second option),
+  and `pnpm test:specimen` chains two browser suites with `&&`, so the second waits on the first.
+
 #### The lane works behind a merge queue, 2026-11-19
 
 Pull request #1627, for the merge-conflicts plan's item 5

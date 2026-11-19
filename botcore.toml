@@ -80,8 +80,10 @@ trend_issue = 1098
 labels = ".github/labels.json"
 install = ["pnpm", "install", "--frozen-lockfile"]
 # pnpm verify writes the record pre-push accepts for the exact commit, so the lane's push runs
-# no checks twice (scripts/verify-record.mjs).
-validate = ["pnpm", "verify"]
+# no checks twice (scripts/verify-record.mjs). --keep-going runs every suite after one fails, and
+# each local cargo step runs with --no-fail-fast, so an ejection lists every failing test, not
+# only the first (lushly-dev/afd#1607).
+validate = ["pnpm", "verify", "--keep-going"]
 coverage = ["pnpm", "check:all"]
 # prepare-pr's lane mode records the review of the exact head in the worktree's git directory;
 # lane-enqueue accepts only a passing review of that commit (scripts/review-record.mjs). The lane
