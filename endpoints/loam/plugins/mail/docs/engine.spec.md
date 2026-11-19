@@ -1832,6 +1832,38 @@ later command that deletes mail for good joins them.
   headers: a one-click HTTPS post where the message declares one, or else a mail to the address
   given. Its preview shows the target, and it never opens a link in a browser.
 
+**As step D3 built it** (its first part, migration 15): drafts and snoozed threads, which are
+local and open to every caller. Sending and unsubscribing are its second and third parts.
+
+- **A draft** is a row of the store, not derived: its account, the message it answers, its To, Cc
+  and Bcc, its subject and its body as plain text, who wrote each of the recipients, the subject
+  and the body (the caller who last set it, with its token's id), and who made it. Its
+  recipients are bare addresses, `local@domain` with the domain kept in lower case: no names, no
+  brackets, nothing a header would read as a second address. At most 100 recipients, a subject
+  of one line and at most 998 characters, and a body of at most 48 KiB, so that a whole draft
+  fits a reply over MCP. Input outside those is refused without repeating it.
+- **Its account** is the one named; else, for a draft that answers a message, the one account
+  whose mailboxes show that message; else the only account. A named account must show the message
+  answered.
+- **A revision** rises with every change, a discard and a restore included.
+  `mail-draft-update` takes the revision the caller read and replaces the parts it names (the
+  three lists of recipients together); a draft changed since is `DRAFT_CHANGED`, and two callers
+  that read the same revision cannot both change it. A send names the revision it previewed
+  (step F's specification, where a mismatch is `PREVIEW_CHANGED`).
+- **Content.** The recipients, subject and body are content: a caller wrote them, and mail may
+  have steered it. Every result gives them in one labelled part, with who wrote each beside it.
+- **Discarded** drafts are listed apart with when each goes, are neither changed nor sent, and
+  are restored by `mail-draft-restore` within 30 days. A draft discarded longer ago goes when a
+  draft command next runs.
+- **Removing an account** removes its drafts, which nothing could send; another account's draft
+  that answers mail that goes keeps its text and answers nothing.
+- **`mail-thread-snooze`** takes a thread and a time within the next year, and keeps the snooze by
+  the thread's id, its lowest message, so that a rebuild keeps it. A snoozed thread leaves
+  `mail-thread-list` until its time, or until mail arrives in the thread after it was snoozed;
+  `mail-thread-list` with `snoozed` lists only the snoozed threads, with when each comes back.
+  Without a time it ends the snooze. Its result gives the time before, which undoes it. Removing
+  an account removes the snoozes of the mail that goes.
+
 ## 10. Records, proposed stories and reply sets
 
 Phase E. Its shape is the proposal's ([4.3](../../../../../docs/features/active/mail/mail.proposal.md#43-layers),
@@ -1902,8 +1934,8 @@ says otherwise.
 | `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's. Step D1's third part: a change that never ran is dropped with its items; a resume proposed is stopped again |
 | `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor. Its third part: the list's `proposed` filter, and the show's preview of a proposal |
 | `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command. Step D1's second part: cancel stops after the batch in hand, for any caller. Its third part: an undo or a resume over a limit is a proposal |
-| `mail-thread-snooze` | D | Local, undoable | cli, mcp | |
-| `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | |
+| `mail-thread-snooze` | D | Local, undoable | cli, mcp | Step D3: until a time within a year, or until mail arrives in the thread; `mail-thread-list` with `snoozed` lists the snoozed threads ([9.5](#95-drafts-and-sending)) |
+| `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | Step D3: an update names the revision it read ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
 | `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send |
 | `mail-draft-send` | D | Remote, destructive; a person | cli | |
@@ -1994,6 +2026,8 @@ Beside the crate's own codes:
 | `SEND_OUTCOME_UNKNOWN` | The send may or may not have gone |
 | `UNDO_NOT_POSSIBLE` | The provider no longer holds what an undo needs |
 | `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message |
+| `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
+| `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
 
 Each failure carries a suggestion in the engine's words.
 

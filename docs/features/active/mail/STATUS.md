@@ -121,7 +121,11 @@ waits for Gmail has a line of its own.
 
 - D2: The four remote commands on iCloud and Gmail. Not started.
 
-- D3: Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze`. Not started.
+- D3, first of three pull requests: drafts with a revision, `mail-draft-create`, `-update`, `-discard`, `-restore`, `-list` and `-show`, and `mail-thread-snooze`, migration 15. In progress, [#PR](https://github.com/lushly-dev/afd/pull/PR).
+
+- D3, second: `mail-draft-send` at the terminal, its recipient rule, SMTP, the sent copy and `outbound`, on a scripted SMTP server. Not started.
+
+- D3, third: `mail-unsubscribe` at the terminal, and its preview. Not started.
 
 - E1: Records. Not started.
 
@@ -140,6 +144,7 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: phase D
 
+- 2026-11-19 UTC for step D3's first part, drafts and snooze, on its branch from `main` at `4c6e0237`: the crate built, and its tests and clippy passed on Windows with Rust 1.98.0; drafts and snoozes tested over the scripted IMAP server (revisions and `DRAFT_CHANGED`, who wrote each part, content labelled, input refused without repeating it, discard, restore, and going after 30 days by a fixed clock, paging, a snooze kept by a rebuild and ended by new mail in the thread), and account removal checked against every table that refers to an account or a message. Nothing live was run.
 - 2026-11-17 UTC for step D1's third part, proposals, on its branch from `main` at `dbb9f027`: the crate was built, linted and tested on macOS with Rust 1.98.0, 377 tests passing and the five measurement and live-account tests ignored as before; migration 14 tested on a store at version 13 (every operation, item, id, reference and the next id kept); proposals tested over the scripted IMAP server (an agent's change, resume and undo over the policy proposed and nothing asked of the provider, a wrong count refused, the person's no and yes at a scripted terminal, the preview's query, counts and known senders, a summary with no text from mail, the five a caller, dismissal by the person and by the proposer only, expiry after seven days, mail that moved before the approval left alone, and an approval on a server run as its work). After the independent review, approvals taken while a proposal was open were tested against its approval, dismissal, expiry and screening that is not ready, with the middleware's real token; and the review's blocker, an account that could not be removed after an undo proposal was dismissed, was tested against the code before the fix and failed there. Nothing live was run; no build reached the owner's server.
 - 2026-11-17 UTC for step D1's second part, the change commands and operations, on its branch from `main` at `b7468e7d`: the crate was built, linted and tested on macOS with Rust 1.98.0, 363 tests passing and the five measurement and live-account tests ignored as before; the change commands tested over the scripted IMAP server with and without `MOVE` (archive, trash, label as a move and a copy, mark, each undone; a wrong count, an expired selection, the frozen set, the policy for agents and scripts, the person asked above the count at a terminal, the server's work and a cancel), the connection dropped before each command of a run and after each change with its answer lost, each message found moved once. The four tests added for the review's blockers were run against the reviewed code and failed there. Nothing live was run; no build reached the owner's server.
 - 2026-11-17 UTC for step D1's first part, selections and the policy, on its branch from `main` at `feca7208`: the crate was built, linted and tested on macOS with Rust 1.98.0, 339 tests passing and the five measurement and live-account tests ignored as before; selections tested in the store (what each field selects, two copies of a message in a mailbox, unreturned messages, a burst's story, the cap a caller, a rebuild and an account's removal) and through the commands over the scripted IMAP server (the journal keeping no mail, the policy set only by the person at the terminal); and the 4.4 limits measured at 500 000 messages while other sessions loaded the machine (load 7.6 at the start): every selection made within a second, the whole account's 500 250 messages in 0.62 seconds, against a call's 60; every limit met but import, 474 a second, whose code this change does not touch (the plugin's `docs/limits-500000-d1.results.json`). Nothing live was run.
@@ -269,6 +274,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-19 | Step D3, first part | Drafts and snooze, local to the engine. Drafts carry a revision from the start, so that step F's send can name what the person previewed (Loam's phase 5, 7.2). D3 is split in three: drafts and snooze, then send, then unsubscribe |
 
 ### Sessions: phase E, records and reply sets
 

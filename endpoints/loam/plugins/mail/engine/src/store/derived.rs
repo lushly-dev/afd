@@ -803,7 +803,7 @@ impl Store {
 
     /// The threads a mailbox shows, newest first: at most `limit`, starting
     /// after `before` (the `last_date` and thread of the last row of the page
-    /// before), or from the newest.
+    /// before), or from the newest. Snoozes are not looked at.
     ///
     /// # Errors
     /// When the database refuses.
@@ -813,6 +813,22 @@ impl Store {
         before: Option<(i64, ThreadId)>,
         limit: u32,
     ) -> Result<Vec<ThreadListed>, StoreError> {
+        self.list_threads_snoozed(mailbox, before, limit, None, 0)
+    }
+
+    /// [`Store::list_threads`], with only the threads a snooze holds at `now`
+    /// when `snoozed` is true, and only those it does not when false.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn list_threads_snoozed(
+        &self,
+        mailbox: MailboxId,
+        before: Option<(i64, ThreadId)>,
+        limit: u32,
+        snoozed: Option<bool>,
+        now: i64,
+    ) -> Result<Vec<ThreadListed>, StoreError> {
         let (date, thread) = before.map_or((i64::MAX, i64::MAX), |(date, thread)| (date, thread.0));
         let mut statement = self.connection.prepare_cached(
             "SELECT thread_place.thread_id, thread_place.last_date, thread_place.messages,
@@ -821,22 +837,34 @@ impl Store {
              FROM thread_place JOIN thread ON thread.id = thread_place.thread_id
              WHERE thread_place.mailbox_id = ?1
                AND (thread_place.last_date, thread_place.thread_id) < (?2, ?3)
+               AND (?5 IS NULL OR ?5 = EXISTS (
+                   SELECT 1 FROM snooze
+                   JOIN envelope AS snoozed ON snoozed.message_id = snooze.message_id
+                   WHERE snoozed.thread_id = thread_place.thread_id AND snooze.until > ?6
+                     AND NOT EXISTS (
+                         SELECT 1 FROM envelope AS arrived
+                         JOIN message ON message.id = arrived.message_id
+                         WHERE arrived.thread_id = thread_place.thread_id
+                           AND message.first_seen_at > snooze.set_at)))
              ORDER BY thread_place.last_date DESC, thread_place.thread_id DESC
              LIMIT ?4",
         )?;
-        let rows = statement.query_map(params![mailbox.0, date, thread, limit], |row| {
-            Ok(ThreadListed {
-                thread: ThreadId(row.get(0)?),
-                last_date: row.get(1)?,
-                shown: count(row.get(2)?),
-                messages: count(row.get(3)?),
-                attachments: count(row.get(4)?),
-                subject: row.get(5)?,
-                snippet: row.get(6)?,
-                last_sender: row.get(7)?,
-                unread: count(row.get(8)?),
-            })
-        })?;
+        let rows = statement.query_map(
+            params![mailbox.0, date, thread, limit, snoozed, now],
+            |row| {
+                Ok(ThreadListed {
+                    thread: ThreadId(row.get(0)?),
+                    last_date: row.get(1)?,
+                    shown: count(row.get(2)?),
+                    messages: count(row.get(3)?),
+                    attachments: count(row.get(4)?),
+                    subject: row.get(5)?,
+                    snippet: row.get(6)?,
+                    last_sender: row.get(7)?,
+                    unread: count(row.get(8)?),
+                })
+            },
+        )?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 

@@ -163,6 +163,15 @@ impl Store {
             [account.0],
         )?;
         transaction.execute("DELETE FROM mailbox WHERE account_id = ?1", [account.0])?;
+        // The account's drafts go with it: nothing could send them. Another
+        // account's draft that answers mail that goes keeps its text and
+        // answers nothing; a snooze on mail that goes goes.
+        transaction.execute("DELETE FROM draft WHERE account_id = ?1", [account.0])?;
+        transaction.execute_batch(
+            "UPDATE draft SET answers_message_id = NULL
+                 WHERE answers_message_id IN (SELECT id FROM removing_message);
+             DELETE FROM snooze WHERE message_id IN (SELECT id FROM removing_message);",
+        )?;
         transaction.execute_batch(
             "DELETE FROM message WHERE id IN (SELECT id FROM removing_message);
              DELETE FROM removing_message;",
@@ -206,6 +215,9 @@ const HANDLED: &[(&str, &str)] = &[
     ("selection_item", "message"),
     ("selection_item", "mailbox"),
     ("operation_item", "message"),
+    ("draft", "account"),
+    ("draft", "message"),
+    ("snooze", "message"),
     // Twice: where the message was, and where it goes.
     ("operation_item", "mailbox"),
     ("operation_item", "mailbox"),
