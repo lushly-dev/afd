@@ -24,12 +24,12 @@ import { RESERVED_CHORDS } from './late/setting-sections.js';
 const APPS: AppKeybinding[] = [
 	{ chord: 'Mod+Shift+H', command: 'hello-greet', instance: 'hello' },
 	{ chord: 'Mod+G P', command: 'hello-board', instance: 'hello', when: 'project' },
-	{ chord: 'Mod+Shift+T', command: 'tally-add', instance: 'tally' },
+	{ chord: 'Mod+Shift+T', command: 'count-add', instance: 'count' },
 	{
 		chord: 'Mod+Shift+N',
-		command: 'notes-new',
-		instance: 'notes',
-		when: 'documentType == notes-page',
+		command: 'jot-new',
+		instance: 'jot',
+		when: 'documentType == jot-page',
 	},
 ];
 const at = (context: Partial<KeybindingContextV1> = {}): KeybindingContextV1 => ({
@@ -39,7 +39,7 @@ const at = (context: Partial<KeybindingContextV1> = {}): KeybindingContextV1 => 
 	...context,
 });
 const runnable = (command: string, target: string | undefined) =>
-	command === 'section-open' ? target !== undefined : /^(hello|tally|notes)-/.test(command);
+	command === 'section-open' ? target !== undefined : /^(hello|count|jot)-/.test(command);
 const resolve = (
 	overrides: Parameters<typeof resolveKeybindings>[2] = [],
 	context: Partial<KeybindingContextV1> = {}
@@ -75,15 +75,15 @@ describe('the reserved chords as bindings (8.4, R1, R2)', () => {
 
 describe('precedence (8.1)', () => {
 	it("puts the reserved chords first, then the active app's, then the active tab owner's; another app's are not in force", () => {
-		const { force, entries } = resolve([], { editor: { owner: 'tally', type: 'tally-sheet' } });
+		const { force, entries } = resolve([], { editor: { owner: 'count', type: 'count-sheet' } });
 		expect(force.map(({ chord }) => chord)).toEqual([
 			...SHELL_KEYBINDINGS_V0.map(({ chord }) => chord),
 			'Mod+Shift+H',
 			'Mod+Shift+T',
 		]);
-		// hello's board needs a project; notes is neither active nor the tab's owner.
-		const notes = entries.find((entry) => entry.app === 'notes');
-		expect(notes).toMatchObject({ inForce: false, active: false });
+		// hello's board needs a project; jot is neither active nor the tab's owner.
+		const jot = entries.find((entry) => entry.app === 'jot');
+		expect(jot).toMatchObject({ inForce: false, active: false });
 		expect(entries.find((entry) => entry.command === 'hello-board')).toMatchObject({
 			inForce: true,
 			active: false,
@@ -94,20 +94,17 @@ describe('precedence (8.1)', () => {
 		expect(whenHolds('project', at({ project: true }))).toBe(true);
 		expect(whenHolds('!project', at({ project: true }))).toBe(false);
 		expect(whenHolds('main && editor && sidebar', at())).toBe(true);
-		expect(whenHolds('documentType == notes-page', at())).toBe(false);
+		expect(whenHolds('documentType == jot-page', at())).toBe(false);
 		expect(
-			whenHolds(
-				'documentType == notes-page',
-				at({ editor: { owner: 'notes', type: 'notes-page' } })
-			)
+			whenHolds('documentType == jot-page', at({ editor: { owner: 'jot', type: 'jot-page' } }))
 		).toBe(true);
 		const { force } = resolve([], {
 			project: true,
-			editor: { owner: 'notes', type: 'notes-page' },
+			editor: { owner: 'jot', type: 'jot-page' },
 		});
 		expect(force.map(({ command }) => command)).toContain('hello-board');
-		expect(force.find(({ command }) => command === 'notes-new')).toMatchObject({
-			when: 'documentType == notes-page',
+		expect(force.find(({ command }) => command === 'jot-new')).toMatchObject({
+			when: 'documentType == jot-page',
 		});
 	});
 
@@ -137,24 +134,24 @@ describe('collisions (8.1)', () => {
 	it('shadows a lower binding on colliding keys under the same when; under another when both stay', () => {
 		const apps: AppKeybinding[] = [
 			{ chord: 'Mod+G', command: 'hello-go', instance: 'hello' },
-			{ chord: 'Mod+G P', command: 'tally-pick', instance: 'tally' },
+			{ chord: 'Mod+G P', command: 'count-pick', instance: 'count' },
 			{ chord: 'Mod+Shift+Y', command: 'hello-yes', instance: 'hello', when: 'main' },
-			{ chord: 'Mod+Shift+Y', command: 'tally-yes', instance: 'tally', when: 'sidebar' },
+			{ chord: 'Mod+Shift+Y', command: 'count-yes', instance: 'count', when: 'sidebar' },
 		];
 		const { entries, force } = resolveKeybindings(
 			SHELL_KEYBINDINGS_V0,
 			apps,
 			[],
-			at({ editor: { owner: 'tally', type: 'tally-sheet' } }),
+			at({ editor: { owner: 'count', type: 'count-sheet' } }),
 			runnable
 		);
 		expect(entries.find((entry) => entry.command === 'hello-go')?.shadowed).toEqual([
-			{ source: 'app', command: 'tally-pick' },
+			{ source: 'app', command: 'count-pick' },
 		]);
-		expect(entries.find((entry) => entry.command === 'tally-pick')?.inForce).toBe(false);
+		expect(entries.find((entry) => entry.command === 'count-pick')?.inForce).toBe(false);
 		expect(
 			force.filter(({ chord }) => chord === 'Mod+Shift+Y').map(({ command }) => command)
-		).toEqual(['hello-yes', 'tally-yes']);
+		).toEqual(['hello-yes', 'count-yes']);
 	});
 });
 
@@ -201,18 +198,18 @@ describe("a person's overrides (8.3)", () => {
 	});
 
 	it("comes first: an override on a reserved chord's keys shadows it", () => {
-		const { entries, force } = resolve([{ command: 'tally-add', keys: 'Mod+B' }]);
+		const { entries, force } = resolve([{ command: 'count-add', keys: 'Mod+B' }]);
 		expect(entries[0]).toMatchObject({
 			keys: 'Mod+B',
 			source: 'you',
-			app: 'tally',
+			app: 'count',
 			shadowed: [
-				{ source: 'app', command: 'tally-add' },
+				{ source: 'app', command: 'count-add' },
 				{ source: 'shell', command: 'layout-set' },
 			],
 		});
 		expect(force.filter(({ chord }) => chord === 'Mod+B')).toEqual([
-			{ chord: 'Mod+B', command: 'tally-add' },
+			{ chord: 'Mod+B', command: 'count-add' },
 		]);
 	});
 
@@ -250,22 +247,22 @@ describe('the registry', () => {
 		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(false);
 		registry.setResolver(KEYBINDING_RESOLVER);
 		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(true);
-		expect(registry.list('tally').map(({ chord }) => chord)).toContain('Mod+Shift+T');
+		expect(registry.list('count').map(({ chord }) => chord)).toContain('Mod+Shift+T');
 		expect(registry.list('hello').map(({ chord }) => chord)).not.toContain('Mod+G P');
 		project = true;
 		expect(registry.list('hello').map(({ chord }) => chord)).toContain('Mod+G P');
-		expect(registry.keybindingFor('tally-add')).toBe('Mod+Shift+T');
+		expect(registry.keybindingFor('count-add')).toBe('Mod+Shift+T');
 		expect(registry.keybindingFor('palette-open')).toBe('Mod+K');
 		registry.setOverrides([
-			{ command: 'tally-add', keys: 'Mod+Shift+A' },
+			{ command: 'count-add', keys: 'Mod+Shift+A' },
 			{ command: 'palette-open', keys: null },
 		]);
-		expect(registry.keybindingFor('tally-add')).toBe('Mod+Shift+A');
+		expect(registry.keybindingFor('count-add')).toBe('Mod+Shift+A');
 		expect(registry.keybindingFor('palette-open')).toBeUndefined();
-		registry.setEditor({ owner: 'notes', type: 'notes-page' });
+		registry.setEditor({ owner: 'jot', type: 'jot-page' });
 		expect(registry.context('hello')).toEqual({
 			active: 'hello',
-			editor: { owner: 'notes', type: 'notes-page' },
+			editor: { owner: 'jot', type: 'jot-page' },
 			project: true,
 		});
 		expect(registry.list('hello').map(({ chord }) => chord)).toContain('Mod+Shift+N');

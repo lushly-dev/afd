@@ -258,7 +258,7 @@ describe("when's focus terms (8.1, R4)", () => {
 		expect(focusHolds('editor', inMain)).toBe(false);
 		expect(focusHolds('editor && main', { part: 'main', editor: true })).toBe(true);
 		expect(
-			focusHolds('project && documentType == notes-page', { part: undefined, editor: false })
+			focusHolds('project && documentType == jot-page', { part: undefined, editor: false })
 		).toBe(true);
 	});
 });

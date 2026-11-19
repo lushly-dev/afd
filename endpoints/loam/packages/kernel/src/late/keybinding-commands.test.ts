@@ -17,7 +17,7 @@ import type { MembershipV1 } from '../scope/access.js';
 import { createScopedWorkspace } from '../scope/fixtures.js';
 import { personalRecordId } from '../scope/personal.js';
 import { createFixedEnvironment, createSteppingClock } from '../session.js';
-import { createFixturePorts } from '../testing.js';
+import { createFixturePorts, replayKernel } from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
 
 const kernels: LoamKernelV5[] = [];
@@ -269,6 +269,27 @@ describe('keybinding-list (8.5)', () => {
 		}
 		const names = kernel.listCommands().map(({ name }) => name);
 		expect(names.filter((name) => /^shell-(focus|save|project)/.test(name))).toEqual([]);
+	});
+});
+
+describe('P4-E15: keybinding-list replays', () => {
+	it('replays a session of overrides and lists with no difference', async () => {
+		const { kernel, journal } = await workspace();
+		await kernel.call('keybinding-list', { all: true });
+		await override(kernel, [
+			{ command: 'shell-project-switcher', keys: 'Mod+Shift+O' },
+			{ command: 'palette-open', keys: null },
+		]);
+		await kernel.call('app-open', { instance: 'keys' });
+		await kernel.call('keybinding-list', {});
+		await kernel.call('keybinding-list', { command: 'keys-hello', all: true });
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment(),
+			ports: ports(),
+		});
+		const listed = report.entries.filter(({ command }) => command === 'keybinding-list');
+		expect(listed.length).toBe(3);
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 });
 

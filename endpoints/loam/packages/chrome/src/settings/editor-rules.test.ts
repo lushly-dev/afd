@@ -68,24 +68,24 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 	it('warns before shadowing another binding on colliding keys, never the one it rebinds (8.3, 15)', () => {
 		const bindings = [
 			{ keys: 'Mod+Shift+H', command: 'hello-greet', source: 'app' as const, active: true },
-			{ keys: 'Mod+G P', command: 'tally-pick', source: 'app' as const, active: true },
-			{ keys: 'Mod+Shift+Q', command: 'notes-quit', source: 'app' as const, active: false },
+			{ keys: 'Mod+G P', command: 'count-pick', source: 'app' as const, active: true },
+			{ keys: 'Mod+Shift+Q', command: 'jot-quit', source: 'app' as const, active: false },
 		];
-		expect(overrideWarning({ command: 'tally-add', keys: 'Mod+Shift+H' }, bindings)).toBe(
+		expect(overrideWarning({ command: 'count-add', keys: 'Mod+Shift+H' }, bindings)).toBe(
 			"Mod+Shift+H runs hello-greet, the app's; this binding would shadow it."
 		);
-		expect(overrideWarning({ command: 'tally-add', keys: 'Mod+G' }, bindings)).toMatch(
-			/^Mod\+G P runs tally-pick/
+		expect(overrideWarning({ command: 'count-add', keys: 'Mod+G' }, bindings)).toMatch(
+			/^Mod\+G P runs count-pick/
 		);
 		expect(
 			overrideWarning({ command: 'hello-greet', keys: 'Mod+Shift+H' }, bindings)
 		).toBeUndefined();
 		// An app's binding not in force now still warns: it holds whenever its app is active.
-		expect(overrideWarning({ command: 'tally-add', keys: 'Mod+Shift+Q' }, bindings)).toMatch(
-			/notes-quit/
+		expect(overrideWarning({ command: 'count-add', keys: 'Mod+Shift+Q' }, bindings)).toMatch(
+			/jot-quit/
 		);
 		expect(
-			overrideWarning({ command: 'tally-add', keys: 'Mod+Shift+Z' }, bindings)
+			overrideWarning({ command: 'count-add', keys: 'Mod+Shift+Z' }, bindings)
 		).toBeUndefined();
 	});
 

@@ -51,9 +51,10 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
 - **Done, step 4, overlays II** ([#1629](https://github.com/lushly-dev/afd/pull/1629), 2026-11-19): dialogs, modals' actions and elements, prompts, the slot, 6.1's path table for every kind, 6.5's answer rule with F6's cancels, `parked` and `overlay-global-set`; what it decided, measured and left, and what its trust review changed, is in [its record](#step-4-2026-11-19).
 - **Done, step 5, the inbox** ([#1630](https://github.com/lushly-dev/afd/pull/1630), 2026-11-19): section 10 without confirmations, the `notification` table and `notification-push`, `-list`, `-read`, `-archive` and `-act`, sticky toasts landing (6.1), `muted`, the `inbox` chunk, the title bar's Inbox button and the announcement, a sticky toast's **Open inbox**, the palette's row, hello's guest book, and P4-E6; what it decided, measured and left is in [its record](#step-5-2026-11-19).
+- **Done, step 7, keybindings** (`lush/loam-p4-step7-keybindings`, 2026-11-19, not merged): section 8 with the coordinator's rulings R1 to R5, `keybinding-list`, `Mod+Alt+P`, the manifest's sequences and `when`, the keybinding editor's sequences and warnings, the job `rebind-a-chord`, and P4-E9; what it decided, measured and left is in [its record](#step-7-2026-11-19), with amendments to 3.4, 8.1, 8.3, 8.5, 12.1, 16 and P4-E14 (step 7).
 - **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
 - **Done, step 10, limits** ([#1631](https://github.com/lushly-dev/afd/pull/1631), 2026-11-19, its trust review answered): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, P4-E10's units and Chromium, and, merged with steps 4 and 5 (`main` at `cb4d5dff`), the owners' notice through the inbox and the job `limit-refuses-call`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 5, steps 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 5, steps 7, 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -367,6 +368,7 @@ For key `k` of section `s`, for person `p` in scope `{ workspace, project? }`, t
 - **Person values** are one record per person, `loam.settings`, in the view-state store's backing table. In `provider` mode it is keyed through `personalRecordId`. Its shape is `{ [sectionFullId]: { [key]: { value, updatedAt, updatedBy } } }`.
   - **`loam.settings` is not a view-state id.** `view-state-*` on it is refused with `VIEW_STATE_NOT_FOUND`, and `view-state-list` leaves it out.
 - **Shared values** are rows of the workspace store's `setting` table, `<sectionFullId>/workspace` or `<sectionFullId>/project/<projectId>`, each with per-key `updatedAt` and `updatedBy`. Project rows are archived and restored with their project.
+  - **Amended (step 7, R5):** a person's `loam.keybindings` is kept per workspace too, in the person's record at `<workspace>/loam.keybindings`, so another workspace in the same browser never reads a person's overrides. A value under the bare `loam.keybindings`, as step 2 kept it, is never read: overrides set before step 7 are set again.
   - **Amended (step 10, R1; closes #1614):** each id starts with its workspace, `<workspace>/<sectionFullId>/workspace` or `<workspace>/<sectionFullId>/project/<projectId>`, as step 8 keyed the autonomy rows, so two workspaces in one browser's store never share a row. A row keyed without its workspace is not this workspace's: it is never read and never written over. Values set before this step in that shape are not migrated: they read as unset, and an owner sets them again at the new id. Until then a workspace's lowered `loam.limits` reads as its defaults (section 11).
 
 ### 3.5 The settings section
@@ -778,13 +780,18 @@ A human gesture answers. This amends phase 2's 5.5 (A-P2-1).
 export interface KeybindingV1 {
 	keys: string;          // one chord, or two separated by a space: "Mod+G P"
 	command: string;
-	target?: string;       // for `section-open`
+	target?: string;       // for `section-open`; amended (step 7, R2): for `layout-set`, the part a toggle chord toggles
 	when?: string;         // `editor`, `sidebar`, `main`, `project`, `!project`, `documentType == <type>`, joined by " && "
 }
 ```
 
 - **Sequences:** a sequence's first chord has `Mod` and is never a reserved chord. It waits 1,500 ms for the second.
 - **Precedence:** overrides, then the reserved chords, then the active app's, then the active tab owner's.
+- **Amended (step 7), the coordinator's rulings:**
+  - **R1, the reserved chords that run no command:** a binding names a command, and no command saves an editor, moves focus between the parts or opens the project switcher. So F6, Shift+F6, Mod+S and Mod+Alt+P are listed and overridden under names in the shell's domain, which no app may declare: `shell-focus-next`, `shell-focus-previous`, `shell-save` and `shell-project-switcher`. Called, each is refused with `KEYBINDING_ACTION_ONLY`, whose suggestion names `keybinding-list`. The job `rebind-a-chord` names `shell-project-switcher`, since `section-open` has no switcher. Making them commands is a [follow-up](#follow-ups).
+  - **R2, the layout toggles:** Mod+B, Mod+Alt+B and Mod+J all run `layout-set`, so `target` names the part each toggles: `sidebar`, `inspector` or `panel`.
+  - **R4, `when`:** `editor`, `sidebar` and `main` hold while focus is inside the active editor or that part, and the chrome decides them. `project` and `!project` follow whether the active scope has a project, and `documentType == <type>` the active editor tab's document type; the kernel decides those.
+- **Amended (step 7), collisions:** two bindings collide on the same keys, or when one is a single chord and the other a sequence that begins on it. First to last by precedence, a binding whose keys collide with one in force before it, under the same `when`, is shadowed by it. Under different `when`s both stay in force, and the first whose `when` holds runs. Apps' bindings that collide are refused at load with `KEYBINDING_CONFLICT`, as phase 1's same chords were.
 
 ### 8.2 Matching a key (#877)
 
@@ -795,6 +802,11 @@ export interface KeybindingV1 {
 - **Overrides** rebind or unbind any binding but `F6`, `Shift+F6` and `Escape` (`KEYBINDING_RESERVED`).
 - **Warnings:** `loam-keybinding-editor` warns before shadowing a reserved chord or unbinding `Mod+K`.
 - **Overrides are human (3.2).**
+- **Amended (step 7):**
+  - **What an override does:** it replaces every binding of its command and `target`, which `keybinding-list` names as what it shadows; `keys: null` only removes them. Its binding holds everywhere: an app's `when` does not come with it. It runs its command with no input, or `section-open` with its `target` as the section; an override of a command that is not registered, or that needs input, is listed with `all` and is not in force.
+  - **F6 and Shift+F6** are neither rebound nor unbound: an override naming `shell-focus-next` or `shell-focus-previous` is `KEYBINDING_RESERVED`, as one binding F6, Shift+F6 or Escape is. A sequence beginning on a reserved chord is `KEYBINDING_RESERVED`, and one whose first chord has no `Mod` `VALIDATION_ERROR`.
+  - **R5, who reads and writes them:** an agent's write is `HUMAN_REQUIRED` and a port's `CALL_NOT_GRANTED` (3.2); they are kept per workspace and person (3.4, amended).
+  - **The editor** also warns before an override shadows any other binding on colliding keys, an app's not in force now included, and refuses before Add what the kernel would refuse.
 
 ### 8.4 The reserved chords, version 1
 
@@ -803,6 +815,14 @@ Phase 0's seven, plus `Mod+Alt+P` for the project switcher (#857). P4-E9 asserts
 ### 8.5 Commands
 
 `keybinding-list { command?; target?; all?: boolean }` returns the bindings in force (with `all`, also the shadowed ones), ordered by keys: `{ bindings: Array<KeybindingV1 & { source: 'shell' | 'app' | 'you'; app?: string; shadowed?: Array<{ source; command }>; active: boolean }> }`. `keybinding` joins the shell's domains.
+
+**Amended (step 7):**
+
+- **In force** are the overrides, the reserved chords, the active app's and the active tab owner's bindings, none shadowed or replaced. With `all`, also those shadowed or replaced, an override not in force, and every other app's; `keys: null` overrides are not bindings and are not listed. Equal keys keep precedence's order.
+- **`active`** is in force with the `when` terms the kernel decides holding (R4): `project` and `documentType`. The focus terms, `editor`, `sidebar` and `main`, count as holding, and the command's description says so.
+- **`shadowed`** names the bindings an override replaced, then those its keys shadow.
+- **`app`** is the instance whose command it runs: an app's binding, or an override of one.
+- **R5, the callers:** those of `setting-list`, the person and the agent acting for them; an app gets `CALL_NOT_GRANTED`, refused in the handler too; it is of the `setting` category, so it is not served over MCP.
 
 ### 8.6 Chords inside a view
 
@@ -939,7 +959,7 @@ export interface NotificationV1 {
 | `ui.experiments` | 5.1 | `MANIFEST_EXPERIMENTS_LIMIT`, `MANIFEST_EXPERIMENT_DATE`; `EXPERIMENT_OVERDUE` warns |
 | `requires_experiment` | 5.3 | `MANIFEST_EXPERIMENT_UNKNOWN` |
 | `commands[].confirm_prompt` | 7.2 | For a mounted tool, still `MANIFEST_CONFIRM_UNAVAILABLE` |
-| `ui.surfaces.keybindings[]` | 8.1 | `MANIFEST_KEYBINDING_KEYS`, `MANIFEST_KEYBINDING_WHEN`, `MANIFEST_KEYBINDING_RESERVED` |
+| `ui.surfaces.keybindings[]` | 8.1. **Amended (step 7, R3):** the field stays phase 1's `chord`, now one chord or a sequence of two, with `when`, in manifest version 2 only, and no `target`, since an app binds its own commands; a version 1 manifest holding either is told the version (`MANIFEST_SURFACE_UNAVAILABLE`) | Phase 1's `KEYBINDING_RESERVED` for a reserved chord, and for a sequence that begins on one; `MANIFEST_KEYBINDING_KEYS` for a sequence whose first chord has no `Mod`; `MANIFEST_KEYBINDING_WHEN` for a `when` outside 8.1's terms |
 | `plugin.title` | 6.6 | `MANIFEST_TITLE_RESERVED` |
 | `ui.menus` | Section 9 | Still refused, naming a later specification |
 
@@ -984,7 +1004,7 @@ These are estimates, under D115.
 | --- | --- | --- |
 | 1 | Stage A reads `loam.settings`, and `loam.appearance.last` in `provider` mode | 450, 180 |
 | 3 | The toast region's F6 stop and owner line | 300, 120 |
-| 7 | The key matcher | 600, 250 |
+| 7 | The key matcher | 600, 250. **Measured (step 7):** 3,384, 1,276, with the resolver moved into `late-settings` (its record) |
 | **Total** | | **about 1,350, 550** |
 
 | Row | Estimate |
@@ -1038,7 +1058,10 @@ These are estimates, under D115.
 | `CONFIRMATION_DECLINED` | Declined, or declined within 60 s for the same input | No | Ask the person before trying again; do not repeat the call |
 | `CONFIRMATION_EXPIRED` | In `confirmation-get`'s `result`, after 10 minutes unanswered | No | Ask the person, then call again to raise a new one |
 | `HUMAN_REQUIRED` (from these commands) | A human-only write or answer | No | Names the route; `details: { route, section, key, level }` |
-| `KEYBINDING_RESERVED` | Overriding F6, Shift+F6 or Escape | No | Bind another key |
+| `KEYBINDING_RESERVED` | Overriding F6, Shift+F6 or Escape. **Amended (step 7):** or rebinding or unbinding F6's or Shift+F6's own binding, or a sequence beginning on a reserved chord | No | Bind another key |
+| `KEYBINDING_ACTION_ONLY` | A reserved chord's action called as a command (8.1, R1; step 7) | No | Press its keys: `keybinding-list { command }` names them |
+| `MANIFEST_KEYBINDING_KEYS` | A sequence whose first chord has no `Mod` (12.1; step 7) | No | Begin the sequence with a Mod chord, such as `Mod+G P` |
+| `MANIFEST_KEYBINDING_WHEN` | A `when` outside 8.1's terms (12.1; step 7) | No | Use editor, sidebar, main, project, !project or documentType == <type>, joined by " && " |
 | `INPUT_TOO_LARGE` | Section 11 | No | Send less, or ask an owner to raise `loam.limits.inputBytes` |
 | `RATE_LIMITED` | Calls, pushes or pending confirmations over their rate. Always `details: { limit, retryAfterMs }` | Yes | For calls: wait, then retry; an owner sets `loam.limits.callsPerSecond`. For pushes: wait; the rate is fixed. For confirmations: wait for one to be answered or expire |
 | `QUOTA_EXCEEDED` | A store or the notifications over their quota | No | Delete what this app no longer needs, or archive notifications |
@@ -1095,7 +1118,7 @@ The phase exits when all of these hold:
 | P4-E11 | Withdrawn | | Menus are deferred (section 9) |
 | P4-E12 | **Budgets** | Budget; Chromium | Section 14 |
 | P4-E13 | **Accessibility and captures** | Chromium | Section 15; **the autonomy section's advisory notice** |
-| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2. **Amended (step 10):** phase 2's P2-D4 "never reads a document's content but to move it" (`kernel/src/late/documents.test.ts`) allows at most one list of `app-probe`: the store quota lists an instance's table to count its rows' sizes when it has no usage row, and at stage B's daily recount (section 11); expiry reads each expired content row's charge to refund it. **Amended (step 10, after merging steps 4 and 5):** phase 2's P2-E7 "a view's store under Atlas reads nothing of Beacon's, and a `p~` key is refused" (`web/test/browser/scope/session.test.ts`) expects `hello-greet { name: 'p~…' }` to fail with the store's `VALIDATION_ERROR`, not `HANDLER_THREW`, since the trust review's blocker 9 answers a kernel refusal thrown into a handler as that refusal; nothing stored and Beacon's data unread, as before |
+| P4-E14 | **What exited stays exited** | Earlier phases' places | Phases 0 to 3's local exit tests, amended only as listed. **Amended (step 2):** phase 0's "shows the settings tooltip on hover and focus…" (`web/test/browser/accessibility.test.ts`) expects Settings in the rail enabled, its tooltip "Settings", and a press opening the settings section; phase 2's P2-E11 (`scope/rail.test.ts`) reads hello at manifest version 2. **Amended (step 10):** phase 2's P2-D4 "never reads a document's content but to move it" (`kernel/src/late/documents.test.ts`) allows at most one list of `app-probe`: the store quota lists an instance's table to count its rows' sizes when it has no usage row, and at stage B's daily recount (section 11); expiry reads each expired content row's charge to refund it. **Amended (step 10, after merging steps 4 and 5):** phase 2's P2-E7 "a view's store under Atlas reads nothing of Beacon's, and a `p~` key is refused" (`web/test/browser/scope/session.test.ts`) expects `hello-greet { name: 'p~…' }` to fail with the store's `VALIDATION_ERROR`, not `HANDLER_THREW`, since the trust review's blocker 9 answers a kernel refusal thrown into a handler as that refusal; nothing stored and Beacon's data unread, as before. **Amended (step 7):** phase 2's P2-E10 "holds no deployer's key in any reachable command's input schema" (`kernel/src/stores.test.ts`) and phase 1's 3.3 "gives no shell command an input key for a location, a credential or a command line" (`kernel/src/apps/mounted.test.ts`) exempt `keybinding-list`'s `command`, a filter it reads and writes nowhere, as step 8 exempted autonomy's; phase 2's P2-E11 "reads every document of version 1 as it did" (`manifest/src/profile.test.ts`) counts a keybinding's sequence and `when` among the version 2 keys; and phase 0's and phase 1's reserved chord lists (`kernel/src/palette-index.test.ts`, `chrome/src/keyboard.test.ts`) gain `Mod+Alt+P` (8.4) |
 | P4-E15 | **Every new command replays** | Units | A seeded session |
 | P4-E16 | **Every scenario passes, and no job was skipped** | Units; the exit step | `scenarios.test.ts`, then `node scripts/loam-exit-check.mjs --phase 4` |
 | P4-E17 | **Hosted refusal** | Units | A hosted `provider` projection. **Refused with `SHARED_RECORD_UNAVAILABLE`,** journaled, with no table changed: `setting-set` and `setting-reset` at `workspace` and `project` level, `autonomy-set` at every level including `person`, and workspace `experiment-*`. **These succeed:** `setting-set` at `person` level, person `experiment-*`, `notification-*` and confirmations |
@@ -1756,6 +1779,49 @@ The inbox, on `lush/loam-p4-step5-inbox` from `main` at `42f9e1c1` (steps 1 to 3
 - **The verification of `2995bb7e`:** the act's read-back tells a row that is gone (`null`) from a store that could not be read (`'failed'`). A failed read after the run falls back to the claimed row, so the claim is released when the action failed and completed when it ran, at the cost of a read or an archive made meanwhile (a unit for each). A claim this call wrote but could not read back before the run stays, and the notice never runs.
 - **The coordinator's `pnpm verify` of `bfbdeaa9`:** the Inbox count's `notification-list` at stage B added an entry to an empty shell's boot, against phase 2's rule (4.3) that the shell's own stage-B reads journal nothing, as `scope-get`, `section-get` and phase 3's `persona-list` do not. By the coordinator's ruling it joins `UNJOURNALED_COMMANDS` (amends 10.2): it reads and writes nothing else, so an agent's or an app's `notification-list` is not journaled either, as with `persona-list`, and phase 0's E2 is unchanged. The replay units now show a replayed notice through journaled reads (`notification-read` and `-archive` with `all`, whose counts the replay must reproduce). The refusal fixtures list hello's `hello-guests`, so they reach the throwing `activate` and import they test.
 
+## Step 7, 2026-11-19
+
+Keybindings, on `lush/loam-p4-step7-keybindings` from `main` at `ca1b11f3` (steps 1 to 5, 8 and 10 merged), not merged. The step stopped once, before its design, on five questions section 8 left open; the coordinator ruled R1 to R5 on 2026-11-19, and each is built and recorded in the sections it amends.
+
+**The rulings.**
+
+- **R1:** AFD wants every capability a command, so a binding names one where it exists: Mod+K `palette-open`, the layout toggles `layout-set`. No command saves an editor, moves focus between the parts or opens the project switcher (`section-open` has no switcher, and the editor area has no save command), so those four reserved chords are named `shell-focus-next`, `shell-focus-previous`, `shell-save` and `shell-project-switcher`, in the shell's domain: listed, rebindable but for F6's two, never an app's, and refused when called with `KEYBINDING_ACTION_ONLY`. A [follow-up](#follow-ups) makes them commands. The job `rebind-a-chord` named `section-open { target: switcher }`; it names `shell-project-switcher` now.
+- **R2:** `target` names the part a layout toggle toggles. Step 2's stored `{ command: 'layout-set', keys: null }`, with no target, matches no binding and changes nothing.
+- **R3:** the manifest keeps phase 1's `chord`, as a sequence too, with `when`, in version 2 only and with no `target`; phase 1's `KEYBINDING_RESERVED` stays the manifest's code, also for a sequence beginning on a reserved chord; `MANIFEST_KEYBINDING_KEYS` and `MANIFEST_KEYBINDING_WHEN` are new (12.1, 16).
+- **R4:** `when`'s focus terms are the chrome's, and `keybinding-list`'s `active` counts them as holding; its description says so.
+- **R5:** `keybinding-list`'s callers are `setting-list`'s; overrides stay human writes, kept per workspace and person.
+- **Collisions** and **the rail order** as the step proposed: below.
+
+**Built.**
+
+- **The matcher** (`chrome/src/keyboard.ts`, first paint): 8.2's key, `event.key` for a Latin letter or digit, else `event.code`, so a German layout's Z is its own and a Cyrillic letter, macOS's Alt letters and a shifted digit are their physical key; `Ctrl` and `Meta` held apart from `Mod`; `pressKey`, a sequence's first chord waiting 1,500 ms for its second, a modifier alone keeping the wait and any other key matched afresh; `when`'s focus terms; `Mod+Alt+P` pressing the shown project switcher (8.4, #857).
+- **The registry** (`kernel/src/keybindings.ts`, first paint): the reserved chords and the active app's, as phase 1 had them, until `late-settings` gives it the resolver; then the bindings in force by 8.1's precedence. The active tab's owner and document type reach it from the editor area's settle (`late/editor-commands.ts`); `listCommands`' keys are the person's own where they rebind one.
+- **The resolver** (`kernel/src/late/keybinding-resolve.ts`, `late-settings`): precedence, an override replacing its command and target, colliding keys shadowed under the same `when`, R1's names and R2's targets, R4's kernel terms.
+- **`keybinding-list`** (`kernel/src/late/keybinding-commands.ts`, `late-settings`; 8.5): strict input, the `setting` category, ordered by keys, detached copies, an output budget of 64 KiB, `CALL_NOT_GRANTED` for an app in the handler too, and refused when no registry was given (fail closed). `keybinding` joins `SHELL_DOMAINS_V1` and the manifest schema's reserved ids; `keybinding-list` joins the shell's command names and the sweeps' inputs.
+- **Overrides** (`late/settings.ts`, `late/setting-sections.ts`): read into the registry at the late load, after each write of the section and on a change of person, none signed out in `provider` mode; kept at `<workspace>/loam.keybindings` in the person's record (3.4, R5); a value that no longer passes its check is none, a read that fails keeps what the registry holds. The check refuses a sequence whose first chord has no `Mod` or is reserved, and F6's two actions.
+- **`KEYBINDING_ACTION_ONLY`** (`kernel.ts`): a call to one of R1's names, before any registry.
+- **The manifest** (`app-manifest.v2.json`, `loam-rules.ts`, `catalogs.ts`): 12.1 as amended, `keybindingWhenProblem` shared with the kernel, `Mod+Alt+P` in `SHELL_RESERVED_CHORDS_V1`, and the version 1 refusal through `versionKeyFindings`; profile cases for each code and version. The apps' load refuses colliding keys with `KEYBINDING_CONFLICT`, the kernel handing the `apps` chunk the resolver's rule.
+- **Save** (`chrome/src/editor/`): the editor area asks the shell whether a key is save (`LoamShell.isSave`, the bindings in force, so Mod+S rebound or unbound holds); a save binding that is a sequence is completed by the shell, which asks the area with `loam-save-asked`.
+- **The keybinding editor** (`chrome/src/settings/editors.ts`, `editor-rules.ts`): a Mod chord followed at once by a second key records a sequence; a target field; the warnings before shadowing a shell chord, unbinding Mod+K or shadowing any other binding, from `keybinding-list { all: true }`; Add disabled, with the reason said, for keys the kernel would refuse and for F6's own binding; the command field suggests R1's names too.
+- **Tests:** the kernel's `keybindings.test.ts` (the resolver, 13) and `late/keybinding-commands.test.ts` (8: the list, the job's steps, shadowing and the palette's keys, the callers, R1's refusal, the workspace keying on one store, step 2's bare value unread, two people in `provider` mode); chrome's `keyboard.test.ts` and `settings/editor-rules.test.ts`; the manifest's profile cases; `rebind-a-chord` runs in `scenarios.test.ts`; P4-E9 in Chromium, `web/test/browser/keybindings.test.ts` (8): `Mod+Alt+P` reaching the page, German and Cyrillic layouts pressed through the DevTools protocol with each layout's `key` and `code`, a sequence and a late second key, `KEYBINDING_RESERVED`, an override with `source` and `shadowed` keeping its action and a layout toggle by its part, the editor's warnings and a recorded sequence under axe, the rail order by keyboard, and no key from a view (8.6).
+
+**Decided while building it,** each a judgement a reviewer should check:
+
+- **The resolver is late** (P4-E12): in first paint it measured 1,526 more; only the late load reads a person's overrides, so first paint keeps phase 1's band until then. An app binding with a `when` is not in force before it (the kernel's terms are undecided).
+- **No lazy chunk imports the matcher or the registry** (phase 3's 13): the `apps` chunk is handed the collision rule; the `editor` chunk asks the shell; the `settings` chunk keeps copies of `keyOf`, the collision rule and the 1,500 ms, held equal by units, as `RESERVED_CHORDS` in `late-settings` is.
+- **An override holds everywhere** and runs whenever its command is registered and needs no input, whatever app is active, as the palette would run it; an app's `when` does not come with it.
+- **A non-matching second key** ends the wait and is matched as a key of its own, rather than swallowed.
+- **The editor's shadow warning** counts an app's binding not in force now, since it holds whenever that app is active.
+- **The rail order** in P4-E9 is read as reordering the rail from the keyboard in the settings section, the person's own order following.
+
+**Left for later steps:**
+
+- **Step 6** changes the palette's listing (A-P0-1); the palette shows each command's keys from `listCommands`, which this step's registry gives, so the ranking is untouched.
+- **The follow-up** to make R1's actions commands.
+- **#706:** whether Firefox and WebKit receive `Mod+Alt+P` (the existing follow-up).
+
+**Measured.** D115, on Windows with Node 26.13.1, against step 10's merged figures (the budget's header records each): first paint 315,952 and 99,161 gzip (+3,384 and +1,276 against section 14's 600 and 250), `jsMinified` 316,500 and `jsGzip` 99,500 with `first-paint.test.ts`'s literal; `kernelMinified` 125,200 (124,650); `lateMinified` 110,500 (110,224); `lateEditorMinified` 15,600 (15,447); `lateSettingsMinified` 73,500 (72,883, +5,042); `appsMinified` 426,500 (426,064, +2,354); `settingsMinified` 44,800 (44,352, +2,152).
+
 ## Step 8, 2026-11-19
 
 Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after steps 1 and 2), not merged. It gets a trust review (section 20).
@@ -1937,3 +2003,5 @@ Also: the handler frame's gate refusal of a nested `tools/call` is journaled top
 | 2026-11-19 | Step 5's verification of `0e2fba70` | Journal an agent's or an app's `notification-list` (a per-caller filter leaving out only the shell's own read), since `body: true` returns notice bodies and a pending confirmation's input | Open |
 | 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Done 2026-11-19, after merging step 5: `limit-notice-push` |
 | 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |
+| 2026-11-19 | Step 7 (the coordinator's R1) | Make the reserved chords' actions commands (`shell-focus-next`, `shell-focus-previous`, `shell-save`, `shell-project-switcher`), which are listed and rebindable but refused when called (`KEYBINDING_ACTION_ONLY`) | Open |
+| 2026-11-19 | Step 7 | Read a person's overrides again when another tab writes them: today a page reads them at its late load, after its own writes and on a change of person | Open |
