@@ -18,6 +18,10 @@ One foreman per lane. Pass your own `session` (your T3 Code thread id) to `cell_
 `lane_wait(consumer="foreman")` and `dial_set`: the first takes the lane's lease and each renews
 it for `foreman.leaseMinutes` (waiting renews it too). Another session is refused
 `FOREMAN_BUSY` (naming the holder and when its lease runs out): stop, and leave the lane to it.
+A session another one took the lane from (after its lease ran out, or a `foreman_handoff`) is
+superseded: its foreman commands are refused `FOREMAN_STALE` (naming the newer session and
+when), since its brief may be out of date. Stop and report; a foreman that should run again
+starts in a new session.
 
 1. `lane_status()`: when `canStartCell`, it names the `plan` and `nextIssue`; otherwise `reason`
    (and `nextReset` when every plan is at its ceiling).
@@ -43,13 +47,15 @@ refused the merge, or the pull request left the merge queue unmerged for another
 `.nvmrc`; `detail` starts `NODE_MISSING`: keep the base's `.nvmrc`, or the owner installs that
 Node on the lane host); with `detail`, `lines`
 and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
-`lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`:
+`lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`, so the
+cell waits on the owner and frees its seat, with a `queue-room` when that opens one:
 `conflict`, `push-failed`, `pr-failed` and `merge-failed` never count, nor one
 `ejection_excuse` excused; answered as `ejected` is, or by the excuse that brings it under the
 limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open, a pull request still in the
-merge queue after as long, left there; it paused and ejected nothing;
+merge queue after as long, left there; free disk at the lane's slots below
+`host.minFreeDiskGb` before a validation starts; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
 `merged` (`detail` ends `through the merge queue` when it went through one),
 `merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
@@ -126,14 +132,20 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   relatedBecause?}`. More than one issue is a package the foreman names: up to
   `cells.issuesMax` dispatchable issues that share files, with `related_because` saying what
   they share; one PR then replaces cells that would conflict in the queue. Refusals, checked in this
-  order: `VALIDATION_ERROR` for an empty `session`, `FOREMAN_BUSY` (another session holds the
+  order: `VALIDATION_ERROR` for an empty `session`, `FOREMAN_STALE` (a newer session took the
+  lane from this one), `FOREMAN_BUSY` (another session holds the
   lane; the lease is taken before the checks below), `VALIDATION_ERROR`,
   `TOO_MANY_ISSUES` (over `cells.issuesMax`, or a package without `related_because`),
   `ALREADY_EXISTS` (the branch has a cell), `ALREADY_CLAIMED` (names the holding branch),
   `NOT_DISPATCHABLE` (triage has not planned it, or a rule holds it), `CELLS_FULL`
-  (`cells.max`), `PLAN_ABOVE_CEILING` (every plan a cell may take at or above `plans.ceiling`;
-  names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while `cells.claudeOnly` is on),
-  `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`),
+  (`cells.max`; a cell holds a seat from registration until it merges, is dropped or parks,
+  and an ejected cell keeps it while its foreman repairs it, but not once its own failures
+  reach `cells.maxEjections` and it waits on the owner: an excuse that brings it under the
+  limit seats it again), `PLAN_ABOVE_CEILING` (every plan a cell may take at or above
+  `plans.ceiling`; names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while
+  `cells.claudeOnly` is on),
+  `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`), `DISK_LOW` (free
+  disk where the lane's slots build below `host.minFreeDiskGb`; names that directory),
   `WRITE_FAILED` (a claim write failed; the claims it wrote are put back, and it names any it
   could not). A refusal writes nothing.
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
@@ -145,8 +157,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `mergeQueue {since, queuedAt, state, position, groupHead}` and the lane's own notes:
   `queue` and `seen` (GitHub showed a queue, and this entry in it), `removedBefore` (the
   last removal before the request) and `leftAt` (when it was first read out of the queue)),
-  `waitingOnOwner`, `dials`, `canStartCell` with `plan` (with its `pace`) and `nextIssue`, or
-  `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
+  `waitingOnOwner` (owner-decision issues, parked cells and ejected cells at the limit, and
+  events that need the owner), `dials`, `canStartCell` with `plan` (with its `pace`) and
+  `nextIssue`, or `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
   `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held. A repaired
   (ejected) branch goes to the front; a full queue (`lane.queueMax`) holds the branch. The head
@@ -165,9 +178,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,
   detail?, logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`;
-  over MCP pass at most 300000. As `foreman`, refuses `FOREMAN_BUSY` while another session holds
-  the lane; with `session` it takes the lease, and keeps it while waiting when `timeout_ms` is
-  given.
+  over MCP pass at most 300000. As `foreman`, refuses `FOREMAN_STALE` for a superseded session
+  and `FOREMAN_BUSY` while another session holds the lane; with `session` it takes the lease,
+  and keeps it while waiting when `timeout_ms` is given.
 - `foreman_handoff(session)` -> `released` (the lease, or null when none was held): frees the
   lane for another foreman; the owner's call when a session has ended. It names the holder's
   session, or any once the lease ran out; otherwise `NOT_FOREMAN`.
@@ -190,7 +203,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `ejection_excuse(branch, reason, session?)` -> `branch`, `attempt`, `cause`, `ejections`,
   `excused`, `counted`, `limit`, `answered[]`: the cell's latest ejection was not its branch's
   fault (a known flake), so it stops counting toward `cells.maxEjections`; under the limit again,
-  it answers the open `ejection-limit`. Refuses `VALIDATION_ERROR`, `FOREMAN_BUSY`, `NOT_FOUND`
+  it answers the open `ejection-limit`. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`,
+  `FOREMAN_BUSY`, `NOT_FOUND`
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
@@ -220,14 +234,16 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.
 - `dial_set(key, value, session?)` -> `key`, `value`, `previous`, `default`. A foreman names
-  its `session` (the owner, setting a dial by hand, names none). Refuses `FOREMAN_BUSY`,
+  its `session` (the owner, setting a dial by hand, names none). Refuses `FOREMAN_STALE`,
+  `FOREMAN_BUSY`,
   `NOT_FOUND`,
   `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`) and
   `CONFIRMATION_REQUIRED` for the owner's `review.*` dials.
 
 ## Dials
 
-`lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
+`lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `host.minFreeDiskGb` 20
+(at the lane's slots, which keep each slot's build output), `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `cells.claudeOnly` true,
 `lane.coverageEvery` 5, `lane.checkTimeoutMinutes` 90 (the required check on a pull request,
 and then the wait in a merge queue), `lane.maxBaseReruns` 2 (100 all but

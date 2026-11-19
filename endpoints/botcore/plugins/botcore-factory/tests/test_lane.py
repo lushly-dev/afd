@@ -961,3 +961,19 @@ def test_paths_left_unmerged_after_regenerating_eject(lane):
 def test_without_regenerate_a_records_conflict_ejects_as_before(lane):
     lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
     assert "ejected feat/export-csv (conflict)" in run_steps(lane)
+
+
+def test_a_short_disk_pauses_the_lane_before_validating(lane):
+    """lushly-dev/afd#1565: a full disk mid-build ejected a good branch; now the lane pauses
+    first, names the dial and where the slots build, and ejects nothing."""
+    lane.change_world(host={"freeDiskGb": 12})
+    run_steps(lane, 2)
+    assert "validation-started" not in kinds(lane) and not events(lane, "ejected")
+    assert queue(lane)[0] == ("feat/export-csv", "queued")
+    [error] = events(lane, "lane-error")
+    assert "host.minFreeDiskGb is 20" in error["detail"] and "slots" in error["detail"]
+    assert lane.state()["lane"]["paused"] is True
+    with lane.store.update("room again") as state:
+        state["lane"]["paused"] = False
+    lane.change_world(host={"freeDiskGb": 200})
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]

@@ -641,6 +641,9 @@ class CliGit:
             )
         return str(repository.with_name(f"{repository.name}.factory-slots") / slot)
 
+    def slots_dir(self) -> str:
+        return str(Path(self._slot_path("slot")).parent)
+
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         path = self._slot_path(slot)
         if branch:  # A queued branch; the base's coverage checks origin's head out instead.

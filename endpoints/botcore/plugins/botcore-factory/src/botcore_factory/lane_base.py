@@ -267,11 +267,17 @@ class StepBase:
         )
         cell = self.cell(branch)
         if cell is not None:
+            from botcore_factory.cells import holding_seats  # cells imports this module.
+
+            full = len(holding_seats(self.state)) >= self.dial("cells.max")
             cell["state"] = "ejected"
             count_ejection(cell, entry["attempt"], cause, self.at)
             limit = self.dial("cells.maxEjections")
             if excuse is None and counted_ejections(cell) >= limit:
                 self.event("ejection-limit", branch=branch, detail=ejection_detail(cell, limit))
+                # It waits on the owner now, and frees its seat (lushly-dev/afd#1593).
+                if full and len(holding_seats(self.state)) < self.dial("cells.max"):
+                    self.event("queue-room", detail=f"A seat is free: {branch} waits on the owner")
         self.actions.append(f"ejected {branch} ({cause})")
 
     def trouble(self, detail: str) -> None:

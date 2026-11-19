@@ -119,3 +119,43 @@ async def test_an_empty_session_is_refused(make_run):
     run = make_run()
     result = await run.call("lane_wait", consumer="foreman", timeout_ms=1, session=" ")
     assert result.error.code == "VALIDATION_ERROR"
+
+
+async def test_a_superseded_session_is_refused_even_with_no_lease_held(make_run):
+    """lushly-dev/afd#1595: a scheduled foreman that woke after a usage-limit reset took an
+    expired lease and acted on an outdated brief after a newer foreman had done the work."""
+    run = make_run()
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
+    run.change_world(now="2030-01-01T00:31:00Z")  # thread-a's lease has run out.
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    assert (await run.call("foreman_handoff", session="thread-b")).success
+
+    run.change_world(now="2030-01-02T03:30:00Z")  # thread-a wakes hours later.
+    for command, arguments in [
+        ("lane_wait", {"consumer": "foreman", "timeout_ms": 1}),
+        ("dial_set", {"key": "lane.queueMax", "value": 4}),
+        ("cell_register", {"issues": [101], "branch": "fix/a", "route": "sol/high"}),
+        ("ejection_excuse", {"branch": "fix/a", "reason": "a flake"}),
+    ]:
+        refused = await run.call(command, **arguments, session="thread-a")
+        assert refused.error.code == "FOREMAN_STALE", command
+        assert refused.error.details == {"supersededBy": "thread-b", "at": "2030-01-01T00:31:00Z"}
+        assert "Stop here and report" in refused.error.suggestion
+    assert lease(run) is None  # It took nothing.
+    assert run.state()["dials"]["lane.queueMax"] == 10
+
+
+async def test_a_handoff_supersedes_the_session_that_handed_over(make_run):
+    run = make_run()
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
+    await run.call("foreman_handoff", session="thread-a")
+    assert (
+        await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    ).success
+    run.change_world(now="2030-01-01T02:00:00Z")
+    refused = await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
+    assert refused.error.code == "FOREMAN_STALE"
+    # The newer session itself is not superseded, and comes back after its lease ran out.
+    assert (
+        await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    ).success

@@ -43,7 +43,7 @@ from __future__ import annotations
 import re
 
 from botcore_factory.adapter import matches
-from botcore_factory.cells import seated
+from botcore_factory.cells import holding_seats
 from botcore_factory.lane_advance import Advancing
 from botcore_factory.lane_base import (
     HEAD_MISMATCH,
@@ -424,7 +424,7 @@ class Merging(Advancing):
         # waits a step in ``merge-queued``.
         waited = entry.get("mergeQueue") if (entry.get("mergeQueue") or {}).get("queue") else None
         self.world.git.delete_queue_ref(branch, entry["head"])
-        full = len(seated(self.state)) >= self.dial("cells.max")
+        full = len(holding_seats(self.state)) >= self.dial("cells.max")
         self.state["queue"].remove(entry)
         self.record(
             "merged",

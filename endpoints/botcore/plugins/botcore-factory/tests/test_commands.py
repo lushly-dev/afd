@@ -249,6 +249,13 @@ REFUSALS = [
     ),
     (
         "fresh",
+        {"host": {"freeMemoryGb": 40, "freeDiskGb": 12}},
+        {"branch": "fix/disk", "issues": [101]},
+        "DISK_LOW",
+        "host.minFreeDiskGb",
+    ),
+    (
+        "fresh",
         {"plansUnreadable": True},
         {"branch": "fix/e", "issues": [101]},
         "PLANS_UNREADABLE",
