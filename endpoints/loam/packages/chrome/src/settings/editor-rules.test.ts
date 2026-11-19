@@ -73,18 +73,18 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 
 describe("the editors' lists keep what they do not show (the review's 3)", () => {
 	it('reorders the shown apps and keeps every stored id that is not shown, at the end', () => {
-		// `notes` is stored but disabled now, so not shown: a move of the others keeps it.
-		expect(reorder(['notes', 'hello', 'tally'], ['tally', 'hello'])).toEqual([
-			'tally',
-			'hello',
-			'notes',
+		// `ghost` is stored but disabled now, so not shown: a move of the others keeps it.
+		expect(reorder(['ghost', 'alpha', 'beta'], ['beta', 'alpha'])).toEqual([
+			'beta',
+			'alpha',
+			'ghost',
 		]);
 		expect(reorder([], ['b', 'a'])).toEqual(['b', 'a']);
 	});
 
 	it('mutes or unmutes one app, keeping every other stored id in place', () => {
-		expect(toggled(['gone', 'hello'], 'tally', true)).toEqual(['gone', 'hello', 'tally']);
-		expect(toggled(['gone', 'hello', 'tally'], 'hello', false)).toEqual(['gone', 'tally']);
+		expect(toggled(['gone', 'alpha'], 'beta', true)).toEqual(['gone', 'alpha', 'beta']);
+		expect(toggled(['gone', 'alpha', 'beta'], 'alpha', false)).toEqual(['gone', 'beta']);
 	});
 
 	it('replaces only the override of the same command and target', () => {
