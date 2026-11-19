@@ -1,6 +1,6 @@
 """The hybrid tool strategy (spec/tool-strategies.md, H1 to H8) over real MCP sessions.
 
-``spec/tool-strategies.json`` pins the lists, ``ttlMs``, call outcomes and construction
+``spec/vectors/tool-strategies.json`` pins the lists, ``ttlMs``, call outcomes and construction
 failures; the rest of this file covers what the vectors leave to each language: H3's
 equality with the individual and lazy strategies, H2's re-checks, and H8's reports.
 """
@@ -18,7 +18,7 @@ from afd import ExposeOptions, success  # noqa: E402
 from afd.server import ContextConfig, create_server  # noqa: E402
 
 VECTORS = json.loads(
-    (Path(__file__).resolve().parents[2] / "spec" / "tool-strategies.json").read_text(encoding="utf-8")
+    (Path(__file__).resolve().parents[2] / "spec" / "vectors" / "tool-strategies.json").read_text(encoding="utf-8")
 )
 CONTEXT_KEY = "dev.afd/context"
 SERVERS = {item["id"]: item for item in VECTORS["servers"]}

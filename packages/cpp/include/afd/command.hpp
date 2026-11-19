@@ -100,9 +100,12 @@ struct CommandContext {
     /// command not exposed to it is answered as an unknown one, identically (spec/error-codes.md,
     /// D4), and the unknown-command suggestion names afd-discover.
     bool remote = false;
-    /// The MCP server's tool strategy (`individual`, `grouped` or `lazy`), which `afd-help`
-    /// reports as `toolStrategy`. Only the MCP server sets it.
+    /// The MCP server's tool strategy (`individual`, `grouped`, `lazy` or `hybrid`), which
+    /// `afd-help` reports as `toolStrategy`. Only the MCP server sets it.
     std::optional<std::string> tool_strategy;
+    /// A hybrid MCP server's first-class tools, in list order, which `afd-help` reports as
+    /// `firstClassTools` and marks `firstClass` on each. Only the MCP server sets it.
+    std::optional<std::vector<std::string>> first_class_tools;
     /// Internal MCP approval relay (afd::mcp_stdio). Only the MCP server sets it.
     std::shared_ptr<detail::McpApprovalRelay> mcp_approval_relay;
     /// Internal up-front approval of an afd-batch or afd-pipe (afd::mcp_stdio). Only the MCP
