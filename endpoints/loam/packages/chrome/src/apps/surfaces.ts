@@ -363,8 +363,9 @@ export class AppSurfaces implements ShellApps {
 			// that then failed (3.4).
 			rescoped ||
 			(event.mutation && /^(toast|modal|popover|dialog|prompt|overlay)-/.test(command)) ||
-			// A change of the active tab's owner parks, closes or restores overlays (the review's 4).
-			/^(editor-|document-open$)/.test(command) ||
+			// A change of the active tab's owner parks, closes or restores overlays (the review's 4): only the calls that
+			// move it, never a caret's `editor-selection-set`, `editor-dirty-set` or a read, each of which would journal a read.
+			/^(editor-(activate|close|move|pin)|document-open)$/.test(command) ||
 			(event as KernelEventV3).mainChanged ||
 			// A change of person closes every overlay (phase 4 specification, 6.2), in `local` mode with no switch.
 			/^(auth-sign-(in|out)|session-settle)$/.test(command) ||

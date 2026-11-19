@@ -562,12 +562,24 @@ describe("P2-E7: a view's broker is its surface's", () => {
 			const refused = await call({ overlayId: opened.data?.overlayId, reason: 'timeout' });
 			expect(refused.error?.code).toBe('VALIDATION_ERROR');
 		}
+		// The agent interface's cancel is no person's close: the held call opens the next, with no cooldown.
 		const again = view.toolsCall(modal);
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		// A switch is not a person's close: the held call is refused as inactive, never as a cooldown.
+		const cancelled = await kernel.agent.call('overlay-dismiss', {
+			overlayId: opened.data?.overlayId,
+			result: 'cancel',
+		});
+		expect(cancelled.success).toBe(true);
+		const next = (await again).structuredContent as CommandResult<{ overlayId: string }>;
+		expect(next.success).toBe(true);
+		expect(next.data?.overlayId).not.toBe(opened.data?.overlayId);
+		// A switch is not a person's close either: a held call is refused as inactive, never as a cooldown.
+		const held = view.toolsCall(modal);
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		await kernel.call('app-close');
-		const next = (await again).structuredContent as CommandResult;
-		expect(next.error?.code).toBe('OVERLAY_OWNER_INACTIVE');
+		expect(((await held).structuredContent as CommandResult).error?.code).toBe(
+			'OVERLAY_OWNER_INACTIVE'
+		);
 	});
 
 	it("answers a view its own prompt's result, and refuses another owner's id (the review's 7)", async () => {

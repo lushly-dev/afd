@@ -124,12 +124,16 @@ export interface OverlayStore {
 	get(overlayId: string): OverlayV1 | undefined;
 	/** When an open toast opened, on the call's clock, for a full region's `retryAfterMs`. */
 	openedAt(overlayId: string): number | undefined;
+	/** `byPerson`: a person's own gesture closed it, which a view's cooldown counts (#1054); anyone else's does not. */
 	close(
 		overlayId: string,
 		result: OverlayResultV1['result'],
 		reason: OverlayReasonV1,
-		value?: unknown
+		value?: unknown,
+		byPerson?: boolean
 	): OverlayResultV1 | undefined;
+	/** Whether a person's own gesture closed the overlay, of those recently closed. */
+	closedByPerson(overlayId: string): boolean;
 	/** Forget everything, as a reload does; replay calls it between the sessions of one journal. */
 	reset(): void;
 	/**
@@ -168,6 +172,7 @@ interface Closed {
 	result: OverlayResultV1;
 	moves: OverlayReasonV1[];
 	for?: OverlayFor;
+	byPerson: boolean;
 }
 
 export function createOverlayStore(): OverlayStore {
@@ -293,7 +298,8 @@ export function createOverlayStore(): OverlayStore {
 			return overlay && shown(overlay);
 		},
 		openedAt: (overlayId) => opened.get(overlayId),
-		close(overlayId, result, reason, value) {
+		closedByPerson: (overlayId) => closed.get(overlayId)?.byPerson === true,
+		close(overlayId, result, reason, value, byPerson) {
 			const overlay = open.get(overlayId);
 			const owner = owners.get(overlayId);
 			if (!overlay || !owner) return undefined;
@@ -317,6 +323,7 @@ export function createOverlayStore(): OverlayStore {
 				owner,
 				result: outcome,
 				moves: moved,
+				byPerson: byPerson === true,
 				...(asked ? { for: asked } : {}),
 			});
 			for (const old of closed.keys()) {

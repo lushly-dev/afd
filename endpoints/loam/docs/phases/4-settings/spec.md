@@ -1615,6 +1615,13 @@ Overlays II, dialogs, modals, prompts, the slot and the answer rule, on `lush/lo
 
 **Verified after the review.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,064), chrome (243), the SDK (30), the manifest (1,103) and web (53); the typecheck of every Loam package; chrome's `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; Chromium: `apps/dialogs` (9) and `apps/view` with its new frame case, beside `apps/overlays`, `apps/popovers`, `apps/accessibility`, `apps/second-app`, `shell`, `accessibility`, `documents/editor`, `scope/first-paint` and `budget`. Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo, which the coordinator runs (R4).
 
+**After the trust re-check,** 2026-11-19, which approved `052911c0`; its three improvements:
+
+- **The chrome's re-read** follows only the calls that move the active tab's owner (`editor-activate`, `-close`, `-move`, `-pin`), `document-open` and a change of main, never a caret's `editor-selection-set`, `editor-dirty-set` or `editor-get`, each of which journaled an `overlay-list`.
+- **A view's cooldown** (#1054) begins only on a person's own close, which the store now records: an agent's or the app's own cancel starts none, so a held view modal opens after it; `surface-port.test.ts` asserts that again, beside the switch's `OVERLAY_OWNER_INACTIVE`.
+- **`SESSION_CHANGED` is `retryable: false` here,** though phase 3's table calls it retryable: there it answers a call whose session changed under it, which the same caller may send again as the new person; here the question was raised for the person who left, and opening it again for the next one is the app's decision, never an automatic retry, so the suggestion says to ask again only if the new person should answer.
+- **Headroom is tight,** for the next steps to plan for: first paint's gzip 96,477 of 96,500 (23 bytes); `late` 103,981 of 104,500 (519); `overlays` 10,766 of 11,000 (98%).
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |

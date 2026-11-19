@@ -187,8 +187,10 @@ export function createAppPort(options: AppPortOptions): {
 							const closed = await host.overlays.whenClosed(
 								(result.data as { overlayId: string } | undefined)?.overlayId as string
 							)?.settled;
-							// A person's close: the cooldown begins before any waiting call checks it.
-							if (closed?.reason === 'user')
+							// A person's close: the cooldown begins before any waiting call checks it. An agent's or the app's
+							// own cancel is no person's, so it starts none (the re-check of phase 4's step 4).
+							const id = (result.data as { overlayId: string } | undefined)?.overlayId as string;
+							if (closed?.reason === 'user' && host.overlays.closedByPerson(id))
 								modalRefusedUntil = host.clock() + VIEW_MODAL_COOLDOWN_MS;
 						},
 						() => {}

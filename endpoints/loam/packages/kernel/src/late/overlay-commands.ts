@@ -626,7 +626,8 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				input.overlayId,
 				result,
 				rule === 'withdrawn' ? 'withdrawn' : (input.reason ?? 'user'),
-				value
+				value,
+				opener.kind === 'shell'
 			);
 			return success(outcome as OverlayResultV1);
 		},
