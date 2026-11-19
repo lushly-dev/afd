@@ -153,10 +153,11 @@ export const membershipUnavailable = (name: string): CommandResult<never> =>
 export const SHELL_AGENT = 'shell-agent';
 
 /**
- * The agent names the kernel keeps for itself (3.1): its own, the two persons it names, and the copilot's, which only
- * the kernel's own options for the copilot's agent port carry (phase 5 specification, 3.2).
+ * The agent names the kernel keeps for itself (3.1): its own, the two persons it names, the copilot's, which only
+ * the kernel's own options for the copilot's agent port carry (phase 5 specification, 3.2), and `shell` and `loam`,
+ * which an agent's owner line would show as the shell's (phase 4 specification, 6.6).
  */
-const RESERVED_AGENTS = [LOCAL_ACTOR, 'signed-out', SHELL_AGENT, 'copilot'];
+const RESERVED_AGENTS = [LOCAL_ACTOR, 'signed-out', SHELL_AGENT, 'copilot', 'shell', 'loam'];
 
 /**
  * An agent interface's actor (3.1): `options.agent`, 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, so it can
@@ -178,7 +179,7 @@ export function agentActor(name: string | undefined): Actor | CommandResult<neve
 		code: 'AGENT_NAME_RESERVED',
 		message: 'Not an agent name the agent interface takes',
 		suggestion:
-			'Name it with 1 to 64 of a-z, 0-9 and -, not local, signed-out, shell-agent or copilot',
+			'Name it with 1 to 64 of a-z, 0-9 and -, not local, signed-out, shell-agent, copilot, shell or loam',
 		retryable: false,
 	});
 }

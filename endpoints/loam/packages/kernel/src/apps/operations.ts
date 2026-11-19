@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { type AppCommandRowV1, type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { appLayoutId } from '../layout.js';
-import { SHELL_OWNER } from '../overlays.js';
+import { shellModalOpen } from '../overlays.js';
 import type {
 	AppDetailV1,
 	AppInstanceV1,
@@ -168,7 +168,7 @@ export function createOperations(
 	 * overlays close and its selection clears. A shell-owned modal stays and refuses the switch.
 	 */
 	function leaveActive(): CommandResult<never> | undefined {
-		if (overlays.modalOpen()?.owner === SHELL_OWNER) {
+		if (shellModalOpen(overlays)) {
 			return kernelFailure(
 				'OVERLAY_MODAL_BUSY',
 				"The shell's modal is open, so the app cannot change",
@@ -177,8 +177,9 @@ export function createOperations(
 			);
 		}
 		const previous = state.activeApp();
+		// Every popover closes on a switch, the first app opened from a shell section's included (6.1; the review's 7).
+		overlays.closeForSwitch(previous);
 		if (previous !== null) {
-			overlays.closeForSwitch(previous);
 			const record = records.get(previous);
 			if (record) unselect(record);
 		}

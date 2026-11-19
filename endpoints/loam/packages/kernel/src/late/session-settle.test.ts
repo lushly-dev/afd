@@ -812,9 +812,19 @@ describe("P3-E4: the review of step 2's blockers (B1 to B4)", () => {
 		expect(
 			(await kernel.call<{ overlays: Array<{ owner: string }> }>('overlay-list')).data?.overlays
 		).toHaveLength(1);
+		// The shell's sticky toast too: every overlay is the leaving person's (phase 4 specification, 6.2).
+		const sticky = await kernel.call<{ overlayId: string }>('toast-show', {
+			message: 'Stays',
+			sticky: true,
+		});
+		const port = kernel.appPort('dual');
+		const own = await port.call<{ overlayId: string }>('toast-show', { message: 'Also for Bea' });
+		const waited = port.waitOverlay(own.data?.overlayId as string);
 		made.auth._setUser(user(OLU));
 		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(2));
 		expect((await kernel.call<{ overlays: unknown[] }>('overlay-list')).data?.overlays).toEqual([]);
+		await expect(waited).resolves.toMatchObject({ result: 'dismissed', reason: 'person' });
+		expect(sticky.success).toBe(true);
 	});
 });
 

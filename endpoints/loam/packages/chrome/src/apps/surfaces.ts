@@ -21,7 +21,7 @@ import type {
 	LoamKernelV5,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
-import type { AppContextV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1, OverlayAnchorV1 } from '@lushly-dev/loam-sdk';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
@@ -34,6 +34,7 @@ import { STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { AppListV2 } from '../rail/rail-bands.js';
 import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
+import { type AnchorOwner, findAnchor, nestedSurface } from './anchors.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback, focusMainHeading } from './focus-fallback.js';
@@ -130,11 +131,17 @@ export class AppSurfaces implements ShellApps {
 	#inspectorElements: HTMLElement[] = [];
 	readonly #status = new StatusItems();
 	readonly #overlays: OverlaySurfaces;
+	/** Whose each native mount is, for a popover's anchor (phase 4 specification, 6.3). */
+	readonly #mountOwners = new WeakMap<Element, string>();
+	/** The native editors' mounts, which sit in the editor area rather than a part's children (the review's 6). */
+	readonly #editorMounts = new Set<LoamMount>();
 
 	constructor(shell: LoamShell, kernel: LoamKernelV5) {
 		this.#shell = shell;
 		this.#kernel = kernel;
-		this.#overlays = new OverlaySurfaces(shell, kernel);
+		this.#overlays = new OverlaySurfaces(shell, kernel, (owner, anchor) =>
+			this.#findAnchor(owner, anchor)
+		);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
 			void kernel.call('app-open', { instance });
@@ -192,9 +199,15 @@ export class AppSurfaces implements ShellApps {
 				const failure = await this.#activate(this.#hold(instance));
 				if (failure !== undefined) throw new Error(failure);
 			},
-			createMount: (instance, element, { scope, document, readOnly }) => {
+			createMount: (instance, element, { scope, document, readOnly, editor }) => {
 				const held = this.#hold(instance);
 				const mount = this.#create<LoamMount>('loam-mount');
+				// A tab's own editor anchors its popovers in main; an embed, inside another document, and the inspector's
+				// details never do (the re-check's I1).
+				if (editor === true && readOnly !== true) {
+					this.#mountOwners.set(mount, instance);
+					this.#editorMounts.add(mount);
+				}
 				const surface = held.port.surface({ scope, readOnly });
 				mount.configure({
 					registry: held.registry as CustomElementRegistry,
@@ -346,7 +359,9 @@ export class AppSurfaces implements ShellApps {
 			// A change of scope cancels a shell modal or closes a left app's overlays, even under a call
 			// that then failed (3.4).
 			rescoped ||
-			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
+			(event.mutation && /^(toast|modal|popover|overlay)-/.test(command)) ||
+			// A change of person closes every overlay (phase 4 specification, 6.2), in `local` mode with no switch.
+			/^(auth-sign-(in|out)|session-settle)$/.test(command) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
 			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))
 		) {
@@ -895,8 +910,49 @@ export class AppSurfaces implements ShellApps {
 		return new Map(this.#kernel.listCommands().map(({ name, needsInput }) => [name, needsInput]));
 	}
 
+	/**
+	 * A popover's anchor (6.3), by the owner's kind, never its id: the shell's in its own chrome, outside every app's
+	 * mount and frame; an app's in its own native mounts of the part the surface names, while it is the app shown, or in
+	 * main, in its own native editor, which the kernel let it open from as the active tab's owner. A view's frame is
+	 * another origin, which the shell cannot read, so a view anchors nothing yet.
+	 */
+	#findAnchor(owner: AnchorOwner, anchor: OverlayAnchorV1): HTMLElement | null {
+		const root = this.#shell.shadowRoot;
+		if (!root) return null;
+		if (anchor.surface === 'shell') {
+			if (owner.kind !== 'shell') return null;
+			return findAnchor(
+				root,
+				anchor.anchor,
+				(element) =>
+					nestedSurface(element) ||
+					['loam-toast-region', 'loam-popover'].includes(element.localName)
+			);
+		}
+		if (owner.kind !== 'app') return null;
+		const part = this.#part<HTMLElement>(anchor.surface) as HTMLElement | null;
+		const mounts = [
+			...(owner.id === this.#showing ? (part?.querySelectorAll('loam-mount') ?? []) : []),
+			...(anchor.surface === 'main' ? this.#editorMounts : []),
+		];
+		for (const mount of mounts) {
+			if (!mount.isConnected) {
+				if (this.#editorMounts.has(mount as LoamMount))
+					this.#editorMounts.delete(mount as LoamMount);
+				continue;
+			}
+			if (this.#mountOwners.get(mount) !== owner.id || !mount.shadowRoot) continue;
+			// Below the owner's own mount, never inside another surface it holds: another app's embed, or a frame
+			// (the re-check's B1), so no app anchors on, or probes, what another app shows.
+			const found = findAnchor(mount.shadowRoot, anchor.anchor, nestedSurface);
+			if (found) return found;
+		}
+		return null;
+	}
+
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {
 		const mount = this.#create<LoamMount>('loam-mount');
+		this.#mountOwners.set(mount, held.instance);
 		// A native surface's client is its own port's: a contract, as all of a native app is (D54).
 		const scope = this.#surfaceScope;
 		const surface = held.port.surface({ scope });

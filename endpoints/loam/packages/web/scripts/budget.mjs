@@ -312,6 +312,18 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * controls, and the three custom editors; with the console's Violet controls it measured 75,453, so the section's
  * fields are native, as the account and documents sections' are). The manifest's settings checks, shared by
  * `late-settings` and `apps`, are named `setting-checks` so they never read as the `settings` chunk; `apps` 417,105.
+ * Phase 4's step 3 (overlays I: toasts, popovers, the F6 stop), under D115, on Windows with Node 26.13.1: `jsMinified`
+ * 308,000 to 308,400 (308,140, +184: the toast region's F6 stop, `PART_ORDER`'s `toasts`, and the shell's
+ * `overlayAnchors`; section 14 estimated 300 and 120, and gzip stays 96,115 of 96,500). `lateMinified` 82,000 to 88,500
+ * (87,930, +6,558): `popover-open` and its menu, anchor and path rules, the toast's `sticky` and `link`, agent toasts and
+ * the push rate, each with its written JSON Schema, over section 14's +5,000 for the whole phase. `surfacesMinified`
+ * 85,000 to 88,200 (87,677, +3,176): the toast's owner line, link and sticky timer, the region's F6 stop, the anchor
+ * finder the kernel's `overlayAnchors` asks, and the `overlays` chunk's loader. New row: `overlaysMinified`, the
+ * chrome's `overlays` chunk (`loam-popover`, its layer and a toast's link), 6,336 against section 14's 11,000, at 58%,
+ * so lowered by phase 0's rule to its measurement plus 10%, 6,970; step 4's dialogs raise it. After the step's two
+ * reviews, `lateMinified` 88,500 to 91,000 (90,158, +2,228: owners held by kind, menu items checked against the
+ * palette and their schemas, a change of person closing every overlay, the agent rate per agent interface and person,
+ * agent names refused as an app's); `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -331,6 +343,7 @@ export const CEILINGS = Object.freeze({
 	// at boot rather than the whole journal; the rest the kernel's chain placing `late`'s write-through (#861).
 	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
+	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
 	jsMinified: 309_500,
 	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
@@ -345,7 +358,8 @@ export const CEILINGS = Object.freeze({
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
 	kernelMinified: 119_500,
-	lateMinified: 84_000,
+	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
+	lateMinified: 93_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
@@ -362,7 +376,7 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	appsMinified: 417_500,
-	surfacesMinified: 85_000,
+	surfacesMinified: 88_200,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -390,6 +404,7 @@ export const CEILINGS = Object.freeze({
 	embedMinified: 6_096,
 	settingsMinified: 36_000,
 	editorMoveMinified: 4_205,
+	overlaysMinified: 6_970,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -678,6 +693,10 @@ async function measurePage() {
 	const settingsSection = closure(/^assets\/settings-/, afterSurfaces);
 	if (settingsSection.size === 0)
 		throw new Error('budget: the build has no `settings` chunk to measure');
+	// Phase 4's overlay renderer (its 14): popovers, and a toast's link, loaded with the first, after the surfaces.
+	const overlaysChunk = closure(/^assets\/overlays-/, afterSurfaces);
+	if (overlaysChunk.size === 0)
+		throw new Error('budget: the build has no `overlays` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	// The copilot's panel (phase 5 specification, 16), loaded when the panel part first opens, after the surfaces:
@@ -736,6 +755,7 @@ async function measurePage() {
 		embedMinified: sizeOf(embed),
 		settingsMinified: sizeOf(settingsSection),
 		editorMoveMinified: sizeOf(editorMove),
+		overlaysMinified: sizeOf(overlaysChunk),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -843,6 +863,7 @@ const ROWS = [
 		'editorMoveMinified',
 		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
 	],
+	['overlaysMinified', "The chrome's `overlays` chunk, popovers and a toast's link, minified"],
 ];
 
 export async function measure() {

@@ -85,9 +85,13 @@ export type PartName =
 	| 'main'
 	| 'inspector'
 	| 'panel'
-	| 'statusbar';
+	| 'statusbar'
+	| 'toasts';
 
-/** F6's order; the rail and the tab bar are never present together. */
+/**
+ * F6's order; the rail and the tab bar are never present together. The toast region is a stop, last, only while it
+ * holds a toast (phase 4 specification, 6.7).
+ */
 export const PART_ORDER: readonly PartName[] = Object.freeze([
 	'titlebar',
 	'rail',
@@ -97,6 +101,7 @@ export const PART_ORDER: readonly PartName[] = Object.freeze([
 	'inspector',
 	'panel',
 	'statusbar',
+	'toasts',
 ]);
 
 /**

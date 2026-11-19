@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
+import { saysShellName } from './shell-name.js';
 import type { ManifestRefusalCode } from './types.js';
 import { validateSchemaShape } from './validate-shape.generated.js';
 import type { GeneratedValidator } from './validator-errors.js';
@@ -230,6 +231,15 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 		);
 	};
 
+	// An app's title is its overlays' owner line and its rail label: never the shell's name (phase 4's 6.6, 12.1).
+	if (typeof plugin.title === 'string' && saysShellName(plugin.title)) {
+		push(
+			'MANIFEST_TITLE_RESERVED',
+			'/plugin/title',
+			`\`plugin.title\` \`${plugin.title}\` says "Loam", which is the shell's name.`,
+			"Title the app after what it does, without the shell's name."
+		);
+	}
 	if (mounted && !manifest.mount) {
 		push('MANIFEST_SECTION_KIND', '/mount', '`kind = "mounted"` needs `mount`.', 'Add `[mount]`.');
 	}
