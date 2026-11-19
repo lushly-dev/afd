@@ -13,6 +13,7 @@ import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	agentCall,
+	closeAndRelease,
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
@@ -1193,14 +1194,14 @@ describe.each(['/', '/loam/'])(
 			};
 			const id = await createNote(first.page, 'Deep', atlas.data.id);
 			await settle(first.page);
-			await first.page.close();
+			await closeAndRelease(first, site.root);
 			// The same profile, so the same store, one tab at a time (phase 0's writer lock).
 			const list = await openShell(browser, `${site.root}personal/~/documents`, {}, first.context);
 			await editorIdle(list.page);
 			await list.page.locator('loam-main loam-documents-section h1').waitFor();
 			expect(pathOf(list.page)).toBe(`${basePath}personal/~/documents`);
 			expect(await list.page.locator('loam-sidebar loam-documents-sidebar').count()).toBe(1);
-			await list.page.close();
+			await closeAndRelease(list, site.root);
 			const deep = await openShell(
 				browser,
 				`${site.root}personal/p/atlas/~/documents/${id}`,
