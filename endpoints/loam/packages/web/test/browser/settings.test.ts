@@ -280,7 +280,7 @@ describe('P4-E1: the three custom editors (3.7)', () => {
 		const keys = view.locator('loam-keybinding-editor');
 		await keys.locator('#override-command').fill('palette-open');
 		await keys.locator('#override-record').click();
-		await page.keyboard.press('Control+Shift+L');
+		await page.keyboard.press('ControlOrMeta+Shift+L');
 		await expect
 			.poll(() => keys.locator('#override-said').textContent())
 			.toBe('Recorded Mod+Shift+L. Mod+K would no longer open the command palette.');
@@ -412,7 +412,7 @@ describe("P4-E1: step 2's reviews", () => {
 		const keys = view.locator('loam-keybinding-editor');
 		await keys.locator('#override-command').fill('palette-open');
 		await keys.locator('#override-record').click();
-		await page.keyboard.press('Control+Shift+L');
+		await page.keyboard.press('ControlOrMeta+Shift+L');
 		await keys.getByRole('button', { name: 'Add' }).click();
 		await expect
 			.poll(() => get('loam.keybindings', 'overrides'))
