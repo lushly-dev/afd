@@ -140,7 +140,17 @@ export type LoamKernelErrorCode =
 	| 'COPILOT_SESSION_NOT_FOUND'
 	| 'COPILOT_TURN_RUNNING'
 	| 'COPILOT_PORT_REFUSED'
-	| 'AUTONOMY_UNAVAILABLE';
+	| 'AUTONOMY_UNAVAILABLE'
+	// Phase 4's settings (its section 16), from its step 1; and AFD's own over-budget read (its 3.9).
+	| 'SETTING_NOT_FOUND'
+	| 'SETTING_LEVEL_UNAVAILABLE'
+	| 'SETTING_PROJECT_REQUIRED'
+	| 'SETTING_TOO_LARGE'
+	| 'SETTING_NOT_OWNED'
+	| 'SETTING_USE_AUTONOMY'
+	| 'SETTING_CONFLICT'
+	| 'SHARED_RECORD_UNAVAILABLE'
+	| 'OUTPUT_BUDGET_EXCEEDED';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

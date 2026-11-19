@@ -853,7 +853,7 @@ export interface WorkspaceV1 {
 	id: string;              // and its slug: `^[a-z0-9][a-z0-9-]{0,62}$`, not reserved (6.1)
 	name: string;
 	generation: string;      // the projection's, once applied
-	trashDays: number;       // default 30; the documents specification's trash
+	trashDays: number;       // default 30; the documents specification's trash; written through from `loam.documents.trashDays` (phase 4, A-P2-2)
 	organization: null;      // reserved: phase 3 (R10)
 	tenant: null;            // reserved (D32)
 	createdAt: number;

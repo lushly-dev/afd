@@ -84,12 +84,20 @@ export const MEMBERSHIP_READ_TIMEOUT_MS = 10_000;
 
 /**
  * The commands before which the kernel reads the person's membership again (7.6): every owner command, every
- * `project-create`, and every `project-update` carrying `access`.
+ * `project-create`, and every `project-update` carrying `access`; and from phase 4's step 1 (its 3.2, A-P3-1) every
+ * write of a workspace value, `setting-set` and `setting-reset` with `level: 'workspace'`, whose `settingWriteRule` is
+ * an owner's at that level for every section.
  */
-const rereads = (name: string, input: unknown): boolean =>
-	name === 'project-create' ||
-	OWNER_COMMANDS.includes(name) ||
-	(name === 'project-update' && typeof input === 'object' && input !== null && 'access' in input);
+export const needsMembershipRead = (name: string, input: unknown): boolean => {
+	const asked =
+		typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+	return (
+		name === 'project-create' ||
+		OWNER_COMMANDS.includes(name) ||
+		(name === 'project-update' && 'access' in asked) ||
+		((name === 'setting-set' || name === 'setting-reset') && asked.level === 'workspace')
+	);
+};
 
 /** `session-settle`'s input schema, from the kit's Zod: this chunk imports none of first paint's (13). */
 const settleInputOf = ({ z }: Pick<DocumentKit, 'z'>) =>
@@ -896,9 +904,14 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		},
 		rereadsBefore: (name) =>
 			provider &&
-			(name === 'project-create' || name === 'project-update' || OWNER_COMMANDS.includes(name)),
+			(name === 'project-create' ||
+				name === 'project-update' ||
+				name === 'setting-set' ||
+				name === 'setting-reset' ||
+				OWNER_COMMANDS.includes(name)),
 		reread(name, input) {
-			if (!provider || replaying() || !rereads(name, input)) return Promise.resolve(undefined);
+			if (!provider || replaying() || !needsMembershipRead(name, input))
+				return Promise.resolve(undefined);
 			return serial(async () => {
 				const person = current();
 				if (person === null) return undefined;
