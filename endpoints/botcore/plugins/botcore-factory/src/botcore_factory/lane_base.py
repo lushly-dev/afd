@@ -19,10 +19,16 @@ import re
 from botcore_factory import dials, records
 from botcore_factory.claims import format_time, parse_time
 from botcore_factory.events import emit
+from botcore_factory.failures import failing_tests
 from botcore_factory.runtime import Factory
 from botcore_factory.world import WorldError
 
 FIRST_LINES = 10
+#: At most this many failing tests go into an ejection event's lines, and at most
+#: ``FAILURES_KEPT`` into its record (``failureCount`` keeps the total), so a broken shared helper
+#: does not write one huge record line.
+FAILURES_SHOWN = 50
+FAILURES_KEPT = 5000
 _FAILURE = re.compile(r"(FAIL|Error|ERR!|error|✗|×|failed|Failed)")
 #: ``pnpm -r``'s prefix on a package's output: its directory, then the script (``packages/x
 #: test: ``).
@@ -142,6 +148,24 @@ def first_lines(text: str) -> list[str]:
     return (ordered or lines[-FIRST_LINES:])[:FIRST_LINES]
 
 
+def failure_lines(text: str, tests: list[str] | None = None) -> tuple[list[str], list[str]]:
+    """An ejection's lines (``first_lines``, then each failing test under a count) and the
+    failing tests themselves: ``tests`` when the world read them from the whole log (``text`` is
+    its tail), else those in ``text`` (lushly-dev/afd#1607)."""
+    lines = first_lines(text)
+    tests = failing_tests(text) if tests is None else list(tests)
+    if not tests:
+        return lines, tests
+    shown = tests[:FAILURES_SHOWN]
+    more = len(tests) - len(shown)
+    return [
+        *lines,
+        f"{len(tests)} failing test{'s' if len(tests) != 1 else ''}:",
+        *(f"  {test}" for test in shown),
+        *([f"  … and {more} more: the ejected record's failures"] if more else []),
+    ], tests
+
+
 def log_path(branch: str, attempt: int, kind: str = "") -> str:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-")
     return f"attempts/{safe}-{attempt}{'-' + kind if kind else ''}.log"
@@ -236,13 +260,21 @@ class StepBase:
             queue.insert(open_index(queue), entry)
         self.actions.append(f"rerun {entry['branch']} ({reason})")
 
-    def eject(self, entry: dict, cause: str, text: str, log: str | None = None) -> None:
+    def eject(
+        self,
+        entry: dict,
+        cause: str,
+        text: str,
+        log: str | None = None,
+        failures: tuple[str, ...] | None = None,
+    ) -> None:
         self.world.git.delete_queue_ref(entry["branch"], entry["head"])
         if entry.get("run"):
             with contextlib.suppress(WorldError):  # Already gone.
                 self.world.processes.kill(entry["run"])
         self.state["queue"].remove(entry)
-        lines = first_lines(text) or [cause]
+        lines, tests = failure_lines(text, list(failures) if failures is not None else None)
+        lines = lines or [cause]
         branch = entry["branch"]
         excuse = EXCUSED_CAUSES.get(cause)
         self.record(
@@ -255,6 +287,7 @@ class StepBase:
             detail=lines[0],
             counted=excuse is None,
             **({"excuse": excuse} if excuse else {}),
+            **({"failures": tests[:FAILURES_KEPT], "failureCount": len(tests)} if tests else {}),
         )
         self.event(
             "ejected",
@@ -267,11 +300,17 @@ class StepBase:
         )
         cell = self.cell(branch)
         if cell is not None:
+            from botcore_factory.cells import holding_seats  # cells imports this module.
+
+            full = len(holding_seats(self.state)) >= self.dial("cells.max")
             cell["state"] = "ejected"
             count_ejection(cell, entry["attempt"], cause, self.at)
             limit = self.dial("cells.maxEjections")
             if excuse is None and counted_ejections(cell) >= limit:
                 self.event("ejection-limit", branch=branch, detail=ejection_detail(cell, limit))
+                # It waits on the owner now, and frees its seat (lushly-dev/afd#1593).
+                if full and len(holding_seats(self.state)) < self.dial("cells.max"):
+                    self.event("queue-room", detail=f"A seat is free: {branch} waits on the owner")
         self.actions.append(f"ejected {branch} ({cause})")
 
     def trouble(self, detail: str) -> None:

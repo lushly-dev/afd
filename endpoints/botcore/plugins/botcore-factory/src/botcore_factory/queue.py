@@ -6,7 +6,8 @@ checked before anything is written, in this order: the worktree and its branch, 
 review recorded for the exact head (``REVIEW_MISSING``, from the adapter's ``review_evidence``,
 never from the caller; fast feedback only, since it runs the branch's own verifier: the lane's
 check at validation binds, lushly-dev/afd#1308), a repair's gate edits (``GATE_EDIT_IN_REPAIR``,
-or ``GATE_CHECK_FAILED`` when they cannot be read) and the cheap checks (``PREQUEUE_FAILED``).
+or ``GATE_CHECK_FAILED`` when they cannot be read) and the cheap checks (``PREQUEUE_FAILED``,
+whose suggestion names the adapter's ``install`` command, since a new worktree fails them all).
 Then the head is pushed to ``refs/factory/queue/<branch>`` on origin, the branch is queued (a
 repair at the front) or held when the queue holds ``lane.queueMax`` branches, the ejection it
 repairs is answered and an ``enqueued`` record is written.
@@ -14,6 +15,7 @@ repairs is answered and an ``enqueued`` record is written.
 
 from __future__ import annotations
 
+import shlex
 from pathlib import PurePosixPath
 
 from botcore_factory import dials, records
@@ -156,13 +158,25 @@ def _prequeue(factory: Factory, worktree: str) -> list[dict]:
             failed, output = True, str(exc)
         if failed:
             lines = _first_lines(output)
+            fix = f"fix what {stage.name} reports in the worktree, commit, then lane-enqueue again"
+            install, extra = factory.config.install, {}
+            if install:
+                # A new cell worktree has no dependencies, so the first stage fails on a missing
+                # tool rather than on the branch (lushly-dev/afd#1594): name the command to run.
+                extra["install"] = list(install)
+                fix = (
+                    f"If the worktree is new or rebased and not installed since, run "
+                    f"`{shlex.join(install)}` in it (and build what the stage imports), then "
+                    f"lane-enqueue again, with nothing to commit. Otherwise {fix}"
+                )
             raise Refusal(
                 "PREQUEUE_FAILED",
                 f"The {stage.name} stage failed: {lines[0] if lines else 'no output'}",
-                f"Fix what {stage.name} reports in the worktree, commit, then lane-enqueue again",
+                fix[0].upper() + fix[1:],
                 stage=stage.name,
                 lines=lines,
                 passed=[entry["name"] for entry in stages],
+                **extra,
             )
         stages.append({"name": stage.name, "passed": True})
     return stages

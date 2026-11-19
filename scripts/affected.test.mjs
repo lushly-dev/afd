@@ -681,6 +681,22 @@ test('release-tooling suites run only when release inputs change', () => {
 	assert.deepEqual(selectToolingTests({ mode: 'all', files: [] }).files, testFiles);
 });
 
+test('every local cargo and multi-package test step runs to the end', () => {
+	// The lane ejects with every failing test only if no suite stops at its first failing binary
+	// (lushly-dev/afd#1607); `pnpm verify --keep-going` runs the suites after a failed one.
+	const cargo = SUITES.flatMap((suite) => suite.steps).filter((step) =>
+		/\bcargo test\b/.test(step.run)
+	);
+	assert.ok(cargo.length > 0);
+	for (const step of cargo) assert.match(step.run, /--no-fail-fast/, step.run);
+	// A test script over several packages runs in each after one fails.
+	const packages = SUITES.flatMap((suite) => suite.steps).filter((step) =>
+		/^pnpm (?:--no-bail )?-F .* -F [^&]* test\b/.test(step.run)
+	);
+	assert.ok(packages.length > 0);
+	for (const step of packages) assert.match(step.run, /^pnpm --no-bail /, step.run);
+});
+
 test('workflow path filters are read and matched like GitHub Actions', () => {
 	const filters = ['endpoints/umbel/**', '!endpoints/umbel/docs/**', 'scripts/release-*.mjs'];
 	assert.equal(matchesFilters(filters, 'endpoints/umbel/src/main.rs'), true);
