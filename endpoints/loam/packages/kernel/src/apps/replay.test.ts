@@ -208,6 +208,63 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 			await expect(replayKernel(recorded.entries, changed)).rejects.toThrow(LoamKernelError);
 		});
 
+		/** `probe` whose `probe-list` takes a `filter`, required or not, and whose `probe-count` runs `run`. */
+		const filteredOptions = (
+			required: boolean,
+			run: (client: NestedClient) => Promise<unknown>
+		) => ({
+			deployment: probeDeployment(),
+			ports: createFixturePorts({
+				'apps/probe/': {
+					manifest: {
+						...PROBE_MANIFEST,
+						commands: PROBE_MANIFEST.commands?.map((command) =>
+							command.name === 'probe-list'
+								? {
+										...command,
+										input_schema: {
+											type: 'object',
+											properties: { filter: { type: 'string' } },
+											...(required ? { required: ['filter'] } : {}),
+											additionalProperties: false,
+										},
+									}
+								: command
+						),
+					},
+					definition: nestedDefinition(run),
+				},
+			}),
+		});
+
+		it('#859: diverges when a nested call leaves out a key the recorded input had', async () => {
+			const recorded = await recordSession(
+				calls,
+				filteredOptions(false, (client) => client.call('probe-list', { filter: 'a' }))
+			);
+			const nested = recorded.entries.find((entry) => entry.context?.parent !== undefined);
+			expect(nested?.input).toEqual({ filter: 'a' });
+			// `{}` asks for every report, not the filtered ones: the record's answer is not its answer.
+			const unfiltered = filteredOptions(false, (client) => client.call('probe-list', {}));
+			await expect(replayKernel(recorded.entries, unfiltered)).rejects.toMatchObject({
+				code: 'REPLAY_DIVERGED',
+			});
+		});
+
+		it('#859: a nested call validation refused live takes no entry, so the call after it gets its own', async () => {
+			// `{}` is refused (no `filter`) and journals nothing; it holds every key of the next call's input.
+			const run = async (client: NestedClient) => {
+				const refused = await client.call('probe-list', {});
+				const listed = await client.call('probe-list', { filter: 'a' });
+				return [refused.error?.code, listed.error?.code ?? null];
+			};
+			const recorded = await recordSession(calls, filteredOptions(true, run));
+			const outer = recorded.entries.at(-1)?.result.data as { seen: unknown } | undefined;
+			expect(outer?.seen).toEqual(['VALIDATION_ERROR', null]);
+			const { report } = await replayKernel(recorded.entries, filteredOptions(true, run));
+			expect(report.diverged).toBe(false);
+		});
+
 		it('passes an unchanged handler that returns a nested result as its own', async () => {
 			const base = probeDefinition();
 			const passThrough = {
@@ -298,6 +355,35 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		expect(toast.data?.overlayId).toBe('ovl-1');
 		expect((await second.call('modal-open', { title: 'T', body: 'B' })).success).toBe(true);
 		await second.dispose();
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	it('#861: a reload made at once boots from the last app-open, so the replay does not diverge', async () => {
+		const store = new MemoryAdapter();
+		const first = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		expect((await first.kernel.call('app-open', { instance: 'probe' })).success).toBe(true);
+		const { journal } = first;
+		// A reload that does not wait for `pagehide`'s flush, nor the debounce: no `flush()`, no `dispose()`.
+		const second = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(5000),
+			...probeOptions(),
+		});
+		const closed = await second.call<{ closed: string | null }>('app-close');
+		expect(closed.success).toBe(true);
+		expect(await second.call('layout-get')).toMatchObject({ success: true });
+		await second.dispose();
+		await first.kernel.dispose();
 		const { report } = await replayKernel(await journal.read(), probeOptions());
 		expect(report.diverged).toBe(false);
 	});

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import "./violet-dialog";
 import { VioletDialog } from "./violet-dialog";
@@ -45,6 +45,32 @@ async function renderDialog(configure?: (dialog: VioletDialog) => void): Promise
     await nextFrame();
 
     return dialog;
+}
+
+/**
+ * Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or restores the media
+ * Playwright emulates by default, so later spec files on the page do not follow the host's settings.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 async function expectCloseGlyph(button: Element | null | undefined): Promise<void> {
@@ -344,5 +370,39 @@ describe("violet-dialog", () => {
         await nextFrame();
 
         expect(document.activeElement).toBe(trigger);
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it("lets slotted content take the system colours while the surface keeps its own", async () => {
+            await emulateForcedColors(true);
+            const dialog = await renderDialog(el => {
+                // Content styled by a theme, as an app's stylesheet would style it.
+                for (const child of Array.from(el.children) as HTMLElement[]) {
+                    child.style.color = "rgb(24, 27, 26)";
+                }
+            });
+            dialog.show();
+            await waitFor(() => nativeDialog(dialog).open);
+
+            const canvasText = systemColor("CanvasText");
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            for (const selector of ['[slot="title"]', "p"]) {
+                const element = dialog.querySelector(selector) as HTMLElement;
+                expect(getComputedStyle(element).forcedColorAdjust).toBe("auto");
+                expect(getComputedStyle(element).color).toBe(canvasText);
+            }
+            const footer = dialog.querySelector('[slot="footer"]') as HTMLElement;
+            expect(getComputedStyle(footer).forcedColorAdjust).toBe("auto");
+            expect(getComputedStyle(footer).color).toBe(systemColor("ButtonText"));
+
+            const surface = nativeDialog(dialog);
+            expect(getComputedStyle(surface).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(surface).backgroundColor).toBe(systemColor("Canvas"));
+            dialog.hide();
+        });
     });
 });

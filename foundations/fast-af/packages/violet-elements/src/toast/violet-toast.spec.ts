@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-toast";
 import type { VioletToast } from "./violet-toast";
@@ -19,6 +20,32 @@ async function renderToast(
     await customElements.whenDefined("violet-toast");
     await nextFrame();
     return document.querySelector("violet-toast") as VioletToast;
+}
+
+/**
+ * Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or restores the media
+ * Playwright emulates by default, so later spec files on the page do not follow the host's settings.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-toast", () => {
@@ -89,5 +116,40 @@ describe("violet-toast", () => {
         await nextFrame();
 
         expect(toast.open).toBe(false);
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it("keeps what it paints opted out and lets slotted content take the system colours", async () => {
+            await emulateForcedColors(true);
+            const toast = await renderToast(`
+                <violet-toast open tone="success" timeout="5000">
+                    <span slot="title">Propagation synced</span>
+                    <span class="body" style="color: rgb(24, 27, 26)">Seed-source defaults were updated.</span>
+                    <a slot="actions" href="#undo" style="color: rgb(24, 27, 26)">Undo</a>
+                </violet-toast>
+            `);
+
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            // Its card's slots opt slotted content back in; the toast's own layout opts out again.
+            const layout = toast.shadowRoot?.querySelector(".layout") as HTMLElement;
+            const leading = toast.shadowRoot?.querySelector(".leading") as HTMLElement;
+            expect(getComputedStyle(layout).forcedColorAdjust).toBe("none");
+            expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
+
+            // Its own slots opt what is slotted into it back in, the title included.
+            const canvasText = systemColor("CanvasText");
+            for (const selector of ['[slot="title"]', ".body"]) {
+                const element = toast.querySelector(selector) as HTMLElement;
+                expect(getComputedStyle(element).forcedColorAdjust).toBe("auto");
+                expect(getComputedStyle(element).color).toBe(canvasText);
+            }
+            const action = toast.querySelector('[slot="actions"]') as HTMLElement;
+            expect(getComputedStyle(action).forcedColorAdjust).toBe("auto");
+            expect(getComputedStyle(action).color).toBe(systemColor("LinkText"));
+        });
     });
 });

@@ -54,9 +54,12 @@ import type { LoamResizeHandle } from './resize-handle.js';
 import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
 
-/** What the shell reads the last sequence number from at boot. */
+/**
+ * What the shell reads the last sequence number from at boot: a `JournalSink`, asked for its last entry alone
+ * (#663). A reader that returns more, as one written before `last`, still ends with it.
+ */
 export interface JournalReader {
-	read(): Promise<readonly { seq: number }[]>;
+	read(range: { last: number }): Promise<readonly { seq: number }[]>;
 }
 
 /** The address the title bar's "Sign in" uses with the Mock adapter (6.5). */
@@ -472,7 +475,7 @@ export class LoamShell extends FASTElement {
 		);
 		this.router = router;
 
-		const entries = (await this.journal?.read()) ?? [];
+		const entries = (await this.journal?.read({ last: 1 })) ?? [];
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
