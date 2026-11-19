@@ -301,7 +301,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * of 417,500; first paint 307,956 and 96,069 gzip, within phase 5's rows.
  * Phase 4's step 2 (the settings section and the palette) added a row and raised four under D115, measured on its
  * branch from `main` at `99055637` on Windows with Node 26.13.1, against step 1's figures above. `jsMinified` 308,000
- * to 308,500 (307,956 to 308,169, +213; gzip 96,146 of 96,500): `~/settings` in the router with a key as its
+ * to 308,500 (307,956 to 308,160, +204; gzip 96,132 of 96,500): `~/settings` in the router with a key as its
  * fragment, the rail's comparator reading the person's `railRank`, and the shell refreshing the rail when `loam.rail`
  * changes. `lateMinified` 82,000 to 84,000 (81,372 to 82,866, +1,494): `palette-search`'s `kind` filter and its
  * setting rows' merge by score then name, `section-open`'s `target`, and `app-list`'s rows given the person's rail
@@ -325,7 +325,7 @@ export const CEILINGS = Object.freeze({
 	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
 	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
 	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
-	// Phase 4's step 2 on top: 308,169, the settings route and the person's rail order; set to 308,500.
+	// Phase 4's step 2 on top: 308,160, the settings route, the person's rail order and Settings in the rail; set to 308,500.
 	jsMinified: 308_500,
 	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
