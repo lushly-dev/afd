@@ -1559,6 +1559,74 @@ Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` f
 
 **Verified after the reviews.** 2026-11-18, on Windows 11 with Node 26.13.1: the units with `--coverage` of the kernel (1,010), the manifest (1,083), chrome (227) and the SDK (30), and web's (53); the typecheck of every Loam package and app; chrome's `lint:tokens`, after the popover's two raw lengths became the shell's size tokens; `budget`, with `lateMinified` raised under D115 from 88,500 to 91,000 (90,158, +2,228 for these fixes; `apps` 417,348, `surfaces` 87,943 and `overlays` 6,608 within their rows); ten Chromium files (108 tests, `apps/popovers` with a change of person added; the chrome now re-reads its overlays after a sign-in, a sign-out or a settle, so a `local` page no longer keeps a closed toast on screen); `test:walk` alone, 15 of 15, after the coordinator's run had timed out seed 6221072 in `openPage` under load; and `pnpm check`. Not run: the rest of `test:browser`, `test:mounted`, `test:hosted`, the desktop suite and Cargo, which the coordinator's `pnpm verify` before these fixes passed. A Chromium check of a native editor's anchor and of a failed pick's toast is not written: both are unit-free chrome paths, for step 4's review to cover.
 
+## Step 5, 2026-11-19
+
+The inbox, on `lush/loam-p4-step5-inbox` from `main` at `42f9e1c1` (steps 1 to 3 merged), before review.
+
+**Built.**
+
+- **SDK:** `NotificationV1`, `NotificationActionV1`, `NotificationInputV1`, `NotificationsV1` and `notificationsOver`, served on a native surface's context as `notifications`; `OverlayRefV1.notification`, the notice a toast also landed as.
+- **Kernel interface 4:** `APP_CALLABLE_SHELL_COMMANDS_V2` and the port gain `notification-push`.
+- **The record and the commands** (10.1, 10.2), in `late-settings` (`kernel/src/late/notifications.ts`), as section 1 places them:
+  - the workspace store's `notification` table, listed by `person`;
+  - `notification-push`, `-list`, `-read`, `-archive` and `-act`, each decided at the call's scope (`AT_CALL_SCOPE`), so a project the caller may not enter is `PROJECT_NOT_FOUND`; none is served over MCP;
+  - `source` from step 3's `openerOf`: the port's instance, the agent interface's `agent:<id>`, `shell` for a person's own gesture, and nothing for any other path (`HUMAN_REQUIRED`);
+  - reads of the person's own notices, in scopes `decideAccess` lets the caller enter now;
+  - an action, the pushing app's own palette command (or the shell's, for a person's own notice): a human or owner command is `OVERLAY_ITEM_RESERVED`, another app's or one the palette does not list `NOTIFICATION_ACTION_FOREIGN`, an input its command's schema refuses `VALIDATION_ERROR`, one decision shared with step 3's menus; an agent's action is `NOTIFICATION_ACTION_UNAVAILABLE`, its link kept;
+  - the rates, on step 3's push rate (R-b): 10 a minute per app instance, and per person for the shell; 5 for the agent interface, its toasts and notices in one bucket; `RATE_LIMITED` with `details: { limit, retryAfterMs }`, saying the rate is fixed;
+  - the quota: `QUOTA_EXCEEDED` with `details: { kind: 'notifications', limit: 500 }` at 500 unread notices; below it, the oldest read or archived notices make room;
+  - R10's seams: a pending confirmation is refused `HUMAN_REQUIRED` alone, and skipped by `{ all: true }`, for anyone but a person's own gesture; confirmations count for neither side of the quota;
+  - `notification-act`: the action run as the person through the palette interface, nested under the call and journaled with it (phase 2's 11.1), at the notice's scope, the action checked again; then the notice is `done` and read.
+- **`toast-show`'s inbox half** (6.1, 3.7), a wrapper over step 3's command: a sticky toast, and one the person's `toastSticky` selects (`landsInInbox`), also lands as a notice, its id on the toast and in its result; a muted app's toast is never shown.
+- **Hello's guest book:** `hello-guests` lists every visitor `hello-greet { name }` greeted, so `inbox-action` runs; `agent-leaves-notice` runs too.
+- **Chrome:**
+  - the `inbox` chunk (`chrome/src/inbox/inbox.ts`): `loam-inbox` at `~/inbox[/<notice>]` (`section-open { section: 'inbox', path }`), notices newest first and a waiting confirmation first (the seam step 6 fills), each with who left it (6.6), when, its action, its link, Mark read and Archive, then "Mark all read" and "Archive all", every read and write a command;
+  - the title bar's Inbox button with the unread count, named "Inbox 3 unread", and the announcement of a new notice with the keyboard path to it, kept by `apps/inbox-bell.ts` in the `surfaces` chunk;
+  - a sticky toast's **Open inbox**, which dismisses it and opens the inbox at its notice, focused;
+  - the palette's "Open inbox" row;
+  - an unseen failed autosave, made sticky when the page is hidden, so it lands whatever `toastSticky` says.
+- **The settings label** (a reviewer's finding on steps 2 and 3): `loam.notifications.toastSticky` reads "Keep toasts in the inbox", "Which toasts are also kept in your inbox after they close. Toasts an app marks to stay are always kept."; the section, "Which toasts are kept in your inbox, and the apps whose notices stay quiet." Step 2's and step 3's records are corrected in place.
+- **Architecture:** section 5's notifications catalog row, and its minimum command list gains `notification-archive` and `notification-act`.
+
+**Decided while building it,** each a judgement a reviewer should check, amending the section named:
+
+- **When a toast lands** (6.1): when it is shown, not when a switch dismisses it. 6.7's "Open inbox opens the inbox at it" needs the notice while the toast shows, and P4-E6 says "lands and counts". `closeForSwitch`'s returned toasts are left unused.
+- **What a landed toast counts against** (10.2's "sticky toasts count"): an app's sticky toast counts against its rate of 10 and the quota, refused `RATE_LIMITED` or `QUOTA_EXCEEDED` past them. A toast only the person's `toastSticky` selects is shown whatever the rate, and lands only within it: the person's preference is no contract of the app's. An agent's toast counts once, as a toast, whether or not it lands.
+- **What muted does to a toast** (3.7): a muted app's `toast-show` succeeds and is recorded closed at once (`reason: 'inbox'` when it landed, else `'user'`), so the app learns nothing of the preference and no shown toast is pushed off for it (the overlay store's `openClosed`). The shell shows no notice as a toast for anyone; a muted app's notices are not announced.
+- **A landed toast's notice:** its message as the title, cut to 120 characters, with the whole message as the body.
+- **The list** (10.2): archived notices are not listed. `unread` is every unread notice of the person's the caller may read, whatever the filters: the Inbox button's count. Ties go by id, ascending; the cursor is `<createdAt>.<id>`; a page ends early rather than pass 32 KiB, with the cursor to the rest.
+- **Read and archive** answer how many they changed; `{ all: true }` is checked `true` in the handler, since the kit's Zod has no literal.
+- **An action's input** is an object of at most 2,048 bytes of JSON, checked against its command's schema at the push and again at the act.
+- **`notification-act`** answers `{ state: 'done', result }`, the action's data. A notice already done answers `{ state: 'done' }` and runs nothing; a confirmation is `NOTIFICATION_ACTION_UNAVAILABLE` until step 6; `answer` on a notice is `VALIDATION_ERROR`.
+- **A call with no person** (`provider` signed out) has no inbox: `HUMAN_REQUIRED`, "Sign in, then try again"; the auth gate refuses first in practice.
+- **`NOTIFICATION_NOT_FOUND`**, a code this step adds to section 16: one answer for a notice not the caller's person's, in a scope the caller may not enter, or none at all.
+- **`stores.test.ts`'s scan** exempts `notification-push`'s `action.command`, a command's name as a menu item's is (R-a), the path step 3's comment foresaw. A third named exemption, for this step's review.
+- **The scenario `agent-leaves-notice`** gave its link as `{ uri: 'loam://app/hello/guests' }`, a form no link takes; it now gives 10.1's link, a toast's (6.4): `{ kind: 'app', instance: 'hello', scope: { workspace: 'personal' } }`.
+- **Hello's guest book** is built here rather than in step 6, where the runner's table put it ("steps 5 and 6"): `hello-guests` lists every greeted name, `greeted: true`. A waiting visitor, and hello's own sticky toast and notice with an action (section 1's `apps/hello` row), are left for step 6 with hello's commands.
+- **The bell** (10.3, 15) is text, "Inbox" and the count, as the New button is: Violet's system icons draw no bell. Its name is "Inbox 3 unread", which holds the visible text (axe's label-in-name). A notice's announcement ends "Open it from Inbox in the title bar, or from the palette."; 10.3's sentence for a confirmation names the bell, and step 6 words it against this button.
+- **The palette's row** is the chrome's, as New's rows are, offered for a query that is part of "open inbox" or names the inbox or notices, rather than a row kind of the kernel's.
+- **The count and the announcement** live in the `surfaces` chunk, which loads at stage B, so first paint holds only the button.
+
+**Left for later steps:**
+
+- **Step 6:** raising and answering confirmations, Confirm and Decline naming the command, a confirmation's announcement, and hello's notices.
+- **Step 8:** an orphan autonomy row's notice to the owners who may enter its project, through `Notifications.shellNotice`, the seam built and tested here for steps 8 to 10.
+- **Step 9:** the experiment changes of 5.2 and a deferred unload. **Step 10:** a limit's refusal, to owners.
+- **Phase 3's revoked session: not built, a question for the coordinator.** The kernel hears a revoked session as a change of person to no one, settled with `reason: 'tab'`, as it hears a sign-out in another tab. Nothing tells the two apart, so a notice on it would say "you were signed out" after every sign-out elsewhere too.
+
+**Measured.** D115, on Windows with Node 26.13.1, against the figures `budget.mjs` records for `main` with steps 2 and 3 merged:
+
+- first paint 309,560 and 96,545 gzip (+594; section 14 estimated nothing for this step's first paint), its rows raised from 309,500 and 96,500 to 310,000 and 96,700, with `first-paint.test.ts`'s literal;
+- `lateMinified` 93,000 to 94,000 (93,596, +1,280);
+- `lateSettingsMinified` 30,500 to 45,500 (41,258, +12,858), over step 3's re-estimate of about 7,000 for the inbox commands: five commands with their written JSON Schemas, the quota, the cursor and budget, R10 and `toast-show`'s half;
+- `appsMinified` 417,500 to 418,000 (417,629, +281);
+- `surfacesMinified` 88,200 to 91,000 (90,199, +2,256);
+- new: `inboxMinified` at section 14's 10,000 (7,809, at 78%).
+
+`budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (1,069; the inbox's 27 in `late/notifications.test.ts`, and both scenarios in `scenarios.test.ts`), chrome (244), the SDK (32), web (53) and hello (8); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; and Chromium: `inbox` (4, new), with `accessibility`, `shell`, `layout`, `apps/popovers`, `apps/overlays`, `apps/accessibility`, `settings`, `scope/first-paint` and `budget`. Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
