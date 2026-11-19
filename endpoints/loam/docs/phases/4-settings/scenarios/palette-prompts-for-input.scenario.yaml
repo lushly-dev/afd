@@ -3,6 +3,7 @@
 # `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
 # invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
 # since AFD compares a YAML list whole.
+# The checklist document is in prj_atlas, so the prompt and its run are in that project's scope (step 6).
 name: Run a command that needs input from the palette
 description: >-
   When a command needs input, I want the palette to ask me for it, so that I can run any command
@@ -18,13 +19,13 @@ steps:
       data:
         items:
           '0': { name: checklist-item-add, app: Checklist }
-  - description: Choosing it opens a prompt for its input
+  - description: "[scope: prj_atlas] Choosing it opens a prompt for its input"
     command: palette-run
     input: { command: checklist-item-add }
     expect:
       success: true
       data: { prompt: { kind: prompt, owner: shell } }
-  - description: Input the schema refuses keeps the prompt open, with the reason
+  - description: "[scope: prj_atlas] Input the schema refuses keeps the prompt open, with the reason"
     command: palette-run
     input:
       command: checklist-item-add
@@ -33,7 +34,7 @@ steps:
     expect:
       success: false
       error: { code: VALIDATION_ERROR }
-  - description: Run with the input the prompt collected
+  - description: "[scope: prj_atlas] Run with the input the prompt collected"
     command: palette-run
     input:
       command: checklist-item-add

@@ -47,6 +47,7 @@ import type { SettingRows } from './shell-commands.js';
 
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
+export { createConfirmations, KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
 export { createNotifications, orphanNotice, orphanRecipients } from './notifications.js';
 export {
 	HUMAN_SETTING_KEYS,

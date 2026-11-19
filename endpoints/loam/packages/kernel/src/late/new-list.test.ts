@@ -277,11 +277,12 @@ describe("P2-D8: (kernel unit) the palette's document rows (8.2)", () => {
 		expect(documentRows(await search(held, ''))).toEqual([]);
 	});
 
-	it("lists the editor owner's commands with no app active, its instance commands first (5.4)", async () => {
+	it("ranks the editor owner's commands first with no app active, its instance commands first (5.4)", async () => {
 		const held = await workspace();
 		const { kernel } = held;
 		const names = async (query: string) => (await search(held, query)).map((item) => item.name);
-		expect((await names('probe')).some((name) => name.startsWith('probe-'))).toBe(false);
+		// Phase 4's A-P0-1: listed before any is active, as every enabled, loaded app's are.
+		expect((await names('probe')).some((name) => name.startsWith('probe-'))).toBe(true);
 		const record = (
 			await kernel.call<DocumentRecordV1>('document-create', { type: 'probe', title: 'Owner' })
 		).data as DocumentRecordV1;
@@ -292,9 +293,13 @@ describe("P2-D8: (kernel unit) the palette's document rows (8.2)", () => {
 		expect(
 			shown.slice(0, -2).every((name) => name !== 'probe-reach' && name !== 'probe-memo-get')
 		).toBe(true);
-		// An app opened takes the palette back.
+		// An app opened ranks first; the editor owner's are still listed, after it (A-P0-1).
 		await kernel.call('app-open', { instance: 'dual' });
-		expect((await names('probe')).some((name) => name.startsWith('probe-'))).toBe(false);
+		const after = await names('');
+		const firstProbe = after.findIndex((name) => name.startsWith('probe-'));
+		const lastDual = after.findLastIndex((name) => name.startsWith('dual-'));
+		expect(lastDual).toBeGreaterThanOrEqual(0);
+		expect(firstProbe === -1 || firstProbe > lastDual).toBe(true);
 	});
 });
 

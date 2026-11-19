@@ -74,11 +74,26 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/new' },
 	// Phase 4's step 1: a key of version 2, as phase 4 adds no manifest version (its 12.1).
 	{ pointer: '/ui/settings' },
+	// Phase 4's step 6: a command's `confirm_prompt` (7.2), each command's; `*` is an index.
+	{ pointer: '/commands/*/confirm_prompt' },
 ];
 
-const holds = (document: unknown, key: VersionKey): boolean => {
-	const found = valueAt(document, key.pointer);
-	return key.value === undefined ? found !== undefined : found === key.value;
+/** The concrete pointers of `key` a document holds: one at most, or one per item where the key has a `*`. */
+const heldAt = (document: unknown, key: VersionKey): string[] => {
+	const star = key.pointer.indexOf('/*/');
+	const pointers =
+		star < 0
+			? [key.pointer]
+			: (() => {
+					const list = valueAt(document, key.pointer.slice(0, star));
+					return Array.isArray(list)
+						? list.map((_, index) => key.pointer.replace('/*/', `/${index}/`))
+						: [];
+				})();
+	return pointers.filter((pointer) => {
+		const found = valueAt(document, pointer);
+		return key.value === undefined ? found !== undefined : found === key.value;
+	});
 };
 
 const describeKey = (key: VersionKey): string =>
@@ -93,12 +108,14 @@ const describeKey = (key: VersionKey): string =>
  */
 export function versionKeyFindings(document: unknown): Finding[] {
 	if (valueAt(document, '/manifest_version') !== 1) return [];
-	return VERSION_TWO_KEYS.filter((key) => holds(document, key)).map((key) => ({
-		code: 'MANIFEST_SURFACE_UNAVAILABLE',
-		pointer: key.pointer,
-		message: `${describeKey(key)} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
-		suggestion: 'Set manifest_version = 2.',
-	}));
+	return VERSION_TWO_KEYS.flatMap((key) =>
+		heldAt(document, key).map((pointer) => ({
+			code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
+			pointer,
+			message: `${describeKey({ ...key, pointer })} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
+			suggestion: 'Set manifest_version = 2.',
+		}))
+	);
 }
 
 /**

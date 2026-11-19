@@ -233,6 +233,8 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 	'new',
 	// Phase 3 specification, 12.
 	'member',
+	// Phase 4 specification, 12, from its step 6.
+	'confirmation',
 ];
 
 /**

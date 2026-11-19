@@ -144,14 +144,85 @@ export interface NotificationV1 {
 	 * runs, so it never runs twice.
 	 */
 	state?: 'acting' | 'done';
-	/** Phase 4's step 6 fills it, the kernel alone. */
-	confirmation?: Record<string, unknown>;
+	/** A confirmation's (`kind: 'confirmation'`): set by the kernel alone (phase 4 specification, 7.2). */
+	confirmation?: ConfirmationRecordV1;
 	scope: ScopeV1;
 	createdAt: number;
 	readAt?: number;
 	archivedAt?: number;
 	/** Whose it is, as the shell shows it (6.6), set by the kernel when it lists the notice; never stored. */
 	from?: OverlayFromV1;
+}
+
+/** Where a confirmation stands (phase 4 specification, 7.2): only `pending` waits for the person. */
+export type ConfirmationStateV1 = 'pending' | 'confirmed' | 'declined' | 'expired' | 'withdrawn';
+
+/**
+ * A confirmation as the inbox keeps it (10.1, 7.2): the command and input asked for, who asked, and how it ended. Raised
+ * by the kernel alone, for a command whose manifest declares a `confirm_prompt`, when an agent or an app that is not
+ * active calls it. `input` is listed only with `notification-list { body: true }`.
+ */
+export interface ConfirmationRecordV1 {
+	command: string;
+	/** Who asked: an app's instance, or `agent:<id>`. */
+	caller: string;
+	input?: unknown;
+	/** The agent's run, which phase 5 sets; answering a whole group is phase 5's. */
+	group?: string;
+	/** The shell's header, "Requested by <agent> for <person>, in <project>", or "<app> asks to run <command> …". */
+	header: string;
+	/** The app's `confirm_prompt`, shown beneath the header. */
+	prompt: string;
+	/** The command's title, which Confirm and Decline name (section 15). */
+	title: string;
+	/** Whether the command declares itself destructive. */
+	danger?: boolean;
+	expiresAt: number;
+	state: ConfirmationStateV1;
+	/** Why it ended as it did: `person`, the person's answer; `access`, the access re-checked on confirm failed. */
+	reason?: 'person' | 'access';
+	/** The result of the one run the shell made, once confirmed. */
+	result?: unknown;
+	/** When the person answered it. */
+	answeredAt?: number;
+	/** How many calls on the same key the shell refused without asking, after the decline ("Declined automatically"). */
+	declinedAgain?: number;
+}
+
+/** What `confirmation-get` answers its caller (7.2). An expired one's `result` is `CONFIRMATION_EXPIRED`. */
+export interface ConfirmationV1 {
+	state: ConfirmationStateV1;
+	reason?: 'person' | 'access';
+	result?: CommandResult;
+	expiresAt: number;
+}
+
+/**
+ * The confirmations an app raised, as it reads them (phase 4 specification, 12): `get` reads one's state and outcome,
+ * `withdraw` ends one still pending, which never opens the decline window. An app reads only its own.
+ */
+export interface ConfirmationsV1 {
+	get(notification: string): Promise<ConfirmationV1>;
+	withdraw(notification: string): Promise<{ state: 'withdrawn' }>;
+}
+
+/** {@link ConfirmationsV1} over a caller that may call `confirmation-get` and `confirmation-withdraw`, as every app may. */
+export function confirmationsOver(client: LoamClientV1): ConfirmationsV1 {
+	const read = async <T>(name: string, notification: string): Promise<T> => {
+		const result = await client.call<T>(name, { notification });
+		if (!result.success || !result.data) {
+			const error = result.error;
+			throw Object.assign(new Error(error?.message ?? 'The confirmation could not be read'), {
+				code: error?.code,
+				suggestion: error?.suggestion,
+			});
+		}
+		return result.data;
+	};
+	return {
+		get: (notification) => read<ConfirmationV1>('confirmation-get', notification),
+		withdraw: (notification) => read<{ state: 'withdrawn' }>('confirmation-withdraw', notification),
+	};
 }
 
 /** A notice's action (10.1): one of the pushing app's own palette commands, never a human or owner command. */
@@ -393,6 +464,8 @@ export interface AppContextV1 {
 	readonly settings?: SettingsV1;
 	/** The person's inbox, to push a notice to (phase 4 specification, 10.2). */
 	readonly notifications?: NotificationsV1;
+	/** The confirmations this app raised, read and withdrawn (phase 4 specification, 7.2, 12). */
+	readonly confirmations?: ConfirmationsV1;
 	/**
 	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
 	 * only: a view calls `app-route-set` through its client.
@@ -627,6 +700,8 @@ export interface PromptInputV1 {
 	confirmLabel?: string;
 	cancelLabel?: string;
 	danger?: boolean;
+	/** The shell's close prompt only (phase 4 specification, 7.3): Save, Discard and Cancel. `prompt-open` refuses it. */
+	actions?: OverlayActionV1[];
 }
 
 /** The shell's strip under the title bar (6.1), set by the kernel alone, one per id. */
@@ -685,8 +760,18 @@ export interface OverlayV1 extends OverlayRefV1 {
 	hidden?: true;
 	/** `parked` for a dialog whose app is not active (6.2); absent while open. */
 	state?: 'parked';
-	/** On the kernel's own prompts only (6.1): the command it asks for, and the caller that raised it. */
-	for?: { command: string; caller?: string };
+	/**
+	 * On the kernel's own prompts only (6.1): the command it asks for, and the caller that raised it. Step 6 adds what the
+	 * prompt is: the palette's `input` prompt (7.1), a `confirmation` with the input it would run (7.2), or the `close`
+	 * prompt (7.3).
+	 */
+	for?: {
+		command: string;
+		caller?: string;
+		kind?: 'input' | 'confirmation' | 'close';
+		/** A confirmation's input, as it will run, shown beneath the prompt (7.1's R15, 7.2). */
+		input?: unknown;
+	};
 	/** On an app's dialog, modal or prompt: the scope it was opened in, which its element's mount keeps (D83). */
 	scope?: ScopeV1;
 }

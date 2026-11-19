@@ -2,8 +2,8 @@
  * @fileoverview The inbox (phase 4 specification, section 10; D120), in the `late-settings` chunk beside the settings
  * (its section 1): the `notification` table, `notification-push`, `-list`, `-read`, `-archive` and `-act`, and the
  * inbox's half of `toast-show`, by which a sticky toast, and one `loam.notifications.toastSticky` selects, also lands
- * as a notice (6.1). Confirmations, `kind: 'confirmation'`, are step 6's: the record's shape and the protections of a
- * pending one (R10) are here, raising and answering one are not.
+ * as a notice (6.1). Confirmations, `kind: 'confirmation'`, are raised by step 6's `confirmations.ts`, in the same
+ * table: the protections of a pending one (R10) are here, and `notification-act` answers one through `answer`.
  *
  * Everything of `late` and first paint reaches this module through its deps, so it imports types alone (13).
  */
@@ -11,6 +11,7 @@
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type {
+	ConfirmationRecordV1,
 	NotificationActionV1,
 	NotificationV1,
 	OverlayFromV1,
@@ -24,6 +25,7 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
+import { KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PushRate } from './push-rate.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
@@ -114,6 +116,12 @@ export interface NotificationDeps {
 		fields: { parent: string; scope: ScopeV1; actor?: unknown }
 	): Promise<CommandResult>;
 	kit: SettingsKit & Pick<DocumentKit, 'projectNotFound'>;
+	/** Step 6's answer to a confirmation (7.2), a person's `notification-act { answer }`. Absent: none is answered. */
+	answer?(
+		row: NotificationV1,
+		answer: 'confirm' | 'decline' | undefined,
+		context: CommandContext
+	): Promise<CommandResult>;
 }
 
 export interface Notifications {
@@ -149,7 +157,7 @@ const newestFirst = (a: NotificationV1, b: NotificationV1): number =>
 
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-/** A pending confirmation (R10): step 6 raises them; a step 5 store may already hold one from a later build. */
+/** A pending confirmation (R10), raised by step 6: protected, whether or not it has expired since. */
 const pendingConfirmation = (notice: NotificationV1): boolean =>
 	notice.kind === 'confirmation' &&
 	(notice.confirmation as { state?: unknown } | undefined)?.state === 'pending';
@@ -575,9 +583,15 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 	 * A row as the list gives it (10.2): whose it is (6.6); `body` and a confirmation's `input` only when asked; never
 	 * the act's claim.
 	 */
-	const shown = (row: StoredNotice, body: boolean): NotificationV1 => {
+	const shown = (row: StoredNotice, body: boolean, now: number): NotificationV1 => {
 		const copy = structuredClone(row);
-		delete copy.claim;
+		for (const field of KERNEL_ONLY_FIELDS)
+			delete (copy as unknown as Record<string, unknown>)[field];
+		// A pending confirmation past its 10 minutes is listed `expired` (7.2): no write records it.
+		if (copy.confirmation) {
+			const record = copy.confirmation as ConfirmationRecordV1;
+			record.state = stateNow(record, now);
+		}
 		const from = deps.fromOf(copy.source);
 		if (from) copy.from = from;
 		if (body) return copy;
@@ -645,7 +659,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			let bytes = bytesOf({ notifications: [], cursor: 'x'.repeat(40), unread: unreadCount });
 			for (const row of matching) {
 				if (page.length >= limit) break;
-				const item = shown(row, input.body === true);
+				const item = shown(row, input.body === true, kit.callNow(context));
 				const size = bytesOf(item) + 1;
 				if (bytes + size > NOTIFICATION_LIST_BUDGET) {
 					if (page.length > 0) break;
@@ -811,12 +825,15 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			const row = (await readable(context, person)).find((each) => each.id === input.notification);
 			if (!row || row.archivedAt !== undefined) return notFound(input.notification);
 			if (row.kind === 'confirmation') {
-				// Step 6 answers a confirmation; until then nothing runs.
-				return fail(
-					'NOTIFICATION_ACTION_UNAVAILABLE',
-					'A confirmation is answered with confirm or decline, which this build does not serve yet',
-					'Answer it once the shell serves confirmations'
-				);
+				// A person's confirm or decline (7.2): the shell re-checks access and runs the call itself, once.
+				if (!deps.answer) {
+					return fail(
+						'NOTIFICATION_ACTION_UNAVAILABLE',
+						'This build does not answer confirmations',
+						'Answer it where the shell serves confirmations'
+					);
+				}
+				return deps.answer(row, input.answer, context) as Promise<CommandResult<never>>;
 			}
 			if (input.answer !== undefined) {
 				return fail(

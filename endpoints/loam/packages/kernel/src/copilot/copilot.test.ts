@@ -666,12 +666,13 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		expect((await call('copilot-message-send', { session: 'x', text: 'y' })).error?.code).toBe(
 			'HUMAN_REQUIRED'
 		);
-		// Both are human commands (6.1): `notification-act` from phase 4's step 5; `palette-run` does not exist before its
-		// step 6.
+		// Both are human commands (6.1): `notification-act` from phase 4's step 5, `palette-run` from its step 6.
 		expect(
 			(await call('notification-act', { notification: 'ntf_0000000000000000' })).error?.code
 		).toBe('HUMAN_REQUIRED');
-		expect((await call('palette-run')).error?.code).toBe('COMMAND_NOT_FOUND');
+		expect((await call('palette-run', { command: 'shell-info-get' })).error?.code).toBe(
+			'HUMAN_REQUIRED'
+		);
 		agent.post({ id: 8, key: 'confirmation', notification: 'n1' });
 		expect(((await agent.next()) as { result: CommandResult }).result.error?.code).toBe(
 			'COPILOT_PORT_REFUSED'
@@ -685,6 +686,7 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		for (const hidden of [
 			'persona-set',
 			'notification-act',
+			'palette-run',
 			'copilot-message-send',
 			'copilot-session-get',
 			'copilot-port-refuse',

@@ -1,4 +1,4 @@
-manifest_version = 1
+manifest_version = 2
 protocol = 1
 afd_contract = "1.0"
 
@@ -25,6 +25,16 @@ description = "Add to the tally, by one unless a number is given, and return the
 category = "tally"
 effects = ["store-write"]
 input_schema = "schemas/tally-add.input.json"
+
+[[commands]]
+name = "tally-reset"
+title = "Reset the tally"
+description = "Set the tally's total back to zero and clear its history; the person confirms first."
+category = "tally"
+effects = ["store-write"]
+destructive = true
+confirm_prompt = "Set the total back to zero and clear its history. This cannot be undone."
+input_schema = { type = "object", properties = {}, additionalProperties = false }
 
 [[commands]]
 name = "tally-get"

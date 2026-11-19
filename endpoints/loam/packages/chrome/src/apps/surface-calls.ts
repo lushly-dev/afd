@@ -8,6 +8,7 @@ import type { AppPortV2 } from '@lushly-dev/loam-kernel';
 import {
 	type AppContextV1,
 	type CommandResult,
+	confirmationsOver,
 	type DialogInputV1,
 	type DocumentRecordV1,
 	type DocumentsV1,
@@ -61,7 +62,7 @@ export function surfaceCalls(
 	call: AppPortV2['call']
 ): Pick<
 	AppContextV1,
-	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications'
+	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications' | 'confirmations'
 > {
 	const { instance } = port;
 	/** Open a question and wait for its answer; a refusal throws, with its code. */
@@ -82,6 +83,8 @@ export function surfaceCalls(
 			: {}),
 		// The person's inbox, every app's to push to at its own rate (phase 4 specification, 10.2, 12).
 		notifications: notificationsOver({ call }),
+		// The confirmations this app raised, read and withdrawn (phase 4 specification, 7.2, 12).
+		confirmations: confirmationsOver({ call }),
 		async navigate(route: string) {
 			const moved = await call('app-route-set', { instance, path: route });
 			if (!moved.success) throw refusal(moved, 'The route could not change');

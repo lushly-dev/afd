@@ -115,11 +115,6 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 	'/ui/experiments': later('ui.experiments', 4),
 	'/ui/menus': later('ui.menus', 4),
 	'/ui/automations': later('ui.automations', 7),
-	'/commands/*/confirm_prompt': {
-		code: 'MANIFEST_CONFIRM_UNAVAILABLE',
-		message: '`confirm_prompt` needs the prompt overlay, which arrives in phase 4.',
-		suggestion: 'Remove `confirm_prompt` until phase 4.',
-	},
 	'/commands/*/output_budget': {
 		code: 'MANIFEST_BUDGET_UNAVAILABLE',
 		message: 'TypeScript does not implement output budgets yet.',
@@ -133,10 +128,15 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		'pipelines',
 		'phase 1 has no use for one before the agent surface in phase 5'
 	),
-	'/mount/tools/*/confirm_prompt': refused(
-		'mount.tools[].confirm_prompt',
-		'the shell has no gate to back it in phase 1'
-	),
+	// A mounted tool's stays refused (phase 4 specification, 7.2 and 12.1): the shell confirms only what it runs itself,
+	// and a mounted server's own approval is phase 5's (D146).
+	'/mount/tools/*/confirm_prompt': {
+		code: 'MANIFEST_CONFIRM_UNAVAILABLE',
+		message:
+			"A mounted tool's `confirm_prompt` is not served: the shell confirms only a native or view app's commands.",
+		suggestion:
+			'Remove `confirm_prompt` from the tool; declare it on a native or view command instead.',
+	},
 	'/mount/tools/*/approval': refused(
 		'mount.tools[].approval',
 		'the shell has no gate to back it in phase 1'

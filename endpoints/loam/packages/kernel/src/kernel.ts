@@ -406,8 +406,9 @@ export async function createKernelParts(
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
 		...(lateParts ? [lateParts.writeThrough] : []),
 		scopeMiddleware,
-		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
-		...(lateParts ? [lateParts.copilot.gate] : []),
+		// The copilot's gate, after access (phase 5 specification, 6.1's order), then the confirmations' (phase 4's 7.2,
+		// F9): once `late/` has loaded.
+		...(lateParts ? [lateParts.copilot.gate, lateParts.confirmations.gate] : []),
 	];
 	const build = (
 		iface: KernelInterfaceV0,
@@ -484,10 +485,18 @@ export async function createKernelParts(
 					return run('agent', name, input, made);
 				},
 				agentCommands: () => registries.agent.listCommands(),
+				paletteCommands: () => registries.palette.listCommands(),
+				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
+				runNow: (iface, name, input, fields) =>
+					execute(iface, name, input, {}, fields as KernelCallFields),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
-			contextFields = [...KERNEL_CONTEXT_FIELDS, ...parts.copilot.contextFields];
+			contextFields = [
+				...KERNEL_CONTEXT_FIELDS,
+				...parts.copilot.contextFields,
+				...parts.confirmations.contextFields,
+			];
 			shell = [...parts.shell, ...parts.internal];
 			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
 			bootOnly = parts.bootOnly;

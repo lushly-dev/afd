@@ -602,8 +602,19 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					);
 				}
 			}
+			// The kernel's own prompts (step 6): the palette's input prompt is filled by `palette-run` alone (7.1); a
+			// confirmation and the close prompt are answered with no value (7.2, 7.3).
+			const asked = overlays.forOf(input.overlayId)?.kind;
+			if (asked === 'input' && answers) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"The palette's input prompt runs its command with palette-run",
+					'Run it with palette-run { command, prompt, input }, or cancel it'
+				);
+			}
+			const valued = overlay.kind === 'prompt' && asked !== 'confirmation' && asked !== 'close';
 			// A prompt's answer carries its value, checked against its schema; the prompt stays open when it fails.
-			if (input.value !== undefined && (overlay.kind !== 'prompt' || !answers)) {
+			if (input.value !== undefined && (!valued || !answers)) {
 				return kernelFailure(
 					'VALIDATION_ERROR',
 					"value is a prompt's answer, with result confirm",
@@ -611,7 +622,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				);
 			}
 			let value: unknown = input.item;
-			if (overlay.kind === 'prompt' && answers) {
+			if (valued && answers) {
 				const prompt = overlay.input as PromptInputV1;
 				// Exactly what was submitted, never the prompt's starting value (the review's 8).
 				value = input.value;

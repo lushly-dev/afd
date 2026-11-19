@@ -149,6 +149,10 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'autonomy-get': { command: 'project-get', instance: 'shell', project: PROJECT },
 	'autonomy-list': { project: PROJECT },
 	'autonomy-set': { level: 'project', project: PROJECT, mode: 'ask' },
+	// Phase 4's step 6: the palette's input prompt (7.1), and a caller's own confirmation (7.2), each the call's scope's.
+	'palette-run': { command: 'project-get' },
+	'confirmation-get': { notification: 'ntf_0000000000000000' },
+	'confirmation-withdraw': { notification: 'ntf_0000000000000000' },
 };
 
 /**

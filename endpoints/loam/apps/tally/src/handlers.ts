@@ -21,7 +21,7 @@ export function onTallyChanged(listener: () => void): () => void {
 	return () => listeners.delete(listener);
 }
 
-/** One add at a time: two quick presses would otherwise read the same total. */
+/** One change at a time: two quick presses would otherwise read the same total, and a reset lands between adds. */
 let adding: Promise<unknown> = Promise.resolve();
 
 async function add(by: number, store: AppStoreV1): Promise<Held> {
@@ -38,6 +38,20 @@ export const handlers = {
 		const added = adding.then(() => add(input.by ?? 1, store));
 		adding = added.catch(() => {});
 		const next = await added;
+		for (const listener of listeners) listener();
+		return success(next);
+	},
+	/** Back to zero, history cleared, after the person confirmed (phase 4 specification, 7.2): the shell asks, not the app. */
+	async 'tally-reset'(_input: Record<string, never>, context: AppCallContextV1) {
+		const { store } = context;
+		if (!store) return failure(STORE_MISSING);
+		const reset = adding.then(async () => {
+			const next: Held = { total: 0, history: [] };
+			await store.put('tally', next);
+			return next;
+		});
+		adding = reset.catch(() => {});
+		const next = await reset;
 		for (const listener of listeners) listener();
 		return success(next);
 	},

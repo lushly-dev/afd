@@ -633,7 +633,7 @@ describe('the keybindings registry', () => {
 });
 
 describe('listCommands and the palette', () => {
-	it('names each command instance, hides internal commands, and filters search by active app', async () => {
+	it('names each command instance, hides internal commands, and ranks search by active app (A-P0-1)', async () => {
 		const { kernel } = await boot([entry('probe')], {
 			'apps/probe/': { manifest: PROBE_MANIFEST, definition: probeDefinition() },
 		});
@@ -649,19 +649,21 @@ describe('listCommands and the palette', () => {
 
 		const search = async () =>
 			(
-				await kernel.call<{ items: Array<{ name: string }> }>('palette-search', {
+				await kernel.call<{ items: Array<{ name: string; app?: string }> }>('palette-search', {
 					query: 'probe',
 					limit: 50,
 				})
-			).data?.items
-				.map((item) => item.name)
-				// The shell's `project-*` match the query too.
-				.filter((name) => name.startsWith('probe-'));
-		expect(await search()).toEqual([]);
+			).data?.items ?? [];
+		// Phase 4's A-P0-1: an app need not be active for its commands to be listed, each naming its app.
+		const closed = await search();
+		expect(closed.find((item) => item.name === 'probe-list')?.app).toBe('Probe');
+		expect(closed.map((item) => item.name)).not.toContain('probe-hidden');
 		await kernel.call('app-open', { instance: 'probe' });
-		expect(await search()).toContain('probe-list');
+		// The active app's first, whatever the score.
+		const open = (await search()).map((item) => item.name);
+		const probes = open.filter((name) => name.startsWith('probe-'));
+		expect(open.slice(0, probes.length)).toEqual(probes);
 		await kernel.call('app-close');
-		expect(await search()).toEqual([]);
 		expect((await kernel.call('probe-list')).success).toBe(true);
 	});
 });

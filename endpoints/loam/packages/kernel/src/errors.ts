@@ -91,6 +91,11 @@ export type LoamKernelErrorCode =
 	| 'RATE_LIMITED'
 	// Phase 4's inbox (its 10.1, 16), from its step 5.
 	| 'NOTIFICATION_NOT_FOUND'
+	// Step 6's confirmations (7.2), and AFD's own unknown command, from `palette-run`.
+	| 'COMMAND_NOT_FOUND'
+	| 'CONFIRMATION_PENDING'
+	| 'CONFIRMATION_DECLINED'
+	| 'CONFIRMATION_EXPIRED'
 	| 'NOTIFICATION_ACTION_FOREIGN'
 	| 'NOTIFICATION_ACTION_UNAVAILABLE'
 	| 'QUOTA_EXCEEDED'

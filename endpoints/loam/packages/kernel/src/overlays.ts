@@ -76,10 +76,15 @@ export const SLOT_KINDS: ReadonlySet<string> = new Set(['modal', 'prompt']);
 export const unanswered = (kind: string): 'cancel' | 'dismissed' =>
 	kind === 'modal' || kind === 'prompt' || kind === 'dialog' ? 'cancel' : 'dismissed';
 
-/** What the kernel's own prompts carry (6.1), set by the kernel alone: the command asked for, and who raised it. */
+/**
+ * What the kernel's own prompts carry (6.1), set by the kernel alone: the command asked for, and who raised it; from
+ * step 6, which of its prompts it is (7.1 to 7.3), and a confirmation's input as it will run.
+ */
 export interface OverlayFor {
 	command: string;
 	caller?: string;
+	kind?: 'input' | 'confirmation' | 'close';
+	input?: unknown;
 }
 
 /** What `open` takes besides the input: whose line the shell shows, and when it opened, on the call's clock. */
@@ -222,7 +227,7 @@ export function createOverlayStore(): OverlayStore {
 		const copy = detached(overlay);
 		if (parked.has(overlay.overlayId)) copy.state = 'parked';
 		const asked = fors.get(overlay.overlayId);
-		if (asked) copy.for = { ...asked };
+		if (asked) copy.for = detached(asked);
 		const scope = scopes.get(overlay.overlayId);
 		if (scope) copy.scope = { ...scope };
 		return copy;
@@ -250,7 +255,7 @@ export function createOverlayStore(): OverlayStore {
 		if (options.openedAt !== undefined) opened.set(ref.overlayId, options.openedAt);
 		// Only the shell's own prompts carry `for` (6.1).
 		if (options.for && owner.kind === 'shell' && kind === 'prompt') {
-			fors.set(ref.overlayId, { ...options.for });
+			fors.set(ref.overlayId, detached(options.for));
 		}
 		if (options.scope && owner.kind === 'app') scopes.set(ref.overlayId, { ...options.scope });
 		return { ...ref };
@@ -280,7 +285,7 @@ export function createOverlayStore(): OverlayStore {
 		},
 		forOf(overlayId) {
 			const asked = fors.get(overlayId) ?? closed.get(overlayId)?.for;
-			return asked && { ...asked };
+			return asked && detached(asked);
 		},
 		setGlobal(id, input) {
 			const held = globals.get(id);

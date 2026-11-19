@@ -37,6 +37,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'copilot-turn-settle',
 	// The autonomy rows a manifest's apply orphaned, flagged (phase 4 specification, 4.2).
 	'autonomy-settle',
+	// The shell's own prompts in the slot, journaled before the person answers them, so a replay opens them again (7.2).
+	'prompt-settle',
 ]);
 
 /**

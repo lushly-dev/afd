@@ -69,6 +69,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"version",
 			"requires",
 			"contexts",
+			"confirm_prompt",
 			"destructive",
 			"undoable",
 			"approval",

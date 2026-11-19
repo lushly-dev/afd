@@ -70,6 +70,13 @@ export interface SettingRows {
 	search(query: string, context: CommandContext, limit: number): Promise<PaletteItem[]>;
 }
 
+/**
+ * Each result's rank group (phase 4 specification, 7.1; A-P0-1): 0 for the active app's commands, 1 for the active tab
+ * owner's, 2 for the rest. Kept beside the item, never on it, so the persona's order (phase 3's 6.2) ranks after it.
+ */
+const GROUPS = new WeakMap<object, number>();
+export const paletteGroupOf = (item: object): number => GROUPS.get(item) ?? 2;
+
 /** The kinds `palette-search { kind }` filters by (3.10). */
 const PALETTE_KINDS = ['command', 'document', 'setting'] as const;
 /** On a tie of score: a command, then a document, then a setting (documents specification, 8.2), then by name. */
@@ -104,6 +111,8 @@ export interface ShellCommandDeps {
 	documentRows?: DocumentRows;
 	/** The palette's setting rows, from `late-settings`, filtered for the call at query time (phase 4 specification, 3.10). */
 	settingRows?(): SettingRows | undefined;
+	/** An app's title as its owner line shows it (phase 4's 6.6), which a command row names (A-P0-1). */
+	appTitle?(instance: string): string;
 	/**
 	 * The appearance's write from phase 4's step 1 (phase 4 specification, 3.6): the person's own `loam.appearance`
 	 * settings, or `.last` signed out in `provider` mode. `appearance-set` and the `loam.appearance` alias write here.
@@ -342,10 +351,11 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 
 	let index:
 		| {
-				active: string | null;
 				commandSet: number;
 				only: ReadonlySet<string> | undefined;
 				index: PaletteIndex;
+				/** Each listed command's instance, none for the shell's own. */
+				instances: ReadonlyMap<string, string | undefined>;
 		  }
 		| undefined;
 	const search = async (
@@ -367,29 +377,42 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 				? ((await deps.documentRows?.search(query, context.actor, limit)) ?? [])
 				: [];
 		if (kind === 'document') return documentRows;
-		// Shell commands and the active app's, or the editor owner's while no app is: an inactive app's stay
-		// callable by name (9.1; documents specification, 5.4).
+		// Every app's commands that can open in this scope and are loaded (`paletteRows` leaves out the rest), ranked by the
+		// active app, then the active tab's owner, then the rest (phase 4 specification, 7.1; A-P0-1); each names its app.
 		const app = state.activeApp();
-		const active = app ?? (await deps.editorOwner?.()) ?? null;
+		const owner = app === null ? ((await deps.editorOwner?.()) ?? null) : null;
 		const commandSet = deps.commandSet();
-		if (index?.active !== active || index.commandSet !== commandSet || index.only !== only) {
+		if (index?.commandSet !== commandSet || index.only !== only) {
 			const shown = deps
 				.paletteRows()
-				.filter(
-					(command) =>
-						(command.instance === undefined || command.instance === active) &&
-						(only === undefined || only.has(command.name))
-				);
-			index = { active, commandSet, only, index: createPaletteIndex(shown) };
+				.filter((command) => only === undefined || only.has(command.name));
+			index = {
+				commandSet,
+				only,
+				index: createPaletteIndex(shown),
+				instances: new Map(shown.map((command) => [command.name, command.instance])),
+			};
 		}
-		const commands = index.index.search(query, limit);
-		// By score, then a command, a document and a setting on a tie (8.2), then by name, so a result is deterministic
-		// (phase 4 specification, 3.10); the editor owner's document's instance commands first of all (5.4).
-		const first = app === null && active !== null ? deps.instanceCommands?.(active) : undefined;
+		const { instances } = index;
+		// Every match, so the rank groups apply before the limit does.
+		const commands = index.index.search(query, Math.max(limit, index.index.size)).map((item) => {
+			const instance = instances.get(item.name);
+			const row =
+				instance === undefined ? item : { ...item, app: deps.appTitle?.(instance) ?? instance };
+			GROUPS.set(
+				row,
+				instance === undefined ? 2 : instance === app ? 0 : instance === owner ? 1 : 2
+			);
+			return row;
+		});
+		// By rank group, then score, then a command, a document and a setting on a tie (8.2), then by name, so a result is
+		// deterministic (phase 4 specification, 3.10); the editor owner's document's instance commands first of all (5.4).
+		const first = owner !== null ? deps.instanceCommands?.(owner) : undefined;
 		const items = [...commands, ...documentRows, ...settingRows]
 			.sort(
 				(a, b) =>
 					Number(first?.has(b.name)) - Number(first?.has(a.name)) ||
+					paletteGroupOf(a) - paletteGroupOf(b) ||
 					b.score - a.score ||
 					(KIND_RANK[a.kind ?? 'command'] as number) - (KIND_RANK[b.kind ?? 'command'] as number) ||
 					(a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
