@@ -36,6 +36,7 @@ Only what a failing gate will not explain.
   - Violet: `foundations/violet/provenance/adaptations.json`.
   - Botcore: `endpoints/botcore/scripts/record_provenance.py`.
   - Health: `endpoints/health/provenance/provenance.json` and its pinned digest; any added file needs a row.
+  - Two branches that edit different files of one unit always conflict in its records' hash lines. `pnpm base:sync` merges records-only conflicts three ways with `scripts/provenance-merge.mjs`, as the factory lane does, and refuses a value both sides changed differently: record that file again by hand. Then run the unit's provenance test.
   - A `package.json` change to dependency ranges alone, as Dependabot makes, is not an adaptation in the three npm families (Specimen, FAST-AF, Violet): their records also hold the manifest's digest with its ranges blanked.
 - **FAST-AF:** do not run the upstream `check:v3` scopes or sync from lushly-dev/fast-af, which is frozen. Microsoft FAST releases of `fast-element` come in as a three-way merge from the last release taken, never as copied files: the [FAST-AF README](../../../../foundations/fast-af/README.md#microsoft-fast) has the steps.
 - **Violet** lints with its own Biome configuration (`foundations/violet/biome.json`). The root Biome config skips its directories, so `pnpm lint` says nothing about them.

@@ -16,7 +16,7 @@ for:
 | # | Work | State | Evidence | Left |
 | --- | --- | --- | --- | --- |
 | 1 | Shrink the one-line cells; the line-limit check | Merged | [#1605](https://github.com/lushly-dev/afd/pull/1605) | Nothing |
-| 2 | `pnpm base:sync`, resolving provenance records | In progress | Branch `lush/base-sync` | The owner question on computing the hash at release |
+| 2 | `pnpm base:sync`, resolving provenance records | Merged | [#1606](https://github.com/lushly-dev/afd/pull/1606) | The owner question on computing the hash at release |
 | 3 | Changesets for Python, Botcore and the spec contract | In progress | Branch `lush/changesets-private-tracks` | Nothing yet |
 | 4 | One line per step in the STATUS files | Not started | None | Starts when 1 has merged |
 | 5 | Merge queue | Not started | None | Starts when 1 to 4 have merged; turning it on in branch protection may be the owner's |
