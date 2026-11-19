@@ -114,6 +114,18 @@ export const REPLAY_IGNORE: readonly string[] = Object.freeze([
 	'data.session.expiresAt',
 ]);
 
+/**
+ * `entry` without its `VIEW_STATE_NOT_SAVED` warnings: the recording's store failed to write a record, which says
+ * nothing of what the call did, and a replay's store does not fail, so the replay compares the rest (#861).
+ */
+function withoutUnsavedWarning(entry: JournalEntry): JournalEntry {
+	const warnings = entry.result.warnings;
+	if (!warnings?.some((warning) => warning.code === 'VIEW_STATE_NOT_SAVED')) return entry;
+	const kept = warnings.filter((warning) => warning.code !== 'VIEW_STATE_NOT_SAVED');
+	const { warnings: _dropped, ...result } = entry.result;
+	return { ...entry, result: kept.length > 0 ? { ...result, warnings: kept } : result };
+}
+
 export interface ReplayKernelOptions {
 	/** The environment of the fresh kernel. Default: one that matches no media query. */
 	environment?: KernelEnvironmentV0;
@@ -555,7 +567,7 @@ export async function replayKernel(
 			},
 		};
 		const report = withNestedProblems(
-			await replayJournal(target, ordered, {
+			await replayJournal(target, ordered.map(withoutUnsavedWarning), {
 				ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
 			}),
 			ordered,

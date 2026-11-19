@@ -42,8 +42,9 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  *   meanwhile as it was before. The wait has no time limit: the store's write is what every such call waits for.
  * - **A handler that throws after a change** is written through all the same, and its error is the call's.
  * - **A write that fails** leaves the call as it was, since the change is in memory and the shell runs on it, with a
- *   `VIEW_STATE_NOT_SAVED` warning naming the records it changed, which the journal keeps: a reload would not find
- *   them. They stay unsaved until a write of them succeeds, and every call writes them again until one does.
+ *   `VIEW_STATE_NOT_SAVED` warning naming the records that changed while it ran, which the journal keeps: a reload
+ *   would not find them. A call that ran beside the one that changed them is named too, since what changed is read
+ *   from the shared state. A replay leaves the warning out of what it compares. They stay unsaved until a write of them succeeds, and every call writes them again until one does.
  */
 export function writeThrough(
 	viewState: ViewStateRegistry,

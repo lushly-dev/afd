@@ -1431,10 +1431,11 @@ Every code has a suggestion and is added to `LoamKernelErrorCode` or the deploym
 | `SIDEBAR_RESULT_INVALID` | A `tree` over its bounds | Shown in the part | Report to the app's owner |
 | `APP_DISABLED` | `app-open`, a call into a disabled instance, or `app-instance-refresh` of a disabled mounted one ([4.1](#41-the-workspace-store-d73)); a disabled instance's `app-instance-list` row carries it as a notice | A failure, journaled | `workspace-app-set { enabled: true }` |
 | `STORE_WRITE_IN_QUERY` | A `put` or `delete` under a command that is not a mutation ([section 5](#5-the-store-grant-d77)) | The store call is refused; the handler decides what it answers | Declare `store-write` on the command |
-| `VIEW_STATE_NOT_SAVED` | A call changed `loam.apps` or `loam.scope` and the store failed to write it (#861's second review, 2026-11-19) | A warning on the call's result, journaled, naming the records it changed; the change stays in memory, and every call writes it again until a write succeeds | Check that the site may store data |
 | `APP_ROUTE_INVALID` | A `.` or `..` segment in `app-route-set`, or a path over 1,024 characters | A failure, journaled | Use a path under the app's own base |
 | `LATE_COMMANDS_UNAVAILABLE` | The `late` chunk did not load ([2.2](#22-two-stages-d69)) | A failure, retryable, for each name stage A does not hold | Reload; check that the deployment serves its assets |
 | `REPLAY_NOT_RECORDED` | A replay reaches, past validation, a command the kernel records (`app-instance-refresh` or a mounted instance's, by the kernel's own table, not an entry's context), nested or top-level, that its journal does not answer from a recorded entry ([10](#10-journal-and-replay-with-scope); step 8) | That call's failure, never run, so no server is reached; the outer call is reported diverged | Replay the whole journal the session recorded |
+
+**A warning, not a code:** `VIEW_STATE_NOT_SAVED` (#861's second review, 2026-11-19) is on a call's `warnings` when `loam.apps` or `loam.scope` changed while it ran and the store failed to write it. The result is otherwise unchanged, since the change is in memory and the shell runs on it; the journal keeps the warning, and every call writes the record again until a write succeeds. A replay leaves the warning out of what it compares. Its suggestion: check that the site may store data.
 
 ## 13. Security
 

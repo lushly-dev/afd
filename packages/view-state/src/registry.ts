@@ -164,8 +164,9 @@ export class ViewStateRegistry {
 	 * record, or one in another category, leaves the handler as it is.
 	 *
 	 * Await it before any `set` or `replace` on this ID: the record is applied
-	 * over the handler's state, so a change made first is lost in memory while
-	 * its scheduled write still reaches the adapter.
+	 * over the handler's state, and a write scheduled for it and not yet made is
+	 * dropped, so a change made first is lost. One already being written still
+	 * reaches the adapter, and is not kept if it fails.
 	 */
 	async hydrateOne(id: string): Promise<void> {
 		if (!this.handlers.has(id)) return;

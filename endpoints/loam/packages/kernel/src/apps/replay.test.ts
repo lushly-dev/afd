@@ -497,6 +497,9 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		expect(await stored()).toBe('probe');
 		warn.mockRestore();
 		await kernel.dispose();
+		// The warning is the recording's store, not the call: a replay, whose store writes, compares the rest.
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
 	});
 
 	it('answers an entry marked recorded from its record, and registers nothing', async () => {

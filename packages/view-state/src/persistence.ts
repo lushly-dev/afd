@@ -28,6 +28,11 @@ function isNotFoundError(error: unknown): boolean {
  */
 export class DebouncedPersistence {
 	private pending = new Map<string, Record<string, unknown>>();
+	/** Per ID, renewed by every `schedule` and `discard`: a failed write is kept only while it is unchanged. */
+	private generation = new Map<string, number>();
+	private changes = 0;
+	/** IDs whose failure is logged: each is logged once, until a write of it succeeds. */
+	private logged = new Set<string>();
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private destroyed = false;
 	/** The end of the flush chain. Never rejects. */
@@ -44,6 +49,7 @@ export class DebouncedPersistence {
 
 	schedule(id: string, state: Record<string, unknown>): void {
 		if (this.destroyed) return;
+		this.generation.set(id, ++this.changes);
 		this.pending.set(id, state);
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = setTimeout(() => {
@@ -76,6 +82,7 @@ export class DebouncedPersistence {
 
 	/** Forget a write not yet made for `id`, as a hydrate that applied the stored state does. */
 	discard(id: string): void {
+		this.generation.set(id, ++this.changes);
 		this.pending.delete(id);
 	}
 
@@ -85,37 +92,48 @@ export class DebouncedPersistence {
 	}
 
 	private async drain(): Promise<ViewStateFlushResult> {
-		const entries = [...this.pending.entries()];
+		const entries = [...this.pending.entries()].map(
+			([id, value]) => [id, value, this.generation.get(id)] as const
+		);
 		this.pending.clear();
 		const failed: string[] = [];
-		for (const [id, value] of entries) {
+		for (const [id, value, generation] of entries) {
 			if (await this.write(id, value)) continue;
 			failed.push(id);
-			// Kept for the next flush, unless a newer state replaced it meanwhile.
-			if (!this.pending.has(id)) this.pending.set(id, value);
+			// Kept for the next flush, unless a newer state or a hydrate replaced it while it was being written.
+			if (this.generation.get(id) === generation) this.pending.set(id, value);
 		}
 		return { failed };
 	}
 
-	/** Whether the store now holds `value` for `id`. */
+	/**
+	 * Whether the store now holds `value` for `id`. A failure is logged once until a write of `id` succeeds, since a
+	 * kept write is tried again by every flush.
+	 */
 	private async write(id: string, value: Record<string, unknown>): Promise<boolean> {
 		const record = { category: this.category, value, updatedAt: new Date().toISOString() };
+		let saved = false;
+		let error: unknown;
 		try {
 			await this.adapter.update(this.table, id, record);
-			return true;
+			saved = true;
 		} catch (updateError) {
-			if (!(await this.isMissing(id, updateError))) {
-				console.warn(`[afd-view-state] Failed to persist "${id}":`, updateError);
-				return false;
+			error = updateError;
+		}
+		if (!saved && (await this.isMissing(id, error))) {
+			try {
+				await this.adapter.create(this.table, { id, ...record });
+				saved = true;
+			} catch (createError) {
+				error = createError;
 			}
 		}
-		try {
-			await this.adapter.create(this.table, { id, ...record });
-			return true;
-		} catch (createError) {
-			console.warn(`[afd-view-state] Failed to persist "${id}":`, createError);
-			return false;
+		if (saved) return this.logged.delete(id) || true;
+		if (!this.logged.has(id)) {
+			this.logged.add(id);
+			console.warn(`[afd-view-state] Failed to persist "${id}":`, error);
 		}
+		return false;
 	}
 
 	/**
