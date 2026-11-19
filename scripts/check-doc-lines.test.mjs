@@ -112,7 +112,10 @@ test('a line over the limit fails, named by file and line', () => {
 	const result = run(root);
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /docs\/STATUS\.md:4: 51 characters, over the limit of 50/);
-	assert.match(result.stderr, /name only the latest entry and link to the rest/);
+	assert.match(
+		result.stderr,
+		/give the new entry its own line, and put a record that needs more room in the specification/
+	);
 	assert.doesNotMatch(result.stderr, /STATUS\.md:3/);
 });
 
@@ -446,8 +449,14 @@ test('with no base to compare, the check notes it locally and fails under CI', (
 
 test("the repository's own policy covers the documents and summary rows it was written for", () => {
 	const real = JSON.parse(readFileSync(join(here, 'policy', 'doc-line-limits.json'), 'utf8'));
-	assert.ok(real.limit <= 2000, 'the limit only comes down');
-	for (const file of ['docs/language-parity.md', 'endpoints/loam/docs/STATUS.md'])
+	assert.ok(real.limit <= 1500, 'the limit only comes down');
+	for (const file of [
+		'docs/features/active/mail/STATUS.md',
+		'docs/features/active/software-factory/STATUS.md',
+		'docs/language-parity.md',
+		'endpoints/loam/docs/STATUS.md',
+		'endpoints/umbel/docs/STATUS.md',
+	])
 		assert.ok(real.files.includes(file), `${file} is checked`);
 	for (const start of [
 		'| Updated |',

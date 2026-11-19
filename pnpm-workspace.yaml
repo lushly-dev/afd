@@ -19,6 +19,10 @@ packages:
   - "packages/examples/seed-library"
   - "packages/examples/pond"
   - "packages/examples/showcase/backend"
+  # Private stubs that hold a release track's version for Changesets (scripts/release/tracks.mjs);
+  # endpoints/botcore is the third, under "endpoints/*".
+  - "python"
+  - "spec"
 
 # Dependabot resolves with a 3-day minimum release age and fails every update while the lockfile
 # holds a younger version, so a local lockfile refresh keeps to the same window.

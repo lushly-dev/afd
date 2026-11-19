@@ -22,12 +22,14 @@ import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { createPaletteIndex, PaletteIndex, PaletteItem } from '../palette-index.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ProjectV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { DocumentKit } from './document-kit.js';
 import {
+	checkKnownValue,
 	isHumanGesture,
 	type KnownSectionV1,
 	type ResolvedSettingV1,
@@ -40,6 +42,7 @@ import {
 	writerOf,
 } from './setting-rules.js';
 import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
+import type { SettingRows } from './shell-commands.js';
 
 export {
 	HUMAN_SETTING_KEYS,
@@ -137,6 +140,8 @@ export interface SettingsDeps {
 	 * the value shown and the retention applied never diverge.
 	 */
 	trashDays(days: number, context: CommandContext, also: BatchOperation[]): Promise<void>;
+	/** The palette's index, given by `late/` so this chunk imports no module first paint may hold (13). */
+	paletteIndex: typeof createPaletteIndex;
 	kit: SettingsKit;
 }
 
@@ -157,9 +162,22 @@ export interface Settings {
 	 * in. Never in a replay, whose entries are what ran.
 	 */
 	migrate(run: (name: string, input: unknown) => Promise<CommandResult>): Promise<void>;
+	/** The palette's setting rows (3.10), built here on the first query that needs them, never in first paint. */
+	rows: SettingRows;
+	/** The person's own rail order, `loam.rail.order`, for the call (3.7; R8): instance ids, first to last. */
+	railOrder(context: CommandContext): Promise<readonly string[]>;
+	/**
+	 * `section-open { section: 'settings', target }`'s place (3.5, 3.10): `target` is `<section>` or `<section>.<key>`, a
+	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
+	 */
+	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
 }
 
 const LEVELS = ['person', 'workspace', 'project'] as const;
+
+/** The levels a key may be set at: its own, else its section's (3.1). */
+const levelsOf = (known: KnownSectionV1, key: string): readonly SettingLevelV1[] =>
+	(known.section.schema.properties[key] as SettingKeyV1).levels ?? known.section.levels;
 
 /** The value a stored entry holds, read back from the store, or undefined for anything malformed. */
 function storedOf(entry: unknown): StoredSettingV1 | undefined {
@@ -234,6 +252,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 			for (const section of (manifest.ui?.settings ?? []) as unknown as SettingSectionV1[]) {
 				const fullId = `${manifest.plugin.id}.${section.id}`;
 				// The shell's own namespace is never an app's, and a second instance of an app shares its sections.
+				// A second ready instance of one native or view app cannot exist (`APP_DOMAIN_CONFLICT`), and a mounted app
+				// declares no section, so the first is the one that opens wherever the section can.
 				if (fullId.startsWith('loam.') || ids.has(fullId)) continue;
 				ids.add(fullId);
 				known.push({ fullId, section, owner: app.instance, plugin: manifest.plugin.id });
@@ -455,8 +475,12 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const project = scope.projects.get(id) as ProjectV1 | undefined;
 		if (project?.status === 'archived') return kit.archivedRefusal(project);
 		// An app's key is a member's to set only where the app is enabled for the project (3.2).
-		return known.owner === 'shell' ? undefined : deps.canOpen(known.owner, id);
+		return opensIn(known, id);
 	}
+
+	/** Why the app declaring `known` cannot open in `project`, or undefined when it can, or for the shell's (3.2). */
+	const opensIn = (known: KnownSectionV1, project: string): CommandResult<never> | undefined =>
+		known.owner === 'shell' ? undefined : deps.canOpen(known.owner, project);
 
 	/** The section's resolved object, with `key` at `next`, against its 16 KiB (3.1). */
 	async function tooLarge(
@@ -587,7 +611,11 @@ export function createSettings(deps: SettingsDeps): Settings {
 	const NAME = z.string().check(z.minLength(1), z.maxLength(128));
 	const NAME_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 128 };
 
-	const schemaInput = z.strictObject({ section: z.optional(NAME), key: z.optional(NAME) });
+	const schemaInput = z.strictObject({
+		section: z.optional(NAME),
+		key: z.optional(NAME),
+		outline: z.optional(z.boolean()),
+	});
 	const schemaGet = kit.define<
 		typeof schemaInput,
 		{
@@ -597,24 +625,33 @@ export function createSettings(deps: SettingsDeps): Settings {
 				description?: string;
 				levels: SettingLevelV1[];
 				app?: string;
-				schema: SettingSectionV1['schema'];
+				instance?: string;
+				schema?: SettingSectionV1['schema'];
+				keys?: Array<{ key: string; title: string; levels: SettingLevelV1[] }>;
 			}>;
 		}
 	>({
 		name: 'setting-schema-get',
 		title: 'Settings schemas',
 		description:
-			'List the settings sections and their keys: levels, types and defaults. Name a section, and a key, to read one',
+			'List the settings sections and their keys: levels, types and defaults. Name a section, and a key, to read one; outline lists each section and its keys by title, with no schema',
 		category: 'setting',
 		mutation: false,
 		executionTime: 'instant',
 		input: schemaInput,
 		jsonSchema: {
 			type: 'object',
-			properties: { section: NAME_JSON, key: NAME_JSON },
+			properties: { section: NAME_JSON, key: NAME_JSON, outline: { type: 'boolean' } },
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			if (input.outline === true && input.key !== undefined) {
+				return fail(
+					'VALIDATION_ERROR',
+					'An outline lists keys, so it names no key',
+					'Leave key out, or outline out'
+				);
+			}
 			if (input.key !== undefined && input.section === undefined) {
 				return fail('VALIDATION_ERROR', 'A key is read within its section', 'Name the section too');
 			}
@@ -639,16 +676,27 @@ export function createSettings(deps: SettingsDeps): Settings {
 					title: section.title,
 					...(section.description !== undefined ? { description: section.description } : {}),
 					levels: [...section.levels],
-					...(owner !== 'shell' ? { app: titles.get(owner) ?? owner } : {}),
-					schema:
-						input.key === undefined
-							? section.schema
-							: {
-									...section.schema,
-									properties: {
-										[input.key]: section.schema.properties[input.key] as SettingKeyV1,
-									},
-								},
+					// The owning app's title to show, and its instance, which says whose it is: two apps may share a title.
+					...(owner !== 'shell' ? { app: titles.get(owner) ?? owner, instance: owner } : {}),
+					...(input.outline === true
+						? {
+								keys: Object.entries(section.schema.properties).map(([key, declared]) => ({
+									key,
+									title: declared.title,
+									levels: [...(declared.levels ?? section.levels)],
+								})),
+							}
+						: {
+								schema:
+									input.key === undefined
+										? section.schema
+										: {
+												...section.schema,
+												properties: {
+													[input.key]: section.schema.properties[input.key] as SettingKeyV1,
+												},
+											},
+							}),
 				})),
 			};
 			const budget = SETTING_OUTPUT_BUDGETS['setting-schema-get']?.maxBytes ?? 0;
@@ -858,7 +906,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		{
 			const found = lookup(context, input.section, input.key);
 			if ('success' in found) return found;
-			const { known, declared } = found as { known: KnownSectionV1; declared: SettingKeyV1 };
+			const { known } = found as { known: KnownSectionV1 };
 			const refused =
 				writeRefusal('setting-set', known, input.key, input.level, context) ??
 				projectRefusal(known, input.level, context);
@@ -884,12 +932,18 @@ export function createSettings(deps: SettingsDeps): Settings {
 				);
 			}
 			const wrong =
-				input.value === undefined ? 'is required' : checkSettingValue(declared, input.value);
+				input.value === undefined
+					? { problem: 'is required' }
+					: checkKnownValue(known, input.key, input.value, checkSettingValue);
 			if (wrong) {
 				return fail(
-					'VALIDATION_ERROR',
-					`The value of '${known.fullId}.${input.key}' ${wrong}`,
-					'Read the key with setting-schema-get { section, key }, and give a value inside it',
+					wrong.code ?? 'VALIDATION_ERROR',
+					`The value of '${known.fullId}.${input.key}' ${wrong.problem}`,
+					wrong.code === 'SETTING_MUTE_SHELL'
+						? 'Mute an app instead'
+						: wrong.code === 'KEYBINDING_RESERVED'
+							? 'Bind another key'
+							: 'Read the key with setting-schema-get { section, key }, and give a value inside it',
 					{ field: 'value' }
 				);
 			}
@@ -1029,6 +1083,111 @@ export function createSettings(deps: SettingsDeps): Settings {
 		await afterWrite(known, 'theme', context);
 	}
 
+	// ─── The palette's rows (3.10) ─────────────────────────────────────────────
+
+	/** The index over every known key, and the sections it was built from: built again when they change. */
+	let indexed: { built: string; index: PaletteIndex; rows: Map<string, PaletteItem> } | undefined;
+
+	/** Each key of each known section, as a row: `name` is `<section>.<key>`, `app` the owning app's title (3.10). */
+	function indexRows(known: readonly KnownSectionV1[]): Map<string, PaletteItem> {
+		const titles = new Map(
+			deps
+				.apps()
+				.summaries()
+				.map((app) => [app.instance, app.title])
+		);
+		const rows = new Map<string, PaletteItem>();
+		for (const entry of known) {
+			for (const [key, declared] of Object.entries(entry.section.schema.properties)) {
+				const name = `${entry.fullId}.${key}`;
+				rows.set(name, {
+					name,
+					title: declared.title,
+					description: declared.description ?? entry.section.title,
+					score: 0,
+					field: 'name',
+					matches: [],
+					kind: 'setting',
+					section: entry.fullId,
+					key,
+					...(entry.owner !== 'shell' ? { app: titles.get(entry.owner) ?? entry.owner } : {}),
+				});
+			}
+		}
+		return rows;
+	}
+
+	const rows: SettingRows = {
+		async search(query, context, limit) {
+			if (query.trim() === '') return [];
+			const known = sections();
+			// Built again when a section, its owner, its title or one of its keys changes.
+			const built = JSON.stringify(
+				known.map((entry) => [
+					entry.fullId,
+					entry.owner,
+					entry.section.title,
+					Object.entries(entry.section.schema.properties).map(([key, declared]) => [
+						key,
+						declared.title,
+						declared.description,
+						declared.levels,
+					]),
+				])
+			);
+			if (indexed?.built !== built) {
+				const held = indexRows(known);
+				// By name and title: a key's description is a sentence, whose letters a short query finds by accident.
+				indexed = {
+					built,
+					rows: held,
+					index: deps.paletteIndex([...held.values()], ['name', 'title']),
+				};
+			}
+			const { index, rows: held } = indexed;
+			const byId = new Map(known.map((entry) => [entry.fullId, entry]));
+			// Filtered for the call at query time. A project-only key shows only in a project the caller may enter, and an
+			// app's only where one of its instances opens there (3.2, 3.10): `palette-search` is not decided at the call's
+			// scope, so a project the actor may not enter is treated as no project, revealing nothing of it. The `owns`
+			// filter is defence in depth: a port is refused `palette-search` itself (`CALL_NOT_GRANTED`).
+			const app = callerApp(context);
+			const asked = (context as KernelFieldContext).scope?.project;
+			const project =
+				asked !== undefined &&
+				scope.allows(context.actor as AccessActorV1, {
+					workspace: scope.workspace.id,
+					project: asked,
+				})
+					? asked
+					: undefined;
+			const out: PaletteItem[] = [];
+			for (const found of index.search(query, index.size)) {
+				const row = held.get(found.name) as PaletteItem;
+				const entry = byId.get(row.section as string) as KnownSectionV1;
+				if (!entry || !Object.hasOwn(entry.section.schema.properties, row.key as string)) continue;
+				if (!owns(app, entry)) continue;
+				const levels = levelsOf(entry, row.key as string);
+				const projectOnly = !levels.includes('person') && !levels.includes('workspace');
+				if (projectOnly && (project === undefined || opensIn(entry, project) !== undefined))
+					continue;
+				out.push({ ...row, score: found.score, field: found.field, matches: found.matches });
+				if (out.length === limit) break;
+			}
+			return structuredClone(out);
+		},
+	};
+
+	function target(to: string, context: CommandContext): { path: string } | CommandResult<never> {
+		const known = sections().find(
+			(entry) => to === entry.fullId || to.startsWith(`${entry.fullId}.`)
+		);
+		const fullId = known?.fullId ?? to;
+		const key = known && to !== known.fullId ? to.slice(known.fullId.length + 1) : undefined;
+		const found = lookup(context, fullId, key);
+		if ('success' in found) return found;
+		return { path: key === undefined ? fullId : `${fullId}/${key}` };
+	}
+
 	return {
 		commands: [
 			schemaGet,
@@ -1038,6 +1197,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 			settingReset,
 		] as unknown as ZodCommandDefinition[],
 		sections,
+		rows,
+		target,
+		async railOrder(context) {
+			const known = SHELL_SECTIONS.find((entry) => entry.fullId === 'loam.rail') as KnownSectionV1;
+			const inProject = (context as KernelFieldContext).scope?.project !== undefined;
+			const { value } = resolveFrom(
+				known,
+				'order',
+				await storedFor(known, 'order', context),
+				inProject
+			);
+			return Array.isArray(value) ? (value as string[]) : [];
+		},
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
 		async follow() {
 			const person = deps.person();

@@ -28,8 +28,15 @@
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
 	},
+	"ignore": [
+		"@afd/example-*",
+		"@lushly-dev/afd-auth-convex-hosted-fixture",
+		"@lushly-dev/health-dashboard",
+		"@lushly-dev/loam-*",
+		"@lushly-dev/specimen-server"
+	],
 	"privatePackages": {
-		"version": false,
+		"version": true,
 		"tag": false
 	}
 }

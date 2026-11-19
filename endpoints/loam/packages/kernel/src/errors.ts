@@ -149,6 +149,9 @@ export type LoamKernelErrorCode =
 	| 'SETTING_NOT_OWNED'
 	| 'SETTING_USE_AUTONOMY'
 	| 'SETTING_CONFLICT'
+	// Step 2's: the shell's own sections (3.7).
+	| 'SETTING_MUTE_SHELL'
+	| 'KEYBINDING_RESERVED'
 	| 'SHARED_RECORD_UNAVAILABLE'
 	| 'OUTPUT_BUDGET_EXCEEDED';
 

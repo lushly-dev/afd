@@ -61,6 +61,32 @@ describe.each([`${ORIGIN}/`, `${ORIGIN}/loam/`])('P2-E8: the URL scheme under %s
 		expect(parseRoute(at('~/join'), base)).toEqual({ kind: 'not-found' });
 	});
 
+	it("P4-E1: reads the settings section, at a section and at a key, the key as the fragment (phase 4's 3.5)", () => {
+		expect(parseRoute(at('acme/p/atlas/~/settings/hello.general#greeting'), base)).toEqual({
+			kind: 'section',
+			workspace: 'acme',
+			project: 'atlas',
+			section: 'settings',
+			rest: ['hello.general', 'greeting'],
+		});
+		expect(parseRoute(at('acme/~/settings'), base)).toEqual({
+			kind: 'section',
+			workspace: 'acme',
+			section: 'settings',
+			rest: [],
+		});
+		// A fragment names a key only under a section: elsewhere it is no part of the route.
+		expect(parseRoute(at('acme/~/settings#greeting'), base)).toMatchObject({ rest: [] });
+		expect(parseRoute(at('acme/hello#greeting'), base)).toMatchObject({ rest: [] });
+		for (const path of [
+			'acme/p/atlas/~/settings/hello.general#greeting',
+			'acme/~/settings/loam.appearance',
+			'acme/~/settings/hello.general#a%20b',
+		]) {
+			expect(formatRoute(parseRoute(at(path), base), base)).toBe(at(path));
+		}
+	});
+
 	it('P2-E8: reads /index.html as the root, and a relative URL against the base', () => {
 		expect(parseRoute(at('index.html'), base)).toEqual({ kind: 'root' });
 		expect(parseRoute('acme', base)).toEqual({ kind: 'workspace', workspace: 'acme' });
@@ -90,7 +116,8 @@ describe.each([`${ORIGIN}/`, `${ORIGIN}/loam/`])('P2-E8: the URL scheme under %s
 		['acme/__proto__', 'an instance off its pattern'],
 		['acme/p/atlas/p', 'an instance of `p`'],
 		['acme/~', 'a section marker with no section'],
-		['acme/~/settings', 'an unknown section'],
+		['acme/~/preferences', 'an unknown section'],
+		['acme/~/settings/hello.general#%2E%2E', "a setting's key that decodes to a dot segment"],
 		['acme/hello/a%2Fb', 'an encoded slash in the rest'],
 		['acme/hello/a%5Cb%2F..', 'an encoded slash and dot segment'],
 		['acme/hello/%2E%2E%2F', 'a segment that decodes to ../, which the URL parser keeps'],

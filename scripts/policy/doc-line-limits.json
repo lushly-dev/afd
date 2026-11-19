@@ -1,6 +1,12 @@
 {
-	"limit": 2000,
-	"files": ["docs/language-parity.md", "endpoints/loam/docs/STATUS.md"],
+	"limit": 1500,
+	"files": [
+		"docs/features/active/mail/STATUS.md",
+		"docs/features/active/software-factory/STATUS.md",
+		"docs/language-parity.md",
+		"endpoints/loam/docs/STATUS.md",
+		"endpoints/umbel/docs/STATUS.md"
+	],
 	"capped": [
 		{
 			"file": "docs/language-parity.md",
@@ -17,35 +23,242 @@
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 3. Identity |",
-			"max": 1000,
-			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
+			"max": 900,
+			"reason": "A row of the Phases table: it names a step only as something the phase waits for, and each step's state is on its own line in the phase detail"
 		},
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 4. Settings, experiments, notifications, overlays |",
 			"max": 1100,
-			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line"
-		},
-		{
-			"file": "endpoints/loam/docs/STATUS.md",
-			"startsWith": "| 5. Bus, copilot and mounted servers |",
-			"max": 1900,
-			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line. It listed every merged step, 2,708 characters"
+			"reason": "A row of the Phases table: it names a step only as something the phase waits for, and each step's state is on its own line in the phase detail"
 		},
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 6. Hosts and distribution |",
-			"max": 1200,
-			"reason": "A row of the Phases table: it names its phase's latest step and links to the phase detail, where each step has its own line. It listed every merged step, 1,357 characters"
+			"max": 1000,
+			"reason": "A row of the Phases table: it names a step only as something the phase waits for, and each step's state is on its own line in the phase detail. It listed every merged step, 1,357 characters"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Decision log](decisions.md) |",
+			"max": 1300,
+			"reason": "Its State cell listed every decision range to D198, 4,495 characters on the line; that cell names none now"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 5. Auth and hosted |",
+			"max": 700,
+			"reason": "A row of the Phases table: it names a step only as something the phase waits for, and each step's state is on its own line in the phase detail. It listed every step, 4,675 characters"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 6. Backends |",
+			"max": 800,
+			"reason": "A row of the Phases table: it names a step only as something the phase waits for, and each step's state is on its own line in the phase detail"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| Further first-class plugins | Unblocked",
+			"max": 700,
+			"reason": "A row of the Phases table: it names no plugin's step and links to each plugin's own status. It listed them, 2,280 characters"
 		}
 	],
 	"grandfathered": [
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-13 | Step B7's run o",
+			"length": 1612,
+			"sha256": "f0065be13ee08927b15cb68d21095b26a88c58ec51e9f9658fc189afe4fab14e",
+			"reason": "One follow-up row from before the limit came down to 1,500, frozen at this revision; when its status changes, a new row in its area's table names it and gives the new status"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-14 | The owner, and ",
+			"length": 2092,
+			"sha256": "9ade688d1697eb48dd5dbfaa4222f36d33ac0ebbaa046f6bdbab9e09897497d1",
+			"reason": "One follow-up row from before the limit came down to 1,500, frozen at this revision; when its status changes, a new row in its area's table names it and gives the new status"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-15 | Step C2's secon",
+			"length": 1689,
+			"sha256": "f066205ad4ecffe06240145ef434efe8d7916b04ff5d1f522c8b35bdfef883d8",
+			"reason": "One follow-up row from before the limit came down to 1,500, frozen at this revision; when its status changes, a new row in its area's table names it and gives the new status"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-15 | Step C3 | For t",
+			"length": 2111,
+			"sha256": "68a446f27f2909f8fba6874ce3b1ae0cf5a9c32b8eeafe2a43c4d3b79a7a5886",
+			"reason": "One follow-up row from before the limit came down to 1,500, frozen at this revision; when its status changes, a new row in its area's table names it and gives the new status"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase 0's decis",
+			"length": 1916,
+			"sha256": "63634950c3dcf6b21eb381efa0c0fe024bbfc98f32da2382574cd64963a464e4",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase B, step B1 | The ow",
+			"length": 1659,
+			"sha256": "c7337dbb33ecfb9939a76efe5135db591212c8b30cddee90a387724b03232d40",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase B, step B2, first h",
+			"length": 2533,
+			"sha256": "b0b54287df214ab8ab6c7809c9718441f0ac2dff59354ae5ca45c614c347a0dd",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase B, step B2, second ",
+			"length": 2381,
+			"sha256": "3669cde92ef6ce86a83b7d0786a6801d3c670e193a48dba597c56245c9b0eb0f",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase B, step B3, first h",
+			"length": 2270,
+			"sha256": "fdfb14cb1c9fefebafa5761cab0069168e66a2ad66e6a77fd438d162a36a63f1",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-11 | Phase B, step B3, second ",
+			"length": 1910,
+			"sha256": "618e7800776efac4e709f019b3e0eb3f2c59bbc224664ee8418f02993f1c17bf",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-12 | Phase B, step B4, first h",
+			"length": 2955,
+			"sha256": "2b9c80ebba17289863aaf679d74101da6a2c146697de5c8222aaea22dce54195",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-12 | Phase B, step B4, second ",
+			"length": 2156,
+			"sha256": "eb3ddfa54884c59d5623a0fede29334609c62375d553382f9ee26cd6ae797d2a",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-12 | Phase B, step B4, third p",
+			"length": 2376,
+			"sha256": "b0d5443e5a23db24215a764f38ddafdd1da5f1ff189e5a918c842f6a936ff702",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-13 | Phase B, step B5, first p",
+			"length": 2553,
+			"sha256": "3febba6585ac0f403a84312dd1b151d0f99060db5dc48f648338c35791316b63",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-13 | Phase B, step B5, second ",
+			"length": 2772,
+			"sha256": "52d086461fb83b6ba0d30af98d66f7e4346117cfd8408c24e2109b7eebadde6a",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-13 | Phase B, step B5, third p",
+			"length": 2565,
+			"sha256": "29a3869947739d472a261d0b1c70905334b276841e324f6698f75af226e09311",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-13 | Phase B, step B7, the iCl",
+			"length": 4248,
+			"sha256": "ef1d415058ee64e23d7bbc5ff9196d8167735c95812aea02086948a979fcc718",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-14 | Phase C, step C1 | The ow",
+			"length": 3201,
+			"sha256": "e722688cb6dc1992e582682db1eca2ec3b518267ec83e1dd3b333ae8ba579c7d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-14 | Phase C, step C2, first p",
+			"length": 3649,
+			"sha256": "2bc1f0bfc1960fd25bc246caa06c34c637dfa53b771feff67b1eb7378c43e630",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-15 | Phase C, step C2, second ",
+			"length": 2909,
+			"sha256": "7fab4a54ad5f34861f4cc35955277fbcc3fe08cf50aaeb6655c10d1111e5837d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-15 | Phase C, step C2 on the o",
+			"length": 1776,
+			"sha256": "a8d6ec88ceefe1829c2b75899b9ef55b349bee448ad48346f017385853fce69f",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-15 | Phase C, step C3 | The ow",
+			"length": 3264,
+			"sha256": "1435f2f0c6c81861b202b7e4851fcbc456b610faf3ebe5da9b871f4f6035b883",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase D, step D1, fir",
+			"length": 1630,
+			"sha256": "f725ced89d41dbf9548745aaeb6dd935bba63f381de1b82012511c34f5214257",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase D, step D1, sec",
+			"length": 1793,
+			"sha256": "c0d47c3ea18f0640bbc0e2a435cfea605b934f3b4a4b86c65779eb3b1dbf3da1",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/features/active/mail/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase D, step D1, thi",
+			"length": 1822,
+			"sha256": "84ae0547f4746cbf9da3c8f1765fdd4dc0d94abf97e3f1f29d01ab60c4ecb41e",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "docs/language-parity.md",
+			"startsWith": "| Command journal and replay (",
+			"length": 1773,
+			"sha256": "c5752a313a3d3759facdc2d9bb6f6610091a0a48620cf100a55333e00e9181f3",
+			"reason": "One feature's row across four languages, written before the limit came down to 1,500; split it when it next changes"
+		},
 		{
 			"file": "docs/language-parity.md",
 			"startsWith": "| MCP authorization ([`spec/authorization.md`]",
 			"length": 2576,
 			"sha256": "e893c6e3c0521d0983da5910c59cbe475782d1ed0d5f7993bc120130a776d015",
 			"reason": "One feature's row across four languages, written before the limit; split it when it next changes"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "- **State:** exited 2026-11-09",
+			"length": 1557,
+			"sha256": "45386592d88f0e8e48120d3fb12aac4456c17f5cff50663f767223dcbe15cd83",
+			"reason": "A bullet of the detail of \"2. Scope, projects and documents\", from before the limit; frozen at this revision"
 		},
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
@@ -112,10 +325,346 @@
 		},
 		{
 			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 1, identity core: merged i",
+			"length": 1663,
+			"sha256": "afde16db82fa3c5692ec9b487d0862ae6577b73cb9f989575784c39070a68bbd",
+			"reason": "A step's record on its own line, frozen at this revision; a longer record now goes in the specification"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 2, `session-settle`: merge",
+			"length": 1993,
+			"sha256": "0fd150d8fddd2cb699df86e427c81d58f8068a53cf666a359088508d4df5f256",
+			"reason": "A step's record on its own line, frozen at this revision; a longer record now goes in the specification"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 3, sign-in, the probe and ",
+			"length": 1694,
+			"sha256": "92590c11abb8d970e4e2a1310268d7e779ff3c0d6c1ffe7f02dfcd414d58e9a7",
+			"reason": "A step's record on its own line, frozen at this revision; a longer record now goes in the specification"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "- **State:** **approved by the",
+			"length": 1887,
+			"sha256": "6bd238f91fe31ac3c09d4f245b228e9d1088f22b2a277e963f80c43661821e8d",
+			"reason": "A bullet of the detail of \"6. Hosts and distribution\", from before the limit; frozen at this revision"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "  - 3, the provider and deploy",
+			"length": 1673,
+			"sha256": "596bb11e803a5f5769a9021caf5416b50e475e402bc89fba799b9ab6304cc675",
+			"reason": "A step's record on its own line, frozen at this revision; a longer record now goes in the specification"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-02 | Phase 1 step 3 ",
+			"length": 1847,
+			"sha256": "afd7f616e92e5fccce6e7cb8c71ecaaf56fef9d859e1b48304bed74fcae5c12d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-02 | Phase 1 step 6 ",
+			"length": 1740,
+			"sha256": "3e282317f6bd95d4fc95bb508f0a47c9aa9f116783854cfad0cec3a66be2c2aa",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-02 | Phase 1 step 7 ",
+			"length": 1753,
+			"sha256": "f72a139abda4156feee8413251bf0903e46b4352f703e6dc4b5b9e045e62d3c5",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 2 step 6 ",
+			"length": 1509,
+			"sha256": "caa5861fc845931e3eb3514e06daeed9163b69e0ffa664c7cafea9c0bf6f4477",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-07 | Phase 2 step 9 ",
+			"length": 1543,
+			"sha256": "b307824c9ffd3f01d517a8519217e2985c194ceaddda4fa09a0998d282054169",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-15 | Handoff, coordi",
+			"length": 1953,
+			"sha256": "b3d1750590ab1aa0a24726bfc4af8c239291a22f063f774e31d24714dfe44311",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-16 UTC | Phase 6 step 11 | [#1",
+			"length": 1899,
+			"sha256": "9d6d4f4f762ee05f1ac1b0ffe1bbf491e460b0fe55507395c2e62a00a7032a76",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-16 UTC | Phase 5 spe",
+			"length": 1697,
+			"sha256": "717d60c706e2f64ddfff35d4ad40b48058a20e86434e104c69358f37389f06db",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | [#1054](htt",
+			"length": 1579,
+			"sha256": "91f7dbfc55d1a5c3d2f09609ba4ff74189948e50d91fee22c4780d733e5afd1d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase 5 spe",
+			"length": 1844,
+			"sha256": "a5099137f2d7ac485d841eec4a84a5ad98ae17e014acaba27b1f0493d2bbe4cd",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase 6 vie",
+			"length": 1871,
+			"sha256": "56f60bbc99d9019fec1891e478c9e8fda08c74b0c2475a158a4cdaafc6642336",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "| 2026-11-17 UTC | The forged `Origin`, with a control (",
 			"length": 3401,
 			"sha256": "eb012a1c901e8d1511197518655d244c5d1e872576733b8289aa89f362e8ea58",
 			"reason": "One session-log entry, written once on 2026-11-17 before the limit"
+		},
+		{
+			"file": "endpoints/loam/docs/STATUS.md",
+			"startsWith": "| 2026-11-17 UTC | Phase 5 step 1, the c",
+			"length": 1986,
+			"sha256": "2305d1f182138318cf0419579d360cb0d3de405bb27bbe5aa84890e665ab2a78",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Phase 5 specification](phas",
+			"length": 4031,
+			"sha256": "6a5cb06a34507eadc923da5ee7f829f6422d6f6074ef3fec505ff012ef81a145",
+			"reason": "A row of the Documents table that accumulated its document's history before the limit; frozen at this revision, and nothing is added to it"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Phase 6 specification](phas",
+			"length": 1908,
+			"sha256": "980355018af5b0d357b41e32443c5acb5745c125d1d9bba82eee1ac9536f85ca",
+			"reason": "A row of the Documents table that accumulated its document's history before the limit; frozen at this revision, and nothing is added to it"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Components specification](p",
+			"length": 1783,
+			"sha256": "cb8424fe6a2129e0d97b3d9e40ff6851c4a49aba45fadcb9936b932755f39452",
+			"reason": "A row of the Documents table that accumulated its document's history before the limit; frozen at this revision, and nothing is added to it"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Records host specification]",
+			"length": 18074,
+			"sha256": "fe99f7fed93eb500d0705cb8c5f666523515fd77506ab0c160b9b9dcf9f545d9",
+			"reason": "A row of the Documents table that accumulated its document's history before the limit; frozen at this revision, and nothing is added to it"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| [Ideas plugin specification]",
+			"length": 3186,
+			"sha256": "472fd1c4ed0d14d942a05bad7e52e950b4cd530578289f0e57d950c13a343da6",
+			"reason": "A row of the Documents table that accumulated its document's history before the limit; frozen at this revision, and nothing is added to it"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2. Knowledge | Specification",
+			"length": 2837,
+			"sha256": "e711fffc75c0180bd73dc3f4f7f33d5ec3ea2da992805d2b6bd099aa36ecaeb5",
+			"reason": "A row of the Phases table for a phase that is done; frozen at this revision"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 3. Memory and context | Spec",
+			"length": 2667,
+			"sha256": "9e592a8d458f5aae3a88c152672d140c459be1383f00e80b177e9342e55b6908",
+			"reason": "A row of the Phases table for a phase that is done; frozen at this revision"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 4. Curator | Specification a",
+			"length": 2055,
+			"sha256": "1c3ad515683c991bafd1ed48a1059c649e031776f71eceb0728873d07539d35a",
+			"reason": "A row of the Phases table for a phase that is done; frozen at this revision"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-11 | Ideas proposal | What an ",
+			"length": 2038,
+			"sha256": "41683f3b5e115dc01664aba8e00540bb6130aabbac9e1597ced73a2454701e2a",
+			"reason": "One follow-up row from before the limit came down to 1,500, frozen at this revision; when its status changes, a new row in its area's table names it and gives the new status"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-01 | Phase 2 exit | ",
+			"length": 1529,
+			"sha256": "5db09d282bb2b66f3ffb15eb9275f1537e31a2898167c54826a6ed95eaa3375f",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 3 exit | ",
+			"length": 1782,
+			"sha256": "fe331cfaca3de17cd074b61c3abe33c58952df65c913c30f8d9fdf23238819d5",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 4 step 3b",
+			"length": 1765,
+			"sha256": "6707af4154165a34872d2316021c3f8db6311c3410daaff9abd0327856f7b6d6",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 4 step 3c",
+			"length": 1566,
+			"sha256": "521a23327b1642cbd5ddbf80b87bde9e9290a1b9d98e077343092df61ab9a860",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 4 step 5 ",
+			"length": 1709,
+			"sha256": "e8ceeb51d613e63040ef3a796a22f5b19a5882da177ba0c676b32b3379b4719e",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-03 | Phase 4 exit | ",
+			"length": 2300,
+			"sha256": "8e6f5d6a789a295b70820365aa4f1bc2922412416f95bb93467a49c90d253b2d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-11 | Ideas plan, step A2, firs",
+			"length": 3372,
+			"sha256": "1b9eb671d4f3bcced712d4f88c5308b860cde42ab480dffa2b2f49f5311fef33",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-11 | Ideas plan, step B1 (shap",
+			"length": 3883,
+			"sha256": "f2fd291f4c0caf5e16d64cdac05f34baf29550bdcc7f758fdd2470ff03de1b60",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B1, inde",
+			"length": 3022,
+			"sha256": "3f79d8edfc479b6bbf62cad2782330c02bd4756031976105cfcdc53c78522a4d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B2 (the ",
+			"length": 4754,
+			"sha256": "e3c58a344dcfc73d1dbc55b841a5dd7d2e102e8e27eec4fbaea452d22f77d7e0",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B2, inde",
+			"length": 4066,
+			"sha256": "b269d1de839d5edb57760babbf1ca778a31398a8300f6f16948ff9bcca8b677d",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B3 (stan",
+			"length": 5842,
+			"sha256": "52e140ea975f2286170bd06fab03d83093a2c07e8d42a108ae570e51c519c8ea",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B3, inde",
+			"length": 4849,
+			"sha256": "f71f9cc53e388d99bf80ffdfd711d4d0bf65f5bde2ac7cd6adb795dbdc5e82de",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step B4 (matc",
+			"length": 11814,
+			"sha256": "08acf68f905e39ba286990cb7a57d7a66e07a3e655dde956fa9d762547987124",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | D181: a phishin",
+			"length": 1746,
+			"sha256": "91c05cda5086f30792eb4121f2ef19f5191bfe19f2b4b78b7bca3f8ffdc1f904",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-12 | Ideas plan, step C3 (revi",
+			"length": 2370,
+			"sha256": "c760e78abe40a42162b04f23845392030dc7631b478dca4f6341ccbe0e547328",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-13 | Ideas plan, step H3 (the ",
+			"length": 1939,
+			"sha256": "f12199e1277523f22380c450005d756fc61da659589207c57f78415b2a11b46b",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-13 | Ideas plan, step C4 (revi",
+			"length": 1910,
+			"sha256": "10b45a437ae6eb1d996827e4db59fdb6209a9364dcb53fdc9ebe248d42150277",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-13 | Ideas plan, step C5 (find",
+			"length": 2137,
+			"sha256": "db3a6b7658b66a7f3aa874901b523a92e2373b4d9a21774abb8d1aa28f2e6e29",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-15 | Phase 7, Window",
+			"length": 1991,
+			"sha256": "dd97cd172b4aa9b9ef3807df1058510e886fd6df3def4c65d9f84b1212c6e7a3",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-15 | Windows shippin",
+			"length": 1573,
+			"sha256": "ac8b495978f613faed1d2ef856e64f5852f96c361012ef62e9db4dad4913b04c",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
+		},
+		{
+			"file": "endpoints/umbel/docs/STATUS.md",
+			"startsWith": "| 2026-11-16 | Components: a d",
+			"length": 1701,
+			"sha256": "37b9cc6f9a3591d5cd7687d3840b2eb5551db254f9c7e160c163030f56149ed4",
+			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
 		}
 	]
 }

@@ -81,6 +81,11 @@ Repository = "https://github.com/lushly-dev/afd"
 [tool.hatch.build.targets.wheel]
 packages = ["src/afd"]
 
+# package.json is the private Changesets stub that holds the version for the release tooling
+# (scripts/release/tracks.mjs); it is not part of the Python distribution.
+[tool.hatch.build.targets.sdist]
+exclude = ["/package.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

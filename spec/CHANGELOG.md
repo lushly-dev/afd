@@ -29,7 +29,7 @@ version is separate from each implementation's own package version.
   ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
   [`output-budgets.json`](./output-budgets.json).
 - [`plugin-manifest.md`](./plugin-manifest.md): the shared plugin manifest, a host-neutral core
-  ([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json) and [version 2](./plugin-manifest.core.v2.json), with their own version) and the
+  ([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json), with its own version) and the
   contract a host's closed profile meets, with the cases in
   [`plugin-manifest.json`](./plugin-manifest.json).
 
@@ -63,29 +63,29 @@ has no bootstrap commands yet. The Contract column of the root `README.md` and t
 
 In the same pull request:
 
-1. Change `VERSION` and add an entry below.
+1. Fold any entries still pending for the version in force (`pnpm version-track spec`), so they
+   stay under its heading. Then change `VERSION` and record the change as a fragment (see
+   "Recording a change").
 2. Update the four constants.
 3. Update the Contract column in `README.md` and the Contract row in `docs/language-parity.md`.
 
 `node scripts/check-versions.mjs`, which `pnpm check` runs, fails until all of these agree.
 `alfred parity` reports a constant that differs from `VERSION`.
 
-## 1.0-rc
+## Recording a change
 
-[`command-metadata.md`](./command-metadata.md) adds app-to-app calls (Loam phase 5 step 0b, D30,
-[#884](https://github.com/lushly-dev/afd/issues/884)): `expose.apps`, default `false`, is a
-command's declaration that another app may call it; `apps` is an interface a host's trusted code
-names for an app's call; and the registry takes a host predicate, `callGrant(command, context)`,
-over the caller's grants. A call with the `apps` interface runs only when the command exists, sets
-`expose.apps` and the predicate returns `true`; every other one, invalid input included, gets one
-fixed `CALL_NOT_GRANTED` refusal before lookup and validation. `CALL_NOT_GRANTED` joins
-[`error-codes.md`](./error-codes.md)'s catalog and `vectors/error-codes.json` (49 codes), with its
-constant in all four languages, and D4 gains an `apps` row. [`plugin-manifest.md`](./plugin-manifest.md)
-adds core version 2, [`plugin-manifest.core.v2.json`](./plugin-manifest.core.v2.json): version 1 with
-`expose.apps` defined, defaulting to `false` in every profile; both profiles stay on version 1. New
-vector file [`vectors/app-calls.json`](./vectors/app-calls.json), with a documented gap for Python
-and C++ ([#1513](https://github.com/lushly-dev/afd/issues/1513)). Additive, so the version stays:
-nothing changes for a call that does not name the `apps` interface.
+A change to the contract is recorded as one file in [`.changeset/`](../.changeset/README.md): a
+fragment that names `afd-spec` with `patch` and holds the entry as prose paragraphs. Nothing is
+added to this file by hand. `pnpm version-track spec` folds the pending fragments in, above the
+earlier entries, under the heading of the contract version in force, and adds that heading when
+`VERSION` has changed. The `patch` only counts folds in the private `package.json` beside this file: it is
+not the contract version, which changes only as "Changing the version" says.
+
+`pnpm check:tracks` compares this file with a digest that `package.json` pins, so a hand edit
+fails. To correct an entry already folded, edit it and run `node scripts/release-track.mjs pin spec`
+in the same pull request.
+
+## 1.0-rc
 
 [`tool-strategies.json`](./vectors/tool-strategies.json), the hybrid strategy's cases, moves into
 `vectors/` now that C++ serves the strategy and all four languages load it

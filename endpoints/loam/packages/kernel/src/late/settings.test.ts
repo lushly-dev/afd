@@ -202,6 +202,7 @@ describe('setting-schema-get (3.9)', () => {
 				title: 'General',
 				levels: ['workspace', 'project'],
 				app: 'Greet',
+				instance: 'greet',
 				schema: keys({
 					greeting: { type: 'string', title: 'Greeting', maxLength: 100, default: 'Hello' },
 				}),
@@ -221,6 +222,26 @@ describe('setting-schema-get (3.9)', () => {
 			code: 'OUTPUT_BUDGET_EXCEEDED',
 			suggestion: 'Name a section: setting-schema-get { section }',
 		});
+	});
+
+	it("step 2's reviews, 4: past the budget, an outline still lists every section, and a large one reads key by key", async () => {
+		const { kernel } = await workspace();
+		expect((await kernel.call('setting-schema-get', {})).error?.code).toBe(
+			'OUTPUT_BUDGET_EXCEEDED'
+		);
+		const outline = await kernel.call<{
+			sections: Array<{ section: string; keys: Array<{ key: string }> }>;
+		}>('setting-schema-get', { outline: true });
+		expect(outline.success, JSON.stringify(outline.error)).toBe(true);
+		const big = outline.data?.sections.find(({ section }) => section === 'greet.big');
+		expect(big?.keys).toHaveLength(19);
+		// The settings section reads the shown one whole, or past the budget each key alone, as the fallback does.
+		const whole = await kernel.call('setting-schema-get', { section: 'greet.big' });
+		if (!whole.success) expect(whole.error?.code).toBe('OUTPUT_BUDGET_EXCEEDED');
+		for (const { key } of big?.keys ?? []) {
+			const one = await kernel.call('setting-schema-get', { section: 'greet.big', key });
+			expect(one.success, key).toBe(true);
+		}
 	});
 
 	it('refuses a key with no section, an unknown section or key, and the sections only their commands write', async () => {
