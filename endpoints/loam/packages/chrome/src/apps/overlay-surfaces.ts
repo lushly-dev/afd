@@ -133,6 +133,8 @@ export class OverlaySurfaces {
 	dispose(): void {
 		for (const timer of this.#timers.values()) clearTimeout(timer);
 		this.#timers.clear();
+		for (const timer of this.#hidden.values()) clearTimeout(timer);
+		this.#hidden.clear();
 		this.#shell.removeEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.removeEventListener(TOAST_INBOX_EVENT, this.#onInbox);
 		this.#shell.removeEventListener(MODAL_RESULT_EVENT, this.#onAnswer);
@@ -152,7 +154,9 @@ export class OverlaySurfaces {
 		if (read !== this.#reads || !result.success || !result.data) return;
 		const { overlays } = result.data;
 		await this.#renderModal(overlays.find(({ kind }) => kind === 'modal'));
-		this.#renderToasts(overlays.filter(({ kind }) => kind === 'toast'));
+		const toasts = overlays.filter(({ kind }) => kind === 'toast');
+		this.#runHidden(toasts.filter(({ hidden }) => hidden));
+		this.#renderToasts(toasts.filter(({ hidden }) => !hidden));
 		const popovers = overlays.filter(({ kind }) => kind === 'popover');
 		if (popovers.length === 0 && !this.#popovers) return;
 		this.#popovers ??= import('./overlays.js').then(
@@ -169,6 +173,32 @@ export class OverlaySurfaces {
 		);
 		const layer = await this.#popovers;
 		if (read === this.#reads) layer.render(popovers);
+	}
+
+	/** The hidden toasts' timers, by id: a muted app's (3.7), never shown. */
+	readonly #hidden = new Map<string, ReturnType<typeof setTimeout>>();
+
+	/**
+	 * A muted app's toasts (3.7; step 5's R2): never drawn, but a timed one times out as a shown one does, so the app
+	 * reads the same course of its toast; a sticky one stays until a switch, a change of person or its own close.
+	 */
+	#runHidden(toasts: OverlayV1[]): void {
+		for (const [id, timer] of this.#hidden) {
+			if (toasts.some(({ overlayId }) => overlayId === id)) continue;
+			clearTimeout(timer);
+			this.#hidden.delete(id);
+		}
+		for (const { overlayId, input } of toasts) {
+			const { sticky, durationMs } = input as ToastInputV1;
+			if (sticky || this.#hidden.has(overlayId)) continue;
+			this.#hidden.set(
+				overlayId,
+				setTimeout(() => {
+					this.#hidden.delete(overlayId);
+					void this.#kernel.call('overlay-dismiss', { overlayId, reason: 'timeout' });
+				}, durationMs ?? 5000)
+			);
+		}
 	}
 
 	#renderToasts(toasts: OverlayV1[]): void {

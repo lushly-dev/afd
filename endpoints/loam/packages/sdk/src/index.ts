@@ -135,18 +135,23 @@ export interface NotificationV1 {
 	/** 1 to 1,000 characters, plain text; `notification-list` gives it only with `body: true`. */
 	body?: string;
 	tone: 'info' | 'success' | 'warning' | 'danger';
-	/** Where the notice leads: navigation, never execution, as a toast's link. */
-	link?: ToastLinkV1;
+	/** Where the notice leads: navigation, never execution (10.1), in this workspace. */
+	link?: ResourceLinkV1;
 	/** One of the source app's own palette commands, which the person runs with `notification-act`. */
 	action?: NotificationActionV1;
-	/** A notice whose action ran. */
-	state?: 'done';
+	/**
+	 * A notice whose action ran (`done`), or is running or ran with no outcome recorded (`acting`): claimed before it
+	 * runs, so it never runs twice.
+	 */
+	state?: 'acting' | 'done';
 	/** Phase 4's step 6 fills it, the kernel alone. */
 	confirmation?: Record<string, unknown>;
 	scope: ScopeV1;
 	createdAt: number;
 	readAt?: number;
 	archivedAt?: number;
+	/** Whose it is, as the shell shows it (6.6), set by the kernel when it lists the notice; never stored. */
+	from?: OverlayFromV1;
 }
 
 /** A notice's action (10.1): one of the pushing app's own palette commands, never a human or owner command. */
@@ -161,7 +166,7 @@ export interface NotificationInputV1 {
 	title: string;
 	body?: string;
 	tone?: NotificationV1['tone'];
-	link?: ToastLinkV1;
+	link?: ResourceLinkV1;
 	action?: NotificationActionV1;
 }
 
@@ -588,6 +593,11 @@ export interface OverlayV1 extends OverlayRefV1 {
 	input: ToastInputV1 | ModalInputV1 | PopoverInputV1;
 	/** Absent on the shell's own (6.6). */
 	from?: OverlayFromV1;
+	/**
+	 * A muted app's toast (phase 4 specification, 3.7): the shell runs its timer and never shows it. Only the shell's
+	 * own list says so; the app's never does.
+	 */
+	hidden?: true;
 }
 
 /**

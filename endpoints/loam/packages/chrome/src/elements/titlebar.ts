@@ -35,6 +35,9 @@ const toggle = (part: 'sidebar' | 'inspector' | 'panel', label: string) => html<
 /** The name, with a non-default persona's title beside it (phase 3 specification, 6.3). */
 const named = (x: LoamTitlebar): string => (x.persona ? `${x.account} · ${x.persona}` : x.account);
 
+/** The count the inbox's button shows and names alike (WCAG 2.5.3): `99+` past 99. */
+const countOf = (unread: number): string => (unread > 99 ? '99+' : String(unread));
+
 const template = html<LoamTitlebar>`
 	<span class="name">Loam</span>
 	<span class="new"
@@ -67,11 +70,11 @@ const template = html<LoamTitlebar>`
 	<button
 		class="quiet inbox"
 		type="button"
-		aria-label="${(x) => (x.unread > 0 ? `Inbox ${x.unread} unread` : 'Inbox')}"
+		aria-label="${(x) => (x.unread > 0 ? `Inbox ${countOf(x.unread)} unread` : 'Inbox')}"
 		@click="${(x) => dispatchAction(x, { action: 'inbox' })}"
 	>
 		Inbox <span class="count" ?hidden="${(x) => !(x.unread > 0)}"
-			>${(x) => (x.unread > 99 ? '99+' : String(x.unread))}</span
+			>${(x) => countOf(x.unread)}</span
 		>
 	</button>
 	<span class="toggles" role="group" aria-label="Parts">

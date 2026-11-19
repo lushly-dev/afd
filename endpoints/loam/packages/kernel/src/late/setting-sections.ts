@@ -242,7 +242,7 @@ export const NOTIFICATIONS_SECTION: SettingSectionV1 = Object.freeze({
 				description:
 					'Which toasts are also kept in your inbox after they close. Toasts an app marks to stay are always kept.',
 				enum: ['never', 'danger', 'always'],
-				enumTitles: ['Never', 'Only warnings', 'Always'],
+				enumTitles: ['Never', 'Only errors', 'Always'],
 				default: 'danger',
 			},
 			muted: {

@@ -13,6 +13,7 @@
 import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { NotificationV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
+import { accessChanged, ownerWords } from './inbox-words.js';
 
 interface Answer<T = unknown> {
 	success: boolean;
@@ -148,6 +149,10 @@ const STYLES = `
 	.action:hover {
 		background: var(--color-action-secondary-hover);
 	}
+	.action[aria-disabled='true'] {
+		cursor: progress;
+		opacity: 0.6;
+	}
 	.action.primary {
 		border-color: var(--color-action-primary-background);
 		background: var(--color-action-primary-background);
@@ -179,8 +184,6 @@ export class LoamInbox extends HTMLElement {
 	kernel: LoamKernelV5 | null = null;
 	/** The shell's base, for a notice's link (documents specification, 9.1). */
 	base = '/';
-	/** The app titles, for "From <app>" (6.6). */
-	titles = new Map<string, string>();
 	#notices: NotificationV1[] = [];
 	#cursor: string | null = null;
 	#unread = 0;
@@ -191,6 +194,8 @@ export class LoamInbox extends HTMLElement {
 	#count: HTMLElement;
 	#more: HTMLElement;
 	#unsubscribe: (() => void) | null = null;
+	/** The notices whose action the person's press is running now. */
+	#acting = new Set<string>();
 
 	constructor() {
 		super();
@@ -233,15 +238,30 @@ export class LoamInbox extends HTMLElement {
 	connectedCallback(): void {
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event: KernelEventV4) => {
+				// A change of person or of what they may enter (the reviews' item 4): nothing read before shows, then the
+				// list is read again for whoever it is now.
+				if (accessChanged(event)) {
+					this.#clear();
+					void this.#read();
+					return;
+				}
 				// A mutation that may change the list, never the list's own read, which would read again for ever.
 				if (
-					event.actorChanged ||
-					(event.success &&
-						event.mutation &&
-						(event.command.startsWith('notification-') || event.command === 'toast-show'))
+					event.success &&
+					event.mutation &&
+					(event.command.startsWith('notification-') || event.command === 'toast-show')
 				)
 					void this.#read();
 			}) ?? null;
+	}
+
+	/** Forget every notice shown: a change of person or access, or a read refused, leaves none of them on screen. */
+	#clear(): void {
+		this.#reads++;
+		this.#notices = [];
+		this.#cursor = null;
+		this.#unread = 0;
+		this.#render();
 	}
 
 	disconnectedCallback(): void {
@@ -253,12 +273,25 @@ export class LoamInbox extends HTMLElement {
 		this.shadowRoot?.querySelector<HTMLElement>('h1')?.focus();
 	}
 
-	/** Show the inbox, at the notice `path` names when it does (6.7). */
+	/** Show the inbox, at the notice `path` names when it does (6.7), past the first page too (the reviews' item 7). */
 	async show(path: string): Promise<void> {
 		this.#target = path === '' ? undefined : path;
 		await this.#read();
-		if (this.#target === undefined) return;
-		const item = this.#list.querySelector<HTMLElement>(`[data-id="${CSS.escape(this.#target)}"]`);
+		const target = this.#target;
+		if (target === undefined) return;
+		const find = () => this.#list.querySelector<HTMLElement>(`[data-id="${CSS.escape(target)}"]`);
+		if (!find() && this.kernel) {
+			const one = (await this.kernel.call<Page>('notification-list', {
+				notification: target,
+				body: true,
+			})) as Answer<Page>;
+			const found = one.success ? one.data?.notifications[0] : undefined;
+			if (found && !this.#notices.some((each) => each.id === found.id)) {
+				this.#notices = [...this.#notices, found];
+				this.#render();
+			}
+		}
+		const item = find();
 		if (!item) {
 			this.#say('That notice is no longer in your inbox');
 			return;
@@ -293,6 +326,8 @@ export class LoamInbox extends HTMLElement {
 		})) as Answer<Page>;
 		if (mine !== this.#reads) return;
 		if (!answer.success || !answer.data) {
+			// Refused: what was read before may be another person's or out of reach now, so none of it stays.
+			this.#clear();
 			this.#say(failed(answer));
 			return;
 		}
@@ -323,11 +358,9 @@ export class LoamInbox extends HTMLElement {
 		if (keep) this.#list.querySelector<HTMLElement>(`[data-id="${CSS.escape(keep)}"]`)?.focus();
 	}
 
-	/** Who left a notice (6.6): "From <app>", "From an agent (<name>)", or nothing for the shell's own. */
-	#from(source: string): string {
-		if (source === 'shell') return '';
-		if (source.startsWith('agent:')) return `From an agent (${source.slice('agent:'.length)})`;
-		return `From ${this.titles.get(source) ?? source}`;
+	/** Who left a notice (6.6), the kernel's owner line as a toast shows it; nothing for the shell's own. */
+	#from(notice: NotificationV1): string {
+		return ownerWords(notice.from);
 	}
 
 	#item(notice: NotificationV1): HTMLElement {
@@ -335,9 +368,9 @@ export class LoamInbox extends HTMLElement {
 		const heading = el('h2', {}, notice.title);
 		const meta = [
 			waiting(notice) ? 'Waiting for your answer' : unread ? 'Unread' : '',
-			this.#from(notice.source),
+			this.#from(notice),
 			when(notice.createdAt),
-			notice.state === 'done' ? 'Done' : '',
+			notice.state === 'done' ? 'Done' : notice.state === 'acting' ? 'Running' : '',
 		].filter(Boolean);
 		const actions = el('div', { class: 'row' });
 		const item = el(
@@ -355,16 +388,30 @@ export class LoamInbox extends HTMLElement {
 			...(notice.body ? [el('p', { class: 'body' }, notice.body)] : []),
 			actions
 		);
-		if (notice.action && notice.state !== 'done' && notice.kind === 'notice') {
+		if (notice.action && notice.state === undefined && notice.kind === 'notice') {
 			const { label } = notice.action;
-			actions.append(
-				this.#button(
-					label,
-					() =>
-						this.#write('notification-act', { notification: notice.id }, () => `${label}: done`),
-					true
-				)
+			const run = this.#button(
+				label,
+				async () => {
+					// Once: the button says it is busy while the call runs, and a second press does nothing.
+					if (this.#acting.has(notice.id)) return;
+					this.#acting.add(notice.id);
+					run.setAttribute('aria-disabled', 'true');
+					try {
+						await this.#write(
+							'notification-act',
+							{ notification: notice.id },
+							() => `${label}: done`
+						);
+					} finally {
+						this.#acting.delete(notice.id);
+						run.removeAttribute('aria-disabled');
+					}
+				},
+				true
 			);
+			if (this.#acting.has(notice.id)) run.setAttribute('aria-disabled', 'true');
+			actions.append(run);
 		}
 		if (notice.link) void this.#link(actions, notice);
 		if (unread && !waiting(notice))
@@ -387,7 +434,8 @@ export class LoamInbox extends HTMLElement {
 		const kernel = this.kernel;
 		if (!kernel || !notice.link) return;
 		const { toastHref } = await import('../apps/overlays.js');
-		const href = await toastHref(kernel, this.base, notice.link);
+		// A resource link (10.1), an app's route or a document's anchor too: the same guards form it, or none.
+		const href = await toastHref(kernel, this.base, notice.link as never);
 		if (!href) return;
 		const link = el('a', { href, 'aria-label': `Open: ${notice.title}` }, 'Open');
 		actions.prepend(link);
@@ -451,7 +499,6 @@ export async function syncInbox(shell: LoamShell): Promise<void> {
 		main.dataset.section = 'inbox';
 		main.append(inbox);
 	}
-	inbox.titles = new Map(shell.appList.map((app) => [app.instance, app.title]));
 	await inbox.show(state.path);
 	// Focus goes to the heading as the inbox opens, unless it opens at a notice, which takes it (15, 6.7).
 	if (entering && state.path === '') inbox.focusHeading();

@@ -136,6 +136,11 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 	'auth-sign-out',
 ]);
 
+/** The shell's inbox commands (phase 4 specification, 10.2), none served over MCP (its section 13). */
+const SHELL_NOTIFICATION_COMMANDS: ReadonlySet<string> = new Set(
+	SHELL_COMMAND_NAMES.filter((name) => name.startsWith('notification-'))
+);
+
 /** The signed-out commands as a set, the palette's filter on a signed-out `provider` page (2.1). */
 const SIGNED_OUT_SET: ReadonlySet<string> = new Set(SIGNED_OUT_COMMANDS);
 
@@ -561,6 +566,15 @@ export async function createLateParts(
 		applied: () => applied,
 		settingTarget: (target, context) => (settings as Settings).target(target, context),
 	});
+	/** The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6). */
+	const personLabel = (): string | null => {
+		const session = deps.auth.getSession();
+		if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated') return null;
+		const name = (session.user as { name?: unknown }).name;
+		return typeof name === 'string' && name.trim() !== '' && !name.includes('@')
+			? name.trim()
+			: null;
+	};
 	// The push rate (phase 4 specification, 6.1, 10.2): the agents' toasts and every source's notices, one object.
 	const pushRate = createPushRate();
 	/**
@@ -628,6 +642,14 @@ export async function createLateParts(
 		prefs: (context) => (settings as Settings).notificationPrefs(context),
 		landsInInbox,
 		overlays: deps.overlays,
+		// The owner line step 3 gives a toast (6.6): an app's title as the rail shows it, told apart from a twin's, never
+		// one that says "Loam"; an agent's name, for the person.
+		fromOf: (source) =>
+			source === 'shell'
+				? undefined
+				: source.startsWith('agent:')
+					? { kind: 'agent', agent: source.slice('agent:'.length), person: personLabel() }
+					: { kind: 'app', title: ownerTitle(deps.summaries(), source) },
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
@@ -667,15 +689,7 @@ export async function createLateParts(
 				humanGesture: isHumanGesture,
 				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
 				// The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6).
-				personLabel: () => {
-					const session = deps.auth.getSession();
-					if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated')
-						return null;
-					const name = (session.user as { name?: unknown }).name;
-					return typeof name === 'string' && name.trim() !== '' && !name.includes('@')
-						? name.trim()
-						: null;
-				},
+				personLabel,
 				// A menu offers only the owner's own commands that the palette lists (6.4): an app's, or the shell's own for
 				// the shell, never a human, owner or internal one; each item's input checked against the command's schema.
 				itemCheck: (owner, item) => {
@@ -853,7 +867,8 @@ export async function createLateParts(
 					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor a toast or a
 					// popover, which only a person, an app or the agent interface opens (6.1).
 					command.category !== 'setting' &&
-					command.category !== 'notification' &&
+					// The shell's inbox by name (the reviews' item 9): an app's own command of that category stays served.
+					!SHELL_NOTIFICATION_COMMANDS.has(command.name) &&
 					command.name !== 'toast-show' &&
 					command.name !== 'popover-open'
 			),

@@ -336,7 +336,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * SDK's `NotificationV1` and `notificationsOver`. `surfacesMinified` 88,200 to 91,000 (87,943 to 90,199, +2,256): the
  * Inbox button's count and the announcement (`apps/inbox-bell.ts`), and a toast's "Open inbox". New row:
  * `inboxMinified`, the chrome's `inbox` chunk (`loam-inbox`), 7,809 against section 14's 10,000, at 78%, so kept at
- * 10,000.
+ * 10,000. After the step's two reviews: first paint 309,769 and 96,595 gzip (+209: the shell loads the count's own
+ * chunk, `inbox-bell`, 1,041 with `inbox-words` 266, apps or none, and the button's `99+`), within 310,000;
+ * `lateSettingsMinified` 43,941 (+2,683: admission one person at a time, the act's claim, resource links, a lookup by
+ * id, the owner line), its row tightened from 45,500 to 44,600; `late` 93,818; `surfaces` 89,549 (the count moved
+ * out); `inbox` 9,637 (clearing on a change of access, the lookup by id, the act's busy button). `editorMinified`
+ * 35,445 to 35,600 (35,393 to 35,479, +86): a failed save's toast in a module of its own, sticky when the page was
+ * hidden; the step's first commit was already over this row, which its record had not measured.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -379,7 +385,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	lateSettingsMinified: 45_500,
+	lateSettingsMinified: 44_600,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -414,7 +420,8 @@ export const CEILINGS = Object.freeze({
 	// state is `violet-progress`, as design.md's States table asks, and no chunk loaded before the section holds
 	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
 	sectionsMinified: 51_000,
-	editorMinified: 35_445,
+	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
+	editorMinified: 35_600,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,

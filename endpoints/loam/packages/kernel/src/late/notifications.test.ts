@@ -9,7 +9,7 @@ import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { NotificationV1, OverlayRefV1, OverlayV1 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createKernel } from '../kernel.js';
+import { createKernel, createKernelParts } from '../kernel.js';
 import { personKey } from '../scope/access.js';
 import {
 	createFixedEnvironment,
@@ -301,6 +301,17 @@ describe('rates (10.2, 6.1)', () => {
 		expect((await probe.call('notification-push', { title: 'later' })).success).toBe(true);
 	});
 
+	it('counts a push the moment it is admitted: 11 concurrent pushes give one RATE_LIMITED', async () => {
+		const { probe } = await boot();
+		const answers = await Promise.all(
+			Array.from({ length: 11 }, (_, index) =>
+				probe.call('notification-push', { title: `n${index}` })
+			)
+		);
+		expect(answers.filter((answer) => answer.error?.code === 'RATE_LIMITED')).toHaveLength(1);
+		expect(answers.filter((answer) => answer.success)).toHaveLength(10);
+	});
+
 	it('gives the agent interface 5 a minute, its toasts and notices together, whatever agent it names', async () => {
 		const { kernel } = await boot();
 		for (let index = 0; index < 3; index++)
@@ -336,6 +347,37 @@ describe('the quota (10.1)', () => {
 		expect(rows.some((each) => each.id === row(250).id)).toBe(false);
 		expect(rows.some((each) => each.id === pending(9_999).id)).toBe(true);
 		expect(rows.filter((each) => each.kind === 'notice')).toHaveLength(NOTIFICATION_QUOTA);
+	});
+
+	it("never refuses the shell's own notices, nor counts them (R1)", async () => {
+		const { kernel, probe, store } = await boot();
+		for (let index = 1; index <= NOTIFICATION_QUOTA; index++)
+			await store.create(NOTIFICATION_TABLE, row(index) as never);
+		expect((await probe.call('notification-push', { title: 'no room' })).error?.code).toBe(
+			'QUOTA_EXCEEDED'
+		);
+		expect((await kernel.call('notification-push', { title: 'A reminder' })).success).toBe(true);
+		for (let index = 0; index < 3; index++)
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(2_000 + index, { source: 'shell', createdAt: 1_800_000_000_000 + index }) as never
+			);
+		await kernel.call('notification-read', { notification: row(1).id });
+		// One read app notice makes room for one app notice: the shell's unread ones count for nothing.
+		expect((await probe.call('notification-push', { title: 'room now' })).success).toBe(true);
+	});
+
+	it('admits concurrent pushes one at a time: 499 unread and two pushes leave 500', async () => {
+		const { kernel, probe, sums, store } = await boot();
+		for (let index = 1; index < NOTIFICATION_QUOTA; index++)
+			await store.create(NOTIFICATION_TABLE, row(index) as never);
+		const answers = await Promise.all([
+			probe.call('notification-push', { title: 'first' }),
+			sums.call('notification-push', { title: 'second' }),
+		]);
+		expect(answers.map((answer) => answer.success).sort()).toEqual([false, true]);
+		expect(answers.find((answer) => !answer.success)?.error?.code).toBe('QUOTA_EXCEEDED');
+		expect((await listed(kernel)).unread).toBe(NOTIFICATION_QUOTA);
 	});
 
 	it('takes a push with 499 unread notices however many confirmations wait', async () => {
@@ -500,7 +542,16 @@ describe('toasts that land (6.1, 3.7)', () => {
 			message: 'Failed',
 			tone: 'danger',
 		});
-		expect(danger.data?.notification).toMatch(/^ntf_/);
+		// Landed, but the result never says so for a toast the app did not make sticky (R2); the shell's record does.
+		expect(danger.data).not.toHaveProperty('notification');
+		const record = (await overlays(kernel)).find(
+			(each) => each.overlayId === danger.data?.overlayId
+		);
+		expect(record?.notification).toMatch(/^ntf_/);
+		const own = (await probe.call<{ overlays: OverlayV1[] }>('overlay-list')).data?.overlays ?? [];
+		expect(own.find((each) => each.overlayId === danger.data?.overlayId)).not.toHaveProperty(
+			'notification'
+		);
 		expect((await listed(kernel)).unread).toBe(2);
 	});
 
@@ -535,10 +586,10 @@ describe('toasts that land (6.1, 3.7)', () => {
 			(await probe.call<OverlayRefV1>('toast-show', { message: 'kept', sticky: true })).data
 				?.notification
 		).toMatch(/^ntf_/);
+		expect((await listed(kernel)).unread).toBe(1);
 		await set('always');
-		expect(
-			(await kernel.call<OverlayRefV1>('toast-show', { message: 'mine' })).data?.notification
-		).toMatch(/^ntf_/);
+		const mine = await kernel.call<OverlayRefV1>('toast-show', { message: 'mine' });
+		expect(mine.data).not.toHaveProperty('notification');
 		expect((await listed(kernel, { source: 'shell' })).notifications[0]?.title).toBe('mine');
 	});
 
@@ -583,26 +634,78 @@ describe('muted (3.7)', () => {
 			).success
 		).toBe(true);
 		await sums.call('toast-show', { message: 'Visible', tone: 'danger' });
-		const before = await overlays(kernel);
 		const timed = await probe.call<OverlayRefV1>('toast-show', { message: 'Quiet' });
-		expect(timed.success).toBe(true);
 		const sticky = await probe.call<OverlayRefV1>('toast-show', { message: 'Kept', sticky: true });
 		expect(sticky.data?.notification).toMatch(/^ntf_/);
-		expect(await overlays(kernel)).toEqual(before);
-		// The app is told it closed, as if the person dismissed it; the sticky one moved to the inbox.
-		expect(await probe.waitOverlay((sticky.data as OverlayRefV1).overlayId)).toMatchObject({
-			result: 'dismissed',
-			reason: 'inbox',
-		});
-		expect(await probe.waitOverlay((timed.data as OverlayRefV1).overlayId)).toMatchObject({
-			result: 'dismissed',
-			reason: 'user',
-		});
+		// The shell holds both, marked hidden, so the chrome runs them unseen; the other app's shows.
+		const shell = await overlays(kernel);
+		expect(shell.filter((each) => each.hidden).map((each) => each.overlayId)).toEqual([
+			timed.data?.overlayId,
+			sticky.data?.overlayId,
+		]);
+		expect(shell.find((each) => each.owner === 'sums')).not.toHaveProperty('hidden');
 		await probe.call('notification-push', { title: 'Also kept' });
 		const inbox = await listed(kernel, { source: 'probe' });
 		// Both at one time, so ties by id: as a set.
 		expect(inbox.notifications.map((each) => each.title).sort()).toEqual(['Also kept', 'Kept']);
 		expect(inbox.unread).toBe(3);
+	});
+
+	it('lets a muted app read nothing different of its toasts (R2)', async () => {
+		const runOnce = async (mute: boolean) => {
+			const { kernel, probe } = await boot();
+			if (mute)
+				await kernel.call('setting-set', {
+					section: 'loam.notifications',
+					key: 'muted',
+					value: ['probe'],
+					level: 'person',
+				});
+			const timed = await probe.call<OverlayRefV1>('toast-show', {
+				message: 'Quiet',
+				tone: 'danger',
+			});
+			const sticky = await probe.call<OverlayRefV1>('toast-show', {
+				message: 'Kept',
+				sticky: true,
+			});
+			const settled: string[] = [];
+			for (const ref of [timed.data, sticky.data] as OverlayRefV1[])
+				void probe.waitOverlay(ref.overlayId).then((result) => {
+					settled.push(`${ref.overlayId}:${result.result}:${result.reason}`);
+				});
+			// Its own sticky toast's notice id is random, as any notice's: compared as present or not.
+			const listedBefore = (
+				(await probe.call<{ overlays: OverlayV1[] }>('overlay-list')).data?.overlays ?? []
+			).map(({ notification, ...rest }) => ({ ...rest, landed: notification !== undefined }));
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			const waitedBefore = [...settled];
+			// The chrome's timer for the timed one, as it runs it for a shown toast or a hidden one alike.
+			await kernel.call('overlay-dismiss', {
+				overlayId: (timed.data as OverlayRefV1).overlayId,
+				reason: 'timeout',
+			});
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			const strip = (ref?: OverlayRefV1) => {
+				if (!ref) return ref;
+				const { notification: _notification, ...rest } = ref;
+				return { ...rest, landed: _notification !== undefined };
+			};
+			return {
+				results: [strip(timed.data), strip(sticky.data)],
+				listedBefore,
+				waitedBefore,
+				settled: [...settled],
+			};
+		};
+		const shown = await runOnce(false);
+		const muted = await runOnce(true);
+		expect(muted).toEqual(shown);
+		// A timed toast settles `timeout`, a sticky one stays open; nothing settles before.
+		expect(muted.waitedBefore).toEqual([]);
+		expect(muted.settled).toEqual([expect.stringMatching(/:dismissed:timeout$/)]);
+		expect(muted.results[0]).toMatchObject({ landed: false });
+		expect(muted.results[1]).toMatchObject({ landed: true });
 	});
 
 	it('never mutes the shell or an agent (SETTING_MUTE_SHELL)', async () => {
@@ -670,7 +773,7 @@ describe('replay (P4-E15)', () => {
 });
 
 describe("the shell's own notices, the seam of steps 8 to 10 (10.2)", () => {
-	it('writes a notice from the shell to any person, outside the rate, and nothing at the quota', async () => {
+	it('writes a notice from the shell to any person, outside the rate and the quota (R1)', async () => {
 		const store = new MemoryAdapter();
 		const notifications = createNotifications({
 			store,
@@ -684,7 +787,8 @@ describe("the shell's own notices, the seam of steps 8 to 10 (10.2)", () => {
 			limits: { agent: 5, app: 10 },
 			prefs: async () => ({ toastSticky: 'danger', muted: [] }),
 			landsInInbox: () => false,
-			overlays: { land: () => undefined, openClosed: () => ({}) as never },
+			overlays: { land: () => undefined, hide: () => undefined },
+			fromOf: () => undefined,
 			run: async () => ({ success: true }),
 			kit: { ...DOCUMENT_KIT, archivedRefusal: () => undefined, personKey } as never,
 		});
@@ -700,6 +804,213 @@ describe("the shell's own notices, the seam of steps 8 to 10 (10.2)", () => {
 			await store.create(NOTIFICATION_TABLE, row(index + 100, { person: 'owner-2' }) as never);
 		expect(
 			await notifications.shellNotice(context, 'owner-2', { title: 'Full', tone: 'info' })
-		).toBeUndefined();
+		).toMatchObject({ source: 'shell', person: 'owner-2' });
+	});
+});
+
+describe('acting (the reviews: act-time checks, and acting twice)', () => {
+	const notes = async (kernel: LoamKernelV5) =>
+		JSON.stringify((await kernel.call('probe-list')).data ?? {});
+
+	it('checks a stored action again when the person acts, and runs nothing it refuses', async () => {
+		const { kernel, store } = await boot();
+		const before = await notes(kernel);
+		const cases: Array<[Partial<NotificationV1>, string]> = [
+			[
+				{ action: { command: 'persona-set', label: 'x', input: { persona: 'default' } } },
+				'OVERLAY_ITEM_RESERVED',
+			],
+			[
+				{ source: 'gone', action: { command: 'probe-note', label: 'x', input: { text: 'a' } } },
+				'NOTIFICATION_ACTION_FOREIGN',
+			],
+			[{ action: { command: 'probe-removed', label: 'x' } }, 'NOTIFICATION_ACTION_FOREIGN'],
+			[{ action: { command: 'probe-hidden', label: 'x' } }, 'NOTIFICATION_ACTION_FOREIGN'],
+			[{ action: { command: 'probe-note', label: 'x', input: { text: 5 } } }, 'VALIDATION_ERROR'],
+		];
+		for (const [index, [fields, code]] of cases.entries()) {
+			await store.create(NOTIFICATION_TABLE, row(index + 1, fields) as never);
+			const refused = await kernel.call('notification-act', { notification: row(index + 1).id });
+			expect(refused.error?.code, code).toBe(code);
+			const [kept] = (await listed(kernel, { notification: row(index + 1).id })).notifications;
+			expect(kept).not.toHaveProperty('state');
+		}
+		// A disabled source app's action is another app's to the shell now.
+		await store.create(
+			NOTIFICATION_TABLE,
+			row(9, {
+				source: 'sums',
+				action: { command: 'probe-note', label: 'x', input: { text: 'a' } },
+			}) as never
+		);
+		expect((await kernel.call('notification-act', { notification: row(9).id })).error?.code).toBe(
+			'NOTIFICATION_ACTION_FOREIGN'
+		);
+		expect(await notes(kernel)).toBe(before);
+	});
+
+	it('runs the command once for two concurrent acts, and never again once claimed', async () => {
+		const { kernel, store } = await boot();
+		await store.create(
+			NOTIFICATION_TABLE,
+			row(1, {
+				action: { command: 'probe-note', label: 'Note', input: { text: 'once only' } },
+			}) as never
+		);
+		const answers = await Promise.all([
+			kernel.call('notification-act', { notification: row(1).id }),
+			kernel.call('notification-act', { notification: row(1).id }),
+		]);
+		expect(answers.filter((answer) => answer.success)).toHaveLength(1);
+		expect(answers.find((answer) => !answer.success)?.error?.code).toBe(
+			'NOTIFICATION_ACTION_UNAVAILABLE'
+		);
+		expect((await notes(kernel)).split('once only').length).toBe(2);
+		// A claim another tab left, its outcome never written: it never runs again.
+		await store.create(
+			NOTIFICATION_TABLE,
+			row(2, {
+				state: 'acting',
+				action: { command: 'probe-note', label: 'Note', input: { text: 'twice' } },
+			}) as never
+		);
+		expect((await kernel.call('notification-act', { notification: row(2).id })).error?.code).toBe(
+			'NOTIFICATION_ACTION_UNAVAILABLE'
+		);
+		expect(await notes(kernel)).not.toContain('twice');
+		const [shown] = (await listed(kernel, { notification: row(1).id })).notifications;
+		expect(shown).toMatchObject({ state: 'done' });
+		expect(shown).not.toHaveProperty('claim');
+	});
+
+	it('releases the claim when the action fails, so the person may act again', async () => {
+		const { kernel, store } = await boot();
+		await kernel.call('workspace-app-set', { instance: 'probe', enabled: false });
+		await store.create(
+			NOTIFICATION_TABLE,
+			row(1, {
+				action: { command: 'probe-note', label: 'Note', input: { text: 'later' } },
+			}) as never
+		);
+		const first = await kernel.call('notification-act', { notification: row(1).id });
+		expect(first.success).toBe(false);
+		const [kept] = (await listed(kernel, { notification: row(1).id })).notifications;
+		expect(kept).not.toHaveProperty('state');
+	});
+});
+
+describe('links (10.1)', () => {
+	it('takes a resource link with an app route or a document anchor, in this workspace only', async () => {
+		const { kernel, probe } = await boot();
+		const route = {
+			kind: 'app',
+			instance: 'probe',
+			route: 'notes/1',
+			scope: { workspace: 'personal' },
+		};
+		const anchored = {
+			kind: 'document',
+			document: 'doc_1',
+			anchor: { block: 'b1' },
+			scope: { workspace: 'personal' },
+		};
+		for (const link of [route, anchored]) {
+			const pushed = await probe.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Look',
+				link,
+			});
+			expect(pushed.data?.notification.link).toEqual(link);
+		}
+		expect((await listed(kernel)).notifications.map((each) => each.link)).toEqual(
+			expect.arrayContaining([route, anchored])
+		);
+		for (const link of [
+			{ ...route, scope: { workspace: 'elsewhere' } },
+			{ ...route, route: 'notes/../x' },
+			{ ...route, route: '/notes' },
+			{ ...anchored, anchor: { big: 'x'.repeat(2_000) } },
+		]) {
+			const refused = await probe.call('notification-push', { title: 'x', link });
+			expect(refused.error?.code, JSON.stringify(link).slice(0, 60)).toBe('VALIDATION_ERROR');
+		}
+	});
+});
+
+describe('who left it, and one notice by id (6.6, 10.2)', () => {
+	it("lists each notice with step 3's owner line, and finds one by id past the first page", async () => {
+		const { kernel, probe, store } = await boot();
+		await probe.call('notification-push', { title: 'From the app' });
+		await kernel.agent.call('notification-push', { title: 'From the agent' });
+		await kernel.call('notification-push', { title: 'From me' });
+		const rows = (await listed(kernel)).notifications;
+		expect(rows.find((each) => each.title === 'From the app')?.from).toEqual({
+			kind: 'app',
+			title: expect.any(String),
+		});
+		expect(rows.find((each) => each.title === 'From the agent')?.from).toEqual({
+			kind: 'agent',
+			agent: 'shell-agent',
+			person: null,
+		});
+		expect(rows.find((each) => each.title === 'From me')).not.toHaveProperty('from');
+		for (let index = 1; index <= 30; index++)
+			await store.create(NOTIFICATION_TABLE, row(index) as never);
+		const page = await listed(kernel);
+		expect(page.notifications.some((each) => each.id === row(1).id)).toBe(false);
+		const found = await listed(kernel, { notification: row(1).id });
+		expect(found.notifications.map((each) => each.id)).toEqual([row(1).id]);
+	});
+});
+
+describe('a sticky toast is admitted as a push is (the reviews)', () => {
+	it("refuses an agent's sticky toast at the quota, and any sticky toast in a scope the caller may not enter", async () => {
+		const { kernel, store } = await boot();
+		for (let index = 1; index <= NOTIFICATION_QUOTA; index++)
+			await store.create(NOTIFICATION_TABLE, row(index) as never);
+		const refused = await kernel.agent.call('toast-show', { message: 'Look', sticky: true });
+		expect(refused.error?.code).toBe('QUOTA_EXCEEDED');
+		expect((await overlays(kernel)).filter((each) => each.kind === 'toast')).toEqual([]);
+		// A timed one is shown, and lands nowhere.
+		expect((await kernel.agent.call('toast-show', { message: 'Timed' })).success).toBe(true);
+
+		const workspace = await createScopedWorkspace();
+		kernels.push(workspace.kernel);
+		const citadel = { workspace: 'personal', project: workspace.projects.citadel.id };
+		const outside = await workspace.kernel.agent.call(
+			'toast-show',
+			{ message: 'x', sticky: true },
+			{ scope: citadel }
+		);
+		expect(outside.error?.code).toBe('PROJECT_NOT_FOUND');
+	});
+});
+
+describe('MCP (section 13; the reviews: item 9)', () => {
+	it("serves none of the shell's inbox commands, by name, and still an app's of the notification category", async () => {
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			deployment: probeDeployment([entry('probe')]),
+			ports: createFixturePorts({
+				'apps/probe/': {
+					manifest: {
+						...PROBE_MANIFEST,
+						commands: (PROBE_MANIFEST.commands ?? []).map((command) =>
+							command.name === 'probe-list' ? { ...command, category: 'notification' } : command
+						),
+					} as typeof PROBE_MANIFEST,
+					definition: probeDefinition(),
+				},
+			}),
+		});
+		kernels.push(parts.kernel);
+		await parts.kernel.appsReady;
+		const served = parts.mcpOptions()?.commands ?? [];
+		expect(served.filter((command) => command.name.startsWith('notification-'))).toEqual([]);
+		expect(served.find((command) => command.name === 'probe-list')?.category).toBe('notification');
 	});
 });

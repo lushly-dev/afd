@@ -21,11 +21,14 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	serveDist,
 	settle,
 } from './harness';
 
 let browser: Browser;
 let site: DeploymentSite;
+/** A deployment with no app at all: the Inbox button's count still runs (the reviews' item 8). */
+let empty: { origin: string; close(): Promise<void> };
 beforeAll(async () => {
 	site = await serveDeployment({
 		config: deploymentFile(
@@ -33,11 +36,13 @@ beforeAll(async () => {
 			deploymentEntry('tally', await packApp('tally'), { order: 20 })
 		),
 	});
+	empty = await serveDist();
 	browser = await chromium.launch();
 });
 afterAll(async () => {
 	await browser?.close();
 	await site?.close();
+	await empty?.close();
 });
 
 type Result = { success: boolean; data?: Record<string, unknown>; error?: { code: string } };
@@ -58,11 +63,13 @@ const helloCall = (page: Page, name: string, input: unknown) =>
 
 const inboxButton = (page: Page) => page.locator('loam-titlebar button.inbox');
 const inbox = (page: Page) => page.locator('loam-main loam-inbox');
-/** What the shell's live region last said, beside the toasts. */
+/** What the shell's own live region last said. */
 const announced = (page: Page) =>
 	page
-		.locator('loam-toast-region')
-		.evaluate((region) => region.shadowRoot?.querySelector('.announcement')?.textContent ?? '');
+		.locator('loam-shell')
+		.evaluate(
+			(shell) => shell.shadowRoot?.querySelector('.announce[role="status"]')?.textContent ?? ''
+		);
 
 describe('P4-E6: the inbox', () => {
 	it('lands a sticky toast, counts it on the Inbox button, and opens the inbox at it', async () => {
@@ -118,7 +125,7 @@ describe('P4-E6: the inbox', () => {
 		const view = inbox(page);
 		await expect.poll(() => view.locator('.notice').count()).toBe(2);
 		const agents = view.locator('.notice', { hasText: 'I filed the guest book summary' });
-		expect(await agents.locator('.meta').textContent()).toContain('From an agent (shell-agent)');
+		expect(await agents.locator('.meta').textContent()).toContain('From shell-agent, for you');
 		// The agent's notice has its link and no action.
 		await expect.poll(() => agents.locator('a').getAttribute('href')).toMatch(/\/hello$/);
 		expect(await agents.locator('button.primary').count()).toBe(0);
@@ -192,6 +199,54 @@ describe('P4-E6: the inbox', () => {
 			await settle(page);
 			expect(await axe(page), theme).toEqual([]);
 		}
+		await page.context().close();
+	});
+});
+
+describe('P4-E6: the inbox, after the reviews', () => {
+	it('counts on the Inbox button in a deployment with no apps', async () => {
+		const { page, errors } = await openShell(browser, empty.origin);
+		await kernelCall(page, 'notification-push', { title: 'A reminder' });
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox 1 unread');
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it("clears the count and the inbox on a change of person, and shows only the next person's", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await kernelCall(page, 'notification-push', { title: 'Signed out, mine' });
+		await kernelCall(page, 'section-open', { section: 'inbox' });
+		await expect.poll(() => inbox(page).locator('.notice').count()).toBe(1);
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox 1 unread');
+		await page.locator('loam-titlebar').locator('button.account').click();
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox');
+		await expect.poll(() => inbox(page).locator('.notice').count()).toBe(0);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it("runs a muted app's toast unseen, and times it out as a shown one", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await kernelCall(page, 'setting-set', {
+			section: 'loam.notifications',
+			key: 'muted',
+			value: ['hello'],
+			level: 'person',
+		});
+		const shown = await helloCall(page, 'toast-show', { message: 'Quiet', durationMs: 1000 });
+		expect(shown.success).toBe(true);
+		const id = shown.data?.overlayId as string;
+		await settle(page);
+		expect(await page.locator('loam-toast[message="Quiet"]').count()).toBe(0);
+		const result = await page.evaluate((overlayId) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { appPort(instance: string): { waitOverlay(id: string): Promise<unknown> } };
+			};
+			return shell.kernel.appPort('hello').waitOverlay(overlayId);
+		}, id);
+		expect(result).toMatchObject({ result: 'dismissed', reason: 'timeout' });
+		expect(errors).toEqual([]);
 		await page.context().close();
 	});
 });

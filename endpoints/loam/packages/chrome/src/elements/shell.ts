@@ -549,6 +549,12 @@ export class LoamShell extends FASTElement {
 			await this.rail.refresh();
 			return;
 		}
+		// The title bar's inbox count and its announcements, a chunk of its own, apps or none (phase 4's 10.3).
+		void import('../apps/inbox-bell.js')
+			.then(({ watchInbox }) => {
+				if (this.kernel === kernel) this.#cleanup.push(watchInbox(this, kernel));
+			})
+			.catch(reportError);
 		const listed = this.listsApps || this.appCount > 0;
 		// Stage B's list corrects what the boot records said (2.2), placed by the active persona's emphasis (6.2).
 		await this.#readPersona();

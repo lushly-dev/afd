@@ -59,7 +59,9 @@ const DEPLOYER_KEYS = [
 
 /**
  * Three named exemptions. Phase 4's step 5 adds `notification-push`'s `action.command`, a command's name (its 10.1),
- * the path step 3's comment below foresaw; it waits for the step's review. Phase 4's step 3 adds `popover-open`'s menu
+ * the path step 3's comment below foresaw, kept by the coordinator on 2026-11-19; and, from that step's reviews, its
+ * `link.route`, an app's route within its own URL (10.1's `ResourceLinkV1`, the reviews' item 6), never a projection
+ * entry's `route`, for that step's re-check. Phase 4's step 3 adds `popover-open`'s menu
  * item `command`, a command's name (its 6.4), kept by the coordinator on 2026-11-18 (that step's record, R-a). The first (phase 3 specification, Status, step 6,
  * deviation 13, kept by the coordinator on 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
  * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
@@ -67,11 +69,16 @@ const DEPLOYER_KEYS = [
  */
 function exempted(name: string, schema: unknown): unknown {
 	if (name === 'notification-push') {
-		// A notice's action names one of the pushing app's own palette commands (10.1), as a menu item does.
+		// A notice's action names one of the pushing app's own palette commands (10.1), as a menu item does; its link's
+		// `route` is an app's own route, navigation a person follows (documents specification, 9.1).
 		const copy = structuredClone(schema) as {
-			properties?: { action?: { properties?: Record<string, unknown> } };
+			properties?: {
+				action?: { properties?: Record<string, unknown> };
+				link?: { anyOf?: Array<{ properties?: Record<string, unknown> }> };
+			};
 		};
 		delete copy.properties?.action?.properties?.command;
+		for (const branch of copy.properties?.link?.anyOf ?? []) delete branch.properties?.route;
 		return copy;
 	}
 	if (name === 'popover-open') {

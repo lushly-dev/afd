@@ -69,7 +69,10 @@ export interface OverlayOpenOptions {
 
 /** The overlays and their waiters, the kernel's own state. */
 export interface OverlayStore {
-	/** Every open overlay, or only those of the app instance `instance`. */
+	/**
+	 * Every open overlay, or only those of the app instance `instance`. An app's view never says what the person's
+	 * settings made of its overlays (step 5's R2): no `hidden`, and a toast's `notification` only on its own sticky one.
+	 */
 	list(instance?: string): OverlayV1[];
 	modalOpen(): OverlayV1 | undefined;
 	/** Whose the open or recently closed overlay is. */
@@ -95,10 +98,10 @@ export interface OverlayStore {
 	 */
 	land(overlayId: string, notification: string): void;
 	/**
-	 * A toast never shown (3.7's `muted`): its id and owner recorded as closed at once with `reason`, so `waitOverlay`
-	 * answers and the region holds nothing of it, and no toast on screen is pushed off for it.
+	 * A muted app's toast (3.7; step 5's R2): held, timed and capped as any toast, so the app sees the same lifecycle,
+	 * but the shell does not show it. The shell's list marks it `hidden`; the app's never does.
 	 */
-	openClosed(owner: OverlayOwner, input: ToastInputV1, reason: OverlayReasonV1): OverlayRefV1;
+	hide(overlayId: string): void;
 	get(overlayId: string): OverlayV1 | undefined;
 	/** When an open toast opened, on the call's clock, for a full region's `retryAfterMs`. */
 	openedAt(overlayId: string): number | undefined;
@@ -163,9 +166,14 @@ export function createOverlayStore(): OverlayStore {
 	const store: OverlayStore = {
 		list(instance) {
 			const all = [...open.values()].map(detached);
-			return instance === undefined
-				? all
-				: all.filter((overlay) => isApp(owners.get(overlay.overlayId), instance));
+			if (instance === undefined) return all;
+			return all
+				.filter((overlay) => isApp(owners.get(overlay.overlayId), instance))
+				.map((overlay) => {
+					delete overlay.hidden;
+					if (!(overlay.input as ToastInputV1).sticky) delete overlay.notification;
+					return overlay;
+				});
 		},
 		modalOpen() {
 			const modal = [...open.values()].find((overlay) => overlay.kind === 'modal');
@@ -207,10 +215,9 @@ export function createOverlayStore(): OverlayStore {
 			const overlay = open.get(overlayId);
 			if (overlay?.kind === 'toast') overlay.notification = notification;
 		},
-		openClosed(owner, input, reason) {
-			const ref = add(owner, 'toast', input);
-			store.close(ref.overlayId, 'dismissed', reason);
-			return ref;
+		hide(overlayId) {
+			const overlay = open.get(overlayId);
+			if (overlay?.kind === 'toast') overlay.hidden = true;
 		},
 		get(overlayId) {
 			const overlay = open.get(overlayId);

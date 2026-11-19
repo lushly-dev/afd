@@ -13,9 +13,10 @@ import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/de
 import type {
 	NotificationActionV1,
 	NotificationV1,
+	OverlayFromV1,
 	OverlayRefV1,
+	ResourceLinkV1,
 	ToastInputV1,
-	ToastLinkV1,
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { KernelFieldContext } from '../context-fields.js';
@@ -23,13 +24,17 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
+import type { DocumentKit } from './document-kit.js';
 import type { PushRate } from './push-rate.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
 
 /** The workspace store's table of notices (10.1), one row per notice, listed by `person`. */
 export const NOTIFICATION_TABLE = 'notification';
 
-/** Notices kept per person (10.1): unread ones are never dropped, so a push past this many unread is refused. */
+/**
+ * Notices kept per person (10.1): unread ones are never dropped, so a push past this many unread notices from apps and
+ * agents is refused. The shell's own notices, as confirmations, count for neither side and are never refused (R1).
+ */
 export const NOTIFICATION_QUOTA = 500;
 
 /** `notification-list`'s page (10.2): 1 to 100, 20 by default. */
@@ -41,6 +46,10 @@ export const NOTIFICATION_LIST_BUDGET = 32_768;
 
 /** An action's input, as JSON, at most this many bytes: a notice is a pointer, never a payload. */
 export const NOTIFICATION_ACTION_INPUT_BYTES = 2_048;
+
+/** A link's document `anchor`, as JSON, at most this many bytes, and an app `route` at most this many characters. */
+export const NOTIFICATION_ANCHOR_BYTES = 1_024;
+export const NOTIFICATION_ROUTE_MAX = 1_024;
 
 const ID = /^ntf_[a-z0-9]{16}$/;
 const CURSOR = /^(\d{1,16})\.(ntf_[a-z0-9]{16})$/;
@@ -95,35 +104,37 @@ export interface NotificationDeps {
 		input: Pick<ToastInputV1, 'sticky' | 'tone'>,
 		toastSticky: NotificationPrefsV1['toastSticky']
 	): boolean;
-	overlays: Pick<OverlayStore, 'land' | 'openClosed'>;
+	overlays: Pick<OverlayStore, 'land' | 'hide'>;
+	/** Whose a notice is, as the shell shows it (6.6): step 3's owner line for an app or an agent, none for the shell. */
+	fromOf(source: string): OverlayFromV1 | undefined;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
 		input: unknown,
 		fields: { parent: string; scope: ScopeV1; actor?: unknown }
 	): Promise<CommandResult>;
-	kit: SettingsKit;
+	kit: SettingsKit & Pick<DocumentKit, 'projectNotFound'>;
 }
 
 export interface Notifications {
 	commands: ZodCommandDefinition[];
 	/**
 	 * `toast-show` with the inbox's half (6.1, 3.7): a sticky toast, and one the person's `toastSticky` selects, also
-	 * lands as a notice, its id on the toast; an app's sticky toast counts against its push rate and the quota, and is
-	 * refused past them; a muted app's toast is never shown, recorded closed at once.
+	 * lands as a notice, its id on the toast; an explicitly sticky toast is admitted as a push is (its scope, its rate and
+	 * the quota) and refused past them; a muted app's toast runs its course unseen, as the app sees any toast (R2).
 	 */
 	toastShow(toastShow: ZodCommandDefinition): ZodCommandDefinition;
 	/**
 	 * The seam for the shell's own notices to a person (10.2): an orphan autonomy row to the owners who may enter its
 	 * project (step 8's `AutonomyDeps.orphaned`), an experiment's change and a deferred unload (step 9), and a limit's
 	 * refusal to owners (step 10). Written inside the call that decides it, so a replay writes it again; source `shell`,
-	 * outside any push rate; nothing when the person is at the quota. Nothing calls it before those steps.
+	 * outside any push rate and the quota, never refused (R1). Nothing calls it before those steps.
 	 */
 	shellNotice(
 		context: CommandContext,
 		person: string,
 		fields: Pick<NotificationV1, 'title' | 'tone'> & Partial<Pick<NotificationV1, 'body' | 'link'>>
-	): Promise<NotificationV1 | undefined>;
+	): Promise<NotificationV1>;
 }
 
 /** `ntf_` and 16 of `[a-z0-9]` from the call's random, so a replay reproduces it (10.1). */
@@ -147,6 +158,13 @@ const pendingConfirmation = (notice: NotificationV1): boolean =>
 const unread = (notice: NotificationV1): boolean =>
 	notice.readAt === undefined && notice.archivedAt === undefined;
 
+/** A notice the quota counts (10.1, R1): an app's or an agent's, never the shell's own or a confirmation. */
+const counted = (notice: NotificationV1): boolean =>
+	notice.kind === 'notice' && notice.source !== 'shell';
+
+/** A notice's row as the store keeps it: the act's claim (`claim`) is the kernel's, never shown. */
+type StoredNotice = NotificationV1 & { claim?: string };
+
 const textJson = (maxLength: number): JsonSchema => ({ type: 'string', minLength: 1, maxLength });
 const scopeJson: JsonSchema = {
 	type: 'object',
@@ -154,7 +172,7 @@ const scopeJson: JsonSchema = {
 	required: ['workspace'],
 	additionalProperties: false,
 };
-/** A toast's link (6.4), which a notice carries too (10.1): a document's, or an app's with no `route`. */
+/** 10.1's `ResourceLinkV1`: a document's with an optional `anchor`, or an app's with an optional `route`. */
 const linkJson = {
 	anyOf: [
 		{
@@ -163,6 +181,7 @@ const linkJson = {
 				kind: { type: 'string', enum: ['document'] },
 				document: textJson(128),
 				scope: scopeJson,
+				anchor: {},
 			},
 			required: ['kind', 'document', 'scope'],
 			additionalProperties: false,
@@ -172,6 +191,7 @@ const linkJson = {
 			properties: {
 				kind: { type: 'string', enum: ['app'] },
 				instance: textJson(64),
+				route: textJson(NOTIFICATION_ROUTE_MAX),
 				scope: scopeJson,
 			},
 			required: ['kind', 'instance', 'scope'],
@@ -221,8 +241,8 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		);
 
 	/** Every notice of the person's, oldest dropped first by the quota; never another person's (10.1). */
-	async function noticesOf(person: string): Promise<NotificationV1[]> {
-		const listed = await store.list<NotificationV1>(NOTIFICATION_TABLE, { person } as never);
+	async function noticesOf(person: string): Promise<StoredNotice[]> {
+		const listed = await store.list<StoredNotice>(NOTIFICATION_TABLE, { person } as never);
 		return listed.data.filter(
 			(row) => row.person === person && row.workspace === deps.workspace() && ID.test(row.id)
 		);
@@ -267,28 +287,73 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		);
 
 	/**
-	 * Room for one more notice (10.1): refused while the person holds 500 unread notices, which are never dropped;
-	 * otherwise the oldest read or archived notices go until there is room. Confirmations count for neither (R10).
+	 * Each person's admission, one at a time (the reviews' race): a count, an eviction and an insert never interleave
+	 * with another's, so concurrent pushes and landed toasts cannot pass the quota together.
 	 */
-	async function makeRoom(person: string): Promise<CommandResult<never> | undefined> {
-		const notices = (await noticesOf(person)).filter((row) => row.kind === 'notice');
-		if (notices.filter(unread).length >= NOTIFICATION_QUOTA) return quotaRefusal();
-		const spare = notices.filter((row) => !unread(row)).sort((a, b) => -newestFirst(a, b));
-		for (let over = notices.length - NOTIFICATION_QUOTA + 1; over > 0 && spare.length > 0; over--) {
-			await store.remove(NOTIFICATION_TABLE, (spare.shift() as NotificationV1).id);
-		}
-		return undefined;
+	const chains = new Map<string, Promise<unknown>>();
+	function admit<T>(person: string, work: () => Promise<T>): Promise<T> {
+		const run = (chains.get(person) ?? Promise.resolve()).then(work, work);
+		const tail = run.then(
+			() => undefined,
+			() => undefined
+		);
+		chains.set(person, tail);
+		void tail.then(() => {
+			if (chains.get(person) === tail) chains.delete(person);
+		});
+		return run;
 	}
 
-	/** A notice's row, stamped and written (10.1). */
-	async function write(
+	/** Whether the person holds 500 unread notices from apps and agents (10.1, R1). */
+	const full = async (person: string): Promise<boolean> =>
+		(await noticesOf(person)).filter((row) => counted(row) && unread(row)).length >=
+		NOTIFICATION_QUOTA;
+
+	/**
+	 * Write one notice, inside the person's admission (10.1): refused (`'full'`) at 500 unread notices from apps and
+	 * agents, never for the shell's own (R1); otherwise the oldest read or archived notices go to keep the person's at
+	 * most 500, in one store batch with the insert, so a failed insert keeps them.
+	 */
+	async function insert(
 		context: CommandContext,
 		person: string,
 		source: string,
 		fields: Pick<NotificationV1, 'title' | 'tone'> &
 			Partial<Pick<NotificationV1, 'body' | 'link' | 'action'>>
-	): Promise<NotificationV1> {
-		const record: NotificationV1 = {
+	): Promise<NotificationV1 | 'full'> {
+		const notices = (await noticesOf(person)).filter((row) => row.kind === 'notice');
+		if (
+			source !== 'shell' &&
+			notices.filter((row) => counted(row) && unread(row)).length >= NOTIFICATION_QUOTA
+		)
+			return 'full';
+		const spare = notices.filter((row) => !unread(row)).sort((a, b) => -newestFirst(a, b));
+		const evicted = spare.slice(0, Math.max(0, notices.length - NOTIFICATION_QUOTA + 1));
+		const record = stamp(context, person, source, fields);
+		const { summary } = await store.batch([
+			...evicted.map((row) => ({
+				method: 'DELETE' as const,
+				path: `/${NOTIFICATION_TABLE}/${encodeURIComponent(row.id)}`,
+			})),
+			{
+				method: 'PUT',
+				path: `/${NOTIFICATION_TABLE}/${encodeURIComponent(record.id)}`,
+				body: record,
+			},
+		]);
+		if (summary.failed > 0) throw new Error(`The store could not write the notice '${record.id}'`);
+		return record;
+	}
+
+	/** A notice's row, stamped (10.1). */
+	function stamp(
+		context: CommandContext,
+		person: string,
+		source: string,
+		fields: Pick<NotificationV1, 'title' | 'tone'> &
+			Partial<Pick<NotificationV1, 'body' | 'link' | 'action'>>
+	): NotificationV1 {
+		return {
 			id: newId(context),
 			workspace: deps.workspace(),
 			person,
@@ -302,8 +367,32 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			scope: scopeOf(context),
 			createdAt: kit.callNow(context),
 		};
-		await store.create(NOTIFICATION_TABLE, record as never);
-		return record;
+	}
+
+	/**
+	 * A link's refusal (10.1), or undefined: within this workspace, an app route with no empty, `.` or `..` segment, a
+	 * document anchor of at most 1 KiB. Navigation only; the shell forms the address and drops one it cannot (9.1).
+	 */
+	function linkRefusal(link: ResourceLinkV1): CommandResult<never> | undefined {
+		const why =
+			link.scope.workspace !== deps.workspace()
+				? 'A link leads within this workspace'
+				: link.kind === 'app' &&
+						link.route !== undefined &&
+						link.route.split('/').some((part) => part === '' || part === '.' || part === '..')
+					? "A link's route has no empty, '.' or '..' segment"
+					: link.kind === 'document' &&
+							link.anchor !== undefined &&
+							bytesOf(link.anchor) > NOTIFICATION_ANCHOR_BYTES
+						? `A link's anchor is at most ${NOTIFICATION_ANCHOR_BYTES} bytes`
+						: undefined;
+		return why === undefined
+			? undefined
+			: fail(
+					'VALIDATION_ERROR',
+					why,
+					'Link to a resource in this workspace, by its id and its scope'
+				);
 	}
 
 	/** An action's refusal for its pusher (10.1), or undefined for one of its own palette commands. */
@@ -361,10 +450,12 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				workspace: z.string().check(z.minLength(1), z.maxLength(128)),
 				project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
 			}),
+			anchor: z.optional(z.unknown()),
 		}),
 		z.strictObject({
 			kind: z.enum(['app']),
 			instance: z.string().check(z.minLength(1), z.maxLength(64)),
+			route: z.optional(z.string().check(z.minLength(1), z.maxLength(NOTIFICATION_ROUTE_MAX))),
 			scope: z.strictObject({
 				workspace: z.string().check(z.minLength(1), z.maxLength(128)),
 				project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
@@ -443,21 +534,27 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				);
 				if (refused) return refused;
 			}
+			const link = input.link as ResourceLinkV1 | undefined;
+			const badLink = link && linkRefusal(link);
+			if (badLink) return badLink;
+			// Counted the moment it is admitted, with no await between the check and the count (the reviews' race); a
+			// push the quota then refuses stays counted.
 			const limit = source.kind === 'agent' ? deps.limits.agent : deps.limits.app;
 			const at = kit.callNow(context);
 			const wait = deps.pushRate.retryAfter(source.bucket, limit, at);
 			if (wait !== undefined)
 				return rateRefusal(limit, wait, source.kind === 'agent' ? 'An agent leaves' : 'It leaves');
-			const room = await makeRoom(person);
-			if (room) return room;
-			const notification = await write(context, person, sourceName(source), {
-				title: input.title,
-				tone: input.tone ?? 'info',
-				...(input.body !== undefined ? { body: input.body } : {}),
-				...(input.link !== undefined ? { link: input.link as ToastLinkV1 } : {}),
-				...(action !== undefined ? { action } : {}),
-			});
 			deps.pushRate.record(source.bucket, at);
+			const notification = await admit(person, () =>
+				insert(context, person, sourceName(source), {
+					title: input.title,
+					tone: input.tone ?? 'info',
+					...(input.body !== undefined ? { body: input.body } : {}),
+					...(link !== undefined ? { link } : {}),
+					...(action !== undefined ? { action } : {}),
+				})
+			);
+			if (notification === 'full') return quotaRefusal();
 			return kit.success({ notification: structuredClone(notification) });
 		},
 	});
@@ -471,11 +568,18 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		kind: z.optional(z.enum(['notice', 'confirmation'])),
 		limit: z.optional(z.number().check(z.int(), z.minimum(1), z.maximum(NOTIFICATION_PAGE_MAX))),
 		body: z.optional(z.boolean()),
+		notification: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
 	});
 
-	/** A row as the list gives it (10.2): `body` and a confirmation's `input` only when asked. */
-	const shown = (row: NotificationV1, body: boolean): NotificationV1 => {
+	/**
+	 * A row as the list gives it (10.2): whose it is (6.6); `body` and a confirmation's `input` only when asked; never
+	 * the act's claim.
+	 */
+	const shown = (row: StoredNotice, body: boolean): NotificationV1 => {
 		const copy = structuredClone(row);
+		delete copy.claim;
+		const from = deps.fromOf(copy.source);
+		if (from) copy.from = from;
 		if (body) return copy;
 		delete copy.body;
 		if (copy.confirmation) delete (copy.confirmation as { input?: unknown }).input;
@@ -489,7 +593,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		name: 'notification-list',
 		title: 'List your notices',
 		description:
-			'List your inbox, newest first: notices, and confirmations waiting for you. unread is how many you have not read. body adds each body',
+			'List your inbox, newest first: notices, and confirmations waiting for you. unread is how many you have not read. body adds each body; notification names one notice',
 		category: 'notification',
 		mutation: false,
 		executionTime: 'instant',
@@ -503,6 +607,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				kind: { type: 'string', enum: ['notice', 'confirmation'] },
 				limit: { type: 'integer', minimum: 1, maximum: NOTIFICATION_PAGE_MAX },
 				body: { type: 'boolean' },
+				notification: textJson(64),
 			},
 			additionalProperties: false,
 		},
@@ -528,6 +633,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 						(input.unread === undefined || unread(row) === input.unread) &&
 						(input.source === undefined || row.source === input.source) &&
 						(input.kind === undefined || row.kind === input.kind) &&
+						(input.notification === undefined || row.id === input.notification) &&
 						(after === undefined ||
 							newestFirst(row, { createdAt: after.createdAt, id: after.id } as NotificationV1) > 0)
 				)
@@ -541,7 +647,15 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (page.length >= limit) break;
 				const item = shown(row, input.body === true);
 				const size = bytesOf(item) + 1;
-				if (page.length > 0 && bytes + size > NOTIFICATION_LIST_BUDGET) break;
+				if (bytes + size > NOTIFICATION_LIST_BUDGET) {
+					if (page.length > 0) break;
+					// One row past the budget alone: a bounded refusal, never a page past it.
+					return fail(
+						'OUTPUT_BUDGET_EXCEEDED',
+						`The notice '${row.id}' does not fit the list's ${NOTIFICATION_LIST_BUDGET} bytes`,
+						'List without body, then read the notice by its id'
+					);
+				}
 				page.push(item);
 				bytes += size;
 			}
@@ -636,6 +750,27 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		answer: z.optional(z.enum(['confirm', 'decline'])),
 	});
 
+	/** The notices whose action runs in this page now, by id (the reviews' acting twice). */
+	const acting = new Set<string>();
+	const stillActing = () =>
+		fail(
+			'NOTIFICATION_ACTION_UNAVAILABLE',
+			"This notice's action is running, or ran with no outcome recorded, so it does not run again",
+			'Look in its app for what it did, then archive the notice'
+		);
+	/** The row as stored now: the claim's read-back. */
+	const reread = async (id: string) =>
+		(await store.get<StoredNotice>(NOTIFICATION_TABLE, id).catch(() => null)) ?? undefined;
+	/** A row put back whole, in one batch, so a field a merge keeps (`state`, `claim`) goes: a `PUT` merges. */
+	const putBack = async (row: StoredNotice) => {
+		const path = `/${NOTIFICATION_TABLE}/${encodeURIComponent(row.id)}`;
+		const { summary } = await store.batch([
+			{ method: 'DELETE', path },
+			{ method: 'PUT', path, body: row },
+		]);
+		if (summary.failed > 0) throw new Error(`The store could not write the notice '${row.id}'`);
+	};
+
 	const act = kit.define<typeof actInput, { state: 'done'; result?: unknown }>({
 		name: 'notification-act',
 		title: 'Act on a notice',
@@ -683,6 +818,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				);
 			}
 			if (row.state === 'done') return kit.success({ state: 'done' as const });
+			if (row.state === 'acting' || acting.has(row.id)) return stillActing();
 			const action = row.action;
 			if (!action || row.source.startsWith('agent:')) {
 				return fail(
@@ -697,28 +833,60 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				action
 			);
 			if (refused) return refused;
-			// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
-			const result = await deps.run(action.command, action.input ?? {}, {
-				parent: context.traceId ?? '',
-				scope: row.scope,
-				...(context.actor ? { actor: context.actor } : {}),
-			});
-			if (!result.success) return result as CommandResult<never>;
-			const at = kit.callNow(context);
-			await store.update(NOTIFICATION_TABLE, row.id, {
-				state: 'done',
-				...(row.readAt === undefined ? { readAt: at } : {}),
-			} as never);
-			return kit.success({
-				state: 'done' as const,
-				...(result.data !== undefined ? { result: structuredClone(result.data) } : {}),
-			});
+			// Claimed before it runs (the reviews' acting twice): in this page by id, and in the store, read back, so
+			// another tab sharing the store that claimed it since does not run it too. The store has no compare-and-set,
+			// so two tabs that write and read back in lockstep can still both run it: the window is the claim's two store
+			// calls. A claim whose completion is never written stays `acting`, and never runs again.
+			acting.add(row.id);
+			try {
+				const claim = `${context.traceId ?? ''}:${newId(context)}`;
+				await store.update(NOTIFICATION_TABLE, row.id, { state: 'acting', claim } as never);
+				const claimed = await reread(row.id);
+				if (!claimed || claimed.claim !== claim) return stillActing();
+				// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
+				const result = await deps.run(action.command, action.input ?? {}, {
+					parent: context.traceId ?? '',
+					scope: row.scope,
+					...(context.actor ? { actor: context.actor } : {}),
+				});
+				const { state: _state, claim: _claim, ...kept } = claimed;
+				if (!result.success) {
+					// Nothing ran: the claim goes, so the person may try again.
+					await putBack(kept);
+					return result as CommandResult<never>;
+				}
+				const at = kit.callNow(context);
+				try {
+					await putBack({
+						...kept,
+						state: 'done',
+						...(kept.readAt === undefined ? { readAt: at } : {}),
+					});
+				} catch {
+					// The action ran; the notice stays `acting`, which never runs it again.
+				}
+				return kit.success({
+					state: 'done' as const,
+					...(result.data !== undefined ? { result: structuredClone(result.data) } : {}),
+				});
+			} finally {
+				acting.delete(row.id);
+			}
 		},
 	});
 
 	// ─── toast-show's inbox half ────────────────────────────────────────────────────
 
 	function toastShow(original: ZodCommandDefinition): ZodCommandDefinition {
+		const show = (input: unknown, context: CommandContext) =>
+			original.handler(input, context) as Promise<CommandResult<OverlayRefV1>>;
+		/** A landed toast's notice: its message as the title, cut to 120, with the whole message as the body. */
+		const fieldsOf = (toast: ToastInputV1) => ({
+			title: toast.message.length > 120 ? `${toast.message.slice(0, 119)}…` : toast.message,
+			...(toast.message.length > 120 ? { body: toast.message } : {}),
+			tone: toast.tone ?? ('info' as const),
+			...(toast.link !== undefined ? { link: toast.link } : {}),
+		});
 		return {
 			...original,
 			async handler(input: unknown, context: CommandContext) {
@@ -726,56 +894,54 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				const source = deps.sourceOf(context);
 				const person = personOf(context);
 				// No one's path, or no person: the original refuses or shows it, landing nothing.
-				if (source.kind === 'none' || person === undefined)
-					return original.handler(input, context) as Promise<CommandResult>;
-				const prefs = await deps.prefs(context);
-				let lands = deps.landsInInbox(toast, prefs.toastSticky);
+				if (source.kind === 'none' || person === undefined) return show(input, context);
+				const sticky = toast.sticky === true;
+				const actor = context.actor as AccessActorV1;
 				const at = kit.callNow(context);
-				// An agent's toast counts against its rate in the original, once, whether or not it lands.
-				const counts = lands && source.kind !== 'agent';
-				if (counts) {
-					const limit = deps.limits.app;
-					const wait = deps.pushRate.retryAfter(source.bucket, limit, at);
-					const full =
-						(await noticesOf(person)).filter((row) => row.kind === 'notice' && unread(row))
-							.length >= NOTIFICATION_QUOTA;
-					// A sticky toast is a notice the app asked for: refused past its rate or the quota (10.2). One the
-					// person's `toastSticky` selects is shown regardless, and lands only within them.
-					if (toast.sticky === true) {
-						if (wait !== undefined) return rateRefusal(limit, wait, 'It leaves');
-						if (full) return quotaRefusal();
-					} else if (wait !== undefined || full) lands = false;
+				if (sticky) {
+					// An explicitly sticky toast is a notice its owner asked for, admitted as a push is (the reviews' bypass):
+					// its scope, then its rate, counted at once (an agent's in the original, as a toast), then the quota.
+					if (!deps.allows(actor, scopeOf(context))) return kit.projectNotFound();
+					if (source.kind !== 'agent') {
+						const wait = deps.pushRate.retryAfter(source.bucket, deps.limits.app, at);
+						if (wait !== undefined) return rateRefusal(deps.limits.app, wait, 'It leaves');
+						deps.pushRate.record(source.bucket, at);
+					}
 				}
-				let ref: OverlayRefV1;
+				const prefs = await deps.prefs(context);
 				const muted = source.kind === 'app' && prefs.muted.includes(source.instance);
-				if (source.kind === 'app' && muted) {
-					// Never shown as a toast (3.7): recorded closed, so no toast on screen is pushed off for it.
-					ref = deps.overlays.openClosed(
-						{ kind: 'app', id: source.instance },
-						toast,
-						lands ? 'inbox' : 'user'
-					);
-				} else {
-					const shownResult = (await original.handler(
-						input,
-						context
-					)) as CommandResult<OverlayRefV1>;
-					if (!shownResult.success || !shownResult.data) return shownResult;
-					ref = shownResult.data;
+				if (sticky) {
+					return admit(person, async () => {
+						if (source.kind !== 'shell' && (await full(person))) return quotaRefusal();
+						const shown = await show(input, context);
+						if (!shown.success || !shown.data) return shown;
+						const ref = shown.data;
+						if (muted) deps.overlays.hide(ref.overlayId);
+						const notice = await insert(context, person, sourceName(source), fieldsOf(toast));
+						if (notice === 'full') return kit.success(ref);
+						deps.overlays.land(ref.overlayId, notice.id);
+						return kit.success({ ...ref, notification: notice.id });
+					});
 				}
-				if (!lands) return kit.success(ref);
-				const room = await makeRoom(person);
-				if (room) return kit.success(ref);
-				const message = toast.message;
-				const notice = await write(context, person, sourceName(source), {
-					title: message.length > 120 ? `${message.slice(0, 119)}…` : message,
-					...(message.length > 120 ? { body: message } : {}),
-					tone: toast.tone ?? 'info',
-					...(toast.link !== undefined ? { link: toast.link } : {}),
+				const shown = await show(input, context);
+				if (!shown.success || !shown.data) return shown;
+				const ref = shown.data;
+				// A muted app's toast runs its course unseen: the app sees what it would of any toast (3.7, R2).
+				if (muted) deps.overlays.hide(ref.overlayId);
+				// One the person's `toastSticky` selects lands within its owner's scope, rate and the quota, or not at all;
+				// the result never says which, so no app reads the person's setting from it (R2).
+				if (!deps.landsInInbox(toast, prefs.toastSticky) || !deps.allows(actor, scopeOf(context)))
+					return kit.success(ref);
+				if (source.kind !== 'agent') {
+					if (deps.pushRate.retryAfter(source.bucket, deps.limits.app, at) !== undefined)
+						return kit.success(ref);
+					deps.pushRate.record(source.bucket, at);
+				}
+				await admit(person, async () => {
+					const notice = await insert(context, person, sourceName(source), fieldsOf(toast));
+					if (notice !== 'full') deps.overlays.land(ref.overlayId, notice.id);
 				});
-				if (source.kind !== 'agent') deps.pushRate.record(source.bucket, at);
-				if (!muted) deps.overlays.land(ref.overlayId, notice.id);
-				return kit.success({ ...ref, notification: notice.id });
+				return kit.success(ref);
 			},
 		} as ZodCommandDefinition;
 	}
@@ -790,8 +956,8 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		] as unknown as ZodCommandDefinition[],
 		toastShow,
 		async shellNotice(context, person, fields) {
-			if (await makeRoom(person)) return undefined;
-			return structuredClone(await write(context, person, 'shell', fields));
+			const notice = await admit(person, () => insert(context, person, 'shell', fields));
+			return structuredClone(notice as NotificationV1);
 		},
 	};
 }
