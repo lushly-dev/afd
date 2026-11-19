@@ -55,16 +55,19 @@ function section(card: VioletCard, name: "header" | "body" | "footer"): HTMLElem
     return element;
 }
 
-/** Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or turns the emulation off. */
+/**
+ * Emulates a dark forced-colours theme, as Windows' "Night sky" gives, or restores the media
+ * Playwright emulates by default, so later spec files on the page do not follow the host's settings.
+ */
 async function emulateForcedColors(active: boolean): Promise<void> {
     const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
     await session.send("Emulation.setEmulatedMedia", {
-        features: active
-            ? [
-                  { name: "forced-colors", value: "active" },
-                  { name: "prefers-color-scheme", value: "dark" },
-              ]
-            : [],
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
     });
 }
 
