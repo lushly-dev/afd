@@ -327,9 +327,10 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 			['checklist-item-toggle', 'palette', true],
 		]);
 		expect(await stored(page, checklist)).toEqual(['[ ] Map', '[x] Tent']);
-		// The palette's own rows: with its view closed checklist is neither the active app nor the editor's owner,
-		// so its commands are not listed; with its tab active they are, needing a document and text, which the
-		// palette does not ask for (phase 0's "needs input").
+		// The palette's own rows: every enabled, loaded app's commands are listed, its view open or not (phase 4's
+		// A-P0-1, which replaced phase 0's active-app filter); with its view closed checklist ranks after the active app
+		// and the active tab's owner, of which it is neither. With its tab active they are listed the same, needing a
+		// document and text.
 		const listed = async () =>
 			(
 				(await kernelCall(page, 'palette-search', { query: 'checklist', limit: 20 })) as {
@@ -338,17 +339,18 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 			).data.items
 				.map((item) => item.name)
 				.filter((name) => name.startsWith('checklist-'));
-		expect(await listed()).toEqual([]);
-		// Opened afterwards, the view shows what was done with it closed.
-		await open(page, checklist, { preview: false });
-		const frame = await checklistFrame(page, 'Packing');
-		expect(await shownItems(frame)).toEqual(['[ ] Map', '[x] Tent']);
-		expect((await listed()).sort()).toEqual([
+		const ALL = [
 			'checklist-get',
 			'checklist-item-add',
 			'checklist-item-remove',
 			'checklist-item-toggle',
-		]);
+		];
+		expect((await listed()).sort()).toEqual(ALL);
+		// Opened afterwards, the view shows what was done with it closed.
+		await open(page, checklist, { preview: false });
+		const frame = await checklistFrame(page, 'Packing');
+		expect(await shownItems(frame)).toEqual(['[ ] Map', '[x] Tent']);
+		expect((await listed()).sort()).toEqual(ALL);
 		await page.evaluate(() =>
 			(
 				document.querySelector('loam-shell') as unknown as {
@@ -361,8 +363,13 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		await field.fill('Add a checklist item');
 		const option = page.locator('loam-palette violet-option[data-command="checklist-item-add"]');
 		await expect.poll(() => option.count()).toBe(1);
-		expect(await option.textContent()).toContain('(needs input)');
+		// A command that needs input opens the palette's input prompt in the slot (phase 4's 7.1), never a disabled row.
+		expect(await option.getAttribute('aria-disabled')).not.toBe('true');
+		await option.click();
+		const prompt = page.locator('loam-modal dialog[open]');
+		await expect.poll(() => prompt.count()).toBe(1);
 		await page.keyboard.press('Escape');
+		await expect.poll(() => prompt.count()).toBe(0);
 		expect(await replayDifferences(site, await entriesOf(page))).toEqual([]);
 		expect(opened.violations).toEqual([]);
 		expect(opened.errors).toEqual([]);

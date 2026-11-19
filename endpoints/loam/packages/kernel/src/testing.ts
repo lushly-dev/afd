@@ -387,7 +387,8 @@ function withNestedProblems(
  *
  * @throws LoamKernelError `REPLAY_START_INVALID` when the journal does not start at `seq` 1, since
  *   the state it starts from is not in it; `REPLAY_DIVERGED`, with the report and the first
- *   difference in `details`, when any entry differs; `REPLAY_ENTRY_TRUNCATED`, naming the entry, once the entries
+ *   difference in `details`, when any entry differs; `REPLAY_JOURNAL_GAP`, before anything runs, when an entry is
+ *   missing between two the journal kept (phase 4's step 6); `REPLAY_ENTRY_TRUNCATED`, naming the entry, once the entries
  *   before the first one the journal kept truncated and `unreplayable` have replayed (phase 4 specification, 11)
  */
 export async function replayKernel(
@@ -409,6 +410,21 @@ export async function replayKernel(
 			suggestion: 'Replay the whole journal from its first entry',
 			details: { firstSeq: first.seq },
 		});
+	}
+	// Every entry up to where the replay stops, in order with none missing (step 6's fourth round, 6): a journal with a
+	// hole holds a state change the replay would never make, so it diverges later or, worse, never.
+	const through = truncated ? [...ordered, truncated] : ordered;
+	for (let index = 1; index < through.length; index++) {
+		const after = (through[index - 1] as JournalEntry).seq;
+		const next = (through[index] as JournalEntry).seq;
+		if (next !== after + 1) {
+			throw new LoamKernelError({
+				code: 'REPLAY_JOURNAL_GAP',
+				message: `The journal has no entry between seq ${after} and seq ${next}, so what it held is not in it`,
+				suggestion: `Replay up to seq ${after} only, or replay the whole journal again from its source`,
+				details: { after, next },
+			});
+		}
 	}
 	const nested = nestedReplay(ordered);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));

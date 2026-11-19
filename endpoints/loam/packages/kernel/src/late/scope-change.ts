@@ -429,18 +429,24 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const hold: { release?: () => void } = {};
 			/** Set when the call took its chain back: its stamp ran there, with its write. */
 			let retaken = false;
-			if (documents && chained !== undefined) {
+			if (owner !== undefined) {
+				/** Lines 5 and 6 again, then `run`, then the stamp: the checks a call that waited repeats before it runs. */
+				const checked = async (run: () => Promise<CommandResult>) => {
+					retaken = true;
+					const refused = await resources();
+					if (refused) return refused;
+					const done = await run();
+					await deps.documents?.after(name, call, done.success);
+					return done;
+				};
+				// Every app command's, chained or not (step 6's fourth round, 3): a query or a command with a resource key
+				// checks its resources again too; only a chained one gives up and retakes its document's chain.
 				CHAINS.set(call, {
 					release: () => hold.release?.(),
 					again: (run) =>
-						documents.serial(chained, async () => {
-							retaken = true;
-							const refused = await resources();
-							if (refused) return refused;
-							const done = await run();
-							await documents.after(name, call, done.success);
-							return done;
-						}),
+						documents && chained !== undefined
+							? documents.serial(chained, () => checked(run))
+							: checked(run),
 				});
 			}
 			const rest = async () => {

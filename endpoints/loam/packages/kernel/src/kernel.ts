@@ -140,68 +140,121 @@ const changed = (
 	return value ? { ...holder, [key]: change(value) } : holder;
 };
 
+/** How deep wrappers inside wrappers are followed; past it, an input is dropped (step 6's fourth round, 2). */
+const WRAPPED_DEPTH = 8;
+
 /**
  * Every input a record carries for another command, redacted as that command's own entry is (phase 4's 7.1 and 7.2; the
- * trust review's R4; step 6's third round, B): `redact` applied to each `{ command, input }` inside it, through every
- * wrapper, and an input dropped where no command `known` names it, since no rule can say what it holds. The shapes:
- * `palette-run`'s target; `prompt-settle`'s `open`, `decline` and `settle`; a notice's `action` (`notification-push`, its
- * input and result); a popover menu's `items` (`popover-open`); and `overlay-list`'s projection of each overlay's `for`
- * and items, which a replay answers the same, since the overlays it opens hold what the redacted entries gave them.
+ * trust review's R4; step 6's third and fourth rounds, B, 1 and 2): `redact` applied to each `{ command, input }` inside
+ * it, through every wrapper up to {@link WRAPPED_DEPTH}, each on its own input alone, and an input dropped where no
+ * command `known` names it, since no rule can say what it holds. The input shapes: `palette-run`'s target;
+ * `prompt-settle`'s `open` and `decline`; a notice's `action` (`notification-push`); a popover menu's `items`
+ * (`popover-open`). The result shapes, by the command whose result it is: a notice's action (`notification-push`), each
+ * listed notice's action and confirmation (`notification-list`), `overlay-list`'s projection of each overlay's `for` and
+ * items, `palette-run`'s forwarded result by its target's, and `prompt-settle`'s `settle.result` by the act's command. A
+ * replay answers the same, since what it opens and stores holds what the redacted entries gave it.
  */
 export function redactWrapped(
 	record: JournalRecord,
 	redact: (record: JournalRecord) => JournalRecord,
-	known: (command: string) => boolean = () => true
+	known: (command: string) => boolean = () => true,
+	depth = 0
 ): JournalRecord {
-	/** `holder`'s `input`, redacted as `holder.command`'s own entry would be, or dropped. */
+	/** `holder`'s `input`, redacted as `holder.command`'s own entry would be, alone, or dropped. */
 	const within = (holder: Record<string, unknown>): Record<string, unknown> => {
 		if (!('input' in holder)) return holder;
 		const { input: inner, ...rest } = holder;
 		const { command } = holder;
-		if (typeof command !== 'string' || !known(command)) return rest;
-		return {
-			...rest,
-			input: redactWrapped(redact({ ...record, command, input: inner }), redact, known).input,
-		};
+		if (typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH) return rest;
+		// Its own input alone: never the outer result, which would lead back here (the fourth round's 2).
+		const own = redact({ ...record, command, input: inner, result: { success: true } });
+		return { ...rest, input: redactWrapped(own, redact, known, depth + 1).input };
 	};
 	const items = (holder: Record<string, unknown>) =>
 		Array.isArray(holder.items)
 			? { ...holder, items: holder.items.map((item) => (objectOf(item) ? within(item) : item)) }
 			: holder;
-	const { command } = record;
-	let input = objectOf(record.input);
-	if (input) {
-		if (command === 'palette-run') input = within(input);
-		else if (command === 'prompt-settle')
-			input = changed(changed(changed(input, 'open', within), 'decline', within), 'settle', (row) =>
-				changed(row, 'confirmation', within)
-			);
-		else if (command === 'notification-push') input = changed(input, 'action', within);
-		else if (command === 'popover-open') input = items(input);
-	}
-	let data = objectOf(record.result?.data);
-	if (data) {
+	const each = (list: unknown, change: (value: Record<string, unknown>) => unknown) =>
+		Array.isArray(list)
+			? list.map((value) =>
+					objectOf(value) ? change(objectOf(value) as Record<string, unknown>) : value
+				)
+			: list;
+	/** A result's data as `command`'s own entry would keep it; dropped for a command no rule can read. */
+	const resultOf = (
+		command: unknown,
+		data: Record<string, unknown> | undefined
+	): Record<string, unknown> | undefined => {
+		if (!data) return data;
 		if (command === 'notification-push')
-			data = changed(data, 'notification', (notice) => changed(notice, 'action', within));
-		else if (command === 'overlay-list' && Array.isArray(data.overlays))
-			data = {
+			return changed(data, 'notification', (notice) => changed(notice, 'action', within));
+		if (command === 'notification-list')
+			return {
 				...data,
-				overlays: data.overlays.map((each) => {
-					const overlay = objectOf(each);
-					if (!overlay) return each;
-					return changed(
+				notifications: each(data.notifications, (notice) =>
+					changed(changed(notice, 'action', within), 'confirmation', within)
+				),
+			};
+		if (command === 'overlay-list')
+			return {
+				...data,
+				overlays: each(data.overlays, (overlay) =>
+					changed(
 						overlay.kind === 'popover' ? changed(overlay, 'input', items) : overlay,
 						'for',
 						within
-					);
-				}),
+					)
+				),
 			};
+		// Any other command's result is its own entry's, which no rule reads today.
+		return data;
+	};
+	/** A forwarded result, the target's: dropped for a target no rule can read. */
+	const forwarded = (command: unknown, data: Record<string, unknown>) =>
+		typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH
+			? {}
+			: resultOf(command, data);
+	const { command } = record;
+	let input = objectOf(record.input);
+	let data = objectOf(record.result?.data);
+	if (input) {
+		if (command === 'palette-run') {
+			// The run's result is the target's, forwarded: redacted by the target's rule (the fourth round's 1).
+			if (data) data = forwarded(input.command, data);
+			input = within(input);
+		} else if (command === 'prompt-settle') {
+			input = changed(changed(input, 'open', within), 'decline', within);
+			input = changed(input, 'settle', (settle) =>
+				changed(settle, 'result', (result) =>
+					changed(result, 'data', (inner) => forwarded(settle.command, inner) ?? {})
+				)
+			);
+		} else if (command === 'notification-push') input = changed(input, 'action', within);
+		else if (command === 'popover-open') input = items(input);
 	}
+	if (data && command !== 'palette-run') data = resultOf(command, data);
 	return {
 		...record,
 		...(input ? { input } : {}),
 		...(data ? { result: { ...record.result, data } } : {}),
 	};
+}
+
+/**
+ * `redactWrapped`, never failing: a record it cannot redact keeps no input and no result data, so a mutation that ran
+ * keeps its entry, its secrets out (step 6's fourth round, 2).
+ */
+export function redactSafely(
+	record: JournalRecord,
+	redact: (record: JournalRecord) => JournalRecord,
+	known: (command: string) => boolean
+): JournalRecord {
+	try {
+		return redactWrapped(redact(record), redact, known);
+	} catch {
+		const { data: _data, ...result } = record.result ?? { success: false };
+		return { ...record, input: {}, result: result as JournalRecord['result'] };
+	}
 }
 
 /** Remove `input.password` from an `auth-sign-in` record. */
@@ -477,7 +530,7 @@ export async function createKernelParts(
 			redact: (record) => {
 				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
 				// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
-				return redactWrapped(own(record), own, (command) => mutations?.has(command) === true);
+				return redactSafely(record, own, (command) => mutations?.has(command) === true);
 			},
 		}
 	);

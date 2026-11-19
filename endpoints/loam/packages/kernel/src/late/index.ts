@@ -774,6 +774,10 @@ export async function createLateParts(
 					: { kind: 'app', title: ownerTitle(deps.summaries(), source) },
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
+		queueOf: (context) => {
+			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
+			return ticket ? { [deps.queued]: ticket } : {};
+		},
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 		answer: (row, answer, context) => confirmations.answer(row, answer, context),
 		bucketOf: (context) => bucketOf(openerOf(context, isHumanGesture)),

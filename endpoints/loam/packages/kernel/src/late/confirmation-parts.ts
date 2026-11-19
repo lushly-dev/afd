@@ -12,7 +12,9 @@ import type {
 	PromptFieldV1,
 	PromptSchemaV1,
 } from '@lushly-dev/loam-sdk';
+import type { LoamKernelErrorCode } from '../errors.js';
 import type { Opener } from './overlay-commands.js';
+import type { SettingsKit } from './settings.js';
 
 /** The workspace store's table the inbox keeps its rows in (10.1): a pending confirmation is one of them. */
 export const TABLE = 'notification';
@@ -188,4 +190,122 @@ export function promptSchemaOf(json: unknown): PromptSchemaV1 | undefined {
 		properties: fields,
 		...(required.length > 0 ? { required } : {}),
 	} as PromptSchemaV1;
+}
+
+/** A kernel refusal, as `createConfirmations`' kit makes one. */
+export type Fail = (
+	code: LoamKernelErrorCode,
+	message: string,
+	suggestion: string,
+	extra?: { details?: Record<string, unknown>; retryable?: boolean }
+) => CommandResult<never>;
+
+/** The refusals of 7.2 and 16, each in words with its suggestion. */
+export function refusalsOf(fail: Fail) {
+	const pending = (row: StoredConfirmation) =>
+		fail(
+			'CONFIRMATION_PENDING',
+			`'${row.confirmation.command}' waits for the person to confirm it`,
+			'Tell the person it is in their inbox; read it with confirmation-get',
+			{
+				retryable: true,
+				details: { notification: row.id, expiresAt: row.confirmation.expiresAt },
+			}
+		);
+	const declined = (command: string, details?: Record<string, unknown>) =>
+		fail(
+			'CONFIRMATION_DECLINED',
+			details?.reason === 'access'
+				? `'${command}' was not run: access to it changed before it could`
+				: details?.reason === 'withdrawn'
+					? `'${command}' was not run: its question closed without the person's answer`
+					: `The person declined '${command}'`,
+			details?.reason === 'access'
+				? 'Check that the app is enabled here and that you may enter this scope, then ask again'
+				: 'Ask the person before trying again; do not repeat the call',
+			details ? { details } : {}
+		);
+	const asking = (command: string, overlay: string | undefined) =>
+		fail(
+			'CONFIRMATION_PENDING',
+			`'${command}' waits for the person to answer it in the shell`,
+			'Wait for their answer; do not repeat the call',
+			{ retryable: true, details: overlay !== undefined ? { overlay } : {} }
+		);
+	const expired = (command: string) =>
+		fail(
+			'CONFIRMATION_EXPIRED',
+			`No one confirmed '${command}' within 10 minutes`,
+			'Ask the person, then call again to raise a new one'
+		);
+	const slotBusy = () =>
+		fail(
+			'OVERLAY_MODAL_BUSY',
+			'A modal or a prompt is already open, so the shell cannot ask to confirm this',
+			'Answer or close it, then call again',
+			{ retryable: true }
+		);
+	const closedPrompt = (prompt: string) =>
+		fail(
+			'OVERLAY_NOT_FOUND',
+			`The input prompt '${prompt}' closed before it was answered, so nothing ran`,
+			'Open it again with palette-run { command }'
+		);
+	const noPerson = () =>
+		fail(
+			'HUMAN_REQUIRED',
+			'No one is signed in, so no one can confirm this',
+			'Sign in, then try again'
+		);
+	return { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson };
+}
+
+/**
+ * `prompt-settle`'s input (7.1, 7.2): close the palette's input prompt, open a confirmation in the slot, keep a slot
+ * decline, or end an act on its row.
+ */
+export function settleInputOf(z: SettingsKit['z']) {
+	return z.strictObject({
+		close: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
+		reason: z.optional(z.enum(['user', 'replaced'])),
+		settle: z.optional(
+			z.strictObject({
+				id: z.string().check(z.minLength(1), z.maxLength(64)),
+				person: z.string().check(z.minLength(1), z.maxLength(256)),
+				command: z.string().check(z.minLength(1), z.maxLength(128)),
+				state: z.enum(['confirmed', 'declined']),
+				result: z.optional(z.unknown()),
+			})
+		),
+		decline: z.optional(
+			z.strictObject({
+				id: z.string().check(z.minLength(1), z.maxLength(64)),
+				person: z.string().check(z.minLength(1), z.maxLength(256)),
+				key: z.string().check(z.minLength(1), z.maxLength(128)),
+				command: z.string().check(z.minLength(1), z.maxLength(128)),
+				caller: z.string().check(z.minLength(1), z.maxLength(160)),
+				header: z.string().check(z.minLength(1), z.maxLength(200)),
+				title: z.string().check(z.minLength(1), z.maxLength(120)),
+				prompt: z.string().check(z.minLength(1), z.maxLength(200)),
+				danger: z.boolean(),
+				scope: z.strictObject({
+					workspace: z.string().check(z.minLength(1), z.maxLength(128)),
+					project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
+				}),
+				input: z.unknown(),
+			})
+		),
+		open: z.optional(
+			z.strictObject({
+				id: z.string().check(z.minLength(1), z.maxLength(64)),
+				key: z.string().check(z.minLength(1), z.maxLength(128)),
+				command: z.string().check(z.minLength(1), z.maxLength(128)),
+				caller: z.optional(z.string().check(z.minLength(1), z.maxLength(160))),
+				header: z.string().check(z.minLength(1), z.maxLength(200)),
+				prompt: z.string().check(z.minLength(1), z.maxLength(200)),
+				danger: z.boolean(),
+				input: z.unknown(),
+			})
+		),
+	});
 }

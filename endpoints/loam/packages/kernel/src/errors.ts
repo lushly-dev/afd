@@ -176,7 +176,9 @@ export type LoamKernelErrorCode =
 	// Step 10's: the limits (section 11).
 	| 'INPUT_TOO_LARGE'
 	| 'QUOTA_EXCEEDED'
-	| 'REPLAY_ENTRY_TRUNCATED';
+	| 'REPLAY_ENTRY_TRUNCATED'
+	// Step 6's fourth round: a journal with an entry missing from its middle.
+	| 'REPLAY_JOURNAL_GAP';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

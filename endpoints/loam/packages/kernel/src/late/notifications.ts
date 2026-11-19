@@ -109,11 +109,16 @@ export interface NotificationDeps {
 	overlays: Pick<OverlayStore, 'land' | 'hideNext'>;
 	/** Whose a notice is, as the shell shows it (6.6): step 3's owner line for an app or an agent, none for the shell. */
 	fromOf(source: string): OverlayFromV1 | undefined;
+	/**
+	 * The queue ticket a queued act holds, as fields its action carries, so an action that waits on the person (a
+	 * confirmation in the slot) releases the act's queue, and the answer reaches it (step 6's fourth round, 4).
+	 */
+	queueOf?(context: CommandContext): Record<symbol, unknown>;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
 		input: unknown,
-		fields: { parent: string; scope: ScopeV1; actor?: unknown }
+		fields: { parent: string; scope: ScopeV1; actor?: unknown } & Record<symbol, unknown>
 	): Promise<CommandResult>;
 	kit: SettingsKit & Pick<DocumentKit, 'projectNotFound'>;
 	/** Who a caller is to its confirmations (7.2, R1): the raising app's instance or the agent interface's bucket. */
@@ -894,6 +899,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					return stillActing();
 				// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
 				const result = await deps.run(action.command, action.input ?? {}, {
+					...deps.queueOf?.(context),
 					parent: context.traceId ?? '',
 					scope: row.scope,
 					...(context.actor ? { actor: context.actor } : {}),

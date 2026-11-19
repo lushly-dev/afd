@@ -1962,6 +1962,39 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 `budget.mjs` records each.
 
+**Fourth round,** 2026-11-19: two re-checks of `918163bd` (one approved, one "revise", seven findings) and three Chromium failures in the coordinator's `pnpm verify`. Each finding was shown first by a unit that fails on `918163bd` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **1, forwarded results** (R4): **confirmed**, which settles the reviewers' disagreement. A notice whose action holds `auth-sign-in`'s password, read through `palette-run { command: 'notification-list' }`, kept the password in `palette-run`'s entry. `notification-list` itself is unjournaled; `palette-run` forwards its result. `redactWrapped` now redacts a result by the command whose result it is: `notification-list`'s actions and confirmations, a notice's push and `overlay-list` as before, and `palette-run`'s forwarded result by its target's rule, which is dropped for a target no registry holds. `prompt-settle`'s `settle.result` is redacted by the act's command.
+2. **2, self-reference:** **confirmed.** A notice whose action is itself a `notification-push` led each child's redaction back through the outer result without end, and the journal dropped the stored notice's entry. Each child is now redacted on its own input alone, to a depth of 8. `redactSafely` keeps a record it cannot redact with no input and no result data, rather than lose the entry.
+3. **3 and Opus 1, one re-check before every run:** **confirmed** (three units). `stale` (access, the app's enablement and load, the archive, and an app's input against `inputBytes`) runs immediately before the handler:
+   - on the slot's answer, and again inside `again` once the call retakes its chain;
+   - in `confirmedRun`, the inbox's run, where a refusal is answered from its record in a replay.
+
+   The scope middleware's `again` now covers every app command, chained or not, so a confirmed instance query or a command with a resource key repeats lines 5 and 6 too. The units cover:
+   - the active app's slot call after `inputBytes` falls;
+   - an app disabled while the confirmed call waits for its chain;
+   - an instance query whose document moved project while it waited, now `SCOPE_MISMATCH`. A query may read a trashed document, so moving it is the change that query refuses.
+4. **4, a notice's action in the slot:** **confirmed** (the unit timed out). The act's queue ticket now goes to the action it runs (`queueOf`), so an action that asks in the slot releases the act's queue during stage B. The unit uses keeper's own notice, since an app's action is its own command.
+5. **5, the replay's route:** **confirmed** (`REPLAY_DIVERGED`). A replay entry that carries a slot confirmation's id (`cnf_`) takes the slot, whatever is active when the replay reaches it. The slot's record must match the call's command and key. The unit: probe's slot call whose tab closes while it waits, then confirmed, replays the same.
+6. **6, an incomplete journal, and Opus 2:**
+   - **Seq gaps:** `replayKernel` refuses a gap in `seq` before anything runs, with `REPLAY_JOURNAL_GAP` and `{ after, next }`. Both sinks number entries one after the last, so a gap means a lost entry. `mounted.test.ts`'s B1, standing in for a journal from before step 8, now renumbers its entries.
+   - **`prompt-settle`'s `settle`:** it now carries `{ id, person, command, state, result }`. It must name an existing row of the workspace, of that command, in an allowed change: pending to confirmed or declined, or confirmed again. Only the state, its reason, `answeredAt` if unset and the result if unset are merged onto the row as it stands, in the person's chain, and the claim goes.
+7. **7, the reservation:** **confirmed.** A slot decline keeps its key until its row is written, so a repeat gets `CONFIRMATION_PENDING`. Declines still being written count toward the per-app bound, so another key is refused `RATE_LIMITED`.
+
+**Small items:**
+- **F's record:** its unit covers the no-`for` and with-an-answer branches. The `origin` clause cannot be reached, because the palette cannot fill `overlay-dismiss`, so it stays as defence in depth with no test.
+- **D's message:** a replaced prompt still open under another modal, or another command's, is `OVERLAY_MODAL_BUSY`, not "closed".
+- **Call-rate unit:** it asserts exactly 21 refused under the frozen clock (a burst of 200, one taken by the waiting call).
+- **H:** `askClose` moved to `same-close.ts`, with a unit that fails if its `sameClose` check is removed.
+
+**The coordinator's verify:**
+- **`scope/rail.test.ts` P2-E11** (step 6): tally became version 2 for `tally-reset`'s `confirm_prompt`, which version 1 does not admit. The premise, a version 1 manifest beside version 2 ones, is kept: the case serves tally's package rewritten to version 1 without that command, which it never calls.
+- **`documents/checklist.test.ts` P2-D2** (step 6, A-P0-1): the palette lists an enabled, loaded app's commands with its view closed, after the active app and the tab's owner. A command that needs input now opens the palette's prompt rather than showing "(needs input)", and the case asserts that.
+- **`identity/persona.test.ts` P3-E2** (step 6, A-P1-1): the active app's commands rank before the persona, so the case searches with no app active and the persona's order alone decides.
+- None of the three came from the merge with step 10.
+
+**Measured after the fourth round,** D115: `lateSettingsMinified` 91,779, its row raised from 91,200 to 92,500. First paint 314,281 and 98,524 gzip, and the kernel alone 124,857, are within their rows. `budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).

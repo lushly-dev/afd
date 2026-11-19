@@ -1445,9 +1445,12 @@ describe('4.1: a disabled mounted instance is not discovered, and enabling one d
 			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
 		);
 		expect(nested).toBeDefined();
-		const parent = recorded.find(({ traceId }) => traceId === nested?.context?.parent);
-		// As a journal recorded before step 8 would hold it, or one with the entry lost.
-		const entries = recorded.filter((entry) => entry !== nested);
+		// As a journal recorded before step 8 would hold it: no such entry, and so no gap in its seq (a gap is refused as
+		// `REPLAY_JOURNAL_GAP` before anything runs, phase 4's step 6).
+		const entries = recorded
+			.filter((entry) => entry !== nested)
+			.map((entry, index) => ({ ...entry, seq: index + 1 }));
+		const parent = entries.find(({ traceId }) => traceId === nested?.context?.parent);
 		let made = 0;
 		const refusal = await replayKernel(entries, {
 			deployment,

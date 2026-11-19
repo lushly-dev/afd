@@ -7,12 +7,10 @@
 import { css, type FASTElement } from '@lushly-dev/fast-element';
 import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
-import type { AskedClose } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { editorAreaDefinition, LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, LoamEditorFrame, type SurfaceHostV1 } from './editor-frame.js';
 import { editorGroupDefinition, LoamEditorGroup } from './editor-group.js';
-import { type ShownClose, sameClose } from './same-close.js';
 
 /** `editor-get`'s answer (5.4): the call's scope's state, with `dirty` per tab. */
 export interface EditorReadV1 {
@@ -289,51 +287,7 @@ export async function readRecord(
 	return held;
 }
 
-/** The close prompt's words and answers (phase 4 specification, 7.3): Save the default, Discard the danger, Cancel. */
-export const CLOSE_PROMPT = {
-	title: 'Save your changes?',
-	body: 'This tab has changes that are not saved. Closing without saving loses them.',
-	actions: [
-		{ id: 'save', label: 'Save', tone: 'primary', default: true },
-		{ id: 'discard', label: 'Discard', tone: 'danger' },
-		{ id: 'cancel', label: 'Cancel' },
-	],
-} as const;
-
-/**
- * The close prompt (phase 4 specification, 7.3; A-P2-1): the person's own `editor-close` of a dirty tab, which the kernel
- * answers by opening its prompt, Save (the default), Discard or Cancel; its answer by `modals`. `closed` when the kernel
- * held the tab clean and closed it. A draft whose tab the kernel no longer holds, as when an agent closed it while its
- * save ran, is asked the same in the shell's own modal, the person's gesture's, which only they answer (6.5).
- */
-export async function askClose(
-	kernel: LoamKernelV5,
-	modals: Map<string, (result: string, asked?: AskedClose) => void>,
-	tab: string,
-	scope: { scope: ScopeOf } | undefined,
-	shown: ShownClose
-): Promise<'save' | 'discard' | 'cancel' | 'closed'> {
-	const asked = await kernel.call('editor-close', { tab }, scope);
-	if (asked.success) return 'closed';
-	let prompt = (asked.error?.details as { prompt?: { overlayId: string } } | undefined)?.prompt;
-	// Only a tab the kernel no longer holds is asked in the shell's own modal; any other refusal keeps the tab.
-	if (!prompt && asked.error?.code !== 'EDITOR_TAB_UNKNOWN') return 'cancel';
-	// The kernel's prompt names its tab, scope and document; the page's own modal, for a draft the kernel no longer holds,
-	// names none, and asks of this page's draft alone.
-	const own = !prompt;
-	if (!prompt) {
-		const opened = await kernel.call<{ overlayId: string }>('modal-open', CLOSE_PROMPT);
-		prompt = opened.data;
-	}
-	if (!prompt) return 'cancel';
-	const { overlayId } = prompt;
-	const [result, about] = await new Promise<[string, AskedClose | undefined]>((resolve) =>
-		modals.set(overlayId, (answer, closing) => resolve([answer, closing]))
-	);
-	if (result !== 'save' && result !== 'discard') return 'cancel';
-	// Saved or discarded only where what it asked about is the tab this close holds (step 6's third round, H).
-	return own || (about !== undefined && sameClose(about, shown)) ? result : 'cancel';
-}
+export { askClose, CLOSE_PROMPT } from './same-close.js';
 
 /**
  * A group leaving the area goes, unless it holds a view editor with unsaved work, which its frame's removal
