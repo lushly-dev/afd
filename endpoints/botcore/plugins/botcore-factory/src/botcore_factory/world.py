@@ -187,6 +187,10 @@ class MergeProgress:
         return self.state == "OPEN" and (self.queued or self.waiting)
 
 
+#: How many of a job log's last lines a finished job's ``stdout`` holds.
+TAIL_LINES = 200
+
+
 @dataclass(frozen=True)
 class Completed:
     """A finished process run."""
@@ -196,6 +200,9 @@ class Completed:
     stdout: str = ""
     stderr: str = ""
     step: str | None = None  # The job step that failed (``install``, ``validate``), if any.
+    #: A failed job's failing tests, read from its whole log where ``stdout`` is only the tail
+    #: (``failures.failing_tests``); None when not read.
+    failures: tuple[str, ...] | None = None
 
 
 @runtime_checkable
@@ -490,7 +497,8 @@ class Processes(Protocol):
         ...
 
     def poll(self, handle: str) -> Completed | None:
-        """The finished job (``stdout`` its log's tail, ``step`` the step that failed), or None
+        """The finished job (``stdout`` its log's tail, ``step`` the step that failed, ``failures``
+        the failing tests in all it wrote to the log), or None
         while it runs. Raises WorldError for a handle this process did not start."""
         ...
 
