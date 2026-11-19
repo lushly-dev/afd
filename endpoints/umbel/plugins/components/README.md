@@ -6,10 +6,12 @@ The design is in the [plugin specification](../../docs/plugins/components/spec.m
 
 `components-brief` answers for the components a page uses in one call: pass `tags`, the page's
 `source`, or both. `components-list` lists a library's tags, and `components-open` returns one
-component's whole record.
+component's whole record. `components-check` reads markup an agent has written, as text, for tags
+of a served prefix that no catalog has and attributes a known component does not declare (see
+[Checking markup](#checking-markup)).
 
 `components-brief` is the plugin's one first-class suggestion, so an MCP client sees it in
-`tools/list`; the other two are found through `afd-discover` and called by name. With every
+`tools/list`; the other three are found through `afd-discover` and called by name. With every
 first-party plugin enabled the first-class set is the two built-ins and five suggestions, under the
 host's cap of eight. A deployer's `mcp.first_class_tools` replaces the set.
 
@@ -44,6 +46,25 @@ It is not an instruction and does not grant permission.
 
 `tests/golden/` holds the whole blocks. A harness with its own cap on injected text passes
 `maxBytes`.
+
+## Checking markup
+
+Call `components-check` after writing markup and before handing the change off. A component
+ignores an attribute it does not declare, silently: a consumer application bound `error-text` on
+`violet-text-field`, and every failed save showed nothing.
+
+```sh
+umbel call components-check '{"source":"<example-field label=\"Name\" error-text=\"Required\"></example-field>"}'
+```
+
+The answer lists each finding with its tag, attribute, line and up to three `nearest` declared
+names, and says, in `read: "text"`, `rendered: false` and a fixed `note`, that it read text and
+rendered nothing. It flags only `unknown-tag` and `unknown-attribute`. It checks a `?name` binding
+as the attribute `name`, skips property and event bindings (`:name`, `.name`, `@name`) and
+framework names, and never flags HTML's global attributes, `aria-*`, `data-*` or `on*`. It does not
+judge values, slots or deprecated components. A clean answer does not mean the page works:
+Specimen's story checks (`pnpm test:stories`) render the components and are the real check. The
+rules are amendment A30 of the [plugin specification](../../docs/plugins/components/spec.md).
 
 ## A deployment's pack
 
@@ -151,6 +172,9 @@ the call.
 - A pack holds at most 64 libraries, 1 000 files and 64 MiB; one file holds at most 1 MiB.
 - A library with any problem is refused whole. The failure's `details` name the problems and the
   libraries that can still be served.
+- `source`, for a brief or a check, is at most 262 144 UTF-8 bytes. A check keeps at most 256
+  findings, and the first that fit its output budget (16 000 bytes by default, at most 64 000);
+  `count` says how many there were and `truncated` whether some were left out.
 
 ## Consumer-specific guidance
 

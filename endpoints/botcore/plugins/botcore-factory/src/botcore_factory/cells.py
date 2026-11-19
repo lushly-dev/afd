@@ -22,7 +22,8 @@ from botcore_factory.records import last_ejection
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import Plan, WorldError
 
-#: Cell states that hold a seat; a parked cell (waiting on the owner) frees its seat.
+#: Cell states that hold a seat; a parked cell (waiting on the owner) frees its seat, and so
+#: does an ejected one that waits on the owner toward ``cells.max`` (``holding_seats``).
 SEATED_STATES = frozenset({"registered", "working", "queued", "held", "validating", "ejected"})
 
 
@@ -138,8 +139,75 @@ def no_plan_reason(plans: list[Plan], choice: PlanChoice, overrides: dict) -> tu
     )
 
 
+def waits_on_owner(cell: dict, overrides: dict) -> bool:
+    """An ejected cell whose own failures reached ``cells.maxEjections``: its foreman stops
+    and the owner decides (an ``ejection-excuse``, a re-enqueue or a drop), so it frees its
+    seat until then (lushly-dev/afd#1593). An ejected cell under the limit, which its foreman
+    is repairing, keeps its seat; an excuse that brings it under the limit seats it again."""
+    return cell.get("state") == "ejected" and counted_ejections(cell) >= dials.value(
+        overrides, "cells.maxEjections"
+    )
+
+
 def seated(state: dict) -> list[dict]:
+    """The cells still active: not parked. The lane is idle, and its host free to move, only
+    with none."""
     return [cell for cell in state["cells"] if cell.get("state", "working") in SEATED_STATES]
+
+
+def holding_seats(state: dict) -> list[dict]:
+    """The cells that count toward ``cells.max``: the active ones, less those that wait on the
+    owner."""
+    return [cell for cell in seated(state) if not waits_on_owner(cell, state["dials"])]
+
+
+@dataclass(frozen=True)
+class DiskShort:
+    """Free disk below ``host.minFreeDiskGb`` where cells and the lane's slots build."""
+
+    free: float
+    floor: float
+    where: str
+    machine: str
+
+    @property
+    def message(self) -> str:
+        return (
+            f"{self.free:g} GB of disk is free on {self.machine} at {self.where}; "
+            f"host.minFreeDiskGb is {self.floor:g}"
+        )
+
+    @property
+    def suggestion(self) -> str:
+        return (
+            f"Free disk on that volume: the lane's slots in {self.where} keep each slot's build "
+            "output (Rust target directories reach tens of GB: `du -sh` them), or lower "
+            "host.minFreeDiskGb with dial-set if the host can spare it"
+        )
+
+
+def disk_short(factory: Factory, overrides: dict) -> DiskShort | None:
+    """Whether free disk where the lane's slots build is below ``host.minFreeDiskGb``: a full
+    disk ejected a good branch mid-build (lushly-dev/afd#1565), so it refuses work instead.
+    A floor of 0 reads nothing; a failed read refuses ``DISK_UNREADABLE``."""
+    floor = dials.value(overrides, "host.minFreeDiskGb")
+    if floor <= 0:
+        return None
+    world = factory.world
+    try:
+        where = world.git.slots_dir()
+        free = world.machine.free_disk_gb(where)
+    except WorldError as exc:
+        raise Refusal(
+            "DISK_UNREADABLE",
+            f"Cannot read free disk where the lane's slots build: {exc}",
+            "Fix what the message names (the lane's slots go beside the checkout, so a checkout "
+            "at a filesystem root or inside a submodule has none), or set host.minFreeDiskGb to "
+            "0 with dial-set to skip the check",
+        ) from exc
+    if free >= floor:
+        return None
+    return DiskShort(round(free, 1), floor, where, world.machine.id())
 
 
 def _validate(issues: list[int], branch: str, route: str) -> None:
@@ -215,10 +283,10 @@ def _check_issues(factory: Factory, issues: list[int]):
 def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
     overrides = state["dials"]
     most = dials.value(overrides, "cells.max")
-    if len(seated(state)) >= most:
+    if len(holding_seats(state)) >= most:
         raise Refusal(
             "CELLS_FULL",
-            f"{len(seated(state))} cells hold seats; cells.max is {most}",
+            f"{len(holding_seats(state))} cells hold seats; cells.max is {most}",
             "Start the cell when a seat frees: lane-wait reports merged and queue-room events, "
             "and lane-status says canStartCell",
         )
@@ -242,6 +310,9 @@ def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
             "Wait for running work to finish (lane-wait), or lower host.minFreeGb with dial-set "
             "if the host can spare it",
         )
+    short = disk_short(factory, overrides)
+    if short is not None:
+        raise Refusal("DISK_LOW", short.message, short.suggestion, freeDiskGb=short.free)
     return choice
 
 
@@ -441,8 +512,8 @@ def drop(factory: Factory, branch: str, reason: str) -> dict:
                     "GitHub, lane-resume if the lane is paused, wait for its `ejected` event "
                     "(a minute or two), then lane-drop",
                 )
-        was_full = len(seated(state)) >= dials.value(state["dials"], "cells.max")
-        held_seat = cell in seated(state)
+        was_full = len(holding_seats(state)) >= dials.value(state["dials"], "cells.max")
+        held_seat = cell in holding_seats(state)
         for entry in [*state["queue"], *state["held"]]:
             if entry["branch"] == branch:
                 if entry.get("run"):

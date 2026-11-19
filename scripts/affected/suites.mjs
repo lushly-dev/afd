@@ -38,7 +38,7 @@ export const SUITES = [
 			{ gate: 'run', run: `pnpm ${filters(VIOLET)} lint` },
 			{
 				gate: 'run',
-				run: 'pnpm -F @lushly-dev/violet-runtime -F @lushly-dev/violet-cli -F @lushly-dev/violet-server test',
+				run: 'pnpm --no-bail -F @lushly-dev/violet-runtime -F @lushly-dev/violet-cli -F @lushly-dev/violet-server test',
 			},
 		],
 	},
@@ -76,7 +76,7 @@ export const SUITES = [
 				cwd: 'foundations/specimen/host',
 				run: 'cargo clippy --locked --all-targets -- -D warnings',
 			},
-			{ gate: 'host', cwd: 'foundations/specimen/host', run: 'cargo test --locked' },
+			{ gate: 'host', cwd: 'foundations/specimen/host', run: 'cargo test --no-fail-fast --locked' },
 			// The consumers on this platform's host package run in test:specimen ('run').
 			{
 				gate: 'hosts',
@@ -107,7 +107,7 @@ export const SUITES = [
 			},
 			{
 				gate: 'run',
-				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage --reporter=verbose',
+				run: 'pnpm --no-bail -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage --reporter=verbose',
 			},
 			// AFD's lean path, E2's and E11's AFD side.
 			{
@@ -244,20 +244,23 @@ export const SUITES = [
 				cwd: 'packages/rust',
 				run: 'cargo clippy --all-targets --features server-auth -- -D warnings',
 			},
-			{ cwd: 'packages/rust', run: 'cargo test' },
-			{ cwd: 'packages/rust', run: 'cargo test --no-default-features' },
+			{ cwd: 'packages/rust', run: 'cargo test --no-fail-fast' },
+			{ cwd: 'packages/rust', run: 'cargo test --no-fail-fast --no-default-features' },
 			{
 				cwd: 'packages/rust',
-				run: 'cargo test --all-features --lib --test batch_controls_vectors',
+				run: 'cargo test --no-fail-fast --all-features --lib --test batch_controls_vectors',
 			},
-			{ cwd: 'packages/rust', run: 'cargo test --features server' },
-			{ cwd: 'packages/rust', run: 'cargo test --features server-auth' },
-			{ cwd: 'packages/rust', run: 'cargo test --features journal-file-shared' },
+			{ cwd: 'packages/rust', run: 'cargo test --no-fail-fast --features server' },
+			{ cwd: 'packages/rust', run: 'cargo test --no-fail-fast --features server-auth' },
+			{ cwd: 'packages/rust', run: 'cargo test --no-fail-fast --features journal-file-shared' },
 			{
 				cwd: 'packages/rust',
 				run: 'cargo clippy --all-targets --no-default-features --features frontmatter -- -D warnings',
 			},
-			{ cwd: 'packages/rust', run: 'cargo test --no-default-features --features frontmatter' },
+			{
+				cwd: 'packages/rust',
+				run: 'cargo test --no-fail-fast --no-default-features --features frontmatter',
+			},
 		],
 	},
 	{
@@ -271,7 +274,11 @@ export const SUITES = [
 				cwd: 'endpoints/loam/plugins/mail/engine',
 				run: 'cargo clippy --locked --all-targets -- -D warnings',
 			},
-			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo test --locked' },
+			{
+				gate: 'mail',
+				cwd: 'endpoints/loam/plugins/mail/engine',
+				run: 'cargo test --no-fail-fast --locked',
+			},
 		],
 	},
 	{
@@ -288,7 +295,11 @@ export const SUITES = [
 				cwd: 'endpoints/loam/packages/desktop/src-tauri',
 				run: 'cargo clippy --locked --all-targets -- -D warnings',
 			},
-			{ gate: 'run', cwd: 'endpoints/loam/packages/desktop/src-tauri', run: 'cargo test --locked' },
+			{
+				gate: 'run',
+				cwd: 'endpoints/loam/packages/desktop/src-tauri',
+				run: 'cargo test --no-fail-fast --locked',
+			},
 			{
 				gate: 'run',
 				cwd: 'endpoints/loam/packages/desktop/src-tauri',
@@ -326,7 +337,7 @@ export const SUITES = [
 			{
 				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo test --locked --workspace --exclude umbel-store-embedded',
+				run: 'cargo test --no-fail-fast --locked --workspace --exclude umbel-store-embedded',
 			},
 			{
 				gate: 'host',
@@ -336,7 +347,7 @@ export const SUITES = [
 			{
 				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo test --locked -p umbel-store -p umbel-store-embedded',
+				run: 'cargo test --no-fail-fast --locked -p umbel-store -p umbel-store-embedded',
 			},
 			// The conformance job runs for every trigger, including todo example and CLI changes.
 			{ run: 'pnpm -F "@lushly-dev/afd-cli..." build' },
@@ -402,7 +413,7 @@ export const SUITES = [
 				gate: 'rust',
 				tools: ['cargo'],
 				cwd: 'packages/examples/todo/backends/rust',
-				run: 'cargo test --locked',
+				run: 'cargo test --no-fail-fast --locked',
 			},
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
 			{

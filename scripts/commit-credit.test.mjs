@@ -140,7 +140,7 @@ describe('--push-event', () => {
 		const done = push({ commits: [pushed('fix: y\n\nCo-authored-by: Owner <old@example.com>\n')] });
 		assert.equal(done.status, 1);
 		assert.match(done.stderr, /a1b2c3d4 has the line "Co-authored-by: Owner <old@example.com>"/);
-		assert.match(done.stderr, /--body-file/);
+		assert.match(done.stderr, /The merge queue's ci-ok refuses such a squash/);
 	});
 	it('passes a push whose commits credit only their authors', () => {
 		const done = push({ commits: [pushed('fix: y\n\nAssisted-by: Claude Code\n')] });
