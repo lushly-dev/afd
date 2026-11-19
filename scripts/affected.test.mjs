@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
@@ -15,6 +15,7 @@ import {
 	plannedTools,
 	planSuites,
 	pnpmArgs,
+	workflowTrigger,
 } from './affected.mjs';
 import { execTool } from './release/exec-tool.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
@@ -487,8 +488,108 @@ test('a pull request is compared with main as merged, not with the base it recor
 	for (const base of bases)
 		assert.equal(
 			base.trim(),
-			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}"
+			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}"
 		);
+});
+
+test('a merge group is compared with the commit the queue built it on', (t) => {
+	const { root, write } = fixture(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (args) =>
+		execFileSync('git', ['-c', 'user.name=F', '-c', 'user.email=f@example.invalid', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+			env,
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	const commit = (message) => {
+		git(['add', '.']);
+		git(['commit', '-m', message]);
+	};
+	git(['init', '-b', 'main']);
+	commit('base');
+	// The queue's branch: the squash of one pull request, then of the next.
+	git(['switch', '-c', 'queue']);
+	write('packages/core/src/index.ts', 'export const first = 1;');
+	commit('first in the queue (#1)');
+	const base = git(['rev-parse', 'HEAD']).trim();
+	write('docs/guide.md', 'guide');
+	commit('second in the queue (#2)');
+
+	// The second group changes the guide alone, though its commit holds the first's code too.
+	const group = resolveScope({ root, bases: [base], git });
+	assert.deepEqual(group.files, ['docs/guide.md']);
+	assert.deepEqual(group.affected, []);
+	const trigger = (scope, paths) => workflowTrigger(scope, { paths, gates: new Map() });
+	assert.deepEqual(trigger(group, ['packages/**', 'spec/**']), {
+		run: false,
+		reason: 'none of the 1 changed file(s) matches its pull_request.paths',
+	});
+	assert.deepEqual(trigger(group, ['packages/**', 'docs/**']), {
+		run: true,
+		reason: 'docs/guide.md changed',
+	});
+	assert.equal(trigger(group, ['docs/**', '!docs/guide.md']).run, false);
+	// No path filter: every pull request starts it, so every merge group does.
+	assert.equal(trigger(group, null).run, true);
+	// Against main, the group would show both pull requests: the base is what narrows it.
+	assert.deepEqual(resolveScope({ root, bases: ['main'], git }).files, [
+		'docs/guide.md',
+		'packages/core/src/index.ts',
+	]);
+	// A base that cannot be found is unknown, not unaffected: the workflow runs.
+	const unknown = resolveScope({ root, bases: ['f'.repeat(40)], git });
+	assert.deepEqual(unknown.files, []);
+	assert.equal(trigger(unknown, ['packages/**']).run, true);
+	assert.equal(trigger(resolveScope({ root, all: true, git }), ['x/**']).run, true);
+	// A whole-workspace scope that still lists its files is matched by them (ci.yml selects it).
+	write('lefthook.yml', 'changed');
+	commit('third in the queue (#3)');
+	const whole = resolveScope({ root, bases: ['HEAD^1'], git });
+	assert.equal(whole.mode, 'all');
+	assert.equal(trigger(whole, ['packages/**']).run, false);
+	assert.equal(trigger(whole, ['lefthook.yml']).run, true);
+	assert.throws(() => workflowTrigger(group, null), /no pull_request trigger/);
+});
+
+test('the trigger command answers for a workflow by its own pull_request.paths', () => {
+	const script = join(import.meta.dirname, 'affected.mjs');
+	const run = (...args) => {
+		const output = join(mkdtempSync(join(tmpdir(), 'affected-trigger-')), 'output');
+		writeFileSync(output, '');
+		const { GITHUB_OUTPUT, AFD_BASE, AFD_SCOPE, ...environment } = process.env;
+		const done = spawnSync(process.execPath, [script, 'trigger', ...args], {
+			encoding: 'utf8',
+			env: { ...environment, GITHUB_OUTPUT: output },
+		});
+		const written = readFileSync(output, 'utf8');
+		rmSync(dirname(output), { recursive: true, force: true });
+		return { status: done.status, stdout: done.stdout, stderr: done.stderr, written };
+	};
+	const off = run('rust.yml', '--files', 'docs/guide.md');
+	assert.equal(off.status, 0, off.stderr);
+	assert.equal(off.written, 'run=false\n');
+	assert.match(off.stdout, /^run=false: none of the 1 changed file\(s\) matches/);
+	const on = run('rust.yml', '--files', 'docs/guide.md', 'packages/rust/src/lib.rs');
+	assert.equal(on.written, 'run=true\n');
+	assert.match(on.stdout, /^run=true: packages\/rust\/src\/lib\.rs changed/);
+	// Its own file is one of its paths, so a change to the workflow runs it.
+	assert.equal(run('rust.yml', '--files', '.github/workflows/rust.yml').written, 'run=true\n');
+	assert.equal(run('ci.yml', '--files', 'docs/guide.md').written, 'run=true\n');
+	// Nothing is written for a workflow it cannot answer for, and the job fails.
+	for (const [args, message] of [
+		[['release.yml'], /release\.yml has no pull_request trigger/],
+		[['absent.yml'], /ENOENT/],
+		[['../ci.yml'], /needs a workflow file name/],
+		[[], /needs a workflow file name/],
+	]) {
+		const refused = run(...args, '--files', 'docs/guide.md');
+		assert.equal(refused.status, 1, args.join(' '));
+		assert.match(refused.stderr, message);
+		assert.equal(refused.written, '');
+	}
 });
 
 test('pnpm arguments, gates and options follow the scope', (t) => {

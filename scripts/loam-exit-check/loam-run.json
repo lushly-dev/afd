@@ -12,6 +12,38 @@
 	"url": "https://github.com/lushly-dev/afd/actions/runs/42700000001",
 	"jobs": [
 		{
+			"name": "Merge queue paths",
+			"databaseId": 7,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run actions/checkout",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "skipped"
+				},
+				{
+					"name": "Run if [ \"$GITHUB_EVENT_NAME\" = merge_group ]; then",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
 			"name": "Affected units",
 			"databaseId": 1,
 			"status": "completed",

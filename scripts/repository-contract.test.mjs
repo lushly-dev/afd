@@ -547,7 +547,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 		assert.match(workflow, /^ {2}workflow_dispatch:$/m);
 		assert.match(
 			workflow,
-			/AFD_SCOPE: \$\{\{ \(github\.event_name == 'pull_request' \|\| github\.event_name == 'push'\) && 'affected' \|\| 'all' \}\}/
+			/AFD_SCOPE: \$\{\{ \(github\.event_name == 'pull_request' \|\| github\.event_name == 'push' \|\| github\.event_name == 'merge_group'\) && 'affected' \|\| 'all' \}\}/
 		);
 	}
 	// Each job past the gate reads a gate output the scope job sets from a gate step's `run`.

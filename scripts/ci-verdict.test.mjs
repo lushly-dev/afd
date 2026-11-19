@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { latestRuns, SELF, verdict, waitForVerdict } from './ci-verdict.mjs';
+import {
+	EVENTS,
+	latestRuns,
+	mergeGroupWorkflows,
+	SELF,
+	verdict,
+	waitForVerdict,
+} from './ci-verdict.mjs';
 
 const run = (id, path, status = 'completed', conclusion = 'success') => ({
 	id,
@@ -56,6 +66,63 @@ describe('verdict', () => {
 	it('passes a pull request no other workflow ran on', () => {
 		assert.equal(verdict([run(6, SELF, 'in_progress')]).state, 'success');
 	});
+
+	it('waits for an expected workflow that has no run, however the others ended', () => {
+		const result = verdict([run(1, CI), run(6, SELF, 'in_progress')], [CI, RUST]);
+		assert.equal(result.state, 'pending');
+		assert.deepEqual(result.missing, [RUST]);
+		// The run's path can carry a ref; an older failed run of an expected workflow still fails.
+		assert.equal(
+			verdict([run(1, CI), run(2, `${RUST}@refs/heads/x`)], [CI, RUST]).state,
+			'success'
+		);
+		assert.equal(verdict([run(1, CI, 'completed', 'failure')], [CI, RUST]).state, 'failure');
+		// Its own workflow is never expected of itself.
+		assert.deepEqual(verdict([run(1, CI)], [CI]).missing, []);
+	});
+});
+
+describe('mergeGroupWorkflows', () => {
+	const repository = (files) => {
+		const root = mkdtempSync(join(tmpdir(), 'ci-verdict-'));
+		mkdirSync(join(root, '.github/workflows'), { recursive: true });
+		for (const [name, text] of Object.entries(files))
+			writeFileSync(join(root, '.github/workflows', name), text);
+		return root;
+	};
+	const on = (...triggers) =>
+		`on:\n${triggers.map((name) => `  ${name}:\n`).join('')}jobs:\n  a:\n    runs-on: x\n`;
+
+	it('lists every workflow with the trigger but its own', (t) => {
+		const root = repository({
+			'ci-ok.yml': on('pull_request', 'merge_group'),
+			'ci.yml': on('push', 'merge_group'),
+			'rust.yaml': on('merge_group'),
+			'release.yml': on('push'),
+			// A job of that name is not a trigger.
+			'odd.yml': 'on:\n  push:\njobs:\n  merge_group:\n    runs-on: x\n',
+			'notes.txt': on('merge_group'),
+		});
+		t.after(() => rmSync(root, { recursive: true, force: true }));
+		assert.deepEqual(mergeGroupWorkflows(root), [
+			'.github/workflows/ci.yml',
+			'.github/workflows/rust.yaml',
+		]);
+	});
+
+	it('refuses a checkout where its own workflow lacks the trigger, or with no workflows', (t) => {
+		const root = repository({ 'ci-ok.yml': on('pull_request'), 'ci.yml': on('merge_group') });
+		t.after(() => rmSync(root, { recursive: true, force: true }));
+		assert.throws(() => mergeGroupWorkflows(root), /ci-ok\.yml has no merge_group trigger/);
+		assert.throws(() => mergeGroupWorkflows(join(root, 'absent')), /ENOENT/);
+	});
+
+	it("reads this repository's workflows: CI and the path-filtered ones", () => {
+		const found = mergeGroupWorkflows(join(import.meta.dirname, '..'));
+		assert.ok(found.includes(CI) && found.includes(RUST), found.join(', '));
+		assert.ok(!found.includes(SELF));
+		assert.ok(found.length >= 15, `${found.length} workflows`);
+	});
 });
 
 /** A fake GitHub whose answers change with each read, and a clock that sleeping advances. */
@@ -95,6 +162,52 @@ describe('waitForVerdict', () => {
 			h.urls[0],
 			/repos\/example\/repo\/actions\/runs\?head_sha=a{40}&event=pull_request/
 		);
+	});
+
+	it("reads a merge group's runs under its own event, and no other event's", async () => {
+		const h = harness([[run(1, CI)]]);
+		await waitForVerdict({ ...h.options, event: 'merge_group' });
+		assert.ok(h.urls.length > 0);
+		for (const url of h.urls) assert.match(url, /head_sha=a{40}&event=merge_group&/);
+		assert.deepEqual(EVENTS, ['pull_request', 'merge_group']);
+		await assert.rejects(
+			waitForVerdict({ ...harness([[run(1, CI)]]).options, event: 'push' }),
+			/unknown event push/
+		);
+	});
+
+	it('does not pass a merge group while an expected workflow has not started', async () => {
+		// Everything that started has passed, and stays passed for longer than the settle time.
+		const h = harness([[run(1, CI)], [run(1, CI)], [run(1, CI)], [run(1, CI), run(2, RUST)]]);
+		const { code, result } = await waitForVerdict({
+			...h.options,
+			event: 'merge_group',
+			expected: [CI, RUST],
+		});
+		assert.equal(code, 0);
+		assert.ok(h.urls.length >= 5, 'the late workflow is waited for, then success is confirmed');
+		assert.deepEqual(result.missing, []);
+	});
+
+	it('fails a merge group whose expected workflow never starts, and names it', async () => {
+		const h = harness([[run(1, CI)]]);
+		const lines = [];
+		const { code, result } = await waitForVerdict({
+			...h.options,
+			event: 'merge_group',
+			expected: [CI, RUST],
+			startMs: 300,
+			log: (line) => lines.push(line),
+		});
+		assert.equal(code, 1);
+		assert.deepEqual(result.missing, [RUST]);
+		assert.ok(lines.includes(`NOT STARTED ${RUST}: no merge_group run on ${'a'.repeat(40)}`));
+		assert.ok(lines.includes(`waiting for ${RUST}`));
+	});
+
+	it('expects nothing of a pull request, whose path filters decide what runs', async () => {
+		const h = harness([[run(1, CI)]]);
+		assert.equal((await waitForVerdict(h.options)).code, 0);
 	});
 
 	it('passes once success holds for the settle time', async () => {

@@ -4,17 +4,23 @@ name: CI verdict
 # passed (scripts/ci-verdict.mjs). AFD's workflows are path-filtered, so this is the check to
 # require on main and the one the software factory's lane reads. It waits for the others, so it
 # finishes last. Re-running a failed workflow does not re-run this one: re-run it afterwards.
+#
+# A merge queue asks for the same check on the commit it built (`merge_group`). There it reads the
+# commits the group adds to its base, the squash GitHub wrote among them, and waits for a run of
+# every workflow that has the `merge_group` trigger: none may be missing.
 on:
   pull_request:
     branches: [main]
+  merge_group:
 
 permissions:
   actions: read
   contents: read
 
-# A newer push supersedes the verdict on the older head.
+# A newer push supersedes the verdict on the older head. A merge group has no pull request number:
+# each is its own commit, so no group's verdict cancels another's.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -28,17 +34,22 @@ jobs:
           sparse-checkout: |
             scripts/ci-verdict.mjs
             scripts/commit-credit.mjs
+            .github/workflows/*.yml
           sparse-checkout-cone-mode: false
 
-      # The owner is the credited contributor: no commit names an agent as author or co-author.
+      # The owner is the credited contributor: no commit names an agent as author or co-author,
+      # and a merge group's commits, which are what main receives, name no co-author at all.
       - name: Check commit credit
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/commit-credit.mjs
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: node scripts/commit-credit.mjs ${{ github.event_name == 'merge_group' && '--merge-group' || '' }}
 
       - name: Wait for the head commit's workflows
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          RUN_EVENT: ${{ github.event_name }}
         run: node scripts/ci-verdict.mjs
