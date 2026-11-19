@@ -10,8 +10,10 @@ first.
 
 ## Status
 
-- **State:** draft, revised after its first review and again after a focused re-review, for review. Nothing in it is approved
-  or built.
+- **State:** reviewed, not approved. Two independent first reviews (GPT-6.2 Astra high, Claude
+  Opus 5.5) and four focused passes on 2026-11-19, each pass's blockers fixed, the last checked by
+  the session; the record is in the review section at the end. The owner's answers to Q1 to Q5 are
+  open. F0 and F1 do not depend on them, and are built next; a step that does waits for its answer.
 - **Written:** 2026-11-19, against `main` at `d890d02d`. **Revised** the same day after two
   independent reviews (both "revise"; [Review 2026-11-19](#review-2026-11-19)), with `main` merged
   in at `5a631f89`, and again after a focused re-review of `8c44d05c` (three new blockers, N1 to
