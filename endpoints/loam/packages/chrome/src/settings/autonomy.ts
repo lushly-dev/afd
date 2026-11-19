@@ -44,6 +44,7 @@ const REASONS: Record<string, string> = {
 		'Only an owner of the workspace, or a project’s creator for its own rules, can change this.',
 	HUMAN_REQUIRED: 'Only a person can change this, here in the shell.',
 	SHARED_RECORD_UNAVAILABLE: 'This deployment cannot keep autonomy yet.',
+	UNREAD: 'The rules could not be read, so nothing here can change yet.',
 };
 
 const failed = (answer: Answer): string =>
@@ -80,6 +81,8 @@ export class LoamAutonomySection extends SettingsElement {
 	target: string | undefined;
 	#reads = 0;
 	#listed: Listed | undefined;
+	/** The scope `#listed` was read in. */
+	#listedFor: string | undefined;
 	#status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
 	#body = el('div', { class: 'fields' });
 	#explained = el('div', { class: 'section', id: 'autonomy-explained' });
@@ -119,11 +122,26 @@ export class LoamAutonomySection extends SettingsElement {
 		const generation = ++this.#reads;
 		const listed = await this.#call<Listed>('autonomy-list', this.#asked(), this.scope);
 		if (generation !== this.#reads) return;
+		const key = JSON.stringify([this.scope, this.project?.id ?? null]);
 		if (!listed.success || !listed.data) {
-			this.#body.replaceChildren(el('p', {}, failed(listed)));
+			// The cap and the general controls stay: what was read for this scope, else nothing to change, with the
+			// failure beside them rather than in their place (the re-check's improvement 1).
+			if (this.#listedFor !== key) {
+				const none = { writable: false, reason: 'UNREAD' };
+				this.#listed = {
+					rows: [],
+					ceiling: null,
+					cap: null,
+					writable: { workspace: none, project: none, cap: none },
+					cursor: null,
+				};
+				this.#listedFor = key;
+			}
+			this.#draw(`The rules could not be read. ${failed(listed)}`);
 			return;
 		}
 		this.#listed = listed.data;
+		this.#listedFor = key;
 		this.#draw();
 	}
 
@@ -147,7 +165,7 @@ export class LoamAutonomySection extends SettingsElement {
 		this.#status.textContent = `${next.data.rows.length} more rules are shown.`;
 	}
 
-	#draw(): void {
+	#draw(problem?: string): void {
 		const scope = this.scope;
 		const project = this.project;
 		const { rows, ceiling, cap, writable, cursor } = this.#listed as Listed;
@@ -183,7 +201,10 @@ export class LoamAutonomySection extends SettingsElement {
 		}
 		if (cursor) parts.push(button('Show more rules', () => this.#more(), { id: 'autonomy-more' }));
 		parts.push(this.#cap(cap, writable.cap, scope), this.#explain(scope));
-		this.#body.replaceChildren(...parts);
+		this.#body.replaceChildren(
+			...(problem ? [el('p', { class: 'error', id: 'autonomy-read-error' }, problem)] : []),
+			...parts
+		);
 		// The cap's link (`#cap`): its control, or section 13's message in its place, shown and focused once.
 		if (this.target === 'cap') {
 			this.target = undefined;

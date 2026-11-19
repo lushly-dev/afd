@@ -140,8 +140,19 @@ type StoredRow = AutonomyRowV1 & { workspace: string };
  */
 type PhysicalRow = Omit<StoredRow, 'id'> & { id: string; rowId: string };
 
-/** The fields of a row a result shows: never the store's `workspace`. */
-const shownRow = ({ workspace: _w, ...row }: StoredRow): AutonomyRowV1 => structuredClone(row);
+/** Most characters of a row's `app` a result shows: a deployer's route is of unchecked length, and is shown, not decided by. */
+const SHOWN_APP_MAX = 256;
+
+/** The fields of a row a result shows: never the store's `workspace`, and its `app` cut to {@link SHOWN_APP_MAX}. */
+const shownRow = ({ workspace: _w, ...row }: StoredRow): AutonomyRowV1 => {
+	const shown = structuredClone(row);
+	if (shown.app !== undefined && shown.app.length > SHOWN_APP_MAX)
+		shown.app = `${shown.app.slice(0, SHOWN_APP_MAX)}…`;
+	return shown;
+};
+
+/** What a page of `autonomy-list` leaves of its budget for the envelope around `data` and the cursor. */
+const LIST_MARGIN = 4_096;
 
 /** A listed row's order: the general rows first, so the first page always holds them, then by id. */
 const sortKey = (row: AutonomyRowV1): string => `${row.instance === undefined ? 0 : 1}${row.id}`;
@@ -543,9 +554,6 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 					? matching
 					: matching.filter((row) => sortKey(row) > (input.cursor as string));
 			const limit = input.limit ?? AUTONOMY_PAGE.default;
-			const page = after.slice(0, limit);
-			const rows = page.map(shownRow);
-			const cursor = after.length > limit ? sortKey(page[page.length - 1] as StoredRow) : null;
 			const shown = (refused: CommandResult<never> | undefined): Writable =>
 				refused ? { writable: false, reason: refused.error?.code as string } : { writable: true };
 			// As the write decides it: an archived project after the owner check (improvement 9).
@@ -560,8 +568,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 					const id = (context as KernelFieldContext).scope?.project;
 					return id === undefined ? undefined : enterable(id, context);
 				})();
-			const data = {
-				rows,
+			const head = {
 				ceiling: general?.ceiling ?? null,
 				cap: ((await capOf(context))?.value as AutonomyModeV1 | undefined) ?? null,
 				// Computed for the caller, as `setting-list`'s `writable` is (3.9), so the section shows only what they may set.
@@ -570,9 +577,24 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 					...(inScope ? { project: projectWritable(inScope) } : {}),
 					cap: shown(writeRefusal('person', undefined, context)),
 				},
-				cursor,
 			};
+			// A page ends at `limit` rows or before the output budget, in UTF-8 bytes, whichever comes first, with room left
+			// for the envelope and the cursor (the re-check's improvement 1): a page always fits, and always holds a row.
 			const budget = AUTONOMY_OUTPUT_BUDGETS['autonomy-list']?.maxBytes ?? 0;
+			const room = budget - LIST_MARGIN - bytesOf({ ...head, rows: [], cursor: null });
+			const rows: AutonomyRowV1[] = [];
+			let used = 0;
+			for (const row of after) {
+				if (rows.length === limit) break;
+				const shownOne = shownRow(row);
+				const size = bytesOf(shownOne) + 1;
+				if (rows.length > 0 && used + size > room) break;
+				rows.push(shownOne);
+				used += size;
+			}
+			const last = after[rows.length - 1];
+			const cursor = rows.length < after.length && last ? sortKey(last) : null;
+			const data = { rows, ...head, cursor };
 			if (bytesOf(data) > budget) {
 				return fail(
 					'OUTPUT_BUDGET_EXCEEDED',

@@ -227,6 +227,42 @@ describe('P4-E4: the autonomy section', () => {
 		await page.close();
 	});
 
+	it('keeps the cap and the general controls when a page read fails, the failure beside them', async () => {
+		const { page } = await inAtlas();
+		await expect.poll(() => autonomy(page).locator('#autonomy-cap').count()).toBe(1);
+		await autonomy(page).evaluate(async (element) => {
+			const section = element as HTMLElement & {
+				kernel: { call(name: string, input: unknown, options: unknown): Promise<unknown> };
+				read(): Promise<void>;
+			};
+			const kernel = section.kernel;
+			section.kernel = {
+				...kernel,
+				async call(name, input, options) {
+					if (name === 'autonomy-list')
+						return {
+							success: false,
+							error: {
+								code: 'OUTPUT_BUDGET_EXCEEDED',
+								message: 'Over the budget',
+								suggestion: 'Ask for fewer rows',
+							},
+						};
+					return kernel.call(name, input, options);
+				},
+			};
+			await section.read();
+		});
+		const panel = autonomy(page);
+		await expect
+			.poll(() => panel.locator('#autonomy-read-error').textContent())
+			.toBe('The rules could not be read. Over the budget. Ask for fewer rows');
+		expect(await panel.locator('#autonomy-cap').count()).toBe(1);
+		expect(await panel.locator('#workspace-mode').count()).toBe(1);
+		expect(await panel.locator('#autonomy-advisory').textContent()).toBe(NOTICE);
+		await page.close();
+	});
+
 	it('moves by keyboard and passes axe in three themes', async () => {
 		const { page } = await inAtlas();
 		const panel = autonomy(page);

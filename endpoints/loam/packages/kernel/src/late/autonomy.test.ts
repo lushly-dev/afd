@@ -1144,6 +1144,61 @@ describe('autonomy-list in pages (step 8 blocker 7) and its writable (improvemen
 		).toEqual(['workspace/-/*/*', 'workspace/-/dual/dual-x000']);
 	});
 
+	it('ends a page before the output budget with long identities, and still shows the general row and the cap', async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
+		await kernel.call('autonomy-set', { level: 'person', cap: 'ask' });
+		// 150 rows, each with a 128-character command and a deployer's route thousands of characters long.
+		const route = `mounts/${'r'.repeat(6_000)}/mcp`;
+		await store.batch(
+			Array.from({ length: 150 }, (_, index) => {
+				const command = `dual-${String(index).padStart(3, '0')}${'-x'.repeat(60)}`.slice(0, 128);
+				const id = `workspace/-/dual/${command}`;
+				return {
+					method: 'PUT' as const,
+					path: `/${AUTONOMY_TABLE}/${encodeURIComponent(`personal/${id}`)}`,
+					body: {
+						id: `personal/${id}`,
+						rowId: id,
+						workspace: 'personal',
+						level: 'workspace',
+						instance: 'dual',
+						command,
+						app: `mounted:umbel:http:${route}`,
+						mode: 'suggest',
+						updatedAt: 1,
+						updatedBy: 'local',
+					},
+				};
+			})
+		);
+		const seen = new Set<string>();
+		let cursor: string | null | undefined;
+		let pages = 0;
+		do {
+			const page = await kernel.call<Listed & { cursor: string | null }>('autonomy-list', {
+				...(cursor ? { cursor } : {}),
+			});
+			expect(page.success, JSON.stringify(page.error)).toBe(true);
+			expect(new TextEncoder().encode(JSON.stringify(page.data)).length).toBeLessThanOrEqual(
+				65_536 - 4_096
+			);
+			expect(page.data).toMatchObject({ ceiling: 'act', cap: 'ask' });
+			if (pages === 0) {
+				expect(page.data?.rows[0]?.id).toBe('workspace/-/*/*');
+				// Cut by bytes before the default 100 rows.
+				expect(page.data?.rows.length).toBeLessThan(100);
+			}
+			for (const row of page.data?.rows ?? []) {
+				expect((row.app ?? '').length).toBeLessThanOrEqual(257);
+				seen.add(row.id);
+			}
+			cursor = page.data?.cursor;
+			pages++;
+		} while (cursor && pages < 20);
+		expect(seen.size).toBe(151);
+	});
+
 	it("reports an archived project's rows not writable, as the write refuses them", async () => {
 		const { kernel, projects } = await workspace();
 		await kernel.call('project-archive', { project: projects.beacon.id });
