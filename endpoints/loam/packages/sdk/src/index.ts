@@ -363,6 +363,11 @@ export interface KitV1 {
 
 export interface OverlaysV1 {
 	toast(input: ToastInputV1): Promise<CommandResult<OverlayRefV1>>;
+	/**
+	 * A popover anchored on an element of this app's own surface that carries `data-loam-anchor` (phase 4
+	 * specification, 6.3, 6.4): light dismiss, one per invoker, closed on an app switch. Only while the app is active.
+	 */
+	popover?(input: PopoverInputV1): Promise<CommandResult<OverlayRefV1>>;
 	/** Resolves when the modal closes, for whatever reason. */
 	modal(input: ModalInputV1): Promise<OverlayResultV1>;
 }
@@ -434,7 +439,7 @@ export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
 /** What an editor dispatches, bubbling and composed, from its element: `detail` is the selection, or null. */
 export const EDITOR_SELECTION_EVENT = 'loam-editor-selection';
 
-export type OverlayKindV1 = 'toast' | 'modal';
+export type OverlayKindV1 = 'toast' | 'modal' | 'popover';
 
 export interface OverlayRefV1 {
 	overlayId: string;
@@ -447,6 +452,10 @@ export interface ToastInputV1 {
 	message: string;
 	tone?: 'info' | 'success' | 'warning' | 'danger';
 	durationMs?: number;
+	/** Never times out: it stays until it is dismissed (phase 4 specification, 6.1). */
+	sticky?: boolean;
+	/** Where the toast leads, navigation and never execution (documents specification, 9.1). */
+	link?: ResourceLinkV1;
 }
 
 export interface ModalInputV1 {
@@ -457,12 +466,56 @@ export interface ModalInputV1 {
 	danger?: boolean;
 }
 
-export interface OverlayV1 extends OverlayRefV1 {
-	input: ToastInputV1 | ModalInputV1;
+/** Where a popover is anchored: a `data-loam-anchor` value inside one of the owner's surfaces (6.3). */
+export interface OverlayAnchorV1 {
+	/** The surface, as the manifest names it: `main`, `sidebar`, `inspector` or `panel`; the shell's own is `shell`. */
+	surface: string;
+	anchor: string;
 }
+
+/** A menu popover's item: one of the owner's own palette commands, run as the person when they pick it (6.4). */
+export interface PopoverItemV1 {
+	command: string;
+	label: string;
+	input?: Record<string, unknown>;
+}
+
+/** A popover (6.4): an info popover's text, or a menu of the owner's own commands. */
+export type PopoverInputV1 =
+	| { anchor: OverlayAnchorV1; kind: 'info'; title?: string; body: string }
+	| { anchor: OverlayAnchorV1; kind: 'menu'; label?: string; items: PopoverItemV1[] };
+
+/**
+ * Whose an overlay is, as the shell shows it, set by the kernel alone (6.6): an app's "From <app>", an agent's toast
+ * "From <agent>, for <person>" (`person` null for a page no one is signed in to). The shell's own carries none.
+ */
+export type OverlayFromV1 =
+	| { kind: 'app'; title: string }
+	| { kind: 'agent'; agent: string; person: string | null };
+
+export interface OverlayV1 extends OverlayRefV1 {
+	input: ToastInputV1 | ModalInputV1 | PopoverInputV1;
+	/** Absent on the shell's own (6.6). */
+	from?: OverlayFromV1;
+}
+
+/** Why an overlay moved (6.2); this step's moves use the first five and `replaced`. */
+export type OverlayReasonV1 =
+	| 'user'
+	| 'timeout'
+	| 'app-switch'
+	| 'cap'
+	| 'park'
+	| 'restore'
+	| 'person'
+	| 'replaced'
+	| 'inbox'
+	| 'withdrawn';
 
 export interface OverlayResultV1 {
 	overlayId: string;
 	result: 'confirm' | 'cancel' | 'dismissed';
-	reason: 'user' | 'timeout' | 'app-switch' | 'cap';
+	reason: OverlayReasonV1;
+	/** A menu popover's picked item, by index (6.4). */
+	value?: number;
 }

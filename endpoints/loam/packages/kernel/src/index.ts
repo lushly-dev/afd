@@ -147,6 +147,7 @@ export {
 	type McpToolCallResult,
 	type MountTransportV1,
 	type MountTransportV2,
+	type OverlayAnchorsV1,
 	type PersonaV1,
 	type ProjectAccessV1,
 	type ProjectSummaryResultV1,

@@ -15,6 +15,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
+import { SHELL_OWNER } from '../overlays.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
@@ -52,6 +53,7 @@ import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
+import { createPushRate } from './push-rate.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
@@ -114,7 +116,7 @@ export type LateCommandDeps = ShellCommandDeps &
 		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
-	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts'>;
+	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -548,6 +550,8 @@ export async function createLateParts(
 		lateScope,
 		applied: () => applied,
 	});
+	// The agents' push rate (phase 4 specification, 6.1, 10.2): their toasts now, the inbox's pushes with step 5.
+	const pushRate = createPushRate();
 	const byName = new Map(
 		[
 			...boot,
@@ -578,6 +582,37 @@ export async function createLateParts(
 				overlays: deps.overlays,
 				activeApp: () => deps.state.activeApp(),
 				editorOwner: editor.owner,
+				pushRate,
+				appTitle: (instance) =>
+					deps.summaries().find((summary) => summary.instance === instance)?.title,
+				// The signed-in person's name, never their email; null for none, and the chrome says "for you".
+				personLabel: () => {
+					const session = deps.auth.getSession();
+					if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated')
+						return null;
+					return (session.user as { name?: unknown }).name
+						? String((session.user as { name?: unknown }).name)
+						: null;
+				},
+				// A menu offers only the owner's own palette commands (6.4): an app's, or the shell's own for the shell,
+				// never a human, owner or internal one.
+				itemStanding: (owner, command) => {
+					if (HUMAN_COMMANDS.includes(command) || OWNER_COMMANDS.includes(command))
+						return 'reserved';
+					if (INTERNAL_COMMANDS.includes(command) || BOOT_ONLY.includes(command)) return 'foreign';
+					const app = deps.apps().owners.get(command)?.instance;
+					if (owner === SHELL_OWNER)
+						return app === undefined && (SHELL_COMMAND_NAMES as readonly string[]).includes(command)
+							? 'own'
+							: 'foreign';
+					return app === owner ? 'own' : 'foreign';
+				},
+				...(deps.overlayAnchors
+					? {
+							anchorFound: (owner, anchor) =>
+								deps.overlayAnchors?.resolve?.(owner, anchor) ?? false,
+						}
+					: {}),
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
@@ -791,9 +826,10 @@ export async function createLateParts(
 			}
 		},
 		async reload() {
-			// A reload forgets the overlays and the apps' session state, and signs the Mock out (`host.ts`), so
-			// the boot's `auth-session-get` reads the same.
+			// A reload forgets the overlays, the push rate and the apps' session state, and signs the Mock out
+			// (`host.ts`), so the boot's `auth-session-get` reads the same.
 			deps.overlays.reset();
+			pushRate.reset();
 			deps.apps().resetSession();
 			await deps.auth.signOut();
 			// A replay's page starts as the person its first settle names, as the original's stage A did (4.4).

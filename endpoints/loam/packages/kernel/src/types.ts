@@ -28,6 +28,7 @@ import type {
 	AppProjectV1,
 	AppStoreV1,
 	LoamClientV1,
+	OverlayAnchorV1,
 	OverlayResultV1,
 	ProjectSummaryV1,
 	ResourceLinkV1,
@@ -612,14 +613,15 @@ export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
 
 /**
  * What an app may call besides its own commands from kernel interface 4 (phase 4 specification, 12): version 1's,
- * and `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant. The port reads the
- * grant (`late/port-callable.ts`); the later steps of phase 4 add `popover-open`, `dialog-open`, `prompt-open`,
+ * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, and `popover-open` (step 3).
+ * The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add `dialog-open`, `prompt-open`,
  * `experiment-check`, `notification-push`, `confirmation-get` and `confirmation-withdraw` here with their commands.
  */
 export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	...APP_CALLABLE_SHELL_COMMANDS_V1,
 	'setting-get',
 	'setting-list',
+	'popover-open',
 ] as const;
 
 /**
@@ -678,6 +680,16 @@ export interface CallOptionsV5 extends CallOptionsV3 {
 export interface KernelOptionsV5 extends KernelOptionsV3 {
 	/** The deployment's copilot providers, never a key or an endpoint, and the host's runner (3.2, 4.1). */
 	copilot?: CopilotOptionsV1;
+	/**
+	 * The page's anchors for `popover-open` (phase 4 specification, 6.3): the chrome sets `resolve` once it renders.
+	 * Given and not yet set, no anchor resolves. Absent, as in a kernel with no page, every anchor does.
+	 */
+	overlayAnchors?: OverlayAnchorsV1;
+}
+
+/** Whether the page holds `data-loam-anchor="<anchor>"` inside `owner`'s surface (phase 4 specification, 6.3). */
+export interface OverlayAnchorsV1 {
+	resolve?(owner: string, anchor: OverlayAnchorV1): boolean;
 }
 
 /** What `shell-info-get` returns from version 5. */
