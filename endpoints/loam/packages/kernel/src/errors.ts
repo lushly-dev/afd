@@ -83,6 +83,10 @@ export type LoamKernelErrorCode =
 	| 'OVERLAY_NOT_FOUND'
 	| 'OVERLAY_NOT_OWNER'
 	| 'OVERLAY_OWNER_INACTIVE'
+	// Phase 4's overlays (its section 16), from its step 3.
+	| 'OVERLAY_ANCHOR_NOT_FOUND'
+	| 'OVERLAY_ITEM_RESERVED'
+	| 'RATE_LIMITED'
 	| 'SCOPE_PROJECT_REQUIRED'
 	| 'SCOPE_WORKSPACE_UNKNOWN'
 	| 'SCOPE_MISMATCH'

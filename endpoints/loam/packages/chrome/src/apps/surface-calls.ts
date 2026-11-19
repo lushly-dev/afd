@@ -12,6 +12,7 @@ import {
 	type DocumentsV1,
 	type LinkRowV1,
 	type ModalInputV1,
+	type PopoverInputV1,
 	settingsOver,
 	type ToastInputV1,
 } from '@lushly-dev/loam-sdk';
@@ -72,6 +73,7 @@ export function surfaceCalls(
 		},
 		overlays: {
 			toast: (input: ToastInputV1) => call('toast-show', input),
+			popover: (input: PopoverInputV1) => call('popover-open', input),
 			async modal(input: ModalInputV1) {
 				const opened = await call<{ overlayId: string }>('modal-open', input);
 				if (!opened.success || !opened.data) throw refusal(opened, 'The modal could not open');

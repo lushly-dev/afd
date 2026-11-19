@@ -4,6 +4,9 @@
  * live region must be in the accessibility tree before its text arrives. It announces additions alone,
  * not every toast again. An item's tone is its icon and a word as well as its color; a `danger` item is
  * `role="alert"`. A state's background may be translucent, so each sits on the floating surface.
+ *
+ * Phase 4 (its 6.4, 6.6 and 6.7): an app's or an agent's toast leads with its owner line, which the kernel sets and
+ * the shell's own never has; a toast with a link offers it; and while the region holds a toast it is an F6 stop.
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
@@ -42,6 +45,10 @@ const regionStyles = css`
 	:host(:has(loam-toast)) {
 		overflow-block: auto;
 	}
+	:host(:focus-visible) {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: var(--shell-size-focus);
+	}
 	.announcement {
 		position: absolute;
 		inline-size: 1px;
@@ -79,7 +86,11 @@ const toastTemplate = html<LoamToast>`
 		decorative
 	></violet-icon>
 	<span class="word">${(x) => TONE_WORD[x.tone]}:</span>
-	<span class="message">${(x) => x.message}</span>
+	<span class="body">
+		<span class="from" ?hidden="${(x) => !x.from}">${(x) => x.from}</span>
+		<span class="message">${(x) => x.message}</span>
+	</span>
+	<a class="link" href="${(x) => x.href}" ?hidden="${(x) => !x.href}">Open</a>
 	<button
 		class="dismiss"
 		type="button"
@@ -162,10 +173,27 @@ const toastStyles = [
 			flex: none;
 			--violet-icon-size: var(--size-line-md);
 		}
-		.message {
+		.body {
+			display: flex;
 			flex: 1;
+			flex-direction: column;
 			min-inline-size: 0;
+		}
+		.from {
+			font-size: var(--type-label-sm-size);
+			line-height: var(--type-label-sm-line);
+		}
+		.message {
 			overflow-wrap: anywhere;
+		}
+		.link {
+			flex: none;
+			color: inherit;
+			font-weight: var(--weight-semibold);
+		}
+		.link:focus-visible {
+			outline: var(--shell-size-focus) solid var(--color-focus-ring);
+			outline-offset: var(--shell-size-focus);
 		}
 		.dismiss {
 			flex: none;
@@ -231,12 +259,18 @@ export class LoamToast extends FASTElement {
 	declare overlayId: string;
 	declare message: string;
 	declare tone: ToastTone;
+	/** The owner line (6.6), the kernel's: empty for the shell's own. */
+	declare from: string;
+	/** Where the toast's link leads, or empty. */
+	declare href: string;
 
 	constructor() {
 		super();
 		this.overlayId = '';
 		this.message = '';
 		this.tone = 'info';
+		this.from = '';
+		this.href = '';
 	}
 
 	override connectedCallback(): void {
@@ -257,6 +291,8 @@ export class LoamToast extends FASTElement {
 attr({ attribute: 'overlay-id' })(LoamToast.prototype, 'overlayId');
 attr(LoamToast.prototype, 'message');
 attr(LoamToast.prototype, 'tone');
+attr(LoamToast.prototype, 'from');
+attr(LoamToast.prototype, 'href');
 
 export const toastRegionDefinition = {
 	name: 'loam-toast-region',

@@ -154,7 +154,10 @@ async function boot(): Promise<void> {
 				}).host;
 			})
 		: undefined;
+	// The page's anchors for `popover-open` (phase 4 specification, 6.3): the shell answers once it renders.
+	const overlayAnchors = {};
 	const host = await createHostKernel({
+		overlayAnchors,
 		...(provider
 			? { auth: provider.adapter, membership: provider.membership, identityPorts: provider.ports }
 			: {}),
@@ -173,6 +176,7 @@ async function boot(): Promise<void> {
 	}
 	await mountShell(document.body, {
 		kernel: host.kernel,
+		overlayAnchors,
 		journal: host.journal,
 		themeCss,
 		listsApps: read.apps.length > 0,

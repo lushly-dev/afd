@@ -470,6 +470,39 @@ describe('readDeployment, version 2 (phase 2 specification, 4.2)', () => {
 		]);
 	});
 
+	it.each(['shell', 'loam'])(
+		'refuses an instance named %s, which names the shell, in every version (phase 4, 6.6)',
+		(id) => {
+			expect(codesOf(v2({ apps: { [id]: { app: id, package: `./${id}` } } }))).toEqual([
+				['DEPLOYMENT_INSTANCE_RESERVED', `apps.${id}`],
+			]);
+		}
+	);
+
+	it('refuses an instance title that says Loam as a word, and takes one that does not', () => {
+		const work = { ...FILE.apps.work, title: 'Loam work' };
+		expect(codesOf(v2({ apps: { work } }))).toEqual([
+			['DEPLOYMENT_TITLE_RESERVED', 'apps.work.title'],
+		]);
+		expect(codesOf(v2({ apps: { work: { ...work, title: 'Loamy work' } } }))).toEqual([]);
+	});
+
+	it.each(['shell', 'loam'])('refuses an instance named %s in a version 1 file too', (id) => {
+		expect(codesOf({ ...FILE, apps: { [id]: { app: id, package: `./${id}` } } })).toEqual([
+			['DEPLOYMENT_INSTANCE_RESERVED', `apps.${id}`],
+		]);
+	});
+
+	it.each(['Loam_work', 'Lo' + String.fromCharCode(0x200b) + 'am work'])(
+		'refuses the title %j, which says Loam once read plainly',
+		(title) => {
+			const work = { ...FILE.apps.work, title };
+			expect(codesOf(v2({ apps: { work } }))).toEqual([
+				['DEPLOYMENT_TITLE_RESERVED', 'apps.work.title'],
+			]);
+		}
+	);
+
 	it('refuses a projects slug off the project pattern', () => {
 		const work = { ...FILE.apps.work, projects: ['atlas', 'Bad_Slug'] };
 		expect(codesOf(v2({ apps: { work } }))).toEqual([

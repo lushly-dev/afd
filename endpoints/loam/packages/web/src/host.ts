@@ -70,6 +70,8 @@ export interface HostKernelOptions {
 	identityPorts?: KernelOptionsV5['identityPorts'];
 	/** The deployment's copilot providers and the host's runner (phase 5 specification, 3.2 and 4.1). */
 	copilot?: KernelOptionsV5['copilot'];
+	/** What the shell answers for `popover-open`'s anchors once it renders (phase 4 specification, 6.3). */
+	overlayAnchors?: KernelOptionsV5['overlayAnchors'];
 }
 
 const LOCK_RETRY_MS = 100;
@@ -116,6 +118,7 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		...(options.appsLoader ? { appsLoader: options.appsLoader } : {}),
 		...(options.initialScope ? { initialScope: options.initialScope } : {}),
 		...(options.copilot ? { copilot: options.copilot } : {}),
+		...(options.overlayAnchors ? { overlayAnchors: options.overlayAnchors } : {}),
 	});
 	return { kind: 'ready', kernel, journal };
 }

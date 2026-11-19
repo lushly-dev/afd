@@ -7,6 +7,7 @@
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
 import type { IdentityMethodV1, IdentityV1 } from './read-boot.js';
+import { saysShellName } from './shell-name.js';
 import type {
 	DeploymentRead,
 	DeploymentRefusal,
@@ -424,16 +425,48 @@ function sandboxRefusals(deployment: AnyDeployment): DeploymentRefusal[] {
 	];
 }
 
-/** `p` would read as a URL's project segment (phase 2 specification, 6.1). */
+/**
+ * `p` would read as a URL's project segment (phase 2 specification, 6.1), from version 2; `shell` and `loam` as the
+ * shell's own, an overlay's owner among them (phase 4 specification, 6.6), in every version.
+ */
 function reservedInstances(deployment: AnyDeployment): DeploymentRefusal[] {
-	return Object.keys(deployment.apps)
-		.filter((id) => id === 'p')
-		.map((id) => ({
-			code: 'DEPLOYMENT_INSTANCE_RESERVED',
-			key: keyOf(`/apps/${id}`),
-			message: `The instance id \`${id}\` is reserved: it would read as a URL's project segment.`,
-			suggestion: 'Name the instance something else, such as `plan`.',
-		}));
+	return Object.keys(deployment.apps).flatMap((id): DeploymentRefusal[] => {
+		if (id === 'shell' || id === 'loam') {
+			return [
+				{
+					code: 'DEPLOYMENT_INSTANCE_RESERVED',
+					key: keyOf(`/apps/${id}`),
+					message: `The instance id \`${id}\` is reserved: it names the shell's own.`,
+					suggestion: 'Name the instance after the app, such as `notes`.',
+				},
+			];
+		}
+		if (id !== 'p' || deployment.deployment_version === 1) return [];
+		return [
+			{
+				code: 'DEPLOYMENT_INSTANCE_RESERVED',
+				key: keyOf(`/apps/${id}`),
+				message: `The instance id \`${id}\` is reserved: it would read as a URL's project segment.`,
+				suggestion: 'Name the instance something else, such as `plan`.',
+			},
+		];
+	});
+}
+
+/** An instance's `title` is the rail's label and its overlays' owner line: never "Loam" as a word (phase 4's 6.6). */
+function reservedTitles(deployment: AnyDeployment): DeploymentRefusal[] {
+	return Object.entries(deployment.apps).flatMap(([id, entry]): DeploymentRefusal[] => {
+		const { title } = entry as { title?: unknown };
+		if (typeof title !== 'string' || !saysShellName(title)) return [];
+		return [
+			{
+				code: 'DEPLOYMENT_TITLE_RESERVED',
+				key: keyOf(`/apps/${id}/title`),
+				message: `The title \`${title}\` says "Loam", which is the shell's name.`,
+				suggestion: "Title the instance after the app, without the shell's name.",
+			},
+		];
+	});
 }
 
 /** The host a file names: version 4's `[host] kind`, else `static`, as versions 1 to 3 read (phase 6 specification, 3.3). */
@@ -535,7 +568,8 @@ export function readDeployment(json: unknown): DeploymentRead {
 	const id = named?.id ?? DEFAULT_WORKSPACE_V2.id;
 	const refusals = [
 		...sandboxRefusals(deployment),
-		...(deployment.deployment_version !== 1 ? reservedInstances(deployment) : []),
+		...reservedInstances(deployment),
+		...reservedTitles(deployment),
 		...Object.entries(deployment.apps).flatMap(([id, entry]) => instanceRefusals(id, entry)),
 		...(deployment.deployment_version === 3 || deployment.deployment_version === 4
 			? identityRefusals(deployment, id)

@@ -929,6 +929,8 @@ base_path = "/"      # the path this deployment is served under, with both slash
 | A different `workspace.id` from the one `--out` last held, where `--out` already has a `deployment.json`. A browser's records are under the old id | `DEPLOYMENT_WORKSPACE_CHANGED`, a warning with what it strands |
 | `base_path` off `^/([A-Za-z0-9._~-]+/)*$`, or holding a `.` or `..` segment, so `//evil.example/` is refused | `DEPLOYMENT_BASE_PATH_INVALID` |
 | An instance id of `p` | `DEPLOYMENT_INSTANCE_RESERVED`: it would read as a URL's project segment |
+| An instance id of `shell` or `loam`, in every version (phase 4 specification, 6.6) | `DEPLOYMENT_INSTANCE_RESERVED`: it names the shell's own |
+| An instance `title` that says "Loam" as a word (phase 4 specification, 6.6) | `DEPLOYMENT_TITLE_RESERVED`: the rail's label and the owner line would read as the shell's |
 | A `projects` slug off the project pattern | `DEPLOYMENT_PROJECT_INVALID` |
 | A mounted `team` entry with no `projects` | `TEAM_INSTANCE_WHOLE_WORKSPACE`, a warning in `deployment check`: "This team instance serves every member of the workspace" |
 
@@ -1421,7 +1423,7 @@ Every code has a suggestion and is added to `LoamKernelErrorCode` or the deploym
 | `PROJECT_SUMMARY_TIMEOUT`, `PROJECT_SUMMARY_INVALID` | [7.7](#77-project-summary) | That row of the result | Report to the app's owner |
 | `MOUNT_PROJECT_NOT_LISTED` | [9.2](#92-a-call) | A failure, journaled | The slugs it serves |
 | `INSTANCE_PROJECT_UNKNOWN`, `INSTANCE_LEVELS_OVERRIDDEN`, `TEAM_INSTANCE_WHOLE_WORKSPACE` | [9.1](#91-an-instance-and-its-projects-d55), [4.2](#42-the-deployment-file-version-2) | A warning | Per row |
-| `DEPLOYMENT_WORKSPACE_INVALID`, `DEPLOYMENT_BASE_PATH_INVALID`, `DEPLOYMENT_INSTANCE_RESERVED`, `DEPLOYMENT_PROJECT_INVALID` | [4.2](#42-the-deployment-file-version-2) | `deployment write` stops | The fix |
+| `DEPLOYMENT_WORKSPACE_INVALID`, `DEPLOYMENT_BASE_PATH_INVALID`, `DEPLOYMENT_INSTANCE_RESERVED`, `DEPLOYMENT_TITLE_RESERVED` (phase 4's step 3), `DEPLOYMENT_PROJECT_INVALID` | [4.2](#42-the-deployment-file-version-2) | `deployment write` stops | The fix |
 | `DEPLOYMENT_WORKSPACE_CHANGED` | [4.2](#42-the-deployment-file-version-2) | A warning from `deployment write` | What it strands |
 | `DEPLOYMENT_INVALID` | A projection that passes `readBoot` and fails `readProjection` | Each app `failed`, in stage B. Phase 1's notice stays for a file `readBoot` cannot read | Rewrite the deployment |
 | `MANIFEST_RESOURCE_KEY_INVALID`, `MANIFEST_SUMMARY_INVALID` | [8.3](#83-new-keys) | The package is refused | The fix |

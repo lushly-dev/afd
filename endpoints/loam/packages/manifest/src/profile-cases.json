@@ -1977,6 +1977,20 @@
 			"key": "plugin.id"
 		},
 		{
+			"id": "title-reserved",
+			"base": "native",
+			"set": { "/plugin/title": "Loam Notes" },
+			"accepted": false,
+			"code": "MANIFEST_TITLE_RESERVED",
+			"key": "plugin.title"
+		},
+		{
+			"id": "title-loam-inside-a-word",
+			"base": "native",
+			"set": { "/plugin/title": "Loamy notes" },
+			"accepted": true
+		},
+		{
 			"id": "id-reserved-p",
 			"base": "native",
 			"set": {
