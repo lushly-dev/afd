@@ -91,7 +91,7 @@ describe('mergeGroupWorkflows', () => {
 		return root;
 	};
 	const on = (...triggers) =>
-		`on:\n${triggers.map((name) => `  ${name}:\n`).join('')}jobs:\n  a:\n    runs-on: x\n`;
+		`on:\n${triggers.map((name) => `  ${name}:\n`).join('')}jobs:\n  job:\n    runs-on: x\n`;
 
 	it('lists every workflow with the trigger but its own', (t) => {
 		const root = repository({

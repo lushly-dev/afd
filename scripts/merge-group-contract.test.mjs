@@ -93,12 +93,15 @@ describe('the merge-group contract', () => {
 		assert.deepEqual(problems(filtered()), []);
 		assert.deepEqual(problems(unfiltered, 'ci.yml'), []);
 		assert.deepEqual(
-			problems('on:\n  push:\n    branches: [main]\njobs:\n  a:\n    runs-on: x\n', 'release.yml'),
+			problems(
+				'on:\n  push:\n    branches: [main]\njobs:\n  job:\n    runs-on: x\n',
+				'release.yml'
+			),
 			[]
 		);
 		// A pull request into another branch is not what the queue for main merges.
 		assert.deepEqual(
-			problems('on:\n  pull_request:\n    branches: [next]\njobs:\n  a:\n    runs-on: x\n'),
+			problems('on:\n  pull_request:\n    branches: [next]\njobs:\n  job:\n    runs-on: x\n'),
 			[]
 		);
 	});
@@ -108,10 +111,10 @@ describe('the merge-group contract', () => {
 			'unit.yml: runs on pull requests to main but has no merge_group trigger, so a merge queue would not run it',
 		]);
 		// No `branches` means every branch, main included; a block list does too.
-		const everyBranch = 'on:\n  pull_request:\njobs:\n  a:\n    runs-on: x\n';
+		const everyBranch = 'on:\n  pull_request:\njobs:\n  job:\n    runs-on: x\n';
 		assert.match(problems(everyBranch)[0], /has no merge_group trigger/);
 		const listed =
-			'on:\n  pull_request:\n    branches:\n      - next\n      - main\njobs:\n  a:\n    runs-on: x\n';
+			'on:\n  pull_request:\n    branches:\n      - next\n      - main\njobs:\n  job:\n    runs-on: x\n';
 		assert.match(problems(listed)[0], /has no merge_group trigger/);
 		assert.deepEqual(
 			problems(edit(unfiltered, '  pull_request:\n    branches: [main]\n', '  push:\n')),
@@ -284,7 +287,7 @@ describe('the merge-group contract', () => {
 	});
 
 	it('reports a workflow it cannot read instead of passing it', () => {
-		assert.deepEqual(problems('on: [push, pull_request]\njobs:\n  a:\n    runs-on: x\n'), [
+		assert.deepEqual(problems('on: [push, pull_request]\njobs:\n  job:\n    runs-on: x\n'), [
 			'unit.yml: unreadable (`on:` is not a block of triggers)',
 		]);
 		assert.deepEqual(problems('on:\n  pull_request:\n'), ['unit.yml: unreadable (no jobs)']);
@@ -344,7 +347,7 @@ describe("this repository's workflows", () => {
 });
 
 describe('what the contract cannot read, or reads two ways', () => {
-	const bare = (trigger) => `on:\n${trigger}jobs:\n  a:\n    runs-on: x\n`;
+	const bare = (trigger) => `on:\n${trigger}jobs:\n  job:\n    runs-on: x\n`;
 
 	it('reaches main through a branch pattern, a comment or a list, and names the missing trigger', () => {
 		for (const branches of [
@@ -550,7 +553,7 @@ describe('what the contract cannot read, or reads two ways', () => {
 	});
 
 	it('reads a comment that holds a quote, and refuses an alias, an anchor and a mis-indented block', () => {
-		const bare = (trigger) => `on:\n${trigger}jobs:\n  a:\n    runs-on: x\n`;
+		const bare = (trigger) => `on:\n${trigger}jobs:\n  job:\n    runs-on: x\n`;
 		for (const branches of [
 			"    branches: [main] # main's only\n",
 			'    branches:\n      - main # it\'s "ours"\n',
@@ -586,12 +589,12 @@ describe('what the contract cannot read, or reads two ways', () => {
 			],
 			[bare("  pull_request:\n    branches: ['mai+n']\n"), /the branch pattern mai\+n uses syntax/],
 			[
-				'on:\n    pull_request:\n        branches: [main]\njobs:\n  a:\n    runs-on: x\n',
+				'on:\n    pull_request:\n        branches: [main]\njobs:\n  job:\n    runs-on: x\n',
 				/content this check cannot place: "pull_request:"/,
 			],
 			[
-				'on:\n  push:\njobs:\n    a:\n        runs-on: x\n',
-				/content this check cannot place: "a:"/,
+				'on:\n  push:\njobs:\n    job:\n        runs-on: x\n',
+				/content this check cannot place: "job:"/,
 			],
 		]) {
 			const found = problems(text);
