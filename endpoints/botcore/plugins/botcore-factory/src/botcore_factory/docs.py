@@ -34,8 +34,9 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
 `pr-closed`, `ci-failed`, `merge-failed`, `review-unverified`, `node-missing` (the branch's own
-`.nvmrc` names a Node the lane host lacks, or an alias; `detail` starts `NODE_MISSING`: keep
-the base's `.nvmrc`, or the owner installs that Node on the lane host); with `detail`, `lines`
+`.nvmrc` names a Node the lane host lacks, or an alias, or the branch deletes `.nvmrc`;
+`detail` starts `NODE_MISSING`: keep the base's `.nvmrc`, or the owner installs that Node on
+the lane host); with `detail`, `lines`
 and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
 `lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`:
 `conflict`, `push-failed`, `pr-failed` and `merge-failed` never count, nor one
@@ -155,8 +156,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   on it), `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
   `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least, read on the
   `.nvmrc` Node with its bin directory first on `PATH`, as validation runs them). Once
-  running, a branch whose own `.nvmrc` names a Node the host lacks is ejected as
-  `node-missing`; main's own pauses the lane.
+  running, a branch whose own `.nvmrc` names a Node the host lacks, or that deletes `.nvmrc`,
+  is ejected as `node-missing`; main's own pauses the lane.
 - `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
   goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
   only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be

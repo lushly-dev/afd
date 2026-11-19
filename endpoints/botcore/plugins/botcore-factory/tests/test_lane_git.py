@@ -495,7 +495,8 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
 def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeypatch):
     """lushly-dev/afd#1352: after the slot merges the base in, ``.nvmrc`` is among the files the
     branch changes against the base only when the branch changed it, so a Node missing for it
-    ejects that branch, while main's own bump (the slot holds it too) pauses the lane."""
+    ejects that branch, while main's own bump (the slot holds it too) pauses the lane. A branch
+    that deletes it leaves the slot without one and ``.nvmrc`` among its changes (#1505)."""
     for key in list(os.environ):
         if key.startswith("GIT_"):
             monkeypatch.delenv(key)
@@ -534,6 +535,15 @@ def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeyp
     slot = git.prepare_slot("1", "", feature)
     assert git.merge_main(slot, main).clean
     assert ".nvmrc" not in git.changed_files(slot, main)
+
+    run(["git", "checkout", "-q", "-b", "drop", main])
+    run(["git", "rm", "-q", ".nvmrc"])
+    drop = commit({"src/d.ts": "d\n"}, "drop .nvmrc")  # lushly-dev/afd#1505.
+    run(["git", "checkout", "-q", "main"])
+    slot = git.prepare_slot("1", "", drop)
+    assert git.merge_main(slot, main).clean
+    assert git.read_file(slot, ".nvmrc") is None
+    assert ".nvmrc" in git.changed_files(slot, main)
 
     bumped_main = commit({".nvmrc": "28\n"}, "main bumps .nvmrc")
     slot = git.prepare_slot("1", "", feature)

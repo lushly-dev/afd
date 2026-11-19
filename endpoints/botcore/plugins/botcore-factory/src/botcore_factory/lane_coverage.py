@@ -16,6 +16,12 @@ from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 INSTALL_TIMEOUT_SECONDS = 1800
 
 
+NVMRC_DELETED = (
+    "NODE_MISSING: the branch deletes .nvmrc, where the repository pins its Node: keep the "
+    "base's .nvmrc, so the lane validates on the pinned Node, not the lane host's default"
+)
+
+
 class NodeUnavailable(LaneTrouble):
     """The Node a checkout's ``.nvmrc`` names is not installed, or ``.nvmrc`` is an alias. As
     the lane's trouble it pauses the lane (main's own ``.nvmrc``); ``for_branch`` says it to a
