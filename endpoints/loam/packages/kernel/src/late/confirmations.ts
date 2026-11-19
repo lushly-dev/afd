@@ -657,7 +657,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				: undefined;
 		const allowed = deps.replaying()
 			? row !== undefined && key === row.ckey
-			: live !== undefined && live.command === name && live.key === key;
+			: live !== undefined &&
+				live.command === name &&
+				live.key === key &&
+				row?.confirmation.state === 'pending' &&
+				row.claim !== undefined;
 		if (!row || !allowed) {
 			return fail(
 				'HUMAN_REQUIRED',
@@ -1035,55 +1039,71 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const person = notice.person;
 		const now = kit.callNow(context);
 		deps.noteInbox(context);
-		const row = (await rowsOf(person)).find((each) => each.id === notice.id);
-		if (!row) {
-			return fail(
-				'NOTIFICATION_NOT_FOUND',
-				`You have no confirmation '${notice.id}'`,
-				'List your notices with notification-list'
-			);
-		}
-		const marked = (extra: Partial<ConfirmationRecordV1>): StoredConfirmation => {
-			const { claim: _claim, ...kept } = row;
-			return {
-				...kept,
-				confirmation: { ...kept.confirmation, ...extra },
-				...(kept.readAt === undefined ? { readAt: now } : {}),
-			};
-		};
-		const state = stateNow(row.confirmation, now);
-		if (state !== 'pending' || row.claim !== undefined || acting.has(row.id)) {
-			// Ended, or running: nothing more runs. A person's answer to one that ended marks it read.
-			if (state !== 'pending' && row.readAt === undefined) {
-				await putBack({ ...row, readAt: now });
+		/**
+		 * Read, decided and claimed on the person's chain (the reviews' race): a withdrawal, an expiry's re-call or another
+		 * answer never lands between the read and the claim. The run itself is outside it.
+		 */
+		const decided = await serial(
+			person,
+			async (): Promise<{ done: CommandResult } | { claimed: StoredConfirmation }> => {
+				const row = (await rowsOf(person)).find((each) => each.id === notice.id);
+				if (!row) {
+					return {
+						done: fail(
+							'NOTIFICATION_NOT_FOUND',
+							`You have no confirmation '${notice.id}'`,
+							'List your notices with notification-list'
+						),
+					};
+				}
+				const marked = (extra: Partial<ConfirmationRecordV1>): StoredConfirmation => {
+					const { claim: _claim, ...kept } = row;
+					return {
+						...kept,
+						confirmation: { ...kept.confirmation, ...extra },
+						...(kept.readAt === undefined ? { readAt: now } : {}),
+					};
+				};
+				const state = stateNow(row.confirmation, now);
+				if (state !== 'pending' || row.claim !== undefined || acting.has(row.id)) {
+					// Ended, or running: nothing more runs. A person's answer to one that ended marks it read.
+					if (state !== 'pending' && row.readAt === undefined)
+						await putBack({ ...row, readAt: now });
+					// As the answer that ended it said (a person's confirm or decline says no reason), so a replay answers the
+					// same.
+					return {
+						done: kit.success({
+							state: row.claim !== undefined || acting.has(row.id) ? 'pending' : state,
+							...(row.confirmation.reason === 'access' ? { reason: 'access' as const } : {}),
+						}),
+					};
+				}
+				if (given === 'decline') {
+					await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }));
+					return { done: kit.success({ state: 'declined' as const }) };
+				}
+				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
+				const caller = row.ciface === 'palette' ? row.source : undefined;
+				if (
+					!deps.allows(row.cactor as AccessActorV1, row.scope) ||
+					deps.served(row.confirmation.command, caller, row.scope) !== undefined
+				) {
+					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
+					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
+				}
+				// Claimed before it runs, as a notice's action (step 5): in this page, and in the store, read back.
+				const claim = `${context.traceId ?? ''}:${newId(context, 'cnf')}`;
+				await store.update(TABLE, row.id, { claim } as never);
+				const claimed = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
+				if (claimed?.claim !== claim) return { done: kit.success({ state: 'pending' as const }) };
+				acting.add(row.id);
+				return { claimed: claimed };
 			}
-			// As the answer that ended it said (a person's confirm or decline says no reason), so a replay answers the same.
-			return kit.success({
-				state: row.claim !== undefined || acting.has(row.id) ? 'pending' : state,
-				...(row.confirmation.reason === 'access' ? { reason: 'access' as const } : {}),
-			});
-		}
-		if (given === 'decline') {
-			await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }));
-			return kit.success({ state: 'declined' as const });
-		}
-		// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
-		const actor = row.cactor as AccessActorV1;
+		);
+		if ('done' in decided) return decided.done;
+		const row = decided.claimed;
 		const caller = row.ciface === 'palette' ? row.source : undefined;
-		if (
-			!deps.allows(actor, row.scope) ||
-			deps.served(row.confirmation.command, caller, row.scope) !== undefined
-		) {
-			await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
-			return kit.success({ state: 'declined' as const, reason: 'access' as const });
-		}
-		// Claimed before it runs, as a notice's action (step 5): in this page, and in the store, read back.
-		acting.add(row.id);
 		try {
-			const claim = `${context.traceId ?? ''}:${newId(context, 'cnf')}`;
-			await store.update(TABLE, row.id, { claim } as never);
-			const claimed = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
-			if (claimed?.claim !== claim) return kit.success({ state: 'pending' as const });
 			approved.set(row.id, { command: row.confirmation.command, key: row.ckey });
 			const result = await deps.runNow(
 				row.ciface,
@@ -1098,18 +1118,30 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 			);
 			approved.delete(row.id);
-			const after = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
-			if (after?.confirmation.state === 'confirmed') {
-				const { claim: _gone, ...kept } = after;
-				await putBack({ ...kept, ...(kept.readAt === undefined ? { readAt: now } : {}) });
-				return kit.success({ state: 'confirmed' as const });
-			}
-			// The chain refused the run before the shell could record it (the person changed, or access went): nothing ran.
-			await putBack(
-				marked({ state: 'declined', reason: 'access', answeredAt: now, result: outcomeOf(result) })
-			);
-			return kit.success({ state: 'declined' as const, reason: 'access' as const });
+			return await serial(person, async () => {
+				const after = await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null);
+				const { claim: _gone, ...kept } = after ?? row;
+				if (after?.confirmation.state === 'confirmed') {
+					await putBack({ ...kept, ...(kept.readAt === undefined ? { readAt: now } : {}) });
+					return kit.success({ state: 'confirmed' as const });
+				}
+				// The chain refused the run before the shell could record it (the person changed, or access went): nothing
+				// ran.
+				await putBack({
+					...kept,
+					confirmation: {
+						...kept.confirmation,
+						state: 'declined',
+						reason: 'access',
+						answeredAt: now,
+						result: outcomeOf(result),
+					},
+					...(kept.readAt === undefined ? { readAt: now } : {}),
+				});
+				return kit.success({ state: 'declined' as const, reason: 'access' as const });
+			});
 		} finally {
+			approved.delete(row.id);
 			acting.delete(row.id);
 		}
 	}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	type AppDefinitionV1,
+	confirmationsOver,
 	defineApp,
 	failure,
 	KIT_ELEMENT_NAMES_V1,
@@ -137,6 +138,44 @@ describe('projectsOver: the projects grant (phase 2 specification, 5)', () => {
 		expect(await projects.active()).toBeNull();
 		expect(await projects.get('gone')).toBeNull();
 		expect(await projects.list()).toEqual([]);
+	});
+});
+
+describe('confirmationsOver: the confirmations an app raised (phase 4 specification, 7.2, 12)', () => {
+	it('reads and withdraws one by its notice', async () => {
+		const { client, call } = clientOf({
+			'confirmation-get': success({ state: 'pending', expiresAt: 5 }),
+			'confirmation-withdraw': success({ state: 'withdrawn' }),
+		});
+		const confirmations = confirmationsOver(client);
+		expect(await confirmations.get('ntf_0000000000000001')).toEqual({
+			state: 'pending',
+			expiresAt: 5,
+		});
+		expect(await confirmations.withdraw('ntf_0000000000000001')).toEqual({ state: 'withdrawn' });
+		expect(call.mock.calls).toEqual([
+			['confirmation-get', { notification: 'ntf_0000000000000001' }],
+			['confirmation-withdraw', { notification: 'ntf_0000000000000001' }],
+		]);
+	});
+
+	it("rejects with the refusal's code and suggestion, or in its own words", async () => {
+		const refused = failure({
+			code: 'NOTIFICATION_NOT_FOUND',
+			message: 'You raised no confirmation',
+			suggestion: 'Read only your own',
+		});
+		const { client } = clientOf({
+			'confirmation-get': refused,
+			'confirmation-withdraw': success(undefined),
+		});
+		await expect(confirmationsOver(client).get('x')).rejects.toMatchObject({
+			code: 'NOTIFICATION_NOT_FOUND',
+			suggestion: 'Read only your own',
+		});
+		await expect(confirmationsOver(client).withdraw('x')).rejects.toThrow(
+			'The confirmation could not be read'
+		);
 	});
 });
 

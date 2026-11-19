@@ -385,10 +385,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * and 8 merged) on Windows with Node 26.13.1, against the figures above for those steps merged. First paint 310,406
  * (+275) and 96,862 gzip (+98), within 310,500 and 97,000: the kernel's chain gains the confirmations' gate and two
  * late context fields, and `late/` an unqueued runner. `kernelMinified` 119,500 to 120,000 (119,623, the same).
- * `lateSettingsMinified` 61,500 to 78,500 (60,469 to 77,862, +17,393): `confirmations.ts`, the gate's slot and inbox
+ * `lateSettingsMinified` 61,500 to 78,500 (60,469 to 78,180, +17,711): `confirmations.ts`, the gate's slot and inbox
  * paths with the key, the window, the limit of five and expiry, the re-check and the one run on confirm, the internal
  * `prompt-settle`, `palette-run` with its prompt's fields, `confirmation-get` and `-withdraw`, each with its written
- * JSON Schema and refusals in words. `lateMinified` 107,500 to 110,000 (106,836 to 109,456, +2,620): the
+ * JSON Schema and refusals in words, the act's read and claim on the person's chain. `lateMinified` 107,500 to 110,000 (106,836 to 109,463, +2,627): the
  * confirmations' wiring (the re-check, the palette's command and input check, titles and the digest), the palette's
  * ranking by the active app, its settings with it, each row naming its app (A-P0-1), and the persona ranked after it. `lateEditorMinified` 15,400
  * to 16,000 (15,336 to 15,813, +477): the close prompt (7.3). `appsMinified` 418,500 to 420,500 (418,055 to 420,134,
@@ -451,7 +451,7 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 77,862; set to 78,500.
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500.
 	lateSettingsMinified: 78_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,

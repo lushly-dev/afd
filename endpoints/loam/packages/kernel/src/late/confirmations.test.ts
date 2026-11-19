@@ -229,6 +229,37 @@ describe('the pending path (R9)', () => {
 		expect((await confirmations(kernel))[0]?.readAt).toEqual(expect.any(Number));
 	});
 
+	it('runs once for two confirms at once, and never after a withdrawal that won the race', async () => {
+		const { kernel } = await boot();
+		const asked = await kernel.agent.call('keeper-bump');
+		const both = await Promise.all([
+			kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' }),
+			kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' }),
+		]);
+		expect(both.map((each) => (each.data as { state: string }).state).sort()).toEqual([
+			'confirmed',
+			'pending',
+		]);
+		expect(await count(kernel)).toBe(1);
+		const second = await kernel.agent.call('keeper-set', { value: 4 });
+		const [acted, withdrawn] = await Promise.all([
+			kernel.call('notification-act', { notification: idOf(second), answer: 'confirm' }),
+			kernel.agent.call('confirmation-withdraw', { notification: idOf(second) }),
+		]);
+		const value = (
+			(await kernel.call<{ value: number | null }>('keeper-get')).data as {
+				value: number | null;
+			}
+		).value;
+		if (withdrawn.success) {
+			expect((acted.data as { state: string }).state).toBe('withdrawn');
+			expect(value).toBeNull();
+		} else {
+			expect((acted.data as { state: string }).state).toBe('confirmed');
+			expect(value).toBe(4);
+		}
+	});
+
 	it('declines, refuses the same call without asking, counts it, and runs nothing', async () => {
 		const { kernel, advance } = await boot();
 		const asked = await kernel.agent.call('keeper-bump');
