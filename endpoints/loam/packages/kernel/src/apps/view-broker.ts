@@ -6,7 +6,8 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
-import type { LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import type { LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import { LoamKernelError } from '../errors.js';
 import { LIMIT_DEFAULTS, measureJson } from '../limits.js';
 import type { LinkedCallV1, ViewBrokerV1 } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
@@ -38,7 +39,8 @@ export interface ViewHost {
 	brokerFor(
 		call: LoamClientV1['call'],
 		readResource: (uri: string) => Promise<string>,
-		scope?: ScopeV1
+		scope?: ScopeV1,
+		waitOverlay?: (overlayId: string) => Promise<OverlayResultV1>
 	): ViewBrokerV1;
 	/**
 	 * A command of this app finished in `scope`, its effective one: tell whoever listens for the resource it
@@ -95,7 +97,7 @@ export function createViewBroker({ manifest, sandboxOrigin, guard }: ViewBrokerO
 		refuseRequest({ code: 'VIEW_CALL_REFUSED', rpcCode: -32602, message, suggestion });
 
 	return {
-		brokerFor: (call, readResource, bound) => ({
+		brokerFor: (call, readResource, bound, waitOverlay) => ({
 			sandboxOrigin,
 			...(guard ? { admit: guard.admit } : {}),
 			async toolsCall(params) {
@@ -163,6 +165,30 @@ export function createViewBroker({ manifest, sandboxOrigin, guard }: ViewBrokerO
 					};
 				} finally {
 					reading -= 1;
+				}
+			},
+			/**
+			 * `dev.loam/overlay-result` (phase 4 specification, 6.4): the answer to one of this app's own overlays, as
+			 * `overlays.modal` gives a native app; another owner's id is refused, as the port refuses it.
+			 */
+			async overlayResult(params) {
+				const { overlayId } = (params ?? {}) as { overlayId?: unknown };
+				if (typeof overlayId !== 'string' || overlayId.length === 0 || overlayId.length > 64) {
+					throw refuse('An overlay id is a string', 'Pass the overlayId the open returned');
+				}
+				if (!waitOverlay) {
+					throw refuse('This view has no overlays of its own', 'Open one with modal-open first');
+				}
+				try {
+					return await waitOverlay(overlayId);
+				} catch (cause) {
+					if (!(cause instanceof LoamKernelError)) throw cause;
+					throw refuseRequest({
+						code: cause.code,
+						rpcCode: -32602,
+						message: cause.message,
+						suggestion: cause.suggestion,
+					});
 				}
 			},
 			async runBound(command, signal) {

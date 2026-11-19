@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from botcore_factory.cells import seated
 from botcore_factory.events import is_open
-from botcore_factory.lane_base import LaneTrouble, StepBase, first_lines
+from botcore_factory.lane_base import AT_THE_FRONT, LaneTrouble, StepBase, first_lines
 from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 
 INSTALL_TIMEOUT_SECONDS = 1800
@@ -101,7 +101,7 @@ class Coverage(StepBase):
     def start_coverage(self) -> None:
         if self.lane.get("coverage") or not self.coverage_owed():
             return
-        if any(e.get("state") == "merging" for e in self.state["queue"]):
+        if any(e.get("state") in AT_THE_FRONT for e in self.state["queue"]):
             return
         base = self.base_head(fresh=True)
         path = self.world.git.prepare_slot("coverage", "", base)

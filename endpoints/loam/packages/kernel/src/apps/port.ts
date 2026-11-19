@@ -7,7 +7,7 @@
 
 import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
-import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import type { AppDefinitionV1, LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { BOOT_ONLY } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
@@ -50,7 +50,8 @@ export interface AppPortOptions {
 	view?(
 		call: LoamClientV1['call'],
 		readResource: (uri: string) => Promise<string>,
-		scope?: ScopeV1
+		scope?: ScopeV1,
+		waitOverlay?: (overlayId: string) => Promise<OverlayResultV1>
 	): ViewBrokerV1;
 }
 
@@ -193,12 +194,22 @@ export function createAppPort(options: AppPortOptions): {
 		if (binding.parent !== undefined && host.isMutation(command))
 			return refuse('app-nested-refuse');
 		if (binding.readOnly && host.isMutation(command)) return refuse('app-embed-refuse');
-		if (record.kind === 'view' && command === 'modal-open') {
+		if (record.kind === 'view' && (command === 'modal-open' || command === 'prompt-open')) {
 			// One at a time, and none while the view's modal is open, so the cooldown is checked once that
 			// modal has closed. Checked only on arrival, a call sent while it was open could reach the kernel
 			// just after a person closed it, and open the next before the cooldown began (#1054).
 			return (async () => {
+				// A change of person, or a reload, while it waits ends it: it never opens for the next person (the review's 3).
+				const person = host.overlays.people();
 				while (modalHeld) await modalHeld;
+				if (host.overlays.people() !== person) {
+					return failure({
+						code: 'SESSION_CHANGED',
+						message: 'The person changed while this question waited, so it was not opened',
+						suggestion: 'Ask again if the new person should answer it',
+						retryable: false,
+					}) as CommandResult<T>;
+				}
 				if (host.clock() < modalRefusedUntil) return refuse('app-modal-refuse');
 				const opened = host.runAs<T>(command, input, rest, fields);
 				modalHeld = opened
@@ -208,8 +219,10 @@ export function createAppPort(options: AppPortOptions): {
 							const closed = await host.overlays.whenClosed(
 								(result.data as { overlayId: string } | undefined)?.overlayId as string
 							)?.settled;
-							// A person's close: the cooldown begins before any waiting call checks it.
-							if (closed?.reason === 'user')
+							// A person's close: the cooldown begins before any waiting call checks it. An agent's or the app's
+							// own cancel is no person's, so it starts none (the re-check of phase 4's step 4).
+							const id = (result.data as { overlayId: string } | undefined)?.overlayId as string;
+							if (closed?.reason === 'user' && host.overlays.closedByPerson(id))
 								modalRefusedUntil = host.clock() + VIEW_MODAL_COOLDOWN_MS;
 						},
 						() => {}
@@ -295,7 +308,13 @@ export function createAppPort(options: AppPortOptions): {
 				scope,
 				readOnly,
 				call: surfaceCall,
-				...(options.view ? { view: options.view(surfaceCall, readResource, scope) } : {}),
+				...(options.view
+					? {
+							view: options.view(surfaceCall, readResource, scope, (overlayId) =>
+								port.waitOverlay(overlayId)
+							),
+						}
+					: {}),
 			});
 		},
 		...(granted.has('store')

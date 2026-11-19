@@ -53,7 +53,8 @@ DIALS: dict[str, Dial] = {
             90,
             5,
             1440,
-            "How long a PR's required check may run before it is the lane's trouble",
+            "How long a PR's required check may run, and then how long the PR may wait in a "
+            "merge queue, before it is the lane's trouble",
         ),
         _int(
             "lane.maxBaseReruns",

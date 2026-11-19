@@ -48,14 +48,14 @@ import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
-import { createOverlayCommands, ownerTitle } from './overlay-commands.js';
+import { createOverlayCommands, openerOf, ownerTitle } from './overlay-commands.js';
 import { isOwner, teamListed } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
-import { createPushRate } from './push-rate.js';
+import { AGENT_PUSH_RATE, APP_PUSH_RATE, createPushRate } from './push-rate.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
@@ -74,6 +74,9 @@ interface Presented {
 	inspector: { open: boolean };
 	compact: { drawer: string | null };
 }
+
+import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
+import type { ActionVerdict } from './notifications.js';
 
 export { createOverlayStore } from '../overlays.js';
 export { withBootActions } from './boot-actions.js';
@@ -138,8 +141,25 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 	'auth-sign-out',
 ]);
 
+/** The shell's inbox commands (phase 4 specification, 10.2), none served over MCP (its section 13). */
+const SHELL_NOTIFICATION_COMMANDS: ReadonlySet<string> = new Set(
+	SHELL_COMMAND_NAMES.filter((name) => name.startsWith('notification-'))
+);
+
 /** The signed-out commands as a set, the palette's filter on a signed-out `provider` page (2.1). */
 const SIGNED_OUT_SET: ReadonlySet<string> = new Set(SIGNED_OUT_COMMANDS);
+
+/** The overlays no MCP caller opens (phase 4 specification, 6.1): only a person, an app or the agent interface does. */
+const MCP_UNSERVED_OVERLAYS: ReadonlySet<string> = new Set([
+	'toast-show',
+	'popover-open',
+	'dialog-open',
+	'modal-open',
+	'prompt-open',
+	// Nor does an MCP caller close or list one (the review's R2): its `none` path has no overlay of its own.
+	'overlay-dismiss',
+	'overlay-list',
+]);
 
 /** JSON with object keys sorted at every level, as AFD's journal digests it: a turn's call's `inputDigest` (phase 5's 3.4). */
 const canonical = (value: unknown): string => {
@@ -311,7 +331,15 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings, createAutonomy, createLimitCommands, isHumanGesture },
+		{
+			createSettings,
+			createNotifications,
+			createAutonomy,
+			createLimitCommands,
+			isHumanGesture,
+			orphanNotice,
+			orphanRecipients,
+		},
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -588,6 +616,22 @@ export async function createLateParts(
 		writeOwn: (section, key, entry, context) =>
 			(settings as Settings).writeOwn(section, key, entry, context),
 		replaying: () => deps.internals?.replaying === true,
+		// The orphan notice (4.2, 10.2), through step 5's inbox: in `local` mode to the one person the shell is for, every
+		// person an owner. In `provider` mode none, by the coordinator's ruling, until the owner roster is a server record
+		// (phase 5's shell commands over MCP): the kernel holds only the people it has settled, and the boot settle's
+		// membership is not journaled, so a replay could not send the same. The flags are stored and shown either way.
+		async orphaned(rows, context) {
+			if (deps.scope.membership.mode !== 'local') return;
+			const owners = [shellPerson() ?? 'local'];
+			const heard = orphanRecipients(rows, owners, (person, project) =>
+				deps.scope.allows(
+					{ kind: 'human', id: person },
+					{ workspace: deps.scope.workspace.id, project }
+				)
+			);
+			for (const [owner, theirs] of heard)
+				await notifications.shellNotice(context, owner, orphanNotice(theirs));
+		},
 		kit: { ...DOCUMENT_KIT, personKey },
 	});
 	/** The autonomy rows the apps no longer back, or back again, flagged by boot's journaled settle; never in a replay. */
@@ -604,8 +648,94 @@ export async function createLateParts(
 		applied: () => applied,
 		settingTarget: (target, context) => (settings as Settings).target(target, context),
 	});
-	// The agents' push rate (phase 4 specification, 6.1, 10.2): their toasts now, the inbox's pushes with step 5.
+	/** The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6). */
+	const personLabel = (): string | null => {
+		const session = deps.auth.getSession();
+		if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated') return null;
+		const name = (session.user as { name?: unknown }).name;
+		return typeof name === 'string' && name.trim() !== '' && !name.includes('@')
+			? name.trim()
+			: null;
+	};
+	// The push rate (phase 4 specification, 6.1, 10.2): the agents' toasts and every source's notices, one object.
 	const pushRate = createPushRate();
+	/**
+	 * What a command is to an owner (6.4, 10.1): one of its own palette commands; a human or owner command, which no
+	 * menu or notice offers; another owner's, or none the palette lists; or one whose input its schema refuses.
+	 */
+	const paletteVerdict = (
+		owner: OverlayOwner,
+		item: { command: string; input?: unknown }
+	): ActionVerdict => {
+		const { command } = item;
+		if (HUMAN_COMMANDS.includes(command) || OWNER_COMMANDS.includes(command))
+			return {
+				kind: 'reserved',
+				why: `'${command}' is a person's or an owner's command, which no menu or notice offers`,
+			};
+		const app = deps.apps().owners.get(command)?.instance;
+		const own =
+			!INTERNAL_COMMANDS.includes(command) &&
+			!BOOT_ONLY.includes(command) &&
+			(owner.kind === 'shell'
+				? app === undefined && (SHELL_COMMAND_NAMES as readonly string[]).includes(command)
+				: owner.kind === 'app' && app === owner.id);
+		const definition = own
+			? owner.kind === 'shell'
+				? byName.get(command)
+				: deps.apps().commands.find((each) => each.name === command)
+			: undefined;
+		if (!definition)
+			return {
+				kind: 'foreign',
+				why: `'${command}' is not one of this owner's own palette commands`,
+			};
+		if (definition.expose?.palette === false)
+			return { kind: 'foreign', why: `'${command}' is not listed in the palette` };
+		const parsed = z.safeParse(definition.inputSchema as z.ZodMiniType, item.input ?? {});
+		return parsed.success
+			? { kind: 'own' }
+			: { kind: 'invalid', why: parsed.error.issues[0]?.message ?? 'the input is invalid' };
+	};
+	// The inbox (phase 4 specification, section 10), in `late-settings` beside the settings it reads (3.7).
+	const notifications = createNotifications({
+		store: deps.store,
+		workspace: () => deps.scope.workspace.id,
+		provider,
+		allows: (actor, scope) => deps.scope.allows(actor, scope),
+		sourceOf(context) {
+			const opener = openerOf(context, isHumanGesture);
+			if (opener.kind === 'app')
+				return { kind: 'app', instance: opener.owner.id, bucket: `app:${opener.owner.id}` };
+			if (opener.kind === 'agent')
+				return { kind: 'agent', id: opener.owner.id, bucket: opener.bucket };
+			if (opener.kind === 'shell')
+				return {
+					kind: 'shell',
+					bucket: `shell:${personOf({ actor: context.actor as AccessActorV1 })}`,
+				};
+			return { kind: 'none' };
+		},
+		humanGesture: isHumanGesture,
+		actionCheck: (owner, action) =>
+			paletteVerdict(owner.kind === 'shell' ? SHELL : { kind: 'app', id: owner.instance }, action),
+		pushRate,
+		limits: { agent: AGENT_PUSH_RATE, app: APP_PUSH_RATE },
+		prefs: (context) => (settings as Settings).notificationPrefs(context),
+		landsInInbox,
+		overlays: deps.overlays,
+		// The owner line step 3 gives a toast (6.6): an app's title as the rail shows it, told apart from a twin's, never
+		// one that says "Loam"; an agent's name, for the person.
+		fromOf: (source) =>
+			source === 'shell'
+				? undefined
+				: source.startsWith('agent:')
+					? { kind: 'agent', agent: source.slice('agent:'.length), person: personLabel() }
+					: { kind: 'app', title: ownerTitle(deps.summaries(), source) },
+		run: (name, input, fields) =>
+			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
+		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
+	});
 	const byName: Map<string, ZodCommandDefinition> = new Map(
 		[
 			...boot,
@@ -640,48 +770,15 @@ export async function createLateParts(
 				pushRate,
 				humanGesture: isHumanGesture,
 				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
+				isNative: (instance) =>
+					deps.summaries().find((app) => app.instance === instance)?.kind === 'native',
 				// The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6).
-				personLabel: () => {
-					const session = deps.auth.getSession();
-					if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated')
-						return null;
-					const name = (session.user as { name?: unknown }).name;
-					return typeof name === 'string' && name.trim() !== '' && !name.includes('@')
-						? name.trim()
-						: null;
-				},
+				personLabel,
 				// A menu offers only the owner's own commands that the palette lists (6.4): an app's, or the shell's own for
 				// the shell, never a human, owner or internal one; each item's input checked against the command's schema.
 				itemCheck: (owner, item) => {
-					const { command } = item;
-					if (HUMAN_COMMANDS.includes(command) || OWNER_COMMANDS.includes(command))
-						return {
-							kind: 'reserved',
-							why: `'${command}' is a person's or an owner's command, which no menu offers`,
-						};
-					const app = deps.apps().owners.get(command)?.instance;
-					const own =
-						!INTERNAL_COMMANDS.includes(command) &&
-						!BOOT_ONLY.includes(command) &&
-						(owner.kind === 'shell'
-							? app === undefined && (SHELL_COMMAND_NAMES as readonly string[]).includes(command)
-							: owner.kind === 'app' && app === owner.id);
-					const definition = own
-						? owner.kind === 'shell'
-							? byName.get(command)
-							: deps.apps().commands.find((each) => each.name === command)
-						: undefined;
-					if (!definition)
-						return {
-							kind: 'reserved',
-							why: `'${command}' is not one of this owner's own palette commands`,
-						};
-					if (definition.expose?.palette === false)
-						return { kind: 'reserved', why: `'${command}' is not listed in the palette` };
-					const parsed = z.safeParse(definition.inputSchema as z.ZodMiniType, item.input ?? {});
-					return parsed.success
-						? { kind: 'own' }
-						: { kind: 'invalid', why: parsed.error.issues[0]?.message ?? 'the input is invalid' };
+					const verdict = paletteVerdict(owner, item);
+					return verdict.kind === 'foreign' ? { kind: 'reserved', why: verdict.why } : verdict;
 				},
 				anchorFound: (owner, anchor) =>
 					owner.kind !== 'agent' &&
@@ -704,11 +801,18 @@ export async function createLateParts(
 			...copilot.commands,
 			...copilot.bootOnly,
 			...settings.commands,
+			...notifications.commands,
 			...autonomy.commands,
 			autonomy.settleCommand,
 			...limitCommands.commands,
 			limitCommands.settleCommand,
 		].map((command) => [command.name, command])
+	);
+	// `toast-show` with the inbox's half (6.1, 3.7): a sticky toast also lands as a notice, and a muted app's is never
+	// shown.
+	byName.set(
+		'toast-show',
+		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
 	);
 	appearance = byName.get('appearance-set');
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
@@ -800,7 +904,12 @@ export async function createLateParts(
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
-		internal: [...createPortRefusals(deps.limits), ...copilot.internal],
+		internal: [
+			...createPortRefusals(deps.limits),
+			...copilot.internal,
+			// The shell's strip under the title bar (phase 4 specification, 6.1).
+			byName.get('overlay-global-set') as ZodCommandDefinition,
+		],
 		copilot,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
@@ -852,11 +961,12 @@ export async function createLateParts(
 					!OWNER_COMMANDS.includes(command.name) &&
 					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
 					command.category !== 'copilot' &&
-					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor a toast or a
-					// popover, which only a person, an app or the agent interface opens (6.1).
+					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor an overlay, which
+					// only a person, an app or the agent interface opens (6.1).
 					command.category !== 'setting' &&
-					command.name !== 'toast-show' &&
-					command.name !== 'popover-open'
+					// The shell's inbox by name (the reviews' item 9): an app's own command of that category stays served.
+					!SHELL_NOTIFICATION_COMMANDS.has(command.name) &&
+					!MCP_UNSERVED_OVERLAYS.has(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

@@ -78,6 +78,15 @@ describe('hello', () => {
 		const listed = await kernel.call<{ items: Array<{ id: string }> }>('hello-list');
 		expect(listed.data?.items.map(({ id }) => id)).toEqual(['Ada', 'friend']);
 
+		// The guest book (phase 4 specification, section 1): every visitor greeted, by name.
+		const guests = await kernel.call<{ guests: Array<{ name: string; greeted: boolean }> }>(
+			'hello-guests'
+		);
+		expect(guests.data?.guests.map(({ name, greeted }) => ({ name, greeted }))).toEqual([
+			{ name: 'Ada', greeted: true },
+			{ name: 'friend', greeted: true },
+		]);
+
 		await kernel.call('hello-forget', { name: 'Ada' });
 		const after = await kernel.call<{ items: Array<{ id: string }> }>('hello-list');
 		expect(after.data?.items.map(({ id }) => id)).toEqual(['friend']);

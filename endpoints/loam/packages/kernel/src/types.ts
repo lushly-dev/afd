@@ -296,6 +296,11 @@ export interface ViewBrokerV1 {
 	runBound(command: string, signal: AbortSignal): Promise<McpToolCallResult>;
 	/** Hear each finished call of a command linked to `uri`, from any interface. */
 	onLinkedCall(uri: string, listener: (call: LinkedCallV1) => void): () => void;
+	/**
+	 * `dev.loam/overlay-result`, `{ overlayId }`: the answer to one of this app's own overlays, once it closes
+	 * (phase 4 specification, 6.4); another owner's is refused `OVERLAY_NOT_OWNER`.
+	 */
+	overlayResult?(params: unknown): Promise<OverlayResultV1>;
 	/** The kernel's gate on every message the view's frame sends, which the chrome's channel calls first (section 11). */
 	readonly admit?: FrameAdmitV1;
 }
@@ -640,15 +645,20 @@ export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
 
 /**
  * What an app may call besides its own commands from kernel interface 4 (phase 4 specification, 12): version 1's,
- * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, and `popover-open` (step 3).
- * The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add `dialog-open`, `prompt-open`,
- * `experiment-check`, `notification-push`, `confirmation-get` and `confirmation-withdraw` here with their commands.
+ * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, `popover-open` (step 3) and
+ * `notification-push` (step 5). The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add
+ * `dialog-open`, `prompt-open`, `experiment-check`, `confirmation-get` and `confirmation-withdraw` here with their
+ * commands.
  */
 export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	...APP_CALLABLE_SHELL_COMMANDS_V1,
 	'setting-get',
 	'setting-list',
 	'popover-open',
+	'dialog-open',
+	'prompt-open',
+	// Step 5's inbox (10.2): an app pushes a notice to the person, at its own rate.
+	'notification-push',
 ] as const;
 
 /**

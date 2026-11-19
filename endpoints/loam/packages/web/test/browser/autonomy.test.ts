@@ -158,7 +158,8 @@ describe('P4-E4: the autonomy section', () => {
 		await expect
 			.poll(() => panel.locator('.status').textContent())
 			.toMatch(/^Project Atlas's mode was not saved\. .*owner/);
-		expect(await panel.locator('#project-mode').inputValue()).toBe('');
+		// The section says so, then reads again, which puts the stored value back: polled, as it lands after the words.
+		await expect.poll(() => panel.locator('#project-mode').inputValue()).toBe('');
 		const handed = (await page.evaluate(() =>
 			(
 				document.querySelector('loam-shell') as unknown as {

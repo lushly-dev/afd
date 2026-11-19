@@ -21,7 +21,7 @@ import type {
 	LoamKernelV5,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
-import type { AppContextV1, OverlayAnchorV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1, OverlayAnchorV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
@@ -139,8 +139,11 @@ export class AppSurfaces implements ShellApps {
 	constructor(shell: LoamShell, kernel: LoamKernelV5) {
 		this.#shell = shell;
 		this.#kernel = kernel;
-		this.#overlays = new OverlaySurfaces(shell, kernel, (owner, anchor) =>
-			this.#findAnchor(owner, anchor)
+		this.#overlays = new OverlaySurfaces(
+			shell,
+			kernel,
+			(owner, anchor) => this.#findAnchor(owner, anchor),
+			(instance, element, scope) => this.#overlayMount(instance, element, scope)
 		);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
@@ -359,7 +362,11 @@ export class AppSurfaces implements ShellApps {
 			// A change of scope cancels a shell modal or closes a left app's overlays, even under a call
 			// that then failed (3.4).
 			rescoped ||
-			(event.mutation && /^(toast|modal|popover|overlay)-/.test(command)) ||
+			(event.mutation && /^(toast|modal|popover|dialog|prompt|overlay)-/.test(command)) ||
+			// A change of the active tab's owner parks, closes or restores overlays (the review's 4): only the calls that
+			// move it, never a caret's `editor-selection-set`, `editor-dirty-set` or a read, each of which would journal a read.
+			/^(editor-(activate|close|move|pin)|document-open)$/.test(command) ||
+			(event as KernelEventV3).mainChanged ||
 			// A change of person closes every overlay (phase 4 specification, 6.2), in `local` mode with no switch.
 			/^(auth-sign-(in|out)|session-settle)$/.test(command) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
@@ -948,6 +955,27 @@ export class AppSurfaces implements ShellApps {
 			if (found) return found;
 		}
 		return null;
+	}
+
+	/**
+	 * A native app's own element in its dialog or modal (phase 4 specification, 6.4), in its registry, with a surface port
+	 * of the active scope. Never an anchor owner: a popover anchors in the app's surfaces, not in its questions.
+	 */
+	#overlayMount(instance: string, element: string, opened: ScopeV1 | undefined): LoamMount | null {
+		const held = this.#held.get(instance);
+		if (!held?.registry || !held.context) return null;
+		const mount = this.#create<LoamMount>('loam-mount');
+		// The scope the overlay was opened in, never the active one: the kernel closes it when that scope goes (D83).
+		const scope = opened ?? this.#surfaceScope;
+		const surface = held.port.surface({ scope });
+		mount.configure({
+			registry: held.registry as CustomElementRegistry,
+			element,
+			context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
+			selection: null,
+			scope,
+		});
+		return mount;
 	}
 
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {

@@ -666,9 +666,12 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		expect((await call('copilot-message-send', { session: 'x', text: 'y' })).error?.code).toBe(
 			'HUMAN_REQUIRED'
 		);
-		// Neither exists before phase 4's steps; when they do, both are human commands (6.1).
-		for (const name of ['notification-act', 'palette-run'])
-			expect((await call(name)).error?.code, name).toBe('COMMAND_NOT_FOUND');
+		// Both are human commands (6.1): `notification-act` from phase 4's step 5; `palette-run` does not exist before its
+		// step 6.
+		expect(
+			(await call('notification-act', { notification: 'ntf_0000000000000000' })).error?.code
+		).toBe('HUMAN_REQUIRED');
+		expect((await call('palette-run')).error?.code).toBe('COMMAND_NOT_FOUND');
 		agent.post({ id: 8, key: 'confirmation', notification: 'n1' });
 		expect(((await agent.next()) as { result: CommandResult }).result.error?.code).toBe(
 			'COPILOT_PORT_REFUSED'
@@ -681,6 +684,7 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		expect(names).toContain('project-list');
 		for (const hidden of [
 			'persona-set',
+			'notification-act',
 			'copilot-message-send',
 			'copilot-session-get',
 			'copilot-port-refuse',

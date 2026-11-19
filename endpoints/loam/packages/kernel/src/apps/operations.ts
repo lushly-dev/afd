@@ -276,6 +276,8 @@ export function createOperations(
 				if (refused) return refused;
 				unselect(record);
 				state.setActiveApp(instance);
+				// Its parked dialogs come back with it (phase 4 specification, 6.1, 6.2).
+				overlays.restore(instance);
 			}
 			return success(
 				{ active: instance, previous },

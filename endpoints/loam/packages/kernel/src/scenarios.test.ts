@@ -36,8 +36,8 @@ const PHASE_5 = fileURLToPath(
 /**
  * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 built the settings core and
  * `p4-base`; step 2 the settings section, the palette's setting rows, hello's sections and `p4-base`'s apps, so the
- * three settings jobs run; step 8 autonomy, with the second app's reset command, so the three autonomy jobs run. The rest need a
- * later step's commands.
+ * three settings jobs run; step 5 the inbox and hello's guest book, so its two jobs run; step 8 autonomy, with the
+ * second app's reset command, so the three autonomy jobs run. The rest need a later step's commands.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'setting-per-project': 'now',
@@ -51,8 +51,8 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'decline-confirmation':
 		"step 6: confirmations, and the second app's command with a `confirm_prompt`",
 	'palette-prompts-for-input': "step 6: the palette's input prompt",
-	'inbox-action': "steps 5 and 6: the inbox and hello's guest book",
-	'agent-leaves-notice': 'step 5: the inbox',
+	'inbox-action': 'now',
+	'agent-leaves-notice': 'now',
 	'rebind-a-chord': 'step 7: keybindings',
 	// Its steps push notices: the fixed rate of `notification-push` and `notification-list`, step 5's inbox. Step 10's
 	// limits are P4-E10's units and Chromium (`late/limits.test.ts`, `web/test/browser/limits.test.ts`).

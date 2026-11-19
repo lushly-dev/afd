@@ -15,6 +15,7 @@ import { deepActiveElement } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { resourceLinkUrl } from '../resource-link.js';
 import type { AnchorFinder, LayerHelpers } from './overlay-surfaces.js';
+import { createDialogs, createGlobals, promptFields } from './questions.js';
 
 const template = html<LoamPopover>`
 	<p class="from" ?hidden="${(x) => !x.from}">${(x) => x.from}</p>
@@ -201,9 +202,12 @@ for (const name of ['from', 'heading', 'body', 'items'] as const)
 
 export const popoverDefinition = { name: 'loam-popover', template, styles } as const;
 
-/** What the layer gives `OverlaySurfaces`. */
-export interface PopoverLayer {
+/** What the layer gives `OverlaySurfaces`: popovers, and step 4's dialogs, prompt fields and strips. */
+export interface OverlayLayer {
 	render(popovers: OverlayV1[]): void;
+	renderDialogs(dialogs: OverlayV1[]): Promise<void>;
+	renderGlobals(strips: OverlayV1[]): void;
+	promptFields: typeof promptFields;
 	dispose(): void;
 }
 
@@ -212,8 +216,10 @@ export function createPopoverLayer(
 	shell: LoamShell,
 	kernel: LoamKernelV5,
 	find: AnchorFinder,
-	{ ownerLine, focusFallback, anchorOwnerOf }: LayerHelpers
-): PopoverLayer {
+	{ ownerLine, focusFallback, anchorOwnerOf, optionsOf, answerFor }: LayerHelpers
+): OverlayLayer {
+	const dialogs = createDialogs(shell, { optionsOf, answerFor, focusFallback });
+	const globals = createGlobals(shell);
 	if (!customElements.get(popoverDefinition.name)) LoamPopover.define(popoverDefinition);
 	const shown = new Map<string, { element: LoamPopover; anchor: HTMLElement }>();
 	const dismiss = (overlayId: string, reason: 'user' | 'anchor') =>
@@ -319,8 +325,13 @@ export function createPopoverLayer(
 			}
 			for (const overlay of popovers) if (!shown.has(overlay.overlayId)) open(overlay);
 		},
+		renderDialogs: (open) => dialogs.render(open),
+		renderGlobals: (strips) => globals.render(strips),
+		promptFields,
 		dispose() {
 			for (const overlayId of [...shown.keys()]) close(overlayId);
+			dialogs.dispose();
+			globals.dispose();
 		},
 	};
 }
