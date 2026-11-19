@@ -8,8 +8,9 @@ owner to approve the domain and the budget before any session runs. Read
 ## Status
 
 - **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the
-  held material is written, the runner is written without its walks, readers and statistics
-  ([STATUS.md](STATUS.md#the-runner)), and the reference build is written and reviewed
+  held material is written and frozen, the runner is written without its walks, readers and
+  statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
+  reviewed, looked at by the owner and seeded with the faults
   ([STATUS.md](STATUS.md#the-reference-build)); no building session has run.
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
@@ -33,12 +34,14 @@ owner to approve the domain and the budget before any session runs. Read
   owner decided. They are committed after the last run as the record, as Component Briefs did
   with its tasks and checks. This file gives their shape and their counts.
 - **They are frozen in two stages.** The checks and the held-back jobs were frozen on
-  2026-11-15, before any build. The faults, the persona cards and the walk scripts are frozen
-  before the first counted walk: a fault names elements of the reference build, which does not
-  exist yet. The two pilot walks run on the clean build with the drafts, and what they change
-  is recorded with the freeze. Each stage has a manifest of SHA-256 hashes, and the hash of
-  each manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked
-  against what the runs used.
+  2026-11-15, before any build. The faults, the persona cards and the walk scripts were frozen
+  on 2026-11-18, before any walk, the pilots' included: a fault names elements of the reference
+  build, so they waited for it and for the owner's look. Each fault was planted in a copy of the
+  build and its proof run on both builds before the freeze. What the pilot walks show is
+  recorded in a file of its own beside the frozen ones, with what it changes, and the frozen
+  files are left as they were. Each stage has a manifest of SHA-256 hashes, and the hash of each
+  manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked against
+  what the runs used.
 
 ## What it has to do
 
