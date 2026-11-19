@@ -100,6 +100,7 @@ export function createDocumentCommands(
 		sameScope,
 		table: DOCUMENT_TABLE,
 		markOversized,
+		contentBytes,
 	} = kit;
 	// Destructured, so the minifier names each once: a property access keeps its name.
 	const {
@@ -377,6 +378,8 @@ export function createDocumentCommands(
 			if (bad) return bad;
 			const record = recordOf(type, at, title, [], context);
 			const key = documentContentKey(record.id);
+			// Charged to the type's instance as its own store's write is (section 11; the trust review's 3).
+			const bytes = contentBytes(key, template.content);
 			const content: AppStoreRecord = {
 				id: storeRecordId(at, key),
 				key,
@@ -388,11 +391,38 @@ export function createDocumentCommands(
 				updatedAt: record.createdAt,
 				scope: at,
 				scopeKey: record.scopeKey,
+				bytes,
 			};
-			// The record and its template's content in one batch, so neither lands alone (4.1).
-			await check.put(record, [
-				{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
-			]);
+			// The record, its template's content and the instance's count in one batch, so none lands alone (4.1).
+			const write = (usage: BatchOperation[]) =>
+				check.put(record, [
+					{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
+					...usage,
+				]);
+			const quota = check.quota();
+			try {
+				if (quota)
+					await quota.charge(type.instance, workspace, bytes, callNow(context), (usage) =>
+						write([usage])
+					);
+				else await write([]);
+			} catch (cause) {
+				const refused = cause as {
+					code?: unknown;
+					message?: string;
+					suggestion?: string;
+					details?: Record<string, unknown>;
+				};
+				if (refused?.code !== 'QUOTA_EXCEEDED') throw cause;
+				return kernelFailure(
+					'QUOTA_EXCEEDED',
+					refused.message as string,
+					refused.suggestion as string,
+					{
+						...(refused.details ? { details: refused.details } : {}),
+					}
+				);
+			}
 			return success(record, {
 				undoCommand: 'document-trash',
 				undoArgs: { document: record.id },
@@ -781,13 +811,29 @@ export function createDocumentCommands(
 		mutation: true,
 		input: expireInput,
 		jsonSchema: object({ before: { type: 'number' } }, ['before']),
-		async handler(input) {
+		async handler(input, context) {
 			const expired = trashedBefore(
 				(await store.list<DocumentRecordV1>(DOCUMENT_TABLE)).data,
 				workspace,
 				input.before
 			);
 			const ids = expired.map((record) => record.id);
+			// What each content row was charged, read before the delete, refunded after it (section 11): never read inside
+			// the content, only its charge.
+			const refunds = new Map<string, number>();
+			for (const record of expired) {
+				const held = await store.get<AppStoreRecord>(
+					`app-${record.instance}`,
+					storeRecordId(record.scope, documentContentKey(record.id))
+				);
+				if (!held || (held.workspace !== undefined && held.workspace !== workspace)) continue;
+				const charged =
+					typeof held.bytes === 'number' ? held.bytes : contentBytes(held.key, held.value);
+				refunds.set(
+					record.instance,
+					(refunds.get(record.instance) ?? 0) + (Number.isFinite(charged) ? charged : 0)
+				);
+			}
 			// The record, its content, deleted without reading the content (3), and every link from or to it, in
 			// one batch, so none is left alone (4.1, 9.3).
 			const expire = (links: BatchOperation[]) =>
@@ -805,6 +851,9 @@ export function createDocumentCommands(
 					'expire the trash'
 				);
 			await (deps.links ? deps.links.expire(ids, expire) : expire([]));
+			// After the delete: a refund that does not land leaves the count high, never low, until the next count (14).
+			for (const [instance, bytes] of refunds)
+				await check.quota()?.refund(instance, workspace, bytes, callNow(context));
 			return success({ deleted: ids });
 		},
 	});

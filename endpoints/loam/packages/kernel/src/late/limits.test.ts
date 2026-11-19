@@ -22,7 +22,7 @@ import {
 	scopedDeployment,
 	scopedPackages,
 } from '../scope/fixtures.js';
-import { createFixturePorts, replayKernel } from '../testing.js';
+import { createFixturePorts, createSteppingClock, replayKernel } from '../testing.js';
 import type { LoamKernelV5 } from '../types.js';
 import { LIMIT_KEY_ORDER, QUARTER_ORDER } from './limit-commands.js';
 import { LIMITS_SECTION } from './setting-sections.js';
@@ -260,9 +260,6 @@ describe("each limit's refusal (section 11, 16)", () => {
 		expect(retryAfterMs).toBeGreaterThan(0);
 		expect(retryAfterMs).toBeLessThanOrEqual(200);
 		expect(refused?.error?.suggestion).toContain('loam.limits.callsPerSecond');
-		// A nested call is the app's too: refused from inside its handler.
-		const nested = await port.call('dual-nested', {});
-		expect(nested.error?.code).toBe('RATE_LIMITED');
 		// Another app's rate is its own.
 		expect((await kernel.appPort('solo').call('solo-where', {})).success).toBe(true);
 	});
@@ -395,15 +392,180 @@ describe('limit-usage-get (section 11, F3)', () => {
 	});
 });
 
+describe('the trust review of step 10', () => {
+	it('refuses a nested call over the rate inside a handler that runs, and the session replays (10)', async () => {
+		// A clock that never moves, so nothing refills: the outer call takes the last place, its nested calls none.
+		const { kernel, journal } = await workspace({ empty: true, clock: () => 1_000_000 });
+		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+		const port = kernel.appPort('dual');
+		for (let i = 0; i < 199; i++) expect((await port.call('dual-where', {})).success).toBe(true);
+		const outer = await port.call<{ here?: unknown; wide?: unknown }>('dual-nested', {});
+		expect(outer.success).toBe(true);
+		expect(outer.data).toEqual({});
+		const entries = await journal.read();
+		const parent = entries.find((entry) => entry.command === 'dual-nested')?.traceId;
+		const nested = entries.filter((entry) => entry.context?.parent === parent);
+		expect(nested.map((entry) => [entry.command, entry.result.error?.code])).toEqual([
+			['app-limit-refuse', 'RATE_LIMITED'],
+			['app-limit-refuse', 'RATE_LIMITED'],
+		]);
+		expect(nested[0]?.input).toMatchObject({ command: 'dual-where', limit: 'callsPerSecond' });
+		await kernel.call('limit-usage-get', {});
+		const result = await replay(await journal.read());
+		expect(result.report.diverged).toBe(false);
+	});
+
+	it('measures and dispatches one JSON copy of the input, and refuses one with no JSON form (R2, 7)', async () => {
+		const { kernel, journal } = await workspace({ empty: true });
+		const port = kernel.appPort('dual');
+		// What runs is the copy that was measured: `toJSON`'s answer, never the object it came from.
+		const tricky = { toJSON: () => 'tiny', huge: 'x'.repeat(300_000) };
+		expect((await port.call('dual-put', { key: 'k', value: tricky })).success).toBe(true);
+		expect((await port.call<{ value: unknown }>('dual-get', { key: 'k' })).data?.value).toBe(
+			'tiny'
+		);
+		const cycle: Record<string, unknown> = { key: 'k' };
+		cycle.value = cycle;
+		const refused = await port.call('dual-put', cycle);
+		expect(refused.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			details: { limit: 262_144 },
+			suggestion: expect.stringContaining('JSON'),
+		});
+		expect((await journal.read()).at(-1)?.input).toEqual({
+			command: 'dual-put',
+			limit: 'inputBytes',
+			bound: 262_144,
+			reason: 'json',
+		});
+		const usage = await kernel.call<Usage>('limit-usage-get', { instance: 'dual' });
+		expect(usage.data?.instances[0]?.refusals.inputBytes).toBe(1);
+	});
+
+	it('keeps two workspaces in one store apart: settings rows, limits and usage (R1, 5)', async () => {
+		const store = new MemoryAdapter();
+		// A row in the shape before R1, keyed without its workspace: never read, never written over.
+		await store.create('setting', {
+			id: 'loam.limits/workspace',
+			workspace: 'personal',
+			section: 'loam.limits',
+			level: 'workspace',
+			values: { callsPerSecond: { value: 7, updatedAt: 1, updatedBy: 'local' } },
+			updatedAt: 1,
+			updatedBy: 'local',
+		});
+		const personal = await workspace({ store, empty: true });
+		expect(personal.limits.values().callsPerSecond).toBe(50);
+		expect((await setLimit(personal.kernel, 'callsPerSecond', 10)).success).toBe(true);
+		expect(await store.get('setting', 'personal/loam.limits/workspace')).toMatchObject({
+			workspace: 'personal',
+		});
+		expect(await store.get('setting', 'loam.limits/workspace')).toMatchObject({
+			values: { callsPerSecond: { value: 7 } },
+		});
+		await personal.kernel.appPort('dual').call('dual-put', { key: 'a', value: 'x'.repeat(1_000) });
+		await personal.kernel.dispose();
+		const beta = await workspace({
+			store,
+			empty: true,
+			deployment: { ...scopedDeployment(), workspace: { id: 'beta', name: 'Beta' } },
+		});
+		expect(beta.limits.values().callsPerSecond).toBe(50);
+		expect(
+			(await beta.kernel.call('setting-get', { section: 'loam.limits', key: 'callsPerSecond' }))
+				.data
+		).toEqual({ value: 50, from: 'default' });
+		const usage = await beta.kernel.call<Usage>('limit-usage-get', { instance: 'dual' });
+		expect(usage.data?.instances[0]?.storeBytes.used).toBe(0);
+		await beta.kernel.appPort('dual').call('dual-put', { key: 'b', value: 'y' });
+		expect(
+			(await store.get<{ used: number }>(STORE_USAGE_TABLE, storeUsageId('personal', 'dual')))?.used
+		).toBe(JSON.stringify({ key: 'a', value: 'x'.repeat(1_000) }).length);
+		expect(
+			(await store.get<{ used: number }>(STORE_USAGE_TABLE, storeUsageId('beta', 'dual')))?.used
+		).toBe(JSON.stringify({ key: 'b', value: 'y' }).length);
+	});
+
+	it("never reads a stored row on a hosted provider deployment, a local one's included (R3, 2)", async () => {
+		const store = new MemoryAdapter();
+		const local = await workspace({ store, empty: true });
+		expect((await setLimit(local.kernel, 'inputBytes', 16_384)).success).toBe(true);
+		expect(local.limits.values().inputBytes).toBe(16_384);
+		await local.kernel.dispose();
+		const hosted = await workspace({
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: {
+				...scopedDeployment(),
+				deployment_version: 4,
+				generation: 'hosted',
+				host: { kind: 'hosted', kernel: 'api/kernel' },
+			} as unknown as ProjectionV3,
+		});
+		await signIn(hosted.kernel, 'olu@example.com');
+		expect(hosted.limits.values()).toEqual({ ...LIMIT_DEFAULTS });
+		expect(
+			(
+				await hosted.kernel
+					.appPort('dual')
+					.call('dual-put', { key: 'k', value: 'x'.repeat(20_000) })
+			).success
+		).toBe(true);
+	});
+
+	it.each([
+		['a value over its bound', { callsPerSecond: 100_000 }, { callsPerSecond: 50 }],
+		['a value that is not a whole number', { inputBytes: 20_000.5 }, { inputBytes: 262_144 }],
+		[
+			'a pair breaking the quarter rule',
+			{ inputBytes: 131_072, journalEntryBytes: 262_144 },
+			{ inputBytes: 65_536, journalEntryBytes: 262_144 },
+		],
+	])('fails closed on a stored row with %s (12)', async (_name, stored, enforced) => {
+		const store = new MemoryAdapter();
+		await store.create('setting', {
+			id: 'personal/loam.limits/workspace',
+			workspace: 'personal',
+			section: 'loam.limits',
+			level: 'workspace',
+			values: Object.fromEntries(
+				Object.entries(stored).map(([key, value]) => [
+					key,
+					{ value, updatedAt: 1, updatedBy: 'local' },
+				])
+			),
+			updatedAt: 1,
+			updatedBy: 'local',
+		});
+		const made = await workspace({ store, empty: true });
+		expect(made.limits.values()).toEqual({ ...LIMIT_DEFAULTS, ...enforced });
+	});
+
+	it('keeps the defaults when the store cannot read the section (12)', async () => {
+		class Failing extends MemoryAdapter {
+			override async get<T>(table: string, id: string): Promise<T | null> {
+				if (table === 'setting') throw new Error('The store is gone');
+				return super.get<T>(table, id);
+			}
+		}
+		const made = await workspace({ store: new Failing(), empty: true });
+		expect(made.limits.values()).toEqual({ ...LIMIT_DEFAULTS });
+	});
+});
+
 describe('store-usage-settle (section 11)', () => {
 	it("counts each app's records at boot where its row differs, journaled, and a replay writes the same", async () => {
 		const store = new MemoryAdapter();
-		const first = await workspace({ store, empty: true });
+		// One clock across the boots, as a page's wall clock is.
+		const clock = createSteppingClock();
+		const first = await workspace({ store, empty: true, clock });
 		await first.kernel.appPort('dual').call('dual-put', { key: 'a', value: 'hi' });
 		// Drift, as a record written before the count existed would leave.
 		await store.remove(STORE_USAGE_TABLE, storeUsageId('personal', 'dual'));
 		await first.kernel.dispose();
-		const second = await workspace({ store, empty: true });
+		const second = await workspace({ store, empty: true, clock });
 		const read = await second.kernel.call<Usage>('limit-usage-get', { instance: 'dual' });
 		const used = read.data?.instances[0]?.storeBytes.used as number;
 		expect(used).toBe(JSON.stringify({ key: 'a', value: 'hi' }).length);
@@ -422,6 +584,12 @@ describe('store-usage-settle (section 11)', () => {
 		expect((await second.kernel.call('store-usage-settle', { usage: [] })).error?.code).toBe(
 			'COMMAND_NOT_FOUND'
 		);
+		// A row counted within the day is not counted again at the next boot (13).
+		await second.kernel.dispose();
+		const third = await workspace({ store, empty: true, clock });
+		expect(
+			(await third.journal.read()).some((entry) => entry.command === 'store-usage-settle')
+		).toBe(false);
 	});
 
 	it('replays a session of the new commands with no difference (P4-E15)', async () => {

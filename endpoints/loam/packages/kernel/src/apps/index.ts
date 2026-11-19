@@ -34,6 +34,7 @@ import {
 	transportOf,
 } from './entry.js';
 import { createFrameHost, type FrameHost, visibleToApp } from './handler-frame.js';
+import { createLimitGuard } from './limit-guard.js';
 import { createMountedHost } from './mounted.js';
 import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
@@ -137,9 +138,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 				? createViewBroker({
 						manifest,
 						sandboxOrigin: deployment.sandbox_origin,
-						instance: record.instance,
-						limits: host.limits,
-						clock: host.clock,
+						guard: createLimitGuard(host, record.instance),
 					})
 				: undefined;
 		const { port, nestedClient } = createAppPort({

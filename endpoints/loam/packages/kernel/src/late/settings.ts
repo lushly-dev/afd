@@ -91,7 +91,11 @@ export const SETTING_OUTPUT_BUDGETS: Readonly<
 /** The UTF-8 bytes of a value's JSON, as an output budget counts them. */
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-/** A shared row of the `setting` table (3.4): `<section>/workspace` or `<section>/project/<project id>`. */
+/**
+ * A shared row of the `setting` table (3.4): `<workspace>/<section>/workspace` or `<workspace>/<section>/project/<project
+ * id>`, keyed by workspace since phase 4's step 10 (R1, #1614), so two workspaces in one browser's store never share a
+ * row; one keyed without its workspace is never read, and never written over.
+ */
 export interface SettingRowV1 {
 	id: string;
 	workspace: string;
@@ -263,7 +267,9 @@ export function createSettings(deps: SettingsDeps): Settings {
 	}
 
 	const rowId = (fullId: string, level: 'workspace' | 'project', project?: string) =>
-		level === 'workspace' ? `${fullId}/workspace` : `${fullId}/project/${project}`;
+		level === 'workspace'
+			? `${scope.workspace.id}/${fullId}/workspace`
+			: `${scope.workspace.id}/${fullId}/project/${project}`;
 
 	async function readRow(id: string): Promise<SettingRowV1 | undefined> {
 		const row = await store.get<SettingRowV1>(SETTING_TABLE, id).catch(() => null);
@@ -627,11 +633,14 @@ export function createSettings(deps: SettingsDeps): Settings {
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
 	async function readLimits(): Promise<void> {
 		if (!deps.limits) return;
+		// A hosted `provider` deployment, or one whose host is not known yet, enforces the defaults alone: it keeps no
+		// shared record (section 13), so a row a local deployment left in this store is never read (the trust review's R3).
+
 		const known = SHELL_SECTIONS.find(
 			(entry) => entry.fullId === LIMITS_SECTION_ID
 		) as KnownSectionV1;
 		// `readRow` answers undefined for a read that fails, so the defaults hold: never no limit at all.
-		const row = await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
+		const row = deps.hosted() ? undefined : await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
 		const resolved = {} as Record<LimitKeyV1, number>;
 		for (const key of LIMIT_KEY_ORDER) {
 			const stored = storedOf(row?.values[key]);

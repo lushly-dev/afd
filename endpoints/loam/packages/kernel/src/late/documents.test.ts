@@ -731,7 +731,10 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		] as const) {
 			expect((await kernel.call(name, input, at)).success, name).toBe(true);
 		}
-		expect(store.reads).toEqual([]);
+		// Amended by phase 4's step 10 (its section 11, listed against P4-E14): the store quota counts an instance's table
+		// once, when it has no usage row, to charge the new content; it measures each row's size and reads no meaning.
+		expect(store.reads.filter((read) => read !== 'app-probe/*')).toEqual([]);
+		store.reads.length = 0;
 		await kernel.call('document-move', { document: record.id, project: 'beacon' }, at);
 		expect(store.reads).toEqual([
 			`app-probe/${storeRecordId(scopes.atlas, documentContentKey(record.id))}`,
@@ -1402,5 +1405,58 @@ describe('P2-D6: through a port, nothing widens', () => {
 		expect(report.same).toBeGreaterThan(10);
 		// The over-limit save is answered from its record: it never ran, and its content is not in the journal.
 		expect(report.recorded.length).toBeGreaterThan(0);
+	});
+});
+
+describe("phase 4's section 11: a document's content is charged to its type's store (the trust review's 3)", () => {
+	const usedOf = async (store: DataAdapter) =>
+		(await store.get<{ used: number }>('store-usage', 'personal/probe'))?.used ?? 0;
+
+	it('charges the content with the record, in one batch, and refuses past storeBytes writing nothing', async () => {
+		const store = new MemoryAdapter();
+		const workspace = await documents({ store });
+		const { kernel } = workspace;
+		const record = await created(workspace);
+		const content = await store.get<AppStoreRecord>(
+			'app-probe',
+			storeRecordId(WORKSPACE, documentContentKey(record.id))
+		);
+		expect(content?.bytes).toBe(
+			JSON.stringify({ key: content?.key, value: content?.value }).length
+		);
+		expect(await usedOf(store)).toBe(content?.bytes);
+		expect(
+			(
+				await kernel.call('setting-set', {
+					section: 'loam.limits',
+					key: 'storeBytes',
+					value: 1_048_576,
+					level: 'workspace',
+				})
+			).success
+		).toBe(true);
+		await kernel.appPort('probe').store?.put('fill', 'x'.repeat(1_048_500));
+		const before = (await store.list('document')).data.length;
+		const refused = await kernel.call('document-create', { type: 'probe' });
+		expect(refused.error).toMatchObject({
+			code: 'QUOTA_EXCEEDED',
+			details: { kind: 'store', limit: 1_048_576 },
+		});
+		expect((await store.list('document')).data.length).toBe(before);
+	});
+
+	it('refunds what the content was charged when the trash expires it', async () => {
+		const store = new MemoryAdapter();
+		let now = Date.UTC(2026, 0, 1);
+		const clock = () => (now += 1);
+		const first = await documents({ store, clock });
+		const old = await created(first, { type: 'probe', template: 'greeting' });
+		const charged = await usedOf(store);
+		expect(charged).toBeGreaterThan(0);
+		await first.kernel.call('document-trash', { document: old.id });
+		await first.kernel.dispose();
+		now += 31 * 86_400_000;
+		await documents({ store, clock });
+		expect(await usedOf(store)).toBe(0);
 	});
 });

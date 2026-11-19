@@ -41,6 +41,12 @@ export function countRefusals(
 	return counts;
 }
 
+/**
+ * Most milliseconds a usage row is trusted before stage B counts its table again: `apps/store.ts`' `USAGE_RECOUNT_MS`,
+ * repeated so this chunk imports nothing of `apps` (a unit holds them equal).
+ */
+export const USAGE_RECOUNT_MS = 86_400_000;
+
 /** `inputBytes` is at most a quarter of `journalEntryBytes` (section 11), so an entry holding one input fits. */
 export const INPUT_SHARE = 4;
 
@@ -98,7 +104,7 @@ export interface LimitCommands {
 	/** Boot's own `store-usage-settle`: in `BOOT_ONLY`, so no caller reaches it. */
 	settleCommand: ZodCommandDefinition;
 	/** What a settle would write now: each instance whose counted bytes differ from its row's. */
-	usageChanges(): Promise<Array<{ instance: string; used: number }>>;
+	usageChanges(now: number): Promise<Array<{ instance: string; used: number }>>;
 }
 
 const INSTANCE = /^[a-z][a-z0-9]{0,31}$/;
@@ -191,7 +197,7 @@ export function createLimitCommands(deps: LimitDeps): LimitCommands {
 				rows.push({
 					instance,
 					storeBytes: { used: quota ? await quota.used(instance, workspace()) : 0, limit },
-					refusals: countRefusals(deps.limits?.recent(instance, now) ?? []),
+					refusals: deps.limits?.counts(instance, now) ?? countRefusals([]),
 				});
 			}
 			const data: Usage = { instances: rows };
@@ -252,16 +258,23 @@ export function createLimitCommands(deps: LimitDeps): LimitCommands {
 	return {
 		commands: [usage as unknown as ZodCommandDefinition],
 		settleCommand: settle as unknown as ZodCommandDefinition,
-		async usageChanges() {
+		async usageChanges(now) {
 			const quota = deps.apps().storeQuota;
 			if (!quota) return [];
 			const changed: Array<{ instance: string; used: number }> = [];
 			for (const instance of instances()) {
-				const counted = await quota.count(instance);
 				const row = await quota.stored(instance, workspace());
+				// Counted at most once a day per instance, and at once for one with no row (the trust review's 13): a row
+				// another tab's write raced past is corrected within a day (14).
+				const fresh =
+					row?.countedAt !== undefined &&
+					now - row.countedAt < USAGE_RECOUNT_MS &&
+					now >= row.countedAt;
+				if (fresh) continue;
+				const counted = await quota.count(instance, workspace());
 				// An instance with nothing stored and no row needs none.
-				if (row === undefined ? counted > 0 : row !== counted)
-					changed.push({ instance, used: counted });
+				if (row === undefined && counted === 0) continue;
+				changed.push({ instance, used: counted });
 			}
 			return changed;
 		},

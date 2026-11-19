@@ -352,6 +352,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * (420,251, +2,881: the store quota and its `store-usage` rows, the port's rate and input checks, the view broker's
  * message bound, and 25 for the manifest schema's reserved `limit`); `settingsMinified` 41,000 to 42,200 (41,946,
  * +1,371: the usage beside each key).
+ * After step 10's trust review (blockers 1 to 12, R1 to R3), against the step's own figures: `jsMinified` 310,600 to
+ * 311,800 and `jsGzip` 97,200 to 97,800 (311,543, +1,183, and 97,564, +488: the journal bound that bounds every field it
+ * keeps and leaves the sink's margin, JSON measured with no value read as 0, and the refusals in per-minute buckets);
+ * `kernelMinified` 121,000 to 122,600 (122,351); `lateMinified` 95,200 to 95,800 (95,556, +603: the documents' charge
+ * and refund, the setting rows keyed by workspace, the limits read again once the host is known); `appsMinified`
+ * 420,500 to 423,000 (422,704, +2,453: the frame gate, the broker's charges and reads in flight, the port's one JSON
+ * copy, the store's charged bytes, charge and refund, and a native handler answering the kernel's refusal); `viewMinified`
+ * 26,100 to 26,600 (26,498, +455: the channel's gate before any dispatch, and a refusal's details across the frame).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -372,8 +380,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 2 on top: 308,160 before that merge (the settings route, the person's rail order and Settings in
 	// the rail); measured with that merged, 308,782, which this ceiling holds.
 	// Phase 4's step 3 on top, with step 2 merged: 308,966, which this ceiling holds.
-	jsMinified: 310_600,
-	jsGzip: 97_200,
+	jsMinified: 311_800,
+	jsGzip: 97_800,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -385,10 +393,10 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 121_000,
+	kernelMinified: 122_600,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
-	lateMinified: 95_200,
+	lateMinified: 95_800,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
@@ -404,7 +412,7 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
-	appsMinified: 420_500,
+	appsMinified: 423_000,
 	surfacesMinified: 88_200,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
@@ -412,7 +420,7 @@ export const CEILINGS = Object.freeze({
 	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
 	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
 	// comments, plus a margin.
-	viewMinified: 26_100,
+	viewMinified: 26_600,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,

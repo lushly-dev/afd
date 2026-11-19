@@ -27,9 +27,15 @@ import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
-import { createKernelParts, type KernelPartsInternals, redactJournalRecord } from './kernel.js';
+import {
+	createKernelParts,
+	type KernelParts,
+	type KernelPartsInternals,
+	redactJournalRecord,
+} from './kernel.js';
 import { DOCUMENT_INPUT_MAX_BYTES } from './late/document-types.js';
 import type { LayoutStateV0 } from './layout.js';
+import type { LimitKeyV1 } from './limits.js';
 import type { MembershipV1 } from './scope/access.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
@@ -256,8 +262,11 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 	// it a `seq` when it finishes, so a handler's calls made together can be journaled in the other order.
 	for (const queue of byParent.values()) queue.sort((a, b) => callNumber(a) - callNumber(b));
 	const problems = new Map<string, string>();
+	let last: JournalEntry | undefined;
 	return {
 		problems,
+		/** The entry the last answer came from, which the replay counts when it is a limit's refusal (section 11). */
+		lastAnswered: () => last,
 		/**
 		 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
 		 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges.
@@ -270,10 +279,23 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 		): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
+			// A nested call the call rate refused, recorded as `app-limit-refuse` for it: a replay takes no rate, so it
+			// answers the call with that refusal, matched by the command it names (phase 4's section 11; the review's 10).
+			const refused = next?.input as { command?: unknown; limit?: unknown } | undefined;
+			if (
+				next?.command === 'app-limit-refuse' &&
+				refused?.limit === 'callsPerSecond' &&
+				refused.command === name.slice(0, 256)
+			) {
+				queue?.shift();
+				last = next;
+				return next.result;
+			}
 			if (next?.command !== name) return undefined;
 			const validated = validatedInput(command, input);
 			if (!validated || !sameCall(next, validated.input)) return undefined;
 			queue?.shift();
+			last = next;
 			return next.result;
 		},
 		unrecorded(parent: string, name: string): void {
@@ -425,14 +447,33 @@ export async function replayKernel(
 	let session = traceBaseOf(ordered[0]?.traceId);
 	startPage(session);
 	// Shared with the kernel, which reads it at each call, so a kept kernel goes live when the replay ends.
+	/** The replay kernel's limits, once it is built: what a nested refusal answered from its record counts in. */
+	let counted: KernelParts['limits'] | undefined;
 	const internals: KernelPartsInternals = {
-		answerNested: (parent, name, input, commands) =>
-			nested.answer(
+		answerNested: (parent, name, input, commands) => {
+			const answered = nested.answer(
 				parent,
 				name,
 				input,
 				commands.find((command) => command.name === name)
-			),
+			);
+			// A nested refusal answered from its record still counts, as its handler counted it live, at the time it
+			// read (phase 4's section 11): `limit-usage-get` then replays the same.
+			const entry = answered ? nested.lastAnswered() : undefined;
+			const caller = entry?.context?.caller;
+			const limit = (entry?.input as { limit?: unknown } | undefined)?.limit;
+			if (
+				entry?.command === 'app-limit-refuse' &&
+				typeof caller === 'string' &&
+				typeof limit === 'string'
+			)
+				counted?.refused(
+					caller,
+					limit as LimitKeyV1,
+					entry.tape?.clock?.[0] ?? (Date.parse(entry.timestamp) || 0)
+				);
+			return answered;
+		},
 		nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 		replaying: true,
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
@@ -443,7 +484,7 @@ export async function replayKernel(
 		drive,
 		startPage: () => startPage(session),
 	};
-	const parts = await createKernelParts(
+	const parts: KernelParts = await createKernelParts(
 		{
 			store: new MemoryAdapter(),
 			storeKind: 'memory',
@@ -462,6 +503,7 @@ export async function replayKernel(
 		internals
 	);
 	const { kernel } = parts;
+	counted = parts.limits;
 	let kept = false;
 	try {
 		const recorded: number[] = [];

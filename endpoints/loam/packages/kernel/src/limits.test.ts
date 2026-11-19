@@ -6,8 +6,14 @@
 import type { JournalRecord } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { CALL_BURST, takeCall } from './apps/call-rate.js';
-import { countRefusals } from './late/limit-commands.js';
-import { createKernelLimits, LIMIT_DEFAULTS, REFUSAL_WINDOW_MS } from './limits.js';
+import {
+	createKernelLimits,
+	jsonBytes,
+	LIMIT_DEFAULTS,
+	measureJson,
+	REFUSAL_WINDOW_MS,
+	utf8Bytes,
+} from './limits.js';
 
 const record = (input: unknown, extra: Partial<JournalRecord> = {}): JournalRecord =>
 	({
@@ -50,35 +56,57 @@ describe('the call rate (section 11)', () => {
 		limits.refused('probe', 'inputBytes', 0);
 		limits.reset();
 		expect(takeCall(limits, 'probe', 0)).toBeUndefined();
-		expect(countRefusals(limits.recent('probe', 0)).inputBytes).toBe(0);
+		expect(limits.counts('probe', 0).inputBytes).toBe(0);
 		expect(limits.values().storeBytes).toBe(1_048_576);
 	});
 });
 
-describe('refusals in the hour (section 11)', () => {
-	it('counts each limit, forgets those an hour old, and tells the seam the first in an hour', () => {
+describe("refusals in the hour (section 11; the trust review's 11)", () => {
+	it('counts each limit per minute over the last 60, later ones included', () => {
 		const limits = createKernelLimits();
-		const told: string[] = [];
-		limits.notify = ({ instance, limit, at }) => told.push(`${instance}:${limit}@${at}`);
 		limits.refused('probe', 'inputBytes', 1_000);
 		limits.refused('probe', 'callsPerSecond', 2_000);
-		limits.refused('probe', 'callsPerSecond', 3_000);
-		expect(countRefusals(limits.recent('probe', 3_000))).toEqual({
+		limits.refused('probe', 'callsPerSecond', 61_000);
+		expect(limits.counts('probe', 61_000)).toEqual({
 			messageBytes: 0,
 			inputBytes: 1,
 			callsPerSecond: 2,
 			storeBytes: 0,
 			journalEntryBytes: 0,
 		});
-		expect(told).toEqual(['probe:inputBytes@1000']);
-		const later = 1_000 + REFUSAL_WINDOW_MS;
-		expect(countRefusals(limits.recent('probe', later)).inputBytes).toBe(0);
-		expect(countRefusals(limits.recent('probe', later)).callsPerSecond).toBe(2);
-		limits.refused('probe', 'storeBytes', 3_000 + REFUSAL_WINDOW_MS);
+		// No upper cutoff: a refusal at a later minute than `now` still counts.
+		expect(limits.counts('probe', 0).callsPerSecond).toBe(2);
+		// The first minute's bucket leaves the hour.
+		const later = 60 * 60_000;
+		expect(limits.counts('probe', later)).toMatchObject({ inputBytes: 0, callsPerSecond: 1 });
+		expect(limits.counts('other', later).inputBytes).toBe(0);
+	});
+
+	it('tells the seam once an hour per instance, by its own last-notified time', () => {
+		const limits = createKernelLimits();
+		const told: string[] = [];
+		limits.notify = ({ instance, limit, at }) => told.push(`${instance}:${limit}@${at}`);
+		limits.refused('probe', 'inputBytes', 1_000);
+		limits.refused('probe', 'storeBytes', 30 * 60_000);
+		limits.refused('other', 'storeBytes', 30 * 60_000);
+		// Its bucket gone from the hour does not make a refusal before the hour is out the first again.
+		limits.refused('probe', 'callsPerSecond', 1_000 + REFUSAL_WINDOW_MS - 1);
+		limits.refused('probe', 'callsPerSecond', 1_000 + REFUSAL_WINDOW_MS);
 		expect(told).toEqual([
 			'probe:inputBytes@1000',
-			`probe:storeBytes@${3_000 + REFUSAL_WINDOW_MS}`,
+			`other:storeBytes@${30 * 60_000}`,
+			`probe:callsPerSecond@${1_000 + REFUSAL_WINDOW_MS}`,
 		]);
+	});
+
+	it('keeps 100,000 refusals cheap and counted', () => {
+		const limits = createKernelLimits();
+		const start = performance.now();
+		for (let i = 0; i < 100_000; i++) limits.refused('probe', 'callsPerSecond', i * 60);
+		expect(performance.now() - start).toBeLessThan(2_000);
+		// 1,000 refusals a minute over 100 minutes: the last 60 minutes hold 60,000 of them.
+		const now = 100_000 * 60 - 60;
+		expect(limits.counts('probe', now).callsPerSecond).toBe(60_000);
 	});
 
 	it('returns detached values', () => {
@@ -89,17 +117,46 @@ describe('refusals in the hour (section 11)', () => {
 	});
 });
 
-describe('the journal entry bound (section 11)', () => {
+describe("measuring JSON (section 11; R2, the trust review's 16)", () => {
+	it('measures UTF-8, takes the fast paths, and puts a value with no JSON form over every limit', () => {
+		expect(measureJson('é'.repeat(10), 22)).toMatchObject({ over: false });
+		expect(measureJson('é'.repeat(10), 21)).toMatchObject({ over: true });
+		expect(measureJson('x'.repeat(100), 10)).toMatchObject({ over: true });
+		expect(measureJson({ a: 1 }, 1_000)).toMatchObject({ over: false, json: '{"a":1}' });
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		for (const value of [cycle, 1n, () => 1, Symbol('s')])
+			expect(measureJson(value, Number.MAX_SAFE_INTEGER)).toMatchObject({
+				over: true,
+				unserializable: true,
+			});
+		expect(measureJson(undefined, 10)).toEqual({
+			json: undefined,
+			over: false,
+			unserializable: false,
+		});
+		expect(jsonBytes(1n)).toBe(Infinity);
+	});
+});
+
+describe("the journal entry bound (section 11; the trust review's 6)", () => {
+	const tight = () => {
+		const limits = createKernelLimits();
+		limits.set({ ...LIMIT_DEFAULTS, inputBytes: 65_536, journalEntryBytes: 262_144 });
+		return limits;
+	};
+	const kept = (entry: JournalRecord) =>
+		// What the sink keeps, with its own `seq`.
+		utf8Bytes(JSON.stringify({ seq: Number.MAX_SAFE_INTEGER, ...entry }));
+
 	it('keeps an entry within journalEntryBytes whole', () => {
 		const limits = createKernelLimits();
-		const kept = record({ text: 'small' });
-		expect(limits.bound(kept, () => 'probe')).toBe(kept);
+		const small = record({ text: 'small' });
+		expect(limits.bound(small, () => 'probe')).toBe(small);
 	});
 
 	it('truncates one over it on the whole entry, marks it unreplayable, and counts it for the instance', () => {
-		const limits = createKernelLimits();
-		limits.set({ ...LIMIT_DEFAULTS, inputBytes: 65_536, journalEntryBytes: 262_144 });
-		// Input and result each under the bound, the whole entry over it.
+		const limits = tight();
 		const big = record({ text: 'x'.repeat(140_000) });
 		const bounded = limits.bound(big, () => 'probe') as JournalRecord & {
 			unreplayable?: boolean;
@@ -114,28 +171,48 @@ describe('the journal entry bound (section 11)', () => {
 		expect(bounded.result.data).toBeUndefined();
 		expect(bounded.tape).toBeUndefined();
 		expect(bounded.bytes).toBeGreaterThan(262_144);
-		expect(countRefusals(limits.recent('probe', Date.parse(big.timestamp))).journalEntryBytes).toBe(
-			1
-		);
-		// A failure keeps its code and the start of its message.
-		const failed = limits.bound(
-			record(
-				{ text: 'x'.repeat(300_000) },
-				{ result: { success: false, error: { code: 'X', message: 'm'.repeat(5_000) } } }
-			),
+		expect(limits.counts('probe', Date.parse(big.timestamp)).journalEntryBytes).toBe(1);
+	});
+
+	it("bounds every field it keeps, and never keeps an entry over the bound with the sink's seq", () => {
+		const limits = tight();
+		const huge = 'z'.repeat(300_000);
+		const bounded = limits.bound(
+			record({ text: huge }, {
+				command: huge,
+				traceId: huge,
+				actor: { kind: 'agent', id: huge, label: huge },
+				context: { caller: huge, note: huge },
+				result: { success: false, error: { code: huge, message: huge } },
+			} as Partial<JournalRecord>),
 			() => undefined
 		);
-		expect(failed.result.error).toEqual({ code: 'X', message: 'm'.repeat(1_000) });
+		expect(kept(bounded)).toBeLessThanOrEqual(262_144);
+		expect(bounded.result.error).toEqual({ code: 'z'.repeat(128), message: 'z'.repeat(1_000) });
+		expect(bounded.command).toHaveLength(256);
+		// An entry just under the bound before the sink's seq is truncated, so with it it stays under.
+		const edge = record({ text: 'x'.repeat(262_144 - 300) }, { result: { success: true } });
+		expect(kept(limits.bound(edge, () => undefined))).toBeLessThanOrEqual(262_144);
+	});
+
+	it('truncates an entry with no JSON form rather than measuring it as 0 (R2)', () => {
+		const limits = tight();
+		const bounded = limits.bound(record({ n: 1n }), () => 'probe') as JournalRecord & {
+			unreplayable?: boolean;
+			bytes?: number;
+		};
+		expect(bounded).toMatchObject({ input: {}, unreplayable: true });
+		expect(bounded.bytes).toBeUndefined();
+		expect(() => JSON.stringify(bounded)).not.toThrow();
 	});
 
 	it('drops the context too when the rest alone is still over the bound', () => {
-		const limits = createKernelLimits();
-		limits.set({ ...LIMIT_DEFAULTS, inputBytes: 65_536, journalEntryBytes: 262_144 });
+		const limits = tight();
 		const bounded = limits.bound(
 			record({}, { context: { note: 'c'.repeat(300_000) } }),
 			() => undefined
 		);
 		expect(bounded.context).toBeUndefined();
-		expect(JSON.stringify(bounded).length).toBeLessThan(262_144);
+		expect(kept(bounded)).toBeLessThan(262_144);
 	});
 });

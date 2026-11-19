@@ -9,6 +9,7 @@ import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
+import type { StoreQuota } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
@@ -141,6 +142,8 @@ export interface DocumentCheck {
 	types(): DocumentTypesV1;
 	/** The bound on an instance command's input and an import's envelope: `loam.limits.inputBytes` (A-P2-3). */
 	inputBytes(): number;
+	/** The `store` grant's quota, which a document's content the shell writes is charged to (section 11). */
+	quota(): StoreQuota | undefined;
 	/**
 	 * 4.2's check for a command naming `document`: the record, or the refusal. `type` is an instance
 	 * command's own type, which the record's must be.
@@ -326,6 +329,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		},
 		types,
 		inputBytes: () => deps.limits?.values().inputBytes ?? DOCUMENT_INPUT_MAX_BYTES,
+		quota: () => deps.apps().storeQuota,
 		find,
 		put,
 		opens: (type, at) => canOpen(deps.apps(), scope, type.instance, at.project),

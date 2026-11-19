@@ -80,7 +80,10 @@ function isCommandResult(value: unknown): value is CommandResult {
 
 /** A host that refuses a call by JSON-RPC names the code in `data.code`, as the handler frame does. */
 function refusal(cause: RpcFailure): CommandError {
-	const data = cause.data as { code?: unknown; suggestion?: unknown } | undefined;
+	const data = cause.data as
+		| { code?: unknown; suggestion?: unknown; details?: unknown }
+		| undefined;
+	const details = data?.details;
 	return {
 		code: typeof data?.code === 'string' ? data.code : 'VIEW_CALL_REFUSED',
 		message: cause.message,
@@ -88,6 +91,9 @@ function refusal(cause: RpcFailure): CommandError {
 			typeof data?.suggestion === 'string'
 				? data.suggestion
 				: 'The shell answers only commands of this app and the shell commands an app may call.',
+		...(typeof details === 'object' && details !== null && !Array.isArray(details)
+			? { details: details as Record<string, unknown> }
+			: {}),
 	};
 }
 
@@ -352,6 +358,13 @@ export function serveHandlers(definition: AppDefinitionV1): void {
 		try {
 			return await handler(call.input as never, callContext(peer, call));
 		} catch (cause) {
+			// The shell's own refusal of a request the handler made, as its store's `QUOTA_EXCEEDED`: the refusal itself,
+			// with its code and details, as a native handler's is (phase 4 specification, section 11).
+			if (
+				cause instanceof RpcFailure &&
+				typeof (cause.data as { code?: unknown })?.code === 'string'
+			)
+				return failure(refusal(cause));
 			// To the frame's console and not the result, which is journaled: what a thrown error says is
 			// not an app's answer, and may hold what a log should not, as for a native handler (9.6).
 			(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);

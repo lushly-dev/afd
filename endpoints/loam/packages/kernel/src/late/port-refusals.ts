@@ -32,6 +32,8 @@ const limitInput = z.strictObject({
 	limit: z.enum(PORT_LIMITS),
 	bound: z.int().check(z.minimum(1)),
 	retryAfterMs: z.optional(z.int().check(z.minimum(1))),
+	// A value with no JSON form (R2), or too many reads in flight (the trust review's 8).
+	reason: z.optional(z.enum(['json', 'reads'])),
 });
 
 /**
@@ -42,8 +44,25 @@ export function limitRefusal(
 	command: string,
 	limit: (typeof PORT_LIMITS)[number],
 	bound: number,
-	retryAfterMs = 1
+	retryAfterMs = 1,
+	reason?: 'json' | 'reads'
 ) {
+	if (reason === 'json') {
+		return kernelFailure(
+			'VALIDATION_ERROR',
+			`The input of '${command}' has no JSON form, so it is over every limit`,
+			'Send JSON values: no cycle, no BigInt, no function',
+			{ details: { limit: bound } }
+		);
+	}
+	if (reason === 'reads') {
+		return kernelFailure(
+			'RATE_LIMITED',
+			`This app has ${bound} resource reads in flight already`,
+			`Wait ${retryAfterMs} ms, for one to finish, then read again`,
+			{ retryable: true, details: { limit: bound, retryAfterMs } }
+		);
+	}
 	if (limit === 'callsPerSecond') {
 		return kernelFailure(
 			'RATE_LIMITED',
@@ -79,6 +98,7 @@ export function createPortRefusals(limits?: KernelLimits): ZodCommandDefinition[
 					limit: { type: 'string', enum: [...PORT_LIMITS] },
 					bound: { type: 'integer', minimum: 1 },
 					retryAfterMs: { type: 'integer', minimum: 1 },
+					reason: { type: 'string', enum: ['json', 'reads'] },
 				},
 				required: ['command', 'limit', 'bound'],
 				additionalProperties: false,
@@ -88,7 +108,13 @@ export function createPortRefusals(limits?: KernelLimits): ZodCommandDefinition[
 				const caller = (context as KernelFieldContext).caller;
 				if (caller !== undefined)
 					limits?.refused(caller, input.limit, context.clock?.now() ?? Date.now());
-				return limitRefusal(input.command, input.limit, input.bound, input.retryAfterMs);
+				return limitRefusal(
+					input.command,
+					input.limit,
+					input.bound,
+					input.retryAfterMs,
+					input.reason
+				);
 			},
 		}),
 		defineCommandWithSchema<typeof refuseInput, never>({

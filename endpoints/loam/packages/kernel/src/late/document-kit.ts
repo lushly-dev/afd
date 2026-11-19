@@ -59,6 +59,13 @@ export const DOCUMENT_KIT = Object.freeze({
 	table: DOCUMENT_TABLE,
 	maxBytes: DOCUMENT_INPUT_MAX_BYTES,
 	markOversized,
+	/**
+	 * What a document's content counts against `storeBytes`, as the `store` grant counts a record (section 11): the
+	 * UTF-8 bytes of `{ key, value }` as JSON. Measured here, not with `limits.ts`' `jsonBytes`, so `late` imports no value
+	 * of first paint's limits module, which would part it into a shared chunk of its own (phase 3 specification, 13).
+	 */
+	contentBytes: (key: string, value: unknown): number =>
+		new TextEncoder().encode(JSON.stringify({ key, value })).length,
 	z: Object.freeze({
 		array,
 		boolean,

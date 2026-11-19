@@ -11,7 +11,7 @@ import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sd
 import { BOOT_ONLY } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
-import { jsonBytes } from '../limits.js';
+import { measureJson } from '../limits.js';
 import {
 	APP_CALLABLE_SHELL_COMMANDS_V1,
 	type AppPortV2,
@@ -120,7 +120,7 @@ export function createAppPort(options: AppPortOptions): {
 	 */
 	function checkedCall<T>(
 		name: unknown,
-		input: unknown,
+		given: unknown,
 		callOptions: AppCallOptions | undefined,
 		binding: Binding
 	): Promise<CommandResult<T>> {
@@ -144,31 +144,27 @@ export function createAppPort(options: AppPortOptions): {
 		const refuseLimit = (
 			limit: 'inputBytes' | 'callsPerSecond',
 			bound: number,
-			retryAfterMs?: number
+			extra: { retryAfterMs?: number; reason?: 'json' } = {}
 		): Promise<CommandResult<T>> =>
 			host.runAs<T>(
 				'app-limit-refuse',
-				{
-					command: command.slice(0, 256),
-					limit,
-					bound,
-					...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
-				},
+				{ command: command.slice(0, 256), limit, bound, ...extra },
 				rest,
 				fields
 			);
+		let input = given;
 		if (limits) {
 			const { callsPerSecond, inputBytes } = limits.values();
 			// The check and its count in one step, with no await between them (section 11).
 			const wait = takeCall(limits, instance, host.clock());
-			if (wait !== undefined) return refuseLimit('callsPerSecond', callsPerSecond, wait);
-			let bytes = 0;
-			try {
-				bytes = jsonBytes(input);
-			} catch {
-				// No JSON form (a cycle, a BigInt): the registry's validation refuses it.
-			}
-			if (bytes > inputBytes) return refuseLimit('inputBytes', inputBytes);
+			if (wait !== undefined)
+				return refuseLimit('callsPerSecond', callsPerSecond, { retryAfterMs: wait });
+			// One detached JSON copy, measured and then dispatched, so what was measured is what runs; a value with no JSON
+			// form is over every limit (the trust review's R2).
+			const measured = measureJson(given, inputBytes);
+			if (measured.unserializable) return refuseLimit('inputBytes', inputBytes, { reason: 'json' });
+			if (measured.over) return refuseLimit('inputBytes', inputBytes);
+			input = measured.json === undefined ? undefined : JSON.parse(measured.json);
 		}
 		if (
 			(callOptions !== undefined && 'scope' in callOptions) ||

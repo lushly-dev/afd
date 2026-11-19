@@ -949,7 +949,9 @@ export async function createLateParts(
 			// Then each app's stored bytes counted afresh where its row differs, journaled, and only when one does, so an
 			// unchanged workspace's journal is unchanged (section 11).
 			try {
-				const usage = replaying ? [] : await limitCommands.usageChanges();
+				const usage = replaying
+					? []
+					: await limitCommands.usageChanges(deps.clock?.now() ?? Date.now());
 				if (usage.length > 0) await run('store-usage-settle', { usage });
 			} catch (cause) {
 				reportLate(cause);
@@ -994,10 +996,13 @@ export async function createLateParts(
 								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
 							} as AppsLoadV2);
 				// The projection's host, whatever its apps do next (phase 4 specification, 13).
-				if (loaded && 'deployment' in loaded)
+				if (loaded && 'deployment' in loaded) {
 					hostKind =
 						(loaded.deployment as { host?: { kind: 'static' | 'hosted' | 'desktop' } }).host
 							?.kind ?? 'static';
+					// The limits read again now the host is known: a hosted `provider` one keeps the defaults (R3).
+					await settings?.readLimits();
+				}
 				// A boot with no loader: every app is listed `failed`, never the shell.
 				return loaded ?? { unavailable: 'no apps loader' };
 			} catch (cause) {
