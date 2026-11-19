@@ -27,8 +27,13 @@ for:
   software-factory reshaped, and the line limit at 1,500 over five documents. Left: the
   measurement, a week after it merges.
 
-- **5, merge queue.** In progress: [#1615](https://github.com/lushly-dev/afd/pull/1615) makes CI ready for `merge_group` (the trigger, the path gate, commit credit and
-  the verdict on the queue's commit). Left: a queue trial, turning the queue on for `main` (may be the owner's), then `prepare-pr` enqueues.
+- **5, merge queue.** In parts, and not on yet. Merged: [#1615](https://github.com/lushly-dev/afd/pull/1615), CI answers on a merge
+  group (the trigger, the path gate, commit credit and the verdict on the queue's commit). Open:
+  [#1627](https://github.com/lushly-dev/afd/pull/1627), the factory's lane and gateway enqueue; [#1625](https://github.com/lushly-dev/afd/pull/1625), `prepare-pr`'s step 9
+  enqueues, held until the queue is required. Two trials on a throwaway branch are recorded in
+  the plan. Left: restart the live lane on [#1627](https://github.com/lushly-dev/afd/pull/1627)'s code and let it drain, turn the queue on
+  for `main`, land [#1625](https://github.com/lushly-dev/afd/pull/1625) through it, and settle the release App's credit,
+  [#1624](https://github.com/lushly-dev/afd/issues/1624).
 
 ## Measure
 
