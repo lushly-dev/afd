@@ -8,8 +8,8 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
-import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
+import { shellModalOpen } from '../overlays.js';
 import type { ShellState } from '../shell-state.js';
 
 /**
@@ -21,12 +21,12 @@ export function withBootActions(
 	runtime: AppsRuntime,
 	parts: ReadonlyMap<string, readonly string[]>,
 	state: Pick<ShellState, 'activeApp' | 'setActiveApp'>,
-	overlays: Pick<OverlayStore, 'modalOpen'> | undefined
+	overlays: Pick<OverlayStore, 'modalOpen' | 'ownerOf'> | undefined
 ): AppsRuntime {
 	const find = (instance: string) =>
 		runtime.summaries().find((entry) => entry.instance === instance);
 	const busy = (): CommandResult<never> | undefined =>
-		overlays?.modalOpen()?.owner === SHELL_OWNER
+		overlays && shellModalOpen(overlays)
 			? kernelFailure(
 					'OVERLAY_MODAL_BUSY',
 					"The shell's modal is open, so the app cannot change",

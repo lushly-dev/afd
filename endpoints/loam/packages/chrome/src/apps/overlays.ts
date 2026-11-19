@@ -212,12 +212,12 @@ export function createPopoverLayer(
 	shell: LoamShell,
 	kernel: LoamKernelV5,
 	find: AnchorFinder,
-	{ ownerLine, focusFallback }: LayerHelpers
+	{ ownerLine, focusFallback, anchorOwnerOf }: LayerHelpers
 ): PopoverLayer {
 	if (!customElements.get(popoverDefinition.name)) LoamPopover.define(popoverDefinition);
 	const shown = new Map<string, { element: LoamPopover; anchor: HTMLElement }>();
-	const dismiss = (overlayId: string) =>
-		void kernel.call('overlay-dismiss', { overlayId, reason: 'user' });
+	const dismiss = (overlayId: string, reason: 'user' | 'anchor') =>
+		void kernel.call('overlay-dismiss', { overlayId, reason });
 
 	function close(overlayId: string): void {
 		const held = shown.get(overlayId);
@@ -240,10 +240,11 @@ export function createPopoverLayer(
 
 	function open(overlay: OverlayV1): void {
 		const input = overlay.input as PopoverInputV1;
-		const anchor = find(overlay.owner, input.anchor);
+		const anchor = find(anchorOwnerOf(overlay), input.anchor);
 		if (!anchor) {
-			// The invoker left the page after the kernel took it: nothing to sit beside, so the popover closes.
-			dismiss(overlay.overlayId);
+			// The invoker left the page after the kernel took it: nothing to sit beside, so the popover closes, as the
+			// page's `anchor`, never as the person's dismissal.
+			dismiss(overlay.overlayId, 'anchor');
 			return;
 		}
 		const element = shell.ownerDocument.createElement(popoverDefinition.name) as LoamPopover;
@@ -271,7 +272,7 @@ export function createPopoverLayer(
 		element.addEventListener('toggle', (event) => {
 			if ((event as ToggleEvent).newState !== 'closed' || element.closing) return;
 			// Light dismissal: a press outside, Escape, or another popover's opening (6.1).
-			dismiss(overlay.overlayId);
+			dismiss(overlay.overlayId, 'user');
 		});
 		shell.shadowRoot?.append(element);
 		shown.set(overlay.overlayId, { element, anchor });
@@ -299,7 +300,16 @@ export function createPopoverLayer(
 			item: index,
 			reason: 'user',
 		});
-		if (closed.success) await kernel.call(item.command, item.input ?? {});
+		if (!closed.success) return;
+		const ran = await kernel.call(item.command, item.input ?? {});
+		if (ran.success) return;
+		// The person asked for it, so its failure is theirs to read, as a palette run's is (the review's 5).
+		const { message = `${item.label} failed`, suggestion } = ran.error ?? {};
+		void kernel.call('toast-show', {
+			message: (suggestion ? `${message} ${suggestion}` : message).slice(0, 200),
+			tone: 'danger',
+			durationMs: 30_000,
+		});
 	}
 
 	return {

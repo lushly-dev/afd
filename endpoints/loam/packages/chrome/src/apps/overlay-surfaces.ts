@@ -29,16 +29,18 @@ import {
 	TOAST_DISMISS_EVENT,
 	type ToastTone,
 } from '../elements/toast.js';
+import { type AnchorOwner, anchorOwnerOf } from './anchors.js';
 import { focusFallback } from './focus-fallback.js';
 import type { PopoverLayer } from './overlays.js';
 
 /** Finds a popover's anchor on the page, or null (6.3). */
-export type AnchorFinder = (owner: string, anchor: OverlayAnchorV1) => HTMLElement | null;
+export type AnchorFinder = (owner: AnchorOwner, anchor: OverlayAnchorV1) => HTMLElement | null;
 
 /** What the `overlays` chunk takes from this one, passed rather than imported, so neither parts a chunk of its own. */
 export interface LayerHelpers {
 	ownerLine: typeof ownerLine;
 	focusFallback: typeof focusFallback;
+	anchorOwnerOf: typeof anchorOwnerOf;
 }
 
 /** The owner line the shell shows (6.6): none for the shell's own. */
@@ -140,7 +142,11 @@ export class OverlaySurfaces {
 		if (popovers.length === 0 && !this.#popovers) return;
 		this.#popovers ??= import('./overlays.js').then(
 			({ createPopoverLayer }) =>
-				createPopoverLayer(this.#shell, this.#kernel, this.#find, { ownerLine, focusFallback }),
+				createPopoverLayer(this.#shell, this.#kernel, this.#find, {
+					ownerLine,
+					focusFallback,
+					anchorOwnerOf,
+				}),
 			(cause) => {
 				this.#popovers = undefined;
 				throw cause;

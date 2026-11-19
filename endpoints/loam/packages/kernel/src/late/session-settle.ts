@@ -669,9 +669,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		const left = decidedNow();
 		decided = to;
 		const before = scope.active();
-		for (const owner of new Set(overlays.list().map((overlay) => overlay.owner))) {
-			overlays.closeForSwitch(owner);
-		}
+		// Every overlay is the leaving person's, sticky toasts too: closed as a change of person (6.2).
+		overlays.closeAll('person');
 		// In `provider` mode nothing written while leaving is the next person's: it is dropped (4.5).
 		const leave = () => {
 			if (state.activeApp() !== null && deps.apps().close().success) {
@@ -869,6 +868,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 							// `local` mode's records are everyone's: only the drafts move (4.5), and the persona the
 							// next person's calls carry (6.1), read.
 							decided = person;
+							// Every overlay was the leaving person's (6.2), as in `provider` mode.
+							deps.overlays.closeAll('person');
 							switchDrafts(from, person);
 							// Signed out, a `local` call's person is `local` (`personOf`).
 							await personaOf(person ?? 'local');

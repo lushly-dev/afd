@@ -689,7 +689,8 @@ export interface KernelOptionsV5 extends KernelOptionsV3 {
 
 /** Whether the page holds `data-loam-anchor="<anchor>"` inside `owner`'s surface (phase 4 specification, 6.3). */
 export interface OverlayAnchorsV1 {
-	resolve?(owner: string, anchor: OverlayAnchorV1): boolean;
+	/** `owner` by kind, so an instance id never passes for the shell's own surface. */
+	resolve?(owner: { kind: 'shell' | 'app'; id: string }, anchor: OverlayAnchorV1): boolean;
 }
 
 /** What `shell-info-get` returns from version 5. */

@@ -454,8 +454,11 @@ export interface ToastInputV1 {
 	durationMs?: number;
 	/** Never times out: it stays until it is dismissed (phase 4 specification, 6.1). */
 	sticky?: boolean;
-	/** Where the toast leads, navigation and never execution (documents specification, 9.1). */
-	link?: ResourceLinkV1;
+	/**
+	 * Where the toast leads, navigation and never execution (documents specification, 9.1): a document, or an app with
+	 * no `route`, which is what `toast-show` takes.
+	 */
+	link?: ToastLinkV1;
 }
 
 export interface ModalInputV1 {
@@ -465,6 +468,11 @@ export interface ModalInputV1 {
 	cancelLabel?: string;
 	danger?: boolean;
 }
+
+/** A toast's link (6.4): a resource link with no document `anchor` and no app `route`. */
+export type ToastLinkV1 =
+	| { kind: 'document'; document: string; scope: ScopeV1 }
+	| { kind: 'app'; instance: string; scope: ScopeV1 };
 
 /** Where a popover is anchored: a `data-loam-anchor` value inside one of the owner's surfaces (6.3). */
 export interface OverlayAnchorV1 {
@@ -499,7 +507,11 @@ export interface OverlayV1 extends OverlayRefV1 {
 	from?: OverlayFromV1;
 }
 
-/** Why an overlay moved (6.2); this step's moves use the first five and `replaced`. */
+/**
+ * Why an overlay moved (6.2). Toasts and popovers move by `user`, `timeout`, `app-switch`, `cap`, `person`, `replaced`
+ * and `anchor` (a popover whose anchor left the page, phase 4's step 3); the rest are the dialogs', prompts' and
+ * confirmations' (steps 4 to 6).
+ */
 export type OverlayReasonV1 =
 	| 'user'
 	| 'timeout'
@@ -510,7 +522,8 @@ export type OverlayReasonV1 =
 	| 'person'
 	| 'replaced'
 	| 'inbox'
-	| 'withdrawn';
+	| 'withdrawn'
+	| 'anchor';
 
 export interface OverlayResultV1 {
 	overlayId: string;

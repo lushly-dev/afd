@@ -13,8 +13,8 @@ import type { AppsRuntime } from '../apps-runtime.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
+import { shellModalOpen } from '../overlays.js';
 import {
 	type AccessActorV1,
 	AGENT_MEMBER_PREFIX,
@@ -148,7 +148,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			return undefined;
 		}
 		const modal = overlays.modalOpen();
-		if (modal?.owner === SHELL_OWNER) {
+		if (modal && shellModalOpen(overlays)) {
 			if (reason !== 'actor') {
 				return kernelFailure(
 					'OVERLAY_MODAL_BUSY',

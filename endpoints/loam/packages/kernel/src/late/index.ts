@@ -10,12 +10,12 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { ICONS_V1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
+import * as z from 'zod/mini';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import { createDefaultLayout } from '../layout.js';
-import { SHELL_OWNER } from '../overlays.js';
 import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
@@ -46,7 +46,7 @@ import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain } from './main-state.js';
 import { createNewParts } from './new-list.js';
-import { createOverlayCommands } from './overlay-commands.js';
+import { createOverlayCommands, ownerTitle } from './overlay-commands.js';
 import { isOwner } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { personalWrites } from './personal-writes.js';
@@ -300,7 +300,7 @@ export async function createLateParts(
 			PROVIDER_COMMANDS,
 		},
 		// Phase 4's `late-settings` (its section 1): the settings commands and their pure rules, beside `late-identity`.
-		{ createSettings },
+		{ createSettings, isHumanGesture },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -552,7 +552,7 @@ export async function createLateParts(
 	});
 	// The agents' push rate (phase 4 specification, 6.1, 10.2): their toasts now, the inbox's pushes with step 5.
 	const pushRate = createPushRate();
-	const byName = new Map(
+	const byName: Map<string, ZodCommandDefinition> = new Map(
 		[
 			...boot,
 			...createShellCommands({
@@ -583,36 +583,54 @@ export async function createLateParts(
 				activeApp: () => deps.state.activeApp(),
 				editorOwner: editor.owner,
 				pushRate,
-				appTitle: (instance) =>
-					deps.summaries().find((summary) => summary.instance === instance)?.title,
-				// The signed-in person's name, never their email; null for none, and the chrome says "for you".
+				humanGesture: isHumanGesture,
+				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
+				// The signed-in person's name, never an email; null for none, and the chrome says "for you" (6.6).
 				personLabel: () => {
 					const session = deps.auth.getSession();
 					if (!sessionActor(deps.auth, deps.clock) || session.status !== 'authenticated')
 						return null;
-					return (session.user as { name?: unknown }).name
-						? String((session.user as { name?: unknown }).name)
+					const name = (session.user as { name?: unknown }).name;
+					return typeof name === 'string' && name.trim() !== '' && !name.includes('@')
+						? name.trim()
 						: null;
 				},
-				// A menu offers only the owner's own palette commands (6.4): an app's, or the shell's own for the shell,
-				// never a human, owner or internal one.
-				itemStanding: (owner, command) => {
+				// A menu offers only the owner's own commands that the palette lists (6.4): an app's, or the shell's own for
+				// the shell, never a human, owner or internal one; each item's input checked against the command's schema.
+				itemCheck: (owner, item) => {
+					const { command } = item;
 					if (HUMAN_COMMANDS.includes(command) || OWNER_COMMANDS.includes(command))
-						return 'reserved';
-					if (INTERNAL_COMMANDS.includes(command) || BOOT_ONLY.includes(command)) return 'foreign';
+						return {
+							kind: 'reserved',
+							why: `'${command}' is a person's or an owner's command, which no menu offers`,
+						};
 					const app = deps.apps().owners.get(command)?.instance;
-					if (owner === SHELL_OWNER)
-						return app === undefined && (SHELL_COMMAND_NAMES as readonly string[]).includes(command)
-							? 'own'
-							: 'foreign';
-					return app === owner ? 'own' : 'foreign';
+					const own =
+						!INTERNAL_COMMANDS.includes(command) &&
+						!BOOT_ONLY.includes(command) &&
+						(owner.kind === 'shell'
+							? app === undefined && (SHELL_COMMAND_NAMES as readonly string[]).includes(command)
+							: owner.kind === 'app' && app === owner.id);
+					const definition = own
+						? owner.kind === 'shell'
+							? byName.get(command)
+							: deps.apps().commands.find((each) => each.name === command)
+						: undefined;
+					if (!definition)
+						return {
+							kind: 'reserved',
+							why: `'${command}' is not one of this owner's own palette commands`,
+						};
+					if (definition.expose?.palette === false)
+						return { kind: 'reserved', why: `'${command}' is not listed in the palette` };
+					const parsed = z.safeParse(definition.inputSchema as z.ZodMiniType, item.input ?? {});
+					return parsed.success
+						? { kind: 'own' }
+						: { kind: 'invalid', why: parsed.error.issues[0]?.message ?? 'the input is invalid' };
 				},
-				...(deps.overlayAnchors
-					? {
-							anchorFound: (owner, anchor) =>
-								deps.overlayAnchors?.resolve?.(owner, anchor) ?? false,
-						}
-					: {}),
+				anchorFound: (owner, anchor) =>
+					owner.kind !== 'agent' &&
+					(deps.overlayAnchors?.resolve?.({ kind: owner.kind, id: owner.id }, anchor) ?? false),
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
@@ -705,7 +723,6 @@ export async function createLateParts(
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
-		agentActor,
 		authGate: (held) =>
 			createAuthGate(deps.auth, held, {
 				identity: deps.identity ?? { mode: 'local' },
@@ -720,6 +737,22 @@ export async function createLateParts(
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
+		// An agent named as an app is, by instance or plugin id, would read in its owner line as that app (6.6).
+		agentActor: (name) => {
+			const named = agentActor(name);
+			if (
+				'kind' in named &&
+				name !== undefined &&
+				deps.summaries().some((app) => app.instance === name || app.app === name)
+			) {
+				return DOCUMENT_KIT.kernelFailure(
+					'AGENT_NAME_RESERVED',
+					`'${name}' names an app in this workspace`,
+					'Name the agent something no app is named'
+				);
+			}
+			return named;
+		},
 		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
 			// are not served: a person's calls make them. Nor are the human commands, which only a person runs
@@ -732,8 +765,11 @@ export async function createLateParts(
 					!OWNER_COMMANDS.includes(command.name) &&
 					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
 					command.category !== 'copilot' &&
-					// Phase 4 serves none of its commands over MCP (its section 13, Q5).
-					command.category !== 'setting'
+					// Phase 4 serves none of its commands over MCP (its section 13, Q5): its settings, nor a toast or a
+					// popover, which only a person, an app or the agent interface opens (6.1).
+					command.category !== 'setting' &&
+					command.name !== 'toast-show' &&
+					command.name !== 'popover-open'
 			),
 			middleware: [
 				async (command, _input, context, next) => {

@@ -34,7 +34,7 @@ import { STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { AppListV2 } from '../rail/rail-bands.js';
 import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
-import { findAnchor } from './anchors.js';
+import { type AnchorOwner, findAnchor } from './anchors.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback, focusMainHeading } from './focus-fallback.js';
@@ -135,6 +135,8 @@ export class AppSurfaces implements ShellApps {
 	readonly #overlays: OverlaySurfaces;
 	/** Whose each native mount is, for a popover's anchor (phase 4 specification, 6.3). */
 	readonly #mountOwners = new WeakMap<Element, string>();
+	/** The native editors' mounts, which sit in the editor area rather than a part's children (the review's 6). */
+	readonly #editorMounts = new Set<LoamMount>();
 
 	constructor(shell: LoamShell, kernel: LoamKernelV5) {
 		this.#shell = shell;
@@ -202,6 +204,11 @@ export class AppSurfaces implements ShellApps {
 			createMount: (instance, element, { scope, document, readOnly }) => {
 				const held = this.#hold(instance);
 				const mount = this.#create<LoamMount>('loam-mount');
+				// An editor's own mount anchors its popovers; an embed, inside another document, never does.
+				if (!readOnly) {
+					this.#mountOwners.set(mount, instance);
+					this.#editorMounts.add(mount);
+				}
 				const surface = held.port.surface({ scope, readOnly });
 				mount.configure({
 					registry: held.registry as CustomElementRegistry,
@@ -903,25 +910,35 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	/**
-	 * A popover's anchor (6.3): the shell's in its own chrome, outside every app's mount and frame; an app's in its own
-	 * native mounts of the part the surface names, while it is the app shown. A view's frame is another origin, which
-	 * the shell cannot read, so a view anchors nothing yet.
+	 * A popover's anchor (6.3), by the owner's kind, never its id: the shell's in its own chrome, outside every app's
+	 * mount and frame; an app's in its own native mounts of the part the surface names, while it is the app shown, or in
+	 * main, in its own native editor, which the kernel let it open from as the active tab's owner. A view's frame is
+	 * another origin, which the shell cannot read, so a view anchors nothing yet.
 	 */
-	#findAnchor(owner: string, anchor: OverlayAnchorV1): HTMLElement | null {
+	#findAnchor(owner: AnchorOwner, anchor: OverlayAnchorV1): HTMLElement | null {
 		const root = this.#shell.shadowRoot;
 		if (!root) return null;
 		if (anchor.surface === 'shell') {
-			if (owner !== 'shell') return null;
+			if (owner.kind !== 'shell') return null;
 			return findAnchor(root, anchor.anchor, (element) =>
 				['loam-mount', 'loam-view-frame', 'loam-toast-region', 'loam-popover'].includes(
 					element.localName
 				)
 			);
 		}
-		if (owner === 'shell' || owner !== this.#showing) return null;
+		if (owner.kind !== 'app') return null;
 		const part = this.#part<HTMLElement>(anchor.surface) as HTMLElement | null;
-		for (const mount of part?.querySelectorAll('loam-mount') ?? []) {
-			if (this.#mountOwners.get(mount) !== owner || !mount.shadowRoot) continue;
+		const mounts = [
+			...(owner.id === this.#showing ? (part?.querySelectorAll('loam-mount') ?? []) : []),
+			...(anchor.surface === 'main' ? this.#editorMounts : []),
+		];
+		for (const mount of mounts) {
+			if (!mount.isConnected) {
+				if (this.#editorMounts.has(mount as LoamMount))
+					this.#editorMounts.delete(mount as LoamMount);
+				continue;
+			}
+			if (this.#mountOwners.get(mount) !== owner.id || !mount.shadowRoot) continue;
 			const found = findAnchor(mount.shadowRoot, anchor.anchor);
 			if (found) return found;
 		}

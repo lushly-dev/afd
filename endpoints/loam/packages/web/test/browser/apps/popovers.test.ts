@@ -240,3 +240,29 @@ describe('P4-E7: popovers (6.1 to 6.7)', () => {
 		await page.context().close();
 	});
 });
+
+describe('P4-E7: a change of person (6.2)', () => {
+	it('closes every overlay, a sticky toast and a popover among them, and nothing stays on screen', async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await markAnchor(page);
+		await kernelCall(page, 'toast-show', { message: 'Kept for now', sticky: true });
+		await helloCall(page, 'popover-open', info);
+		await page.locator('loam-popover').waitFor();
+		await expect.poll(() => page.locator('loam-toast').count()).toBe(1);
+		const signedIn = (await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'secret-password',
+		})) as Result;
+		expect(signedIn.success).toBe(true);
+		await surfacesIdle(page);
+		expect(await overlays(page)).toEqual([]);
+		await expect.poll(() => page.locator('loam-toast').count()).toBe(0);
+		await expect.poll(() => page.locator('loam-popover').count()).toBe(0);
+		const closed = (await journal(page)).filter(({ command }) => command === 'auth-sign-in');
+		expect(closed).toHaveLength(1);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+});

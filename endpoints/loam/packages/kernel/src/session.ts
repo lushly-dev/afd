@@ -53,6 +53,8 @@ export interface RecordedSession {
 const SESSION_START = Date.UTC(2026, 0, 1);
 
 export interface TestKernelOptions {
+	/** The page's anchors for `popover-open` (phase 4's 6.3). Absent: none resolves, as in a live kernel with no page. */
+	overlayAnchors?: KernelOptionsV5['overlayAnchors'];
 	/** Default: one that matches no media query. */
 	environment?: KernelEnvironmentV0;
 	commands?: ZodCommandDefinition[];
@@ -95,6 +97,7 @@ export async function createTestKernel(options: TestKernelOptions = {}): Promise
 		...(options.ports !== undefined ? { ports: options.ports } : {}),
 		...(options.boot !== undefined ? { boot: options.boot } : {}),
 		...(options.appsLoader !== undefined ? { appsLoader: options.appsLoader } : {}),
+		...(options.overlayAnchors !== undefined ? { overlayAnchors: options.overlayAnchors } : {}),
 	});
 	return { kernel, journal };
 }

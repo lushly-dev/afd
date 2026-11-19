@@ -25,7 +25,14 @@ import * as z from 'zod/mini';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, PAGE_DECIDED } from '../errors.js';
-import { AGENT_OWNER_PREFIX, type OverlayStore, SHELL_OWNER, TOAST_CAP } from '../overlays.js';
+import {
+	AGENT_OWNER_PREFIX,
+	appOwner,
+	type OverlayOwner,
+	type OverlayStore,
+	SHELL,
+	TOAST_CAP,
+} from '../overlays.js';
 import { AGENT_PUSH_RATE, type PushRate } from './push-rate.js';
 
 /** A toast's duration when it names none, in milliseconds. */
@@ -91,7 +98,7 @@ const popoverInput = z.union([
 const dismissInput = z.strictObject({
 	overlayId: text(64),
 	result: z.optional(z.enum(['confirm', 'cancel'])),
-	reason: z.optional(z.enum(['timeout', 'user'])),
+	reason: z.optional(z.enum(['timeout', 'user', 'anchor'])),
 	/** A menu popover's picked item (6.4), with `result: 'confirm'`. */
 	item: z.optional(z.number().check(z.int(), z.minimum(0), z.maximum(POPOVER_MENU_ITEMS - 1))),
 });
@@ -113,45 +120,96 @@ const anchorJson: JsonSchema = {
 	additionalProperties: false,
 };
 
-/** Whose a call's overlay is (6.1): the calling app's, an agent's, or the shell's for a person. */
-type Opener = { kind: 'app'; owner: string } | { kind: 'agent'; owner: string } | { kind: 'shell' };
+/**
+ * Whose a call's overlay is (6.1): the calling app's; an agent's, with the push-rate bucket it counts in; the shell's
+ * for a person's own gesture; or no one's, for any other path, which opens nothing.
+ */
+export type Opener =
+	| { kind: 'app'; owner: OverlayOwner }
+	| { kind: 'agent'; owner: OverlayOwner; bucket: string }
+	| { kind: 'shell'; owner: OverlayOwner }
+	| { kind: 'none' };
 
 /**
  * The path a call came by (6.1, R8): a port's `caller` is the app's; with none, the agent interface, or any call whose
- * actor is an agent, is the agent's; anything else is a person's, through the chrome or the palette. Fail closed: an
- * agent actor never opens as the shell.
+ * actor is an agent, is the agent's; a human gesture (step 1's `isHumanGesture`) is the shell's; anything else, an MCP
+ * caller among them, is no one's. Fail closed: only a person's gesture opens as the shell.
+ *
+ * An agent's push rate is the agent interface's, per person, whatever agent name the caller passed, since the name is
+ * the caller's own; the copilot, whose identity the kernel alone mints, counts apart (the step 3 review's R-b).
  */
-export function openerOf(context: CommandContext): Opener {
+export function openerOf(
+	context: CommandContext,
+	humanGesture: (context: CommandContext) => boolean
+): Opener {
 	const { caller } = context as KernelFieldContext;
-	if (caller !== undefined) return { kind: 'app', owner: caller };
+	if (caller !== undefined) return { kind: 'app', owner: appOwner(caller) };
 	if (context.interface === 'agent' || context.actor?.kind === 'agent') {
-		return { kind: 'agent', owner: `${AGENT_OWNER_PREFIX}${context.actor?.id ?? 'agent'}` };
+		const person = context.actor?.onBehalfOf ?? 'local';
+		return {
+			kind: 'agent',
+			owner: { kind: 'agent', id: `${AGENT_OWNER_PREFIX}${context.actor?.id ?? 'agent'}` },
+			bucket: context.actor?.id === 'copilot' ? `copilot:${person}` : `agents:${person}`,
+		};
 	}
-	return { kind: 'shell' };
+	return humanGesture(context) ? { kind: 'shell', owner: SHELL } : { kind: 'none' };
 }
 
-/** What a menu item's command is to the popover's owner (6.4). */
-export type ItemStanding = 'own' | 'reserved' | 'foreign';
+/** What a menu item is to the popover's owner (6.4): its own palette command, refused, or with input that fails. */
+export type ItemVerdict =
+	| { kind: 'own' }
+	| { kind: 'reserved'; why: string }
+	| { kind: 'invalid'; why: string };
 
 export interface OverlayCommandDeps {
 	overlays: OverlayStore;
 	activeApp(): string | null;
 	/** The active tab's owning plugin, which the overlay rules treat as active (documents specification, 5.4). */
 	editorOwner?(): Promise<string | null>;
+	/** Step 1's `isHumanGesture`, from `late-settings`. Absent: nothing is a human gesture. */
+	humanGesture?(context: CommandContext): boolean;
 	/** The agents' push rate, which the inbox's `notification-push` shares (6.1, 10.2). Absent: no agent toast counts. */
 	pushRate?: PushRate;
-	/** An instance's title, as the rail shows it, for "From <app>" (6.6). */
+	/** An instance's owner line title, unique and never "Loam" (6.6). */
 	appTitle?(instance: string): string | undefined;
-	/** The signed-in person's name, for an agent's "for <person>"; null with no one signed in (6.6). */
+	/** The signed-in person's name, never an email, for an agent's "for <person>"; null for none (6.6). */
 	personLabel?(): string | null;
-	/** Whether `command` is `owner`'s own palette command, a human or owner command, or neither (6.4). */
-	itemStanding?(owner: string, command: string): ItemStanding;
+	/** A menu item's verdict for its owner (6.4). Absent: every item is refused. */
+	itemCheck?(owner: OverlayOwner, item: { command: string; input?: unknown }): ItemVerdict;
 	/**
-	 * Whether the page has `anchor` inside `owner`'s surface (6.3). The chrome answers; absent, as in a kernel with no
-	 * page, every anchor resolves, and a replay answers a refusal from the record, since the page decided it.
+	 * Whether the page has `anchor` inside `owner`'s surface (6.3), from the kernel's `overlayAnchors`. Absent, no anchor
+	 * resolves: a test or a replay gives a resolver of its own, and a replay answers a refusal from the record.
 	 */
-	anchorFound?(owner: string, anchor: OverlayAnchorV1): boolean;
+	anchorFound?(owner: OverlayOwner, anchor: OverlayAnchorV1): boolean;
 }
+
+/** "Loam" as a word: no app's title may carry it (6.6, `MANIFEST_TITLE_RESERVED`), so none passes for the shell's. */
+export const TITLE_RESERVED = /\bloam\b/i;
+
+/**
+ * The title an app's owner line shows (6.6): its title as the rail shows it, with its instance id after it when another
+ * instance shows the same title, and its instance id alone when the title is empty or says "Loam", which the manifest
+ * and the deployment refuse but the line never trusts.
+ */
+export function ownerTitle(
+	summaries: ReadonlyArray<{ instance: string; title: string }>,
+	instance: string
+): string {
+	const title = summaries.find((each) => each.instance === instance)?.title.trim() ?? '';
+	if (title === '' || TITLE_RESERVED.test(title)) return instance;
+	const twin = summaries.some(
+		(each) => each.instance !== instance && each.title.trim().toLowerCase() === title.toLowerCase()
+	);
+	return twin ? `${title} (${instance})` : title;
+}
+
+/** No one's path: what opens an overlay is a person, an app or the agent interface (6.1). */
+const noOpener = (): CommandResult<never> =>
+	kernelFailure(
+		'HUMAN_REQUIRED',
+		'Only a person, an app or the agent interface opens an overlay',
+		'Open it from the shell, an app, or the agent interface'
+	);
 
 /** `toast-show`, `modal-open`, `popover-open`, `overlay-dismiss` and `overlay-list`. */
 export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefinition[] {
@@ -159,13 +217,15 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 	const now = (context: CommandContext): number => context.clock?.now() ?? Date.now();
 
 	/** Whether an app may open a popover or a modal now: it is active, or owns the active tab (6.1). */
-	const isActive = async (owner: string): Promise<boolean> =>
-		owner === deps.activeApp() || owner === (await deps.editorOwner?.());
+	const isActive = async (owner: OverlayOwner): Promise<boolean> =>
+		owner.kind === 'app' &&
+		(owner.id === deps.activeApp() || owner.id === (await deps.editorOwner?.()));
 
-	const appLine = (owner: string): OverlayFromV1 => ({
+	const appLine = (owner: OverlayOwner): OverlayFromV1 => ({
 		kind: 'app',
-		title: deps.appTitle?.(owner) ?? owner,
+		title: deps.appTitle?.(owner.id) ?? owner.id,
 	});
+	const human = (context: CommandContext) => deps.humanGesture?.(context) ?? false;
 
 	/**
 	 * A full region's wait (F7): until the soonest timed toast times out, on the call's clock; a minute when every one
@@ -227,7 +287,8 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const opener = openerOf(context);
+			const opener = openerOf(context, human);
+			if (opener.kind === 'none') return noOpener();
 			const shown: ToastInputV1 = {
 				...(input as ToastInputV1),
 				durationMs: input.durationMs ?? TOAST_DEFAULT_MS,
@@ -235,7 +296,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			if (opener.kind !== 'agent') {
 				return success(
 					overlays.open(
-						opener.kind === 'app' ? opener.owner : SHELL_OWNER,
+						opener.owner,
 						'toast',
 						shown,
 						opener.kind === 'app'
@@ -253,7 +314,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					'Wait for retryAfterMs, then show it again; the rate is fixed',
 					{ retryable: true, details: { limit: AGENT_PUSH_RATE, retryAfterMs } }
 				);
-			const wait = deps.pushRate?.retryAfter(opener.owner, AGENT_PUSH_RATE, at);
+			const wait = deps.pushRate?.retryAfter(opener.bucket, AGENT_PUSH_RATE, at);
 			if (wait !== undefined)
 				return limited(wait, `An agent shows at most ${AGENT_PUSH_RATE} toasts a minute`);
 			const ref = overlays.openAgentToast(opener.owner, shown, {
@@ -270,7 +331,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					`The ${TOAST_CAP} toasts on screen are the shell's or errors, which an agent's toast never pushes off`
 				);
 			}
-			deps.pushRate?.record(opener.owner, at);
+			deps.pushRate?.record(opener.bucket, at);
 			return success(ref);
 		},
 	});
@@ -297,11 +358,12 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		},
 		async handler(input, context) {
 			// The agent interface's modal is step 4's (6.1's modal column); until then it opens as the shell's.
-			const owner = (context as KernelFieldContext).caller ?? SHELL_OWNER;
-			if (owner !== SHELL_OWNER && !(await isActive(owner))) {
+			const { caller } = context as KernelFieldContext;
+			const owner = caller === undefined ? SHELL : appOwner(caller);
+			if (owner.kind === 'app' && !(await isActive(owner))) {
 				return kernelFailure(
 					'OVERLAY_OWNER_INACTIVE',
-					`The app '${owner}' is not active, so it cannot open a modal`,
+					`The app '${owner.id}' is not active, so it cannot open a modal`,
 					'Show a toast instead, or open the modal when the app is active'
 				);
 			}
@@ -373,7 +435,8 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			],
 		},
 		async handler(input, context) {
-			const opener = openerOf(context);
+			const opener = openerOf(context, human);
+			if (opener.kind === 'none') return noOpener();
 			if (opener.kind === 'agent') {
 				return kernelFailure(
 					'HUMAN_REQUIRED',
@@ -381,42 +444,48 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					'Show a toast with toast-show instead'
 				);
 			}
-			const owner = opener.kind === 'app' ? opener.owner : SHELL_OWNER;
+			const { owner } = opener;
 			const given = input as PopoverInputV1;
-			if (opener.kind === 'app' && !(await isActive(owner))) {
+			if (owner.kind === 'app' && !(await isActive(owner))) {
 				return kernelFailure(
 					'OVERLAY_OWNER_INACTIVE',
-					`The app '${owner}' is not active, so it cannot open a popover`,
+					`The app '${owner.id}' is not active, so it cannot open a popover`,
 					'Show a toast instead, or open the popover when the app is active'
 				);
 			}
-			if ((given.anchor.surface === 'shell') !== (owner === SHELL_OWNER)) {
+			if ((given.anchor.surface === 'shell') !== (owner.kind === 'shell')) {
 				return anchorMissing(given.anchor, 'only the shell anchors in its own surface', false);
 			}
 			if (given.kind === 'menu') {
-				for (const item of given.items) {
-					const standing = deps.itemStanding?.(owner, item.command) ?? 'foreign';
-					if (standing === 'own') continue;
+				for (const [index, item] of given.items.entries()) {
+					const verdict = deps.itemCheck?.(owner, item) ?? {
+						kind: 'reserved',
+						why: `'${item.command}' cannot be checked`,
+					};
+					if (verdict.kind === 'own') continue;
+					if (verdict.kind === 'invalid') {
+						return kernelFailure(
+							'VALIDATION_ERROR',
+							`Item ${index}'s input does not match '${item.command}': ${verdict.why}`,
+							"Give the item the input its command's schema asks for",
+							{ details: { item: index, command: item.command } }
+						);
+					}
 					return kernelFailure(
 						'OVERLAY_ITEM_RESERVED',
-						standing === 'reserved'
-							? `'${item.command}' is a person's or an owner's command, which no menu offers`
-							: `'${item.command}' is not one of this owner's own palette commands`,
+						verdict.why,
 						'Let the person run it from the palette',
-						{ details: { command: item.command } }
+						{
+							details: { item: index, command: item.command },
+						}
 					);
 				}
 			}
-			if (!(deps.anchorFound?.(owner, given.anchor) ?? true)) {
+			if (!(deps.anchorFound?.(owner, given.anchor) ?? false)) {
 				return anchorMissing(given.anchor, 'the page has no such element in that surface', true);
 			}
 			return success(
-				overlays.open(
-					owner,
-					'popover',
-					given,
-					owner === SHELL_OWNER ? {} : { from: appLine(owner) }
-				)
+				overlays.open(owner, 'popover', given, owner.kind === 'app' ? { from: appLine(owner) } : {})
 			);
 		},
 	});
@@ -434,7 +503,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			properties: {
 				overlayId: textJson(64),
 				result: { type: 'string', enum: ['confirm', 'cancel'] },
-				reason: { type: 'string', enum: ['timeout', 'user'] },
+				reason: { type: 'string', enum: ['timeout', 'user', 'anchor'] },
 				item: { type: 'integer', minimum: 0, maximum: POPOVER_MENU_ITEMS - 1 },
 			},
 			required: ['overlayId'],
@@ -450,11 +519,20 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				);
 			}
 			const { caller } = context as KernelFieldContext;
-			if (caller !== undefined && overlay.owner !== caller) {
+			const owner = overlays.ownerOf(input.overlayId);
+			if (caller !== undefined && (owner?.kind !== 'app' || owner.id !== caller)) {
 				return kernelFailure(
 					'OVERLAY_NOT_OWNER',
 					`Overlay '${input.overlayId}' belongs to another app`,
 					'Dismiss only overlays this app opened'
+				);
+			}
+			// An agent cancels or dismisses only, never confirms (6.5; F6's cancels are step 4's).
+			if (input.result === 'confirm' && openerOf(context, human).kind === 'agent') {
+				return kernelFailure(
+					'HUMAN_REQUIRED',
+					'Only a person confirms an overlay',
+					'Ask the person to answer it in the shell'
 				);
 			}
 			if (input.item !== undefined) {

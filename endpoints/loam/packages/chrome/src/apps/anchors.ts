@@ -4,6 +4,21 @@
  * an app's anchor, so nothing an app shows can sit on what the shell drew, and a hidden element anchors nothing.
  */
 
+/** Whose a popover is, by kind, as the kernel's `overlayAnchors` asks: an instance id never passes for the shell. */
+export interface AnchorOwner {
+	kind: 'shell' | 'app';
+	id: string;
+}
+
+/**
+ * A popover's owner as the chrome reads it from the kernel's record: an app's always carries its owner line, which
+ * the kernel sets and never sets on the shell's own (6.6), so the line, not the id, says which it is.
+ */
+export const anchorOwnerOf = (overlay: { owner: string; from?: { kind: string } }): AnchorOwner =>
+	overlay.from?.kind === 'app'
+		? { kind: 'app', id: overlay.owner }
+		: { kind: 'shell', id: overlay.owner };
+
 /** Whether `value` names an anchor the kernel took: the pattern `popover-open` validates, so a selector needs no escape. */
 const ANCHOR = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
