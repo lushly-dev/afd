@@ -1164,8 +1164,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 			for (const found of index.search(query, index.size)) {
 				const row = held.get(found.name) as PaletteItem;
 				const entry = byId.get(row.section as string) as KnownSectionV1;
-				if (!owns(app, entry)) continue;
 				if (!entry || !Object.hasOwn(entry.section.schema.properties, row.key as string)) continue;
+				if (!owns(app, entry)) continue;
 				const levels = levelsOf(entry, row.key as string);
 				const projectOnly = !levels.includes('person') && !levels.includes('workspace');
 				if (projectOnly && (project === undefined || opensIn(entry, project) !== undefined))
