@@ -2,7 +2,7 @@
 name: start-session
 description: >
   Starts an AFD session: preflights the worktree, refreshes origin/main, installs
-  dependencies, classifies dirty files and adopts the issue or brief. Use when
+  dependencies, classifies dirty files and claims the issue or brief. Use when
   starting or resuming work ("start session", "init", "resume this worktree"); ship
   with prepare-pr, close with end-session.
 ---
@@ -95,7 +95,14 @@ diff. These don't answer it:
 
 Adopt the task the invocation or conversation carries instead of asking what to build.
 
-- **Issue:** `gh issue view <n> --json title,body,labels,comments`.
+- **Issue:** `gh issue view <n> --json title,body,labels,comments`, then claim it
+  before any work: `node scripts/issue-claim.mjs claim <n>...` (every issue the task
+  names, in one call: it claims all or none). Exit 3 means another session, a factory
+  cell or an open PR holds one: stop and report the holder it prints; don't work around
+  the claim. A closed issue it skips is done: drop it from the task. A factory cell
+  skips this step: `cell-register` claimed for it.
+  The claim names the current branch: after switching to the branch the PR will use, run
+  `claim` again (it renews your own claim there), so the open PR keeps the issue held.
 - **Feature plan:** read its `docs/features/` folder; plan updates ship in the same
   PR as the work. Where the area keeps a `STATUS.md` (an active feature's folder,
   `endpoints/loam/docs/`, `endpoints/umbel/docs/`), read that first: it is the source

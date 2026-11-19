@@ -24,7 +24,7 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 
 | Before you | Read |
 |------------|------|
-| Start or resume a session | `start-session`: base refresh, install, the Node version, task intake. For a new machine, [SETUP.md](SETUP.md) |
+| Start or resume a session | `start-session`: base refresh, install, the Node version, task intake and claiming the issue (`scripts/issue-claim.mjs`). For a new machine, [SETUP.md](SETUP.md) |
 | Work in Loam, Umbel or an active feature | Its `STATUS.md`, in `endpoints/loam/docs/`, `endpoints/umbel/docs/` or `docs/features/active/<feature>/`. It is the source of truth for progress; update it before the session ends |
 | Add or change a command | `afd`: jobs written as scenarios before the commands, `domain-action` names, a `CommandResult` whose errors carry a `suggestion`, parity across the four languages. Then the language's skill |
 | Write or change markup with `violet-*` components | Call `components-brief` once for the page first: the `umbel` server in `.mcp.json` (the [components plugin's README](endpoints/umbel/plugins/components/README.md#use-in-this-repository) says how to build it). In Claude Code, a hook refuses the session's first such write once until you do. In Loam, then `loam-design`, whose rules win where the two differ |
@@ -40,6 +40,8 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 
 **Credit goes to the owner.** Commits are authored by the owner, never by an agent. An agent that helped is listed with an email-free trailer, `Assisted-by: Claude Code`, never `Co-authored-by:`, which GitHub counts as a full contributor. `scripts/commit-credit.mjs` refuses either in the commit-msg hook and in `ci-ok`.
+
+**Land your own pull request.** No human reviews pull requests here: the agent reviewers and the gates are the review. A session marks the pull request it opened or resumed ready and enqueues it with `prepare-pr`'s step 9, without asking, once that skill's review covers the head (no blocker unresolved) and every check on that head is green. When no independent review could run, or a decision is the owner's, leave it open and say why in the pull request and the final message.
 
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge or enqueue the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
