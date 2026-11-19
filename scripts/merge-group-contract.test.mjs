@@ -8,6 +8,7 @@ import {
 	AFD_SCOPE,
 	GATE,
 	mergeGroupProblems,
+	PULL_REQUEST_ONLY,
 	queueJob,
 	readWorkflow,
 	readWorkflows,
@@ -339,5 +340,189 @@ describe("this repository's workflows", () => {
 			assert.ok(jobs.get('queue').block.includes(`affected.mjs trigger ${file}\n`), file);
 			assert.ok(readTrigger(workflows[file]).paths.includes(`.github/workflows/${file}`), file);
 		}
+	});
+});
+
+describe('what the contract cannot read, or reads two ways', () => {
+	const bare = (trigger) => `on:\n${trigger}jobs:\n  a:\n    runs-on: x\n`;
+
+	it('reaches main through a branch pattern, a comment or a list, and names the missing trigger', () => {
+		for (const branches of [
+			'    branches: [main] # only main\n',
+			"    branches: ['**']\n",
+			"    branches: ['mai*']\n",
+			'    branches:\n      # the default branch\n      - main # ours\n',
+			"    branches: ['releases/**', '!releases/old', main]\n",
+		])
+			assert.match(
+				problems(bare(`  pull_request:\n${branches}`))[0] ?? '',
+				/has no merge_group trigger/,
+				branches
+			);
+		// A branch the patterns leave out is still left out.
+		assert.deepEqual(
+			problems(bare("  pull_request:\n    branches: ['releases/**', '!main']\n")),
+			[]
+		);
+		assert.deepEqual(problems(bare("  pull_request:\n    branches: [main, '!main']\n")), []);
+	});
+
+	it('refuses a trigger or a job written in a form it would skip', () => {
+		for (const [text, message] of [
+			[
+				bare("  'pull_request':\n    branches: [main]\n"),
+				/a key this check cannot read: "'pull_request':"/,
+			],
+			[bare('  "pull_request":\n'), /a key this check cannot read/],
+			[bare('  pull_request: { branches: [main] }\n'), /pull_request: is not a block/],
+			[bare('  merge_group: {}\n  pull_request:\n'), /merge_group: is not a block/],
+			[bare('  pull_request:\n    branches:\n'), /pull_request\.branches lists nothing/],
+			[
+				bare('  pull_request:\n    branches:\n      main\n'),
+				/a list this check cannot read: "main"/,
+			],
+			[`${unfiltered}\n  'loose':\n    runs-on: x\n`, /a key this check cannot read: "'loose':"/],
+			[`${filtered()}\n  ? loose\n  : runs-on: x\n`, /a key this check cannot read/],
+		]) {
+			const found = problems(text);
+			assert.equal(found.length, 1, text);
+			assert.match(found[0], /^unit\.yml: unreadable \(/);
+			assert.match(found[0], message);
+		}
+		// A quoted key inside a job hides its needs or its if.
+		assert.match(
+			problems(edit(filtered(), `    needs: scope\n`, `    'needs': scope\n`))[0],
+			/unreadable \(a key this check cannot read: "'needs': scope"\)/
+		);
+	});
+
+	it('names paths the queue job reads differently, or cannot interpret', () => {
+		// The queue job's reader stops at a mapping in the list; this one refuses it.
+		const differs = (found) => found.some((problem) => /read two ways differ/.test(problem));
+		assert.ok(
+			differs(
+				mergeGroupProblems({
+					'unit.yml': filtered(),
+					'other.yml': edit(
+						filtered('other.yml'),
+						"      - 'unit/**'\n",
+						"      - 'unit/**'\n        - 'docs/**'\n"
+					),
+				})
+			)
+		);
+		for (const pattern of ['docs/*.md?', 'src/[ab]/**', 'docs/+(a|b)', 'a/{b,c}/**', 'docs\\\\x'])
+			assert.deepEqual(
+				problems(
+					edit(filtered(), "      - 'unit/**'\n", `      - 'unit/**'\n      - '${pattern}'\n`)
+				),
+				[
+					`unit.yml: its path ${pattern} uses pattern syntax the queue job does not implement: only *, ** and a leading !`,
+				],
+				pattern
+			);
+		// A blank line or a comment inside the list is still one list, read the same both ways.
+		assert.deepEqual(
+			problems(
+				edit(
+					filtered(),
+					"      - 'unit/**'\n",
+					"      - 'unit/**'\n\n      # prose\n      - '!unit/docs/**'\n"
+				)
+			),
+			[]
+		);
+	});
+
+	it('names a condition that sets the merge group apart from the pull request', () => {
+		assert.deepEqual(
+			problems(
+				edit(
+					filtered(),
+					`    needs: scope\n    if: needs.scope.outputs.run == 'true'`,
+					`    needs: scope\n    if: needs.scope.outputs.run == 'true' && github.event_name != 'merge_group'`
+				)
+			),
+			[
+				`unit.yml: names the merge_group event outside its queue job: "if: needs.scope.outputs.run == 'true' && github.event_name != 'merge_group'"`,
+				'unit.yml: job suite runs for a pull request and not for its merge group: list it in PULL_REQUEST_ONLY with the reason, or drop the condition',
+			]
+		);
+		assert.deepEqual(
+			problems(
+				edit(
+					filtered(),
+					'      - run: make test',
+					"      - if: github.event_name == 'pull_request'\n        run: make test"
+				)
+			),
+			[
+				`unit.yml: a step of job suite runs for a pull request and not for its merge group: "- if: github.event_name == 'pull_request'"`,
+			]
+		);
+		assert.deepEqual(
+			problems(
+				edit(
+					unfiltered,
+					'      - run: make check',
+					"      - run: make check\n        if: ${{ github.event_name != 'merge_group' }}"
+				),
+				'ci.yml'
+			),
+			[
+				`ci.yml: names the merge_group event outside its queue job: "if: \${{ github.event_name != 'merge_group' }}"`,
+				`ci.yml: a step of job check runs for a pull request and not for its merge group: "if: \${{ github.event_name != 'merge_group' }}"`,
+			]
+		);
+		// A job that leaves both out, as a nightly one does, sets neither apart.
+		assert.deepEqual(problems(filtered()), []);
+	});
+
+	it('holds PULL_REQUEST_ONLY to the jobs that still need it', () => {
+		const [[file, jobs]] = Object.entries(PULL_REQUEST_ONLY);
+		const [id] = Object.keys(jobs);
+		const real = readWorkflows(root)[file];
+		assert.ok(jobs[id].length > 20, 'the entry gives its reason');
+		// The real job has the condition; without its entry it is named.
+		const condition = `needs.queue.outputs.run == 'true' && (github.event_name == 'pull_request')`;
+		assert.equal(readWorkflow(real).jobs.get(id).if, condition);
+		// With the condition gone the entry is stale, and so is an entry for a job that is gone.
+		assert.deepEqual(
+			mergeGroupProblems({ [file]: edit(real, `    if: ${condition}\n`, `    if: ${GATE}\n`) }),
+			[
+				`${file}: job ${id} is listed in PULL_REQUEST_ONLY but no longer has the condition: remove the entry`,
+			]
+		);
+		const renamed = mergeGroupProblems({ [file]: edit(real, `\n  ${id}:\n`, `\n  renamed:\n`) });
+		assert.deepEqual(renamed, [
+			`${file}: job renamed runs for a pull request and not for its merge group: list it in PULL_REQUEST_ONLY with the reason, or drop the condition`,
+			`${file}: PULL_REQUEST_ONLY lists job ${id}, which it does not have: remove the entry`,
+		]);
+	});
+
+	it("checks out every workflow file for the verdict's list, whatever its extension", () => {
+		const verdict = readWorkflows(root)['ci-ok.yml'];
+		const block = /sparse-checkout: \|\n((?: {12}.*\n)+)/.exec(verdict)?.[1];
+		assert.ok(block, 'ci-ok.yml has a sparse checkout');
+		const patterns = block
+			.split('\n')
+			.map((line) => line.trim())
+			.filter(Boolean);
+		// A directory pattern takes everything under it; `*.yml` would leave a `.yaml` workflow out.
+		const taken = (path) =>
+			patterns.some((pattern) =>
+				pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern
+			);
+		for (const path of [
+			...Object.keys(readWorkflows(root)).map((file) => `.github/workflows/${file}`),
+			'.github/workflows/future.yaml',
+			'scripts/ci-verdict.mjs',
+			'scripts/commit-credit.mjs',
+		])
+			assert.ok(taken(path), `${path} is not in ci-ok.yml's sparse checkout`);
+		assert.ok(
+			!patterns.some((pattern) => /[*?[]/.test(pattern)),
+			'plain paths only, so this test reads them as git does'
+		);
 	});
 });

@@ -156,7 +156,7 @@ describe('--push-event', () => {
 
 describe('--merge-group', () => {
 	const script = fileURLToPath(new URL('./commit-credit.mjs', import.meta.url));
-	const base = 'b'.repeat(40);
+	const base = 'refs/heads/main';
 	const head = 'c'.repeat(40);
 	const queued = (sha, message, author = owner) => ({
 		sha,
@@ -199,7 +199,7 @@ describe('--merge-group', () => {
 		};
 	};
 
-	it('reads the commits the group adds to its base, in one comparison', async () => {
+	it('reads the commits the group holds that its branch does not, in one comparison', async () => {
 		const squash = queued(head, 'feat: x (#7)\n\nAssisted-by: Claude Code\n');
 		const { fake, commits } = read([comparison([squash])]);
 		assert.deepEqual(await commits, [
@@ -211,7 +211,7 @@ describe('--merge-group', () => {
 			},
 		]);
 		assert.deepEqual(fake.urls, [
-			`https://api.github.com/repos/example/repo/compare/${base}...${head}?per_page=100&page=1`,
+			`https://api.github.com/repos/example/repo/compare/main...${head}?per_page=100&page=1`,
 		]);
 	});
 
@@ -252,10 +252,28 @@ describe('--merge-group', () => {
 		);
 		await assert.rejects(
 			read([comparison([queued(head, 'fix: y\n')], { status: 'diverged', behind_by: 2 })]).commits,
-			/is not its base .* plus commits \(status diverged\)/
+			/is not main plus commits \(status diverged\)/
 		);
 		await assert.rejects(read([502]).commits, /compare\/.*: 502 nope/);
-		await assert.rejects(read([comparison([])], { base: '' }).commits, /BASE_SHA must be/);
+		// The branch, never a commit: the commit a group was built on leaves out the groups ahead.
+		for (const wrong of [
+			'',
+			'main',
+			'b'.repeat(40),
+			'refs/tags/v1',
+			'refs/heads/a b',
+			'refs/heads/../x?y',
+		])
+			await assert.rejects(
+				read([comparison([])], { base: wrong }).commits,
+				/BASE_REF must be/,
+				wrong
+			);
+		const nested = read([comparison([queued(head, 'fix: y\n')])], {
+			base: 'refs/heads/release/1.x',
+		});
+		await nested.commits;
+		assert.match(nested.fake.urls[0], /\/compare\/release%2F1\.x\.\.\.c{40}\?/);
 		await assert.rejects(read([comparison([])], { head: 'main' }).commits, /HEAD_SHA must be/);
 	});
 
@@ -274,7 +292,7 @@ describe('--merge-group', () => {
 				GITHUB_TOKEN: 'token',
 				GITHUB_REPOSITORY: 'example/repo',
 				GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
-				BASE_SHA: base,
+				BASE_REF: base,
 				HEAD_SHA: head,
 				...environment,
 			},
@@ -300,7 +318,7 @@ describe('--merge-group', () => {
 		assert.match(done.stderr, /cccccccc has the line "Co-authored-by: Owner <old@example.com>"/);
 		assert.match(done.stderr, /The pull request has left the queue/);
 		assert.deepEqual(done.requests, [
-			`/repos/example/repo/compare/${base}...${head}?per_page=100&page=1`,
+			`/repos/example/repo/compare/main...${head}?per_page=100&page=1`,
 		]);
 	});
 	it('fails the group whose squash an agent authored', async () => {
@@ -318,9 +336,9 @@ describe('--merge-group', () => {
 	});
 	it('refuses a group it cannot read whole rather than passing it', async () => {
 		assert.equal((await run(comparison([]))).status, 2);
-		const noBase = await run(comparison([queued(head, 'fix: y\n')]), { BASE_SHA: '' });
+		const noBase = await run(comparison([queued(head, 'fix: y\n')]), { BASE_REF: '' });
 		assert.equal(noBase.status, 2);
-		assert.match(noBase.stderr, /BASE_SHA must be a 40-character commit/);
+		assert.match(noBase.stderr, /BASE_REF must be the merge group's target branch/);
 		assert.deepEqual(noBase.requests, []);
 	});
 });

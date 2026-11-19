@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import test from 'node:test';
 import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
-import { OWN_TESTS, resolveScope } from './affected/scope.mjs';
+import { gitPath, OWN_TESTS, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
 import {
@@ -811,5 +811,82 @@ test('the check gate runs even where LEFTHOOK=0 turns the git hooks off', () => 
 		silent.trim(),
 		'',
 		'LEFTHOOK=0 no longer silences lefthook; revisit checkEnvironment'
+	);
+});
+
+test('a path git quotes is read as the file it names', (t) => {
+	assert.equal(gitPath('packages/rust/src/lib.rs'), 'packages/rust/src/lib.rs');
+	assert.equal(gitPath('"packages/rust/tests/caf\\303\\251.rs"'), 'packages/rust/tests/café.rs');
+	assert.equal(gitPath('"docs/a \\"b\\"\\\\c\\td.md"'), 'docs/a "b"\\c\td.md');
+	assert.equal(gitPath('"docs/\\346\\227\\245\\346\\234\\254.md"'), 'docs/日本.md');
+	// Not a quoted path: a lone quote, or a name that only starts with one.
+	assert.equal(gitPath('"'), '"');
+	assert.equal(gitPath('"half'), '"half');
+
+	// With git itself, and no setting changed: the default quotes the path, and the scope reads it.
+	const { root, write } = fixture(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (args) =>
+		execFileSync('git', ['-c', 'user.name=F', '-c', 'user.email=f@example.invalid', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+			env,
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	git(['init', '-b', 'main']);
+	git(['add', '.']);
+	git(['commit', '-m', 'base']);
+	const base = git(['rev-parse', 'HEAD']).trim();
+	write('packages/core/tests/café.ts', 'export {};');
+	git(['add', '.']);
+	git(['commit', '-m', 'queued (#1)']);
+	assert.match(git(['diff', '--name-only', base]), /^"packages\/core\/tests\/caf\\303\\251\.ts"$/m);
+	write('docs/日本.md', 'untracked');
+	const scope = resolveScope({ root, bases: [base], git });
+	assert.deepEqual(scope.files, ['docs/日本.md', 'packages/core/tests/café.ts']);
+	assert.deepEqual(scope.changed, ['@x/core']);
+	const trigger = (paths) => workflowTrigger(scope, { paths, gates: new Map() }).run;
+	assert.equal(trigger(['packages/core/**']), true);
+	assert.equal(trigger(['packages/server/**']), false);
+});
+
+test('`**/` matches no directory as well as many, and a list survives a blank line', () => {
+	for (const [filter, file, expected] of [
+		['docs/**/*.md', 'docs/guide.md', true],
+		['docs/**/*.md', 'docs/a/b/guide.md', true],
+		['docs/**/*.md', 'docs/guide.txt', false],
+		['docs/**/*.md', 'other/docs/guide.md', false],
+		['**/README.md', 'README.md', true],
+		['**/README.md', 'packages/core/README.md', true],
+		['**/README.md', 'packages/core/NOTREADME.md', false],
+		['docs/**', 'docs/a/b.md', true],
+		['docs/**', 'docs', false],
+		['scripts/release*/**', 'scripts/release/claim.mjs', true],
+		['a**/b', 'ax/y/b', true],
+	])
+		assert.equal(matchesFilters([filter], file), expected, `${filter} against ${file}`);
+
+	const block = `on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'a/**'
+
+      # the rest
+      - 'docs/**'
+  workflow_dispatch:
+jobs:
+  a:
+    runs-on: x
+`;
+	assert.deepEqual(readTrigger(block).paths, ['a/**', 'docs/**']);
+	// The list ends where the trigger does, not at the next list in the file.
+	assert.deepEqual(
+		readTrigger(
+			block.replace('  workflow_dispatch:\n', "\n  push:\n    paths:\n      - 'other/**'\n")
+		).paths,
+		['a/**', 'docs/**']
 	);
 });

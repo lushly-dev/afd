@@ -115,6 +115,16 @@ describe('mergeGroupWorkflows', () => {
 		t.after(() => rmSync(root, { recursive: true, force: true }));
 		assert.throws(() => mergeGroupWorkflows(root), /ci-ok\.yml has no merge_group trigger/);
 		assert.throws(() => mergeGroupWorkflows(join(root, 'absent')), /ENOENT/);
+		// Its own workflow alone: the checkout left the others out, and nothing would be expected.
+		const alone = repository({
+			'ci-ok.yml': on('pull_request', 'merge_group'),
+			'ci.yaml': on('push'),
+		});
+		t.after(() => rmSync(alone, { recursive: true, force: true }));
+		assert.throws(
+			() => mergeGroupWorkflows(alone),
+			/no workflow but .*ci-ok\.yml has the merge_group trigger/
+		);
 	});
 
 	it("reads this repository's workflows: CI and the path-filtered ones", () => {

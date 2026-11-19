@@ -45,7 +45,11 @@ export function mergeGroupWorkflows(root) {
 		.map((file) => `.github/workflows/${file}`);
 	// This verdict runs on a merge group only because its own workflow has the trigger.
 	if (!found.includes(SELF)) throw new Error(`${SELF} has no merge_group trigger in ${directory}`);
-	return found.filter((path) => path !== SELF).sort();
+	const others = found.filter((path) => path !== SELF).sort();
+	// A checkout that left the others out would expect nothing and pass on what happened to start.
+	if (others.length === 0)
+		throw new Error(`no workflow but ${SELF} has the merge_group trigger in ${directory}`);
+	return others;
 }
 
 /**

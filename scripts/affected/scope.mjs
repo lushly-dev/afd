@@ -112,6 +112,33 @@ function defaultGit(root) {
 
 const lines = (text) => text.split('\n').filter(Boolean);
 
+const ESCAPES = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 };
+/**
+ * A path as git prints it. Git quotes a path that holds a quote, a backslash, a control character
+ * or, by default, any non-ASCII byte ("packages/rust/tests/caf\303\251.rs"): left quoted, such a
+ * file would match no path filter and no package, and its change would select nothing.
+ */
+export function gitPath(line) {
+	if (line.length < 2 || !line.startsWith('"') || !line.endsWith('"')) return line;
+	const body = line.slice(1, -1);
+	const bytes = [];
+	for (let index = 0; index < body.length; index++) {
+		if (body[index] !== '\\') {
+			bytes.push(...Buffer.from(body[index], 'utf8'));
+			continue;
+		}
+		const octal = /^[0-7]{3}/.exec(body.slice(index + 1));
+		if (octal) {
+			bytes.push(Number.parseInt(octal[0], 8));
+			index += 3;
+		} else {
+			index++;
+			bytes.push(ESCAPES[body[index]] ?? body.charCodeAt(index));
+		}
+	}
+	return Buffer.from(bytes).toString('utf8');
+}
+
 /** Resolves the merge base to diff against, or null when none of the refs exists. */
 function mergeBase(git, refs) {
 	for (const ref of refs) {
@@ -199,7 +226,7 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		changedFiles = [
 			...lines(run(['diff', '--name-only', '--no-renames', base])),
 			...lines(run(['ls-files', '--others', '--exclude-standard'])),
-		];
+		].map(gitPath);
 	}
 	changedFiles = [...new Set(changedFiles.map((file) => file.replaceAll('\\', '/')))].sort();
 

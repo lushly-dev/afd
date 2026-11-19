@@ -20,10 +20,12 @@
  *                                                     fails, since GitHub writes one into a squash
  *                                                     message after ci-ok has checked the branch
  *   node scripts/commit-credit.mjs --merge-group      Actions (ci-ok, on a merge queue's commit):
- *                                                     every commit the merge group adds to its
- *                                                     base, with the squash GitHub wrote; any
- *                                                     Co-authored-by line fails. GITHUB_TOKEN,
- *                                                     GITHUB_REPOSITORY, BASE_SHA and HEAD_SHA set
+ *                                                     every commit the merge group holds that
+ *                                                     its target branch does not, the squash
+ *                                                     GitHub wrote for it and for each pull
+ *                                                     request queued ahead; any Co-authored-by
+ *                                                     line fails. GITHUB_TOKEN, GITHUB_REPOSITORY,
+ *                                                     BASE_REF (refs/heads/main) and HEAD_SHA set
  * Exit 0 clean, 1 an agent or co-author is credited, 2 a failed read.
  */
 
@@ -177,10 +179,12 @@ export const QUEUE_FIX = [
 ].join('\n');
 
 /**
- * The commits a merge group adds to its base, oldest first, in the shape `mainProblems` reads:
- * the squash GitHub wrote for each queued pull request, which exists nowhere before the queue
- * builds it. A list that may be partial, or a group that is not its base plus commits, is
- * refused rather than checked in part.
+ * The commits a merge group holds that its target branch does not, oldest first, in the shape
+ * `mainProblems` reads: the squash GitHub wrote for each queued pull request, which exists
+ * nowhere before the queue builds it. The base is the branch (`refs/heads/main`), not the commit
+ * the group was built on: a group is built on the groups ahead of it, and a queue set to merge
+ * past a failing entry would land those squashes on this group's verdict. A list that may be
+ * partial, or a group that is not the branch plus commits, is refused rather than checked in part.
  */
 export async function mergeGroupCommits({
 	repository,
@@ -190,25 +194,24 @@ export async function mergeGroupCommits({
 	api = 'https://api.github.com',
 	fetchImpl = fetch,
 }) {
-	for (const [name, sha] of [
-		['BASE_SHA', base],
-		['HEAD_SHA', head],
-	])
-		if (!/^[0-9a-f]{40}$/.test(sha ?? ''))
-			throw new Error(`${name} must be a 40-character commit, the merge group's`);
+	const branch = /^refs\/heads\/([\w.-]+(?:\/[\w.-]+)*)$/.exec(base ?? '')?.[1];
+	if (!branch)
+		throw new Error("BASE_REF must be the merge group's target branch, as refs/heads/main");
+	if (!/^[0-9a-f]{40}$/.test(head ?? ''))
+		throw new Error("HEAD_SHA must be a 40-character commit, the merge group's");
 	const commits = [];
 	let total = null;
 	for (let page = 1; page <= 30; page++) {
-		const url = `${api}/repos/${repository}/compare/${base}...${head}?per_page=100&page=${page}`;
+		const url = `${api}/repos/${repository}/compare/${encodeURIComponent(branch)}...${head}?per_page=100&page=${page}`;
 		const response = await fetchImpl(url, {
 			headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
 		});
 		if (!response.ok) throw new Error(`${url}: ${response.status} ${await response.text()}`);
 		const body = await response.json();
-		// `ahead` is the base plus commits; anything else means the base is not an ancestor.
+		// `ahead` is the branch plus commits; anything else means the branch has moved elsewhere.
 		if (body.status !== 'ahead' || body.behind_by !== 0)
 			throw new Error(
-				`the merge group ${head} is not its base ${base} plus commits (status ${body.status}): check the range by hand with git log`
+				`the merge group ${head} is not ${branch} plus commits (status ${body.status}): check the range by hand with git log`
 			);
 		total = body.total_commits;
 		const batch = body.commits ?? [];
@@ -241,11 +244,11 @@ async function main(argv) {
 	const onMain = argv.includes('--push-event') || inQueue;
 	let commits;
 	try {
-		const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_API_URL, BASE_SHA, HEAD_SHA } = process.env;
+		const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_API_URL, BASE_REF, HEAD_SHA } = process.env;
 		commits = inQueue
 			? await mergeGroupCommits({
 					repository: GITHUB_REPOSITORY,
-					base: BASE_SHA,
+					base: BASE_REF,
 					head: HEAD_SHA,
 					token: GITHUB_TOKEN,
 					api: GITHUB_API_URL || undefined,

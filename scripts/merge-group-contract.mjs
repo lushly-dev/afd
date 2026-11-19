@@ -12,6 +12,9 @@
  *     other job runs only when `queue` says so: it needs `queue` and its `if` opens with the
  *     gate, or it needs a job that does and has no status function to run past a skipped one;
  *   - without `paths` it has no `queue` job;
+ *   - past that gate nothing names the `merge_group` event, and a job that runs for a pull request
+ *     alone is listed in PULL_REQUEST_ONLY with its reason;
+ *   - its paths use only the pattern syntax the queue job implements, and read the same two ways;
  *   - its concurrency group does not collide between merge groups, which have no pull request
  *     number;
  *   - `AFD_BASE` and `AFD_SCOPE`, where set, are the expressions that give a merge group its base.
@@ -22,6 +25,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { matchesFilters, readTrigger } from './affected/suites.mjs';
 
 export const AFD_BASE =
 	"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}";
@@ -56,16 +60,40 @@ export const queueJob = (file) => `  queue:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi`;
 
+/** The verdict's own workflow, which reads the event to know which commits and runs to check. */
+const VERDICT = 'ci-ok.yml';
+/** A condition that sets a pull request apart from its merge group. */
+const EVENT_ONLY = /github\.event_name\s*(==\s*'pull_request'|!=)/;
+/**
+ * Jobs that run for a pull request and cannot run for its merge group, by workflow, each with the
+ * reason. An entry whose job is gone, or has lost the condition, fails.
+ */
+export const PULL_REQUEST_ONLY = {
+	'umbel.yml': {
+		'plugin-isolation':
+			'reads the pull request body for its isolation statement; a merge group has no body, and the statement was checked on the pull request',
+	},
+};
+
 /** A status function in a job's `if` runs it although a job it needs was skipped. */
 const STATUS_FUNCTION = /\b(always|cancelled|failure|success)\s*\(/;
 
-/** A block's keys at `indent` spaces, each with its own line's value and the lines under it. */
+/** A value without the comment that trails it; a value that is only a comment is empty. */
+const uncommented = (value) => value.trim().replace(/(^|\s+)#[^'"]*$/, '');
+
+/**
+ * A block's keys at `indent` spaces, each with its own line's value and the lines under it. A line
+ * at that depth that is not a plain `key:` (a quoted key, a flow mapping, a list item) is refused:
+ * skipped, it would hide a trigger or a job from every rule below.
+ */
 function entries(lines, indent) {
 	const found = [];
-	const key = new RegExp(`^ {${indent}}([\\w-]+):(.*)$`);
+	const key = new RegExp(`^ {${indent}}([\\w-]+):(\\s.*)?$`);
+	const sibling = new RegExp(`^ {${indent}}[^\\s#]`);
 	for (const line of lines) {
 		const match = key.exec(line);
-		if (match) found.push({ key: match[1], value: match[2].trim(), lines: [] });
+		if (match) found.push({ key: match[1], value: uncommented(match[2] ?? ''), lines: [] });
+		else if (sibling.test(line)) throw new Error(`a key this check cannot read: "${line.trim()}"`);
 		else if (found.length > 0) found.at(-1).lines.push(line);
 	}
 	return found;
@@ -76,11 +104,15 @@ function list(entry) {
 	const unquote = (value) => value.trim().replace(/^(['"])(.*)\1$/, '$2');
 	const flow = /^\[(.*)\]$/.exec(entry.value);
 	if (flow) return flow[1].split(',').map(unquote).filter(Boolean);
-	if (entry.value && !entry.value.startsWith('#')) return [unquote(entry.value)];
-	return entry.lines
-		.map((line) => /^\s+- (.*?)(\s+#.*)?$/.exec(line)?.[1])
-		.filter(Boolean)
-		.map(unquote);
+	if (entry.value) return [unquote(entry.value)];
+	const items = [];
+	for (const line of entry.lines) {
+		if (/^\s*(#.*)?$/.test(line)) continue;
+		const item = /^\s+- (.*)$/.exec(line);
+		if (!item) throw new Error(`a list this check cannot read: "${line.trim()}"`);
+		items.push(unquote(uncommented(item[1])));
+	}
+	return items;
 }
 
 /** A scalar written on its key's line, or folded (`>-`, `|`) onto the lines under it. */
@@ -106,6 +138,8 @@ export function readWorkflow(text) {
 	const on = one('on');
 	if (!on || on.value) throw new Error('`on:` is not a block of triggers');
 	const triggers = new Map(entries(on.lines, 2).map((entry) => [entry.key, entry]));
+	for (const name of ['pull_request', 'pull_request_target', 'merge_group'])
+		if (triggers.get(name)?.value) throw new Error(`${name}: is not a block`);
 	const jobs = new Map();
 	for (const entry of entries(one('jobs')?.lines ?? [], 2)) {
 		const keys = entries(entry.lines, 4);
@@ -131,9 +165,12 @@ function pullRequest(triggers) {
 	if (!trigger) return null;
 	const keys = new Map(entries(trigger.lines, 4).map((entry) => [entry.key, entry]));
 	const branches = keys.has('branches') ? list(keys.get('branches')) : null;
+	if (branches?.length === 0) throw new Error('pull_request.branches lists nothing');
 	return {
-		main: branches === null || branches.includes('main'),
+		// A branch filter is a list of patterns, as a path filter is: `'**'` and `'mai*'` reach main.
+		main: branches === null || matchesFilters(branches, 'main'),
 		filtered: keys.has('paths'),
+		paths: keys.has('paths') ? list(keys.get('paths')) : null,
 		unreadable: ['paths-ignore', 'branches-ignore'].filter((name) => keys.has(name)),
 	};
 }
@@ -175,14 +212,18 @@ export function mergeGroupProblems(workflows) {
 	for (const [file, text] of Object.entries(workflows).sort(([a], [b]) => a.localeCompare(b))) {
 		const say = (problem) => problems.push(`${file}: ${problem}`);
 		let workflow;
+		let pull;
+		let read;
 		try {
 			workflow = readWorkflow(text);
+			pull = pullRequest(workflow.triggers);
+			// The queue job's own reader, which refuses a list it cannot read.
+			read = readTrigger(text)?.paths ?? [];
 		} catch (error) {
 			say(`unreadable (${error.message})`);
 			continue;
 		}
 		const { triggers, jobs, group } = workflow;
-		const pull = pullRequest(triggers);
 		const queued = triggers.has('merge_group');
 		if (pull?.main && !queued)
 			say(
@@ -208,6 +249,16 @@ export function mergeGroupProblems(workflows) {
 					'its `queue` job is missing or differs from the one scripts/merge-group-contract.mjs gives'
 				);
 			if ([...jobs.keys()][0] !== 'queue') say('`queue` is not its first job');
+			// The queue job answers with scripts/affected/suites.mjs, so its reading is the one that
+			// counts: it must be this one's, and hold no pattern syntax it does not implement.
+			if (JSON.stringify(read) !== JSON.stringify(pull.paths))
+				say(
+					`its pull_request.paths read two ways differ: ${read.length} by the queue job's reader, ${pull.paths.length} listed`
+				);
+			for (const pattern of pull.paths.filter((candidate) => /[?+[\]{}\\]/.test(candidate)))
+				say(
+					`its path ${pattern} uses pattern syntax the queue job does not implement: only *, ** and a leading !`
+				);
 			for (const id of jobs.keys())
 				if (id !== 'queue' && !gated(id, jobs))
 					say(
@@ -217,6 +268,38 @@ export function mergeGroupProblems(workflows) {
 		} else if (jobs.has('queue')) {
 			say('has a `queue` job but no pull_request.paths for it to read');
 		}
+
+		// Past the gate, a merge group is treated as a pull request is. A condition that names the
+		// event can run a job for the one and not the other while every rule above still holds.
+		if (file !== VERDICT) {
+			const rest = text
+				.replace(jobs.get('queue')?.block ?? '\0', '')
+				.split('\n')
+				.filter((line) => !/^\s*#/.test(line) && !/^ {2}merge_group:\s*$/.test(line))
+				.filter((line) => ![AFD_BASE, AFD_SCOPE].includes(line.trim()));
+			for (const line of rest.filter((candidate) => candidate.includes('merge_group')))
+				say(`names the merge_group event outside its queue job: "${line.trim()}"`);
+		}
+		const allowed = PULL_REQUEST_ONLY[file] ?? {};
+		for (const [id, job] of jobs) {
+			const only = EVENT_ONLY.test(job.if ?? '');
+			if (only && !allowed[id])
+				say(
+					`job ${id} runs for a pull request and not for its merge group: list it in PULL_REQUEST_ONLY with the reason, or drop the condition`
+				);
+			if (!only && allowed[id])
+				say(
+					`job ${id} is listed in PULL_REQUEST_ONLY but no longer has the condition: remove the entry`
+				);
+			for (const line of job.block.split('\n'))
+				if (/^ {6,}(- )?if:/.test(line) && EVENT_ONLY.test(line))
+					say(
+						`a step of job ${id} runs for a pull request and not for its merge group: "${line.trim()}"`
+					);
+		}
+		for (const id of Object.keys(allowed))
+			if (!jobs.has(id))
+				say(`PULL_REQUEST_ONLY lists job ${id}, which it does not have: remove the entry`);
 
 		if (group != null) {
 			const numbered = group.includes('github.event.pull_request.number');
