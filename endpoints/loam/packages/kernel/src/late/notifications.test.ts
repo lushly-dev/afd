@@ -1105,3 +1105,56 @@ describe('the act while it runs (the verification of ab2c36a8)', () => {
 		}
 	});
 });
+
+describe("the act's read-back failing (the verification of 2995bb7e)", () => {
+	it('falls back to the claimed row when the read after the run fails: released when it failed, done when it ran', async () => {
+		for (const ran of [false, true]) {
+			const store = new MemoryAdapter();
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(1, { action: { command: 'probe-note', label: 'Note', input: { text: 'x' } } }) as never
+			);
+			let broken = false;
+			// The same store, whose reads fail once the action has run.
+			const failing = Object.assign(Object.create(store) as MemoryAdapter, {
+				get: (...args: Parameters<MemoryAdapter['get']>) =>
+					broken ? Promise.reject(new Error('The store is unavailable')) : store.get(...args),
+			});
+			const notifications = createNotifications({
+				store: failing,
+				workspace: () => 'personal',
+				provider: false,
+				allows: () => true,
+				sourceOf: () => ({ kind: 'shell', bucket: 'shell:local' }),
+				humanGesture: () => true,
+				actionCheck: () => ({ kind: 'own' }),
+				pushRate: createPushRate(),
+				limits: { agent: 5, app: 10 },
+				prefs: async () => ({ toastSticky: 'danger', muted: [] }),
+				landsInInbox: () => false,
+				overlays: { land: () => undefined, hideNext: () => undefined },
+				fromOf: () => undefined,
+				run: async () => {
+					broken = true;
+					return { success: ran };
+				},
+				kit: { ...DOCUMENT_KIT, archivedRefusal: () => undefined, personKey } as never,
+			});
+			const act = notifications.commands.find((command) => command.name === 'notification-act');
+			if (!act) throw new Error('No notification-act');
+			const answer = (await (
+				act.handler as (input: unknown, context: unknown) => Promise<{ success: boolean }>
+			)({ notification: row(1).id }, { traceId: 't', clock: { now: () => 9 } })) as {
+				success: boolean;
+			};
+			expect(answer.success, String(ran)).toBe(ran);
+			const stored = await store.get<NotificationV1 & { claim?: string }>(
+				NOTIFICATION_TABLE,
+				row(1).id
+			);
+			expect(stored, String(ran)).not.toHaveProperty('claim');
+			if (ran) expect(stored).toMatchObject({ state: 'done', readAt: 9 });
+			else expect(stored).not.toHaveProperty('state');
+		}
+	});
+});

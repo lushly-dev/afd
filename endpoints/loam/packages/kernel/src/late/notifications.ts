@@ -758,9 +758,17 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			"This notice's action is running, or ran with no outcome recorded, so it does not run again",
 			'Look in its app for what it did, then archive the notice'
 		);
-	/** The row as stored now: the claim's read-back. */
-	const reread = async (id: string) =>
-		(await store.get<StoredNotice>(NOTIFICATION_TABLE, id).catch(() => null)) ?? undefined;
+	/**
+	 * The row as stored now: the claim's read-back. `null` when it is gone (evicted or deleted); `'failed'` when the store
+	 * could not be read, which is not the same (the verification of `2995bb7e`).
+	 */
+	const reread = async (id: string): Promise<StoredNotice | null | 'failed'> => {
+		try {
+			return (await store.get<StoredNotice>(NOTIFICATION_TABLE, id)) ?? null;
+		} catch {
+			return 'failed';
+		}
+	};
 	/** A row put back whole, in one batch, so a field a merge keeps (`state`, `claim`) goes: a `PUT` merges. */
 	const putBack = async (row: StoredNotice) => {
 		const path = `/${NOTIFICATION_TABLE}/${encodeURIComponent(row.id)}`;
@@ -842,7 +850,10 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				const claim = `${context.traceId ?? ''}:${newId(context)}`;
 				await store.update(NOTIFICATION_TABLE, row.id, { state: 'acting', claim } as never);
 				const claimed = await reread(row.id);
-				if (!claimed || claimed.claim !== claim) return stillActing();
+				// Unread, gone or claimed by another: nothing runs. A claim this call wrote but could not read back stays,
+				// and the notice never runs.
+				if (claimed === null || claimed === 'failed' || claimed.claim !== claim)
+					return stillActing();
 				// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
 				const result = await deps.run(action.command, action.input ?? {}, {
 					parent: context.traceId ?? '',
@@ -851,17 +862,19 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				});
 				// Put back from the row as stored now, not the claim's snapshot, so a read or an archive made meanwhile (in
 				// another tab) stands; only the claim's fields change. A row gone meanwhile (evicted by the quota, or deleted)
-				// stays gone: nothing writes it again past the quota.
+				// stays gone: nothing writes it again past the quota. A read that fails falls back to the claimed row, as
+				// before: the claim is released or completed, at the cost of a read or an archive made meanwhile.
 				const now = await reread(row.id);
-				const { state: _state, claim: _claim, ...kept } = now ?? claimed;
+				const base = now === 'failed' ? claimed : now;
+				const { state: _state, claim: _claim, ...kept } = base ?? claimed;
 				if (!result.success) {
 					// Nothing ran: the claim goes, so the person may try again.
-					if (now) await putBack(kept);
+					if (base) await putBack(kept);
 					return result as CommandResult<never>;
 				}
 				const at = kit.callNow(context);
 				try {
-					if (now)
+					if (base)
 						await putBack({
 							...kept,
 							state: 'done',
