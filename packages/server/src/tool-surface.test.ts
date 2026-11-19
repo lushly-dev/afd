@@ -5,8 +5,9 @@
  */
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { failure, success } from '@lushly-dev/afd-core';
+import { commandResultOutputSchema, failure, success } from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { Ajv } from '@modelcontextprotocol/client/validators/ajv';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand, defineCommandWithSchema } from './schema.js';
@@ -194,6 +195,20 @@ describe('MCP tool fields', () => {
 				error: { code: 'NOT_FOUND' },
 			});
 		}
+	});
+
+	it('validates local references against the output schema with its own $id', () => {
+		const data = {
+			$id: 'https://example.com/item',
+			type: 'object',
+			properties: { tag: { type: 'string', $ref: '#/$defs/Tag' } },
+			$defs: { Tag: { $ref: '#/definitions/Name' } },
+			definitions: { Name: { type: 'string', minLength: 1 } },
+		} as const;
+		const schema = commandResultOutputSchema(data);
+		const validate = new Ajv().compile(schema);
+		expect(validate({ success: true, data: { tag: 'home' } })).toBe(true);
+		expect(validate({ success: true, data: { tag: '' } })).toBe(false);
 	});
 
 	it('sends structuredContent from tools without an outputSchema too', async () => {

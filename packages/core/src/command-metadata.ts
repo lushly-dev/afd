@@ -78,16 +78,22 @@ export function commandToolAnnotations(
  * The top-level MCP `outputSchema` of a command tool: the `CommandResult` envelope, with `data`
  * typed by the command's output schema (`spec/command-metadata.md`, "Structured results").
  *
- * `$defs` and `definitions` move from `data` to the envelope, because `#/$defs/...` and
- * `#/definitions/...` references resolve against the document root. `$schema` is dropped.
+ * `$schema` is dropped. Definitions move to the envelope unless `data` has its own `$id`,
+ * which makes it the root for local references.
  */
 export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
-	const {
-		$schema: _dialect,
-		$defs,
-		definitions,
-		...data
-	} = dataSchema as JsonSchema & { $schema?: unknown; $defs?: unknown; definitions?: unknown };
+	const { $schema: _dialect, ...data } = dataSchema as JsonSchema & {
+		$schema?: unknown;
+		$defs?: unknown;
+		definitions?: unknown;
+	};
+	const hoisted: { $defs?: unknown; definitions?: unknown } = {};
+	if (!Object.hasOwn(data, '$id')) {
+		for (const key of ['$defs', 'definitions'] as const) {
+			if (data[key] !== undefined) hoisted[key] = data[key];
+			delete data[key];
+		}
+	}
 	return {
 		type: 'object',
 		properties: {
@@ -97,7 +103,6 @@ export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
 			metadata: { type: 'object' },
 		},
 		required: ['success'],
-		...($defs === undefined ? {} : { $defs }),
-		...(definitions === undefined ? {} : { definitions }),
+		...hoisted,
 	} as JsonSchema;
 }
