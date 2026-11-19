@@ -88,6 +88,11 @@ pre-push-checks:
     release-tracks:
       run: node scripts/release-track.mjs check
 
+    # No line in a shared status document that every pull request adds to (the plan in
+    # docs/features/active/merge-conflicts/ says why).
+    doc-lines:
+      run: node scripts/check-doc-lines.mjs
+
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
 
@@ -138,6 +143,11 @@ check:
 
     release-tracks:
       run: node scripts/release-track.mjs check
+
+    # No line in a shared status document that every pull request adds to (the plan in
+    # docs/features/active/merge-conflicts/ says why).
+    doc-lines:
+      run: node scripts/check-doc-lines.mjs
 
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/

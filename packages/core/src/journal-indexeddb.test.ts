@@ -1,4 +1,4 @@
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBCursor, IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { wrapError } from './errors.js';
 import type { JournalRecord } from './journal.js';
@@ -106,6 +106,37 @@ describe('IndexedDbJournalSink', () => {
 		expect(await commands({ from: 3, to: 2 })).toEqual([]);
 		expect(await commands({ from: Number.NaN })).toEqual([]);
 		expect(await commands({ from: 9 })).toEqual([]);
+	});
+
+	it('#663: reads the last entries of a range walking back, no more than it returns', async () => {
+		const sink = sinkFor(new IDBFactory(), createLocks().locks);
+		for (const command of ['a', 'b', 'c', 'd', 'e']) await sink.append(record(command));
+		const commands = async (range: Parameters<typeof sink.read>[0]) =>
+			(await sink.read(range)).map((entry) => entry.command);
+
+		expect(await commands({ last: 2 })).toEqual(['d', 'e']);
+		expect(await commands({ last: 2, to: 3 })).toEqual(['b', 'c']);
+		expect(await commands({ last: 3, from: 4 })).toEqual(['d', 'e']);
+		expect(await commands({ last: 2, from: 1.5, to: 3.5 })).toEqual(['b', 'c']);
+		expect(await commands({ last: 9 })).toEqual(['a', 'b', 'c', 'd', 'e']);
+		expect(await commands({ last: 0 })).toEqual([]);
+		expect(await commands({ last: 1, from: 9 })).toEqual([]);
+		expect(await commands({ last: 1, from: 3, to: 2 })).toEqual([]);
+		await expect(sink.read({ last: -1 })).rejects.toThrow(RangeError);
+		await expect(sink.read({ last: 1.5 })).rejects.toThrow(RangeError);
+
+		// Only the entries returned are read: keys alone are walked, however long the journal.
+		const steps = vi.spyOn(IDBCursor.prototype, 'continue');
+		const values = vi.spyOn(IDBObjectStore.prototype, 'openCursor');
+		const gets = vi.spyOn(IDBObjectStore.prototype, 'get');
+		expect((await sink.read({ last: 1 }))[0]?.seq).toBe(5);
+		expect(steps).not.toHaveBeenCalled();
+		expect((await sink.read({ last: 2, to: 3 })).map((entry) => entry.seq)).toEqual([2, 3]);
+		expect(values).not.toHaveBeenCalled();
+		expect(gets).toHaveBeenCalledTimes(3);
+		await sink.read();
+		expect(steps).toHaveBeenCalledTimes(7);
+		for (const spy of [steps, values, gets]) spy.mockRestore();
 	});
 
 	it('stores entries as JSON values, as the file sink writes them', async () => {

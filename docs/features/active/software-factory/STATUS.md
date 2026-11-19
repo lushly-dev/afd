@@ -7,7 +7,53 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
-## Cells start only on a Claude plan, 2026-11-18
+## How to keep this file
+
+- A change adds its own dated section under its area in [Changes](#changes), at the top of that
+  area, as a `####` heading. Two pull requests from different areas then insert at different
+  places. Two from the same area still insert at the same place: the one that merges second
+  keeps both sections.
+- A piece of a phase has its own line under that phase's heading at the end of this file, made when
+  the phase starts, with a blank line between pieces, because git reports a conflict when two
+  branches change adjacent lines. A pull request edits the line of the piece it builds and no other.
+- No sentence or cell says which pieces are done, not done, next or latest: read the piece
+  lines. Such a summary is one line every pull request rewrites, so every open branch
+  conflicts on it though nothing disagrees.
+- A line stays within the limit in `scripts/policy/doc-line-limits.json`, which
+  `scripts/check-doc-lines.mjs` enforces.
+- Never delete a dated section. Mark it superseded and point to what replaced it.
+
+## Changes
+
+### The lane: validating, merging and ejecting
+
+The queue, validation, base moves, merges, ejections and repairs.
+
+### Cells, plans and the foreman
+
+What a cell may take, which plan it runs on, the foreman's commands and `run-fleet`.
+
+### Hosts and toolchains
+
+The lane host, its slots, Node and the other toolchains.
+
+### Reviews and commit credit
+
+Review evidence, `prepare-pr`'s lane mode and who a merge credits.
+
+### Fleet runs
+
+What a run of the fleet found, with its numbers.
+
+### Every other area
+
+Anything the areas above do not cover.
+
+## Changes to 2026-11-18, every area
+
+Newest first, as they were written. No new section goes here.
+
+### Cells start only on a Claude plan, 2026-11-18
 
 AFD's model routing of 2026-11-17 puts every cell on Opus 5.5 `medium` and spends the ChatGPT
 allowance on review, but the lane chose among every plan, so a roomier ChatGPT plan won and the
@@ -19,7 +65,7 @@ fleet could not start cells ([#1498](https://github.com/lushly-dev/afd/issues/14
 `seven_day_fable` window is no longer read as a plan, since only Fable draws on it. The scenario
 fixtures' two plans are now both Claude's, one per Mac. Not yet seen in a fleet run.
 
-## Squash merges credit no co-author, 2026-11-18
+### Squash merges credit no co-author, 2026-11-18
 
 [#1515](https://github.com/lushly-dev/afd/issues/1515): about half of the recent squashes on `main`
 carried a `Co-authored-by:` line, many for `botcore-factory`, the identity a cell's base merges are
@@ -30,7 +76,7 @@ the body: the lane's `gh pr merge`, and the gateway's merge and pinned auto-merg
 (`botcore_factory/squash.py`). Fixed by hand, since it changes how the lane merges. It hasn't been
 seen in a fleet run yet. A session's own merges follow `prepare-pr` step 9 (#1517).
 
-## A cell can take a package of related issues, 2026-11-18
+### A cell can take a package of related issues, 2026-11-18
 
 `cell-register` takes more than one issue when the foreman names the package: up to
 `cells.issuesMax` dispatchable issues, with `related_because` saying what they share. The cell and
@@ -39,7 +85,7 @@ claim write that fails partway now puts back the claims it wrote. Before this, a
 was refused as unrelated whatever the dial said, because `issue-check` never computes `related`;
 it still does not, and suggesting packages from it is later work (lushly-dev/afd#1431).
 
-## The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
+### The `.nvmrc` Node at `lane-start`, nvm-windows, and `node-missing` ejections, 2026-11-17
 
 The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purpose, closed by
 [#1352](https://github.com/lushly-dev/afd/issues/1352)'s owner decisions, in
@@ -62,7 +108,7 @@ The three gaps [#1351](https://github.com/lushly-dev/afd/pull/1351) left on purp
   it is ejected as `node-missing`, its detail saying the repository pins its Node there. A
   branch that leaves `.nvmrc` blank is ejected the same way and told to pin a version number.
 
-## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
+### Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
 
 Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane
 that would merge them, in [#1470](https://github.com/lushly-dev/afd/pull/1470). None is yet seen
@@ -102,7 +148,7 @@ in a fleet run.
   afresh, so the front branch's validation installs from nothing. A checkout that cannot move falls
   back to the old `slot-needed` rerun.
 
-## Provenance conflicts, one foreman, and the lane's own review check, 2026-11-17
+### Provenance conflicts, one foreman, and the lane's own review check, 2026-11-17
 
 [#1410](https://github.com/lushly-dev/afd/issues/1410): three of round 2's ejections were merge
 conflicts in provenance records alone. When a merge of `main` conflicts only in files the
@@ -119,7 +165,7 @@ itself with `main`'s verifier before validating, ejecting as `review-unverified`
 not by a cell, since the changes are to the lane that would merge them. Not yet seen in a fleet
 run.
 
-## Repairs, ejection details and the units checkout, 2026-11-17
+### Repairs, ejection details and the units checkout, 2026-11-17
 
 Three faults the second fleet (run-3) found. [#1374](https://github.com/lushly-dev/afd/issues/1374):
 a repair that rebased onto `main` was refused with `GATE_EDIT_IN_REPAIR` for gate files `main` had
@@ -135,7 +181,7 @@ whose name said "failed"; `first_lines` now leads with the first test a runner m
 own checkout; it now runs in a clean `units` slot (`<checkout>.factory-slots/units`) at the new
 base. Fixed by hand, not by a cell, since the change is to the lane that would merge it.
 
-## A branch that affects every unit is no longer validated again for ever, 2026-11-17 (#1391)
+### A branch that affects every unit is no longer validated again for ever, 2026-11-17 (#1391)
 
 [#1369](https://github.com/lushly-dev/afd/issues/1369): in the second fleet (run-3), the #424
 branch adds a workspace package, so it changes `pnpm-lock.yaml` and maps to `*`, and every move
@@ -160,7 +206,7 @@ protection does not require an up-to-date branch). Only the watch on `main` cove
 the `base-advanced` and `merged` records name `checkBase`; a fresh check on such a move is
 [#1390](https://github.com/lushly-dev/afd/issues/1390). Not yet seen in a fleet run.
 
-## A moved `main` no longer always means validating again, 2026-11-16
+### A moved `main` no longer always means validating again, 2026-11-16
 
 [#1350](https://github.com/lushly-dev/afd/issues/1350): in the first fleet, every move of `main`
 before a merge sent the validated branch back to be validated again (`requeue(entry,
@@ -179,7 +225,7 @@ merged without a re-check) and pauses the lane; checks still unfinished after
 `main_checks` takes every check run on the merge commit except publishing and deploying. Not yet
 seen in a fleet run.
 
-## The first fleet, 2026-11-16
+### The first fleet, 2026-11-16
 
 The first fleet runs on the MacBook Air: one slot, one cell (`cells.max` 1; `host.minFreeGb`
 lowered to 4 while `fseventsd` holds 5 GB), on the Claude week the lane chose. Its cell for #386
@@ -213,7 +259,7 @@ records both. The cell brief now says a new or rebased worktree needs an install
 its checks pass. Open from the run: #1341 (the lane validates on the host's default Node, 24.21,
 not `.nvmrc`'s 26) and #1330. The run was stopped after the one cell, as the owner asked.
 
-## The fleet's command lines and `run-fleet`, 2026-11-15
+### The fleet's command lines and `run-fleet`, 2026-11-15
 
 `factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two
 hosts over the real world for the checkout they run in, so a cell can call `lane-enqueue` and the
@@ -245,7 +291,7 @@ the plugin's host lock cannot see Lushly's, so AFD's lane runs only while Lushly
 lane host set, no machine probed, and `canStartCell` false there (7.1 GB free against
 `host.minFreeGb` 8).
 
-## Review evidence and `prepare-pr`'s lane mode, 2026-11-15
+### Review evidence and `prepare-pr`'s lane mode, 2026-11-15
 
 AFD's adapter now names `review_evidence`, so `lane-enqueue` no longer refuses AFD branches with
 `NOT_CONFIGURED`. `prepare-pr lane` runs full mode's base sync, review, docs and commit, then
@@ -278,9 +324,10 @@ plugin's real process runner against the real script. PR: [#1305](https://github
 
 Phase 1 still needs, as the proposal lists it: the webhook wake, experience review (`pr-preview`
 and the before-and-after screens), `run-fleet`, and one measured AFD fleet run on the
-workstation.
+workstation. (Superseded: `run-fleet` merged in #1310, and each piece now has its own line under
+[Phase 1](#phase-1-the-plugin-one-slot).)
 
-## Lane-loop repair on the MacBook Air, 2026-11-15
+### Lane-loop repair on the MacBook Air, 2026-11-15
 
 **Merged:** [PR #1295](https://github.com/lushly-dev/afd/pull/1295) merged on 2026-11-15
 (Pacific) as `a8a1f0f9`, with all ten checks green including `ci-ok`. The account below was written
@@ -331,7 +378,7 @@ the extra run is recorded. The final `pnpm verify` receipt and remote checks bel
 Phase 1 remains in progress: this branch is not a measured live factory run, and the adapter's
 review-evidence integration and the other remaining work in the phase table are still open.
 
-## Preserved Windows checkpoint, 2026-11-15
+### Preserved Windows checkpoint, 2026-11-15
 
 `feat/factory-lane-loop` in `AFD-worktrees/factory-loop` now includes `origin/main`
 at `6d7c505a` (merge `a5c6dbcd`). Its previously uncommitted review fixes are
@@ -365,7 +412,7 @@ for the real output and re-check the fixes before shipping the branch.
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
 | 0. Prerequisites | Done 2026-11-13 | The proposal's [Phases](software-factory.proposal.md#phases): intake (#1100), `ci-ok` (#1123, #1136), the pre-push `pnpm verify` record (#1127), the Windows workstation (#1115, #1121, #1130, #1134) |
-| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305); the `factory` and `factory-cell` command lines and `run-fleet` (#1310). Remaining as the proposal lists it: the webhook wake and experience review, then one AFD fleet run on the workstation with its numbers reported |
+| 1. The plugin, one slot | In progress | One line per piece under [Phase 1](#phase-1-the-plugin-one-slot) |
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |
@@ -374,3 +421,27 @@ for the real output and re-check the fixes before shipping the branch.
 The plugin lives in `endpoints/botcore/plugins/botcore-factory/`, and its jobs run from this
 folder's [`scenarios/`](scenarios/) through AFD's scenario runner, in the `botcore-factory`
 workflow.
+
+## Phase 1. The plugin, one slot
+
+One line per piece, as the [proposal](software-factory.proposal.md#phases) lists them. A pull
+request edits the line of the piece it builds. A blank line parts them, because git reports a
+conflict when two branches change adjacent lines.
+
+- Botcore's host changes, plugin policies, input schemas in the catalog and named refusals: merged in #1181.
+
+- `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14: merged in #1183.
+
+- The queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09: merged in #1185.
+
+- The lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report`: merged in #1295.
+
+- Review evidence and `prepare-pr`'s lane mode: merged in #1305.
+
+- The `factory` and `factory-cell` command lines and `run-fleet`: merged in #1310.
+
+- The webhook wake: not done.
+
+- Experience review (`pr-preview` and the before-and-after screens): not done.
+
+- One measured AFD fleet run on the workstation, with its numbers reported, after the webhook wake and experience review: not done.

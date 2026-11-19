@@ -5,6 +5,7 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { createKernelParts } from '../kernel.js';
 import {
@@ -1616,6 +1617,61 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 			result: { success: true, data },
 		}) as unknown as JournalEntry;
 
+	/** `work-a-read` with any object for its input, as the kernel passes the command to `answer`. */
+	const READ = {
+		name: 'work-a-read',
+		inputSchema: z.record(z.string(), z.unknown()),
+	} as unknown as ZodCommandDefinition;
+
+	it('#859: validates the input by the command it is given, and matches what the schema makes of it', () => {
+		const withDefault = {
+			name: 'work-a-read',
+			inputSchema: z.object({ n: z.number(), limit: z.number().default(10) }),
+		} as unknown as ZodCommandDefinition;
+		const nested = nestedReplay([recordedEntry(1, { n: 1, limit: 10 }, 'one')]);
+		// Refused by the schema, or a name the kernel does not hold: no entry is taken, and the call runs.
+		expect(nested.answer('outer-1', 'work-a-read', { n: 'x' }, withDefault)).toBeUndefined();
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 }, undefined)).toBeUndefined();
+		// The default the schema fills in is part of the input the journal holds.
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 }, withDefault)?.data).toBe('one');
+	});
+
+	it('#859: compares the input as the journal redacts it', () => {
+		const entry = (command: string, input: unknown, result: unknown, context = {}) =>
+			({
+				seq: 1,
+				traceId: 'loam-mgw0-1',
+				command,
+				input,
+				context: { parent: 'outer-1', ...context },
+				result,
+			}) as unknown as JournalEntry;
+		const named = (name: string) => ({ ...READ, name }) as ZodCommandDefinition;
+		// `auth-sign-in` is journaled without its password.
+		const signIn = nestedReplay([entry('auth-sign-in', { email: 'a@b.c' }, { success: true })]);
+		expect(
+			signIn.answer(
+				'outer-1',
+				'auth-sign-in',
+				{ email: 'a@b.c', password: 'x' },
+				named('auth-sign-in')
+			)
+		).toEqual({ success: true });
+		// The kernel's own 256 KiB refusal, marked `recorded`, keeps the document's id alone.
+		const big = { document: 'doc-1', content: 'x'.repeat(256 * 1024) };
+		const refused = {
+			success: false,
+			error: { code: 'DOCUMENT_CONTENT_TOO_LARGE', message: 'm', suggestion: 's' },
+		};
+		const kernel = nestedReplay([
+			entry('work-a-save', { document: 'doc-1' }, refused, { replay: 'recorded' }),
+		]);
+		expect(kernel.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toEqual(refused);
+		// An app's own refusal with that code keeps its whole input, so it is never cut down.
+		const app = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused)]);
+		expect(app.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toBeUndefined();
+	});
+
 	it('answers two nested calls a handler made together, recorded in the other order', () => {
 		// The journal gives a call its seq when it finishes, so the second call made can finish first; its
 		// trace ID's number says the order the calls were made in.
@@ -1623,9 +1679,9 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 			recordedEntry(1, { n: 2 }, 'second', 8),
 			recordedEntry(2, { n: 1 }, 'first', 7),
 		]);
-		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })?.data).toBe('first');
-		expect(nested.answer('outer-1', 'work-a-read', { n: 2 })?.data).toBe('second');
-		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 }, READ)?.data).toBe('first');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 2 }, READ)?.data).toBe('second');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 }, READ)).toBeUndefined();
 		nested.finish('outer-1');
 		expect([...nested.problems]).toEqual([]);
 	});
@@ -1637,23 +1693,30 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 			recordedEntry(1, { n: 1 }, 'one', 3),
 			recordedEntry(2, { n: 2 }, 'two', 4),
 		]);
-		expect(reordered.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		expect(reordered.answer('outer-1', 'work-a-read', { n: 2 }, READ)).toBeUndefined();
 		const other = nestedReplay([recordedEntry(1, { n: 1 }, 'one')]);
-		expect(other.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		expect(other.answer('outer-1', 'work-a-read', { n: 2 }, READ)).toBeUndefined();
 		other.finish('outer-1');
 		expect([...other.problems.values()]).toEqual([
 			"The handler did not call 'work-a-read', which the journal records",
 		]);
-		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The head
-		// takes it, as a schema's default may fill an input in, and the call that follows cannot match.
+		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The input is
+		// the validated one, defaults filled in, so `{}` matches only a recorded `{}`: the head is not it.
 		const swapped = nestedReplay([
 			recordedEntry(1, { n: 1 }, 'one', 3),
 			recordedEntry(2, {}, 'empty', 4),
 		]);
-		swapped.answer('outer-1', 'work-a-read', {});
-		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		expect(swapped.answer('outer-1', 'work-a-read', {}, READ)).toBeUndefined();
+		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 }, READ)?.data).toBe('one');
 		swapped.finish('outer-1');
 		expect(swapped.problems.size).toBe(1);
+		// #859: never a subset, either way: a recorded `{ filter: 'a' }` is not `{}`, nor is `{}` one with a key.
+		const filtered = nestedReplay([recordedEntry(1, { filter: 'a' }, 'filtered')]);
+		expect(filtered.answer('outer-1', 'work-a-read', {}, READ)).toBeUndefined();
+		expect(
+			filtered.answer('outer-1', 'work-a-read', { filter: 'a', more: 1 }, READ)
+		).toBeUndefined();
+		expect(filtered.answer('outer-1', 'work-a-read', { filter: 'a' }, READ)?.data).toBe('filtered');
 	});
 
 	it('refuses a recorded call past validation, and lets validation answer as it did live, with no transport', async () => {
