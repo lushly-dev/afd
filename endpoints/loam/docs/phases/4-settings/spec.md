@@ -51,8 +51,9 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
 - **Done, step 4, overlays II** ([#1629](https://github.com/lushly-dev/afd/pull/1629), 2026-11-19): dialogs, modals' actions and elements, prompts, the slot, 6.1's path table for every kind, 6.5's answer rule with F6's cancels, `parked` and `overlay-global-set`; what it decided, measured and left, and what its trust review changed, is in [its record](#step-4-2026-11-19).
 - **Done, step 5, the inbox** ([#1630](https://github.com/lushly-dev/afd/pull/1630), 2026-11-19): section 10 without confirmations, the `notification` table and `notification-push`, `-list`, `-read`, `-archive` and `-act`, sticky toasts landing (6.1), `muted`, the `inbox` chunk, the title bar's Inbox button and the announcement, a sticky toast's **Open inbox**, the palette's row, hello's guest book, and P4-E6; what it decided, measured and left is in [its record](#step-5-2026-11-19).
+- **Done, step 6, prompts and confirmations** (on `lush/loam-p4-step6-confirmations`, before its trust review, 2026-11-19): section 7, `confirm_prompt` enforced in process with R9's pending path, `confirmation-get` and `-withdraw`, `palette-run` and its input prompt (R15), the close prompt (7.3), tally's `tally-reset` with its `confirm_prompt` in place of `p4-base`'s fixture, the jobs `decline-confirmation` and `palette-prompts-for-input`, P4-E8 in units and Chromium, and the amendments A-P0-1, A-P1-1 and A-P2-1; what it decided, measured and left is in [its record](#step-6-2026-11-19).
 - **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 5, step 8 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 6, step 8 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -987,7 +988,7 @@ These are estimates, under D115.
 | `late` | +5,000 |
 | `late-settings` (new) | 26,000. **Measured (step 8):** 44,544 with the settings and autonomy, the row raised under D115 |
 | `settings` (new), with three custom editors | 36,000 |
-| `inbox` (new) | 10,000 |
+| `inbox` (new) | 10,000. **Measured (step 6):** 11,340 with confirmations, the row raised under D115 |
 | `overlays` (new) | 11,000 |
 | `apps` | Measured by step 2 |
 
@@ -1193,10 +1194,10 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) were proposed in 
 
 Each lands with the step named beside it; none landed with the approval or with the owner's answers of 2026-11-18.
 
-- **A-P0-1 (step 6):** the palette's active-app filter is removed (step 6), and `createKeybindings` takes overrides and sequences (step 7).
-- **A-P1-1 (step 6):** the `palette` catalog row becomes "Filtered by scope, ranked by active app".
+- **A-P0-1 (step 6):** the palette's active-app filter is removed (step 6), and `createKeybindings` takes overrides and sequences (step 7). *The first half landed with step 6*, in phase 0's and phase 1's specifications.
+- **A-P1-1 (step 6):** the `palette` catalog row becomes "Filtered by scope, ranked by active app". *Landed with step 6*, in the architecture's catalog, the manifest's surface catalog and phase 1's specification.
 - **A-P1-2 (step 9):** `app-get` gains `gates`; the `menus` catalog row is served by "a later specification", not phase 4.
-- **A-P2-1 (step 6):** 5.5's close prompt becomes 7.3, opened only for the person's own close.
+- **A-P2-1 (step 6):** 5.5's close prompt becomes 7.3, opened only for the person's own close. *Landed with step 6*, in the documents specification's 5.5.
 - **A-P2-2 (step 1):** `WorkspaceV1.trashDays` is written through from `loam.documents.trashDays`.
 - **A-P2-3 (step 10):** the 256 KiB instance-command input bound becomes `loam.limits.inputBytes`.
 - **A-P3-1 (step 1):**
@@ -1812,6 +1813,50 @@ Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after step
 
 **Verified after the trust review,** 2026-11-19, same machine: `test --coverage` for the kernel (51 files, 1,059 tests), chrome (17 files, 241), `web`'s units (11 files, 53) and tally (2); the Loam typecheck; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and five Chromium files, 32 tests (`autonomy` 5, `settings`, `apps/second-app`, `budget`, `accessibility`). Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
 
+## Step 6, 2026-11-19
+
+Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's head `3a35be2f` (steps 1 to 5 and 8), before its trust review (section 20).
+
+**Built.**
+
+- **The manifest** (12.1): `commands[].confirm_prompt`, plain text of 1 to 200 characters, a key of version 2 (`MANIFEST_SURFACE_UNAVAILABLE` under version 1, as step 1 made `ui.settings`), a control character `MANIFEST_TEXT_INVALID`; a mounted tool's `MANIFEST_CONFIRM_UNAVAILABLE`, as 12.1 says, where phase 1 gave `MANIFEST_KEY_REFUSED`. `confirmation` joins the shell's domains and the reserved plugin ids.
+- **The gate** (`kernel/src/late/confirmations.ts`, in `late-settings`): the kernel chain's last middleware, after the copilot's, so F9's order holds: strict validation, line 0, access and grants, the decline window, then the slot or the inbox, then the handler. **A person's gesture** asks in the slot and waits; **the active app's port, or the active tab owner's,** the same, under the shell's header, held by the window; **an agent, the copilot among them, or an app that is not active** gets `CONFIRMATION_PENDING` at once with `details: { notification, expiresAt }`, the confirmation a row of the inbox's table; any other path is `HUMAN_REQUIRED`. The key (F4) is the caller, the command, the input's SHA-256 digest and the scope, of one person in one workspace. A re-call on the key before `expiresAt` answers its stored state (F5); at most 5 pending per caller (`RATE_LIMITED`, `details: { limit: 5, retryAfterMs }`, counted with the insert on the person's chain); 10 minutes to `expired`; the 60-second window after a decline, which only a person's gesture is exempt from.
+- **Answering** (`notification-act { answer }`, the inbox's Confirm and Decline): a decline ends it `declined`; a confirm re-checks the asking actor's access in the confirmation's scope and whether the command's app is still registered, loaded, enabled and opening there and a calling app still the command's own, else `declined` with `reason: 'access'`, nothing run; then the shell runs the call itself once, as the same actor, interface, caller, input and scope, journaled with `confirmation`, the confirmation's id, and stores the outcome. The act's read, decision and claim run on the person's chain, so a withdrawal never lands between them.
+- **`confirmation-get` and `confirmation-withdraw`** (10.2), the raising caller's alone, on the agent interface and every app's port (`APP_CALLABLE_SHELL_COMMANDS_V2`, `ConfirmationsV1` on a native surface's context). A change of person withdraws the leaving person's pending confirmations, and `Confirmations.withdraw` is step 9's unload seam (R14); `withdrawn` never opens the window.
+- **`palette-run`** (7.1): human only (the chain's `HUMAN_COMMANDS` for the agent interface, `CALL_NOT_GRANTED` from a port). `{ command }` opens a shell prompt of the command's plain input fields, `for: { command, kind: 'input' }`; `{ command, prompt, input }` checks the prompt (`OVERLAY_NOT_FOUND` for a stale one or another command's), then the input against the command's own schema, the prompt kept open with the reason on a failure; a `confirm_prompt` command's confirmation replaces the prompt in the slot (`reason: 'replaced'`, R15), showing the input; any other runs as the person.
+- **The close prompt** (7.3): a person's own `editor-close` of a dirty tab opens it, `for: { command: 'editor-close', kind: 'close' }`, with Save (the default), Discard (`danger`) and Cancel, and answers `EDITOR_TAB_DIRTY` with `details.prompt`; an agent's or a port's gets `EDITOR_TAB_DIRTY` alone, as phase 2 has it. The chrome's close runs the editor's `save()` on Save.
+- **The palette** (7.1, A-P0-1, A-P1-1): every enabled, loaded app's `expose.palette` commands, ranked by the active app, then the active tab's owner, then the rest, then the persona, each command row naming its app; a command that needs input is a row that opens its prompt.
+- **Tally** at manifest version 2 with `tally-reset`, destructive, with its `confirm_prompt`; `p4-base`'s fixture command and the runner's fixture mechanism are gone. The jobs `decline-confirmation` and `palette-prompts-for-input` run and pass.
+- **The chrome:** the slot shows a confirmation's header as its name, the app's text and the input as it will run, Decline focused, never Confirm; the close prompt's three buttons; the input prompt answered through `palette-run`; the inbox's confirmation with its header, text, input and state, and Confirm and Decline naming the command; the Inbox count and an announcement of a confirmation raised by a call that failed (`KernelEventV4.inbox`).
+
+**Decided while building it,** each a judgement a reviewer should check, amending the section named:
+
+- **Replay** (7.2's last line): a call that waits is journaled after the answer that ended its wait, so the slot's confirmation opens through the internal `prompt-settle` (in `BOOT_ONLY`), journaled before the answer, and the waiting call's own entry carries its id, by which a replay finds the answer. The shell's run, for a confirmation or for `palette-run`, is a top-level call of its own with `origin`, the trace of the call that made it, journaled before that call, so a replay runs it once at its own entry and the call that made it answers from it. A nested run, as `notification-act`'s action is, would be answered from the record and its effects would not replay.
+- **`notification-act`'s answer** (10.2) is `{ state: 'confirmed' }`, or `{ state: 'declined', reason: 'access' }`, never the run's result, which `confirmation-get` reads; the answer marks it read.
+- **"Declined automatically"** (R16): counted on the declined row as `declinedAgain`, never a row per refused call, since confirmations count against no quota and an agent's loop would fill the inbox.
+- **The re-call and the window** answer a declined key `CONFIRMATION_DECLINED` until its `expiresAt` (F5) or 60 seconds after the answer (R16), whichever is later; a withdrawn or expired key raises a new one.
+- **The key** adds the person and the workspace to 7.2's four parts.
+- **A slot confirmation** is never a row: its window is the page's memory, which a reload forgets (a follow-up). Its caller hears `CONFIRMATION_DECLINED` on a decline, the same with `details.reason: 'withdrawn'` on the raising app's own cancel (F6), and `SESSION_CHANGED` on a change of person.
+- **The headers:** "Requested by <agent> for <person>, in <project>"; "<app> asks to run <command> in <project>"; for a person's own call, "Run <command> in <project>?". The app's text sits beneath; the shell's words come from titles, never an app's name in shell source.
+- **Expiry is read, not written:** a pending row past its time reads `expired` everywhere, so the unjournaled `notification-list` writes nothing. Ended rows past their key's life are pruned at the next raise, keeping the person's newest 50.
+- **The re-check** covers what can change at run time: access, and the app disabled, unloaded or refused. A grant comes with a manifest, so "loses a grant" is a new manifest, which reloads the app.
+- **`palette-run`'s fields** are a command's plain input fields only (6.4's kinds, no `pattern` or `format`, which the command's own schema still checks); any other input is `VALIDATION_ERROR` saying to run it from its app; a command the palette does not list here is AFD's `COMMAND_NOT_FOUND`. The input prompt is answered by `palette-run` alone (`overlay-dismiss { result: 'confirm' }` on it is `VALIDATION_ERROR`); a confirmation and the close prompt take no value. The run is in the scope of the call that fills the prompt (a follow-up).
+- **A-P0-1's ranking** puts the rank group before the score, as the persona's emphasis already did before this step, and an app's setting row in its app's group, so the active app's own setting ranks with its commands; the persona then orders within each group.
+- **`confirm: true`** is refused by an app command's strict schema with a message naming `confirmation-get`, a check before the declared schema, unless the command's own schema declares `confirm`.
+- **The close prompt's fallback:** a draft whose tab the kernel no longer holds, as when an agent closed it while its save ran, is asked the same three answers in the shell's own modal, a person's gesture's (6.5).
+- **The scenarios,** each against what the code answers: `decline-confirmation`'s `count` is `total`, `tally-get`'s field; `palette-prompts-for-input`'s prompt steps run in `prj_atlas`, where its document is.
+- **`stores.test.ts`'s scan** gains a sixth named exemption, `palette-run`'s `command`, a palette command's name, for this step's review; `mounted.test.ts`'s command-line scan leaves `palette-run` out on the same ground.
+
+**Left for later steps:**
+
+- **Step 9:** an app's unload withdrawing its pending confirmations (R14), through `Confirmations.withdraw`, tested here as a seam.
+- **Phase 5's step 3:** `Confirmations.ask(name, input, context, next, { group })` raises one for any call, whatever its command declares, as 6.1's `ask`; the key's extra part is where the copilot's session goes.
+- **Hello's own sticky toast and notice with an action** (section 1's `apps/hello` row), which step 5 left here: no job needs them; a follow-up.
+
+**Measured.** D115, on Windows with Node 26.13.1, against `budget.mjs`'s figures for steps 4, 5 and 8 merged: first paint 310,406 (+275) and 96,862 gzip (+98), within 310,500 and 97,000; the kernel alone 119,623, its row 120,000; `lateSettingsMinified` 61,500 to 78,500 (78,180, +17,711); `lateMinified` 107,500 to 110,000 (109,463, +2,627); `lateEditorMinified` 15,400 to 16,000 (15,813, +477); `appsMinified` 418,500 to 420,500 (420,134, +2,079); `surfacesMinified` 95,500 to 96,500 (96,179, +1,311); `editorMinified` 35,600 to 36,000 (35,762, +283); `inboxMinified` 10,000 to 11,500 (11,340, +1,703, over section 14's 10,000). `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (55 files, 1,192 tests; 24 in `late/confirmations.test.ts`, and both jobs in `scenarios.test.ts`), chrome (247), the SDK (34), the manifest (1,106), web (53), tally (3) and hello (8); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; sixteen Chromium files, 216 tests: `confirmations` (6, new), `inbox`, `settings`, `documents/editor` (the close prompt's three answers), `apps/overlays`, `apps/dialogs`, `shell`, `accessibility`, `apps/popovers`, `apps/accessibility`, `apps/second-app`, `scope/first-paint`, `budget`, `autonomy`, `documents/new` and `apps/view`; `check-doc-lines`; and `pnpm check`. **Not run:** the rest of `test:browser`, `test:walk` (whose choice now reads Cancel), `test:mounted`, `test:hosted`, the desktop suite, Cargo, `loam.yml` and `pnpm verify`.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1841,3 +1886,6 @@ Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after step
 | 2026-11-19 | Step 5's reviews (R3) | The revoked session's notice: the provider gives a reason on a refused session, so the kernel tells a revocation from a sign-out in another tab and notices it in the person's inbox | Open; with the provider |
 | 2026-11-19 | Step 5's verification (R2 amended) | A shared, age-ordered cap with virtual capping, and a hidden toast's timer and `user` close simulated as a shown one's are, if mute privacy needs to hold against others' activity and the person's own handling of toasts | Open |
 | 2026-11-19 | Step 5's verification of `0e2fba70` | Journal an agent's or an app's `notification-list` (a per-caller filter leaving out only the shell's own read), since `body: true` returns notice bodies and a pending confirmation's input | Open |
+| 2026-11-19 | Step 6 | Hello's own sticky toast and notice with an action (section 1's `apps/hello` row), which no job needs | Open |
+| 2026-11-19 | Step 6 | A slot confirmation's decline window is held in the page's memory, so a reload forgets it; a pending one's is in its row | Open |
+| 2026-11-19 | Step 6 | `palette-run` runs in the scope of the call that fills its prompt; bind the prompt to the scope it opened in | Open |

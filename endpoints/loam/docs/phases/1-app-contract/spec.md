@@ -1820,7 +1820,9 @@ export interface AppInstanceV1 {
 - **`palette-search` and `listCommands`.** `listCommands` returns all the palette registry's
   commands, each with its `instance`. `palette-search` shows shell commands and the active
   app's only (the catalog's "filtered by active app"). An inactive app's commands stay
-  callable by name, and `kernel.agent.listCommands()` lists them all.
+  callable by name, and `kernel.agent.listCommands()` lists them all. **Amended by phase 4's step 6 (A-P0-1,
+  A-P1-1):** it lists every enabled, loaded app's commands, ranked by the active app, each naming its app, and the
+  catalog's row reads "Filtered by scope, ranked by active app".
 - **Domains.** `status` joins the shell domains (D68). `app`, `toast`, `modal` and `overlay`
   are already in the architecture's list.
 - **Replay.** `REPLAY_IGNORE` is unchanged; [7.6](#76-journal-behaviour) handles what depends on loading.

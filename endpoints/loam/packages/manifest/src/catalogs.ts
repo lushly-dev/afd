@@ -102,7 +102,8 @@ export const SURFACE_CATALOG_V1: readonly SurfaceEntry[] = [
 		id: 'palette',
 		place: 'commands[].expose.palette',
 		owner: 'Shell',
-		onSwitch: 'Filtered by active app and scope',
+		// Phase 4's A-P1-1 (step 6): every enabled, loaded app's commands, the active app's first.
+		onSwitch: 'Filtered by scope, ranked by active app',
 		servedFrom: 1,
 	},
 	{ id: 'settings', place: 'ui.settings', owner: 'Shell', onSwitch: 'Stays', servedFrom: 4 },
