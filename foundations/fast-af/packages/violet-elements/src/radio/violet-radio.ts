@@ -8,18 +8,22 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #ddeadf);
-        --_selection-text: var(--color-control-selected-foreground, #244635);
-        --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
-        --_surface-card: var(--color-surface-card, #faf9f5);
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
-        --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+        --_selection-background: var(--color-control-selected-background, #badecf);
+        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
+        --_selection-border: var(--color-control-selected-border, rgba(44, 94, 75, 0.5));
+        --_surface-card: var(--color-surface-card, #f8f9f3);
+        --_border-strong: var(--color-border-strong, #6b7d6e);
         --_radius-full: 999px;
         --_size-font-md: var(--size-font-md, 14px);
         --_control-size: max(var(--_size-font-md), calc(var(--_target-size) * 0.5));
         --_dot-size: max(8px, calc(var(--_control-size) * 0.5));
         --_type-body-line: var(--type-body-md-line, 20px);
-        --_type-caption-line: var(--type-caption-xs-line, 14px);
+        --_type-caption-line: var(--type-caption-xs-line, 16px);
+    }
+
+    /* The host takes focus; the ring is drawn on the mark, not round the whole row. */
+    :host(:focus-visible) {
+        outline: none;
     }
 
     :host([inline]) {
@@ -30,7 +34,7 @@ const styles = css`
     .root {
         display: inline-grid;
         grid-template-columns: auto minmax(0, 1fr);
-        gap: calc(var(--_space-inline-sm) * 2);
+        gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
         cursor: pointer;
@@ -65,12 +69,10 @@ const styles = css`
         border: 1px solid var(--_border-strong);
         border-radius: var(--_radius-full);
         background: var(--_surface-card);
-        box-shadow: var(--_shadow-control);
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),
             border-color var(--_duration-fast) var(--_easing-standard),
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+            box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     .dot {
@@ -99,12 +101,17 @@ const styles = css`
         transform: translate(-50%, -50%) scale(1);
     }
 
-    :host(:focus-visible) .control {
-        box-shadow:
-            var(--_shadow-control),
-            0 0 0 2px var(--_focus-ring);
+    :host(:not([checked]):not([disabled]):not([aria-disabled="true"])) .root:hover .control {
+        border-color: var(--_field-border-hover);
     }
 
+    :host(:focus-visible) .control {
+        box-shadow:
+            0 0 0 2px var(--_surface-page),
+            0 0 0 4px var(--_focus-ring);
+    }
+
+    /* The state colours are for messages; an invalid mark takes the field's 3:1 invalid edge. */
     :host([invalid]) .control {
         border-color: var(--_danger-border);
     }
@@ -117,14 +124,20 @@ const styles = css`
     /* Supporting text often says why the control is unavailable, so it stays readable. */
     :host([disabled]) :is(.control-shell, .label),
     :host([aria-disabled="true"]) :is(.control-shell, .label) {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 
+    /*
+     * The label sits on the first line beside the mark: its line is centred in the target by
+     * the inset, and supporting text runs on below it instead of pushing the label up.
+     */
     .content {
+        box-sizing: border-box;
         display: grid;
-        gap: var(--_space-stack-xs);
+        gap: var(--_space-stack-2xs);
         min-block-size: var(--_target-size);
-        align-content: center;
+        padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
+        align-content: start;
         min-inline-size: 0;
     }
 
@@ -134,23 +147,25 @@ const styles = css`
 
     :host([inline]) .content {
         min-block-size: auto;
+        padding-block: 0;
         align-content: center;
     }
 
     .label {
-        color: var(--color-text-primary, #18181b);
+        color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
     }
 
     .supporting {
-        color: var(--_text-secondary);
+        color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
     }
 
     @media (forced-colors: active) {
-        .control {
+        .control,
+        :host(:not([checked]):not([disabled]):not([aria-disabled="true"])) .root:hover .control {
             forced-color-adjust: none;
             border-color: ButtonText;
             background: Canvas;
@@ -169,6 +184,7 @@ const styles = css`
         :host(:focus-visible) .control {
             outline: 2px solid Highlight;
             outline-offset: 2px;
+            box-shadow: none;
         }
 
         :host([disabled]) .control,

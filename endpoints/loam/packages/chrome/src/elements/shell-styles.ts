@@ -21,7 +21,7 @@ export const styles = css`
 		overflow: hidden;
 		background: var(--color-surface-page);
 		color: var(--color-text-primary);
-		font-family: 'Montserrat', 'Segoe UI', sans-serif;
+		font-family: var(--font-family-body);
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
 		font-weight: var(--type-body-md-weight);
@@ -124,6 +124,7 @@ export const styles = css`
 	}
 	.project-home:active {
 		background: var(--color-action-secondary-pressed);
+		color: var(--color-text-primary);
 	}
 	.project-home:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);

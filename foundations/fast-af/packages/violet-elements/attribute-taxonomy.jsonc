@@ -832,9 +832,9 @@
       "property": "showFill",
       "valueType": "boolean",
       "category": "behavior",
-      "definition": "Enables a visible fill track from the minimum value to the current value on a range-like control.",
-      "useFor": ["range inputs where a filled track conveys progress or magnitude"],
-      "doNotUseFor": ["general visibility toggles", "selection state"],
+      "definition": "Has no effect: a range control's track is always filled from the minimum value to the current value. Kept so existing markup stays valid.",
+      "useFor": ["existing markup that already carries it"],
+      "doNotUseFor": ["new markup", "hiding or showing the fill", "selection state"],
       "usedBy": ["violet-slider"]
     },
     {

@@ -1,5 +1,7 @@
 # Software Factory: status
 
+Epic: [#1549](https://github.com/lushly-dev/afd/issues/1549). File new work for this area as its sub-issue.
+
 Read this before the [proposal](software-factory.proposal.md). It moved from `proposed/` to
 `active/` on 2026-11-14, because Phase 1's implementation had started on `main`. Reconciled that
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the

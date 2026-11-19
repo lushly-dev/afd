@@ -72,7 +72,23 @@
 			}
 		],
 		"commands": [],
-		"cssProperties": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--space-layout-sm, 12px)",
+				"name": "--_space-layout-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-stack-xs, 4px)",
+				"name": "--_space-xs"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-primary, #181b1a)",
+				"name": "--_text-primary"
+			}
+		],
 		"events": [
 			{
 				"basis": "declared",

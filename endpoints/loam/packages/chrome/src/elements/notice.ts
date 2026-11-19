@@ -29,7 +29,7 @@ const styles = css`
 		padding: var(--space-layout-md);
 		background: var(--color-surface-page);
 		color: var(--color-text-primary);
-		font-family: 'Montserrat', 'Segoe UI', sans-serif;
+		font-family: var(--font-family-body);
 	}
 	:host([embedded]) {
 		display: block;

@@ -2,6 +2,12 @@
  * @fileoverview `loam-panel`: `region`, "Panel". Inline below main, maximized over main's area,
  * or in the compact class a non-modal bottom sheet above the tab bar, between `40dvh` and `80dvh`
  * high (5.3). It asks the shell to close or maximize it with `loam-action` events.
+ *
+ * Its body is a column: an app's panel views at their own height, then the copilot's panel (phase 5 specification,
+ * 3.2), which takes what is left and at least the part's minimum, and whose thread scrolls itself. When the column
+ * is taller than the part, the body scrolls, and is then a tab stop, so a person can scroll it by keyboard whatever
+ * it holds (WCAG 2.1.1; axe's `scrollable-region-focusable`, which the copilot beside an app's panel failed in
+ * phase 5's step 1).
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
@@ -69,6 +75,9 @@ const styles = [
 		}
 		.body {
 			flex: 1;
+			display: flex;
+			flex-direction: column;
+			min-block-size: 0;
 		}
 		.header,
 		.body {
@@ -76,6 +85,18 @@ const styles = [
 		}
 		.body {
 			overflow: auto;
+		}
+		.body:focus-visible {
+			outline: var(--shell-size-focus) solid var(--color-focus-ring);
+			outline-offset: calc(-1 * var(--shell-size-focus));
+		}
+		/* An app's view keeps its own height: the body scrolls, never a view squeezed into a scroller of its own. */
+		::slotted(:not(loam-copilot-panel)) {
+			flex-shrink: 0;
+		}
+		::slotted(loam-copilot-panel) {
+			flex: 1 0 var(--shell-size-panel-min);
+			block-size: auto;
 		}
 		[hidden] {
 			display: none;
@@ -105,10 +126,36 @@ export class LoamPanel extends FASTElement {
 		this.mode = 'inline';
 	}
 
+	#observer: ResizeObserver | undefined;
+
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'region');
 		this.setAttribute('aria-label', 'Panel');
+		const body = this.shadowRoot?.querySelector<HTMLElement>('.body');
+		const slot = body?.querySelector('slot');
+		if (!body || !slot || typeof ResizeObserver === 'undefined') return;
+		// A tab stop exactly while it scrolls: a scroller with nothing focusable in it is otherwise out of reach.
+		const check = () => {
+			if (body.scrollHeight > body.clientHeight + 1) body.setAttribute('tabindex', '0');
+			else body.removeAttribute('tabindex');
+		};
+		const observer = new ResizeObserver(check);
+		const watch = () => {
+			observer.disconnect();
+			observer.observe(body);
+			for (const element of slot.assignedElements()) observer.observe(element);
+			check();
+		};
+		slot.addEventListener('slotchange', watch);
+		this.#observer = observer;
+		watch();
+	}
+
+	override disconnectedCallback(): void {
+		super.disconnectedCallback();
+		this.#observer?.disconnect();
+		this.#observer = undefined;
 	}
 }
 attr(LoamPanel.prototype, 'mode');

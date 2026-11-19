@@ -14,10 +14,11 @@ const styles = css`
         --_popover-padding: var(--violet-popover-padding, var(--_space-md));
         --_popover-min-inline: var(--violet-popover-min-inline-size, 16rem);
         --_popover-max-inline: var(--violet-popover-max-inline-size, min(24rem, calc(100vw - 24px)));
-        --_popover-radius: var(--violet-popover-radius, calc(var(--_radius-md) * 2));
-        --_popover-background: var(--violet-popover-background, var(--_surface-card));
+        --_popover-radius: var(--violet-popover-radius, var(--_radius-lg));
+        --_popover-background: var(--violet-popover-background, var(--_surface-floating));
         --_popover-shadow: var(--violet-popover-shadow, var(--_shadow-floating));
-        --_popover-border: var(--violet-popover-border, var(--_border-subtle));
+        /* What floats is its surface and shadow. The edge is kept, clear, for forced colours. */
+        --_popover-border: var(--violet-popover-border, transparent);
         --_popover-gap: var(--violet-popover-gap, var(--_space-sm));
     }
 

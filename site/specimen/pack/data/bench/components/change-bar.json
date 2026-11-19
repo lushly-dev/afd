@@ -1,0 +1,155 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"role": "group",
+				"state": "default"
+			}
+		],
+		"statements": [
+			{
+				"basis": "verified",
+				"id": "change-bar.save-disabled",
+				"text": "To switch off saving, set save-disabled. It disables the main button and leaves the other two alone."
+			},
+			{
+				"basis": "authored",
+				"id": "change-bar.not-disabled",
+				"text": "Do not set disabled on the bar. A screen reader then announces all three buttons as unavailable."
+			},
+			{
+				"basis": "authored",
+				"id": "change-bar.dismiss-name",
+				"text": "Keep dismiss-label set. The icon button has no text, so the attribute is its only name."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Do not use. It is announced for every button in the bar. Use save-disabled.",
+				"name": "disabled",
+				"property": "disabled",
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "Dismiss",
+				"description": "The icon button's accessible name.",
+				"name": "dismiss-label",
+				"property": "dismissLabel",
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "Save",
+				"description": "The main button's text.",
+				"name": "label",
+				"property": "label",
+				"type": "string"
+			},
+			{
+				"basis": "verified",
+				"default": false,
+				"description": "Switches off the main button, and only that button.",
+				"name": "save-disabled",
+				"property": "saveDisabled",
+				"type": "boolean"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "8px",
+				"description": "The space between the text and each button.",
+				"name": "--bar-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "12px",
+				"description": "The padding inside the bar.",
+				"name": "--bar-pad"
+			},
+			{
+				"basis": "declared",
+				"default": "8px",
+				"description": "The corner radius of the buttons. The bar's is 4px more.",
+				"name": "--bar-radius"
+			}
+		],
+		"events": [
+			{
+				"basis": "verified",
+				"description": "Discard was pressed.",
+				"detail": "CustomEvent",
+				"name": "discard"
+			},
+			{
+				"basis": "verified",
+				"description": "The icon button was pressed.",
+				"detail": "CustomEvent",
+				"name": "dismiss"
+			},
+			{
+				"basis": "verified",
+				"description": "The main button was pressed.",
+				"detail": "CustomEvent",
+				"name": "save"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "What is waiting, in a few words.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "bar",
+			"html": "<change-bar>3 changes to Atlas Dark</change-bar>"
+		},
+		{
+			"basis": "observed",
+			"from": "bar-disabled-fixed",
+			"html": "<change-bar save-disabled>3 changes to Atlas Dark</change-bar>"
+		},
+		{
+			"basis": "observed",
+			"from": "bar-relabelled",
+			"html": "<change-bar label=\"Save changes\">3 changes to Atlas Dark</change-bar>"
+		}
+	],
+	"format": 1,
+	"gaps": [],
+	"import": "afd-site-bench/change-bar.js",
+	"rules": [
+		"bars.one-main-action"
+	],
+	"status": "preview",
+	"summary": "A bar that says changes are waiting, with buttons to save them, discard them or put the bar away.",
+	"tag": "change-bar",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "change-bar.when",
+			"text": "Show it while there are unsaved changes. Say how many, and to what, in its text."
+		},
+		{
+			"basis": "verified",
+			"id": "change-bar.label",
+			"text": "The label attribute is the main button's text. Say what saving does, such as Save changes."
+		}
+	]
+}

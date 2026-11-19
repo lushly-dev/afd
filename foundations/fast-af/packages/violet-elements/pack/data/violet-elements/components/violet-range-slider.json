@@ -201,7 +201,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"default": "var(--color-state-danger-border, transparent)",
 				"name": "--_danger-border"
 			},
 			{
@@ -216,18 +216,13 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_rail-background"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf))",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-fill"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
-				"name": "--_shadow-floating"
 			},
 			{
 				"basis": "declared",
@@ -236,12 +231,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "calc(var(--_target-size) * 0.625)",
+				"default": "calc(var(--_target-size) * 0.5)",
 				"name": "--_thumb-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_rail-background)",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_tick-color"
 			},
 			{

@@ -142,6 +142,16 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--_field-border-readonly)",
+				"name": "--_field-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_text-secondary)",
+				"name": "--_field-placeholder"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--space-layout-sm, 12px)",
 				"name": "--_space-layout-sm"
 			}
@@ -243,7 +253,7 @@
 		{
 			"basis": "authored",
 			"id": "text-area.error",
-			"text": "There is no error-text attribute and no error message is rendered: invalid only turns the border red and sets aria-invalid. Put the error wording in supporting-text while invalid."
+			"text": "There is no error-text attribute and no error message is rendered: invalid sets aria-invalid and turns the border and the supporting text the danger colour. Put the error wording in supporting-text while invalid."
 		}
 	]
 }

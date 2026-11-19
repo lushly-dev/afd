@@ -1,0 +1,11 @@
+{
+	"rules": [
+		{
+			"id": "bars.one-main-action",
+			"text": "A bar has one main action. Everything else in it is a plain button.",
+			"appliesTo": {
+				"tags": ["change-bar"]
+			}
+		}
+	]
+}

@@ -25,7 +25,7 @@
 			{
 				"basis": "observed",
 				"default": "secondary",
-				"description": "Visual emphasis variant for the button.",
+				"description": "Visual emphasis variant for the button. `quiet` and `transparent` render the same, as an icon until the pointer is on it; `transparent` is kept for existing markup.",
 				"name": "appearance",
 				"property": "appearance",
 				"rules": [
@@ -103,7 +103,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "clamp(16px, calc(var(--_target-size) * 0.6667), 20px)",
+				"default": "clamp(16px, calc(var(--_target-size) * 0.5), 20px)",
 				"name": "--_icon-size"
 			},
 			{
@@ -180,7 +180,7 @@
 		{
 			"basis": "authored",
 			"id": "icon-button.content",
-			"text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary."
+			"text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary. Transparent renders exactly as quiet (an icon until the pointer is on it) and is kept for existing markup; write quiet."
 		}
 	]
 }

@@ -45,18 +45,23 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-text, #166534)",
+				"default": "var(--color-state-success-text, #2c5e4b)",
 				"name": "--_success-text"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_surface-card)",
+				"default": "transparent",
 				"name": "--violet-card-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_border-subtle)",
+				"default": "transparent",
 				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_radius-md)",
+				"name": "--violet-card-radius"
 			},
 			{
 				"basis": "declared",

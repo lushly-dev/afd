@@ -1,0 +1,1155 @@
+/* Refined: the site's interface layer (lushly-dev/afd#1430).
+ *
+ * The components' Refined design, carried over to the site. Loaded last by
+ * every page, after the page's own styles:
+ * - Interface text (navigation, buttons, fields, tabs, chips, the demo's rows)
+ *   is Inter. Headlines, statements, paragraphs and code keep their faces, and
+ *   so do the figure labels, which are the site's editorial voice.
+ * - Things you press or type into are rounded; panels are rounded a step more.
+ *   Posters, fields of colour, figure chips and crop marks on the hero and the
+ *   honesty slab stay square: the rounding is the contrast to them.
+ * - Edges come from surfaces and shadows instead of outlines. Filled buttons are
+ *   keys that sit one step up and go flat when pressed; fields are wells with a
+ *   top line that reaches 3:1; panels float. An accent on a panel is a straight
+ *   bar inside its corners, never a border bent round them.
+ * - One control scale: 40px for fields, buttons, tabs and icon keys, 32px for
+ *   chips and small keys, 48px only for a hero's call to action.
+ *
+ * Rules are written under :root so they outrank the page styles they refine.
+ * Fonts are set with :where(:root), at the specificity of the rule they
+ * replace, where a page sets mono on purpose for a label that is code.
+ */
+
+:root {
+	--font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
+	--radius: 8px;
+	--radius-control: 8px;
+	--radius-panel: 14px;
+	--radius-mark: 5px;
+
+	/* The control scale. */
+	--control-sm: 32px;
+	--control: 40px;
+	--control-lg: 48px;
+
+	--shadow-key:
+		inset 0 1px 0 rgb(255 255 255 / 0.14), 0 1px 0 rgb(0 0 0 / 0.16), 0 2px 5px -1px rgb(0 0 0 / 0.24);
+	--shadow-key-pressed: inset 0 1px 3px rgb(0 0 0 / 0.32);
+	--shadow-float: 0 1px 2px rgb(0 0 0 / 0.06), 0 14px 36px -14px rgb(0 0 0 / 0.32);
+	/* Small things that float: the drawn menus and dialogs, a board card. */
+	--shadow-float-sm: 0 1px 2px rgb(0 0 0 / 0.08), 0 10px 24px -10px rgb(0 0 0 / 0.32);
+	/* On a dark field a shadow does not show; a lit top edge does. */
+	--shadow-float-dark: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 18px 44px -18px rgb(0 0 0 / 0.7);
+
+	/* Wells: the field you type into. Its top line is its edge, and it reaches 3:1
+	   against the fill and against the page round it (stone-600 on light, stone-500
+	   on the dark fields). The soft inner shadow is depth, not edge. */
+	--well: color-mix(in srgb, var(--afd-paper-bright) 80%, white);
+	--well-line: var(--afd-stone-600);
+	--shadow-well: inset 0 1px 0 var(--well-line), inset 0 2px 4px -1px rgb(0 0 0 / 0.12);
+	--well-dark: rgb(0 0 0 / 0.35);
+	--well-line-dark: var(--afd-stone-500);
+	--shadow-well-dark: inset 0 1px 0 var(--well-line-dark), inset 0 2px 4px -1px rgb(0 0 0 / 0.5);
+	/* A recess that is not a field: the segmented control, the drawings. */
+	--shadow-inset: inset 0 1px 0 rgb(0 0 0 / 0.1), inset 0 2px 4px -1px rgb(0 0 0 / 0.1);
+
+	/* Keys one step from the field they sit on. */
+	--key-tonal: color-mix(in srgb, var(--color-text) 7%, transparent);
+	--key-tonal-hover: color-mix(in srgb, var(--color-text) 12%, transparent);
+	--key-on-dark: color-mix(in srgb, var(--color-on-dark) 9%, transparent);
+	--key-on-dark-hover: color-mix(in srgb, var(--color-on-dark) 15%, transparent);
+	/* A panel on a dark field: a lighter surface where an outline used to be. */
+	--panel-on-dark: color-mix(in srgb, var(--color-on-dark) 4%, transparent);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Interface text
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(
+	.manifesto-nav a:not(.wordmark),
+	.agent-toggle,
+	.button,
+	.text-link,
+	.surface-name,
+	.surface-tabs button,
+	.surface-hint,
+	.install-tabs button,
+	.contract-tabs button,
+	.chips[role="tablist"] button,
+	.hero-install button,
+	.task strong,
+	.task-form input,
+	.task-form select,
+	.task-via,
+	.task-priority,
+	.form-row select,
+	.agent-form input,
+	.agent-form label,
+	.fa-find input,
+	.compare-pick select,
+	.contract-head select,
+	.contract-summary,
+	.recovery-controls,
+	.confirm-dialog,
+	.agent-view__bar button,
+	.vstage-reset,
+	.rule-failures button,
+	.mini-menu,
+	.mini-toast,
+	.mini-dialog,
+	.mini-field,
+	.ua-menu,
+	.ua-dialog,
+	.ua-toast
+) {
+	font-family: var(--font-ui);
+	letter-spacing: -0.005em;
+}
+
+:where(:root) :is(
+	.chips button,
+	.character-buttons button,
+	.agent-intents button,
+	.brief-bases button,
+	.vtoken-actions button,
+	.record-list button,
+	.vterm .terminal-tries button,
+	.sterm .terminal-tries button
+) {
+	font-family: var(--font-ui);
+	letter-spacing: -0.005em;
+}
+
+/* Labels that are code keep mono: tag names, file names, values. */
+:root :is(.fa-list button, .bc-cost-label .chips button) {
+	font-family: var(--mono);
+	letter-spacing: 0;
+}
+
+/* Small uppercase mono labels inside the interface become plain words. */
+:root :is(.task-via, .task-priority, .manifesto-nav .side-switch a, .surface-name > span, .ua-actions i, .ua-toast i) {
+	letter-spacing: 0;
+	text-transform: none;
+	font-weight: 500;
+}
+
+:root .task-via,
+:root .task-priority {
+	font-size: var(--t-code);
+}
+
+/* "Agent view" sits in the nav like its links, on one line. */
+:root .agent-toggle {
+	white-space: nowrap;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   The control scale: 40, 32 and, for a hero's call to action, 48.
+   One size of interface text in a control: --t-small. Code in a
+   control (a command, a tag name, a value) keeps mono at --t-code.
+   ════════════════════════════════════════════════════════════════ */
+
+:root .button {
+	min-height: var(--control);
+	padding: 0 var(--space-4);
+	font-size: var(--t-small);
+}
+
+:root .opening-actions .button {
+	min-height: var(--control-lg);
+	padding-inline: var(--space-5);
+	font-size: var(--t-small);
+}
+
+:root .icon-button,
+:root :is(.terminal-line, .terminal-prompt, .task-form, .dialog-heading) :is(.icon-button, button.icon-button),
+:root .terminal-prompt button {
+	width: var(--control);
+	height: var(--control);
+	flex: 0 0 var(--control);
+}
+
+:root :is(
+	.task-form input,
+	.task-form select,
+	.agent-form input:not([type="hidden"]),
+	.form-row select,
+	.fa-find input,
+	.compare-pick select,
+	.vsafe input,
+	.vsafe select,
+	.terminal-prompt select,
+	.contract-caption select,
+	.pair-label select
+) {
+	min-height: var(--control);
+	padding-block: 0;
+	padding-inline: var(--space-3);
+}
+
+:root :is(.task-form input, .task-form select, .agent-form input:not([type="hidden"]), .form-row select, .fa-find input, .compare-pick select) {
+	font-size: var(--t-small);
+}
+
+:root :is(.surface-tabs, .install-tabs, .contract-tabs, .chips[role="tablist"]) button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: var(--control);
+	padding: 0 var(--space-3);
+	font-size: var(--t-small);
+	font-weight: 500;
+	line-height: 1.3;
+}
+
+:root :is(.agent-intents, .record-list) button,
+:root .agent-view__bar button {
+	min-height: var(--control);
+	font-size: var(--t-small);
+}
+
+:root .record-list button {
+	padding-block: var(--space-2);
+}
+
+:root :is(.chips, .character-buttons, .terminal-tries, .vsafe-tries) button,
+:root .vtoken-actions button {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--control-sm);
+	padding: 0 var(--space-3);
+	font-size: var(--t-small);
+	line-height: 1.2;
+}
+
+/* The same keys, holding code. */
+:root :is(.terminal-tries, .vsafe-tries) button:not(:is(.vterm, .sterm) button),
+:root .bc-cost-label .chips button {
+	font-size: var(--t-code);
+}
+
+:root .vtoken-value [data-step] {
+	width: var(--control-sm);
+	height: var(--control-sm);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Buttons: keys
+   ════════════════════════════════════════════════════════════════ */
+
+:root .button {
+	border-radius: var(--radius-control);
+	transition:
+		transform 80ms ease-out,
+		box-shadow 80ms ease-out,
+		background-color 120ms ease-out;
+}
+
+:root :is(.button--ink, .button--red, .button--mint) {
+	box-shadow: var(--shadow-key);
+}
+
+:root :is(.button--ink, .button--red, .button--mint):not(:disabled):active {
+	transform: translateY(1px);
+	box-shadow: var(--shadow-key-pressed);
+}
+
+/* The outline button loses its outline: a tonal key, one step from the page. */
+:root .button--outline {
+	border-color: transparent;
+	background: var(--key-tonal);
+}
+
+:root .button--outline:not(:disabled):hover {
+	background: var(--key-tonal-hover);
+}
+
+:root .button--outline:disabled {
+	background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/* On a dark field, the tonal key in the field's own ink. */
+:root :is(.d-section--ink, .d-section--deep) .button--outline {
+	border-color: transparent;
+	background: var(--key-on-dark);
+	color: var(--color-on-dark);
+}
+
+:root :is(.d-section--ink, .d-section--deep) .button--outline:not(:disabled):hover {
+	background: var(--key-on-dark-hover);
+	color: var(--color-on-dark);
+}
+
+/* Icon keys: rounded; on a dark panel, a tint instead of an outline. */
+:root .icon-button {
+	border-radius: var(--radius-control);
+}
+
+:root :is(.install-command .icon-button, .terminal-line .icon-button, .terminal-prompt button) {
+	border-color: transparent;
+	background: var(--key-on-dark);
+}
+
+:root :is(.install-command .icon-button, .terminal-line .icon-button, .terminal-prompt button):hover {
+	background: var(--key-on-dark-hover);
+}
+
+:root .task-form .icon-button {
+	box-shadow: var(--shadow-key);
+}
+
+/* The agent view's way back: a tonal key. */
+:root .agent-view__bar button {
+	padding-block: 0;
+	border-color: transparent;
+	border-radius: var(--radius-control);
+	background: var(--key-tonal);
+}
+
+:root .agent-view__bar button:hover {
+	background: var(--key-tonal-hover);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Navigation
+   ════════════════════════════════════════════════════════════════ */
+
+/* Dev / Design: a segmented control, the open side raised out of a well. */
+:root .manifesto-nav .side-switch {
+	gap: 2px;
+	padding: 2px;
+	border: 0;
+	border-radius: calc(var(--radius-control) + 2px);
+	background: color-mix(in srgb, var(--color-text) 8%, transparent);
+	box-shadow: var(--shadow-inset);
+}
+
+:root .manifesto-nav .side-switch a {
+	padding: 5px var(--space-3);
+	border-radius: var(--radius-control);
+	font: 500 var(--t-code) / 1.4 var(--font-ui);
+}
+
+:root .manifesto-nav .side-switch a[aria-current="page"] {
+	box-shadow: var(--shadow-key);
+}
+
+/* On the red (the style guide's signal sample), a dark tint would take the
+   ink text under 4.5:1; a light one keeps it at 5.6:1. */
+:root .sg-on--signal .side-switch {
+	background: rgb(255 255 255 / 0.14);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Hero: the install line is a well on the red
+   No dark tint on the red: a light one. Ink text on it is 5.6:1 on the red
+   and 4.7:1 where the line crosses the darker slash.
+   ════════════════════════════════════════════════════════════════ */
+
+:root .hero-install code {
+	border: 0;
+	border-radius: var(--radius-control);
+	background: rgb(255 255 255 / 0.16);
+	box-shadow:
+		inset 0 1px 0 rgb(0 0 0 / 0.12),
+		inset 0 2px 4px -1px rgb(0 0 0 / 0.14);
+}
+
+:root .hero-install button {
+	font-size: var(--t-code);
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Fields: wells
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(.task-form input, .task-form select, .compare-pick select) {
+	border-color: transparent;
+	border-radius: var(--radius-control);
+	background-color: var(--well);
+	box-shadow: var(--shadow-well);
+}
+
+:root :is(
+	.agent-form input:not([type="hidden"]),
+	.form-row select,
+	.fa-find input,
+	.vsafe input,
+	.vsafe select,
+	.terminal-prompt select,
+	.contract-caption select,
+	.pair-label select
+) {
+	border-color: transparent;
+	border-radius: var(--radius-control);
+	background-color: var(--well-dark);
+	box-shadow: var(--shadow-well-dark);
+}
+
+:root .form-row select {
+	align-self: center;
+}
+
+/* The new-task field: its well is its edge, so the form's rule goes. */
+:root .task-form {
+	gap: var(--space-2);
+	border-bottom: 0;
+	padding-block: var(--space-4) var(--space-3);
+}
+
+:root .task-form:has(input:focus-visible) {
+	box-shadow: none;
+}
+
+:root .task-form input:focus-visible {
+	outline: 2px solid var(--color-text);
+	outline-offset: 2px;
+}
+
+:root :is(.vsafe input, .vsafe select):focus-visible {
+	border-color: transparent;
+	outline: var(--rule) solid var(--accent-agent);
+	outline-offset: 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Tabs: keys; the open one filled, its line inside its foot
+   Every tab row on the site: the demo's views, the install tabs,
+   the contract tabs and every row of chips that is a tablist.
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(.surface-tabs, .install-tabs, .contract-tabs, .chips[role="tablist"]) {
+	gap: 2px;
+}
+
+:root :is(.surface-tabs, .install-tabs, .contract-tabs, .chips[role="tablist"]) button {
+	position: relative;
+	border: 0;
+	border-radius: var(--radius-control);
+	background: transparent;
+	box-shadow: none;
+	color: var(--color-text-muted);
+}
+
+:root :is(.surface-tabs, .install-tabs, .chips--light[role="tablist"]) button:hover:not(:disabled, [aria-selected="true"]) {
+	background: color-mix(in srgb, var(--color-text) 5%, transparent);
+	color: var(--color-text);
+}
+
+:root :is(.surface-tabs, .install-tabs, .chips--light[role="tablist"]) button[aria-selected="true"] {
+	background: color-mix(in srgb, var(--color-text) 8%, transparent);
+	color: var(--color-text);
+	box-shadow: none;
+}
+
+:root :is(.surface-tabs, .install-tabs, .contract-tabs, .chips[role="tablist"]) button[aria-selected="true"]::after {
+	content: "";
+	position: absolute;
+	inset-inline: var(--space-3);
+	bottom: 3px;
+	height: 2px;
+	border-radius: 2px;
+	background: var(--color-text);
+}
+
+/* On a dark field: paper's tint and a mint line. */
+:root :is(.contract-tabs, .chips:not(.chips--light)[role="tablist"]) button {
+	color: var(--color-on-dark-muted);
+}
+
+:root :is(.contract-tabs, .chips:not(.chips--light)[role="tablist"]) button:hover:not(:disabled, [aria-selected="true"]) {
+	background: color-mix(in srgb, var(--color-on-dark) 6%, transparent);
+	color: var(--color-on-dark);
+}
+
+:root :is(.contract-tabs, .chips:not(.chips--light)[role="tablist"]) button[aria-selected="true"] {
+	background: color-mix(in srgb, var(--color-on-dark) 10%, transparent);
+	color: var(--color-on-dark);
+	box-shadow: none;
+}
+
+:root :is(.contract-tabs, .chips:not(.chips--light)[role="tablist"]) button[aria-selected="true"]::after {
+	background: var(--accent-agent);
+}
+
+/* The first tab's words line up with the text above; its key reaches into the margin. */
+:root :is(.install-tabs, .chips--light[role="tablist"]) {
+	margin-inline-start: calc(-1 * var(--space-3));
+}
+
+/* The contract tabs fill the head of their panel, so they sit in it with a margin. */
+:root .contract-tabs {
+	padding: var(--space-2);
+	border-bottom: 0;
+	box-shadow: inset 0 -1px 0 var(--color-on-dark-line);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Chips and small keys: tonal; the chosen one filled and raised
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(.chips, .character-buttons, .agent-intents, .terminal-tries, .vsafe-tries) button {
+	border-color: transparent;
+	border-radius: var(--radius-control);
+	background: var(--key-on-dark);
+	transition:
+		background-color 120ms ease-out,
+		box-shadow 80ms ease-out,
+		transform 80ms ease-out;
+}
+
+:root :is(.chips, .character-buttons, .agent-intents, .terminal-tries, .vsafe-tries) button:hover:not(:disabled, [aria-selected="true"], [aria-pressed="true"]) {
+	border-color: transparent;
+	background: var(--key-on-dark-hover);
+	color: var(--color-on-dark);
+}
+
+:root .chips button:is([aria-selected="true"], [aria-pressed="true"]) {
+	background: var(--accent-agent);
+	color: var(--color-text);
+	box-shadow: var(--shadow-key);
+}
+
+:root :is(.character-buttons, .agent-intents) button:not(:disabled):active {
+	transform: translateY(1px);
+	box-shadow: var(--shadow-key-pressed);
+}
+
+/* On a light field the keys are ink: a tint, and the chosen one filled. */
+:root .chips--light button {
+	background: var(--key-tonal);
+	color: var(--color-text);
+}
+
+:root .chips--light button:hover:not(:disabled, [aria-selected="true"], [aria-pressed="true"]) {
+	background: var(--key-tonal-hover);
+	color: var(--color-text);
+}
+
+:root .chips--light button:is([aria-selected="true"], [aria-pressed="true"]) {
+	background: var(--color-text);
+	color: var(--color-surface);
+	box-shadow: var(--shadow-key);
+}
+
+/* Specimen's briefs: big keys that pick which facts show. */
+:root .brief-bases button {
+	border-color: transparent;
+	border-radius: var(--radius-control);
+	background: var(--key-tonal);
+	transition: background-color 120ms ease-out;
+}
+
+:root .brief-bases button:hover {
+	background: var(--key-tonal-hover);
+}
+
+:root .brief-bases button[aria-pressed="true"] {
+	background: var(--color-text);
+	color: var(--color-surface);
+	box-shadow: var(--shadow-key);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   A recorded run: the lines are a list, the open one raised
+   No box round each line. The open line is a key one step up, with
+   a mint bar set inside its edge, as on the finale's answer.
+   ════════════════════════════════════════════════════════════════ */
+
+:root .record-list {
+	gap: 2px;
+}
+
+:root .record-list button {
+	position: relative;
+	border: var(--rule-thin) solid transparent;
+	border-radius: var(--radius-control);
+	transition: background-color 120ms ease-out;
+}
+
+:root .record-list button:hover {
+	background: color-mix(in srgb, var(--color-on-dark) 6%, transparent);
+}
+
+:root .record-list button[aria-pressed="true"] {
+	border-color: transparent;
+	background: color-mix(in srgb, var(--color-on-dark) 10%, transparent);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
+}
+
+:root .record-list button[aria-pressed="true"]::before {
+	content: "";
+	position: absolute;
+	inset-block: 9px;
+	inset-inline-start: 4px;
+	width: 3px;
+	border-radius: 3px;
+	background: var(--accent-agent);
+}
+
+/* Narrower, the lines become a row of chips: tonal keys, the open one mint. */
+@media (max-width: 1100px) {
+	:root .record-list button {
+		min-height: var(--control-sm);
+		padding-block: var(--space-1);
+		background: var(--key-on-dark);
+	}
+
+	:root .record-list button:hover {
+		background: var(--key-on-dark-hover);
+	}
+
+	:root .record-list button[aria-pressed="true"] {
+		background: var(--accent-agent);
+		color: var(--color-text);
+		box-shadow: var(--shadow-key);
+	}
+
+	:root .record-list button[aria-pressed="true"]::before {
+		content: none;
+	}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Marks: small, so the smaller radius
+   The outline, the dashed outline and the fill say how sure a fact
+   is, so those edges stay; only the corner changes.
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(.mark, .command-groups dt span, .vsafe-verdict, .task .task-priority),
+:root .task-check::before {
+	border-radius: var(--radius-mark);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Panels float
+   ════════════════════════════════════════════════════════════════ */
+
+/* On light fields: a shadow. */
+:root :is(
+	.command-source,
+	.contract-panel,
+	.contract-tool,
+	.install-command,
+	.recovery-lab,
+	.area-figure,
+	.brief-doc,
+	.fa-stage--app,
+	.confirm-dialog,
+	.ustores > div:not(.ustores-bridge)
+) {
+	border-radius: var(--radius-panel);
+	box-shadow: var(--shadow-float);
+}
+
+/* On dark fields: a surface and a lit edge, no outline. */
+:root :is(.vterm, .sterm, .layer article, .pattern, .found figure, .uhost > div, .area-start .install-command) {
+	border-color: transparent;
+	border-radius: var(--radius-panel);
+	box-shadow: var(--shadow-float-dark);
+}
+
+:root :is(.vterm-tree, .sread, .vstage-tree, .vagent, .sframe, .agent-session) {
+	border-color: transparent;
+	border-radius: var(--radius-panel);
+	background: var(--panel-on-dark);
+	box-shadow: var(--shadow-float-dark);
+}
+
+/* Code and output blocks, and the inspector: rounded, no shadow of their own. */
+:root :is(.sdiff, .uguess pre, .uyours pre, .where-command, .export-out pre, .fa-source pre, .fa-live-stage, .fa-log, .vinspector) {
+	border-radius: var(--radius-panel);
+}
+
+:root :is(.ux-art, .fa-card .fa-stage, .readings code) {
+	border-radius: var(--radius-control);
+}
+
+/* A panel's last child that paints its own surface takes the panel's corners,
+   so the panel need not clip: clipping would cut the focus ring of the
+   scrolling code inside it. */
+:root .recovery-lab > :last-child {
+	border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+}
+
+:root .recovery-lab {
+	border: 0;
+}
+
+:root .lab-heading {
+	border-bottom: 0;
+	box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+/* The app stage clips: the components' own root paints square, and its
+   controls sit well inside it, so no focus ring reaches the edge. */
+:root .fa-stage--app {
+	overflow: hidden;
+	border-color: transparent;
+}
+
+/* A scrolling block of code shows focus inside its own edge, and so does a
+   key inside a scrolling list (FAST-AF's index), where the list would cut it. */
+:root :is(pre, ol, ul, div)[tabindex="0"]:focus-visible {
+	outline-offset: -4px;
+}
+
+:root .fa-list button:focus-visible {
+	outline-offset: -2px;
+}
+
+/* ── The accent on a panel: a straight bar inside its corners ─────
+   The code panels' red (or mint, or the failure's red) is no longer a
+   top border bent round the corners. Pages set --source-accent. */
+
+:root .command-source {
+	--source-accent: var(--accent-human);
+	position: relative;
+	border-top: 0;
+}
+
+:root .command-source::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	inset-inline: var(--radius-panel);
+	height: var(--rule-heavy);
+	border-radius: 0 0 3px 3px;
+	background: var(--source-accent);
+}
+
+:root :is(.result-pair .command-source, .record-out, .bc-config .command-source, .ubrief-answer) {
+	--source-accent: var(--accent-agent);
+}
+
+:root .result-pair .command-source--failed {
+	--source-accent: var(--afd-red-300);
+}
+
+/* FAST-AF's log scrolls, so its bar is a background that stays put. */
+:root .fa-log {
+	border-top: 0;
+	background-image: linear-gradient(var(--accent-human), var(--accent-human));
+	background-position: top center;
+	background-repeat: no-repeat;
+	background-size: calc(100% - 2 * var(--radius-panel)) var(--rule-heavy);
+}
+
+/* A result beside its picker: the bar on its leading edge. */
+:root :is(.finale__out, .vsafe-out) {
+	position: relative;
+	border: 0;
+	border-radius: var(--radius-panel);
+	box-shadow: var(--shadow-float-dark);
+}
+
+:root .finale__out {
+	background: color-mix(in srgb, var(--afd-ink) 95%, white);
+}
+
+:root .vsafe-out {
+	padding-inline-start: calc(var(--space-5) + var(--rule-heavy));
+}
+
+:root :is(.finale__out, .vsafe-out)::before {
+	content: "";
+	position: absolute;
+	inset-block: var(--space-4);
+	inset-inline-start: 0;
+	width: var(--rule-heavy);
+	border-radius: 0 3px 3px 0;
+	background: var(--accent-human);
+}
+
+:root .vsafe-out::before {
+	background: var(--accent-agent);
+}
+
+:root .vsafe-out[data-safe="false"]::before {
+	background: var(--afd-red-300);
+}
+
+/* ── Inside a panel: no row rules ────────────────────────────────
+   At most one separator under a panel's head; rows are kept apart by
+   space. */
+
+:root .contract-panel :is(.raw-details, .contract-note),
+:root .contract-panel > p {
+	border-top: 0;
+}
+
+:root .brief-doc :is(h4, li) {
+	border-bottom: 0;
+}
+
+:root .brief-doc h4 {
+	padding-bottom: 0;
+}
+
+:root .brief-doc li {
+	padding-block: var(--space-2);
+}
+
+:root .vtoken {
+	border-bottom: 0;
+}
+
+:root .uhost li {
+	padding-block: var(--space-2);
+	border-top: 0;
+}
+
+:root .ustores > div {
+	border-top: 0;
+}
+
+/* The contract cards' labels and values: one face, the labels muted. */
+:root .contract-summary dt {
+	color: var(--color-on-dark-muted);
+	font: 500 var(--t-small) / 1.5 var(--font-ui);
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   The demo: an application window
+   ════════════════════════════════════════════════════════════════ */
+
+:root .surface-toolbar {
+	border-bottom: 0;
+	border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+	box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+:root .surface-stage .crop {
+	display: none;
+}
+
+/* The command rail: its red line across the top, no box bent round its corners. */
+:root .command-rail {
+	border-inline-color: transparent;
+	border-bottom-color: transparent;
+	border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+}
+
+/* Rows: a quieter rule, since the rows already sit on one surface. */
+:root .task {
+	border-bottom-color: color-mix(in srgb, var(--color-text) 9%, transparent);
+}
+
+/* Board cards float on their lane; the priority chip carries the priority. */
+:root [data-mode="board"] .task {
+	border: var(--rule-thin) solid transparent;
+	border-radius: var(--radius-control);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px -6px rgb(0 0 0 / 0.25);
+}
+
+/* The handoff's session: one panel, one rule under its head, steps apart by space. */
+:root .agent-session {
+	padding-inline: var(--space-5);
+	/* Opaque, so the section's giant numeral does not show through. */
+	background: color-mix(in srgb, var(--color-on-dark) 4%, var(--field-deep));
+}
+
+:root .session-heading {
+	box-shadow: inset 0 -1px 0 var(--color-on-dark-line);
+}
+
+:root .agent-steps {
+	display: grid;
+	gap: 2px;
+}
+
+:root .agent-steps li {
+	padding: var(--space-3);
+	margin-inline: calc(-1 * var(--space-3));
+	border-top: 0;
+	border-radius: var(--radius-control);
+}
+
+:root .agent-steps li[data-state="active"] {
+	background: color-mix(in srgb, var(--color-on-dark) 8%, transparent);
+}
+
+:root .session-foot {
+	border-top: 0;
+}
+
+/* The step numbers on the panel: the muted on-dark text, which reads at 4.5:1. */
+:root .agent-steps .step-number {
+	color: var(--color-on-dark-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   The drawings draw the interface they describe, so they are Refined too
+   ════════════════════════════════════════════════════════════════ */
+
+:root :is(.mini-menu, .mini-dialog, .ua-menu, .ua-dialog) {
+	border: 0;
+	border-radius: var(--radius-control);
+	background: var(--well);
+	box-shadow: var(--shadow-float-sm);
+}
+
+:root :is(.mini-menu, .ua-menu) {
+	gap: 1px;
+	padding: 4px;
+}
+
+:root .mini-menu span {
+	border-top: 0;
+	border-radius: var(--radius-mark);
+}
+
+:root .ua-menu span {
+	border-bottom: 0;
+	border-radius: var(--radius-mark);
+}
+
+:root .mini-menu .is-active {
+	box-shadow: var(--shadow-key);
+}
+
+:root .mini-dialog {
+	padding: var(--space-3) var(--space-4);
+}
+
+/* The dialog's two buttons: a tonal Cancel and a red Delete, since it destroys. */
+:root :is(.mini-dialog div i, .ua-actions i) {
+	padding: 5px 12px;
+	border: 0;
+	border-radius: var(--radius-mark);
+	background: color-mix(in srgb, var(--color-text) 8%, transparent);
+	font-style: normal;
+}
+
+:root .ua-actions i {
+	padding: 2px 8px;
+	font: 600 var(--t-label) var(--font-ui);
+}
+
+:root :is(.mini-dialog .is-primary, .ua-actions .ua-danger) {
+	background: var(--accent-human-text);
+	color: var(--afd-white);
+	box-shadow: var(--shadow-key);
+}
+
+:root :is(.mini-toast, .ua-toast) {
+	border-radius: var(--radius-control);
+	box-shadow: var(--shadow-key), 0 10px 24px -10px rgb(0 0 0 / 0.4);
+}
+
+:root .mini-toast i {
+	border-radius: 50%;
+}
+
+/* The design home's fourth drawing: a field in error. A well; its red ring is the error. */
+:root .mini-field i {
+	border-radius: var(--radius-mark);
+	background: var(--well);
+	box-shadow: var(--shadow-inset);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Pages
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Both homes ───────────────────────────────────────────────── */
+
+/* The current home's contract tool is one panel: its tabs, then the card. */
+:root .contract-tool .contract-panel {
+	border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+	box-shadow: none;
+}
+
+/* The current home's handoff is dark: its focus ring is mint, as the proposed home's is. */
+:root .handoff :focus-visible {
+	outline-color: var(--accent-agent);
+}
+
+/* At phone width the closing command keeps its caret, and Run starts its own row. */
+@media (max-width: 620px) {
+	:root .finale__cmd {
+		white-space: nowrap;
+	}
+
+	:root .finale__run {
+		grid-column: 1 / -1;
+	}
+}
+
+/* ── Violet ─────────────────────────────────────────────────────── */
+
+/* A node is a key you pick. The chosen one keeps its ring: it is the only
+   mark of the choice that reaches 3:1 on the dark field. The node's card and
+   button draw its own tokens; the white page round them is dropped. */
+:root .vnode {
+	border-radius: var(--radius-control);
+}
+
+:root .vnode-tile {
+	padding: 0;
+	background: transparent;
+}
+
+:root .vtoken-value input[type="color"] {
+	border-radius: var(--radius-mark);
+	overflow: hidden;
+}
+
+:root .vtoken-value input[type="color"]::-webkit-color-swatch {
+	border-radius: calc(var(--radius-mark) - 1px);
+}
+
+:root .vtoken-value input[type="color"]::-moz-color-swatch {
+	border-radius: calc(var(--radius-mark) - 1px);
+}
+
+:root :is(.vtoken-value [data-step], .vtoken-actions button) {
+	border-color: transparent;
+	background: var(--key-tonal);
+}
+
+:root .vtoken-value [data-step] {
+	border-radius: var(--radius-mark);
+}
+
+:root .vtoken-actions button {
+	border-radius: var(--radius-control);
+}
+
+:root :is(.vtoken-value [data-step]:hover:not(:disabled), .vtoken-actions button:hover) {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+:root .vtoken-value [data-step]:disabled {
+	border-color: transparent;
+	background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/* ── FAST-AF ─────────────────────────────────────────────────────── */
+
+/* The live component's figure: a caption, then the stage, without a rule between. */
+:root .fa-live figcaption {
+	border-bottom: 0;
+}
+
+/* One rule between the FAST section's parts, not two. */
+:root .fa-fast {
+	border-bottom: 0;
+}
+
+/* ── The style guide ─────────────────────────────────────────────── */
+
+/* The sample frames in Controls are panels, light and dark alike. */
+:root .sg-panel,
+:root [aria-labelledby="sg-components"] :is(.sg-on, .translate) {
+	border-color: transparent;
+	border-radius: var(--radius-panel);
+	box-shadow: var(--shadow-float);
+}
+
+/* The crop-mark sample is a poster, so it stays square, with its outline. */
+:root .sg-panel:has(> .crop) {
+	border-color: var(--color-line);
+	border-radius: 0;
+	box-shadow: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Forced colours
+   Where an outline was traded for a surface or a shadow, the system
+   colours drop the surface; the outline comes back so every control
+   and panel keeps an edge, and a chosen key keeps a system fill.
+   :root:root:root outranks every rule above, the tabs' included.
+   ════════════════════════════════════════════════════════════════ */
+
+@media (forced-colors: active) {
+	:root:root:root :is(
+		.button,
+		.icon-button,
+		.side-switch,
+		.surface-tabs button,
+		.install-tabs button,
+		.contract-tabs button,
+		.chips button,
+		.character-buttons button,
+		.agent-intents button,
+		.terminal-tries button,
+		.vsafe-tries button,
+		.record-list button,
+		.brief-bases button,
+		.vtoken-value [data-step],
+		.vtoken-actions button,
+		.agent-view__bar button,
+		.terminal-prompt button,
+		.task-form input,
+		.task-form select,
+		.agent-form input,
+		.form-row select,
+		.fa-find input,
+		.vsafe input,
+		.vsafe select,
+		.terminal-prompt select,
+		.terminal-line input,
+		.compare-pick select,
+		.contract-caption select,
+		.pair-label select
+	) {
+		border: 1px solid ButtonText;
+	}
+
+	:root:root:root :is(
+		.command-source,
+		.contract-panel,
+		.contract-tool,
+		.install-command,
+		.recovery-lab,
+		.area-figure,
+		.brief-doc,
+		.confirm-dialog,
+		.vterm,
+		.sterm,
+		.vterm-tree,
+		.sread,
+		.vstage-tree,
+		.vagent,
+		.sframe,
+		.agent-session,
+		.layer article,
+		.pattern,
+		.found figure,
+		.uhost > div,
+		.ustores > div:not(.ustores-bridge),
+		.fa-stage--app,
+		.fa-log,
+		.vsafe-out,
+		.finale__out,
+		.sg-panel,
+		[data-mode="board"] .task,
+		.hero-install code,
+		.mini-menu,
+		.mini-dialog,
+		.ua-menu,
+		.ua-dialog
+	) {
+		border: 1px solid CanvasText;
+	}
+
+	:root:root:root :is(.chips, .record-list, .contract-tabs, .install-tabs, .surface-tabs) button:is([aria-selected="true"], [aria-pressed="true"]),
+	:root:root:root .brief-bases button[aria-pressed="true"],
+	:root:root:root .manifesto-nav .side-switch a[aria-current="page"] {
+		forced-color-adjust: none;
+		border-color: Highlight;
+		background: Highlight;
+		color: HighlightText;
+	}
+
+	:root:root:root :is(.chips, .contract-tabs, .install-tabs, .surface-tabs) button[aria-selected="true"]::after {
+		background: HighlightText;
+	}
+}

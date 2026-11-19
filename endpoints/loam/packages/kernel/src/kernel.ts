@@ -776,8 +776,14 @@ export async function createKernelParts(
 				reportKernelError(error);
 			}
 		}
-		// A change of person stops every copilot turn and removes its runtimes (phase 5 specification, 3.2).
-		if (event.actorChanged) void lateParts?.copilot.stopAll('session-changed');
+		// A change of person stops every copilot turn and removes its runtimes (phase 5 specification, 3.2). A `local`
+		// deployment marks no `actorChanged` (its records are everyone's), yet its person changes on a sign-in or a
+		// sign-out, which phase 5's step 2 decided to treat the same way: any that succeeds stops the copilot.
+		if (
+			event.actorChanged ||
+			(event.success && (name === 'auth-sign-in' || name === 'auth-sign-out'))
+		)
+			void lateParts?.copilot.stopAll('session-changed');
 		// After journaling, and never in the journal's copy. A person's or agent's call only: a seq counts
 		// every app's calls, which a view must not see, and a handler may return a nested result as its own.
 		return seq === undefined || fields.caller !== undefined

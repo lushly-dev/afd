@@ -10,8 +10,9 @@ const styles = css`
 
         --_card-border-width: 1px;
         --_card-padding: var(--violet-card-padding, 0);
-        --_card-radius: var(--violet-card-radius, var(--_radius-md));
+        --_card-radius: var(--violet-card-radius, var(--_radius-lg));
         --_card-background: var(--violet-card-background, var(--_surface-card));
+        --_card-band-background: var(--violet-card-band-background, var(--_surface-subtle));
         --_card-border-color: var(--violet-card-border-color, transparent);
         --_card-shadow: var(--violet-card-shadow, var(--_shadow-card));
     }
@@ -28,10 +29,9 @@ const styles = css`
         --_card-padding: var(--violet-card-padding, var(--_space-lg));
     }
 
+    /* An outline card is the same surface one step lower: a hairline in the shadow, no drawn border. */
     :host([appearance="outline"]) {
-        --_card-background: var(--violet-card-background, transparent);
-        --_card-border-color: var(--violet-card-border-color, var(--_border-subtle));
-        --_card-shadow: var(--violet-card-shadow, none);
+        --_card-shadow: var(--violet-card-shadow, var(--_shadow-control));
     }
 
     :host([appearance="subtle"]) {
@@ -49,9 +49,7 @@ const styles = css`
         background: var(--_card-background);
         box-shadow: var(--_card-shadow);
         overflow: hidden;
-        transition:
-            box-shadow var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard);
+        transition: box-shadow var(--_duration-base) var(--_easing-standard);
     }
 
     :host([orientation="horizontal"]) .root {
@@ -66,11 +64,6 @@ const styles = css`
         box-shadow:
             var(--_card-shadow),
             0 0 0 1px var(--_border-subtle);
-        transform: translateY(-1px);
-    }
-
-    :host([interactive]) .root:active {
-        transform: translateY(0);
     }
 
     :host([interactive]:focus-visible) .root {
@@ -79,8 +72,11 @@ const styles = css`
             0 0 0 2px var(--_focus-ring);
     }
 
-    .header {
+    /* Header and footer are bands: a tonal step with a clean edge. */
+    .header,
+    .footer {
         padding: var(--_card-padding);
+        background: var(--_card-band-background);
     }
 
     .header[hidden] {
@@ -102,9 +98,7 @@ const styles = css`
         flex-direction: row;
     }
 
-    .footer {
-        padding: var(--_card-padding);
-    }
+
 
     .footer[hidden] {
         display: none;
@@ -120,6 +114,11 @@ const styles = css`
             border: var(--_card-border-width) solid ButtonText;
             background: Canvas;
             box-shadow: none;
+        }
+
+        .header,
+        .footer {
+            background: Canvas;
         }
 
         .header:not([hidden]) + .body {

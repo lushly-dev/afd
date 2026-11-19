@@ -66,7 +66,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-alert-border, var(--_border-subtle))",
+				"default": "var(--violet-alert-border, transparent)",
 				"name": "--_alert-border"
 			},
 			{
@@ -76,12 +76,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-alert-gap, var(--_space-md))",
+				"default": "var(--violet-alert-gap, var(--_space-sm))",
 				"name": "--_alert-gap"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-alert-icon-size, 1.125rem)",
+				"default": "var(--violet-alert-icon-size, 1rem)",
 				"name": "--_alert-icon-size"
 			},
 			{
@@ -96,7 +96,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-alert-radius, calc(var(--_radius-md) * 1.5))",
+				"default": "var(--violet-alert-radius, var(--_radius-lg))",
 				"name": "--_alert-radius"
 			},
 			{
@@ -106,7 +106,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-alert-surface, var(--_surface-card))",
+				"default": "var(--violet-alert-surface, var(--_surface-subtle))",
 				"name": "--_alert-surface"
 			},
 			{

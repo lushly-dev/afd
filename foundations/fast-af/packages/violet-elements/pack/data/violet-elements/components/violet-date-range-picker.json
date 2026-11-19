@@ -159,6 +159,16 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--_surface-floating)",
+				"name": "--violet-calendar-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_shadow-floating)",
+				"name": "--violet-calendar-shadow"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--_type-body-size-compact)",
 				"name": "--violet-control-body-size"
 			},

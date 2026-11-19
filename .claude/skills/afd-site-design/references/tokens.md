@@ -39,6 +39,8 @@ Source of truth: `site/css/tokens-m2.css`. Rendered live at `site/styleguide.htm
 | `--field-rest` | paper `#f4f0ea` | none |
 
 Set a section's numeral fill with `--numeral-fill: var(--numeral-on-*)` on the section.
+A `d-section` modifier (`--ink`, `--deep`, `--agent`) sets it, and sets `--muted`, the
+colour of a statement's thin line, for that field.
 
 ## Type
 
@@ -60,6 +62,14 @@ Set a section's numeral fill with `--numeral-fill: var(--numeral-on-*)` on the s
 | `--weight-thin` … `--weight-strong` | 300, 400, 500, 600 |
 | `--leading-tight` / `--leading-body` | 0.95 / 1.55 |
 | `--tracking-display` / `--tracking-thin` / `--tracking-label` | -0.025em / -0.04em / 0.06em |
+
+Sizes between steps are fractions of a step, so they follow the breakpoints:
+
+| Where | Size |
+|-------|------|
+| A home page's poster line, above 850px | `calc(var(--t-display) * 0.8)` |
+| A tool's name of eight letters or more | `calc(var(--t-display) * 0.82)` |
+| A large number in a stats row | `calc(var(--t-statement) * 0.6)` |
 
 ## Space, structure, motion, layers
 

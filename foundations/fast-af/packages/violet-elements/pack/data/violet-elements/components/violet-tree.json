@@ -97,7 +97,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tree-surface-border, var(--_border-subtle))",
+				"default": "var(--violet-tree-surface-border, transparent)",
 				"name": "--_tree-surface-border"
 			},
 			{
@@ -107,7 +107,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tree-surface-radius, calc(var(--_radius-md) * 2))",
+				"default": "var(--violet-tree-surface-radius, var(--_radius-lg))",
 				"name": "--_tree-surface-radius"
 			}
 		],

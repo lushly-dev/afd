@@ -1,0 +1,1560 @@
+{
+	"name": "calm",
+	"title": "Calm",
+	"note": "A shell theme for long sessions: soft lines, a gentle lift for what floats, moderate rounding, colour kept for meaning.",
+	"status": "draft",
+	"built": "2026-11-17",
+	"from": "site/css/tokens-m2.css",
+	"palette": {
+		"site": {
+			"paper": "#f4f0ea",
+			"paper-bright": "#f8f9f3",
+			"stone-100": "#eceee8",
+			"white": "#ffffff",
+			"stone-200": "#d8dcd6",
+			"ink": "#181b1a",
+			"ink-soft": "#48534b",
+			"stone-600": "#5e6460",
+			"stone-300": "#bec6bd",
+			"stone-700": "#4d5b50",
+			"red-ink": "#c42a1a",
+			"mint": "#a3ebcd",
+			"mint-ink": "#2c5e4b",
+			"blue-ink": "#146ba0",
+			"red-300": "#ff897a",
+			"mint-600": "#92dfbf",
+			"ink-raised": "#222824",
+			"green-700": "#2e3a33",
+			"green-800": "#252e29",
+			"green-900": "#20352c",
+			"green-200": "#bdcfc1",
+			"stone-400": "#adb6ab",
+			"stone-500": "#869089",
+			"red-200": "#ffab99",
+			"black": "#000000",
+			"sage-500": "#6b7d6e"
+		},
+		"added": {
+			"mint-50": {
+				"value": "#dff6ec",
+				"why": "a pale tint of mint, a selected row or a success message"
+			},
+			"red-800": {
+				"value": "#ad2416",
+				"why": "a shade of red-ink, a destructive button under the pointer"
+			},
+			"red-900": {
+				"value": "#96200f",
+				"why": "a shade of red-ink, a destructive button pressed"
+			},
+			"red-50": {
+				"value": "#fde6e1",
+				"why": "a pale tint of red, behind an error message"
+			},
+			"amber-50": {
+				"value": "#fdebcc",
+				"why": "warning background; the site has no warning colour"
+			},
+			"amber-300": {
+				"value": "#e5b566",
+				"why": "warning border"
+			},
+			"amber-800": {
+				"value": "#92400e",
+				"why": "warning text"
+			},
+			"amber-200": {
+				"value": "#f3d6a3",
+				"why": "warning text on dark"
+			},
+			"mint-25": {
+				"value": "#ebf7f0",
+				"why": "a paler tint of mint than mint-50, behind a success message"
+			},
+			"amber-25": {
+				"value": "#fbf2df",
+				"why": "a paler tint of the warning colour, behind a warning message"
+			},
+			"red-25": {
+				"value": "#fbefea",
+				"why": "a paler tint of red than red-50, behind an error message"
+			},
+			"red-950": {
+				"value": "#3d211d",
+				"why": "a deep shade of red-ink, an opaque error surface on dark"
+			},
+			"amber-950": {
+				"value": "#3a2b18",
+				"why": "a deep shade of the warning colour, an opaque warning surface on dark"
+			}
+		}
+	},
+	"css": [
+		"all (radius): split the scale by role. Add radius.control for button, icon-button, text-field, text-area, select, combobox, date-picker, date-range-picker, time-picker, segment, pagination, menu-item, option and tree-item; keep radius.md for surfaces (card, alert, accordion-item, listbox, tree, tab, progress, skeleton) and radius.lg for what floats. Calm would then set control 8px, surface 6px, floating 14px. Today 8px on a button forces 8px on a card.",
+		"menu, select, listbox, toast, tab (radius): stop multiplying. menu .panel and select .listbox use calc(radius.md * 2), listbox calc(radius.md * 1.25), toast calc(radius.lg * 1.33), tab calc(radius.md + 2px). Read radius.lg for the floating panels and radius.md for listbox and tab, so a dialog (12px) and a menu (16px) no longer disagree.",
+		"text-field, text-area, select, combobox, date-picker, date-range-picker, time-picker: read the field tokens. .control-frame background is var(--_surface-page); make it var(--color-field-background), and var(--color-field-background-readonly) when read-only. Text from color.field.text, placeholder from color.field.placeholder (now --_text-muted), the focused edge from color.field.border.focus. No component reads these five ids, so a theme cannot tint a field.",
+		"text-field and the other fields (filled appearance): add appearance=\"filled\": background color.field.background (calm would set @ink/0.05 in light, @paper/0.07 in dark), border 1px solid transparent at rest, no shadow.control; on hover border-color color.field.border; on focus the 2px ring as now. To stay findable without a 3:1 edge: keep the label above and the value or placeholder at 4.5:1, draw a 1px color.field.border line on the block-end edge only (inset 0 -1px 0 box-shadow, so the radius is kept), and restore the full border under prefers-contrast: more, the high-contrast preset and forced colours. Keep outline as the default until the owner accepts that trade.",
+		"segmented-control: .group border-radius reads --_radius-lg, which violetFieldTokenDefaults never defines, so the track is square around rounded segments. Define it, then draw the control as a tinted track with a raised thumb: .group { border: 0; padding: 2px; background: color.surface.subtle; box-shadow: none; border-radius: calc(radius.control + 2px) } and :host([checked]) .button { background: color.surface.highlight; border-color: transparent; box-shadow: shadow.control; border-radius: radius.control }.",
+		"button, text-field, text-area, select: remove the movement. .control:hover { transform: translateY(-1px) } on button and the translateY on .control-frame:focus-within make controls shift under the pointer and the caret. Keep the colour change and shadow.control; a shell that recedes should not move its chrome.",
+		"slider, range-slider: .thumb takes shadow.floating, a panel's shadow, and a border of color.border.subtle on a page-coloured fill. Use box-shadow: shadow.control and border: 1px solid color.border.strong, so the thumb meets 3:1 and the floating shadow can be sized for dialogs.",
+		"option: the selected surface is color-mix(color.state.success.background 58%, transparent) and its border color.state.success.foreground. Read color.surface.selected and color.control.selected.border: a chosen row is not a success message, and the two should be tunable apart.",
+		"calendar: .day-button.selected uses color.state.success.foreground as its fill and a literal white for the numeral. Use color.control.selected.background and color.control.selected.foreground.",
+		"tab: add a pill appearance for use inside panels: selected tab { background: color.surface.subtle; border-radius: radius.control; color: color.text.primary; font-weight: 500 }, no .indicator, and no border-block-end on the tablist. Keep the underline appearance for page-level tabs.",
+		"skeleton, tab, tree-item: remove literal white. skeleton --_skeleton-highlight is color-mix(white 68%, card), tab --_tab-hover color-mix(subtle 42%, white), tree-item selected row color-mix(subtle 76%, white). On dark they flash light grey. Mix with color.surface.highlight instead.",
+		"field and action token defaults: under (pointer: fine) only the body size should drop 1px. --_type-label-size-compact and --_type-caption-size-compact give 11px labels and 10px help text on a desktop, which is small for a day's work.",
+		"field and action token defaults: under (pointer: fine) the auto target is size.target.compact. Give desktop controls their own id (size.target.control, 28px in calm) so a theme can size buttons and fields without moving the 24px floor Loam's status bar is built on. Calm sets size.target.compact to 28px to show the result.",
+		"toast, snackbar: the toned surface is color-mix(state background 78%, card). With a translucent state background (the base dark preset) the toast shows the page through it. Mix over color.surface.floating, or state that state backgrounds must be opaque.",
+		"alert, approval-card: the icon disc is tinted from the state colour and the surface is tinted too. Drop the surface tint for the info tone only if a quieter stack is wanted; no change needed for calm.",
+		"button (primary as a pill): not recommended. badge, chat-suggestions and persona are already fully round; a round primary button would read as a chip."
+	],
+	"patch": {},
+	"contrast": [
+		{
+			"preset": "light",
+			"front": "color.text.primary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 15.28
+		},
+		{
+			"preset": "light",
+			"front": "color.text.secondary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 7.08
+		},
+		{
+			"preset": "light",
+			"front": "color.text.muted",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 5.33
+		},
+		{
+			"preset": "light",
+			"front": "color.text.muted",
+			"back": "color.surface.card",
+			"floor": 4.5,
+			"ratio": 5.72
+		},
+		{
+			"preset": "light",
+			"front": "color.text.muted",
+			"back": "color.surface.subtle",
+			"floor": 4.5,
+			"ratio": 5.18
+		},
+		{
+			"preset": "light",
+			"front": "color.text.primary",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 15.31
+		},
+		{
+			"preset": "light",
+			"front": "color.text.muted",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 5.34
+		},
+		{
+			"preset": "light",
+			"front": "color.text.primary",
+			"back": "color.surface.floating",
+			"floor": 4.5,
+			"ratio": 16.39
+		},
+		{
+			"preset": "light",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.background",
+			"floor": 4.5,
+			"ratio": 15.28
+		},
+		{
+			"preset": "light",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.hover",
+			"floor": 4.5,
+			"ratio": 10.46
+		},
+		{
+			"preset": "light",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.pressed",
+			"floor": 4.5,
+			"ratio": 12.32
+		},
+		{
+			"preset": "light",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.background",
+			"floor": 4.5,
+			"ratio": 13.32
+		},
+		{
+			"preset": "light",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.hover",
+			"floor": 4.5,
+			"ratio": 12.28
+		},
+		{
+			"preset": "light",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.pressed",
+			"floor": 4.5,
+			"ratio": 11.28
+		},
+		{
+			"preset": "light",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.background",
+			"floor": 4.5,
+			"ratio": 5.69
+		},
+		{
+			"preset": "light",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.hover",
+			"floor": 4.5,
+			"ratio": 6.91
+		},
+		{
+			"preset": "light",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.pressed",
+			"floor": 4.5,
+			"ratio": 8.37
+		},
+		{
+			"preset": "light",
+			"front": "color.field.text",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 16.39
+		},
+		{
+			"preset": "light",
+			"front": "color.field.placeholder",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 5.72
+		},
+		{
+			"preset": "light",
+			"front": "color.state.danger.text",
+			"back": "color.state.danger.background",
+			"floor": 4.5,
+			"ratio": 5.05
+		},
+		{
+			"preset": "light",
+			"front": "color.state.success.text",
+			"back": "color.state.success.background",
+			"floor": 4.5,
+			"ratio": 6.8
+		},
+		{
+			"preset": "light",
+			"front": "color.state.warning.text",
+			"back": "color.state.warning.background",
+			"floor": 4.5,
+			"ratio": 6.37
+		},
+		{
+			"preset": "light",
+			"front": "color.control.selected.foreground",
+			"back": "color.control.selected.background",
+			"floor": 3,
+			"ratio": 5.45
+		},
+		{
+			"preset": "light",
+			"front": "color.control.selected.foreground",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 6.58
+		},
+		{
+			"preset": "light",
+			"front": "color.field.border",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 4.15
+		},
+		{
+			"preset": "light",
+			"front": "color.field.border.invalid",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 5.37
+		},
+		{
+			"preset": "light",
+			"front": "color.border.strong",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 3.87
+		},
+		{
+			"preset": "light",
+			"front": "color.focus.ring",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 5.08
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.primary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 15.28
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.secondary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 10.62
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.muted",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 8.31
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.muted",
+			"back": "color.surface.card",
+			"floor": 4.5,
+			"ratio": 7.2
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.muted",
+			"back": "color.surface.subtle",
+			"floor": 4.5,
+			"ratio": 5.68
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.primary",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 11.51
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.muted",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 6.26
+		},
+		{
+			"preset": "dark",
+			"front": "color.text.primary",
+			"back": "color.surface.floating",
+			"floor": 4.5,
+			"ratio": 12.32
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.background",
+			"floor": 4.5,
+			"ratio": 15.28
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.hover",
+			"floor": 4.5,
+			"ratio": 12.5
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.pressed",
+			"floor": 4.5,
+			"ratio": 9.91
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.background",
+			"floor": 4.5,
+			"ratio": 12.03
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.hover",
+			"floor": 4.5,
+			"ratio": 10.62
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.pressed",
+			"floor": 4.5,
+			"ratio": 9.32
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.background",
+			"floor": 4.5,
+			"ratio": 5.69
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.hover",
+			"floor": 4.5,
+			"ratio": 6.91
+		},
+		{
+			"preset": "dark",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.pressed",
+			"floor": 4.5,
+			"ratio": 8.37
+		},
+		{
+			"preset": "dark",
+			"front": "color.field.text",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 15.28
+		},
+		{
+			"preset": "dark",
+			"front": "color.field.placeholder",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 8.31
+		},
+		{
+			"preset": "dark",
+			"front": "color.state.danger.text",
+			"back": "color.state.danger.background",
+			"floor": 4.5,
+			"ratio": 8.05
+		},
+		{
+			"preset": "dark",
+			"front": "color.state.success.text",
+			"back": "color.state.success.background",
+			"floor": 4.5,
+			"ratio": 9.53
+		},
+		{
+			"preset": "dark",
+			"front": "color.state.warning.text",
+			"back": "color.state.warning.background",
+			"floor": 4.5,
+			"ratio": 9.72
+		},
+		{
+			"preset": "dark",
+			"front": "color.control.selected.foreground",
+			"back": "color.control.selected.background",
+			"floor": 3,
+			"ratio": 9.53
+		},
+		{
+			"preset": "dark",
+			"front": "color.control.selected.foreground",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 12.66
+		},
+		{
+			"preset": "dark",
+			"front": "color.field.border",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 3.95
+		},
+		{
+			"preset": "dark",
+			"front": "color.field.border.invalid",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 7.53
+		},
+		{
+			"preset": "dark",
+			"front": "color.border.strong",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 3.95
+		},
+		{
+			"preset": "dark",
+			"front": "color.focus.ring",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 12.66
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.primary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.secondary",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 16.48
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.muted",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 10.86
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.muted",
+			"back": "color.surface.card",
+			"floor": 4.5,
+			"ratio": 10.86
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.muted",
+			"back": "color.surface.subtle",
+			"floor": 4.5,
+			"ratio": 9.7
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.primary",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 15.91
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.muted",
+			"back": "color.surface.selected",
+			"floor": 4.5,
+			"ratio": 8.23
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.text.primary",
+			"back": "color.surface.floating",
+			"floor": 4.5,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.background",
+			"floor": 4.5,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.hover",
+			"floor": 4.5,
+			"ratio": 12.63
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.primary.text",
+			"back": "color.action.primary.pressed",
+			"floor": 4.5,
+			"ratio": 8.45
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.background",
+			"floor": 4.5,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.hover",
+			"floor": 4.5,
+			"ratio": 16.83
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.secondary.text",
+			"back": "color.action.secondary.pressed",
+			"floor": 4.5,
+			"ratio": 13.08
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.background",
+			"floor": 4.5,
+			"ratio": 8.21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.hover",
+			"floor": 4.5,
+			"ratio": 10.09
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.action.danger.text",
+			"back": "color.action.danger.pressed",
+			"floor": 4.5,
+			"ratio": 12.43
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.field.text",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.field.placeholder",
+			"back": "color.field.background",
+			"floor": 4.5,
+			"ratio": 10.86
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.state.danger.text",
+			"back": "color.state.danger.background",
+			"floor": 4.5,
+			"ratio": 8.21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.state.success.text",
+			"back": "color.state.success.background",
+			"floor": 4.5,
+			"ratio": 8.42
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.state.warning.text",
+			"back": "color.state.warning.background",
+			"floor": 4.5,
+			"ratio": 10.09
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.control.selected.foreground",
+			"back": "color.control.selected.background",
+			"floor": 3,
+			"ratio": 15.91
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.control.selected.foreground",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.field.border",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 7
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.field.border.invalid",
+			"back": "color.field.background",
+			"floor": 3,
+			"ratio": 8.21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.border.strong",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 21
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.focus.ring",
+			"back": "color.surface.page",
+			"floor": 3,
+			"ratio": 21
+		}
+	],
+	"set": {
+		"defaultPreset": "light",
+		"presets": {
+			"light": [
+				{
+					"id": "color.action.danger.background",
+					"value": "#c42a1a"
+				},
+				{
+					"id": "color.action.danger.hover",
+					"value": "#ad2416"
+				},
+				{
+					"id": "color.action.danger.pressed",
+					"value": "#96200f"
+				},
+				{
+					"id": "color.action.danger.text",
+					"value": "#ffffff"
+				},
+				{
+					"id": "color.action.primary.background",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.action.primary.hover",
+					"value": "#2e3a33"
+				},
+				{
+					"id": "color.action.primary.pressed",
+					"value": "#252e29"
+				},
+				{
+					"id": "color.action.primary.text",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.action.secondary.background",
+					"value": "rgba(24, 27, 26, 0.07)"
+				},
+				{
+					"id": "color.action.secondary.border",
+					"value": "transparent"
+				},
+				{
+					"id": "color.action.secondary.hover",
+					"value": "rgba(24, 27, 26, 0.11)"
+				},
+				{
+					"id": "color.action.secondary.pressed",
+					"value": "rgba(24, 27, 26, 0.15)"
+				},
+				{
+					"id": "color.action.secondary.text",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.border.strong",
+					"value": "#6b7d6e"
+				},
+				{
+					"id": "color.border.subtle",
+					"value": "#d8dcd6"
+				},
+				{
+					"id": "color.control.selected.background",
+					"value": "#a3ebcd"
+				},
+				{
+					"id": "color.control.selected.border",
+					"value": "#2c5e4b"
+				},
+				{
+					"id": "color.control.selected.foreground",
+					"value": "#2c5e4b"
+				},
+				{
+					"id": "color.field.background",
+					"value": "#f8f9f3"
+				},
+				{
+					"id": "color.field.background.readonly",
+					"value": "#eceee8"
+				},
+				{
+					"id": "color.field.border",
+					"value": "#6b7d6e"
+				},
+				{
+					"id": "color.field.border.focus",
+					"value": "#146ba0"
+				},
+				{
+					"id": "color.field.border.hover",
+					"value": "#48534b"
+				},
+				{
+					"id": "color.field.border.invalid",
+					"value": "#c42a1a"
+				},
+				{
+					"id": "color.field.placeholder",
+					"value": "#5e6460"
+				},
+				{
+					"id": "color.field.text",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.focus.ring",
+					"value": "#146ba0"
+				},
+				{
+					"id": "color.state.danger.background",
+					"value": "#fbefea"
+				},
+				{
+					"id": "color.state.danger.border",
+					"value": "rgba(196, 42, 26, 0.28)"
+				},
+				{
+					"id": "color.state.danger.foreground",
+					"value": "#c42a1a"
+				},
+				{
+					"id": "color.state.danger.text",
+					"value": "#c42a1a"
+				},
+				{
+					"id": "color.state.success.background",
+					"value": "#ebf7f0"
+				},
+				{
+					"id": "color.state.success.border",
+					"value": "rgba(44, 94, 75, 0.25)"
+				},
+				{
+					"id": "color.state.success.foreground",
+					"value": "#2c5e4b"
+				},
+				{
+					"id": "color.state.success.text",
+					"value": "#2c5e4b"
+				},
+				{
+					"id": "color.state.warning.background",
+					"value": "#fbf2df"
+				},
+				{
+					"id": "color.state.warning.border",
+					"value": "rgba(146, 64, 14, 0.28)"
+				},
+				{
+					"id": "color.state.warning.text",
+					"value": "#92400e"
+				},
+				{
+					"id": "color.surface.card",
+					"value": "#f8f9f3"
+				},
+				{
+					"id": "color.surface.floating",
+					"value": "#f8f9f3"
+				},
+				{
+					"id": "color.surface.highlight",
+					"value": "#ffffff"
+				},
+				{
+					"id": "color.surface.page",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.surface.pressed",
+					"value": "#d8dcd6"
+				},
+				{
+					"id": "color.surface.selected",
+					"value": "#dff6ec"
+				},
+				{
+					"id": "color.surface.subtle",
+					"value": "#eceee8"
+				},
+				{
+					"id": "color.text.muted",
+					"value": "#5e6460"
+				},
+				{
+					"id": "color.text.primary",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.text.secondary",
+					"value": "#48534b"
+				},
+				{
+					"id": "duration.base",
+					"value": "180ms"
+				},
+				{
+					"id": "duration.fast",
+					"value": "120ms"
+				},
+				{
+					"id": "duration.slow",
+					"value": "280ms"
+				},
+				{
+					"id": "easing.emphasized",
+					"value": "cubic-bezier(0.16, 1, 0.3, 1)"
+				},
+				{
+					"id": "easing.standard",
+					"value": "cubic-bezier(0.2, 0, 0, 1)"
+				},
+				{
+					"id": "font.family.body",
+					"value": "\"Space Grotesk\", \"Segoe UI\", system-ui, sans-serif"
+				},
+				{
+					"id": "font.family.mono",
+					"value": "\"IBM Plex Mono\", ui-monospace, Consolas, monospace"
+				},
+				{
+					"id": "radius.lg",
+					"value": "12px"
+				},
+				{
+					"id": "radius.md",
+					"value": "8px"
+				},
+				{
+					"id": "radius.round",
+					"value": "9999px"
+				},
+				{
+					"id": "radius.sm",
+					"value": "4px"
+				},
+				{
+					"id": "shadow.card",
+					"value": "0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.04)"
+				},
+				{
+					"id": "shadow.control",
+					"value": "0 1px 2px rgba(24, 27, 26, 0.06)"
+				},
+				{
+					"id": "shadow.floating",
+					"value": "0 0 0 1px rgba(24, 27, 26, 0.10), 0 1px 3px rgba(24, 27, 26, 0.10), 0 8px 24px rgba(24, 27, 26, 0.10)"
+				},
+				{
+					"id": "size.focus-ring.width",
+					"value": "2px"
+				},
+				{
+					"id": "size.font.lg",
+					"value": "18px"
+				},
+				{
+					"id": "size.font.md",
+					"value": "14px"
+				},
+				{
+					"id": "size.font.sm",
+					"value": "12px"
+				},
+				{
+					"id": "size.font.xl",
+					"value": "24px"
+				},
+				{
+					"id": "size.font.xs",
+					"value": "11px"
+				},
+				{
+					"id": "size.line.lg",
+					"value": "24px"
+				},
+				{
+					"id": "size.line.md",
+					"value": "20px"
+				},
+				{
+					"id": "size.line.sm",
+					"value": "16px"
+				},
+				{
+					"id": "size.line.xl",
+					"value": "32px"
+				},
+				{
+					"id": "size.line.xs",
+					"value": "14px"
+				},
+				{
+					"id": "size.space.lg",
+					"value": "12px"
+				},
+				{
+					"id": "size.space.md",
+					"value": "8px"
+				},
+				{
+					"id": "size.space.sm",
+					"value": "4px"
+				},
+				{
+					"id": "size.space.xl",
+					"value": "24px"
+				},
+				{
+					"id": "size.space.xs",
+					"value": "2px"
+				},
+				{
+					"id": "size.target.comfortable",
+					"value": "44px"
+				},
+				{
+					"id": "size.target.compact",
+					"value": "28px"
+				},
+				{
+					"id": "size.target.natural",
+					"value": "32px"
+				},
+				{
+					"id": "space.inline.lg",
+					"value": "12px"
+				},
+				{
+					"id": "space.inline.md",
+					"value": "8px"
+				},
+				{
+					"id": "space.inline.sm",
+					"value": "4px"
+				},
+				{
+					"id": "space.layout.md",
+					"value": "24px"
+				},
+				{
+					"id": "space.layout.sm",
+					"value": "12px"
+				},
+				{
+					"id": "space.stack.md",
+					"value": "12px"
+				},
+				{
+					"id": "space.stack.sm",
+					"value": "8px"
+				},
+				{
+					"id": "space.stack.xs",
+					"value": "4px"
+				},
+				{
+					"id": "type.body.md.line",
+					"value": "20px"
+				},
+				{
+					"id": "type.body.md.size",
+					"value": "14px"
+				},
+				{
+					"id": "type.body.md.weight",
+					"value": "400"
+				},
+				{
+					"id": "type.caption.xs.line",
+					"value": "14px"
+				},
+				{
+					"id": "type.caption.xs.size",
+					"value": "11px"
+				},
+				{
+					"id": "type.caption.xs.weight",
+					"value": "500"
+				},
+				{
+					"id": "type.label.sm.line",
+					"value": "16px"
+				},
+				{
+					"id": "type.label.sm.size",
+					"value": "12px"
+				},
+				{
+					"id": "type.label.sm.weight",
+					"value": "500"
+				},
+				{
+					"id": "type.title.md.line",
+					"value": "32px"
+				},
+				{
+					"id": "type.title.md.size",
+					"value": "24px"
+				},
+				{
+					"id": "type.title.md.weight",
+					"value": "600"
+				},
+				{
+					"id": "type.title.sm.line",
+					"value": "24px"
+				},
+				{
+					"id": "type.title.sm.size",
+					"value": "18px"
+				},
+				{
+					"id": "type.title.sm.weight",
+					"value": "600"
+				},
+				{
+					"id": "weight.light",
+					"value": "100"
+				},
+				{
+					"id": "weight.medium",
+					"value": "500"
+				},
+				{
+					"id": "weight.regular",
+					"value": "400"
+				},
+				{
+					"id": "weight.semibold",
+					"value": "600"
+				},
+				{
+					"id": "z-index.base",
+					"value": "0"
+				},
+				{
+					"id": "z-index.modal",
+					"value": "300"
+				},
+				{
+					"id": "z-index.overlay",
+					"value": "100"
+				},
+				{
+					"id": "z-index.popover",
+					"value": "200"
+				},
+				{
+					"id": "z-index.raised",
+					"value": "1"
+				},
+				{
+					"id": "z-index.sticky",
+					"value": "10"
+				},
+				{
+					"id": "z-index.toast",
+					"value": "400"
+				}
+			],
+			"dark": [
+				{
+					"id": "color.surface.page",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.surface.card",
+					"value": "#222824"
+				},
+				{
+					"id": "color.surface.subtle",
+					"value": "#2e3a33"
+				},
+				{
+					"id": "color.surface.floating",
+					"value": "#252e29"
+				},
+				{
+					"id": "color.surface.pressed",
+					"value": "rgba(244, 240, 234, 0.14)"
+				},
+				{
+					"id": "color.surface.selected",
+					"value": "#20352c"
+				},
+				{
+					"id": "color.text.primary",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.text.secondary",
+					"value": "#bdcfc1"
+				},
+				{
+					"id": "color.text.muted",
+					"value": "#adb6ab"
+				},
+				{
+					"id": "color.border.strong",
+					"value": "#6b7d6e"
+				},
+				{
+					"id": "color.border.subtle",
+					"value": "rgba(244, 240, 234, 0.10)"
+				},
+				{
+					"id": "color.action.primary.background",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.action.primary.hover",
+					"value": "#d8dcd6"
+				},
+				{
+					"id": "color.action.primary.pressed",
+					"value": "#bec6bd"
+				},
+				{
+					"id": "color.action.primary.text",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.action.secondary.background",
+					"value": "rgba(244, 240, 234, 0.09)"
+				},
+				{
+					"id": "color.action.secondary.border",
+					"value": "transparent"
+				},
+				{
+					"id": "color.action.secondary.hover",
+					"value": "rgba(244, 240, 234, 0.13)"
+				},
+				{
+					"id": "color.action.secondary.pressed",
+					"value": "rgba(244, 240, 234, 0.17)"
+				},
+				{
+					"id": "color.action.secondary.text",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.control.selected.background",
+					"value": "#20352c"
+				},
+				{
+					"id": "color.control.selected.border",
+					"value": "rgba(163, 235, 205, 0.45)"
+				},
+				{
+					"id": "color.control.selected.foreground",
+					"value": "#a3ebcd"
+				},
+				{
+					"id": "color.field.background",
+					"value": "#181b1a"
+				},
+				{
+					"id": "color.field.background.readonly",
+					"value": "#252e29"
+				},
+				{
+					"id": "color.field.border",
+					"value": "#6b7d6e"
+				},
+				{
+					"id": "color.field.border.hover",
+					"value": "#adb6ab"
+				},
+				{
+					"id": "color.field.border.focus",
+					"value": "#a3ebcd"
+				},
+				{
+					"id": "color.field.border.invalid",
+					"value": "#ff897a"
+				},
+				{
+					"id": "color.field.placeholder",
+					"value": "#adb6ab"
+				},
+				{
+					"id": "color.field.text",
+					"value": "#f4f0ea"
+				},
+				{
+					"id": "color.focus.ring",
+					"value": "#a3ebcd"
+				},
+				{
+					"id": "color.state.danger.background",
+					"value": "#3d211d"
+				},
+				{
+					"id": "color.state.danger.border",
+					"value": "rgba(255, 137, 122, 0.32)"
+				},
+				{
+					"id": "color.state.danger.text",
+					"value": "#ffab99"
+				},
+				{
+					"id": "color.state.success.background",
+					"value": "#20352c"
+				},
+				{
+					"id": "color.state.success.border",
+					"value": "rgba(163, 235, 205, 0.28)"
+				},
+				{
+					"id": "color.state.success.text",
+					"value": "#a3ebcd"
+				},
+				{
+					"id": "color.state.warning.background",
+					"value": "#3a2b18"
+				},
+				{
+					"id": "color.state.warning.border",
+					"value": "rgba(229, 181, 102, 0.32)"
+				},
+				{
+					"id": "color.state.warning.text",
+					"value": "#f3d6a3"
+				},
+				{
+					"id": "shadow.card",
+					"value": "0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.24)"
+				},
+				{
+					"id": "shadow.floating",
+					"value": "0 0 0 1px rgba(244, 240, 234, 0.12), 0 2px 6px rgba(0, 0, 0, 0.32), 0 14px 36px rgba(0, 0, 0, 0.42)"
+				},
+				{
+					"id": "color.surface.highlight",
+					"value": "#2e3a33"
+				},
+				{
+					"id": "color.state.danger.foreground",
+					"value": "#ff897a"
+				},
+				{
+					"id": "shadow.control",
+					"value": "0 1px 2px rgba(0, 0, 0, 0.28)"
+				}
+			],
+			"high-contrast": [
+				{
+					"id": "color.action.danger.background",
+					"value": "#A30000"
+				},
+				{
+					"id": "color.action.danger.hover",
+					"value": "#8A0000"
+				},
+				{
+					"id": "color.action.danger.pressed",
+					"value": "#700000"
+				},
+				{
+					"id": "color.action.danger.text",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.action.primary.background",
+					"value": "#000000"
+				},
+				{
+					"id": "color.action.primary.hover",
+					"value": "#333333"
+				},
+				{
+					"id": "color.action.primary.pressed",
+					"value": "#4D4D4D"
+				},
+				{
+					"id": "color.action.primary.text",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.action.secondary.background",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.action.secondary.border",
+					"value": "#000000"
+				},
+				{
+					"id": "color.action.secondary.hover",
+					"value": "#E6E6E6"
+				},
+				{
+					"id": "color.action.secondary.pressed",
+					"value": "#CCCCCC"
+				},
+				{
+					"id": "color.action.secondary.text",
+					"value": "#000000"
+				},
+				{
+					"id": "color.border.strong",
+					"value": "#000000"
+				},
+				{
+					"id": "color.border.subtle",
+					"value": "#595959"
+				},
+				{
+					"id": "color.control.selected.background",
+					"value": "#E0E0E0"
+				},
+				{
+					"id": "color.control.selected.border",
+					"value": "#000000"
+				},
+				{
+					"id": "color.control.selected.foreground",
+					"value": "#000000"
+				},
+				{
+					"id": "color.field.background",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.field.background.readonly",
+					"value": "#F2F2F2"
+				},
+				{
+					"id": "color.field.border",
+					"value": "#595959"
+				},
+				{
+					"id": "color.field.border.focus",
+					"value": "#000000"
+				},
+				{
+					"id": "color.field.border.hover",
+					"value": "#000000"
+				},
+				{
+					"id": "color.field.border.invalid",
+					"value": "#A30000"
+				},
+				{
+					"id": "color.field.placeholder",
+					"value": "#3D3D3D"
+				},
+				{
+					"id": "color.field.text",
+					"value": "#000000"
+				},
+				{
+					"id": "color.focus.ring",
+					"value": "#000000"
+				},
+				{
+					"id": "color.state.danger.background",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.state.danger.border",
+					"value": "#A30000"
+				},
+				{
+					"id": "color.state.danger.foreground",
+					"value": "#B42318"
+				},
+				{
+					"id": "color.state.danger.text",
+					"value": "#A30000"
+				},
+				{
+					"id": "color.state.success.background",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.state.success.border",
+					"value": "#0B5A1E"
+				},
+				{
+					"id": "color.state.success.foreground",
+					"value": "#245C36"
+				},
+				{
+					"id": "color.state.success.text",
+					"value": "#0B5A1E"
+				},
+				{
+					"id": "color.state.warning.background",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.state.warning.border",
+					"value": "#6B3200"
+				},
+				{
+					"id": "color.state.warning.text",
+					"value": "#6B3200"
+				},
+				{
+					"id": "color.surface.card",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.surface.floating",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.surface.highlight",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.surface.page",
+					"value": "#FFFFFF"
+				},
+				{
+					"id": "color.surface.pressed",
+					"value": "#E7E4D8"
+				},
+				{
+					"id": "color.surface.selected",
+					"value": "#E0E0E0"
+				},
+				{
+					"id": "color.surface.subtle",
+					"value": "#F2F2F2"
+				},
+				{
+					"id": "color.text.muted",
+					"value": "#3D3D3D"
+				},
+				{
+					"id": "color.text.primary",
+					"value": "#000000"
+				},
+				{
+					"id": "color.text.secondary",
+					"value": "#1F1F1F"
+				},
+				{
+					"id": "shadow.card",
+					"value": "0 0 0 1px #000000"
+				},
+				{
+					"id": "shadow.control",
+					"value": "0 0 0 1px #000000"
+				},
+				{
+					"id": "shadow.floating",
+					"value": "0 0 0 2px #000000"
+				}
+			]
+		}
+	}
+}

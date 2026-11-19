@@ -1,6 +1,6 @@
 # Todo Example Specification
 
-This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
+This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with both frontends (FAST-AF and React).
 
 ## Files
 
@@ -12,7 +12,7 @@ This directory contains the shared API contract for the Todo example. All four b
   implements all 13 commands. A command with `implementedBy`, or an input property with
   `x-implementedBy`, would exist only in the languages it names, and every backend's tests honour
   both; none has either now (the
-  [to-do reference plan](../../../../docs/features/active/todo-reference/todo-reference.proposal.md)
+  [to-do reference plan](../../../../docs/features/complete/todo-reference/todo-reference.proposal.md)
   used them while `todo-restore`, `todo-history` and `deleted` reached each language).
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
@@ -29,7 +29,7 @@ store and runs every case in `test-cases.json`:
 |---------|--------|-----------|
 | TypeScript | `pnpm test:conformance:ts` | MCP over stdio |
 | Python | `pnpm test:conformance:py` | MCP over stdio |
-| Rust | `pnpm test:conformance:rs` | MCP over stdio (`cargo run -- stdio`) |
+| Rust | `pnpm test:conformance:rs` | MCP over stdio (the built binary, `todo-backend-rust stdio`) |
 | C++ | `pnpm test:conformance:cpp` | MCP over stdio |
 
 The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). The C++

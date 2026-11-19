@@ -71,6 +71,11 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--violet-card-band-background, var(--_surface-subtle))",
+				"name": "--_card-band-background"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-card-border-color, transparent)",
 				"name": "--_card-border-color"
 			},
@@ -86,7 +91,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-card-radius, var(--_radius-md))",
+				"default": "var(--violet-card-radius, var(--_radius-lg))",
 				"name": "--_card-radius"
 			},
 			{

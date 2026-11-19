@@ -348,7 +348,9 @@ class TestCreateHandoff:
         assert result["protocol"] == "websocket"
         assert result["endpoint"] == "wss://example.com/chat"
         assert "credentials" not in result
-        assert "metadata" not in result
+        assert result["metadata"]["reconnect"] == {
+            "allowed": True, "maxAttempts": 3, "backoffMs": 1000,
+        }
 
     def test_creates_handoff_with_token(self):
         """Test creating a handoff with token."""

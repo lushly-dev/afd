@@ -85,14 +85,12 @@ struct File {
 
 /// `mounts.json`, or a code: none at `path` mounts nothing; one others can read is refused (10.3).
 pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    permissions(path)?;
-    let bytes = std::fs::read(path).map_err(|_| PERMISSIONS)?;
-    if bytes.len() > REQUEST_MAX {
-        return Err(MOUNTS_INVALID);
-    }
+    let bytes = match read_owner_only(path, REQUEST_MAX) {
+        Ok(bytes) => bytes,
+        Err(Unread::Missing) => return Ok(Vec::new()),
+        Err(Unread::Denied) => return Err(PERMISSIONS),
+        Err(Unread::TooLarge) => return Err(MOUNTS_INVALID),
+    };
     let file: File = serde_json::from_slice(&bytes).map_err(|_| MOUNTS_INVALID)?;
     let mut seen = std::collections::HashSet::new();
     for entry in &file.mounts {
@@ -117,31 +115,100 @@ pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
     Ok(file.mounts)
 }
 
-/// POSIX: owned by this user, mode exactly 0600.
-#[cfg(unix)]
+/// Why [`read_owner_only`] read nothing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// Nothing is at the path.
+    Missing,
+    /// Something is, but not a file only its owner can read, or it cannot be read.
+    Denied,
+    /// Over the bound.
+    TooLarge,
+}
+
+/// A file only its owner can read, read from the handle its check was made on, so no other file can be put in its
+/// place between the check and the read (phase 5's step 2, from its trust review). On POSIX the open refuses a
+/// symbolic link and the check is the handle's own metadata; on Windows the handle refuses to share writing and
+/// deleting while it is held, so the path names the same file for the ACL's check and the read.
+pub fn read_owner_only(path: &Path, max: usize) -> Result<Vec<u8>, Unread> {
+    use std::io::Read;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        // A link is refused at the open; a FIFO opens at once, and its metadata then refuses it, rather than block.
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 0x1;
+        options.share_mode(FILE_SHARE_READ);
+    }
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(Unread::Missing),
+        Err(_) => return Err(Unread::Denied),
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let metadata = file.metadata().map_err(|_| Unread::Denied)?;
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let user = unsafe { libc::geteuid() };
+        if !metadata.is_file()
+            || metadata.uid() != user
+            || metadata.permissions().mode() & 0o777 != 0o600
+        {
+            return Err(Unread::Denied);
+        }
+    }
+    #[cfg(windows)]
+    if !owner_only(path) {
+        return Err(Unread::Denied);
+    }
+    let mut bytes = Vec::new();
+    file.take(max as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| Unread::Denied)?;
+    if bytes.len() > max {
+        return Err(Unread::TooLarge);
+    }
+    Ok(bytes)
+}
+
+/// `mounts.json` only its owner can read (10.3), or `DESKTOP_MOUNTS_PERMISSIONS`.
 pub fn permissions(path: &Path) -> Result<(), &'static str> {
+    if owner_only(path) {
+        Ok(())
+    } else {
+        Err(PERMISSIONS)
+    }
+}
+
+/// Whether `path` is a file only its owner can read: on POSIX owned by this user, mode exactly 0600. The rule
+/// `mounts.json`, `models.json` and a model's key file share (phase 5 specification, 4.2).
+#[cfg(unix)]
+pub fn owner_only(path: &Path) -> bool {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
-    let metadata = std::fs::symlink_metadata(path).map_err(|_| PERMISSIONS)?;
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
     // SAFETY: `geteuid` has no preconditions and cannot fail.
     let user = unsafe { libc::geteuid() };
-    if !metadata.is_file()
-        || metadata.uid() != user
-        || metadata.permissions().mode() & 0o777 != 0o600
-    {
-        return Err(PERMISSIONS);
-    }
-    Ok(())
+    metadata.is_file() && metadata.uid() == user && metadata.permissions().mode() & 0o777 == 0o600
 }
 
 /// Windows: owned by this user, and every allowing entry of its ACL is this user's. The path reaches
 /// PowerShell as an environment value, never as code.
 #[cfg(windows)]
-pub fn permissions(path: &Path) -> Result<(), &'static str> {
+pub fn owner_only(path: &Path) -> bool {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let metadata = std::fs::symlink_metadata(path).map_err(|_| PERMISSIONS)?;
-    if !metadata.is_file() {
-        return Err(PERMISSIONS);
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => {}
+        _ => return false,
     }
     let script = "$ErrorActionPreference='Stop'; \
         $a=Get-Acl -LiteralPath $env:LOAM_MOUNTS_FILE; \
@@ -151,13 +218,15 @@ pub fn permissions(path: &Path) -> Result<(), &'static str> {
         foreach ($r in $a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])) { \
           if ($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Value -ne $u) { exit 1 } }; \
         exit 0";
-    let windows = std::env::var_os("SystemRoot").ok_or(PERMISSIONS)?;
+    let Some(windows) = std::env::var_os("SystemRoot") else {
+        return false;
+    };
     let powershell = Path::new(&windows)
         .join("System32")
         .join("WindowsPowerShell")
         .join("v1.0")
         .join("powershell.exe");
-    let status = std::process::Command::new(powershell)
+    std::process::Command::new(powershell)
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("LOAM_MOUNTS_FILE", path)
         .stdin(Stdio::null())
@@ -165,12 +234,7 @@ pub fn permissions(path: &Path) -> Result<(), &'static str> {
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .status()
-        .map_err(|_| PERMISSIONS)?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(PERMISSIONS)
-    }
+        .is_ok_and(|status| status.success())
 }
 
 // Each lives in an Arc, one per open handle, so the size of the larger variant costs nothing worth boxing.

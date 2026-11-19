@@ -103,8 +103,10 @@ export type ManifestRefusalCode =
 
 /** A code a deployment file's or a projection's refusal can carry. */
 export type DeploymentRefusalCode =
+	| 'COPILOT_PROVIDER_HOST'
 	| 'DEPLOYMENT_AUDIENCE_REQUIRED'
 	| 'DEPLOYMENT_BASE_PATH_INVALID'
+	| 'DEPLOYMENT_COPILOT_INVALID'
 	| 'DEPLOYMENT_CREDENTIAL_CONFLICT'
 	| 'DEPLOYMENT_DESKTOP_PROVIDER'
 	| 'DEPLOYMENT_EXPOSE_UNAVAILABLE'

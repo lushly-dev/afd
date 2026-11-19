@@ -15,7 +15,7 @@ export const EDITOR_STYLES = css`
 		padding: var(--space-layout-md);
 		background: var(--color-surface-page);
 		color: var(--color-text-primary);
-		font-family: 'Montserrat', 'Segoe UI', sans-serif;
+		font-family: var(--font-family-body);
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
 		font-weight: var(--type-body-md-weight);

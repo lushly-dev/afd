@@ -21,6 +21,11 @@ export function jsonHtml(value, indent = 2) {
 					?.replace(/,(?=["{[])/g, ', ')
 					.replace(/":/g, '": ')
 			: JSON.stringify(value, null, indent)) ?? 'undefined';
+	return jsonTextHtml(text);
+}
+
+/** Highlight JSON text exactly as it is written: nothing is parsed, so nothing is reformatted. */
+export function jsonTextHtml(text) {
 	return escape(text).replace(
 		/(&quot;|")((?:[^"\\]|\\.)*?)\1(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?\b/g,
 		(match, _q, _body, colon, literal) => {

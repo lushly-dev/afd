@@ -11,8 +11,6 @@ const styles = css`
         display: inline-flex;
         --_persona-size: var(--violet-persona-size, 32px);
         --_persona-font-size: var(--violet-persona-font-size, 12px);
-        --_persona-border-color: color-mix(in srgb, var(--_border-subtle) 90%, transparent);
-        --_persona-shadow: var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04));
     }
 
     :host([size="xs"]) {
@@ -41,19 +39,20 @@ const styles = css`
     }
 
     .root {
+        box-sizing: border-box;
         position: relative;
         display: grid;
         place-items: center;
         inline-size: var(--_persona-size);
         block-size: var(--_persona-size);
         overflow: hidden;
-        border: 1px solid var(--_persona-border-color);
+        /* The edge is inside the size and clear; it shows only in forced colours. */
+        border: 1px solid transparent;
         border-radius: var(--_radius-round);
         background: var(--_tone-background, var(--_surface-subtle));
-        box-shadow: var(--_persona-shadow);
         color: var(--_tone-foreground, var(--_text-primary));
         font-size: var(--_persona-font-size);
-        font-weight: 600;
+        font-weight: 500;
         line-height: 1;
         letter-spacing: 0.02em;
         text-transform: uppercase;

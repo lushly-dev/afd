@@ -7,9 +7,8 @@ const styles = css`
 
     :host {
         display: flex;
-        --_surface-hover: var(--color-surface-subtle, #f0efe6);
-        --_surface-highlight: var(--color-surface-highlight, #ffffff);
-        --_surface-pressed: var(--color-surface-pressed, #e7e4d8);
+        --_surface-hover: var(--color-surface-subtle, #e9e5de);
+        --_surface-pressed: var(--color-surface-pressed, #d8dcd6);
     }
 
     .control {
@@ -19,7 +18,7 @@ const styles = css`
         gap: calc(var(--_space-inline-sm) * 2);
         inline-size: 100%;
         min-block-size: var(--_target-size);
-        padding-inline: calc(var(--_space-inline-md, 8px) * 1.5);
+        padding-inline: var(--_space-inline-md);
         padding-block: 0;
         border: none;
         border-radius: var(--_radius-md);
@@ -28,7 +27,7 @@ const styles = css`
         cursor: pointer;
         font-family: inherit;
         font-size: var(--_control-type-size);
-        line-height: var(--_type-body-line, 20px);
+        line-height: var(--_type-body-line);
         text-align: start;
         white-space: nowrap;
         transition: background-color var(--_duration-fast) var(--_easing-standard);
@@ -43,7 +42,7 @@ const styles = css`
     }
 
     .control:focus-visible {
-        background: var(--_surface-highlight);
+        background: var(--_surface-hover);
         outline: 2px solid var(--_focus-ring);
         outline-offset: -2px;
     }
@@ -51,7 +50,7 @@ const styles = css`
     .control[aria-disabled="true"] {
         color: var(--_text-secondary);
         cursor: not-allowed;
-        opacity: 0.55;
+        opacity: 0.5;
     }
 
     .control[aria-disabled="true"]:hover {

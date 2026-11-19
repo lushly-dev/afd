@@ -8,7 +8,7 @@
     },
     {
       "id": "spinner.motion",
-      "text": "Under prefers-reduced-motion the rotation slows to 1.6 seconds per turn rather than stopping."
+      "text": "The mark is a run that travels the edge of a rounded square, one lap a second. Under prefers-reduced-motion the lap slows to 3 seconds rather than stopping."
     }
   ],
   "a11y": [

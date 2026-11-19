@@ -109,7 +109,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"default": "var(--color-border-strong, #6b7d6e)",
 				"name": "--_border-strong"
 			},
 			{
@@ -119,27 +119,22 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
-				"name": "--_danger-border"
-			},
-			{
-				"basis": "declared",
-				"default": "var(--radius-sm, 2px)",
+				"default": "var(--radius-sm, 4px)",
 				"name": "--_radius-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #ddeadf)",
+				"default": "var(--color-control-selected-background, #badecf)",
 				"name": "--_selection-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"default": "var(--color-control-selected-border, rgba(44, 94, 75, 0.5))",
 				"name": "--_selection-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #244635)",
+				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_selection-text"
 			},
 			{
@@ -154,7 +149,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-card, #faf9f5)",
+				"default": "var(--color-surface-card, #f8f9f3)",
 				"name": "--_surface-card"
 			},
 			{
@@ -169,7 +164,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-caption-xs-line, 14px)",
+				"default": "var(--type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
 			}
 		],

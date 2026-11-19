@@ -7,6 +7,7 @@ const styles = css`
 
     :host {
         display: block;
+        --_danger-text: var(--color-state-danger-text, #c42a1a);
         --_status-font-size: var(--violet-status-font-size, var(--_caption-size, 12px));
         --_status-line-height: var(--violet-status-line-height, var(--_caption-line, 16px));
         --_status-indicator-size: var(--violet-status-indicator-size, var(--_caption-line, 16px));
@@ -22,7 +23,7 @@ const styles = css`
         padding: var(--_space-sm) 0;
         font-size: var(--_status-font-size);
         line-height: var(--_status-line-height);
-        color: var(--_text-secondary, #414651);
+        color: var(--_text-secondary, #48534b);
     }
 
     .indicator {
@@ -68,11 +69,11 @@ const styles = css`
     }
 
     :host([status="error"]) .root {
-        color: var(--_danger-text, #dc2626);
+        color: var(--_danger-text);
     }
 
     :host([status="error"]) .dot {
-        background: var(--_danger-text, #dc2626);
+        background: var(--_danger-text);
     }
 
 

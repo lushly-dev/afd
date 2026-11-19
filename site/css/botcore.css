@@ -1,0 +1,509 @@
+/* ============================================================
+   Botcore — the page (proposal)
+   ------------------------------------------------------------
+   Loaded after area-kit.css. Botcore has a dev side only. The
+   page shows one recorded run of the real package: a session
+   step by step (the picker is .record in area-kit.css), what a
+   tool list costs an agent, which tools it picks for a project,
+   a plugin, and skills before and after they drift.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── Hero: the whole tool list ───────────────────────────────── */
+
+.bc-shown dl {
+	display: grid;
+	margin: 0;
+	padding-block: var(--space-2);
+}
+
+.bc-shown dl > div {
+	padding-block: var(--space-3);
+}
+
+.bc-shown dl > div + div {
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.bc-shown dt code {
+	color: var(--accent-agent);
+	font: var(--weight-medium) var(--t-small) / 1.5 var(--mono);
+}
+
+.bc-shown dd {
+	margin: var(--space-1) 0 0;
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+/* ── Fig. 01: a step is what was sent, then what came back ───── */
+
+.bc-step pre {
+	height: auto;
+}
+
+.bc-step .bc-sent,
+.bc-step .bc-got,
+.bc-inner {
+	position: relative;
+	padding-top: calc(var(--space-5) + var(--space-4));
+}
+
+.bc-step .bc-sent::before,
+.bc-step .bc-got::before,
+.bc-inner .mono {
+	position: absolute;
+	top: var(--space-4);
+	left: var(--space-5);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.bc-step .bc-sent::before {
+	content: "Sent";
+}
+
+.bc-step .bc-got::before {
+	content: "Answered";
+}
+
+.bc-step .bc-sent {
+	border-bottom: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--accent-agent);
+}
+
+.bc-step .bc-got {
+	height: 300px;
+}
+
+/* The tool's own words, taken out of the JSON string so they can be read. */
+.bc-inner {
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.bc-inner pre {
+	max-height: 230px;
+	padding-top: 0;
+	color: var(--color-on-dark-muted);
+}
+
+/* ── Fig. 02: what each server makes an agent read ───────────── */
+
+.bc-cost {
+	display: grid;
+	gap: var(--space-6);
+	margin-top: var(--space-8);
+}
+
+.bc-cost-row {
+	display: grid;
+	grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr) auto;
+	align-items: start;
+	gap: var(--space-5);
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.bc-cost-label .mono {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.bc-cost-label p {
+	margin-top: var(--space-2);
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.bc-cost-label .chips {
+	margin-top: var(--space-3);
+}
+
+.bc-cost-label .chips button {
+	min-height: 0;
+	padding: var(--space-1) var(--space-2);
+	font-family: var(--mono);
+}
+
+.bc-bar {
+	display: flex;
+	gap: 2px;
+	height: 64px;
+}
+
+.bc-seg {
+	display: flex;
+	align-items: flex-end;
+	min-width: 0;
+	padding: var(--space-2);
+	overflow: hidden;
+	transition: width var(--motion-fast) var(--ease-out);
+}
+
+.bc-seg b {
+	font: var(--weight-medium) var(--t-label) / 1 var(--mono);
+	white-space: nowrap;
+}
+
+/* Every tool, up front: ink. */
+.bc-seg[data-kind="flat"] {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+/* What the agent is shown, then what it chose to read: the agent's colour. */
+.bc-seg[data-kind="list"] {
+	background: var(--accent-agent);
+	color: var(--color-text);
+}
+
+.bc-seg[data-kind="read"] {
+	background: color-mix(in srgb, var(--accent-agent) 45%, var(--color-surface));
+	color: var(--color-text);
+}
+
+.bc-measure {
+	min-width: 0;
+}
+
+/* Every part of the bar, by name and size: the labels inside only show where they fit. */
+.bc-key {
+	margin-top: var(--space-2);
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.bc-cost-total {
+	min-width: 8.5em;
+	padding-top: var(--space-2);
+	font: var(--weight-medium) var(--t-lead) / 1.2 var(--mono);
+	letter-spacing: -0.02em;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.bc-verdict {
+	max-width: 820px;
+	margin-top: var(--space-7);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+.bc-method {
+	max-width: 760px;
+	margin-top: var(--space-5);
+	color: var(--color-text-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* ── Fig. 03: the same line in three projects ────────────────── */
+
+.bc-scroll {
+	margin-top: var(--space-8);
+	overflow-x: auto;
+}
+
+.bc-langs,
+.bc-skills {
+	width: 100%;
+	border-collapse: collapse;
+	text-align: left;
+}
+
+.bc-langs thead th,
+.bc-skills thead th {
+	padding: 0 var(--space-4) var(--space-3) 0;
+	font: var(--weight-regular, 400) var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.bc-langs thead th {
+	border-bottom: var(--rule) solid var(--accent-agent);
+	color: var(--accent-agent);
+}
+
+.bc-langs tbody th,
+.bc-langs tbody td {
+	padding: var(--space-4) var(--space-4) var(--space-4) 0;
+	border-bottom: var(--rule-thin) solid var(--color-on-dark-line);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	white-space: nowrap;
+}
+
+.bc-langs code {
+	font: var(--weight-medium) 0.85em var(--mono);
+}
+
+.bc-langs tbody th code {
+	color: var(--accent-agent);
+}
+
+.d-section--deep .d-lead code {
+	color: var(--accent-agent);
+}
+
+.bc-config {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	align-items: start;
+	gap: var(--space-8);
+	margin-top: var(--space-8);
+}
+
+.bc-config .command-source {
+	border-top-color: var(--accent-agent);
+}
+
+.bc-config .command-source figcaption span + span {
+	color: var(--accent-agent);
+}
+
+.bc-config h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.bc-config p:not(.result-live) {
+	margin-top: var(--space-4);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.bc-config .result-live {
+	color: var(--color-on-dark-muted);
+}
+
+.result-live code {
+	font: inherit;
+	text-transform: none;
+}
+
+/* ── Fig. 04: the plugin's files, and its two results ────────── */
+
+#plugins .code-tabs pre {
+	max-height: 520px;
+	overflow: auto;
+}
+
+/* ── Fig. 05: skills before and after they drift, on mint ────── */
+
+.bc-skills thead th {
+	border-bottom: var(--rule) solid var(--color-rule);
+	color: var(--accent-agent-text);
+}
+
+.bc-skills thead th code {
+	font: inherit;
+	text-transform: none;
+}
+
+.bc-skills tbody th,
+.bc-skills tbody td {
+	padding: var(--space-2) var(--space-4) var(--space-2) 0;
+	border-bottom: var(--rule-thin) solid var(--color-on-color-line);
+	font-size: var(--t-small);
+	white-space: nowrap;
+}
+
+.bc-skills tbody th code {
+	font: var(--weight-medium) var(--t-code) / 1.7 var(--mono);
+}
+
+/* The rows where something happened. */
+.bc-skills tr[data-changed] > * {
+	padding-block: var(--space-3);
+	background: color-mix(in srgb, var(--afd-ink) 7%, transparent);
+}
+
+.bc-skills tr[data-changed] > th {
+	padding-left: var(--space-3);
+}
+
+.bc-version,
+.bc-absent {
+	color: var(--accent-agent-text);
+	font: var(--t-code) / 1.7 var(--mono);
+}
+
+.bc-version {
+	margin-left: var(--space-3);
+}
+
+.bc-skill-notes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-6);
+	margin: var(--space-7) 0 0;
+}
+
+.bc-skill-notes > div {
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.bc-skill-notes dt {
+	font: var(--weight-strong) var(--t-small) / 1.5 var(--mono);
+}
+
+.bc-skill-notes dd {
+	margin: var(--space-2) 0 0;
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.bc-skill-notes dd code {
+	font: 0.85em var(--mono);
+	overflow-wrap: anywhere;
+}
+
+#skills .result-live {
+	color: var(--accent-agent-text);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.bc-cost-row {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.bc-cost-label {
+		grid-column: 1 / -1;
+	}
+
+	.bc-config {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-6);
+	}
+}
+
+@media (max-width: 850px) {
+	.bc-skill-notes {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-5);
+	}
+
+	.bc-langs tbody th,
+	.bc-langs tbody td {
+		font-size: var(--t-body);
+	}
+}
+
+@media (max-width: 620px) {
+	/* A table becomes one block per row: the row's name, then its cells side by side,
+	   each under the label its column had. */
+	.bc-stack thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+
+	.bc-stack,
+	.bc-stack tbody {
+		display: block;
+	}
+
+	.bc-stack tr {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--space-2) var(--space-3);
+		padding-block: var(--space-3);
+		border-bottom: var(--rule-thin) solid var(--color-on-color-line);
+	}
+
+	.bc-langs.bc-stack tr {
+		grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr));
+		border-bottom-color: var(--color-on-dark-line);
+	}
+
+	.bc-stack tbody th,
+	.bc-stack tbody td,
+	.bc-skills.bc-stack tr[data-changed] > * {
+		padding: 0;
+		border: 0;
+		font-size: var(--t-small);
+		white-space: normal;
+	}
+
+	.bc-stack tbody th {
+		grid-column: 1 / -1;
+	}
+
+	/* A skill where nothing happened stays one line: its name, then the three marks. */
+	.bc-skills.bc-stack tr:not([data-changed]) {
+		grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+		align-items: center;
+		padding-block: var(--space-2);
+	}
+
+	.bc-skills.bc-stack tr:not([data-changed]) th {
+		grid-column: auto;
+	}
+
+	.bc-skills.bc-stack tr:not([data-changed]) td::before,
+	.bc-skills.bc-stack tr:not([data-changed]) .bc-version {
+		display: none;
+	}
+
+	.bc-skills.bc-stack tr[data-changed] {
+		padding-inline: var(--space-3);
+		background: color-mix(in srgb, var(--afd-ink) 7%, transparent);
+	}
+
+	.bc-skills.bc-stack tr[data-changed] > * {
+		background: none;
+	}
+
+	.bc-stack td::before {
+		display: block;
+		margin-bottom: var(--space-1);
+		content: attr(data-label);
+		font: var(--t-label) / 1.4 var(--mono);
+		letter-spacing: var(--tracking-label);
+		text-transform: uppercase;
+		opacity: 0.7;
+	}
+
+	.bc-version {
+		display: block;
+		margin: var(--space-1) 0 0;
+	}
+
+	.bc-cost-row {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-3);
+	}
+
+	.bc-cost-total {
+		min-width: 0;
+		padding-top: 0;
+		text-align: left;
+	}
+
+	.bc-bar {
+		height: 48px;
+	}
+
+	.bc-step .bc-got {
+		height: 260px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bc-seg {
+		transition: none;
+	}
+}

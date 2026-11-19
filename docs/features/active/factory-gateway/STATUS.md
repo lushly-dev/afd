@@ -1,5 +1,7 @@
 # Factory Gateway: status
 
+Epic: [#1550](https://github.com/lushly-dev/afd/issues/1550). File new work for this area as its sub-issue.
+
 Read this before the [proposal](factory-gateway.proposal.md). It records exactly what is done and
 what is not, so an agent never has to scan the code to learn what is current. It follows the shape
 of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
@@ -179,3 +181,4 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 |---|---|---|
 | 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
 | 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
+| 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)) |

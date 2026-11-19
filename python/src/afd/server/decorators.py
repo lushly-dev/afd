@@ -32,6 +32,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Type,
     TypeVar,
@@ -91,6 +92,8 @@ class CommandMetadata:
     approval: Optional[ApprovalPolicy] = None
     version: Optional[str] = None
     title: Optional[str] = None
+    errors: Optional[List[str]] = None
+    execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
 
 
 def define_command(
@@ -113,6 +116,8 @@ def define_command(
     approval: Optional[ApprovalPolicy] = None,
     version: Optional[str] = None,
     title: Optional[str] = None,
+    errors: Optional[List[str]] = None,
+    execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -204,6 +209,8 @@ def define_command(
             approval=approval,
             version=version,
             title=title,
+            errors=list(errors) if errors is not None else None,
+            execution_time=execution_time,
         )
         
         @wraps(func)
@@ -353,6 +360,8 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         approval=metadata.approval,
         version=metadata.version,
         title=metadata.title,
+        errors=metadata.errors,
+        execution_time=metadata.execution_time,
     )
 
 

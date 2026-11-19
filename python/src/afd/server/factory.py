@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
     Any,
+    Literal,
     Protocol,
     TypeVar,
     runtime_checkable,
@@ -36,6 +37,7 @@ from afd.core.batch import (
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
 from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, RandomSource, system_clock
+from afd.core.direct_allow import _is_allowed, _not_allowed
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CommandContext,
@@ -286,6 +288,10 @@ class MCPServer:
         approval: ApprovalPolicy | None = None,
         version: str | None = None,
         title: str | None = None,
+        errors: list[str] | None = None,
+        execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None,
+        handoff: bool = False,
+        handoff_protocol: str | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -308,6 +314,10 @@ class MCPServer:
                 approval=approval,
                 version=version,
                 title=title,
+                errors=errors,
+                execution_time=execution_time,
+                handoff=handoff,
+                handoff_protocol=handoff_protocol,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -479,6 +489,8 @@ class MCPServer:
         Returns the command and the validated input that the middleware chain
         and the handler receive, or the failure that rejects the call.
         """
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
         interface = context.extra.get("interface") if context.extra else None
         active_context = self._context_state.get_active()
 
@@ -496,6 +508,7 @@ class MCPServer:
                 candidate.name
                 for candidate in self._get_command_index().values()
                 if _in_context(candidate, active_context)
+                and _is_allowed(context, candidate.name)
                 and (not interface or self._is_exposed_to(candidate, interface))
             ]
             return error(

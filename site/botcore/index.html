@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en" data-side="dev">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Botcore — agent tooling for a repository, as one package (proposal)</title>
+		<meta name="robots" content="noindex">
+		<meta
+			name="description"
+			content="Botcore is a Python package that gives a repository its working kit for agents: lint, test and quality commands that pick the right tool, a skill library that stays current, and an MCP server that lists three tools."
+		>
+		<meta name="theme-color" content="#f74431">
+		<link rel="icon" href="../svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="../css/tokens-m2.css">
+		<link rel="stylesheet" href="../css/manifesto-2.css">
+		<link rel="stylesheet" href="../css/manifesto-3.css">
+		<link rel="stylesheet" href="../css/area.css">
+		<link rel="stylesheet" href="../css/area-kit.css">
+		<link rel="stylesheet" href="../css/botcore.css">
+		<link rel="stylesheet" href="../css/refined.css">
+		<script type="module" src="../js/botcore-page.js"></script>
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="../" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<nav aria-label="On this page">
+				<a href="#session">A real session</a><a href="#cost">The cost</a><a href="#plugins">Plugins</a
+				><a href="#skills">Skills</a><a href="#start">Start</a>
+			</nav>
+			<div class="nav-actions">
+				<nav class="side-switch" aria-label="Side of AFD">
+					<a href="./" aria-current="page">Dev</a><a href="../design/">Design</a>
+				</nav>
+				<a class="github-link" href="https://github.com/lushly-dev/afd/tree/main/endpoints/botcore"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<main id="main">
+			<section class="opening opening--area" id="top">
+				<div class="opening-art" aria-hidden="true">
+					<span class="slash"></span>
+				</div>
+				<div class="wrap">
+					<div class="opening-label">
+						<span class="crumb"><a href="../">Agent-First Development</a> / <b>Botcore</b></span>
+						<span class="edition">Beta, on PyPI</span>
+					</div>
+					<div class="area-hero">
+						<div class="area-hero-text">
+							<h1 class="area-name">Botcore</h1>
+							<p class="area-is">
+								Agent tooling, as one package.<br><span>The same in every repo.</span>
+							</p>
+							<p class="area-lead">
+								Botcore is a Python package that gives a repository its working kit for agents:
+								lint, test and quality commands that pick the right tool, a skill library that
+								stays current, and an MCP server.
+							</p>
+							<div class="opening-actions">
+								<a href="#session" class="button button--ink"
+									>See a real session <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+								<a href="#cost" class="text-link"
+									>Count the cost <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+							</div>
+							<p class="hero-install">
+								<code>pip install "lushly-botcore[mcp]"</code>
+								<button type="button" data-copy-inline aria-live="polite">Copy</button>
+							</p>
+						</div>
+						<figure class="area-figure bc-shown">
+							<figcaption><span>What an agent is shown</span><span><span data-tool-count>3</span> tools</span></figcaption>
+							<dl data-hero-tools>
+								<div>
+									<dt><code>botcore-start</code></dt>
+									<dd>Discovery — version, available functions, quick start</dd>
+								</div>
+								<div>
+									<dt><code>botcore-docs</code></dt>
+									<dd>Reference docs by topic (changeset, dev, docs, info, skill, spec, undo)</dd>
+								</div>
+								<div>
+									<dt><code>botcore-run</code></dt>
+									<dd>Execute Python code with all functions available. Use await.</dd>
+								</div>
+							</dl>
+							<p class="hero-answer">
+								<span class="mono">Behind them</span>
+								<span data-hero-answer>39 commands and 7 pages of reference, each asked for by name. The whole list above is 646 bytes.</span>
+							</p>
+						</figure>
+					</div>
+					<dl class="hero-facts">
+						<div>
+							<dt><span data-tool-count>3</span> tools, <span data-command-count>39</span> commands</dt>
+							<dd>An agent's tool list stays the same size however many commands sit behind it.</dd>
+						</div>
+						<div>
+							<dt>It picks the tool</dt>
+							<dd>ruff, biome or clippy. pytest, vitest or cargo test. Botcore reads the project and chooses.</dd>
+						</div>
+						<div>
+							<dt><span data-skill-count>10</span> skills to start with</dt>
+							<dd>An update rewrites the ones Botcore owns and leaves the ones your repo wrote.</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="session">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 01</span>The session</span>
+						<h2>Ask, read, run.<br><span>One real session.</span></h2>
+					</div>
+					<p class="surface-hint">
+						<b>Pick a step</b
+						><span
+							>Botcore is a Python program, so it cannot run in this tab. These are the steps of one
+							real MCP session in a small Python project, and exactly what Botcore answered at
+							each.</span
+						>
+					</p>
+					<div class="record">
+						<div class="record-list" role="group" aria-label="A step of the recorded session" data-step-list></div>
+						<figure class="command-source record-out bc-step">
+							<figcaption><span data-step-line></span><span data-step-side></span></figcaption>
+							<pre class="bc-sent" tabindex="0" aria-label="What the agent sent"><code data-step-sent></code></pre>
+							<pre class="bc-got" tabindex="0" aria-label="What Botcore answered"><code data-step-got></code></pre>
+							<div class="bc-inner" data-step-inner hidden>
+								<span class="mono" data-step-inner-label></span>
+								<pre tabindex="0" aria-label="The tool's own output, as text"><code data-step-inner-text></code></pre>
+							</div>
+							<div class="command-source__note" data-step-reading aria-live="polite">
+								Loading the recorded session…<noscript> It needs JavaScript to draw.</noscript>
+							</div>
+						</figure>
+					</div>
+					<p class="record-foot" data-session-foot></p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="cost">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>The cost</span>
+						<h2 class="lit" data-lit>Three tools.<br><span>However many commands.</span></h2>
+					</div>
+					<p class="d-lead">
+						A server that lists one tool for each command hands an agent every name, description
+						and schema before the first question. Botcore lists three tools. The agent asks what
+						there is, and reads only the pages it needs.
+					</p>
+					<div class="bc-cost">
+						<div class="bc-cost-row">
+							<div class="bc-cost-label">
+								<span class="mono">One tool for each command</span>
+								<p data-flat-note>38 tools, all listed before the agent has done anything.</p>
+							</div>
+							<div class="bc-measure">
+								<div class="bc-bar" data-flat-bar role="img" aria-label="The size of a tool list with one tool for each command"></div>
+								<p class="bc-key" data-flat-key></p>
+							</div>
+							<output class="bc-cost-total" data-flat-total>16,401 bytes</output>
+						</div>
+						<div class="bc-cost-row">
+							<div class="bc-cost-label">
+								<span class="mono">Botcore</span>
+								<p>Three tools, then what this agent chose to read:</p>
+								<div class="chips chips--light" role="group" aria-label="What the agent has read" data-read-chips></div>
+							</div>
+							<div class="bc-measure">
+								<div class="bc-bar" data-meta-bar role="img" aria-label="The size of what an agent has read from Botcore"></div>
+								<p class="bc-key" data-meta-key aria-live="polite"></p>
+							</div>
+							<output class="bc-cost-total" data-meta-total>2,528 bytes</output>
+						</div>
+					</div>
+					<p class="bc-verdict" data-cost-verdict aria-live="polite"></p>
+					<p class="bc-method" data-cost-method></p>
+					<p class="result-live">Counted in your browser from two recorded tool lists and the recorded answers.</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="language">
+				<span class="big-numeral" aria-hidden="true">03</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 03</span>The language</span>
+						<h2>It reads the project.<br><span>Then picks the tool.</span></h2>
+					</div>
+					<p class="d-lead">
+						The same line, <code>botcore init</code>, in three projects. Botcore finds the file
+						that says what a project is and writes down the tools it will use, so
+						<code>dev_lint</code> and <code>dev_test</code> mean the right thing in each.
+					</p>
+					<div class="bc-scroll">
+						<table class="bc-langs bc-stack">
+							<thead>
+								<tr>
+									<th scope="col">It finds</th>
+									<th scope="col">So the project is</th>
+									<th scope="col">Lint</th>
+									<th scope="col">Test</th>
+									<th scope="col">Format</th>
+								</tr>
+							</thead>
+							<tbody data-languages></tbody>
+						</table>
+					</div>
+					<div class="bc-config">
+						<figure class="command-source">
+							<figcaption><span>botcore.toml</span><span>As Botcore wrote it</span></figcaption>
+							<pre tabindex="0"><code data-config></code></pre>
+						</figure>
+						<div>
+							<h3>Change any line.</h3>
+							<p>
+								The file is yours once it is written. Set a different linter, raise a threshold,
+								or name a language for each directory of a monorepo. A project with no file at
+								all still works: Botcore decides the same way each time it runs.
+							</p>
+							<p class="result-live">Read from three recorded runs of <code>botcore init</code>.</p>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="plugins">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 04</span>The plugin</span>
+						<h2>Add your own command.<br><span>The tool list stays put.</span></h2>
+					</div>
+					<p class="d-lead">
+						A plugin is a Python class with one method, named in your package's entry points.
+						Its commands join Botcore's on the same server, in the same reference, behind the
+						same three tools.
+					</p>
+					<div class="code-tabs">
+						<div class="chips chips--light" role="tablist" aria-label="The plugin's two files">
+							<button type="button" role="tab" id="tab-plugin" aria-controls="code-plugin" aria-selected="true">
+								The plugin
+							</button>
+							<button type="button" role="tab" id="tab-entry" aria-controls="code-entry" aria-selected="false" tabindex="-1">
+								The entry point
+							</button>
+						</div>
+						<figure class="command-source" id="code-plugin" role="tabpanel" aria-labelledby="tab-plugin">
+							<figcaption><span data-plugin-path="code"></span><span>The whole plugin</span></figcaption>
+							<pre tabindex="0"><code data-plugin-code></code></pre>
+						</figure>
+						<figure class="command-source" id="code-entry" role="tabpanel" aria-labelledby="tab-entry" hidden>
+							<figcaption><span data-plugin-path="entry"></span><span>How Botcore finds it</span></figcaption>
+							<pre tabindex="0"><code data-plugin-entry></code></pre>
+						</figure>
+					</div>
+					<div class="result-pair">
+						<figure class="command-source">
+							<figcaption><span data-plugin-line="ok"></span><span>It worked</span></figcaption>
+							<pre tabindex="0" aria-label="The plugin's command, succeeding"><code data-plugin-result="ok"></code></pre>
+						</figure>
+						<figure class="command-source command-source--failed">
+							<figcaption><span data-plugin-line="fail"></span><span>It didn't</span></figcaption>
+							<pre tabindex="0" aria-label="The plugin's command, failing"><code data-plugin-result="fail"></code></pre>
+						</figure>
+					</div>
+					<p class="bc-verdict" data-plugin-verdict></p>
+					<p class="result-live">Read from a second recorded session, with the plugin installed.</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--agent" id="skills">
+				<span class="big-numeral" aria-hidden="true">05</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>The skills</span>
+						<h2>Skills that stay current.<br><span>Yours stay yours.</span></h2>
+					</div>
+					<p class="d-lead">
+						A skill is a folder of guidance an agent loads when a task calls for it. Botcore
+						ships <span data-skill-count>10</span> and copies them into the repo. Each copy says
+						who owns it, so an update knows what it may rewrite.
+					</p>
+					<div class="bc-scroll">
+						<table class="bc-skills bc-stack">
+							<thead>
+								<tr>
+									<th scope="col">Skill</th>
+									<th scope="col">After <code>botcore init</code></th>
+									<th scope="col">Months later</th>
+									<th scope="col">After <code>skill-seed --update</code></th>
+								</tr>
+							</thead>
+							<tbody data-skill-rows></tbody>
+						</table>
+					</div>
+					<dl class="bc-skill-notes">
+						<div>
+							<dt>Months later</dt>
+							<dd data-skill-drift></dd>
+						</div>
+						<div>
+							<dt>The update</dt>
+							<dd data-skill-update></dd>
+						</div>
+						<div>
+							<dt>The lint</dt>
+							<dd data-skill-lint></dd>
+						</div>
+					</dl>
+					<p class="result-live">
+						Read from six recorded runs: <code>skill-status</code> three times, <code>skill-seed --update</code> twice
+						and <code>skill-lint</code>.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="start">
+				<span class="big-numeral" aria-hidden="true">06</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 06</span>The start</span>
+						<h2>Install it.<br><span>Then one line per repo.</span></h2>
+					</div>
+					<div class="installs">
+						<div>
+							<span class="mono">Install</span>
+							<div class="install-command">
+								<pre><code>pip install "lushly-botcore[mcp]"</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the install command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">Set up a repo</span>
+							<div class="install-command">
+								<pre><code>botcore init</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the setup command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">Serve an agent</span>
+							<div class="install-command">
+								<pre><code>botcore serve</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the serve command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">Check the skills</span>
+							<div class="install-command">
+								<pre><code>botcore skill-status</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the skill status command" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+					</div>
+					<p class="copy-status" data-copy-status role="status"></p>
+					<div class="area-start">
+						<div class="area-status">
+							<span class="mono">Status</span>
+							<p>
+								<strong>Beta, on PyPI.</strong> <code>lushly-botcore</code>
+								<span data-version>0.7.0</span> needs Python 3.11 or later. The
+								<code>botcore-run</code> tool runs the Python it is sent, with your permissions,
+								so it is for a local agent you trust. The command line covers setup, skills and
+								changesets; the lint, test and quality commands are reached over MCP. Linting and
+								testing use the tools installed beside Botcore: it finds ruff or biome, it does
+								not bring them.
+							</p>
+						</div>
+						<div class="area-status">
+							<span class="mono">Read on</span>
+							<div class="start-links">
+								<a class="text-link" href="https://pypi.org/project/lushly-botcore/"
+									>On PyPI <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="https://github.com/lushly-dev/afd/tree/main/endpoints/botcore"
+									>Source <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a
+									class="text-link"
+									href="https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/README.md"
+									>Read me <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a
+									class="text-link"
+									href="https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/CHANGELOG.md"
+									>What changed <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A designer's perspective</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. <strong>It's the commands underneath.</strong>
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="../" class="wordmark" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<p>For people.<br>And the agents working with them.</p>
+			<nav aria-label="Footer">
+				<a href="../">Agent-First Development</a
+				><a href="../design/">Agent-First Design</a
+				><a href="https://github.com/lushly-dev/afd">Source</a>
+			</nav>
+			<span class="footer-edition">AGENT-FIRST DEVELOPMENT / BOTCORE</span>
+		</footer>
+	</body>
+</html>

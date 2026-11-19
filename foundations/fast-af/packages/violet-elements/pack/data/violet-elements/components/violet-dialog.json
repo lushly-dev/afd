@@ -99,7 +99,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-dialog-background, var(--_surface-card))",
+				"default": "var(--violet-dialog-background, var(--_surface-floating))",
 				"name": "--_dialog-background"
 			},
 			{
@@ -124,7 +124,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-dialog-radius, var(--_radius-lg))",
+				"default": "var(--violet-dialog-radius, calc(var(--_radius-lg) + 4px))",
 				"name": "--_dialog-radius"
 			},
 			{

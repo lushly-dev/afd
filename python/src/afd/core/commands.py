@@ -145,6 +145,7 @@ class CommandContext:
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
+    _direct_allow: Any = field(default=None, repr=False, compare=False)
 
 
 # Type alias for command handler functions
@@ -351,6 +352,11 @@ class _CommandRegistryImpl:
         input: Any,
         context: Optional[CommandContext] = None,
     ) -> CommandResult[Any]:
+        from afd.core.direct_allow import _is_allowed, _not_allowed
+        from afd.core.result import failure
+
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
         command = self._commands.get(name)
         from afd.core.result import CommandError as CmdError
 

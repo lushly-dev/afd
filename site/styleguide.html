@@ -4,17 +4,21 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<title>AFD - Site style guide</title>
-		<meta name="description" content="Design tokens, type ramp, colour roles and components for the AFD site (Command Manifesto 2).">
+		<meta name="description" content="Design tokens, type ramp, colour roles, heroes and shared parts for the AFD sites: Agent-First Development and Agent-First Design.">
 		<meta name="robots" content="noindex">
 		<link rel="icon" href="svg/favicon.svg" type="image/svg+xml">
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link
-			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
 			rel="stylesheet"
 		>
 		<link rel="stylesheet" href="css/tokens-m2.css">
 		<link rel="stylesheet" href="css/manifesto-2.css">
+		<link rel="stylesheet" href="css/manifesto-3.css">
+		<link rel="stylesheet" href="css/area.css">
+		<link rel="stylesheet" href="css/area-kit.css">
+		<link rel="stylesheet" href="css/refined.css">
 		<style>
 			/* Style-guide-only layout. Everything shown below uses the real tokens and classes. */
 			.sg { padding-block: var(--space-8) var(--section-pad); }
@@ -25,6 +29,7 @@
 			.sg-section { padding-block: var(--space-9) 0; }
 			.sg-section > h2 { font: var(--weight-regular) var(--t-title) / 1 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--space-3); }
 			.sg-section > p { max-width: 70ch; color: var(--color-text-muted); font-size: var(--t-body); margin-bottom: var(--space-6); }
+			.sg-section > h3 { margin: var(--space-7) 0 var(--space-3); font: var(--weight-medium) var(--t-label) / 1.5 var(--font-mono); letter-spacing: var(--tracking-label); text-transform: uppercase; }
 			.sg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-4); }
 			.sg-swatch { border: var(--rule-thin) solid var(--color-line); background: var(--color-surface); }
 			.sg-swatch i { display: block; height: 72px; }
@@ -50,50 +55,100 @@
 			.sg-dodont .dont { border-color: var(--accent-human-text); }
 			.sg-dodont h3 { font: var(--weight-strong) var(--t-body) var(--font-sans); margin-bottom: var(--space-3); }
 			.sg-dodont li { font-size: var(--t-small); margin-left: 1.1em; margin-bottom: var(--space-2); }
-			@media (max-width: 700px) { .sg-ramp > div, .sg-dodont { grid-template-columns: 1fr; } }
+			/* Samples of things that live on a colour field get that field around them. */
+			.sg-on { min-width: 0; padding: var(--space-6); }
+			.sg-on--signal { background: var(--field-signal); }
+			.sg-on--agent { background: var(--field-agent); }
+			.sg-on--ink { background: var(--field-ink); color: var(--color-on-dark); }
+			.sg-on--deep { background: var(--field-deep); color: var(--color-on-dark); }
+			.sg-sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+			.sg-sides .area-name { font-size: calc(var(--t-statement) * 0.6); }
+			.sg-sides p { max-width: 34ch; margin-top: var(--space-3); font-size: var(--t-small); line-height: var(--leading-body); }
+			.sg-nav { position: static; display: inline-flex; margin-top: var(--space-5); padding: 0; border: 0; background: none; }
+			.sg-hero .area-name { font-size: var(--t-statement); }
+			.sg-marks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-5); }
+			.sg-marks p { margin-top: var(--space-3); color: var(--color-text-muted); font-size: var(--t-small); line-height: var(--leading-body); }
+			.sg-marks code { display: block; margin-top: var(--space-2); font: var(--t-label) / 1.5 var(--font-mono); }
+			.sg-widow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+			.sg-widow p { width: 15.5em; font-size: var(--t-lead); line-height: 1.45; }
+			.sg-widow p[data-wrap="off"] { text-wrap: wrap; }
+			.sg-widow span { display: block; margin-bottom: var(--space-3); font: var(--weight-medium) var(--t-label) / 1.5 var(--font-mono); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+			@media (max-width: 900px) { .sg-marks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+			@media (max-width: 700px) { .sg-ramp > div, .sg-dodont, .sg-sides, .sg-widow { grid-template-columns: 1fr; } }
 		</style>
 	</head>
 	<body>
 		<main class="wrap sg">
 			<header class="sg-head">
-				<span class="section-index"><span class="fig-chip">Guide</span>Command Manifesto 2</span>
+				<span class="section-index"><span class="fig-chip">Guide</span>Both sides of AFD</span>
 				<h1>Site style guide.<br><span>Decisions, not decoration.</span></h1>
 				<p>
-					Every value on the AFD site comes from <code>css/tokens-m2.css</code>. This page reads those tokens live,
-					so it can't drift. The reasoning behind them lives in the agent skill at
-					<code>.claude/skills/afd-site-design/</code>.
+					Every value on the AFD sites comes from <code>css/tokens-m2.css</code>. This page reads those tokens live
+					and draws every sample with the real classes, so it can't drift. The reasoning behind them lives in
+					the agent skill at <code>.claude/skills/afd-site-design/</code>.
 				</p>
 			</header>
+
+			<section class="sg-section" aria-labelledby="sg-sides">
+				<h2 id="sg-sides">Two sides</h2>
+				<p>
+					AFD has two sites that share one wordmark, one type system and one set of tokens. What changes is the
+					colour a page opens on. A tool's page has the same address on both sides, and the switch in the nav
+					goes between them.
+				</p>
+				<div class="sg-sides">
+					<div class="sg-on sg-on--signal">
+						<span class="section-index">afd.dev</span>
+						<p class="area-name">Development</p>
+						<p>Opens on red, the colour of a person and the UI. It shows commands, code and packages.</p>
+						<div class="manifesto-nav sg-nav">
+							<nav class="side-switch" aria-label="Sample of the side switch">
+								<a href="#sg-sides" aria-current="page">Dev</a><a href="#sg-sides">Design</a>
+							</nav>
+						</div>
+					</div>
+					<div class="sg-on sg-on--agent">
+						<span class="section-index">afd.design</span>
+						<p class="area-name">Design</p>
+						<p>Opens on mint, the colour of an agent. It shows what a person sees and what an agent is told.</p>
+						<div class="manifesto-nav sg-nav">
+							<nav class="side-switch" aria-label="Sample of the side switch">
+								<a href="#sg-sides">Dev</a><a href="#sg-sides" aria-current="page">Design</a>
+							</nav>
+						</div>
+					</div>
+				</div>
+			</section>
 
 			<section class="sg-section" aria-labelledby="sg-fields">
 				<h2 id="sg-fields">Section fields</h2>
 				<p>
-					Each colour field has one job. Bright red appears once, for the loudest statement. Cream rests sit
-					between colour fields so the page never runs two loud fields, or two light ones, back to back.
+					Each colour field has one job. The hero's colour appears once as a hero. Cream rests sit between
+					colour fields so the page never runs two loud fields, or two light ones, back to back.
 				</p>
 				<div class="sg-fields">
 					<div class="sg-field" style="background: var(--field-signal); --numeral-fill: var(--numeral-on-signal)">
 						<span class="big-numeral" aria-hidden="true">01</span>
 						<h3>Signal</h3>
-						<p>The hero only. The single loudest statement on the page.</p>
+						<p>A dev-side hero only. The single loudest statement on the page.</p>
 						<code>--field-signal</code>
 					</div>
 					<div class="sg-field" style="background: var(--field-rule); --numeral-fill: var(--numeral-on-rule)">
 						<span class="big-numeral" aria-hidden="true">05</span>
 						<h3>Rule</h3>
-						<p>The honesty check. A step lighter than signal; never on screen with the hero.</p>
+						<p>The one-line slab. A step lighter than signal; never on screen with the hero.</p>
 						<code>--field-rule</code>
 					</div>
 					<div class="sg-field" style="background: var(--field-agent); --numeral-fill: var(--numeral-on-agent)">
 						<span class="big-numeral" aria-hidden="true">03</span>
 						<h3>Agent</h3>
-						<p>Agent UX: the differentiator. Mint always means agent.</p>
+						<p>A design-side hero, and any section that is about the agent. Mint always means agent.</p>
 						<code>--field-agent</code>
 					</div>
 					<div class="sg-field" style="background: var(--field-deep); color: var(--color-on-dark); --numeral-fill: var(--numeral-on-deep)">
 						<span class="big-numeral" aria-hidden="true">02</span>
 						<h3>Deep</h3>
-						<p>The agent at work: the handoff and building with an agent.</p>
+						<p>The agent at work, packages and the foot of a page.</p>
 						<code>--field-deep</code>
 					</div>
 					<div class="sg-field" style="background: var(--field-ink); color: var(--color-on-dark); --numeral-fill: var(--numeral-on-ink)">
@@ -114,7 +169,10 @@
 				<h2 id="sg-type">Type ramp</h2>
 				<p>
 					Eight shared steps, plus sizes for the honesty statement and closing command. Archivo Black carries statements, Space Grotesk
-					carries reading and the thin half of each statement, IBM Plex Mono carries labels and code.
+					carries reading and the thin half of each statement, IBM Plex Mono carries labels and code, and Inter
+					carries the interface: navigation, buttons, fields, tabs and chips (<code>--font-ui</code>). A size
+					between two steps is a fraction of a step, never a new pixel value: a home page's poster line is
+					four fifths of display, and a long tool name is 0.82 of it.
 				</p>
 				<div class="sg-ramp" data-ramp>
 					<div data-token="--t-display"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-display) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display)">Commands</span></div>
@@ -141,6 +199,72 @@
 				</div>
 			</section>
 
+			<section class="sg-section" aria-labelledby="sg-heroes">
+				<h2 id="sg-heroes">Heroes</h2>
+				<p>
+					Someone who lands on a page should know what it is before they scroll. A home page keeps its poster
+					line and adds a definition, the way in and three facts. A tool's page opens on a product hero: the
+					name, one line that says what kind of thing it is, a description of 15 to 35 words, the way in,
+					one small picture as proof, and three facts.
+				</p>
+				<h3>A tool's page</h3>
+				<div class="sg-on sg-on--signal sg-hero">
+					<div class="opening-label">
+						<span class="crumb"><a href="#sg-heroes">Agent-First Development</a> / <b>Violet</b></span>
+						<span class="edition">In preview, on npm</span>
+					</div>
+					<div class="area-hero" style="margin-top: var(--space-6)">
+						<div>
+							<p class="area-name">Violet</p>
+							<p class="area-is">A design token engine.<br><span>Every change is a command.</span></p>
+							<p class="area-lead">
+								Violet keeps a design system's tokens on one tree, where each theme stores only what it
+								changes. The CLI, the MCP server and your own code all call the same commands.
+							</p>
+							<div class="opening-actions">
+								<a href="#sg-heroes" class="button button--ink">Open the terminal <i class="icon icon--down" aria-hidden="true"></i></a>
+								<a href="#sg-heroes" class="text-link">See the packages <i class="icon icon--down" aria-hidden="true"></i></a>
+							</div>
+							<p class="hero-install">
+								<code>npm install --save-dev @lushly-dev/violet-cli@preview</code>
+								<button type="button">Copy</button>
+							</p>
+						</div>
+						<figure class="area-figure">
+							<figcaption><span>What the proof is</span><span>How many</span></figcaption>
+							<p style="padding-block: var(--space-5); font: var(--t-code) / 1.7 var(--font-mono)">
+								One picture, drawn by the tool itself: a tree, a result, a capture. Whatever shows the
+								tool working.
+							</p>
+							<p class="hero-answer">
+								<span class="mono">What that shows</span>
+								<span>One sentence, read from the same run as the picture.</span>
+							</p>
+						</figure>
+					</div>
+					<dl class="hero-facts" style="margin-top: var(--space-7)">
+						<div>
+							<dt>A count</dt>
+							<dd>Something a reader can check: how many commands, how many outputs.</dd>
+						</div>
+						<div>
+							<dt>A way in</dt>
+							<dd>Where it runs, or who can call it.</dd>
+						</div>
+						<div>
+							<dt>A difference</dt>
+							<dd>The one thing it does that the alternatives don't.</dd>
+						</div>
+					</dl>
+				</div>
+				<h3>A home page</h3>
+				<p>
+					The poster line stays, at four fifths of display above 850px. Under it: the name in bold and what
+					it is, the way in, and the same three-facts strip. No proof figure. Only a home page keeps crop
+					marks. Neither hero uses the thin slash, which would run through the facts.
+				</p>
+			</section>
+
 			<section class="sg-section" aria-labelledby="sg-anatomy">
 				<h2 id="sg-anatomy">Section anatomy</h2>
 				<p>
@@ -160,9 +284,50 @@
 				</div>
 			</section>
 
+			<section class="sg-section" aria-labelledby="sg-marks">
+				<h2 id="sg-marks">Marks</h2>
+				<p>
+					A mark is a small label on a fact: a status, a result, where the fact came from. Its weight says how
+					much stands behind the word, the same way on every page. Red and mint keep their meanings, so a mark
+					is never mint, and the only red one is the alert.
+				</p>
+				<div class="sg-marks">
+					<div>
+						<span class="mark" data-mark="solid">Verified</span>
+						<p>Proven, or complete. A check ran and held.</p>
+						<code>data-mark="solid"</code>
+					</div>
+					<div>
+						<span class="mark" data-mark="outline">Observed</span>
+						<p>Seen, or partly there.</p>
+						<code>data-mark="outline"</code>
+					</div>
+					<div>
+						<span class="mark" data-mark="dashed">Declared</span>
+						<p>Stated but not run, or not available.</p>
+						<code>data-mark="dashed"</code>
+					</div>
+					<div>
+						<span class="mark" data-mark="plain">Authored</span>
+						<p>Someone's word. Nothing checks it.</p>
+						<code>data-mark="plain"</code>
+					</div>
+					<div>
+						<span class="mark" data-mark="alert">Undeclared</span>
+						<p>Needs a decision. A build would stop here.</p>
+						<code>data-mark="alert"</code>
+					</div>
+				</div>
+			</section>
+
 			<section class="sg-section" aria-labelledby="sg-components">
 				<h2 id="sg-components">Controls</h2>
-				<p>Buttons are the only rounded elements (<code>--radius</code>). Fields, panels and code blocks are square.</p>
+				<p>
+					Things you press or type into are rounded (<code>--radius-control</code>; small marks
+					<code>--radius-mark</code>), and panels a step more (<code>--radius-panel</code>). Edges come from
+					surfaces and shadows, not outlines: filled buttons are keys, outline buttons are tonal keys, fields
+					are wells and panels float. Posters, colour fields, figure chips and crop marks stay square.
+				</p>
 				<div class="sg-row">
 					<a class="button button--ink" href="#sg-components">See it in action <i class="icon icon--down" aria-hidden="true"></i></a>
 					<a class="button button--red" href="#sg-components">Open the quickstart <i class="icon icon--out" aria-hidden="true"></i></a>
@@ -170,10 +335,173 @@
 					<a class="button button--outline" href="#sg-components">Apply suggestion</a>
 					<a class="text-link" href="#sg-components">Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a>
 				</div>
+				<h3>Chips pick one of a few; tabs switch what a panel shows</h3>
+				<div class="sg-row">
+					<div class="sg-on sg-on--ink">
+						<div class="chips" role="group" aria-label="Sample chips on a dark field">
+							<button type="button" aria-pressed="true">A token changed</button>
+							<button type="button" aria-pressed="false">A label changed</button>
+							<button type="button" aria-pressed="false">Nothing changed</button>
+						</div>
+					</div>
+					<div class="sg-panel">
+						<div class="chips chips--light" role="tablist" aria-label="Sample tabs on a light field">
+							<button type="button" role="tab" aria-selected="true">Library</button>
+							<button type="button" role="tab" aria-selected="false" tabindex="-1">Stories</button>
+							<button type="button" role="tab" aria-selected="false" tabindex="-1">Agent</button>
+						</div>
+					</div>
+				</div>
 				<div class="translate" style="margin-top: var(--space-6); max-width: 620px; background: var(--field-ink); padding: var(--space-5)" aria-hidden="true">
 					<div class="ux-art"><div class="ua-dialog"><strong>Delete all tasks?</strong><span>This can’t be undone.</span><div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div></div></div>
 					<span class="translate__arrow">→</span>
 					<span class="translate__agent">"People get" art: the human pattern, drawn, beside what the agent gets.</span>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-parts">
+				<h2 id="sg-parts">Parts a tool's page shares</h2>
+				<p>
+					A tool's page is not built from a template: each gets the sections its tool needs. Some parts recur,
+					and those live once in <code>css/area-kit.css</code>. Anything only one tool needs stays in that
+					tool's stylesheet.
+				</p>
+				<h3>The package layers, endpoints on top</h3>
+				<div class="sg-on sg-on--deep">
+					<div class="layers" style="margin-top: 0">
+						<div class="layer">
+							<span class="mono">Endpoints</span>
+							<article>
+								<h3>tool-cli</h3>
+								<p>What a person types.</p>
+							</article>
+							<article>
+								<h3>tool-server</h3>
+								<p>What an agent calls.</p>
+							</article>
+						</div>
+						<div class="layer">
+							<span class="mono">Foundation</span>
+							<article class="layer-wide">
+								<h3>tool-core</h3>
+								<p>The engine, which needs nothing above it.</p>
+							</article>
+						</div>
+					</div>
+				</div>
+				<h3>Steps: a short process, in order</h3>
+				<div class="sg-on sg-on--deep">
+					<ol class="steps" style="margin-top: 0">
+						<li>
+							<span class="mono">Step 1</span>
+							<h3>An agent proposes</h3>
+							<p>One sentence on what happens, and what does not.</p>
+						</li>
+						<li>
+							<span class="mono">Step 2</span>
+							<h3>A person reads it</h3>
+							<p>Three or four steps at most. More than that is a list.</p>
+						</li>
+						<li>
+							<span class="mono">Step 3</span>
+							<h3>A person decides</h3>
+							<p>If the page cannot run the process, a line under it says so.</p>
+						</li>
+					</ol>
+				</div>
+				<h3>A recorded run: pick a line, read what came back</h3>
+				<p>
+					For a tool that cannot run in a tab (Umbel is a native program, Botcore is Python). The page shows
+					one real run, recorded by a build script and never edited: a button for each line, then that line,
+					exactly what the tool printed, and one sentence on what to notice. The sentence's words are the
+					page's; every number in it is read from the result. A line under the figure says when it was
+					recorded, from which version, and links the whole record.
+				</p>
+				<div class="sg-on sg-on--ink">
+					<div class="record" style="margin-top: 0">
+						<div class="record-list" role="group" aria-label="A line of a sample run">
+							<button type="button" aria-pressed="true">The first line</button>
+							<button type="button" aria-pressed="false">A second line</button>
+							<button type="button" aria-pressed="false">A line it refuses</button>
+						</div>
+						<figure class="command-source record-out">
+							<figcaption><span>$ tool list</span><span>exit 0</span></figcaption>
+							<pre tabindex="0" style="height: auto"><code>{ "success": true, "data": { "total": 3 } }</code></pre>
+							<div class="command-source__note">3 in all. The sentence says what to notice; the figure comes from the result.</div>
+						</figure>
+					</div>
+					<p class="record-foot">Recorded on 17 November 2026 from tool 0.1.0. <a href="#sg-parts">The whole recorded run</a></p>
+				</div>
+				<h3>The foot: how to start, and where it stands</h3>
+				<div class="sg-on sg-on--ink">
+					<div class="area-start" style="margin-top: 0">
+						<div>
+							<h3>Start with the smallest thing.</h3>
+							<p>One sentence on the first step, then the line to copy.</p>
+							<div class="install-command">
+								<pre><code>npm install --save-dev @lushly-dev/tool-cli@preview</code></pre>
+								<button type="button" class="icon-button" aria-label="Copy (sample)" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div class="area-status">
+							<span class="mono">Status</span>
+							<p>
+								<strong>Preview.</strong> Say plainly what is released, what is not, and what it does not
+								do yet. This block is where a page is most honest.
+							</p>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-text">
+				<h2 id="sg-text">Running text</h2>
+				<p>
+					A last line of one word reads as a mistake. Paragraphs, list items and captions use
+					<code>text-wrap: pretty</code>, and <code>js/widows.js</code> ties the last two words together in a
+					browser that lacks it. Display type is exempt: there, one word on the last line is the design.
+				</p>
+				<p>
+					A hyphenated name goes in <code>&lt;span class="keep"&gt;</code>, so
+					<span class="keep">FAST-AF</span> never ends a line on <q>FAST-</q>.
+				</p>
+				<div class="sg-widow">
+					<div>
+						<span>Without the rule</span>
+						<p data-wrap="off">Compare two versions and you see exactly what it was that changed.</p>
+					</div>
+					<div>
+						<span>With it</span>
+						<p>Compare two versions and you see exactly what it was that changed.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-words">
+				<h2 id="sg-words">Words</h2>
+				<p>The pages argue that nothing should be claimed that can't be shown. The copy follows the same rule.</p>
+				<div class="sg-dodont">
+					<div class="do">
+						<h3>Do</h3>
+						<ul>
+							<li>Say what kind of thing it is in the first screen: "A design token engine."</li>
+							<li>Read every number on the page from a run. If the tool changes, the page changes with it.</li>
+							<li>Say "In preview, on npm" for something released as a preview.</li>
+							<li>Label a fact by where it came from, and say what the tool does not do yet.</li>
+							<li>Run the real tool in the page. Where part of it can't run in a browser, say which part.</li>
+						</ul>
+					</div>
+					<div class="dont">
+						<h3>Don't</h3>
+						<ul>
+							<li>Open a tool's page with a slogan and make the reader scroll to learn what it is.</li>
+							<li>Write "Preview on npm": it reads as an invitation to go and look.</li>
+							<li>Type a result into the page, or draw a demo that only looks live.</li>
+							<li>Show two things that look identical without saying why they are being shown.</li>
+						</ul>
+					</div>
 				</div>
 			</section>
 
@@ -226,7 +554,7 @@
 				try { rules = sheet.cssRules; } catch { continue; }
 				for (const rule of rules) {
 					if (rule.selectorText !== ':root') continue;
-					for (const name of rule.style) if (name.startsWith('--')) tokenNames.push(name);
+					for (const name of rule.style) if (name.startsWith('--') && !tokenNames.includes(name)) tokenNames.push(name);
 				}
 			}
 			const palette = document.querySelector('[data-palette]');

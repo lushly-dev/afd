@@ -1,11 +1,12 @@
 # Patterns
 
-Markup for the recurring pieces of Command Manifesto 2. All of them are live on
-`site/index.html` and shown on `site/styleguide.html`.
+Markup for the recurring pieces of the AFD sites, shown on `site/styleguide.html`.
+The product hero, the plain `d-section` and the parts a tool's page shares are in
+[area-pages.md](area-pages.md).
 
 ## Figure label
 
-Opens every numbered section. Numbers run 01–08 in page order.
+Opens every numbered section. Numbers run from 01 in page order.
 
 ```html
 <span class="section-index"><span class="fig-chip">Fig. 04</span>The recovery</span>
@@ -81,6 +82,42 @@ The AFD slash as a tone-on-tone poster shape, at the wordmark's lean (`skewX(-20
 
 The slash was chosen over diagonal stripes and a warm gradient. Keep the hero to this one shape.
 
+The thin slash is for `index.html` only. A hero with a facts strip (the proposed home
+pages and every tool's page) uses the wide slash alone: the thin one runs through the
+facts.
+
+## Mark
+
+A small label on a fact. Its weight says how much stands behind the word.
+
+```html
+<span class="mark" data-mark="solid">Verified</span>   <!-- proven, complete -->
+<span class="mark" data-mark="outline">Observed</span> <!-- seen, partly there -->
+<span class="mark" data-mark="dashed">Declared</span>  <!-- stated, not run -->
+<span class="mark" data-mark="plain">Authored</span>   <!-- someone's word -->
+<span class="mark" data-mark="alert">Undeclared</span> <!-- needs a decision -->
+```
+
+A page script maps a tool's own words onto these five. Never mint, and red only for
+the alert.
+
+## Facts strip
+
+Three facts under a rule, at the foot of a hero.
+
+```html
+<dl class="hero-facts">
+	<div>
+		<dt>34 commands</dt>
+		<dd>Checked input goes in, a structured result comes out.</dd>
+	</div>
+	… two more …
+</dl>
+```
+
+A count a reader can check, a way in, and the one difference. Read a count from the
+tool (`data-command-count`), not from memory.
+
 ## "People get / agents get"
 
 Pairs a drawn human UI pattern with its agent equivalent, inside the agent-UX tabs.
@@ -98,7 +135,7 @@ Available drawings: `ua-menu` (discovery), `ua-toast` (feedback), `ua-dialog`
 
 ## The family list
 
-The rest of the AFD family (Specimen, FAST-AF, Violet, Umbel, Loam), as a second block inside
+The rest of the AFD family (Specimen, FAST-AF, Violet, Umbel, Botcore, Loam), as a second block inside
 the ink proof band. It isn't a numbered section, so it has no figure label or numeral.
 
 ```html
@@ -112,8 +149,8 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
 		<li>
 			<h4>Specimen</h4>
 			<p>One or two sentences.</p>
-			<span class="mono family-status family-status--out">Preview on npm</span>
-			<a href="…">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+			<span class="mono family-status family-status--out">In preview, on npm</span>
+			<a href="specimen/" aria-label="Specimen: compare two captures">Compare two captures <i class="icon icon--right" aria-hidden="true"></i></a>
 		</li>
 	</ul>
 </div>
@@ -123,6 +160,10 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
   band's one statement.
 - `family-status--out` (paper) marks a project people can install; without it the status
   is muted. Mint and red keep their meanings, so neither is used for status.
+- A released preview reads "In preview, on npm". "Preview on npm" reads as an invitation
+  to go and look.
+- On the proposed home pages, a tool with a page links to it on that side, with a link
+  that says what you will do there; the rest link out to the repository.
 - Update a status here, in `site/llms.txt`, in the README's family table and in
   `docs/features/README.md` together.
 
@@ -135,8 +176,8 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
 <a class="text-link" href="…">Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a>
 ```
 
-Buttons are the only rounded elements. Use `--red` for the primary CTA, `--ink` on
-light fields, `--mint` for agent actions.
+Buttons are keys: rounded and one step up, flat when pressed (`refined.css`). Use `--red` for
+the primary CTA, `--ink` on light fields, `--mint` for agent actions.
 
 ## Finale
 

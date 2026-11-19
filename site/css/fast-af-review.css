@@ -1,0 +1,150 @@
+/* The FAST-AF review sheets: every component at once, and the components
+   in use. Working pages for a design pass on the theme. The components sit
+   in stages (fast-af.css); this file is the bar and the page around them. */
+
+.fr {
+	background: var(--color-page);
+	color: var(--color-text);
+}
+
+.fr-bar {
+	position: sticky;
+	top: 0;
+	z-index: var(--layer-nav);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3) var(--space-5);
+	padding: var(--space-3) var(--space-5);
+	background: var(--field-ink);
+	color: var(--color-on-dark);
+	font-size: var(--t-small);
+}
+
+.fr-home {
+	color: inherit;
+	font-family: var(--font-display);
+	text-decoration: none;
+}
+
+.fr-sheets,
+.fr-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-1);
+}
+
+.fr-sheets a,
+.fr-chips a {
+	padding: var(--space-1) var(--space-3);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--font-mono);
+	letter-spacing: var(--tracking-label);
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.fr-sheets a:hover,
+.fr-chips a:hover {
+	border-color: var(--accent-agent);
+	color: var(--color-on-dark);
+}
+
+.fr-sheets a[aria-current],
+.fr-chips a[aria-current] {
+	border-color: var(--accent-agent);
+	background: var(--accent-agent);
+	color: var(--afd-ink);
+}
+
+.fr-bar :focus-visible {
+	outline: var(--rule-heavy) solid var(--accent-agent);
+	outline-offset: var(--rule);
+}
+
+.fr-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3) var(--space-5);
+	margin-left: auto;
+}
+
+.fr-pick {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--font-mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fr-pick select {
+	padding: var(--space-1) var(--space-2);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	background: var(--afd-black);
+	color: var(--color-on-dark);
+	font: inherit;
+	text-transform: none;
+}
+
+.fr-head {
+	padding: var(--space-6) var(--space-5) var(--space-4);
+}
+
+.fr-head h1 {
+	margin: 0 0 var(--space-2);
+	font-size: var(--t-title);
+	font-weight: var(--weight-strong);
+	line-height: 1.1;
+}
+
+.fr-head p {
+	max-width: 70ch;
+	margin: 0 0 var(--space-2);
+	color: var(--color-text-muted);
+}
+
+.fr-head .fr-note {
+	font-size: var(--t-label);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fr-sheets-out {
+	display: grid;
+	gap: var(--space-5);
+	padding: 0 var(--space-5) var(--space-8);
+}
+
+.fr-sheets-out[data-count="2"] {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fr-stage {
+	min-width: 0;
+	border: var(--rule-thin) solid var(--color-rule);
+}
+
+@media (max-width: 1100px) {
+	.fr-sheets-out[data-count="2"] {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 620px) {
+	.fr-bar,
+	.fr-head {
+		padding-inline: var(--space-4);
+	}
+
+	.fr-sheets-out {
+		padding-inline: var(--space-4);
+	}
+
+	.fr-controls {
+		margin-left: 0;
+	}
+}
