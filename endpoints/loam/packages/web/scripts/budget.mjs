@@ -295,7 +295,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * and the hosted flag. `appsMinified` 395,700 to 417,500 (416,423): the manifest validator's `ui.settings`, five
  * closed definitions that Ajv's standalone code adds about 28,000 unminified bytes for (329,227 to 357,289 for
  * `validate.generated.js`). New row: `lateSettingsMinified` 22,800 (20,698 plus 10%; section 14 estimated 26,000):
- * the five `setting-*` commands, their rules and the shell's two sections.
+ * the five `setting-*` commands, their rules and the shell's two sections. Rebased onto `main` at `1465d4f5`, after
+ * phase 5's step 2 had raised `kernelMinified` to 118,000 and `appsMinified` to 397,000 for its own code and the
+ * Refined design first paint and CSS: the kernel 118,693, raised to 119,500; `late` 81,372 of 82,000; `apps` 417,099
+ * of 417,500; first paint 307,956 and 96,069 gzip, within phase 5's rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -338,6 +341,7 @@ export const CEILINGS = Object.freeze({
 	accountMinified: 28_000,
 	urlMinified: 5_700,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
+	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	appsMinified: 417_500,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
