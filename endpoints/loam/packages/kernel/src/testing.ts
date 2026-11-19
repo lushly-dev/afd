@@ -22,6 +22,7 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
+import * as z from 'zod/mini';
 import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
@@ -196,7 +197,27 @@ function sameJson(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Whether `given`, validated by the command's schema as the kernel passes it, is the call `recorded` journals:
+ * `input` as the registry validates it and the journal records it (JSON); undefined for a name the kernel does not
+ * hold or an input its schema refuses, which only running the call answers (#859).
+ */
+function validatedInput(
+	command: ZodCommandDefinition | undefined,
+	input: unknown
+): { input: unknown } | undefined {
+	if (!command) return undefined;
+	try {
+		const parsed = z.safeParse(command.inputSchema, input);
+		if (!parsed.success) return undefined;
+		const text = JSON.stringify(parsed.data);
+		return { input: text === undefined ? null : JSON.parse(text) };
+	} catch {
+		// A schema callback that throws: the registry answers it as a `VALIDATION_ERROR`.
+		return undefined;
+	}
+}
+
+/**
+ * Whether `given`, validated by the command's schema, is the call `recorded` journals:
  * the whole input, after the journal's own redactions (`input.password` removed; an input the 256 KiB bound
  * refused kept as its document's id alone). Never a subset: `{}` is not a recorded `{ filter: 'a' }`.
  */
@@ -236,10 +257,17 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 		 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
 		 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges.
 		 */
-		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
+		answer(
+			parent: string,
+			name: string,
+			input: unknown,
+			command: ZodCommandDefinition | undefined
+		): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
-			if (next?.command !== name || !sameCall(next, input)) return undefined;
+			if (next?.command !== name) return undefined;
+			const validated = validatedInput(command, input);
+			if (!validated || !sameCall(next, validated.input)) return undefined;
 			queue?.shift();
 			return next.result;
 		},
@@ -386,7 +414,13 @@ export async function replayKernel(
 	startPage(session);
 	// Shared with the kernel, which reads it at each call, so a kept kernel goes live when the replay ends.
 	const internals: KernelPartsInternals = {
-		answerNested: (parent, name, input) => nested.answer(parent, name, input),
+		answerNested: (parent, name, input, commands) =>
+			nested.answer(
+				parent,
+				name,
+				input,
+				commands.find((command) => command.name === name)
+			),
 		nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 		replaying: true,
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).

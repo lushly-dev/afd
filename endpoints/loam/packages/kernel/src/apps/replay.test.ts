@@ -359,6 +359,35 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		expect(report.diverged).toBe(false);
 	});
 
+	it('#861: a reload made at once boots from the last app-open, so the replay does not diverge', async () => {
+		const store = new MemoryAdapter();
+		const first = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		expect((await first.kernel.call('app-open', { instance: 'probe' })).success).toBe(true);
+		const { journal } = first;
+		// A reload that does not wait for `pagehide`'s flush, nor the debounce: no `flush()`, no `dispose()`.
+		const second = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(5000),
+			...probeOptions(),
+		});
+		const closed = await second.call<{ closed: string | null }>('app-close');
+		expect(closed.success).toBe(true);
+		expect(await second.call('layout-get')).toMatchObject({ success: true });
+		await second.dispose();
+		await first.kernel.dispose();
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
 	it('answers an entry marked recorded from its record, and registers nothing', async () => {
 		const recorded = await recordSession(
 			[{ interface: 'palette', name: 'layout-get' }],

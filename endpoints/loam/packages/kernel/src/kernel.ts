@@ -25,7 +25,6 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
-import * as z from 'zod/mini';
 import { appearanceFrom } from './appearance.js';
 import {
 	type AppsRuntime,
@@ -213,14 +212,19 @@ export interface KernelParts {
 /** What only `replayKernel` asks of a kernel. */
 export interface KernelPartsInternals {
 	/**
-	 * A nested call's answer from the journal, in place of running it (7.6), given its input validated by the
-	 * command's schema, as the journal records it; a call the schema refuses is never asked. Undefined runs it: a refusal
-	 * before the middleware leaves no entry, and answers the same again. A recorded call (`replay:
-	 * 'recorded'`) that passes validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`,
-	 * before its handler could reach a server, and the outer call is reported diverged (phase 2
-	 * specification, 10 and 12).
+	 * A nested call's answer from the journal, in place of running it (7.6), given the palette's and the agent's
+	 * commands, whose schema for `name` validates `input` as the registry will: the record is matched on the whole
+	 * validated input (#859). Undefined runs it: a refusal before the middleware, as a name neither registry holds or
+	 * an input the schema refuses, leaves no entry, and answers the same again. A recorded call (`replay: 'recorded'`) that passes
+	 * validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`, before its handler could reach a
+	 * server, and the outer call is reported diverged (phase 2 specification, 10 and 12).
 	 */
-	answerNested?(parent: string, name: string, input: unknown): CommandResult | undefined;
+	answerNested?(
+		parent: string,
+		name: string,
+		input: unknown,
+		commands: readonly ZodCommandDefinition[]
+	): CommandResult | undefined;
 	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
 	nestedUnrecorded?(parent: string, name: string): void;
 	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
@@ -395,8 +399,8 @@ export async function createKernelParts(
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
 		scopeMiddleware,
-		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
-		...(lateParts ? [lateParts.copilot.gate] : []),
+		// `late/`'s own, inside the journal and after access, once it has loaded (#861; phase 5 specification, 6.1).
+		...(lateParts?.middleware ?? []),
 	];
 	const build = (
 		iface: KernelInterfaceV0,
@@ -682,24 +686,6 @@ export async function createKernelParts(
 		return mine;
 	}
 
-	/**
-	 * `input` as the registry validates it and the journal records it (JSON), for a replay's nested call;
-	 * undefined for a name the kernel does not hold or an input its schema refuses, which only running it answers.
-	 */
-	function validatedInput(name: string, input: unknown): { input: unknown } | undefined {
-		const command = [...current.commands, ...bootOnly].find((each) => each.name === name);
-		if (!command) return undefined;
-		try {
-			const parsed = z.safeParse(command.inputSchema, input);
-			if (!parsed.success) return undefined;
-			const text = JSON.stringify(parsed.data);
-			return { input: text === undefined ? null : JSON.parse(text) };
-		} catch {
-			// A schema callback that throws: the registry answers it as a `VALIDATION_ERROR`.
-			return undefined;
-		}
-	}
-
 	async function execute<T>(
 		iface: KernelInterfaceV0,
 		name: string,
@@ -716,11 +702,8 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
-		if (fields.parent !== undefined && internals.answerNested) {
-			// The input as the journal holds it, validated by the command's schema, so the record is matched on
-			// every key: a call the schema refuses takes no entry, and is refused again as it was live.
-			const validated = validatedInput(name, input ?? {});
-			const answered = validated && internals.answerNested(fields.parent, name, validated.input);
+		if (fields.parent !== undefined) {
+			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
