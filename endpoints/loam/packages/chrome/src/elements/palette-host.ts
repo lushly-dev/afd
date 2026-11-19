@@ -2,7 +2,8 @@
  * @fileoverview The command palette's host for `loam-shell` (phase 0 specification, 7): the palette's
  * search, run and close, each a command, and its rows' flags from the kernel's command summaries. It loads
  * with the palette, when the page is idle, so first paint holds only the boundary (phase 2 specification,
- * 2.4). A document's row, `palette-search`'s `kind: 'document'`, opens it with `document-open`; a query that
+ * 2.4). A document's row, `palette-search`'s `kind: 'document'`, opens it with `document-open`; a setting's,
+ * `kind: 'setting'`, opens the settings section at its key with `section-open` (phase 4 specification, 3.10); a query that
  * starts `new` lists what New creates, as `New: <title>`, from the `new` chunk, loaded on that first query
  * (documents specification, 7 and 8.2).
  */
@@ -18,8 +19,8 @@ interface PaletteShell extends NewHost {
 	readonly palette: LoamPalette;
 }
 
-/** A row that is not a command: a document to open, or what New creates. */
-type Row = { document: string } | { item: NewItemV1 };
+/** A row that is not a command: a document to open, a setting to show, or what New creates. */
+type Row = { document: string } | { setting: string } | { item: NewItemV1 };
 
 export class ShellPalette {
 	readonly #shell: PaletteShell;
@@ -100,6 +101,17 @@ export class ShellPalette {
 			kernel?.listCommands().map((command) => [command.name, command])
 		);
 		for (const item of (result.data as { items: PaletteItem[] }).items) {
+			if (item.kind === 'setting') {
+				this.#rows.set(item.name, { setting: item.name });
+				rows.push({
+					name: item.name,
+					...(item.title !== undefined ? { title: item.title } : {}),
+					// Where it lives, so two keys of one title read apart: "Setting of Hello: …".
+					description: `Setting of ${item.app ?? 'the shell'}: ${item.description}`,
+					disabled: false,
+				});
+				continue;
+			}
 			if (item.kind === 'document') {
 				this.#rows.set(item.name, { document: item.name });
 				rows.push({
@@ -133,9 +145,11 @@ export class ShellPalette {
 			await runNew(this.#shell, row.item);
 			return null;
 		}
-		const result = row
-			? await kernel.call('document-open', { document: row.document, preview: false })
-			: await kernel.call(name, {});
+		const result = !row
+			? await kernel.call(name, {})
+			: 'setting' in row
+				? await kernel.call('section-open', { section: 'settings', target: row.setting })
+				: await kernel.call('document-open', { document: row.document, preview: false });
 		if (!result.success) {
 			return {
 				message: result.error?.message ?? `${name} failed`,

@@ -217,7 +217,9 @@ describe('diffJournals (A3)', () => {
 	});
 });
 
-describe('createReferenceWorkspace (D37)', () => {
+// These build a reference workspace of up to 5,000 commands and record and replay 400 calls; a loaded machine running
+// all packages at once (a pre-push over a tooling change) took them past vitest's 5 s default.
+describe('createReferenceWorkspace (D37)', { timeout: 30_000 }, () => {
 	it('is deterministic for a seed', () => {
 		const a = createReferenceWorkspace({ seed: 'phase-0', size: 500 });
 		const b = createReferenceWorkspace({ seed: 'phase-0', size: 500 });

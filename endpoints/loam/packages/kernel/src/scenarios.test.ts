@@ -24,7 +24,7 @@ import {
 } from '@lushly-dev/afd-testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
-import { P4_PERSON, P4_PROJECTS, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
+import { P4_PERSON, P4_PROJECTS, P4_SEED, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
 
 const PHASE_4 = fileURLToPath(
 	new URL('../../../docs/phases/4-settings/scenarios/', import.meta.url)
@@ -34,13 +34,14 @@ const PHASE_5 = fileURLToPath(
 );
 
 /**
- * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 builds the settings core and
- * `p4-base`, and no file runs yet: each needs hello's settings, the palette's setting rows, or a later step's commands.
+ * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 built the settings core and
+ * `p4-base`; step 2 the settings section, the palette's setting rows, hello's sections and `p4-base`'s apps, so the
+ * three settings jobs run. The rest need a later step's commands.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
-	'setting-per-project': "step 2: hello's `hello.general` and the apps in `p4-base`",
-	'setting-from-palette': "step 2: the palette's setting rows and the settings section",
-	'agent-changes-setting': "step 2: hello's `hello.general`",
+	'setting-per-project': 'now',
+	'setting-from-palette': 'now',
+	'agent-changes-setting': 'now',
 	'autonomy-per-command': 'step 8: autonomy',
 	'know-my-mode': 'step 8: autonomy',
 	'owner-ceiling': 'step 8: autonomy',
@@ -191,6 +192,50 @@ describe("Loam's runner: the p4-base seed", () => {
 			{ scope: { workspace: 'personal', project: 'prj_atlas' } }
 		);
 		expect(scoped.data).toMatchObject({ value: 14, from: 'workspace' });
+	});
+
+	it("holds its seed file's apps, enabled for both projects, and its documents and calls' results", async () => {
+		seeded = await (SEEDS['p4-base'] as () => Promise<SeededKernel>)();
+		const { kernel } = seeded;
+		const instances = P4_SEED.apps.map(({ instance }) => instance);
+		expect(instances).toHaveLength(4);
+		const apps = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
+			'app-list'
+		);
+		expect(apps.data?.apps.map(({ instance, state }) => ({ instance, state }))).toEqual(
+			instances.map((instance) => ({ instance, state: 'ready' }))
+		);
+		for (const project of ['prj_atlas', 'prj_beacon']) {
+			for (const instance of instances) {
+				const opened = await kernel.call(
+					'app-open',
+					{ instance },
+					{ scope: { workspace: 'personal', project } }
+				);
+				expect(opened.success, `${instance} in ${project}: ${JSON.stringify(opened.error)}`).toBe(
+					true
+				);
+			}
+		}
+		for (const document of P4_SEED.documents) {
+			const read = await kernel.call(
+				'document-get',
+				{ document: document.id },
+				document.project ? { scope: { workspace: 'personal', project: document.project } } : {}
+			);
+			expect(read.data).toMatchObject({ id: document.id, title: document.title });
+		}
+		expect(P4_SEED.checks.length).toBeGreaterThan(0);
+		for (const check of P4_SEED.checks) {
+			const read = await kernel.call(
+				check.command,
+				check.input,
+				check.project ? { scope: { workspace: 'personal', project: check.project } } : {}
+			);
+			expect(read.data, `${check.command}: ${JSON.stringify(read.error)}`).toMatchObject(
+				check.data as object
+			);
+		}
 	});
 });
 

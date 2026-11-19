@@ -25,7 +25,11 @@ export interface AppListV2 {
 	apps: AppSummaryV2[];
 }
 
-const SECTIONS: Record<string, string> = { projects: 'Projects', documents: 'Documents' };
+const SECTIONS: Record<string, string> = {
+	projects: 'Projects',
+	documents: 'Documents',
+	settings: 'Settings',
+};
 const VARIANTS = ['rail', 'tabbar'] as const;
 
 /** Move `entry` before `before` in `list`, keeping its focus (7.1). */
@@ -150,7 +154,7 @@ export class RailBands {
 		for (const nav of navs) {
 			if (!nav?.shadowRoot) continue;
 			for (const entry of nav.shadowRoot.querySelectorAll<LoamAppEntry & { section: string }>(
-				'.top loam-section-entry'
+				'loam-section-entry'
 			)) {
 				entry.current = active === null && entry.section === state.section;
 				entry.tip = nav.variant === 'rail' ? entry.label : '';

@@ -65,6 +65,16 @@ import type {
 import { NEW_RECENT_ID, newRecentId } from './new-list.js';
 import type { DocumentRows } from './palette-documents.js';
 
+/** The palette's setting rows (phase 4 specification, 3.10): the keys the call may see whose text matches. */
+export interface SettingRows {
+	search(query: string, context: CommandContext, limit: number): Promise<PaletteItem[]>;
+}
+
+/** The kinds `palette-search { kind }` filters by (3.10). */
+const PALETTE_KINDS = ['command', 'document', 'setting'] as const;
+/** On a tie of score: a command, then a document, then a setting (documents specification, 8.2), then by name. */
+const KIND_RANK: Readonly<Record<string, number>> = { command: 0, document: 1, setting: 2 };
+
 export interface ShellCommandDeps {
 	viewState: ViewStateRegistry;
 	state: ShellState;
@@ -92,6 +102,8 @@ export interface ShellCommandDeps {
 	instanceCommands?(instance: string): ReadonlySet<string>;
 	/** The palette's document rows, filtered for the actor at query time (8.2). */
 	documentRows?: DocumentRows;
+	/** The palette's setting rows, from `late-settings`, filtered for the call at query time (phase 4 specification, 3.10). */
+	settingRows?(): SettingRows | undefined;
 	/**
 	 * The appearance's write from phase 4's step 1 (phase 4 specification, 3.6): the person's own `loam.appearance`
 	 * settings, or `.last` signed out in `provider` mode. `appearance-set` and the `loam.appearance` alias write here.
@@ -339,14 +351,27 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	const search = async (
 		query: string,
 		limit: number,
-		context: CommandContext
+		context: CommandContext,
+		kind?: (typeof PALETTE_KINDS)[number]
 	): Promise<PaletteItem[]> => {
+		const only = deps.paletteOnly?.();
+		// Rows of each kind the filter keeps (phase 4 specification, 3.10). A signed-out `provider` page lists only its
+		// commands (phase 3 specification, 2.1).
+		const settingRows =
+			only === undefined && (kind === undefined || kind === 'setting')
+				? ((await deps.settingRows?.()?.search(query, context, limit)) ?? [])
+				: [];
+		if (kind === 'setting') return settingRows;
+		const documentRows =
+			only === undefined && (kind === undefined || kind === 'document')
+				? ((await deps.documentRows?.search(query, context.actor, limit)) ?? [])
+				: [];
+		if (kind === 'document') return documentRows;
 		// Shell commands and the active app's, or the editor owner's while no app is: an inactive app's stay
 		// callable by name (9.1; documents specification, 5.4).
 		const app = state.activeApp();
 		const active = app ?? (await deps.editorOwner?.()) ?? null;
 		const commandSet = deps.commandSet();
-		const only = deps.paletteOnly?.();
 		if (index?.active !== active || index.commandSet !== commandSet || index.only !== only) {
 			const shown = deps
 				.paletteRows()
@@ -357,15 +382,18 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 				);
 			index = { active, commandSet, only, index: createPaletteIndex(shown) };
 		}
-		// Commands and documents by score, a command first on a tie (8.2); the editor owner's document's
-		// instance commands first of all (5.4).
+		const commands = index.index.search(query, limit);
+		// By score, then a command, a document and a setting on a tie (8.2), then by name, so a result is deterministic
+		// (phase 4 specification, 3.10); the editor owner's document's instance commands first of all (5.4).
 		const first = app === null && active !== null ? deps.instanceCommands?.(active) : undefined;
-		const items = [
-			...index.index.search(query, limit),
-			...((only === undefined && (await deps.documentRows?.search(query, context.actor, limit))) ||
-				[]),
-		]
-			.sort((a, b) => Number(first?.has(b.name)) - Number(first?.has(a.name)) || b.score - a.score)
+		const items = [...commands, ...documentRows, ...settingRows]
+			.sort(
+				(a, b) =>
+					Number(first?.has(b.name)) - Number(first?.has(a.name)) ||
+					b.score - a.score ||
+					(KIND_RANK[a.kind ?? 'command'] as number) - (KIND_RANK[b.kind ?? 'command'] as number) ||
+					(a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+			)
 			.slice(0, limit);
 		return items;
 	};
@@ -501,13 +529,15 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	const paletteSearchInput = z.strictObject({
 		query: z.string(),
 		limit: z.optional(z.number().check(z.int(), z.minimum(1), z.maximum(PALETTE_SEARCH_LIMIT.max))),
+		kind: z.optional(z.enum(PALETTE_KINDS)),
 	});
 	const paletteSearch = defineCommandWithSchema<
 		typeof paletteSearchInput,
 		{ items: PaletteItem[] }
 	>({
 		name: 'palette-search',
-		description: 'Search the commands the palette can run, by name, title and description',
+		description:
+			'Search what the palette can run or open: commands, documents and settings, by name, title and description. Name a kind to search one',
 		category: 'palette',
 		mutation: false,
 		executionTime: 'instant',
@@ -517,13 +547,19 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			properties: {
 				query: { type: 'string' },
 				limit: { type: 'integer', minimum: 1, maximum: PALETTE_SEARCH_LIMIT.max },
+				kind: { type: 'string', enum: [...PALETTE_KINDS] },
 			},
 			required: ['query'],
 			additionalProperties: false,
 		},
 		async handler(input, context) {
 			return success({
-				items: await search(input.query, input.limit ?? PALETTE_SEARCH_LIMIT.default, context),
+				items: await search(
+					input.query,
+					input.limit ?? PALETTE_SEARCH_LIMIT.default,
+					context,
+					input.kind
+				),
 			});
 		},
 	});

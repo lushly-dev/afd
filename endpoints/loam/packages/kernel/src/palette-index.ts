@@ -23,8 +23,16 @@ export interface PaletteItem {
 	field: PaletteField;
 	/** The matched ranges in that field, as `[start, end)` character offsets. */
 	matches: Array<[number, number]>;
-	/** A document's row, whose `name` is its id (documents specification, 8.2); a command's has none. */
-	kind?: 'document';
+	/**
+	 * A document's row, whose `name` is its id (documents specification, 8.2), or a setting's, whose `name` is
+	 * `<section>.<key>` (phase 4 specification, 3.10); a command's has none.
+	 */
+	kind?: 'document' | 'setting';
+	/** A setting row's section's full id, and its key, apart (3.10). */
+	section?: string;
+	key?: string;
+	/** A setting row's owning app's title; none for the shell's own sections. */
+	app?: string;
 }
 
 export interface PaletteIndex {

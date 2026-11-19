@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { delimiter, join, resolve, win32 } from 'node:path';
 import test from 'node:test';
 import {
 	BINARY,
 	binaryCandidates,
+	binaryName,
 	CONSUMERS,
 	CONSUMERS_TOML,
 	deployment,
@@ -38,15 +39,24 @@ test('an explicit binary is the only candidate', () => {
 });
 
 test('release builds come before debug, the shared target before the checkout', () => {
-	assert.deepEqual(binaryCandidates({ CARGO_TARGET_DIR: '/cache/target' }, '/r'), [
+	assert.deepEqual(binaryCandidates({ CARGO_TARGET_DIR: '/cache/target' }, '/r', 'linux'), [
 		at('/cache/target', 'release', BINARY),
 		at('/r', 'endpoints/umbel/target', 'release', BINARY),
 		at('/cache/target', 'debug', BINARY),
 		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
 	]);
-	assert.deepEqual(binaryCandidates({}, '/r'), [
+	assert.deepEqual(binaryCandidates({}, '/r', 'linux'), [
 		at('/r', 'endpoints/umbel/target', 'release', BINARY),
 		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
+	]);
+});
+
+test('on Windows the candidates name the .exe cargo writes', () => {
+	assert.equal(binaryName('win32'), `${BINARY}.exe`);
+	assert.equal(binaryName('linux'), BINARY);
+	assert.deepEqual(binaryCandidates({}, '/r', 'win32'), [
+		at('/r', 'endpoints/umbel/target', 'release', `${BINARY}.exe`),
+		at('/r', 'endpoints/umbel/target', 'debug', `${BINARY}.exe`),
 	]);
 });
 
@@ -61,6 +71,36 @@ test('a release binary wins over a newer debug one, and the newest release wins'
 	assert.equal(findBinary(['/a/release/x', '/b/release/x', '/a/debug/x'], stat), '/b/release/x');
 	assert.equal(findBinary(['/c/release/x', '/a/debug/x'], stat), '/a/debug/x');
 	assert.equal(findBinary(['/c/release/x'], stat), null);
+	// Windows paths, joined with backslashes: release still wins.
+	const win = (profile) => win32.join('C:/', 'a', profile, 'x.exe');
+	const windows = { [win('release')]: file(1), [win('debug')]: file(9) };
+	assert.equal(
+		findBinary([win('release'), win('debug')], (path) => windows[path] ?? null),
+		win('release')
+	);
+});
+
+test('a checkout under a directory named release is classified by the binary’s own directory', () => {
+	const file = (mtimeMs) => ({ isFile: () => true, mtimeMs });
+	const stats = {
+		'/work/release/afd/target/debug/x': file(9),
+		'/work/release/afd/target/release/x': file(1),
+	};
+	const stat = (path) => stats[path] ?? null;
+	// The release build is listed first and wins over the newer debug one, which a path's `release` segment would tie.
+	assert.equal(
+		findBinary(['/work/release/afd/target/release/x', '/work/release/afd/target/debug/x'], stat),
+		'/work/release/afd/target/release/x'
+	);
+	// With only a debug build, it is found, and is not taken for a release one ahead of a release elsewhere.
+	const both = { ...stats, '/opt/umbel/target/release/x': file(5) };
+	assert.equal(
+		findBinary(
+			['/opt/umbel/target/release/x', '/work/release/afd/target/debug/x'],
+			(path) => both[path] ?? null
+		),
+		'/opt/umbel/target/release/x'
+	);
 });
 
 test('the workspace serves the components plugin alone, and keeps a deployer pack.toml', (t) => {
