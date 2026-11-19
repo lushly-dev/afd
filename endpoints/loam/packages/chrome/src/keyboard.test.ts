@@ -1,5 +1,6 @@
 import { createDefaultLayout, SHELL_KEYBINDINGS_V0 } from '@lushly-dev/loam-kernel';
 import { describe, expect, it } from 'vitest';
+import { SAVE_ASKED } from './editor/save-asked.js';
 import {
 	type ChordEvent,
 	focusHolds,
@@ -9,6 +10,7 @@ import {
 	nextPart,
 	type PendingChord,
 	pressKey,
+	SAVE_ASKED_EVENT,
 	SEQUENCE_WAIT_MS,
 	sameChord,
 	toggleInput,
@@ -258,5 +260,11 @@ describe("when's focus terms (8.1, R4)", () => {
 		expect(
 			focusHolds('project && documentType == notes-page', { part: undefined, editor: false })
 		).toBe(true);
+	});
+});
+
+describe("the editor chunk's copy of the save ask (phase 3 specification, 13)", () => {
+	it('names the same event', () => {
+		expect(SAVE_ASKED).toBe(SAVE_ASKED_EVENT);
 	});
 });

@@ -9,13 +9,16 @@ import {
 	type AppKeybinding,
 	createKeybindings,
 	type KeybindingContextV1,
-	keysCollide,
-	resolveKeybindings,
 	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
-	whenHolds,
 	whenProblem,
 } from './keybindings.js';
+import {
+	KEYBINDING_RESOLVER,
+	keysCollide,
+	resolveKeybindings,
+	whenHolds,
+} from './late/keybinding-resolve.js';
 import { RESERVED_CHORDS } from './late/setting-sections.js';
 
 const APPS: AppKeybinding[] = [
@@ -238,6 +241,15 @@ describe('the registry', () => {
 			project: () => project,
 		});
 		registry.setApps(APPS);
+		// Before the late load: the reserved chords and the active app's with no `when`, as phase 1 had them.
+		expect(registry.list('hello').map(({ chord }) => chord)).toEqual([
+			...SHELL_KEYBINDINGS_V0.map(({ chord }) => chord),
+			'Mod+Shift+H',
+		]);
+		expect(registry.resolve(registry.context('hello'))).toEqual({ force: [], entries: [] });
+		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(false);
+		registry.setResolver(KEYBINDING_RESOLVER);
+		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(true);
 		expect(registry.list('tally').map(({ chord }) => chord)).toContain('Mod+Shift+T');
 		expect(registry.list('hello').map(({ chord }) => chord)).not.toContain('Mod+G P');
 		project = true;

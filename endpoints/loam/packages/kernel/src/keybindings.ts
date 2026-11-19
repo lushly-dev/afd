@@ -105,64 +105,6 @@ export const SHELL_KEY_ACTIONS: readonly string[] = Object.freeze([
 	'shell-project-switcher',
 ]);
 
-/** The command and target 8.5 lists a reserved chord under: its command, else its action's name (R1, R2). */
-function shellIdentity(binding: Readonly<ShellKeybindingV0>): { command: string; target?: string } {
-	if (binding.toggle) return { command: binding.command as string, target: binding.toggle };
-	if (binding.command) return { command: binding.command };
-	if (binding.focus) return { command: `shell-focus-${binding.focus}` };
-	return { command: binding.save ? 'shell-save' : 'shell-project-switcher' };
-}
-
-interface ParsedChord {
-	mod: boolean;
-	ctrl: boolean;
-	alt: boolean;
-	shift: boolean;
-	meta: boolean;
-	key: string;
-}
-
-/** A chord's modifiers and key, whatever order the modifiers are written in. */
-export function parseChord(chord: string): ParsedChord {
-	const parts = chord.split('+');
-	return {
-		mod: parts.includes('Mod'),
-		ctrl: parts.includes('Ctrl'),
-		alt: parts.includes('Alt'),
-		shift: parts.includes('Shift'),
-		meta: parts.includes('Meta'),
-		key: parts.at(-1) ?? '',
-	};
-}
-
-/** Whether two chords are one (`Mod+Shift+Alt+H` is `Mod+Alt+Shift+H`). */
-export function sameChord(a: string, b: string): boolean {
-	const x = parseChord(a);
-	const y = parseChord(b);
-	return (
-		x.key === y.key &&
-		x.mod === y.mod &&
-		x.ctrl === y.ctrl &&
-		x.alt === y.alt &&
-		x.shift === y.shift &&
-		x.meta === y.meta
-	);
-}
-
-/**
- * Whether two bindings' keys collide: the same keys, or a single chord and a sequence that begins on it, so that one
- * could never be pressed while the other is in force.
- */
-export function keysCollide(a: string, b: string): boolean {
-	const x = a.split(' ');
-	const y = b.split(' ');
-	if (x.length !== y.length) return sameChord(x[0] as string, y[0] as string);
-	return x.every((chord, index) => sameChord(chord, y[index] as string));
-}
-
-/** Why a `when` is not 8.1's closed form: the manifest's rule, which `MANIFEST_KEYBINDING_WHEN` gives. */
-export { keybindingWhenProblem as whenProblem } from '@lushly-dev/loam-manifest';
-
 /** What the kernel knows that a `when` reads (R4): the active app, the active tab's owner and type, the project. */
 export interface KeybindingContextV1 {
 	active: string | null;
@@ -172,31 +114,8 @@ export interface KeybindingContextV1 {
 	project: boolean;
 }
 
-/** Whether a `when`'s kernel terms hold; `editor`, `sidebar` and `main` are focus, the chrome's, and hold here (R4). */
-export function whenHolds(when: string | undefined, context: KeybindingContextV1): boolean {
-	if (when === undefined) return true;
-	return when.split(' && ').every((term) => {
-		if (term === 'project') return context.project;
-		if (term === '!project') return !context.project;
-		if (term.startsWith('documentType == '))
-			return context.editor?.type === term.slice('documentType == '.length);
-		return true;
-	});
-}
-
 /** Whether a command an override names runs from a chord: registered and needing no input, or given its target. */
 export type KeybindingRunnable = (command: string, target: string | undefined) => boolean;
-
-interface Candidate {
-	entry: KeybindingEntryV1;
-	binding: KeybindingInForceV1;
-	/** Its band is in force: the shell's, the person's, the active app's or the active tab owner's. */
-	band: boolean;
-	/** Replaced by an override of its command and target. */
-	replaced?: true;
-	/** An override whose command cannot run from a chord now. */
-	idle?: true;
-}
 
 export interface ResolvedKeybindingsV1 {
 	/** In force, first to last by precedence, the kernel's `when` terms holding: what the chrome matches. */
@@ -206,112 +125,37 @@ export interface ResolvedKeybindingsV1 {
 }
 
 /**
- * The bindings in force (8.1): overrides, then the reserved chords, then the active app's, then the active tab owner's.
- * An override replaces every binding of its command and target, naming them as shadowed; `keys: null` only removes
- * them. Then, first to last, a binding whose keys collide with one kept before it, under the same `when`, is shadowed
- * by it; under a different `when`, both stay and the first whose `when` holds runs. With `everyApp`, every app's band
- * counts as active, as the palette shows each command's keys.
+ * The resolver `late-settings` gives the registry (phase 4 specification, 8.1): `late/keybinding-resolve.ts`, out of
+ * first paint, since only the late load reads a person's overrides.
  */
-export function resolveKeybindings(
-	shell: readonly Readonly<ShellKeybindingV0>[],
-	apps: readonly AppKeybinding[],
-	overrides: readonly KeybindingOverrideV1[],
-	context: KeybindingContextV1,
-	runnable: KeybindingRunnable,
-	everyApp = false
-): ResolvedKeybindingsV1 {
-	const owner = context.editor?.owner ?? null;
-	const rank = (instance: string): number =>
-		everyApp || instance === context.active ? 0 : instance === owner ? 1 : 2;
-	const bases: Candidate[] = [
-		...shell.map((binding) => ({
-			entry: {
-				keys: binding.chord,
-				...shellIdentity(binding),
-				source: 'shell' as const,
-				active: false,
-			},
-			binding: { ...binding },
-			band: true,
-		})),
-		...[...apps]
-			.sort((a, b) => rank(a.instance) - rank(b.instance))
-			.map(({ chord, command, instance, when }) => ({
-				entry: {
-					keys: chord,
-					command,
-					...(when !== undefined ? { when } : {}),
-					source: 'app' as const,
-					app: instance,
-					active: false,
-				},
-				binding: { chord, command, ...(when !== undefined ? { when } : {}) },
-				band: rank(instance) < 2,
-			})),
-	];
-	const yours: Candidate[] = [];
-	for (const { command, target, keys } of overrides) {
-		const matched = bases.filter(
-			(base) => base.entry.command === command && base.entry.target === target
-		);
-		for (const base of matched) base.replaced = true;
-		if (keys === null) continue;
-		const base = matched[0];
-		const shadowed = matched.map(({ entry }) => ({ source: entry.source, command: entry.command }));
-		// The person's binding holds everywhere: no app's `when` comes with it.
-		const { when: _when, ...action } = base?.binding ?? { command };
-		yours.push({
-			entry: {
-				keys,
-				command,
-				...(target !== undefined ? { target } : {}),
-				source: 'you',
-				...(base?.entry.app !== undefined ? { app: base.entry.app } : {}),
-				...(shadowed.length > 0 ? { shadowed } : {}),
-				active: false,
-			},
-			binding: { ...action, chord: keys, ...(target !== undefined ? { target } : {}) },
-			band: true,
-			...(base || runnable(command, target) ? {} : { idle: true as const }),
-		});
-	}
-	const ordered = [...yours, ...bases];
-	const kept: Candidate[] = [];
-	for (const candidate of ordered) {
-		if (candidate.replaced || candidate.idle || !candidate.band) continue;
-		const over = kept.find(
-			({ entry }) =>
-				keysCollide(entry.keys, candidate.entry.keys) && entry.when === candidate.entry.when
-		);
-		if (!over) {
-			kept.push(candidate);
-			continue;
-		}
-		over.entry.shadowed = [
-			...(over.entry.shadowed ?? []),
-			{ source: candidate.entry.source, command: candidate.entry.command },
-		];
-	}
-	for (const candidate of kept) candidate.entry.active = whenHolds(candidate.entry.when, context);
-	return {
-		force: kept.filter(({ entry }) => entry.active).map(({ binding }) => ({ ...binding })),
-		entries: ordered.map((each) => ({
-			...each.entry,
-			...(each.entry.shadowed ? { shadowed: each.entry.shadowed.map((one) => ({ ...one })) } : {}),
-			inForce: kept.includes(each),
-		})),
-	};
+export interface KeybindingResolverV1 {
+	resolve(
+		shell: readonly Readonly<ShellKeybindingV0>[],
+		apps: readonly AppKeybinding[],
+		overrides: readonly KeybindingOverrideV1[],
+		context: KeybindingContextV1,
+		runnable: KeybindingRunnable,
+		everyApp?: boolean
+	): ResolvedKeybindingsV1;
+	collide(a: string, b: string): boolean;
 }
+
+/** Why a `when` is not 8.1's closed form: the manifest's rule, which `MANIFEST_KEYBINDING_WHEN` gives. */
+export { keybindingWhenProblem as whenProblem } from '@lushly-dev/loam-manifest';
 
 export interface KeybindingRegistry {
 	/** The bindings in force now, first to last by precedence (8.1), as the chrome matches them. */
 	list(active: string | null): KeybindingInForceV1[];
 	/** The keys that run `command`, as `listCommands` reports them: the person's own, else its binding's. */
 	keybindingFor(command: string): string | undefined;
-	/** Every binding resolved for `context`, for `keybinding-list` (8.5). */
+	/** Every binding resolved for `context`, for `keybinding-list` (8.5); none before the resolver is given. */
 	resolve(context: KeybindingContextV1): ResolvedKeybindingsV1;
 	/** What the kernel knows now that a `when` reads, for the active app. */
 	context(active: string | null): KeybindingContextV1;
+	/** Whether two keys collide: the resolver's rule, else only the same keys (8.1). */
+	collide(a: string, b: string): boolean;
+	/** The resolver, once `late-settings` has loaded. */
+	setResolver(resolver: KeybindingResolverV1): void;
 	/** The apps' bindings, once stage B has loaded them. */
 	setApps(apps: readonly AppKeybinding[]): void;
 	/** The person's overrides, which `late-settings` reads at its load, after each write and on a change of person. */
@@ -326,6 +170,10 @@ export interface KeybindingRegistryOptions {
 	project?: () => boolean;
 }
 
+/**
+ * The registry (phase 1 specification, 4.2; phase 4 specification, 8.1). Until `late-settings` gives the resolver, the
+ * reserved chords and the active app's bindings with no `when`, as phase 1 had them; then 8.1's precedence.
+ */
 export function createKeybindings(
 	shell: readonly Readonly<ShellKeybindingV0>[],
 	apps: readonly AppKeybinding[],
@@ -334,6 +182,7 @@ export function createKeybindings(
 	let held = [...apps];
 	let overrides: KeybindingOverrideV1[] = [];
 	let editor: { owner: string; type: string } | null = null;
+	let resolver: KeybindingResolverV1 | undefined;
 	let shown: Map<string, string> | undefined;
 	const runnable = options.runnable ?? (() => false);
 	const context = (active: string | null): KeybindingContextV1 => ({
@@ -342,11 +191,20 @@ export function createKeybindings(
 		project: options.project?.() ?? false,
 	});
 	return {
-		list: (active) => resolveKeybindings(shell, held, overrides, context(active), runnable).force,
+		list(active) {
+			if (resolver)
+				return resolver.resolve(shell, held, overrides, context(active), runnable).force;
+			const band = held
+				.filter((binding) => binding.instance === active && binding.when === undefined)
+				.map(({ chord, command }) => ({ chord, command }));
+			return [...shell.map((binding) => ({ ...binding })), ...band];
+		},
 		keybindingFor(command) {
+			if (!resolver)
+				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
 			if (!shown) {
 				const map = new Map<string, string>();
-				const all = resolveKeybindings(shell, held, overrides, context(null), runnable, true);
+				const all = resolver.resolve(shell, held, overrides, context(null), runnable, true);
 				for (const entry of all.entries) {
 					if (entry.inForce && entry.target === undefined && !map.has(entry.command))
 						map.set(entry.command, entry.keys);
@@ -355,8 +213,14 @@ export function createKeybindings(
 			}
 			return shown.get(command);
 		},
-		resolve: (at) => resolveKeybindings(shell, held, overrides, at, runnable),
+		resolve: (at) =>
+			resolver?.resolve(shell, held, overrides, at, runnable) ?? { force: [], entries: [] },
 		context,
+		collide: (a, b) => resolver?.collide(a, b) ?? a === b,
+		setResolver(next) {
+			resolver = next;
+			shown = undefined;
+		},
 		setApps(next) {
 			held = [...next];
 			shown = undefined;

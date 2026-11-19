@@ -636,6 +636,7 @@ export async function createKernelParts(
 				clock: () => options.clock?.() ?? Date.now(),
 				scope,
 				limits,
+				keysCollide: (a, b) => keybindings.collide(a, b),
 			});
 			keybindings.setApps(apps.keybindings);
 		} catch (cause) {

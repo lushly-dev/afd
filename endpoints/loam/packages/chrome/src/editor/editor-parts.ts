@@ -5,14 +5,9 @@
  */
 
 import { css, type FASTElement } from '@lushly-dev/fast-element';
-import {
-	type LoamKernelV5,
-	SHELL_KEYBINDINGS_V0,
-	type ShellKeybindingV0,
-} from '@lushly-dev/loam-kernel';
+import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
-import { chordMatches } from '../keyboard.js';
 import { editorAreaDefinition, LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, LoamEditorFrame, type SurfaceHostV1 } from './editor-frame.js';
 import { editorGroupDefinition, LoamEditorGroup } from './editor-group.js';
@@ -148,21 +143,7 @@ export function focusMain(shell: LoamShell, main: HTMLElement): void {
 /** The chunk's elements, defined, for a fixture that renders them on their own. */
 export const defineEditorElements = (): Promise<unknown> => define();
 
-/**
- * Whether a key event is save: a single chord of a save binding in force (Mod+S, or a person's own, phase 4
- * specification, 8.3), matched on any layout (8.2, #877). A save binding that is a sequence the shell asks for.
- */
-export const isSave = (
-	event: KeyboardEvent,
-	mac: boolean,
-	bindings: readonly Readonly<ShellKeybindingV0>[] = SHELL_KEYBINDINGS_V0
-): boolean =>
-	bindings.some(
-		(binding) =>
-			binding.save === true &&
-			!binding.chord.includes(' ') &&
-			chordMatches(binding.chord, event, mac)
-	);
+export { SAVE_ASKED } from './save-asked.js';
 
 /** The phase 1 modal's input: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
 export const discardModal = (title: string) => ({

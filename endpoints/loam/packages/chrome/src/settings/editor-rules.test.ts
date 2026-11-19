@@ -6,14 +6,18 @@
 
 import { SHELL_KEYBINDINGS_V0 } from '@lushly-dev/loam-kernel';
 import { describe, expect, it } from 'vitest';
+import { keyOf as matcherKeyOf, SEQUENCE_WAIT_MS, sameChord } from '../keyboard.js';
 import {
 	CUSTOM_EDITORS,
 	chordOf,
+	keyOf,
+	keysCollide,
 	keysRefused,
 	NEVER_BOUND,
 	overrideRefused,
 	overrideWarning,
 	reorder,
+	SEQUENCE_WAIT,
 	SHELL_CHORDS,
 	toggled,
 	withOverride,
@@ -143,5 +147,43 @@ describe("the editors' lists keep what they do not show (the review's 3)", () =>
 			...stored,
 			{ command: 'section-open', keys: 'Mod+G S' },
 		]);
+	});
+});
+
+describe("the settings chunk's copies of first paint's rules (phase 3 specification, 13)", () => {
+	it('reads each key as the matcher does', () => {
+		const presses: Array<[string, string]> = [
+			['z', 'KeyY'],
+			['л', 'KeyK'],
+			['∫', 'KeyB'],
+			['!', 'Digit1'],
+			[',', 'Comma'],
+			[' ', 'Space'],
+			['F6', 'F6'],
+			['F6', ''],
+			['ArrowUp', 'ArrowUp'],
+			['Escape', ''],
+			['Control', 'ControlLeft'],
+			['Dead', 'BracketLeft'],
+		];
+		for (const [key, code] of presses)
+			expect(keyOf({ key, code }), `${key} ${code}`).toBe(matcherKeyOf({ key, code }));
+	});
+
+	it("collides keys as the kernel's resolver does, and waits the matcher's 1,500 ms", () => {
+		// The kernel's own table is `keybindings.test.ts`; here, the same cases, and the matcher's chord identity.
+		expect(keysCollide('Mod+G', 'Mod+G P')).toBe(true);
+		expect(keysCollide('Mod+G P', 'Mod+G')).toBe(true);
+		expect(keysCollide('Mod+G P', 'Mod+G Q')).toBe(false);
+		expect(keysCollide('Mod+G P', 'Mod+G P')).toBe(true);
+		expect(keysCollide('Mod+Shift+Alt+H', 'Mod+Alt+Shift+H')).toBe(true);
+		expect(keysCollide('Mod+H', 'Mod+Shift+H')).toBe(false);
+		for (const [a, b] of [
+			['Mod+Shift+Alt+H', 'Mod+Alt+Shift+H'],
+			['Mod+H', 'Mod+Shift+H'],
+			['F7', 'F7'],
+		] as const)
+			expect(keysCollide(a, b), `${a} ${b}`).toBe(sameChord(a, b));
+		expect(SEQUENCE_WAIT).toBe(SEQUENCE_WAIT_MS);
 	});
 });

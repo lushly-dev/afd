@@ -19,10 +19,12 @@ import {
 	type LayoutPatchV0,
 	type LayoutStateV0,
 	type LoamKernelV5,
+	SHELL_KEYBINDINGS_V0,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
+	chordMatches,
 	focusHolds,
 	isMacPlatform,
 	nextPart,
@@ -1094,6 +1096,20 @@ export class LoamShell extends FASTElement {
 			(node) => node instanceof HTMLElement && node.localName === 'loam-editor-frame'
 		);
 		return { part: part?.dataset.part, editor };
+	}
+
+	/**
+	 * Whether a key event is save, which the editor area asks (documents specification, 5.5): a single chord of a save
+	 * binding in force, Mod+S or the person's own (phase 4 specification, 8.3), matched on any layout (8.2, #877). A save
+	 * binding that is a sequence the shell asks the area for itself.
+	 */
+	isSave(event: KeyboardEvent): boolean {
+		return (this.kernel?.listKeybindings() ?? SHELL_KEYBINDINGS_V0).some(
+			(binding) =>
+				binding.save === true &&
+				!binding.chord.includes(' ') &&
+				chordMatches(binding.chord, event, this.mac)
+		);
 	}
 
 	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */

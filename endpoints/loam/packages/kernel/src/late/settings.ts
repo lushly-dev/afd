@@ -51,6 +51,7 @@ import type { SettingRows } from './shell-commands.js';
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
 export { createKeybindingCommands } from './keybinding-commands.js';
+export { KEYBINDING_RESOLVER } from './keybinding-resolve.js';
 export { createLimitCommands, limitNotice } from './limit-commands.js';
 export { createNotifications, orphanNotice, orphanRecipients } from './notifications.js';
 export {

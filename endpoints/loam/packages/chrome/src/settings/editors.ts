@@ -7,7 +7,6 @@
  * leaves what is stored. A list keeps every stored item the editor does not show. Plain elements with text as text.
  */
 
-import { SEQUENCE_WAIT_MS } from '../keyboard.js';
 import {
 	chordOf,
 	keysRefused,
@@ -16,6 +15,7 @@ import {
 	overrideRefused,
 	overrideWarning,
 	reorder,
+	SEQUENCE_WAIT,
 	toggled,
 	withOverride,
 } from './editor-rules.js';
@@ -367,7 +367,7 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 		event.preventDefault();
 		this.#recording = false;
 		this.#first = chord.split('+').includes('Mod')
-			? { chord, until: Date.now() + SEQUENCE_WAIT_MS }
+			? { chord, until: Date.now() + SEQUENCE_WAIT }
 			: null;
 		this.#heardKeys(chord);
 	}

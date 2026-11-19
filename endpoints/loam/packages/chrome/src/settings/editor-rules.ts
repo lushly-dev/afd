@@ -4,8 +4,53 @@
  * should hear first.
  */
 
-import { keysCollide } from '@lushly-dev/loam-kernel';
-import { keyOf } from '../keyboard.js';
+// The `settings` chunk imports nothing of first paint (phase 3 specification, 13), so the matcher's three rules it
+// needs are repeated here, and `editor-rules.test.ts` holds each equal to first paint's over a table.
+
+/** How long a recorded Mod chord waits for a sequence's second key: `SEQUENCE_WAIT_MS` (8.1). */
+export const SEQUENCE_WAIT = 1500;
+
+const CODE_NAMES: Readonly<Record<string, string>> = {
+	Space: 'Space',
+	Comma: ',',
+	Period: '.',
+	Slash: '/',
+	Semicolon: ';',
+	Equal: '=',
+	Minus: '-',
+};
+const FUNCTION = /^F(?:[1-9]|1[0-9]|2[0-4])$/;
+const NAMED =
+	/^(?:Enter|Escape|Tab|Backspace|Delete|Home|End|PageUp|PageDown|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/;
+
+/** The key a chord names for a key event (8.2, #877): the matcher's `keyOf`. */
+export function keyOf(event: Pick<KeyboardEvent, 'key' | 'code'>): string | undefined {
+	if (/^[a-z0-9]$/i.test(event.key)) return event.key.toUpperCase();
+	const letter = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code);
+	if (letter) return letter[1] ?? letter[2];
+	if (FUNCTION.test(event.code) || NAMED.test(event.code)) return event.code;
+	if (CODE_NAMES[event.code] !== undefined) return CODE_NAMES[event.code];
+	return event.code === '' && (FUNCTION.test(event.key) || NAMED.test(event.key))
+		? event.key
+		: undefined;
+}
+
+/** A chord's modifiers, in one order, and its key: what two chords written differently share when they are one. */
+const canonical = (chord: string): string => {
+	const parts = chord.split('+');
+	const key = parts.at(-1) ?? '';
+	return [...['Mod', 'Ctrl', 'Alt', 'Shift', 'Meta'].filter((m) => parts.includes(m)), key].join(
+		'+'
+	);
+};
+
+/** Whether two bindings' keys collide (8.1): the kernel's `keysCollide`. */
+export function keysCollide(a: string, b: string): boolean {
+	const x = a.split(' ').map(canonical);
+	const y = b.split(' ').map(canonical);
+	if (x.length !== y.length) return x[0] === y[0];
+	return x.every((chord, index) => chord === y[index]);
+}
 
 /** A person's override of a binding (8.3): `keys` null unbinds it. */
 export interface OverrideV1 {

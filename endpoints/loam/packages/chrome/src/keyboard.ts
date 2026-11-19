@@ -4,15 +4,11 @@
  * toggle chord computes, and F6's part order.
  */
 
-export { sameChord } from '@lushly-dev/loam-kernel';
-
 import {
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	parseChord,
 	SHELL_KEYBINDINGS_V0,
 	type ShellKeybindingV0,
-	sameChord,
 } from '@lushly-dev/loam-kernel';
 import type { LayoutClass } from './layout-class.js';
 
@@ -23,6 +19,33 @@ export interface ChordEvent {
 	metaKey: boolean;
 	altKey: boolean;
 	shiftKey: boolean;
+}
+
+/** A chord's modifiers and key, whatever order the modifiers are written in. */
+function parseChord(chord: string) {
+	const parts = chord.split('+');
+	return {
+		mod: parts.includes('Mod'),
+		ctrl: parts.includes('Ctrl'),
+		alt: parts.includes('Alt'),
+		shift: parts.includes('Shift'),
+		meta: parts.includes('Meta'),
+		key: parts.at(-1) ?? '',
+	};
+}
+
+/** Whether two chords are one, whatever order their modifiers are written in (`Mod+Shift+Alt+H`, `Mod+Alt+Shift+H`). */
+export function sameChord(a: string, b: string): boolean {
+	const x = parseChord(a);
+	const y = parseChord(b);
+	return (
+		x.key === y.key &&
+		x.mod === y.mod &&
+		x.ctrl === y.ctrl &&
+		x.alt === y.alt &&
+		x.shift === y.shift &&
+		x.meta === y.meta
+	);
 }
 
 /** The keys named by `event.code` that a chord writes otherwise (phase 4 specification, 8.2). */

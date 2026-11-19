@@ -340,6 +340,7 @@ export async function createLateParts(
 			createAutonomy,
 			createKeybindingCommands,
 			createLimitCommands,
+			KEYBINDING_RESOLVER,
 			limitNotice,
 			isHumanGesture,
 			orphanNotice,
@@ -602,7 +603,8 @@ export async function createLateParts(
 	});
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
-	// The person's overrides into the kernel's keybindings (8.3), as the limits are.
+	// 8.1's precedence for the kernel's keybindings, then the person's overrides (8.3), as the limits are read.
+	deps.keybindings?.setResolver(KEYBINDING_RESOLVER);
 	await settings.readOverrides();
 	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
 	const keybindingCommands = createKeybindingCommands({

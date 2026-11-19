@@ -4,12 +4,11 @@
  * the controller passes. In the `editor` chunk.
  */
 
-import type { ShellKeybindingV0 } from '@lushly-dev/loam-kernel';
 import { hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
-import { focusMain, isSave } from './editor-parts.js';
+import { focusMain } from './editor-parts.js';
 
 /**
  * The editor Mod+S saves, its default prevented, or undefined to leave the chord to the browser (5.5): the one
@@ -18,13 +17,12 @@ import { focusMain, isSave } from './editor-parts.js';
  */
 export function keyFrame(
 	event: KeyboardEvent,
-	mac: boolean,
+	saves: boolean,
 	shows: boolean,
 	state: EditorGroupsState | null,
-	frames: Map<string, LoamEditorFrame>,
-	bindings?: readonly Readonly<ShellKeybindingV0>[]
+	frames: Map<string, LoamEditorFrame>
 ): LoamEditorFrame | undefined {
-	if (event.defaultPrevented || !isSave(event, mac, bindings) || !shows) return undefined;
+	if (event.defaultPrevented || !saves || !shows) return undefined;
 	const frame = saveFrame(event.composedPath(), state, frames);
 	if (frame) event.preventDefault();
 	return frame;
