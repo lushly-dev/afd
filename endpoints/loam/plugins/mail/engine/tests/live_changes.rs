@@ -12,17 +12,23 @@
 //! archive and undoes that; moves them to the inbox, archives them from
 //! there, and undoes both; trashes them and undoes that. Each step is
 //! checked against a pass of sync, and the run ends by checking that the
-//! mailbox holds the same messages with the same flags as at its start. A
-//! step that fails stops the run, and the operations already made can be
-//! undone by hand with `mail-operation-undo` against the run's data
-//! directory. While the messages are in the inbox, for a few seconds, a
-//! device may show them there.
+//! mailbox holds the same messages with the same flags as at its start.
+//! While the messages are in the inbox, for a few seconds, a device may show
+//! them there, and a mail program's rules may act on them as on new mail.
+//!
+//! **When a step fails**, the run makes no new change: it finishes each
+//! operation it made that is not undone yet, newest first, and undoes it,
+//! then fails, printing each operation's id and how its undo went. What it
+//! could not put back is put back by hand in a mail client: the messages are
+//! in the inbox, the archive or the trash.
 //!
 //! **What it reads.** The run's mailbox, the inbox, the archive and the
-//! trash, headers only: no body is fetched.
+//! trash, headers only: no body is fetched. Those headers, addresses and
+//! subjects among them, are kept in the run's data directory, which must be
+//! empty or new at the start; delete it after the run.
 //!
-//! It prints and writes counts and times only: no address, subject, mailbox
-//! name or text.
+//! It prints and writes counts, ids and times only: no address, subject,
+//! mailbox name or text.
 //!
 //! ```text
 //! LOAM_MAIL_LIVE_ADDRESS_FILE=... LOAM_MAIL_LIVE_PASSWORD_FILE=... \
@@ -178,8 +184,9 @@ fn read_secret(variable: &str) -> String {
 }
 
 /// Where each message is and with which flags: (mailbox role, the run's
-/// mailbox or not, message, flags), in order. No name and no text.
-type Places = BTreeSet<(String, bool, i64, String)>;
+/// mailbox or not, message, flags), in order, each place once, so that two
+/// places of one message in a mailbox are two. No name and no text.
+type Places = Vec<(String, bool, i64, String)>;
 
 struct Run {
     engine: Arc<Engine>,
@@ -189,13 +196,17 @@ struct Run {
     database: std::path::PathBuf,
     runtime: tokio::runtime::Runtime,
     steps: Vec<Value>,
+    /// The operations made and not undone yet, oldest first.
+    open: Vec<i64>,
 }
 
 impl Run {
+    /// A pass of sync, which must reach every mailbox; its seconds.
     fn sync(&self) -> f64 {
         let connector = Arc::clone(self.engine.connector().unwrap());
         let started = Instant::now();
-        self.runtime
+        let report = self
+            .runtime
             .block_on(sync_account(
                 &self.engine,
                 connector.as_ref(),
@@ -205,6 +216,12 @@ impl Run {
                 &|_| {},
             ))
             .expect("a pass completes");
+        let failed = report
+            .mailboxes
+            .iter()
+            .filter(|mailbox| mailbox.error.is_some())
+            .count();
+        assert_eq!(failed, 0, "a pass failed in {failed} mailboxes");
         started.elapsed().as_secs_f64()
     }
 
@@ -220,7 +237,7 @@ impl Run {
             )
             .unwrap();
         let wanted: BTreeSet<i64> = messages.iter().copied().collect();
-        statement
+        let mut places: Places = statement
             .query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -233,18 +250,61 @@ impl Run {
             .map(Result::unwrap)
             .filter(|(_, _, message, _)| wanted.contains(message))
             .map(|(role, key, message, flags)| (role, key == self.mailbox, message, flags))
-            .collect()
+            .collect();
+        places.sort();
+        places
     }
 
-    /// The person's call of `name`, which must succeed; its data.
-    fn person(&self, name: &str, input: Value) -> Value {
+    /// The person's call of `name`: its whole result.
+    fn call(&self, name: &str, input: Value) -> Value {
         let context = CommandContext::new()
             .with_interface(CommandInterface::Cli)
             .with_actor(ActorKind::Human);
         let result = self
             .runtime
             .block_on(self.registry.execute(name, input, Some(context)));
-        let result = serde_json::to_value(&result).unwrap();
+        serde_json::to_value(&result).unwrap()
+    }
+
+    /// Resumes operation `id` until it is done, a few times at most.
+    fn finish(&self, id: &Value) -> Value {
+        let mut shown = Value::Null;
+        for _ in 0..8 {
+            shown = self.call("mail-operation-show", json!({ "operation": id }));
+            if shown["data"]["state"] == "done" {
+                break;
+            }
+            self.call("mail-operation-resume", json!({ "operation": id }));
+        }
+        shown
+    }
+
+    /// Finishes and undoes, newest first, each operation the run made and
+    /// did not undo; prints how each went.
+    fn put_back(&mut self) {
+        while let Some(id) = self.open.pop() {
+            self.finish(&json!(id));
+            let mut outcome = self.call("mail-operation-undo", json!({ "operation": id }));
+            if outcome["success"] == true && outcome["data"]["state"] != "done" {
+                outcome = self.finish(&outcome["data"]["operation"]);
+            }
+            eprintln!(
+                "{}",
+                json!({
+                    "putBack": id,
+                    "success": outcome["success"],
+                    "code": outcome["error"]["code"],
+                    "state": outcome["data"]["state"],
+                    "changed": outcome["data"]["changed"],
+                    "missing": outcome["data"]["missing"],
+                })
+            );
+        }
+    }
+
+    /// The person's call of `name`, which must succeed; its data.
+    fn person(&self, name: &str, input: Value) -> Value {
+        let result = self.call(name, input);
         assert_eq!(
             result["success"], true,
             "{name} failed: {}",
@@ -263,15 +323,38 @@ impl Run {
         messages: &[i64],
         expect: impl Fn(&Places) -> bool,
     ) -> Value {
+        let undoing = input["operation"].as_i64();
+        if undoing.is_none() {
+            // A change names messages, and acts on every place they have:
+            // each must have the one place the run expects, so that nothing
+            // that arrived since is changed with them.
+            let places = self.places(messages);
+            assert!(
+                places.len() == messages.len()
+                    && messages
+                        .iter()
+                        .all(|message| places.iter().any(|(_, _, m, _)| m == message)),
+                "{label}: a message has other than one place before the change"
+            );
+        }
         let started = Instant::now();
         let data = self.person(name, input);
         let seconds = started.elapsed().as_secs_f64();
-        assert_eq!(data["state"], "done", "{label}: {data}");
-        eprintln!("{label}: {data}");
+        if let Some(id) = data["operation"].as_i64() {
+            match undoing {
+                Some(undone) => self.open.retain(|open| *open != undone),
+                None => self.open.push(id),
+            }
+            eprintln!("{label}: operation {id}");
+        }
+        assert_eq!(data["state"], "done", "{label}: {}", data["state"]);
         let shown = self.places(messages);
         let pass = self.sync();
         let synced = self.places(messages);
-        assert_eq!(shown, synced, "{label}: the store showed what sync finds");
+        assert!(
+            shown == synced,
+            "{label}: the store did not show what sync finds"
+        );
         assert!(
             expect(&synced),
             "{label}: the messages are not where expected"
@@ -292,16 +375,21 @@ impl Run {
     }
 }
 
-fn each_in(places: &Places, messages: &[i64], role: &str) -> bool {
-    messages
-        .iter()
-        .all(|message| places.iter().any(|(r, _, m, _)| m == message && r == role))
-}
-
-fn each_in_run(places: &Places, messages: &[i64]) -> bool {
-    messages
-        .iter()
-        .all(|message| places.iter().any(|(_, run, m, _)| m == message && *run))
+/// Whether each message has exactly the places `wanted` names, one each,
+/// and no other: `run` for the run's mailbox, else a mailbox's role.
+fn exactly(places: &Places, messages: &[i64], wanted: &[&str]) -> bool {
+    let mut wanted: Vec<&str> = wanted.to_vec();
+    wanted.sort_unstable();
+    places.len() == messages.len() * wanted.len()
+        && messages.iter().all(|message| {
+            let mut found: Vec<&str> = places
+                .iter()
+                .filter(|(_, _, m, _)| m == message)
+                .map(|(role, run, _, _)| if *run { "run" } else { role.as_str() })
+                .collect();
+            found.sort_unstable();
+            found == wanted
+        })
 }
 
 #[test]
@@ -331,39 +419,11 @@ fn the_four_changes_and_their_undos_on_icloud() {
 /// is: what the owner runs is tested here first.
 #[test]
 fn the_round_trip_on_the_scripted_server_ends_as_it_started() {
-    use support::imap::{PASSWORD, Server, USER};
-    use support::synced::mail;
-    let server = Server::start(true, true);
-    {
-        let mut world = server.world();
-        world.mailbox("INBOX", &[]);
-        world.mailbox("Archive", &["\\Archive"]);
-        world.mailbox("Deleted Messages", &["\\Trash"]);
-        world.mailbox("Receipts", &[]);
-        world.mailbox("Loam run", &[]);
-        world.add("INBOX", mail("A <a@example.net>", "i0", ""), &[]);
-        world.add("Receipts", mail("B <b@example.net>", "r0", ""), &[]);
-        world.add("Loam run", mail("C <c@example.net>", "t0", ""), &["\\Seen"]);
-        world.add("Loam run", mail("D <d@example.net>", "t1", ""), &[]);
-    }
+    let server = scripted();
     let before = server.world().contents("Loam run");
     let subjects = server.world().subjects("Loam run");
     let directory = tempfile::tempdir().unwrap();
-    let results = round_trip(
-        Live {
-            endpoint: Endpoint {
-                host: "127.0.0.1".to_string(),
-                port: server.address.port(),
-                tls: false,
-            },
-            credentials: Credentials {
-                user: USER.to_string(),
-                password: PASSWORD.to_string(),
-            },
-            mailbox: "Loam run".to_string(),
-        },
-        directory.path(),
-    );
+    let results = round_trip(scripted_live(&server), directory.path());
     assert_eq!(results["messages"], 2);
     assert_eq!(results["steps"].as_array().unwrap().len(), 10);
     // The mailbox the run did not name was neither read nor changed.
@@ -386,9 +446,181 @@ fn the_round_trip_on_the_scripted_server_ends_as_it_started() {
     assert!(server.world().subjects("Deleted Messages").is_empty());
 }
 
+/// The run, synced and ready: its messages, where they start, and the
+/// inbox's and the archive's ids.
+struct Ready {
+    run: Run,
+    messages: Vec<i64>,
+    start: Places,
+    inbox: i64,
+    archive: i64,
+    first_pass: f64,
+}
+
+/// The scripted server without `MOVE`, as iCloud is, with a mailbox for
+/// the run and one it must not touch.
+fn scripted() -> support::imap::Server {
+    use support::synced::mail;
+    let server = support::imap::Server::start(true, true);
+    {
+        let mut world = server.world();
+        world.mailbox("INBOX", &[]);
+        world.mailbox("Archive", &["\\Archive"]);
+        world.mailbox("Deleted Messages", &["\\Trash"]);
+        world.mailbox("Receipts", &[]);
+        world.mailbox("Loam run", &[]);
+        world.add("INBOX", mail("A <a@example.net>", "i0", ""), &[]);
+        world.add("Receipts", mail("B <b@example.net>", "r0", ""), &[]);
+        world.add("Loam run", mail("C <c@example.net>", "t0", ""), &["\\Seen"]);
+        world.add("Loam run", mail("D <d@example.net>", "t1", ""), &[]);
+    }
+    server
+}
+
+fn scripted_live(server: &support::imap::Server) -> Live {
+    Live {
+        endpoint: Endpoint {
+            host: "127.0.0.1".to_string(),
+            port: server.address.port(),
+            tls: false,
+        },
+        credentials: Credentials {
+            user: support::imap::USER.to_string(),
+            password: support::imap::PASSWORD.to_string(),
+        },
+        mailbox: "Loam run".to_string(),
+    }
+}
+
+/// When a step fails part-way, the run puts back what it changed: here
+/// after a mark, a move to the inbox and an archive, none undone.
+#[test]
+fn a_failed_run_puts_back_what_it_changed() {
+    let server = scripted();
+    let before = server.world().contents("Loam run");
+    let directory = tempfile::tempdir().unwrap();
+    let Ready {
+        mut run, messages, ..
+    } = ready(scripted_live(&server), directory.path());
+    let ids = json!(messages);
+    let inbox = run.person("mail-status", json!({}))["accounts"][0]["mailboxes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|mailbox| mailbox["role"] == "inbox")
+        .unwrap()["mailbox"]
+        .clone();
+    run.step(
+        "mark",
+        "mail-mark",
+        json!({ "messages": ids, "flagged": true }),
+        &messages,
+        |_| true,
+    );
+    run.step(
+        "move",
+        "mail-label",
+        json!({ "messages": ids, "mailbox": inbox }),
+        &messages,
+        |_| true,
+    );
+    run.step(
+        "archive",
+        "mail-archive",
+        json!({ "messages": ids }),
+        &messages,
+        |_| true,
+    );
+    assert_eq!(run.open.len(), 3);
+    assert_eq!(server.world().subjects("Archive").len(), 2);
+    run.put_back();
+    assert!(run.open.is_empty());
+    let flags = |contents: Vec<(u32, Vec<String>)>| -> Vec<Vec<String>> {
+        let mut flags: Vec<Vec<String>> = contents.into_iter().map(|(_, flags)| flags).collect();
+        flags.sort();
+        flags
+    };
+    assert_eq!(flags(server.world().contents("Loam run")), flags(before));
+    assert_eq!(server.world().subjects("INBOX"), ["About i0"]);
+    assert!(server.world().subjects("Archive").is_empty());
+}
+
+/// A copy of a run's message that arrives in the inbox while the run's copy
+/// is there is never archived with it: the run stops before the change.
+#[test]
+fn a_copy_that_arrives_mid_run_stops_the_run_before_it_changes_anything() {
+    let server = scripted();
+    let directory = tempfile::tempdir().unwrap();
+    let Ready {
+        mut run,
+        messages,
+        inbox,
+        ..
+    } = ready(scripted_live(&server), directory.path());
+    let ids = json!(messages);
+    run.step(
+        "move",
+        "mail-label",
+        json!({ "messages": ids, "mailbox": inbox }),
+        &messages,
+        |places| exactly(places, &messages, &["inbox"]),
+    );
+    // The same message again, as another client might put it there.
+    server.world().add(
+        "INBOX",
+        support::synced::mail("D <d@example.net>", "t1", ""),
+        &[],
+    );
+    run.sync();
+    let archived = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run.step(
+            "archive",
+            "mail-archive",
+            json!({ "messages": ids }),
+            &messages,
+            |_| true,
+        );
+    }));
+    assert!(archived.is_err());
+    assert!(server.world().subjects("Archive").is_empty());
+    assert_eq!(run.open.len(), 1);
+}
+
 /// Syncs the scoped account into a store at `directory`, then makes and
 /// undoes each change; its counts and times.
 fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
+    let Ready {
+        mut run,
+        messages,
+        start,
+        inbox,
+        archive,
+        first_pass,
+    } = ready(connector, directory);
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        changes(&mut run, &messages, &start, inbox, archive);
+    }));
+    if let Err(failed) = ran {
+        eprintln!("a step failed: putting back what the run changed");
+        run.put_back();
+        std::panic::resume_unwind(failed);
+    }
+    json!({
+        "run": "step D2's four change commands and their undos",
+        "messages": messages.len(),
+        "firstPassSeconds": first_pass,
+        "steps": run.steps,
+        "endedAsStarted": true,
+    })
+}
+
+/// Syncs the scoped account into a new store at `directory`, and checks
+/// that the run's mailbox can be run on.
+fn ready(connector: Live, directory: &std::path::Path) -> Ready {
+    assert!(
+        std::fs::read_dir(directory).map_or(true, |mut entries| entries.next().is_none()),
+        "the run's data directory is empty or new"
+    );
     let home = Home::at(directory);
     let mailbox = connector.mailbox.clone();
     let engine = Arc::new(
@@ -404,7 +636,7 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
         })
         .unwrap();
     let registry = loam_mail::registry(&engine).unwrap();
-    let mut run = Run {
+    let run = Run {
         database: directory.join("mail.sqlite3"),
         engine,
         registry,
@@ -415,10 +647,31 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
             .build()
             .unwrap(),
         steps: Vec::new(),
+        open: Vec::new(),
     };
     let first_pass = run.sync();
 
     // The run's messages: what the run's mailbox shows now.
+    let (places, unreturned): (i64, i64) = {
+        let connection = rusqlite::Connection::open(&run.database).unwrap();
+        connection
+            .query_row(
+                "SELECT
+                     (SELECT count(*) FROM observation JOIN mailbox
+                          ON mailbox.id = observation.mailbox_id
+                      WHERE observation.ended_at IS NULL AND mailbox.provider_key = ?1),
+                     (SELECT count(*) FROM unreturned JOIN mailbox
+                          ON mailbox.id = unreturned.mailbox_id
+                      WHERE mailbox.provider_key = ?1)",
+                [&run.mailbox],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap()
+    };
+    assert_eq!(
+        unreturned, 0,
+        "the run's mailbox lists messages the provider did not return"
+    );
     let messages: Vec<i64> = {
         let connection = rusqlite::Connection::open(&run.database).unwrap();
         let mut statement = connection
@@ -439,12 +692,16 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
         "the run's mailbox holds {} messages: it must hold 1 to {MOST}",
         messages.len()
     );
+    assert_eq!(
+        usize::try_from(places).unwrap(),
+        messages.len(),
+        "the run's mailbox holds a message twice"
+    );
     let start = run.places(&messages);
     assert!(
         start.iter().all(|(_, run_mailbox, _, _)| *run_mailbox),
         "each of the run's messages is in the run's mailbox alone"
     );
-    let ids = json!(messages);
     let mailboxes = run.person("mail-status", json!({}))["accounts"][0]["mailboxes"].clone();
     let mailbox_id = |role: &str| -> i64 {
         mailboxes
@@ -457,25 +714,38 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
             .unwrap()
     };
     let (inbox, archive) = (mailbox_id("inbox"), mailbox_id("archive"));
+    Ready {
+        run,
+        messages,
+        start,
+        inbox,
+        archive,
+        first_pass,
+    }
+}
 
+/// Each change, checked, and its undo, in the run's order.
+fn changes(run: &mut Run, messages: &[i64], start: &Places, inbox: i64, archive: i64) {
+    let ids = json!(messages);
     // Mark, and undo.
     let marked = run.step(
         "mark read and flagged",
         "mail-mark",
         json!({ "messages": ids, "read": true, "flagged": true }),
-        &messages,
+        messages,
         |places| {
-            places
-                .iter()
-                .all(|(_, _, _, flags)| flags.contains("\\\\Seen") && flags.contains("\\\\Flagged"))
+            exactly(places, messages, &["run"])
+                && places.iter().all(|(_, _, _, flags)| {
+                    flags.contains("\\\\Seen") && flags.contains("\\\\Flagged")
+                })
         },
     );
     run.step(
         "undo the mark",
         "mail-operation-undo",
         json!({ "operation": marked["operation"] }),
-        &messages,
-        |places| places == &start,
+        messages,
+        |places| places == start,
     );
 
     // Copy to the archive, and undo.
@@ -483,15 +753,15 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
         "copy to the archive",
         "mail-label",
         json!({ "messages": ids, "mailbox": archive, "copy": true }),
-        &messages,
-        |places| each_in(places, &messages, "archive") && each_in_run(places, &messages),
+        messages,
+        |places| exactly(places, messages, &["run", "archive"]),
     );
     run.step(
         "undo the copy",
         "mail-operation-undo",
         json!({ "operation": copied["operation"] }),
-        &messages,
-        |places| places == &start,
+        messages,
+        |places| places == start,
     );
 
     // Move to the inbox, archive from there, and undo both.
@@ -499,29 +769,29 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
         "move to the inbox",
         "mail-label",
         json!({ "messages": ids, "mailbox": inbox }),
-        &messages,
-        |places| each_in(places, &messages, "inbox") && !each_in_run(places, &messages),
+        messages,
+        |places| exactly(places, messages, &["inbox"]),
     );
     let archived = run.step(
         "archive",
         "mail-archive",
         json!({ "messages": ids }),
-        &messages,
-        |places| each_in(places, &messages, "archive"),
+        messages,
+        |places| exactly(places, messages, &["archive"]),
     );
     run.step(
         "undo the archive",
         "mail-operation-undo",
         json!({ "operation": archived["operation"] }),
-        &messages,
-        |places| each_in(places, &messages, "inbox"),
+        messages,
+        |places| exactly(places, messages, &["inbox"]),
     );
     run.step(
         "undo the move",
         "mail-operation-undo",
         json!({ "operation": moved["operation"] }),
-        &messages,
-        |places| places == &start,
+        messages,
+        |places| places == start,
     );
 
     // Trash, and undo.
@@ -529,24 +799,17 @@ fn round_trip(connector: Live, directory: &std::path::Path) -> Value {
         "trash",
         "mail-trash",
         json!({ "messages": ids }),
-        &messages,
-        |places| each_in(places, &messages, "trash"),
+        messages,
+        |places| exactly(places, messages, &["trash"]),
     );
     run.step(
         "undo the trash",
         "mail-operation-undo",
         json!({ "operation": trashed["operation"] }),
-        &messages,
-        |places| places == &start,
+        messages,
+        |places| places == start,
     );
 
-    let end = run.places(&messages);
-    assert_eq!(end, start, "the run's mailbox ends as it started");
-    json!({
-        "run": "step D2's four change commands and their undos",
-        "messages": messages.len(),
-        "firstPassSeconds": first_pass,
-        "steps": run.steps,
-        "endedAsStarted": true,
-    })
+    let end = run.places(messages);
+    assert!(&end == start, "the run's mailbox did not end as it started");
 }

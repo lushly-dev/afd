@@ -600,9 +600,14 @@ impl Provider for Imap {
                     self.open = None;
                     return Ok(Since::NewGeneration);
                 }
+                // Up to the mailbox's next id now, not the cursor's: a change
+                // of the engine's own records a message at or past the
+                // cursor before a pass covers it (9.2), and that message can
+                // leave, or change flags, before the pass.
+                let bound = again.uid_next.unwrap_or(next).max(next);
                 let mut vanished = Vec::new();
-                spell_out(&reply.vanished, next, &mut vanished)?;
-                let flags = reply.flags_below(next);
+                spell_out(&reply.vanished, bound, &mut vanished)?;
+                let flags = reply.flags_below(bound);
                 self.open = Some(again.clone());
                 examined = again;
                 (Gone::Named(vanished), flags)
@@ -682,9 +687,11 @@ impl Provider for Imap {
             let since = self.changes(cursor).await?;
             return Ok((opened, Some(since)));
         }
+        // Up to the mailbox's next id now, as in `changes`.
+        let bound = examined.uid_next.unwrap_or(next).max(next);
         let mut vanished = Vec::new();
-        spell_out(&reply.vanished, next, &mut vanished)?;
-        let flags = reply.flags_below(next);
+        spell_out(&reply.vanished, bound, &mut vanished)?;
+        let flags = reply.flags_below(bound);
         let since = self
             .since(&examined, next, Gone::Named(vanished), flags)
             .await?;
