@@ -5,21 +5,29 @@ Epic: [#1598](https://github.com/lushly-dev/afd/issues/1598). File new work for 
 Progress on the [plan](merge-conflicts.plan.md). This file is kept in the shape the plan argues
 for:
 
-- One row per pull request. A pull request edits its own row and no other line, so two of them
-  never touch the same line.
-- No sentence or cell summarizes the rows ("1 to 3 done"): read the State column.
-- "Merged" means on `main`, with the pull request linked. A pull request marks its own row before
-  it merges, so the row links the pull request, where GitHub shows the squash commit.
+- One line per pull request, parted from the next by a blank line: git reports a conflict when
+  two branches change neighbouring lines, as it does for one line. A pull request edits its own
+  line and no other.
+- No sentence summarizes the lines ("1 to 3 done"): read each line's state.
+- "Merged" means on `main`, with the pull request linked. A pull request marks its own line before
+  it merges, so the line links the pull request, where GitHub shows the squash commit.
 
 ## Pull requests
 
-| # | Work | State | Evidence | Left |
-| --- | --- | --- | --- | --- |
-| 1 | Shrink the one-line cells; the line-limit check | Merged | [#1605](https://github.com/lushly-dev/afd/pull/1605) | Nothing |
-| 2 | `pnpm base:sync`, resolving provenance records | Merged | [#1606](https://github.com/lushly-dev/afd/pull/1606) | The owner question on computing the hash at release |
-| 3 | Changesets for Python, Botcore and the spec contract | In progress | Branch `lush/changesets-private-tracks` | Nothing yet |
-| 4 | One line per step in the STATUS files | In review | [#1612](https://github.com/lushly-dev/afd/pull/1612): Loam, Umbel, Mail and software-factory reshaped; the line limit at 1,500 over five documents | The measurement, a week after it merges |
-| 5 | Merge queue | Not started | None | Starts when 1 to 4 have merged; turning it on in branch protection may be the owner's |
+- **1, shrink the one-line cells; the line-limit check.** Merged in [#1605](https://github.com/lushly-dev/afd/pull/1605). Left: nothing.
+
+- **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). Left: the owner's
+  answer on computing the digest at release, [#1610](https://github.com/lushly-dev/afd/issues/1610).
+
+- **3, Changesets for Python, Botcore and the spec contract.** In progress on the branch
+  `lush/changesets-private-tracks`.
+
+- **4, one line per step in the STATUS files.** Merged in [#1612](https://github.com/lushly-dev/afd/pull/1612): Loam, Umbel, Mail and
+  software-factory reshaped, and the line limit at 1,500 over five documents. Left: the
+  measurement, a week after it merges.
+
+- **5, merge queue.** Not started: it starts when 1 to 4 have merged. Turning the queue on in
+  branch protection may be the owner's.
 
 ## Measure
 
