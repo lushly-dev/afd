@@ -17,6 +17,7 @@ export const testFiles = [
 	'scripts/bloat-sweeper.test.mjs',
 	'scripts/commit-credit.test.mjs',
 	'scripts/check-file-size.test.mjs',
+	'scripts/check-doc-lines.test.mjs',
 	'scripts/gate-discipline.test.mjs',
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',
