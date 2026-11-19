@@ -50,7 +50,7 @@ all of them unless a line says which.
 | `site/js/<tool>-runtime.js` | A tool's commands in the page, over a bundle in `site/js/vendor/`, or its recorded run. |
 | `site/<tool>/` beside the page | What the tool wrote for the page, unedited: Specimen's `captures/` and `pack/`, Umbel's and Botcore's `runs.json`, FAST-AF's `library.json`. |
 | `site/js/widows.js`, `statements.js` | No one-word last lines; statements that light up. Every page imports both. |
-| `scripts/build-site-*.mjs` | Build a vendor bundle (Violet, FAST-AF), the captures and the pack (Specimen), or a recorded run (Umbel, Botcore). |
+| `scripts/build-site-*.mjs` | Build a vendor bundle (Violet, FAST-AF), the captures and the pack (Specimen), a recorded run (Umbel, Botcore), or the social preview image (`og`, `site/og.png`). |
 | `site/styleguide.html` | Living style guide. Reads tokens and draws samples from the real CSS, so it can't drift. |
 
 Stylesheet order on a tool's page: `tokens-m2`, `manifesto-2`, `manifesto-3`, `area`,
