@@ -48,7 +48,7 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done since approval:** the owner's answers to Q1 to Q5, 2026-11-18 (D154 to D158).
 - **Done, step 1, the settings core** ([#1533](https://github.com/lushly-dev/afd/pull/1533), 2026-11-18): 3.1 to 3.4, 3.6, 3.8, 3.9, section 13's refusal, kernel interface 4, `p4-base` and the runner's phase 4 table; what it decided, measured and left is in [its record](#step-1-2026-11-18).
 - **Done, step 2, the settings section and the palette** ([#1611](https://github.com/lushly-dev/afd/pull/1611), 2026-11-18): 3.5, 3.7 (`loam.rail`, `loam.keybindings`, `loam.notifications`), 3.10, the three custom editors, hello's settings, `p4-base`'s apps, and P4-E1 but for the hand-offs of steps 8 and 9; what it decided, measured and left is in [its record](#step-2-2026-11-18), with one amendment to section 1 (step 2).
-- **Done, step 3, overlays I** (#TBD, 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
+- **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
 - **Not done:** every step of the [plan](#20-implementation-plan) after step 3. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
@@ -1497,7 +1497,7 @@ Measured after the fixes: first paint 308,160 and 96,130 gzip; `late` 82,865; `l
 
 ## Step 3, 2026-11-18
 
-Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` from `main` at `99055637` (#TBD), before review.
+Overlays I, toasts, popovers and the F6 stop, on `lush/loam-p4-step3-overlays` from `main` at `99055637` ([#1616](https://github.com/lushly-dev/afd/pull/1616)), before review.
 
 **Built.**
 
