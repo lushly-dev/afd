@@ -6003,11 +6003,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "be7da328d3fd680f100897cb4e8c229ae02db8b8e274f8439e8ff90b458b9891",
+      "current_import_sha256": "2b025d78e4cbe47729b5e505d1510d6a7bd6465ab2fe0383d14ac10220b8436f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0"
     }
   ]
 }
