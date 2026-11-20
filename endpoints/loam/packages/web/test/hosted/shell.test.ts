@@ -75,7 +75,7 @@ async function firstPaintAssets(url: string): Promise<Record<string, number>> {
 			);
 	});
 	const opened = await openPage(browser, url, {}, context);
-	const paths = await measureFirstPaint(opened.page);
+	const paths = await measureFirstPaint(opened.page, { waitForFonts: true });
 	const assets: Record<string, number> = {};
 	for (const path of paths.filter((path) => path.startsWith('/assets/')))
 		assets[path] = (await sizes.get(path)) ?? -1;
