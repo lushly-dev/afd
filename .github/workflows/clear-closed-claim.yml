@@ -1,0 +1,27 @@
+name: Clear closed issue claim
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  clear-claim:
+    if: contains(github.event.issue.labels.*.name, 'status:in-progress')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/issue-claim.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Release the claim if the issue is still closed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: node scripts/issue-claim.mjs release "$ISSUE" --closed-only
