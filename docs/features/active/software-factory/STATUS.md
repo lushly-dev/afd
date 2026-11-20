@@ -35,6 +35,7 @@ Five Windows failures in the tests for [#1641](https://github.com/lushly-dev/afd
 from comparing native paths with Unix path strings. The low-disk fixture also keyed its 5 GB reading
 with a Unix path, so Windows got the 200 GB fallback. The tests now use native paths in both the
 expectations and fixture data. All five passed on Windows 11 after the change.
+The fix is in [#1697](https://github.com/lushly-dev/afd/pull/1697).
 
 #### Slots build Rust off the system disk, and a full disk counts no ejection, 2026-11-19
 
