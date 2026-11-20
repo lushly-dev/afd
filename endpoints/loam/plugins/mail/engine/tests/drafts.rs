@@ -348,3 +348,131 @@ fn a_snoozed_thread_leaves_the_list_until_its_time_or_new_mail() {
     assert!(listed(true).is_empty(), "{:?}", listed(true));
     assert!(listed(false).contains(&thread));
 }
+
+/// Found by review: the largest draft the limits allow, with a body of
+/// characters JSON escapes, is shown whole.
+#[test]
+fn the_largest_draft_is_shown_whole() {
+    let fixture = Fixture::new(world);
+    let made = ok(&fixture.agent(
+        "tok_a",
+        "mail-draft-create",
+        json!({
+            "to": (0..100).map(|n| format!("{}{n}@example.org", "p".repeat(60))).collect::<Vec<_>>(),
+            "subject": "s".repeat(998),
+            "body": "\u{1}\"".repeat(24 * 1024),
+        }),
+    ));
+    let shown = ok(&fixture.agent(
+        "tok_a",
+        "mail-draft-show",
+        json!({ "draft": made["draft"] }),
+    ));
+    assert_eq!(shown["content"]["body"].as_str().unwrap().len(), 48 * 1024);
+}
+
+/// Found by review: addresses that are not plain dot-atoms, and subjects
+/// holding characters that break a header or display as something else.
+#[test]
+fn malformed_addresses_and_unsafe_subjects_are_refused() {
+    let fixture = Fixture::new(world);
+    for to in [
+        "a..b@example.org",
+        ".a@example.org",
+        "a.@example.org",
+        "a@b.c/d",
+        "a@-b.org",
+        "ceo@example.com\u{202e}gro.elpmaxe",
+        "\u{200b}a@example.org",
+        "ü@example.org",
+    ] {
+        let refused = fixture.agent("tok_a", "mail-draft-create", json!({ "to": [to] }));
+        assert_eq!(code(&refused), "INVALID_INPUT", "{to:?}");
+        assert!(!refused.to_string().contains("example"), "{to:?} repeated");
+    }
+    for subject in ["a\u{0}b", "a\u{2028}b", "a\u{202e}b", "a\u{85}b"] {
+        let refused = fixture.agent("tok_a", "mail-draft-create", json!({ "subject": subject }));
+        assert_eq!(code(&refused), "INVALID_INPUT", "{subject:?}");
+    }
+    let tab = fixture.agent("tok_a", "mail-draft-create", json!({ "subject": "a\tb" }));
+    assert_eq!(tab["success"], true, "a tab is kept");
+}
+
+/// Found by review: removing the account says its drafts go for good, and
+/// takes them and its snoozes.
+#[test]
+fn removing_the_account_says_its_drafts_go_and_takes_them() {
+    let fixture = Fixture::new(world);
+    ok(&fixture.agent("tok_a", "mail-draft-create", json!({ "body": "Lunch?" })));
+    ok(&fixture.agent("tok_a", "mail-draft-create", json!({ "body": "Lunch!" })));
+    let thread = {
+        let found = fixture.person("mail-search", json!({ "query": "s0" }));
+        found["data"]["hits"][0]["thread"].clone()
+    };
+    let until = afd::Clock::now(&afd::SystemClock) + DAY;
+    ok(&fixture.agent(
+        "tok_a",
+        "mail-thread-snooze",
+        json!({ "thread": thread, "until": until }),
+    ));
+    let account = fixture.account.id.0.to_string();
+    let (status, out, err, _) = fixture.terminal(
+        &["mail-account-remove", &format!("{{\"account\":{account}}}")],
+        true,
+    );
+    assert_eq!(status, loam_mail::cli::EXIT_OK, "{err}");
+    let said = format!("{out}{err}");
+    assert!(
+        said.contains("its 2 drafts, which are kept nowhere else and go for good"),
+        "{said}"
+    );
+    let left = fixture.agent("tok_a", "mail-draft-list", json!({}));
+    assert_eq!(ok(&left)["drafts"], json!([]));
+    let database = fixture.directory.path().join("data").join("mail.sqlite3");
+    let snoozes: i64 = rusqlite::Connection::open(database)
+        .unwrap()
+        .query_row("SELECT count(*) FROM snooze", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(snoozes, 0);
+}
+
+/// Found by review: a snooze is ended by mail that arrives after it was
+/// set, in the same millisecond too, and stays ended when that mail goes.
+#[test]
+fn a_snooze_ended_by_new_mail_stays_ended() {
+    let fixture = Fixture::new(world);
+    let inbox = fixture.inbox();
+    let thread = {
+        let found = fixture.person("mail-search", json!({ "query": "s0" }));
+        found["data"]["hits"][0]["thread"].clone()
+    };
+    // A fixed clock: the snooze and the reply's arrival share a time.
+    let now = afd::Clock::now(&afd::SystemClock);
+    ok(&fixture.at(
+        now,
+        "mail-thread-snooze",
+        json!({ "thread": thread, "until": now + DAY }),
+    ));
+    let reply = fixture.server.world().add(
+        "INBOX",
+        mail(
+            STRANGER,
+            "s0-again",
+            "In-Reply-To: <s0@example.org>\r\nReferences: <s0@example.org>\r\n",
+        ),
+        &[],
+    );
+    fixture.sync();
+    let snoozed = |fixture: &Fixture| -> Value {
+        fixture.person(
+            "mail-thread-list",
+            json!({ "mailbox": inbox, "snoozed": true }),
+        )["data"]["threads"]
+            .clone()
+    };
+    assert_eq!(snoozed(&fixture), json!([]));
+    // The reply goes; the snooze does not come back.
+    fixture.server.world().expunge("INBOX", reply);
+    fixture.sync();
+    assert_eq!(snoozed(&fixture), json!([]));
+}

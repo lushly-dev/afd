@@ -18,6 +18,8 @@ pub struct RemovalPreview {
     pub mailboxes: u64,
     /// The messages no other account shows, which go with it.
     pub messages: u64,
+    /// Its drafts, discarded or not, which go with it for good.
+    pub drafts: u64,
 }
 
 /// What removing an account took.
@@ -66,10 +68,16 @@ impl Store {
             [account.0],
             |row| row.get(0),
         )?;
+        let drafts: i64 = self.connection.query_row(
+            "SELECT count(*) FROM draft WHERE account_id = ?1",
+            [account.0],
+            |row| row.get(0),
+        )?;
         Ok(Some(RemovalPreview {
             account: row,
             mailboxes: u64::try_from(mailboxes).unwrap_or(0),
             messages: u64::try_from(messages).unwrap_or(0),
+            drafts: u64::try_from(drafts).unwrap_or(0),
         }))
     }
 
@@ -168,7 +176,7 @@ impl Store {
         // answers nothing; a snooze on mail that goes goes.
         transaction.execute("DELETE FROM draft WHERE account_id = ?1", [account.0])?;
         transaction.execute_batch(
-            "UPDATE draft SET answers_message_id = NULL
+            "UPDATE draft SET answers_message_id = NULL, revision = revision + 1
                  WHERE answers_message_id IN (SELECT id FROM removing_message);
              DELETE FROM snooze WHERE message_id IN (SELECT id FROM removing_message);",
         )?;

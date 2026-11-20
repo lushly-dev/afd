@@ -93,6 +93,12 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     {
         data.remove("sample");
     }
+    // A draft's text is journaled as the input that wrote it (13.1); a
+    // result repeats it whole, and a discard or a restore would copy it in
+    // though its input held none. The result keeps its ids and revision.
+    if let Some(data) = record.result.data.as_mut() {
+        drop_draft_text(&record.command, data);
+    }
     if record.command == tokens::CREATE {
         // The token is drawn from the operating system, not the tape; the
         // tape goes too, as the crate advises for any secret.
@@ -100,6 +106,16 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
         record.tape = None;
     }
     Some(record)
+}
+
+/// Removes a draft's text from the result of `command`, if it is one that
+/// gives it: its ids and revision stay.
+fn drop_draft_text(command: &str, data: &mut serde_json::Value) {
+    if crate::drafts::RESULTS_WITH_TEXT.contains(&command)
+        && let serde_json::Value::Object(data) = data
+    {
+        data.remove("content");
+    }
 }
 
 /// The recorder for `registry`'s commands, writing to the journal in `home`
@@ -129,4 +145,29 @@ pub fn recorder(home: &Home, registry: &CommandRegistry, engine: Arc<Engine>) ->
         // The crate's message names the file and the system's error: the
         // engine's words, never text from mail.
         .with_on_error(move |_| engine.report("the journal could not be written"))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::drop_draft_text;
+
+    /// A discard or a restore would copy a draft's text into the journal
+    /// though its input held none: its result keeps ids and revision only.
+    #[test]
+    fn a_draft_result_keeps_no_text() {
+        for command in crate::drafts::RESULTS_WITH_TEXT {
+            let mut data = json!({
+                "draft": 3,
+                "revision": 2,
+                "content": { "trust": "content", "body": "Lunch?" },
+            });
+            drop_draft_text(command, &mut data);
+            assert_eq!(data, json!({ "draft": 3, "revision": 2 }), "{command}");
+        }
+        let mut other = json!({ "content": { "body": "kept" } });
+        drop_draft_text("mail-sync", &mut other);
+        assert_eq!(other["content"]["body"], "kept");
+    }
 }

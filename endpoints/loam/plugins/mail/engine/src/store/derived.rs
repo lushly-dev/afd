@@ -830,7 +830,29 @@ impl Store {
         now: i64,
     ) -> Result<Vec<ThreadListed>, StoreError> {
         let (date, thread) = before.map_or((i64::MAX, i64::MAX), |(date, thread)| (date, thread.0));
-        let mut statement = self.connection.prepare_cached(
+        // The snoozed threads are few: found from the snoozes, not by
+        // walking a mailbox's threads, which may be hundreds of thousands.
+        // `CROSS JOIN` keeps SQLite to that order, which it would otherwise
+        // change to walk the mailbox's threads by date for the `ORDER BY`
+        // (385 ms against 0.1 at 500 000 messages).
+        let sql = if snoozed == Some(true) {
+            "SELECT DISTINCT thread_place.thread_id, thread_place.last_date, thread_place.messages,
+                    thread.messages, thread.attachments, thread.subject, thread.snippet,
+                    thread.last_sender, thread_place.unread
+             FROM snooze
+             CROSS JOIN envelope AS snoozed ON snoozed.message_id = snooze.message_id
+             CROSS JOIN thread_place ON thread_place.thread_id = snoozed.thread_id
+                                    AND thread_place.mailbox_id = ?1
+             CROSS JOIN thread ON thread.id = thread_place.thread_id
+             WHERE ?5 AND snooze.until > ?6
+               AND (thread_place.last_date, thread_place.thread_id) < (?2, ?3)
+               AND NOT EXISTS (
+                   SELECT 1 FROM envelope AS arrived
+                   WHERE arrived.thread_id = snoozed.thread_id
+                     AND arrived.message_id > snooze.mark)
+             ORDER BY thread_place.last_date DESC, thread_place.thread_id DESC
+             LIMIT ?4"
+        } else {
             "SELECT thread_place.thread_id, thread_place.last_date, thread_place.messages,
                     thread.messages, thread.attachments, thread.subject, thread.snippet,
                     thread.last_sender, thread_place.unread
@@ -843,12 +865,12 @@ impl Store {
                    WHERE snoozed.thread_id = thread_place.thread_id AND snooze.until > ?6
                      AND NOT EXISTS (
                          SELECT 1 FROM envelope AS arrived
-                         JOIN message ON message.id = arrived.message_id
                          WHERE arrived.thread_id = thread_place.thread_id
-                           AND message.first_seen_at > snooze.set_at)))
+                           AND arrived.message_id > snooze.mark)))
              ORDER BY thread_place.last_date DESC, thread_place.thread_id DESC
-             LIMIT ?4",
-        )?;
+             LIMIT ?4"
+        };
+        let mut statement = self.connection.prepare_cached(sql)?;
         let rows = statement.query_map(
             params![mailbox.0, date, thread, limit, snoozed, now],
             |row| {

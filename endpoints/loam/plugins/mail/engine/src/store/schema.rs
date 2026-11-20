@@ -871,11 +871,13 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX draft_updated ON draft (discarded_at IS NOT NULL, updated_at DESC, id DESC);
 
     -- A thread snoozed until a time, by its lowest message, which a rebuild keeps as its id.
-    -- Mail that arrives in the thread after it was snoozed ends the snooze.
+    -- A message that arrives in the thread after it was snoozed, one whose id is above `mark`,
+    -- the highest message id when it was set, ends the snooze; a pass of sync removes it then.
     CREATE TABLE snooze (
         message_id INTEGER PRIMARY KEY REFERENCES message (id),
         until INTEGER NOT NULL,
         set_at INTEGER NOT NULL,
+        mark INTEGER NOT NULL,
         creator_kind TEXT NOT NULL,
         creator_id TEXT
     ) STRICT;

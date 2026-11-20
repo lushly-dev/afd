@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 use crate::commands::store_failure;
 use crate::engine::Engine;
 use crate::read::{
-    OPEN_BUDGET, budget, content, cursor, fits, integer, limit, parameter, read_exposure, required,
+    MOST_BUDGET, budget, content, cursor, fits, integer, limit, parameter, read_exposure, required,
     too_small,
 };
 use crate::screening::{proposer_json, proposer_of};
@@ -40,6 +40,20 @@ pub const MOST_SUBJECT: usize = 998;
 pub const MOST_BODY: usize = 48 * 1024;
 /// The furthest ahead a thread may be snoozed: a year.
 pub const MOST_SNOOZE: i64 = 366 * 24 * 60 * 60 * 1000;
+
+/// A draft whole, as `mail-draft-show` gives it by default: its largest
+/// budget, since it is the preview of a send and is never cut, and a caller
+/// such as Loam may ask for no budget (step F's specification).
+const SHOW_BUDGET: u64 = crate::read::MOST_BUDGET;
+
+/// The commands whose results give a draft's text, which the journal
+/// leaves out of their results (13.1).
+pub const RESULTS_WITH_TEXT: &[&str] = &[
+    "mail-draft-create",
+    "mail-draft-update",
+    "mail-draft-discard",
+    "mail-draft-restore",
+];
 
 fn invalid(message: impl Into<String>, suggestion: impl Into<String>) -> Box<CommandError> {
     Box::new(CommandError::new("INVALID_INPUT", message).with_suggestion(suggestion))
@@ -76,36 +90,54 @@ fn refusal(id: i64, why: DraftRefusal) -> CommandError {
     }
 }
 
-/// Whether `address` is one plain address: a local part and a domain with
-/// a dot, no name, no spaces and nothing a header would read as a second
-/// address. The domain is kept in lower case.
+/// Whether `text` is one plain address: an unquoted local part of the
+/// characters RFC 5322 allows in a dot-atom, with no dot at either end or
+/// two together, and a domain of two or more ASCII labels of letters,
+/// digits and inner hyphens. No name, no space, no character a header would
+/// read as a second address, and none that displays as something else. The
+/// domain is kept in lower case. Addresses outside ASCII wait for SMTPUTF8.
 fn address(text: &str) -> Option<String> {
-    let text = text.trim();
-    if text.is_empty()
-        || text.len() > 254
-        || text
-            .chars()
-            .any(|c| c.is_whitespace() || c.is_control() || "<>,;:\"()[]\\".contains(c))
-    {
+    const ATEXT: &str = "!#$%&'*+/=?^_`{|}~-";
+    let text = text.trim_matches(' ');
+    if text.len() > 254 {
         return None;
     }
-    let (local, domain) = text.rsplit_once('@')?;
-    if local.is_empty()
-        || local.len() > 64
-        || local.contains('@')
-        || domain.is_empty()
-        || !domain.contains('.')
-        || domain.starts_with('.')
-        || domain.ends_with('.')
-        || domain.contains("..")
-    {
-        return None;
-    }
-    Some(format!("{local}@{}", domain.to_lowercase()))
+    let (local, domain) = text.split_once('@')?;
+    let local_ok = !local.is_empty()
+        && local.len() <= 64
+        && local.split('.').all(|atom| {
+            !atom.is_empty()
+                && atom
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || ATEXT.contains(c))
+        });
+    let labels: Vec<&str> = domain.split('.').collect();
+    let domain_ok = labels.len() >= 2
+        && domain.len() <= 253
+        && labels.iter().all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        });
+    (local_ok && domain_ok).then(|| format!("{local}@{}", domain.to_ascii_lowercase()))
+}
+
+/// Whether `c` breaks a header line or displays as something it is not: a
+/// control character other than a tab, a line or paragraph separator, or a
+/// character that changes the direction or joins of text around it.
+fn unsafe_in_subject(c: char) -> bool {
+    (c.is_control() && c != '\t')
+        || matches!(c, '\u{2028}' | '\u{2029}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}')
 }
 
 /// The list of addresses `input` holds under `name`, if it holds one.
-fn address_list(input: &Value, name: &str) -> Result<Option<Vec<String>>, Box<CommandError>> {
+fn address_list(
+    input: &Value,
+    name: &str,
+    seen: &mut usize,
+) -> Result<Option<Vec<String>>, Box<CommandError>> {
     let Some(value) = input.get(name).filter(|value| !value.is_null()) else {
         return Ok(None);
     };
@@ -125,6 +157,13 @@ fn address_list(input: &Value, name: &str) -> Result<Option<Vec<String>>, Box<Co
             ));
         };
         if !addresses.contains(&found) {
+            *seen += 1;
+            if *seen > MOST_RECIPIENTS {
+                return Err(invalid(
+                    format!("a draft has at most {MOST_RECIPIENTS} recipients"),
+                    "Send to fewer people, or to a list address.",
+                ));
+            }
             addresses.push(found);
         }
     }
@@ -132,9 +171,10 @@ fn address_list(input: &Value, name: &str) -> Result<Option<Vec<String>>, Box<Co
 }
 
 fn recipients(input: &Value, required_all: bool) -> Result<Option<Recipients>, Box<CommandError>> {
-    let to = address_list(input, "to")?;
-    let cc = address_list(input, "cc")?;
-    let bcc = address_list(input, "bcc")?;
+    let mut seen = 0;
+    let to = address_list(input, "to", &mut seen)?;
+    let cc = address_list(input, "cc", &mut seen)?;
+    let bcc = address_list(input, "bcc", &mut seen)?;
     if !required_all && to.is_none() && cc.is_none() && bcc.is_none() {
         return Ok(None);
     }
@@ -173,10 +213,10 @@ fn text(
                     format!("Shorten `{name}`."),
                 ));
             }
-            if name == "subject" && text.chars().any(|c| c == '\r' || c == '\n') {
+            if name == "subject" && text.chars().any(unsafe_in_subject) {
                 return Err(invalid(
-                    "`subject` holds a line break",
-                    "Give the subject on one line.",
+                    "`subject` holds a line break or a control character",
+                    "Give the subject on one line, as plain text.",
                 ));
             }
             Ok(Some(text.clone()))
@@ -657,8 +697,8 @@ impl CommandHandler for Show {
             Err(error) => return failure(store_failure(&error)),
         };
         match result_of(&self.engine, &row) {
-            Ok(result) if fits(&result, budget(&context, OPEN_BUDGET)) => success(result),
-            Ok(_) => failure(too_small(budget(&context, OPEN_BUDGET))),
+            Ok(result) if fits(&result, budget(&context, SHOW_BUDGET)) => success(result),
+            Ok(_) => failure(too_small(budget(&context, SHOW_BUDGET))),
             Err(error) => failure(store_failure(&error)),
         }
     }
@@ -679,6 +719,7 @@ pub fn show(engine: Arc<Engine>) -> CommandDefinition {
         )],
         Show { engine },
     )
+    .with_output_budget(SHOW_BUDGET, MOST_BUDGET)
     .with_expose(read_exposure())
 }
 

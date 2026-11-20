@@ -9,7 +9,10 @@
 //!
 //! A thread is snoozed by its lowest message, which is its id and which a
 //! rebuild keeps as its id. Mail that arrives in the thread after it was
-//! snoozed ends the snooze, as it does in most mail programs.
+//! snoozed ends the snooze, as it does in most mail programs: a message
+//! whose id is above the highest id when the snooze was set, which tells
+//! apart two events in one millisecond. A pass of sync removes a snooze so
+//! ended, so that the reply's leaving later does not bring it back.
 
 use rusqlite::{OptionalExtension, params};
 use serde_json::{Value, json};
@@ -414,6 +417,10 @@ impl Store {
     ) -> Result<Option<i64>, StoreError> {
         let before = self.snoozed_until(thread, now)?;
         let transaction = self.connection.transaction()?;
+        let mark: i64 =
+            transaction.query_row("SELECT coalesce(max(id), 0) FROM message", [], |row| {
+                row.get(0)
+            })?;
         transaction.execute(
             "DELETE FROM snooze WHERE message_id IN
                  (SELECT message_id FROM envelope WHERE thread_id = ?1)",
@@ -421,13 +428,30 @@ impl Store {
         )?;
         if let Some(until) = until {
             transaction.execute(
-                "INSERT INTO snooze (message_id, until, set_at, creator_kind, creator_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![thread, until, now, creator.kind, creator.id],
+                "INSERT INTO snooze (message_id, until, set_at, mark, creator_kind, creator_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![thread, until, now, mark, creator.kind, creator.id],
             )?;
         }
         transaction.commit()?;
         Ok(before)
+    }
+
+    /// Removes the snoozes that mail which arrived in their threads ended, so
+    /// that they stay ended; how many. A pass of sync calls it.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn wake_snoozes(&self) -> Result<u64, StoreError> {
+        let woken = self.connection.execute(
+            "DELETE FROM snooze WHERE EXISTS (
+                 SELECT 1 FROM envelope AS snoozed JOIN envelope AS arrived
+                     ON arrived.thread_id = snoozed.thread_id
+                 WHERE snoozed.message_id = snooze.message_id
+                   AND arrived.message_id > snooze.mark)",
+            [],
+        )?;
+        Ok(woken as u64)
     }
 }
 
@@ -436,5 +460,5 @@ pub(super) const SNOOZE_HOLDS: &str = "
     JOIN envelope AS snoozed ON snoozed.message_id = snooze.message_id
     WHERE snoozed.thread_id = ?1 AND snooze.until > ?2
       AND NOT EXISTS (
-          SELECT 1 FROM envelope AS arrived JOIN message ON message.id = arrived.message_id
-          WHERE arrived.thread_id = ?1 AND message.first_seen_at > snooze.set_at)";
+          SELECT 1 FROM envelope AS arrived
+          WHERE arrived.thread_id = ?1 AND arrived.message_id > snooze.mark)";

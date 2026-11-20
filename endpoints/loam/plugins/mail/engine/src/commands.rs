@@ -589,8 +589,18 @@ pub fn approval_summary(
                 .with_store(|store| store.removal_preview(crate::store::AccountId(account)))
                 .ok()??;
             let provider = provider_name(&preview.account.provider);
+            // Drafts are the engine's own, kept nowhere else: they do not
+            // come back when the account is added again.
+            let drafts = if preview.drafts == 0 {
+                String::new()
+            } else {
+                format!(
+                    ", and its {}, which are kept nowhere else and go for good",
+                    counted(preview.drafts, "draft", "drafts")
+                )
+            };
             Some(format!(
-                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
+                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer{drafts}, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
                 preview.account.address,
                 counted(preview.mailboxes, "mailbox", "mailboxes"),
                 counted(preview.messages, "message", "messages"),

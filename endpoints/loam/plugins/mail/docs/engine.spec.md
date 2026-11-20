@@ -1838,10 +1838,15 @@ local and open to every caller. Sending and unsubscribing are its second and thi
 - **A draft** is a row of the store, not derived: its account, the message it answers, its To, Cc
   and Bcc, its subject and its body as plain text, who wrote each of the recipients, the subject
   and the body (the caller who last set it, with its token's id), and who made it. Its
-  recipients are bare addresses, `local@domain` with the domain kept in lower case: no names, no
-  brackets, nothing a header would read as a second address. At most 100 recipients, a subject
-  of one line and at most 998 characters, and a body of at most 48 KiB, so that a whole draft
-  fits a reply over MCP. Input outside those is refused without repeating it.
+  recipients are bare ASCII addresses: a local part of RFC 5322's dot-atom characters with no dot
+  at either end or two together, and a domain of two or more labels of letters, digits and inner
+  hyphens, kept in lower case. No names, no brackets, nothing a header would read as a second
+  address; addresses outside ASCII wait for SMTPUTF8. At most 100 recipients; a subject of at
+  most 998 characters with no control character but a tab, no line or paragraph separator and no
+  character that changes the direction or joins of text around it; and a body of at most 48 KiB.
+  Input outside those is refused without repeating it. `mail-draft-show` gives the whole of the
+  largest such draft by default, at its largest budget, since it is the preview of a send and is
+  never cut.
 - **Its account** is the one named; else, for a draft that answers a message, the one account
   whose mailboxes show that message; else the only account. A named account must show the message
   answered.
@@ -1855,12 +1860,21 @@ local and open to every caller. Sending and unsubscribing are its second and thi
 - **Discarded** drafts are listed apart with when each goes, are neither changed nor sent, and
   are restored by `mail-draft-restore` within 30 days. A draft discarded longer ago goes when a
   draft command next runs.
-- **Removing an account** removes its drafts, which nothing could send; another account's draft
-  that answers mail that goes keeps its text and answers nothing.
+- **Removing an account** removes its drafts, which nothing could send and which are kept nowhere
+  else: the person is told how many go for good before approving. Another account's draft that
+  answers mail that goes keeps its text and answers nothing, at a new revision.
+- **The journal** keeps a draft's text as the input that wrote it ([13.1](#131-the-journal)),
+  beyond the draft's 30 days. The results of `mail-draft-create`, `-update`, `-discard` and
+  `-restore` are journaled without the draft's text, so that a discard or a restore copies none
+  in.
 - **`mail-thread-snooze`** takes a thread and a time within the next year, and keeps the snooze by
   the thread's id, its lowest message, so that a rebuild keeps it. A snoozed thread leaves
-  `mail-thread-list` until its time, or until mail arrives in the thread after it was snoozed;
-  `mail-thread-list` with `snoozed` lists only the snoozed threads, with when each comes back.
+  `mail-thread-list` until its time, or until mail arrives in the thread after it was snoozed: a
+  message whose id is above the highest the store held when it was snoozed, which tells two events
+  in one millisecond apart. A pass of sync removes a snooze so ended, so that it stays ended when
+  that mail goes. `mail-thread-list` with `snoozed` lists only the snoozed threads, with when each
+  comes back, found from the snoozes rather than the mailbox's threads; the 4.4 measurement times
+  both lists.
   Without a time it ends the snooze. Its result gives the time before, which undoes it. Removing
   an account removes the snoozes of the mail that goes.
 
@@ -2059,7 +2073,9 @@ It is in the data directory and is as private as the mail.
 - **It holds text from mail and from the person.** A proposed record's passages, a sender's
   address in a decision or suggestion, a selection's search text and a draft's text are all
   command input, and are journaled. That is what makes those changes replayable and auditable,
-  and it means the journal must never be shared or uploaded as a log.
+  and it means the journal must never be shared or uploaded as a log. A draft's text stays in it
+  after the draft is discarded and gone; a draft command's result is journaled without the text
+  (step D3).
 - **It does not hold what was read.** Read commands are left out by the recorder's filter, so
   opening and searching mail copies nothing into it.
 - **It holds no secret.** No command takes one. `mail-token-create` returns one, and the
