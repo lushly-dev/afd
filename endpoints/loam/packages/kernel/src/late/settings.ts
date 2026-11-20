@@ -666,6 +666,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 	/** A failed read's next try, and how long it waits: from half a second, doubling to 30 seconds (R9). */
 	let retry: ReturnType<typeof setTimeout> | undefined;
 	let retryMs = 500;
+	/** The person the overrides were last read for: a change of person reads again, even when the record is the same. */
+	let overridesFor: string | undefined | null = null;
 
 	/**
 	 * The person's `loam.keybindings.overrides`, read into the kernel's keybindings (8.3): at the late load, after each
@@ -679,6 +681,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const registry = deps.keybindings;
 		if (!registry) return;
 		const person = deps.person();
+		overridesFor = person;
 		const generation = ++reading;
 		clearTimeout(retry);
 		retry = undefined;
@@ -1444,9 +1447,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);
+			// The new person's own keybindings (8.3), whatever their appearance does: in `local` mode a sign-in keeps the
+			// record's id and changes the person the registry holds them for.
+			if (deps.person() !== overridesFor) await readOverrides();
 			if (id === following) return;
-			// The new person's own keybindings (8.3), whatever their appearance does.
-			await readOverrides();
 			if (id === undefined) {
 				// Signed out in `provider` mode: no one's own appearance; the page paints `.last` (3.6).
 				following = undefined;
