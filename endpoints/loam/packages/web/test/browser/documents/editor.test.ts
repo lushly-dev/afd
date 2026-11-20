@@ -2261,17 +2261,22 @@ describe('P2-D5: the editor area, native half', () => {
 		await typeInto(page, 't1', 'Draft');
 		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
 		await framesGone(page, ['t1']);
-		// The first clear of t1 is refused, though the read of its scope succeeds.
-		await page.evaluate(() => {
+		// Disposal and the leave's completion can reconcile separately. Refuse every clear until recovery.
+		const clear = await page.evaluateHandle(() => {
 			const shell = document.querySelector('loam-shell') as unknown as {
 				kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
 			};
 			const call = shell.kernel.call.bind(shell.kernel);
-			let once = true;
+			const state = { refused: 0, allowed: false };
 			shell.kernel.call = async (name: string, input?: unknown, ...rest: unknown[]) => {
 				const asked = input as { tab?: string; dirty?: boolean } | undefined;
-				if (name === 'editor-dirty-set' && asked?.tab === 't1' && asked.dirty === false && once) {
-					once = false;
+				if (
+					name === 'editor-dirty-set' &&
+					asked?.tab === 't1' &&
+					asked.dirty === false &&
+					!state.allowed
+				) {
+					state.refused++;
 					return {
 						success: false,
 						error: { code: 'TEST_REFUSED', message: 'Refused by the test' },
@@ -2279,10 +2284,12 @@ describe('P2-D5: the editor area, native half', () => {
 				}
 				return call(name, input, ...rest);
 			};
+			return state;
 		});
 		await settleSaves(page, 't1', 'pass');
 		await editorIdle(page);
 		expect((await owedOf(page)).filter((key) => key.endsWith(' t1'))).toHaveLength(1);
+		expect(await clear.evaluate((state) => state.refused)).toBeGreaterThan(0);
 		expect(
 			(
 				(await agentCall(page, 'document-trash', { document: alpha })) as {
@@ -2291,6 +2298,9 @@ describe('P2-D5: the editor area, native half', () => {
 			).error?.code
 		).toBe('EDITOR_TAB_DIRTY');
 		// A later sync, any change of the editor area, clears it.
+		await clear.evaluate((state) => {
+			state.allowed = true;
+		});
 		await open(page, await createNote(page, 'Beta'));
 		await editorIdle(page);
 		expect(await owedOf(page)).toEqual([]);
