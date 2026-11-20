@@ -696,6 +696,17 @@ class CliGit:
                 raise WorldError(f"Cannot move {path} aside to remove it: {again}") from again
         _remove_detached(self.target, trash)
 
+    def remove_build(self, path: str) -> None:
+        place = Path(path)
+        if not place.exists():
+            return
+        trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
+        try:
+            place.rename(trash)
+        except OSError as exc:
+            raise WorldError(f"Cannot move {path} aside to remove it: {exc}") from exc
+        _remove_detached(self.target, trash, checkout=False)
+
     #: The lane commits as itself. ``committer.*`` is set too: it outranks ``user.*``, so a
     #: host that configures it would otherwise commit the lane's merges as someone else.
     _IDENTITY = (
@@ -825,10 +836,10 @@ class CliGit:
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
 
 
-def _remove_detached(repository: str, path: Path) -> None:
-    """``git worktree remove --force`` the checkout at ``path`` in a process of its own that
-    outlives the lane step, then delete whatever is left (best effort: a leftover
-    ``.removing-*`` directory holds no lane state)."""
+def _remove_detached(repository: str, path: Path, *, checkout: bool = True) -> None:
+    """``git worktree remove --force`` the checkout at ``path`` (only a ``checkout``) in a
+    process of its own that outlives the lane step, then delete whatever is left (best effort:
+    a leftover ``.removing-*`` directory holds no lane state)."""
     options: dict = (
         {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
         if sys.platform == "win32"
@@ -836,13 +847,14 @@ def _remove_detached(repository: str, path: Path) -> None:
     )
     code = (
         "import shutil, subprocess, sys\n"
-        "subprocess.run(['git', '-C', sys.argv[1], 'worktree', 'remove', '--force', sys.argv[2]],"
-        " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
+        "if sys.argv[3] == 'checkout':\n"
+        "    subprocess.run(['git', '-C', sys.argv[1], 'worktree', 'remove', '--force',"
+        " sys.argv[2]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
         "shutil.rmtree(sys.argv[2], ignore_errors=True)\n"
     )
     try:
         subprocess.Popen(  # noqa: S603 - an argument list, no shell
-            [sys.executable, "-c", code, repository, str(path)],
+            [sys.executable, "-c", code, repository, str(path), "checkout" if checkout else "dir"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
