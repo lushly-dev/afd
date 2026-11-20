@@ -174,10 +174,13 @@ jobs:
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
+      # Shared with specimen.yml's stories and Chromium jobs: one entry for every ubuntu-latest release
+      # build of Specimen's host (#1675).
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
+          shared-key: specimen-host-release
       - name: Chromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3; the walk is its own job)
         run: pnpm -F @lushly-dev/loam-web test:browser
       - name: Bundle budget
