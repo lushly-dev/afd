@@ -104,6 +104,24 @@ cd alfred && uv run alfred --workspace .. lint
 
 Rust builds across this repository's worktrees share one target directory, which grows quickly; `pnpm rust:sweep` evicts builds nothing has read for three days.
 
+## Disk hygiene
+
+Worktrees, Rust `target/` folders and caches fill a disk fast here: one afd worktree's Rust
+output can pass 100 GB. Install botcore as a tool and let its hourly job keep them in check
+(the [free-disk-space](.claude/skills/free-disk-space/SKILL.md) skill has the details):
+
+```bash
+uv tool install 'lushly-botcore==<version>'   # a persistent install, not uvx
+botcore disk-setup                            # from this checkout: registers it, installs the job
+botcore disk-status                           # after the first run
+```
+
+On macOS the job is a LaunchAgent; approve the permission prompt the first run raises for an
+external drive. On Windows it is a Task Scheduler task for your user, without elevation. On
+Linux it is a systemd user timer, or a crontab line. `botcore disk-setup --uninstall` removes
+it. If you run T3 Code, also turn on its storage cleanup (remove a worktree when its pull
+request merges, when its thread is deleted, and after it has been settled for a week).
+
 ## Build & Test Commands
 
 ```bash
