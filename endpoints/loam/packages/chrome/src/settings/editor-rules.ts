@@ -137,35 +137,72 @@ export function keysRefused(keys: string | null): string | undefined {
 }
 
 /**
- * What an override would do that the person should hear first (8.3, 15): shadow a shell chord, leave Mod+K unbound,
- * or, given the bindings, shadow another binding on colliding keys.
+ * What an override would do that the person should hear first (8.3, 15): shadow a shell chord, leave Mod+K unbound, or,
+ * given the bindings, shadow another on colliding keys. Each is said, none hiding another (the re-check's 7). Of the
+ * person's own, the earlier in the list `stored` would become wins: an edit keeps its place, an addition goes last.
  */
 export function overrideWarning(
 	override: OverrideV1,
-	bindings: readonly ListedBindingV1[] = []
+	bindings: readonly ListedBindingV1[] = [],
+	stored?: readonly OverrideV1[]
 ): string | undefined {
+	const said: string[] = [];
 	const chords = override.keys?.split(' ') ?? [];
 	const kept = chords.find((chord) => SHELL_CHORDS.includes(chord));
-	if (kept) return `${kept} is the shell's own; this binding would shadow it.`;
+	if (kept) said.push(`${kept} is the shell's own; this binding would shadow it.`);
 	if (override.command === 'palette-open')
-		return override.keys === null
-			? 'This unbinds Mod+K, which opens the command palette.'
-			: 'Mod+K would no longer open the command palette.';
-	if (override.keys === null) return undefined;
+		said.push(
+			override.keys === null
+				? 'This unbinds Mod+K, which opens the command palette.'
+				: 'Mod+K would no longer open the command palette.'
+		);
 	const keys = override.keys;
-	const colliding = bindings.filter(
-		(binding) =>
-			!(binding.command === override.command && binding.target === override.target) &&
-			keysCollide(binding.keys, keys)
-	);
-	// One of the person's own comes first: it wins, since an override added goes after it (8.1; the reviews' 8).
-	const yours = colliding.find((binding) => binding.source === 'you');
-	const hit = yours ?? colliding[0];
-	if (!hit) return undefined;
-	const what = hit.target ? `${hit.command} (${hit.target})` : hit.command;
-	if (yours)
-		return `${hit.keys} is already yours, for ${what}, which would win: this binding would be shadowed.`;
-	return `${hit.keys} runs ${what}, the ${hit.source === 'app' ? "app's" : "shell's"}; this binding would shadow it.`;
+	if (keys !== null) {
+		const same = (each: { command: string; target?: string }) =>
+			each.command === override.command && (each.target ?? null) === (override.target ?? null);
+		const nameOf = (each: { command: string; target?: string }) =>
+			each.target ? `${each.command} (${each.target})` : each.command;
+		const mine =
+			stored ??
+			bindings
+				.filter((binding) => binding.source === 'you')
+				.map(({ command, target, keys: bound }) => ({
+					command,
+					...(target ? { target } : {}),
+					keys: bound,
+				}));
+		const proposed = withOverride(mine, override);
+		const at = proposed.findIndex(same);
+		const yours = proposed.findIndex(
+			(each, index) => index !== at && each.keys !== null && keysCollide(each.keys, keys)
+		);
+		if (yours >= 0) {
+			const other = proposed[yours] as OverrideV1;
+			// The other is not in force now: its command cannot run from a chord, as `keybinding-list` says.
+			const idle = bindings.some(
+				(binding) =>
+					binding.source === 'you' &&
+					binding.command === other.command &&
+					(binding.target ?? null) === (other.target ?? null) &&
+					!binding.active
+			);
+			const note = idle ? ', not in force now' : '';
+			said.push(
+				yours < at
+					? `${other.keys} is already yours, for ${nameOf(other)}${note}, which would win: this binding would be shadowed.`
+					: `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding comes first and would shadow it.`
+			);
+		} else if (!kept) {
+			const hit = bindings.find(
+				(binding) => binding.source !== 'you' && !same(binding) && keysCollide(binding.keys, keys)
+			);
+			if (hit)
+				said.push(
+					`${hit.keys} runs ${nameOf(hit)}, the ${hit.source === 'app' ? "app's" : "shell's"}; this binding would shadow it.`
+				);
+		}
+	}
+	return said.length > 0 ? said.join(' ') : undefined;
 }
 
 /** A chord's modifiers, in this order, each once: the kernel's `isChord`. */

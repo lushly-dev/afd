@@ -446,3 +446,159 @@ describe("P4-E9: step 7's reviews", () => {
 		await page.close();
 	});
 });
+
+describe("P4-E9: step 7's re-check", () => {
+	const stored = async (page: Page, document: string) =>
+		((await agentCall(page, 'notes-content-get', { document })) as { data?: { text: string } }).data
+			?.text;
+	const sidebarOpen = (page: Page) =>
+		kernelCall(page, 'layout-get', {}).then(
+			(read) => (read as { data: { sidebar: { open: boolean } } }).data.sidebar.open
+		);
+	const path = (page: Page) => decodeURIComponent(new URL(page.url()).pathname);
+	/** A script's key on the element `path` names, each step searched through the shadow roots below the last. */
+	const untrusted = (page: Page, path: string[], init: { key: string; code: string }) =>
+		page.evaluate(
+			({ path, init }) => {
+				const find = (root: ParentNode, selector: string): Element | null => {
+					const hit = root.querySelector(selector);
+					if (hit) return hit;
+					for (const host of root.querySelectorAll('*')) {
+						const inner = host.shadowRoot ? find(host.shadowRoot, selector) : null;
+						if (inner) return inner;
+					}
+					return null;
+				};
+				let at: Element | null = null;
+				for (const selector of path) {
+					at = find(at ? (at.shadowRoot ?? at) : document, selector);
+					if (!at) throw new Error(`No ${selector}`);
+				}
+				at?.dispatchEvent(
+					new KeyboardEvent('keydown', { bubbles: true, composed: true, cancelable: true, ...init })
+				);
+			},
+			{ path, init }
+		);
+
+	it("2: saves nothing for an editor save event a script sends to an editor's frame", async () => {
+		const opened = await openShell(browser, editors.origin);
+		const { page } = opened;
+		const note = await createNote(page, 'Framed');
+		await open(page, note);
+		await typeInto(page, 't1', 'Not by an event');
+		const before = await stored(page, note);
+		await page.evaluate(() => {
+			const find = (root: Document | ShadowRoot): Element | null => {
+				const hit = root.querySelector('loam-editor-frame');
+				if (hit) return hit;
+				for (const host of root.querySelectorAll('*')) {
+					const inner = host.shadowRoot ? find(host.shadowRoot) : null;
+					if (inner) return inner;
+				}
+				return null;
+			};
+			find(document)?.dispatchEvent(
+				new CustomEvent('loam-editor-save', { bubbles: true, composed: true })
+			);
+		});
+		await page.waitForTimeout(300);
+		expect(await stored(page, note)).toBe(before);
+		await opened.context.close();
+	});
+
+	it("3: the switcher's list and the palette choose nothing on a script's Enter", async () => {
+		const { page } = await openShell(browser, site.origin);
+		await kernelCall(page, 'project-create', { name: 'Atlas', slug: 'atlas' });
+		await switcher(page).click();
+		await expect.poll(() => switcher(page).getAttribute('aria-expanded')).toBe('true');
+		const listbox = ['loam-project-list', 'violet-listbox', '[role="listbox"]'];
+		// A person's own ArrowDown moves to Atlas; a script's Enter must not choose it.
+		await page.keyboard.press('ArrowDown');
+		await untrusted(page, listbox, { key: 'Enter', code: 'Enter' });
+		await settle(page);
+		expect(
+			((await kernelCall(page, 'scope-get')) as { data: { project?: unknown } }).data.project ??
+				null
+		).toBe(null);
+		// A person's own Enter does choose it.
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(
+				async () =>
+					((await kernelCall(page, 'scope-get')) as { data: { project?: { slug?: string } } }).data
+						.project?.slug
+			)
+			.toBe('atlas');
+		await page.keyboard.press('ControlOrMeta+K');
+		await expect.poll(() => paletteOpen(page)).toBe(true);
+		await page.locator('loam-palette input').fill('close the palette');
+		await settle(page);
+		await untrusted(page, ['loam-palette', 'input'], { key: 'Enter', code: 'Enter' });
+		await settle(page);
+		expect(await paletteOpen(page)).toBe(true);
+		// A person's own Enter runs it, and the palette closes.
+		await page.keyboard.press('Enter');
+		await expect.poll(() => paletteOpen(page)).toBe(false);
+		await page.close();
+	});
+
+	it('4: a held second key of Mod+G Mod+G keeps the wait; a fresh one completes it', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await overrides(page, [{ command: 'layout-set', target: 'sidebar', keys: 'Mod+G Mod+G' }]);
+		const before = await sidebarOpen(page);
+		const mod = MAC ? 'Meta' : 'Control';
+		await page.keyboard.down(mod);
+		await page.keyboard.down('KeyG');
+		await page.keyboard.down('KeyG');
+		await page.keyboard.up('KeyG');
+		await page.keyboard.down('KeyG');
+		await page.keyboard.up('KeyG');
+		await page.keyboard.up(mod);
+		await expect.poll(() => sidebarOpen(page)).toBe(!before);
+		await page.close();
+	});
+
+	it('4: a prefix the page stops replaces the one that waited, so its sequence never runs', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await overrides(page, [
+			{ command: 'section-open', target: 'documents', keys: 'Mod+G D' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+Y D' },
+		]);
+		// The page stops Mod+Shift+Y before the window's bubble phase.
+		await page.evaluate(() =>
+			document.addEventListener('keydown', (event) => {
+				if (event.code === 'KeyY' && event.shiftKey) event.stopPropagation();
+			})
+		);
+		await page.keyboard.press('ControlOrMeta+KeyG');
+		await page.keyboard.press('ControlOrMeta+Shift+KeyY');
+		await page.keyboard.press('KeyD');
+		await settle(page);
+		expect(path(page)).not.toMatch(/~\/documents$/);
+		await page.close();
+	});
+
+	it('4: save honours a key the page prevented before the shell', async () => {
+		const context = await browser.newContext();
+		await context.addInitScript(() =>
+			window.addEventListener(
+				'keydown',
+				(event) => {
+					if (event.code === 'KeyS' && (event.ctrlKey || event.metaKey)) event.preventDefault();
+				},
+				{ capture: true }
+			)
+		);
+		const opened = await openShell(browser, editors.origin, {}, context);
+		const { page } = opened;
+		const note = await createNote(page, 'Prevented');
+		await open(page, note);
+		await typeInto(page, 't1', 'Not by a prevented key');
+		const before = await stored(page, note);
+		await page.keyboard.press('ControlOrMeta+KeyS');
+		await page.waitForTimeout(300);
+		expect(await stored(page, note)).toBe(before);
+		await context.close();
+	});
+});

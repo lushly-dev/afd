@@ -429,6 +429,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 125,200 to 124,300 (123,775, -875); `lateMinified` 110,500 to 111,000 (110,541: the command info read from the
  * registry); `lateSettingsMinified` 73,500 to 74,200 (73,694: the shortcut map, R7's and R8's checks);
  * `settingsMinified` 44,800 to 46,400 (45,912, +1,560: the editor's copy of the whole list's check and its warnings).
+ * Of those moves, the override eligibility went to `late` (its command info, read from the registry) and the palette's
+ * shortcut map to `late-settings` (the re-check's 10).
+ * After step 7's re-check (one readiness for dispatch, the list and the hints; the late load's failure applying the
+ * defaults; Mod+S held while not ready; repeats and AltGr; the switcher's and palette's guards), against the figures
+ * above: `jsMinified` 316,500 to 317,500 and `jsGzip` 99,500 to 100,000 (316,988, +910, and 99,580, +318: the shell's
+ * held save and its notice, the prefix cleared in the capture phase, the matcher's repeats and AltGr, and the kernel's
+ * readiness states); `kernelMinified` 124,300 to 125,000 (124,503); `switcherMinified` 11,317 to 11,600 (11,445: the
+ * guard on the listbox); `settingsMinified` 46,400 to 46,900 (46,410: the warnings by the list's order).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -452,12 +460,13 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 5 on top: 309,560 and 96,545 gzip, the Inbox button (above); set to 310,000 and 96,700.
 	// Steps 4, 5 and 8 together (step 5's branch with `main` at `03b036bb`): 310,131; set to 310,500 under D115.
 	// Phase 4's step 7: 315,952 and 99,161 gzip, the key matcher (the header records it); set to 316,500 and 99,500.
-	jsMinified: 316_500,
+	// After its re-check: 316,988 and 99,580; set to 317,500 and 100,000.
+	jsMinified: 317_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 99_500,
+	jsGzip: 100_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -469,7 +478,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 124_300,
+	kernelMinified: 125_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -508,7 +517,7 @@ export const CEILINGS = Object.freeze({
 	viewMinified: 26_800,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
-	switcherMinified: 11_317,
+	switcherMinified: 11_600,
 	switcherColdMinified: 45_163,
 	// Raised from 3,126 to 3,490 by AFD #1054: an Escape is the dialog's while a modal dialog that does not hold
 	// the tooltip's entry is open, so the tooltip looks for one through the shadow roots; measured against `main`
@@ -525,7 +534,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 46_400,
+	settingsMinified: 46_900,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 	inboxMinified: 10_000,

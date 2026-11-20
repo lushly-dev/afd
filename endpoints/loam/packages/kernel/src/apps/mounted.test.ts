@@ -402,6 +402,53 @@ describe('7.4: exposure and trust', () => {
 	});
 });
 
+describe("a person's binding of a mounted command (phase 4 specification, 8.3; step 7's re-check, 6)", () => {
+	it('runs one needing no input, and never one whose advertised schema needs input', async () => {
+		const { kernel } = await boot({
+			work: () =>
+				fakeTransport({
+					'a-needs': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: { space: { type: 'string' } },
+							required: ['space'],
+						},
+					},
+					'a-free': { mutation: false, inputSchema: { type: 'object', properties: {} } },
+				}),
+		});
+		await kernel.startInstances();
+		const { data } = await kernel.call<{ commands: Array<{ name: string }> }>('app-command-list', {
+			instance: 'work',
+		});
+		const names = data?.commands.map(({ name }) => name) ?? [];
+		const needs = names.find((name) => name.endsWith('needs')) as string;
+		const free = names.find((name) => name.endsWith('free')) as string;
+		const written = await kernel.call('setting-set', {
+			section: 'loam.keybindings',
+			key: 'overrides',
+			value: [
+				{ command: needs, keys: 'Mod+Shift+N' },
+				{ command: free, keys: 'Mod+Shift+F' },
+			],
+			level: 'person',
+		});
+		expect(written.error, JSON.stringify(names)).toBeUndefined();
+		const listed = await kernel.call<{
+			bindings: Array<{ command: string; active: boolean; app?: string }>;
+		}>('keybinding-list', { all: true });
+		expect(listed.data?.bindings.find(({ command }) => command === needs)).toMatchObject({
+			active: false,
+			app: 'work',
+		});
+		expect(listed.data?.bindings.find(({ command }) => command === free)).toMatchObject({
+			active: true,
+			app: 'work',
+		});
+	});
+});
+
 describe('parseMountedResult (7.3)', () => {
 	it('takes structuredContent, else the text, and labels the result', () => {
 		const shaped = parseMountedResult({ structuredContent: { success: true, data: 1 } }, 'work');

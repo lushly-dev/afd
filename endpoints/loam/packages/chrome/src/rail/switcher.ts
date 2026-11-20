@@ -133,6 +133,23 @@ const styles = css`
 	}
 `;
 
+/**
+ * A script's Enter or Space never chooses a row (phase 4 specification, 8.3; step 7's R6 and re-check, 3): heard on the
+ * listbox's own shadow root before its control, so Violet's listbox is unchanged. Escape and F6 pass, as before.
+ */
+function hearOnlyPeople(listbox: VioletListbox | undefined): void {
+	listbox?.shadowRoot?.addEventListener(
+		'keydown',
+		(event) => {
+			const key = (event as KeyboardEvent).key;
+			if (event.isTrusted || (key !== 'Enter' && key !== ' ')) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		},
+		{ capture: true }
+	);
+}
+
 export class LoamProjectList extends FASTElement {
 	declare projects: ProjectV1[];
 	/** The active project's id, or the first row's value for none. */
@@ -180,6 +197,7 @@ export class LoamProjectList extends FASTElement {
 
 	override connectedCallback(): void {
 		super.connectedCallback();
+		hearOnlyPeople(this.listbox);
 		// Escape closes it wherever focus is in it, whatever the listbox does with the key.
 		this.addEventListener(
 			'keydown',

@@ -1062,13 +1062,24 @@ export class LoamShell extends FASTElement {
 		const bindings = this.kernel.listKeybindings().filter(({ when }) => focusHolds(when, focus));
 		const press = pressKey(event, this.mac, bindings, this.#pending, Date.now());
 		if (press.kind === 'wait') {
-			// A held chord's repeats keep the wait.
+			// A new prefix displaces the one that waited, here, so a key the page stops leaves none behind; the bubble
+			// phase sets it (a held chord's repeats keep it, and their deadline, in `pressKey`).
+			if (press.pending !== this.#pending) this.#pending = null;
 			this.#resolved = { event, wait: press.pending };
 			return;
 		}
 		this.#pending = null;
 		if (press.kind === 'none') return;
 		if (press.binding.save) {
+			// A key the page already prevented is not save's (the re-check's 4).
+			if (event.defaultPrevented) return;
+			// R9: the person's keys are not known yet, so save's chord is held, never the browser's, and said.
+			if (press.binding.unready) {
+				event.preventDefault();
+				if (!event.repeat) this.#notReady();
+				return;
+			}
+			// With no editor to save, the browser's, as before (documents specification, 5.5).
 			if (this.#saver?.(event.composedPath(), event.repeat)) event.preventDefault();
 			return;
 		}
@@ -1117,6 +1128,14 @@ export class LoamShell extends FASTElement {
 			else if (p.panel === 'sheet') void this.#closePart('panel');
 			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
 		}
+	}
+
+	/** R9: a key pressed before the person's own keys are known, said once per press. */
+	#notReady(): void {
+		void this.kernel?.call('toast-show', {
+			message: 'Your keys are not ready yet. Try again in a moment.',
+			tone: 'warning',
+		});
 	}
 
 	/**

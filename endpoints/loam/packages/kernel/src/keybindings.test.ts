@@ -246,13 +246,15 @@ describe('the registry', () => {
 	it("dispatches only F6 and Shift+F6 until the person's overrides are known (step 7's reviews, 6)", () => {
 		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, APPS);
 		// Before the late load: nothing rebindable, as a stored unbind may hold any of it.
-		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
+		// R9: Mod+S only held, never run, until the overrides are known.
+		expect(registry.list('hello').find(({ chord }) => chord === 'Mod+S')?.unready).toBe(true);
 		registry.setResolver(
 			KEYBINDING_RESOLVER,
 			source(() => 'ada')
 		);
 		// The resolver, but no overrides read for Ada yet.
-		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
 		registry.setOverrides([{ command: 'layout-set', target: 'sidebar', keys: null }], 'ada');
 		const known = registry.list('hello').map(({ chord }) => chord);
 		expect(known).toContain('Mod+K');
@@ -269,7 +271,7 @@ describe('the registry', () => {
 		registry.setOverrides([{ command: 'palette-open', keys: 'Mod+Shift+K' }], 'ada');
 		expect(registry.list(null)[0]?.chord).toBe('Mod+Shift+K');
 		person = 'olu';
-		expect(registry.list(null).map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		expect(registry.list(null).map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
 		expect(
 			registry.resolve(registry.context(null)).entries.some((entry) => entry.source === 'you')
 		).toBe(false);

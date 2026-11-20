@@ -225,6 +225,34 @@ describe('sequences (8.1)', () => {
 		expect(pressKey(p, false, bindings, pending, 2501)).toEqual({ kind: 'none' });
 	});
 
+	it("keeps the wait, and its deadline, through a held key's repeats, never matching them (the re-check's 4)", () => {
+		const doubled = [{ chord: 'Mod+G Mod+G', command: 'hello-twice' }];
+		const pending = { first: 'Mod+G', until: 2500 };
+		const held = key({ key: 'g', code: 'KeyG', ctrlKey: true, repeat: true });
+		expect(pressKey(held, false, doubled, pending, 2400)).toEqual({ kind: 'wait', pending });
+		const fresh = key({ key: 'g', code: 'KeyG', ctrlKey: true });
+		expect(pressKey(fresh, false, doubled, pending, 2450)).toEqual({
+			kind: 'run',
+			binding: doubled[0],
+		});
+	});
+
+	it('names no chord for a printable key AltGr makes, as Ctrl+Alt reports it on Windows (the re-check, 9)', () => {
+		const bindings = [{ chord: 'Mod+Alt+Q', command: 'hello-quote' }];
+		// A German layout's AltGr+Q types "@", and Windows reports AltGr as Ctrl and Alt both.
+		const altGr = {
+			...key({ key: '@', code: 'KeyQ', ctrlKey: true, altKey: true }),
+			getModifierState: (state: string) => state === 'AltGraph',
+		};
+		expect(pressKey(altGr, false, bindings, null, 0)).toEqual({ kind: 'none' });
+		// The same keys pressed as Ctrl and Alt, with no AltGraph, are the chord.
+		const chord = key({ key: 'q', code: 'KeyQ', ctrlKey: true, altKey: true });
+		expect(pressKey(chord, false, bindings, null, 0)).toEqual({
+			kind: 'run',
+			binding: bindings[0],
+		});
+	});
+
 	it("ends the wait on a key no chord names, which is left to the page (the reviews' 5)", () => {
 		const pending = { first: 'Mod+G', until: 2500 };
 		const bracket = key({ key: 'Dead', code: 'BracketLeft' });

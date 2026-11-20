@@ -436,10 +436,86 @@ describe("step 7's reviews", () => {
 		await signIn('olu@example.com');
 		const chords = kernel.listKeybindings().map(({ chord }) => chord);
 		expect(chords).not.toContain('Mod+Shift+K');
-		// Olu's own overrides are not known, so only F6 and Shift+F6, which no override touches, dispatch.
-		expect(chords).toEqual(['F6', 'Shift+F6']);
+		// Olu's own overrides are not known, so only F6 and Shift+F6, which no override touches, dispatch; Mod+S is held (R9).
+		expect(chords).toEqual(['F6', 'Shift+F6', 'Mod+S']);
 		const listed = await list(kernel, { all: true });
 		expect(listed.some((entry) => entry.source === 'you')).toBe(false);
+		// One readiness for dispatch, the list and the palette's hints (the re-check's 5): only the focus chords are
+		// active, and no command shows keys it would not run by.
+		const active = (await list(kernel)).filter((entry) => entry.active).map(({ keys }) => keys);
+		expect(active).toEqual(['F6', 'Shift+F6']);
+		expect(
+			kernel.listCommands().find(({ name }) => name === 'palette-open')?.keybinding
+		).toBeUndefined();
+		// R9: Mod+S is held while the keys are not ready, so the browser's save dialog never opens.
+		expect(kernel.listKeybindings().find(({ chord }) => chord === 'Mod+S')).toMatchObject({
+			save: true,
+			unready: true,
+		});
+		// R9: the read is tried again, and lands once the store answers.
+		store.failing = undefined;
+		await expect
+			.poll(() => kernel.listKeybindings().map(({ chord }) => chord), { timeout: 5_000 })
+			.toContain('Mod+K');
+	});
+
+	it("R9: reads a new person's overrides when the session changes with no call, as another tab's sign-in does", async () => {
+		const store = new MemoryAdapter();
+		const clock = createSteppingClock();
+		const auth = new MockAuthAdapter({ clock: { now: clock } });
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock,
+			identity: PROVIDER,
+			membership,
+		});
+		kernels.push(kernel);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'x',
+		});
+		await override(kernel, [{ command: 'palette-open', keys: 'Mod+Shift+K' }]);
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+		// Another tab signs Olu in: the adapter tells the kernel, and no call is made here.
+		auth._setUser({ id: OLU, email: 'olu@example.com', name: 'olu' });
+		await expect
+			.poll(() => kernel.listKeybindings().map(({ chord }) => chord), { timeout: 5_000 })
+			.toContain('Mod+K');
+		expect(kernel.listKeybindings().map(({ chord }) => chord)).not.toContain('Mod+Shift+K');
+	});
+
+	it("8: keeps a stored list's valid overrides when a newer rule refuses one, and says how many it dropped", async () => {
+		const store = new MemoryAdapter();
+		await store.create('settings', {
+			id: 'loam.settings',
+			category: 'settings',
+			value: {
+				'personal/loam.keybindings': {
+					overrides: {
+						value: [
+							{ command: 'palette-open', keys: 'Mod+Shift+K' },
+							// R7 refuses a bare key, which step 7's first check took.
+							{ command: 'section-open', target: 'documents', keys: 'D' },
+						],
+						updatedAt: 1,
+						updatedBy: 'local',
+					},
+				},
+			},
+		});
+		const { kernel } = await workspace(store);
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+		const read = await kernel.call<{ bindings: KeybindingEntryV1[]; refused?: number }>(
+			'keybinding-list',
+			{}
+		);
+		expect(read.data?.refused).toBe(1);
 	});
 
 	it('6: dispatches no rebindable default until the person’s overrides are known (Astra 6)', async () => {

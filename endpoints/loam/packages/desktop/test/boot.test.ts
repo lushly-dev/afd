@@ -25,10 +25,7 @@ import {
 } from './harness';
 
 /** The statement the Rust host's "Command palette" item evaluates (`palette_script` in `src/lib.rs`). */
-const PALETTE_SCRIPT =
-	process.platform === 'darwin'
-		? "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',metaKey:true,bubbles:true,cancelable:true}))"
-		: "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',ctrlKey:true,bubbles:true,cancelable:true}))";
+const PALETTE_SCRIPT = "document.querySelector('loam-shell')?.openPalette()";
 
 const RESULTS = fileURLToPath(new URL('../test-results/', import.meta.url));
 

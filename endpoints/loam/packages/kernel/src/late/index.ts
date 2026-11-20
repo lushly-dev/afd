@@ -89,6 +89,11 @@ export type LateCommandDeps = ShellCommandDeps &
 		limits?: KernelLimits;
 		/** The kernel's keybindings, which `late-settings` gives the person's overrides (phase 4 specification, 8.3). */
 		keybindings?: KeybindingRegistry;
+		/**
+		 * Whether a command's advertised JSON Schema needs input: first paint's `needsInput`, given here so this chunk
+		 * imports none of it. A mounted command's runtime input is loose, so its advertised schema decides (8.3).
+		 */
+		needsInput?(schema: unknown): boolean;
 		store: DataAdapter;
 		/** The projection's generation this page booted with. */
 		generation(): string;
@@ -874,10 +879,15 @@ export async function createLateParts(
 						? deps.apps().commands.find((each) => each.name === command)
 						: byName.get(command);
 			const input = command === 'section-open' ? { section: target } : {};
+			// A mounted command takes any input at run time; whether it needs some is its advertised schema's (the
+			// re-check's 6). Every other command's input is parsed as the chord would give it, `section-open`'s section.
+			const mounted = deps.apps().owners.get(command)?.recorded === true;
 			const runnable =
 				definition !== undefined &&
 				definition.expose?.palette !== false &&
-				z.safeParse(definition.inputSchema as z.ZodMiniType, input).success;
+				(mounted
+					? deps.needsInput !== undefined && !deps.needsInput(definition.jsonSchema)
+					: z.safeParse(definition.inputSchema as z.ZodMiniType, input).success);
 			return { runnable, ...(app !== undefined ? { app } : {}) };
 		},
 	});

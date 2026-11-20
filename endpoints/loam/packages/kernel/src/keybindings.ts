@@ -92,7 +92,15 @@ export interface KeybindingOverrideV1 {
 }
 
 /** A binding in force, as the chrome matches it: the reserved shape, with an override's target and an app's `when`. */
-export type KeybindingInForceV1 = ShellKeybindingV0 & { target?: string; when?: string };
+export type KeybindingInForceV1 = ShellKeybindingV0 & {
+	target?: string;
+	when?: string;
+	/**
+	 * Save's chord while the person's overrides are not known (R9): held, so the browser's save dialog never opens, and
+	 * the shell says the keys are not ready, rather than saving by a chord the person may have rebound.
+	 */
+	unready?: true;
+};
 
 /**
  * The names `keybinding-list` and overrides give the reserved chords that run no command (R1): in the shell's domain,
@@ -162,7 +170,8 @@ export interface KeybindingSourceV1 {
 export interface KeybindingRegistry {
 	/**
 	 * The bindings in force now, first to last by precedence (8.1), as the chrome matches them. Until the overrides of
-	 * the person the shell is for are known, only F6 and Shift+F6, which no override touches (step 7's reviews, 2 and 6).
+	 * the person the shell is for are known, only F6 and Shift+F6, which no override touches (step 7's reviews, 2 and 6),
+	 * and Mod+S held (R9).
 	 */
 	list(active: string | null): KeybindingInForceV1[];
 	/** The keys that run `command`, as `listCommands` reports them: the person's own, else its binding's. */
@@ -175,10 +184,21 @@ export interface KeybindingRegistry {
 	collide(a: string, b: string): boolean;
 	/** The resolver and its source, once `late-settings` has loaded. */
 	setResolver(resolver: KeybindingResolverV1, source: KeybindingSourceV1): void;
+	/** The late load failed: the reserved chords and the active app's, with no overrides (R9, D66). */
+	useDefaults(): void;
+	/** How many of the person's stored overrides a rule now refuses, dropped on read (step 7's re-check, 8). */
+	refused(): number;
 	/** The apps' bindings, once stage B has loaded them. */
 	setApps(apps: readonly AppKeybinding[]): void;
-	/** The overrides of `person`, which `late-settings` reads at its load, after each write and on a change of person. */
-	setOverrides(overrides: readonly KeybindingOverrideV1[], person: string | undefined): void;
+	/**
+	 * The overrides of `person`, which `late-settings` reads at its load, after each write and on a change of person,
+	 * with how many stored ones a rule refused and it dropped.
+	 */
+	setOverrides(
+		overrides: readonly KeybindingOverrideV1[],
+		person: string | undefined,
+		dropped?: number
+	): void;
 	/** The active tab's owner and document type, after a call that may have moved them. */
 	setEditor(editor: { owner: string; type: string } | null): void;
 }
@@ -192,8 +212,12 @@ export interface KeybindingRegistryOptions {
 const UNREAD: unique symbol = Symbol();
 
 /**
- * The registry (phase 1 specification, 4.2; phase 4 specification, 8.1). Until `late-settings` gives the resolver and
- * the overrides of the person the shell is for, only the focus chords dispatch; then 8.1's precedence.
+ * The registry (phase 1 specification, 4.2; phase 4 specification, 8.1). One readiness decides what it dispatches,
+ * lists and shows the palette (step 7's re-check, 5):
+ * - **known:** `late-settings` gave the resolver and the overrides of the person the shell is for; 8.1's precedence;
+ * - **unknown:** before that, or from the moment the person changes until their read lands: only F6 and Shift+F6, with
+ *   Mod+S held (R9); `keybinding-list` lists the rest as not in force, and no command shows keys;
+ * - **defaults:** the late load failed, so no override can be read (R9, D66): the reserved chords and the active app's.
  */
 export function createKeybindings(
 	shell: readonly Readonly<ShellKeybindingV0>[],
@@ -202,7 +226,9 @@ export function createKeybindings(
 ): KeybindingRegistry {
 	let held = [...apps];
 	let overrides: KeybindingOverrideV1[] = [];
+	let refused = 0;
 	let readFor: string | undefined | typeof UNREAD = UNREAD;
+	let defaults = false;
 	let editor: { owner: string; type: string } | null = null;
 	let resolver: KeybindingResolverV1 | undefined;
 	let source: KeybindingSourceV1 | undefined;
@@ -214,25 +240,51 @@ export function createKeybindings(
 	});
 	/** The overrides of the person the shell is for now, or undefined while they are not known. */
 	const mine = (): KeybindingOverrideV1[] | undefined =>
-		source && readFor !== UNREAD && readFor === source.person() ? overrides : undefined;
+		resolver && source && readFor !== UNREAD && readFor === source.person() ? overrides : undefined;
+	/** Phase 1's chords: the reserved band, then the active app's with no `when`. */
+	const phaseOne = (active: string | null): KeybindingInForceV1[] => [
+		...shell.map((binding) => ({ ...binding })),
+		...held
+			.filter((binding) => binding.instance === active && binding.when === undefined)
+			.map(({ chord, command }) => ({ chord, command })),
+	];
 	return {
 		list(active) {
 			const known = mine();
-			if (!resolver || !source || !known)
-				return shell.filter((binding) => binding.focus).map((binding) => ({ ...binding }));
-			return resolver.resolve(shell, held, known, context(active), source.info).force;
+			if (known && resolver && source)
+				return resolver.resolve(shell, held, known, context(active), source.info).force;
+			if (defaults) return phaseOne(active);
+			return shell
+				.filter((binding) => binding.focus || binding.save)
+				.map((binding) => (binding.save ? { ...binding, unready: true as const } : { ...binding }));
 		},
 		keybindingFor(command) {
 			const known = mine();
-			if (!resolver || !source || !known)
+			if (known && resolver && source) {
+				shown ??= resolver.shortcuts(shell, held, known, source.info);
+				return shown.get(command);
+			}
+			if (defaults)
 				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
-			shown ??= resolver.shortcuts(shell, held, known, source.info);
-			return shown.get(command);
+			return undefined;
 		},
-		resolve: (at) =>
-			resolver && source
-				? resolver.resolve(shell, held, mine() ?? [], at, source.info)
-				: { force: [], entries: [] },
+		resolve(at) {
+			if (!resolver || !source) return { force: [], entries: [] };
+			const known = mine();
+			const resolved = resolver.resolve(shell, held, known ?? [], at, source.info);
+			if (known) return resolved;
+			// Not known: what would apply is listed, and nothing is in force but the focus chords.
+			const focus = new Set(shell.filter((binding) => binding.focus).map(({ chord }) => chord));
+			return {
+				force: resolved.force.filter(({ chord }) => focus.has(chord)),
+				entries: resolved.entries.map((entry) =>
+					focus.has(entry.keys) && entry.source === 'shell'
+						? entry
+						: { ...entry, active: false, inForce: false }
+				),
+			};
+		},
+		refused: () => (mine() ? refused : 0),
 		context,
 		collide: (a, b) => resolver?.collide(a, b) ?? a === b,
 		setResolver(next, from) {
@@ -240,12 +292,16 @@ export function createKeybindings(
 			source = from;
 			shown = undefined;
 		},
+		useDefaults() {
+			defaults = true;
+		},
 		setApps(next) {
 			held = [...next];
 			shown = undefined;
 		},
-		setOverrides(next, person) {
+		setOverrides(next, person, dropped = 0) {
 			overrides = next.map((each) => ({ ...each }));
+			refused = dropped;
 			readFor = person;
 			shown = undefined;
 		},

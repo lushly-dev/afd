@@ -148,7 +148,7 @@ export class LoamEmbed extends FASTElement {
 	override connectedCallback(): void {
 		super.connectedCallback();
 		// What the embedded document's editor dispatches stays here: it is not the embedding tab's (T-S1).
-		for (const type of ['loam-editor-dirty', 'loam-editor-selection', 'loam-editor-save'])
+		for (const type of ['loam-editor-dirty', 'loam-editor-selection'])
 			this.shadowRoot?.addEventListener(type, stop);
 		void this.#render();
 	}

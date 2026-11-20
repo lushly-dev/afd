@@ -102,6 +102,46 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 		expect(overrideWarning({ command: 'jot-zap', keys: 'Mod+Shift+Z' }, yours)).toBeUndefined();
 	});
 
+	it("says which of the person's own wins by the list's order, for an edit kept in place too (the re-check's 7)", () => {
+		const stored = [
+			{ command: 'palette-open', keys: 'Mod+Shift+L' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+M' },
+		];
+		const listed = [
+			{ keys: 'Mod+Shift+L', command: 'palette-open', source: 'you' as const, active: true },
+			{
+				keys: 'Mod+Shift+M',
+				command: 'section-open',
+				target: 'projects',
+				source: 'you' as const,
+				active: false,
+			},
+		];
+		// Editing the second in place onto the first's keys: the first, earlier, wins.
+		expect(
+			overrideWarning(
+				{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
+				listed,
+				stored
+			)
+		).toBe(
+			'Mod+Shift+L is already yours, for palette-open, which would win: this binding would be shadowed.'
+		);
+		// Editing the first onto the second's keys: the first keeps its place, so it wins; the other is not in force.
+		expect(overrideWarning({ command: 'palette-open', keys: 'Mod+Shift+M' }, listed, stored)).toBe(
+			'Mod+K would no longer open the command palette. Mod+Shift+M is yours too, for section-open (projects), not in force now; this binding comes first and would shadow it.'
+		);
+		// A shell chord's warning hides no collision with one of the person's own.
+		expect(
+			overrideWarning({ command: 'count-add', keys: 'Mod+B' }, listed, [
+				...stored,
+				{ command: 'jot-zap', keys: 'Mod+B' },
+			])
+		).toBe(
+			"Mod+B is the shell's own; this binding would shadow it. Mod+B is already yours, for jot-zap, which would win: this binding would be shadowed."
+		);
+	});
+
 	it('refuses keys never bound, and a sequence that begins on a reserved chord or without Mod (8.1)', () => {
 		expect(keysRefused(null)).toBeUndefined();
 		expect(keysRefused('Mod+G P')).toBeUndefined();

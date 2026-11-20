@@ -19,6 +19,10 @@ export interface ChordEvent {
 	metaKey: boolean;
 	altKey: boolean;
 	shiftKey: boolean;
+	/** A held key's repeat (8.1): it keeps a sequence's wait, and never ends or completes it. */
+	repeat?: boolean;
+	/** AltGr's state, which Windows also reports as Ctrl and Alt (the re-check's 9). */
+	getModifierState?(state: string): boolean;
 }
 
 /** A chord's modifiers and key, whatever order the modifiers are written in. */
@@ -135,12 +139,15 @@ export function pressKey<T extends { chord: string }>(
 	pending: PendingChord | null,
 	now: number
 ): KeyPress<T> {
+	const waiting = pending !== null && now <= pending.until;
+	// A held key's repeat keeps the wait, with its own deadline, and is never a second chord (the re-check's 4).
+	if (waiting && event.repeat) return { kind: 'wait', pending };
 	// A modifier alone keeps a sequence waiting; any other key no chord names ends the wait, left to the page.
 	if (keyOf(event) === undefined)
-		return pending && now <= pending.until && MODIFIER.test(event.key)
-			? { kind: 'wait', pending }
-			: { kind: 'none' };
-	if (pending && now <= pending.until) {
+		return waiting && MODIFIER.test(event.key) ? { kind: 'wait', pending } : { kind: 'none' };
+	// A printable character AltGr makes is typing, though Windows reports AltGr as Ctrl and Alt (the re-check's 9).
+	if (event.getModifierState?.('AltGraph') && [...event.key].length === 1) return { kind: 'none' };
+	if (pending && waiting) {
 		const second = bindings.find((binding) => {
 			const [first, then] = chordsOf(binding.chord);
 			return (

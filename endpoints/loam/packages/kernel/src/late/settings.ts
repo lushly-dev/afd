@@ -22,7 +22,7 @@ import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
-import type { KeybindingOverrideV1, KeybindingRegistry } from '../keybindings.js';
+import type { KeybindingRegistry } from '../keybindings.js';
 import type { KernelLimits, LimitKeyV1 } from '../limits.js';
 import type { createPaletteIndex, PaletteIndex, PaletteItem } from '../palette-index.js';
 import type { AccessActorV1 } from '../scope/access.js';
@@ -45,7 +45,7 @@ import {
 	sharedRecordUnavailable,
 	writerOf,
 } from './setting-rules.js';
-import { OWN_COMMAND_SECTIONS, overridesProblem, SHELL_SECTIONS } from './setting-sections.js';
+import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS, usableOverrides } from './setting-sections.js';
 import type { SettingRows } from './shell-commands.js';
 
 export { createAutonomy } from './autonomy.js';
@@ -663,28 +663,43 @@ export function createSettings(deps: SettingsDeps): Settings {
 	/** The person the overrides were last read for, and each read's number: a read overtaken sets nothing. */
 	let reading = 0;
 
+	/** A failed read's next try, and how long it waits: from half a second, doubling to 30 seconds (R9). */
+	let retry: ReturnType<typeof setTimeout> | undefined;
+	let retryMs = 500;
+
 	/**
 	 * The person's `loam.keybindings.overrides`, read into the kernel's keybindings (8.3): at the late load, after each
-	 * write of the section and on a change of person. Signed out in `provider` mode, none. A value that no longer passes
-	 * its check is none; a read that fails keeps what the kernel holds.
+	 * write of the section and on a change of person, the adapter's own included (`session-settle`). Signed out in
+	 * `provider` mode, none. Entries a newer rule refuses are dropped and counted, the rest kept (the re-check's 8). A
+	 * read that fails keeps what the registry holds for the same person only, and is tried again with backoff (R9);
+	 * until it lands, the registry, which compares whom it holds them for with whom the shell is for, dispatches only
+	 * the focus chords.
 	 */
 	async function readOverrides(): Promise<void> {
 		const registry = deps.keybindings;
 		if (!registry) return;
 		const person = deps.person();
 		const generation = ++reading;
+		clearTimeout(retry);
+		retry = undefined;
 		if (deps.provider && person === undefined) {
 			registry.setOverrides([], person);
 			return;
 		}
 		const known = SHELL_SECTIONS.find((entry) => entry.fullId === KEYBINDINGS_ID) as KnownSectionV1;
-		// A read that fails keeps what the registry holds for this person; for another, none are known, and the
-		// registry, which compares whom it holds them for with whom the shell is for, dispatches no rebindable chord.
 		const record = await readRecord(deps.recordId(person ?? 'local')).catch(() => undefined);
-		if (!record || generation !== reading || deps.person() !== person) return;
+		if (generation !== reading || deps.person() !== person) return;
+		if (!record) {
+			if (!deps.replaying()) {
+				retry = setTimeout(() => void readOverrides(), retryMs);
+				retryMs = Math.min(retryMs * 2, 30_000);
+			}
+			return;
+		}
+		retryMs = 500;
 		const stored = storedOf(record[slotOf(known)]?.overrides);
-		const usable = stored !== undefined && overridesProblem(stored.value) === undefined;
-		registry.setOverrides(usable ? (stored.value as KeybindingOverrideV1[]) : [], person);
+		const { kept, dropped } = usableOverrides(stored?.value);
+		registry.setOverrides(kept, person, dropped);
 	}
 
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */

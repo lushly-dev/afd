@@ -404,7 +404,9 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 
 	#warning(): string | undefined {
 		const pending = this.#pending();
-		return this.#refused() ?? (pending ? overrideWarning(pending, this.bindings) : undefined);
+		return (
+			this.#refused() ?? (pending ? overrideWarning(pending, this.bindings, this.value) : undefined)
+		);
 	}
 
 	/** Whether Add may send: something pending, and keys that may be bound (8.1, 8.3). */

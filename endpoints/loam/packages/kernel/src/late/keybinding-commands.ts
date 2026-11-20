@@ -35,7 +35,8 @@ export function createKeybindingCommands(deps: KeybindingCommandDeps): ZodComman
 		all: z.optional(z.boolean()),
 	});
 
-	const list = kit.define<typeof listInput, { bindings: KeybindingEntryV1[] }>({
+	type Listed = { bindings: KeybindingEntryV1[]; refused?: number };
+	const list = kit.define<typeof listInput, Listed>({
 		name: 'keybinding-list',
 		title: 'List keybindings',
 		description:
@@ -53,10 +54,7 @@ export function createKeybindingCommands(deps: KeybindingCommandDeps): ZodComman
 			},
 			additionalProperties: false,
 		} as unknown as JsonSchema,
-		async handler(
-			input,
-			context: CommandContext
-		): Promise<CommandResult<{ bindings: KeybindingEntryV1[] }>> {
+		async handler(input, context: CommandContext): Promise<CommandResult<Listed>> {
 			// An app reads no person's bindings (R5): refused in the handler too, beside the port's list.
 			if ((context as KernelFieldContext).caller !== undefined)
 				return kit.kernelFailure(
@@ -79,7 +77,9 @@ export function createKeybindingCommands(deps: KeybindingCommandDeps): ZodComman
 				.map(({ inForce, ...entry }) => ({ ...entry, active: inForce && entry.active }))
 				// By keys (8.5); the sort is stable, so on equal keys by precedence.
 				.sort((a, b) => (a.keys < b.keys ? -1 : a.keys > b.keys ? 1 : 0));
-			const data = { bindings };
+			// Stored overrides a newer rule refuses are dropped on read, and counted here (the re-check's 8).
+			const refused = keybindings.refused();
+			const data: Listed = { bindings, ...(refused > 0 ? { refused } : {}) };
 			if (new TextEncoder().encode(JSON.stringify(data)).length > KEYBINDING_OUTPUT_BUDGET.maxBytes)
 				return kit.kernelFailure(
 					'OUTPUT_BUDGET_EXCEEDED',

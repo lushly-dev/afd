@@ -8,6 +8,7 @@
  */
 
 import type { SettingSectionV1 } from '@lushly-dev/loam-manifest';
+import type { KeybindingOverrideV1 } from '../keybindings.js';
 import { QUARTER_ORDER, quarterProblem } from './limit-commands.js';
 import type { KnownSectionV1, ShellKeyCheckV1 } from './setting-rules.js';
 
@@ -269,6 +270,27 @@ export const overridesProblem: ShellKeyCheckV1 = (value) => {
 	}
 	return undefined;
 };
+
+/**
+ * The stored overrides the kernel applies (the re-check's 8): the whole list when it passes its check; else each entry
+ * that passes alone, the first of each command and target, at most 64, and how many were dropped.
+ */
+export function usableOverrides(value: unknown): { kept: KeybindingOverrideV1[]; dropped: number } {
+	if (!Array.isArray(value)) return { kept: [], dropped: 0 };
+	if (overridesProblem(value) === undefined)
+		return { kept: value as KeybindingOverrideV1[], dropped: 0 };
+	const kept: KeybindingOverrideV1[] = [];
+	const seen = new Set<string>();
+	for (const item of value) {
+		if (kept.length >= 64 || overridesProblem([item]) !== undefined) continue;
+		const { command, target } = item as KeybindingOverrideV1;
+		const binding = JSON.stringify([command, target ?? null]);
+		if (seen.has(binding)) continue;
+		seen.add(binding);
+		kept.push(item as KeybindingOverrideV1);
+	}
+	return { kept, dropped: value.length - kept.length };
+}
 
 /** `loam.notifications.muted` (3.7): instance ids, never the shell or an agent (`SETTING_MUTE_SHELL`). */
 const muted: ShellKeyCheckV1 = (value) => {

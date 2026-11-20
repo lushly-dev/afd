@@ -812,6 +812,10 @@ export interface KeybindingV1 {
   - **R7 (step 7's reviews), bare keys:** an override's single chord carries `Mod`, `Ctrl` or `Meta`, as an app's carries `Mod`, unless it is a function key (F1 to F24): `A`, `Enter`, `Shift+A` or `Alt+X` alone, which typing presses, is `VALIDATION_ERROR` with the suggestion to bind a chord with Mod or a function key, and the editor refuses it before Add. A sequence's second chord may be a bare key.
   - **Whose overrides (step 7's reviews):** the kernel holds a person's overrides with whom it read them for. While those are not the overrides of the person the shell is for (before the late load, before their read, or from the moment another person signs in), only F6 and Shift+F6 dispatch, and `keybinding-list` lists no override; a failed read keeps what was read only for the same person.
   - **The editor's warnings (step 7's reviews):** one of the person's own overrides on colliding keys is said too, with which wins (the earlier); Add checks the whole list it would write, as the kernel does.
+  - **R9 (step 7's re-check), when overrides cannot be known:** if the late chunk fails to load, the reserved chords and the active app's apply with no overrides (D66: never the shell). A read of a person's overrides that fails is tried again, from half a second, doubling to 30 seconds; a change of person with no call of this page's, a session ending or another tab signing in, is heard through the adapter's `session-settle` and read too. Until they are known, only F6 and Shift+F6 dispatch, and Mod+S is held, so the browser's save dialog never opens, with a toast saying the keys are not ready. `keybinding-list` then lists nothing else as active, and the palette shows no command's keys: one readiness decides all three.
+  - **The first-paint gap (R9):** until stage B reads the person's overrides, no rebindable chord runs, so Mod+K reaches the browser in that moment, as it did before any override existed in phase 0's first frame; only Mod+S is held.
+  - **Stored entries a newer rule refuses** (the re-check's 8): read, they are dropped one by one and the rest kept, and `keybinding-list` gives `refused`, how many; the settings section still shows the stored value as no longer valid (3.3) until the person writes the list again.
+  - **AltGr (the re-check's 9):** a printable character a key makes with AltGr is typing, never a chord, though Windows reports AltGr as Ctrl and Alt both; before this step, `Mod+Alt+<key>` matched such a key on those layouts.
 
 ### 8.4 The reserved chords, version 1
 
@@ -828,6 +832,8 @@ Phase 0's seven, plus `Mod+Alt+P` for the project switcher (#857). P4-E9 asserts
 - **`shadowed`** names the bindings an override replaced, then those its keys shadow.
 - **`app`** is the instance whose command it runs: an app's binding, or an override of one.
 - **R5, the callers:** those of `setting-list`, the person and the agent acting for them; an app gets `CALL_NOT_GRANTED`, refused in the handler too; it is of the `setting` category, so it is not served over MCP.
+- **`refused`** (the re-check's 8): the number of the person's stored overrides a rule now refuses, dropped on read; absent when none.
+- **Not known yet** (R9): while the person's overrides are not known, only F6 and Shift+F6 are in force and active.
 
 ### 8.6 Chords inside a view
 
@@ -1849,6 +1855,22 @@ Keybindings, on `lush/loam-p4-step7-keybindings` from `main` at `ca1b11f3` (step
 Declined: none. Recorded: when a key that begins a sequence arrives while another sequence waits, and the page stops that key before it reaches the window's bubble phase, the earlier wait is not replaced or ended; it ends at its 1,500 ms.
 
 **Verified after the reviews,** 2026-11-19, same machine, at `64ab539b`: `test --coverage` for the kernel (60 files, 1,255 tests), the manifest (15 files, 1,118), chrome (21 files, 268) and `web`'s units (11 files, 54); the typecheck of every Loam package and app; `lint:tokens`; `node --test scripts/plugin-manifest.test.mjs` (48); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and six Chromium files, 121 tests: `keybindings` (13), `layout`, `settings`, `shell`, `documents/editor` and `documents/references`. **Not run:** the whole `test:browser`, `test:hosted`, `test:walk`, `test:mounted`, `pnpm verify` and the Cargo gates.
+
+**After the re-check,** 2026-11-19: two re-checks of `7f8941cf` (Opus 5.5, high: revise, 1 blocker; GPT-6.2 Astra, high: revise, 6 blockers) and the coordinator's ruling R9. Each was shown first by a test that failed, or by a trace where none could:
+
+1. **The desktop's "Command palette"** (Opus B1): its fixed script dispatched a Mod+K, which R6 now drops (a trace: the event is not trusted). It calls `document.querySelector('loam-shell')?.openPalette()`; `boot.test.ts`'s copy follows. The WebDriver suite is CI's.
+2. **The remaining public save paths** (Astra 1): the editor frame no longer hears `loam-editor-save`; a view's own save request reaches its editor frame through `onSaveRequest`, a callback set only on a document's editor, and the view SDK asks only on a trusted Mod+S. Chromium: a dispatched `loam-editor-save` saves nothing; SDK unit: an untrusted Mod+S asks nothing (both failed before).
+3. **Open controls** (Astra 2): a script's Enter chose the switcher's row and ran the palette's (Chromium, both failed before, once the test reached the listbox's own control through its open shadow root). The palette runs a row only on a trusted Enter, and both lists stop a script's Enter or Space on the listbox's shadow root before its control: Violet is unchanged. A person's own Enter still chooses in both.
+4. **Sequences** (Astra 3): a held key's repeat keeps the wait and its deadline and is never a second chord (unit and Chromium, `Mod+G Mod+G` held, failed before); a new prefix clears the one that waited in the capture phase (Chromium, a prefix the page stops, failed before); save honours a key already prevented (Chromium, failed before).
+5. **One readiness** (Astra 4, Opus I3): R9's above; the A→B test asserts the active keys, F6 and Shift+F6, and no shortcut on `palette-open` (failed before).
+6. **Mounted commands** (Astra 5): eligibility judges a mounted command by its advertised schema, through first paint's `needsInput` given to the late chunk (unit: one requiring input is not active, failed before).
+7. **The editor's winner** (Astra 6): from the list the write would leave, an edit keeping its place; each warning said, none hiding another; a colliding override not in force is said so (units failed before).
+8. **R9:** the late load's failure applies the defaults (unit, failed before); the read is retried with backoff (unit); a change of person with no call is read already through `session-settle` (unit, passed at once: the existing path); Mod+S held with `unready` and a toast.
+9. **Refused entries** (improvement 8): dropped one by one, the rest kept, `refused` counted (unit, failed before).
+10. **AltGr** (improvement 9): excluded for a printable key (unit, failed before).
+11. **The budget record** (improvement 10) attributes the eligibility to `late` and the shortcut map to `late-settings`. Measured: first paint 316,988 and 99,580 gzip (+910 and +318), `jsMinified` to 317,500 and `jsGzip` to 100,000 with `first-paint.test.ts`'s literal; `kernelMinified` to 125,000 (124,503); `switcherMinified` to 11,600 (11,445); `settingsMinified` to 46,900 (46,410). `budget.mjs` records each.
+
+Declined: none.
 
 ## Step 8, 2026-11-19
 

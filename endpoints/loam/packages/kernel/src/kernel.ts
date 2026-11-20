@@ -484,6 +484,7 @@ export async function createKernelParts(
 				...options,
 				limits,
 				keybindings,
+				needsInput,
 				viewState,
 				state,
 				overlays,
@@ -521,6 +522,8 @@ export async function createKernelParts(
 		} catch (cause) {
 			reportKernelError(cause);
 			lateFailure = lateUnavailable();
+			// No override can be read: the reserved chords apply (R9, D66).
+			keybindings.useDefaults();
 			return;
 		}
 		checkNames([...shell, ...bootOnly, ...extra]);
@@ -668,6 +671,7 @@ export async function createKernelParts(
 				stageBError = cause;
 				reportKernelError(cause);
 				lateFailure = { ...lateUnavailable(), message: String((cause as Error)?.message ?? cause) };
+				keybindings.useDefaults();
 			})
 			.finally(() => {
 				stageBEnded = true;
