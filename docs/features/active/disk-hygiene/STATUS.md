@@ -64,15 +64,15 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 1. Report and the safe tiers
 
-- `disk-report`, discovery, idle signals and config (#1688): built on branch `lush/disk-hygiene-plan`, with this status file and the proposal. Tested on macOS; Linux in CI; Windows on Hero.
+- `disk-report`, discovery, idle signals and config (#1688): in PR #PRNUM (branch `lush/disk-hygiene`), with both first-review rounds fixed. Tested on macOS and Windows (Hero); Linux in CI.
 
-- `disk-reclaim` tiers 0 and 1 (#1689): built on branch `lush/disk-reclaim`, stacked on #1688's branch. Tested on macOS; Linux in CI; Windows on Hero.
+- `disk-reclaim` tiers 0 and 1 (#1689): in PR #PRNUM. Tested on macOS; Windows on Hero; Linux in CI.
 
 ## Phase 2. Schedule, skill and rollout
 
-- `disk-setup`, `disk-status` and the schedulers (#1690): built on branch `lush/disk-reclaim`, with `disk-reclaim`. Scheduler definitions tested on macOS; installs checked on each machine at rollout.
+- `disk-setup`, `disk-status` and the schedulers (#1690): in PR #PRNUM. Scheduler definitions are tested; each install is checked on its machine at rollout.
 
-- The `disk-hygiene` skill and adoption in afd (#1691): the skill is built on branch `lush/disk-reclaim` and projected here as `free-disk-space`; afd's `[disk]`, SETUP and AGENTS.md wait for a release.
+- The `disk-hygiene` skill and adoption in afd (#1691): in PR #PRNUM: the skill (here `free-disk-space`), afd's `[disk]`, SETUP.md and an AGENTS.md row.
 
 - Publishing a botcore release with the commands (#1692): the owner's step, after the pieces above.
 
