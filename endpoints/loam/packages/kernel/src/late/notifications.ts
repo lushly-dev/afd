@@ -121,6 +121,8 @@ export interface NotificationDeps {
 	confirmationChain?<T>(person: string, work: () => Promise<T>): Promise<T>;
 	/** The command an act runs, kept by the kernel for its journal alone, never in the result (step 6's sixth round, B7). */
 	noteAction?(trace: string, command: string): void;
+	/** The act returns its action's failure as its own: the journal's provenance, never in the result (ninth round). */
+	noteReturned?(trace: string): void;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
@@ -930,6 +932,8 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (!result.success) {
 					// Nothing ran: the claim goes, so the person may try again.
 					if (base) await putBack(kept);
+					// Noted only once the release is written, as it returns the action's failure (step 6's ninth round).
+					if (context.traceId !== undefined) deps.noteReturned?.(context.traceId);
 					return result as CommandResult<never>;
 				}
 				const at = kit.callNow(context);

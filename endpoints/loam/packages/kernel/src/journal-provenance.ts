@@ -33,6 +33,8 @@ interface Wrapper {
 	/** Whether it started a run by `origin`, and an action by `parent`, whether or not their entries were written. */
 	startedOrigin?: true;
 	startedNested?: true;
+	/** Whether the act returned its action's failure as its own, the one path it answers with the action's (ninth round). */
+	returned?: true;
 }
 
 export interface JournalProvenance {
@@ -42,6 +44,10 @@ export interface JournalProvenance {
 	end(trace: string): void;
 	/** The command an act runs, kept for its entry alone. */
 	noteAction(trace: string, command: string): void;
+	/** The act returns its action's failure as its own, now (step 6's ninth round). */
+	noteReturned(trace: string): void;
+	/** Whether the act returned its action's failure. */
+	returned(trace: string | undefined): boolean;
 	/**
 	 * An entry the sink accepted, as it holds it: kept when its parent or origin is a running wrapper. A rejected append
 	 * records nothing (eighth round, D2).
@@ -91,6 +97,11 @@ export function createJournalProvenance(limit = TRACKED_WRAPPERS): JournalProven
 				}
 			}
 		},
+		noteReturned(trace) {
+			const wrapper = running.get(trace);
+			if (wrapper) wrapper.returned = true;
+		},
+		returned: (trace) => of(trace)?.returned === true,
 		started(trace, via) {
 			const wrapper = running.get(trace);
 			if (!wrapper) return;

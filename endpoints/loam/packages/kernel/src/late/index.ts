@@ -137,6 +137,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		): Promise<CommandResult>;
 		/** The kernel's journal provenance: the command a notice's act runs, by the act's trace (step 6's sixth round, B7). */
 		noteAction?(trace: string, command: string): void;
+		/** The kernel's journal provenance: an act returns its action's failure as its own (step 6's ninth round). */
+		noteReturned?(trace: string): void;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -778,6 +780,7 @@ export async function createLateParts(
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
 		confirmationChain: (person, work) => confirmations.chain(person, work),
 		noteAction: (trace, command) => deps.noteAction?.(trace, command),
+		noteReturned: (trace) => deps.noteReturned?.(trace),
 		queueOf: (context) => {
 			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
 			return ticket ? { [deps.queued]: ticket } : {};

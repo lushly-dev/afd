@@ -2079,6 +2079,20 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Measured after the eighth round,** D115: `kernelMinified` 129,028, its row raised from 129,000 to 129,500. First paint 317,299 and 99,456 gzip are within their rows. `budget.mjs` records each.
 
+**Ninth round,** 2026-11-19: two re-checks of `21ec1c7b`. Opus approved, and Astra asked for one fix.
+
+1. **The act's own failure:** confirmed by a unit that fails on `21ec1c7b`. When a notice's action failed and the store then threw while the act released its claim, the person got `COMMAND_EXECUTION_ERROR`. The journal held the action's error, because the action had started and had an entry, so a replay with a healthy store reported `same`.
+   - Now the act notes that it returned its action's failure (`noteReturned`) on that one path, once the release is written. Only then is its failure the action's entry.
+   - Any other failure after the action started is the act's own, and is kept as it was. Its entry is marked `lossy` and `unreplayable`, and a replay stops there with `REPLAY_ENTRY_TRUNCATED`.
+   - Unit: a store that refuses the release after `keeper-refuse` fails; the act's entry holds its own error, and its replay stops.
+2. **Astra's improvement:** the untracked-wrapper unit asserts the exact least outcome (success, and a failure's code alone) and `lossy`.
+3. **Opus I3:** a unit shows a palette fill whose journaled target started but left no entry keeps the least of its outcome, `lossy`.
+4. **Opus's nit:** the unreachable `depth > 0` branch for an act in `redactWrapped`'s result shapes is removed, with its comment.
+
+**To the follow-up under R6** (the coordinator files it):
+- An action the auth gate refuses now stops a replay, since the act's failure is not its returned action's.
+- The Opus I2 unit is synthetic; it has no kernel-level test of a failed settle write.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).

@@ -13,6 +13,7 @@ import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
 	defineApp,
+	failure,
 	type ManifestV2,
 	type NotificationV1,
 	type OverlayRefV1,
@@ -108,6 +109,13 @@ const KEEPER_MANIFEST = {
 			},
 		},
 		{
+			name: 'keeper-refuse',
+			title: 'Refuse it',
+			description: 'Answer with a refusal of its own.',
+			effects: ['store-write'],
+			input_schema: EMPTY,
+		},
+		{
 			name: 'keeper-undo',
 			title: 'Do and say how to undo',
 			description: 'Answer with an undo and a warning.',
@@ -146,6 +154,12 @@ const KEEPER = defineApp({
 			return success({ value: input.value });
 		}) as never,
 		'keeper-note': (async (input: { text: string }) => success({ text: input.text })) as never,
+		'keeper-refuse': (async () =>
+			failure({
+				code: 'KEEPER_REFUSED',
+				message: 'Keeper refuses',
+				suggestion: 'Ask again',
+			})) as never,
 		// A result with more than its data: an undo and a warning, which a replay compares (eighth round, D3).
 		'keeper-undo': (async () =>
 			success(
@@ -3668,12 +3682,15 @@ describe('the fifth round', () => {
 			) as unknown as {
 				result: Record<string, unknown>;
 				unreplayable?: boolean;
+				lossy?: boolean;
 			};
 			expect(JSON.stringify(done.result), command).not.toContain('kept?');
-			expect(Object.keys(done.result).sort(), command).toEqual(
-				result.success ? ['success'] : ['error', 'success']
+			// Exactly the least: success, and a failure's code alone (ninth round).
+			expect(done.result, command).toEqual(
+				result.success ? { success: true } : { success: false, error: { code: 'X', message: '' } }
 			);
 			expect(done.unreplayable, command).toBe(true);
+			expect(done.lossy, command).toBe(true);
 		}
 		// Tracked, no action started under it: the act's own failure, a settle's write among them, stays its own.
 		const tracked = {
@@ -3694,5 +3711,94 @@ describe('the fifth round', () => {
 				tracked
 			).result
 		).toEqual(own);
+	});
+
+	it('ninth: an act whose claim release throws after its action failed keeps its own outcome, and a replay stops there', async () => {
+		const store = new MemoryAdapter();
+		const update = store.update.bind(store);
+		const batch = store.batch.bind(store);
+		let claimed = false;
+		store.update = (async (table: string, id: string, patch: { claim?: string }) => {
+			if (table === 'notification' && patch?.claim !== undefined) claimed = true;
+			return update(table, id, patch as never);
+		}) as never;
+		// The release of the claim, after the action failed: the store refuses it.
+		store.batch = (async (operations: Array<{ method: string; path: string }>) => {
+			if (
+				claimed &&
+				operations.some(
+					(each) => each.method === 'DELETE' && each.path.startsWith('/notification/')
+				)
+			) {
+				claimed = false;
+				throw new Error('The store refused the release');
+			}
+			return batch(operations as never);
+		}) as never;
+		const journal = new MemoryJournalSink();
+		const workspace = await createScopedWorkspace({
+			store,
+			journal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Refuse',
+				action: { command: 'keeper-refuse', label: 'Refuse' },
+			});
+		const acted = await kernel.call('notification-act', {
+			notification: (pushed.data as { notification: NotificationV1 }).notification.id,
+		});
+		expect(acted.success).toBe(false);
+		expect(acted.error?.code).not.toBe('KEEPER_REFUSED');
+		const entries = await journal.read();
+		const act = entries.find((entry) => entry.command === 'notification-act') as
+			| (JournalEntry & { unreplayable?: true })
+			| undefined;
+		// Its own outcome, the one the person saw, never the action's.
+		expect(act?.result.error?.code).toBe(acted.error?.code);
+		expect(act?.unreplayable).toBe(true);
+		const replayed = await replayKernel(entries, { deployment: deployment(), ports: ports() }).then(
+			() => 'same',
+			(error: { code?: string }) => error.code
+		);
+		expect(replayed).toBe('REPLAY_ENTRY_TRUNCATED');
+	});
+
+	it('ninth (Opus I3): a fill whose journaled target started but left no entry keeps the least, lossy', () => {
+		const record = {
+			timestamp: '2027-01-01T00:00:00.000Z',
+			traceId: 't-1',
+			command: 'palette-run',
+			input: { command: 'keeper-note', prompt: 'p', input: { text: 'x' } },
+			contextDigest: { hash: 'h' },
+			durationMs: 0,
+			result: { success: true, data: { text: 'kept?' }, metadata: { server: 'kept?' } },
+		} as never;
+		const started = {
+			...createJournalProvenance(),
+			tracked: () => true,
+			startedOrigin: () => true,
+			origin: () => undefined,
+			journals: () => true,
+		} as WrapperProvenance;
+		const done = redactWrapped(
+			record,
+			(each) => each,
+			() => true,
+			0,
+			started
+		) as unknown as {
+			result: unknown;
+			unreplayable?: boolean;
+			lossy?: boolean;
+		};
+		expect(done.result).toEqual({ success: true });
+		expect(done.unreplayable).toBe(true);
+		expect(done.lossy).toBe(true);
 	});
 });

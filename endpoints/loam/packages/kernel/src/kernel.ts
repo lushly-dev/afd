@@ -264,12 +264,6 @@ export function redactWrapped(
 			};
 		// An act's result is its action's (step 5; step 6's fifth and sixth rounds): as the action's own entry kept it, else
 		// by the action's own rule, else dropped (fail closed: Opus 4).
-		// An act's result forwarded with no provenance of its own: dropped (fail closed). The act's own entry is decided
-		// below, by what it started.
-		if (command === 'notification-act' && 'result' in data && depth > 0) {
-			const { result: _given, ...rest } = data;
-			return rest;
-		}
 		// Any other command's result is its own entry's, which no rule reads today.
 		return data;
 	};
@@ -345,6 +339,11 @@ export function redactWrapped(
 			const child = provenance.nested(record.traceId);
 			const own = objectOf(record.result.data) ?? {};
 			const { result: given, ...rest } = own;
+			// A failure is the action's only when the act returned it (ninth round): any other, a store's throw while the
+			// claim is released among them, is the act's own, which a replay with a healthy store cannot reconstruct, so it
+			// stops there.
+			if (!record.result.success && !provenance.returned(record.traceId))
+				return { ...record, unreplayable: true, lossy: true } as unknown as JournalRecord;
 			if (child) {
 				if (!record.result.success)
 					return { ...record, result: outcomeOfEntry(child, record.result) };
@@ -829,6 +828,7 @@ export async function createKernelParts(
 					execute(iface, name, input, {}, fields as KernelCallFields),
 				// The command a notice's act runs, the journal's private provenance (step 6's sixth round, B7).
 				noteAction: (trace, command) => tracker.noteAction(trace, command),
+				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
