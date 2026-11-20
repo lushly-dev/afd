@@ -613,7 +613,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				})
 				.finally(() => {
 					outstanding.delete(declineId);
-					if (outstanding.size === 0) declining.delete(`${person} ${bucket}`);
+					// Only this call's own set: another decline may have put a new one under the key since (seventh round, C4).
+					const at = `${person} ${bucket}`;
+					if (outstanding.size === 0 && declining.get(at) === outstanding) declining.delete(at);
 				});
 			deps.noteInbox(call);
 			if (!written.success) return unrun(written);

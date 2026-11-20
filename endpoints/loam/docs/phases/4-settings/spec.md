@@ -2046,6 +2046,28 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Measured after the sixth round,** D115: first paint 315,994 and 99,048 gzip, `jsMinified` raised to 316,500 and `jsGzip` to 99,300, with `first-paint.test.ts`'s literal; `kernelMinified` 127,272, its row 127,800. `late` 113,670 and `late-settings` 93,887 are within their rows. `budget.mjs` records each.
 
+**Seventh round,** 2026-11-19: both re-checks of `8f7435ac` asked for revisions. Opus asked for a test per wrapper, since B5 was tested for one of three. Astra raised C1 to C4. Each was shown first by a unit that fails on `8f7435ac` and passes after its fix. The wrappers' provenance has one design, `journal-provenance.ts`, which closes C1 to C3 and Opus's I1 and I2 together:
+
+1. **Capture what the sink appends (C2):** confirmed. A confirmed run, or a palette fill's run, whose result was over `journalEntryBytes` was cut by the final bound in its own entry. The wrapper's entry held the whole result and was itself cut whole, losing its input. The provenance now takes each child's result from the journal sink, after the redaction and the final bound. Units (2) and (5): `keeper-big`, through the inbox and through a fill. The settle and the wrapper each hold the run's own entry, and neither is cut.
+2. **Scoped to a running wrapper (C3, Opus I1):**
+   - `execute` tracks a running `palette-run` or `notification-act` by its trace and releases it once its own entry is written. A child's outcome is kept only under its running wrapper: by `origin` (a fill's run, or a confirmation's run, by its id), or by `parent` (an act's action). The act's action command goes with it.
+   - Nothing is evicted by insertion order. Up to 64 wrappers are tracked at once. Another runs untracked and journals no result data (whether it succeeded, and an error's code), never the live result.
+   - Unit (4): a running wrapper's child survives a thousand other entries, and the bound refuses a 65th wrapper without evicting one.
+3. **Wholly from the child (C1):** confirmed. A palette fill's failure kept the server's metadata from the live result, and so did a notice's failed action in the act's entry. `palette-run`'s outcome, and a failed act's, is now the child's entry as appended. The only addition is the wrapper's own registry metadata (`commandVersion`, `executionTimeMs`, `traceId`), set or absent as the wrapper's registry left them, so a replay matches. Units (1) and (3), in `mounted.test.ts`, use mounted commands failing over the 256 KiB bound with large metadata.
+4. **The right error (Opus I2):** an act's failure is replaced by its child's only on the action's path, with matching codes. A failed settle write after a failed confirmed run keeps its own error.
+5. **Missing provenance fails closed:**
+   - An act whose action has an entry of its own but none is held journals no `result`. A non-object result is dropped too (Opus 3, unit).
+   - An action the journal never records (an unjournaled query such as `notification-list`) is still redacted by its own rule, so a replay matches.
+   - A settle whose run's entry is missing keeps no `result`.
+6. **C4, the decline cleanup:** confirmed (a 20th question asked at 19 rows with one outstanding). The decline's `finally` deletes the key only while it still points to that call's own set. Unit: the first decline's journaling ends while the second is outstanding, and the bound still counts the second.
+
+**Also:**
+- **Opus 3:** a unit for `prompt-settle` refusing a mixed input before it writes.
+- **Opus 4:** the stale comment in the redaction fallback is fixed.
+- **First paint (Opus 5, Astra's improvement):** left in place; a follow-up below moves the wrappers' provenance and redaction into `late`.
+
+**Measured after the seventh round,** D115: first paint 316,903 and 99,332 gzip, `jsMinified` raised to 317,500 and `jsGzip` to 99,600, with `first-paint.test.ts`'s literal; `kernelMinified` 128,497, its row 129,000. `late-settings` 93,909 is within its row. `budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
@@ -2167,5 +2189,6 @@ Also: the handler frame's gate refusal of a nested `tools/call` is journaled top
 | 2026-11-19 | Step 6 | Hello's own sticky toast and notice with an action (section 1's `apps/hello` row), which no job needs | Open |
 | 2026-11-19 | Step 6 | A slot confirmation's decline window is held in the page's memory, so a reload forgets it; a pending one's is in its row | Done 2026-11-19 by step 6's trust review: a slot decline is a stored row |
 | 2026-11-19 | Step 6 | `palette-run` runs in the scope of the call that fills its prompt; bind the prompt to the scope it opened in | Done 2026-11-19 by step 6's trust review: `for.scope` |
+| 2026-11-19 | Step 6's seventh round (Opus 5, Astra) | Inject the wrappers' provenance and redaction (`journal-provenance.ts`, `redactWrapped`'s wrapper rules) from `late`, so first paint does not carry them (+1,247 minified, +395 gzip in the sixth round) | Open |
 | 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Done 2026-11-19, after merging step 5: `limit-notice-push` |
 | 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |

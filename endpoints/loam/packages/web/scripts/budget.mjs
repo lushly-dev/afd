@@ -468,6 +468,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * (314,747 to 315,994, +1,247, and 98,653 to 99,048): the journal's private provenance, each wrapper journaling its
  * child's own journal-safe outcome and an act's command kept out of its result, and a fixed diagnostic for a failed
  * redaction. `kernelMinified` 126,000 to 127,800 (125,473 to 127,272).
+ * Step 6's seventh round, under D115, the same machine: `jsMinified` 316,500 to 317,500 and `jsGzip` 99,300 to 99,600
+ * (315,994 to 316,903, +909, and 99,048 to 99,332): `journal-provenance.ts`, the running wrappers' children taken from
+ * the sink, and each wrapper's entry built from them, failing closed. `kernelMinified` 127,800 to 129,000 (127,272 to
+ * 128,497). A follow-up in the spec moves this into `late`.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -495,12 +499,13 @@ export const CEILINGS = Object.freeze({
 	// Step 6 merged with step 10: 313,878 and 98,362 gzip (the header records it); set to 314,500 and 98,700 under D115.
 	// Step 6's fifth round: 314,747 (the header records it); set to 315,500 under D115.
 	// Step 6's sixth round: 315,994 and 99,048 gzip (the header records it); set to 316,500 and 99,300 under D115.
-	jsMinified: 316_500,
+	// Step 6's seventh round: 316,903 and 99,332 gzip (the header records it); set to 317,500 and 99,600 under D115.
+	jsMinified: 317_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 99_300,
+	jsGzip: 99_600,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -512,7 +517,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 127_800,
+	kernelMinified: 129_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

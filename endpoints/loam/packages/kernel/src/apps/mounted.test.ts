@@ -159,6 +159,7 @@ async function boot(
 		},
 	};
 	const journal = new MemoryJournalSink();
+	const store = new MemoryAdapter();
 	const deployment = {
 		deployment_version: 2,
 		generation: 'test',
@@ -167,7 +168,7 @@ async function boot(
 		apps: entries,
 	} as ProjectionV3;
 	const parts = await createKernelParts({
-		store: new MemoryAdapter(),
+		store,
 		storeKind: 'memory',
 		journal,
 		auth: new MockAuthAdapter(),
@@ -201,7 +202,7 @@ async function boot(
 			: { deployment, ports }),
 		...(options.clock ? { clock: options.clock } : {}),
 	});
-	return { ...parts, journal, deployment, packages, asked };
+	return { ...parts, journal, deployment, packages, asked, store };
 }
 
 async function instance(kernel: LoamKernelV5, name = 'work'): Promise<AppInstanceV1 | undefined> {
@@ -705,6 +706,89 @@ describe('a mounted call', () => {
 		expect(own?.result.data).toEqual({ truncated: true, bytes: expect.any(Number) });
 		expect(wrapper?.result.data).toEqual(own?.result.data);
 		expect(JSON.stringify(entries)).not.toContain(big);
+	});
+
+	it("phase 4's step 6, seventh round (1): a notice's mounted action failing over the bound: the act journals the action's own entry", async () => {
+		const big = 'm'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal, store } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{
+						answer: () => ({
+							structuredContent: {
+								success: false,
+								error: { code: 'TOO_BIG', message: big },
+								metadata: { server: big },
+							},
+						}),
+					}
+				),
+		});
+		await kernel.startInstances();
+		const id = 'ntf_workaction000000';
+		await store.batch([
+			{
+				method: 'PUT',
+				path: `/notification/${id}`,
+				body: {
+					id,
+					workspace: 'personal',
+					person: 'local',
+					source: 'work',
+					kind: 'notice',
+					title: 'Read it',
+					tone: 'info',
+					scope: { workspace: 'personal' },
+					createdAt: 1,
+					action: { command: 'work-a-read', label: 'Read' },
+				},
+			},
+		]);
+		const acted = await kernel.call('notification-act', { notification: id });
+		expect(acted.success).toBe(false);
+		expect(acted.error?.message).toHaveLength(big.length);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const act = entries.find(({ command }) => command === 'notification-act');
+		expect(own?.result.error?.message.length).toBeLessThan(big.length);
+		expect(act?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(entries)).not.toContain(big);
+	});
+
+	it("phase 4's step 6, seventh round (3): a palette fill's failure and its metadata are the target's own entry's", async () => {
+		const big = 'f'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{
+						answer: () => ({
+							structuredContent: {
+								success: false,
+								error: { code: 'TOO_BIG', message: big },
+								metadata: { server: big },
+							},
+						}),
+					}
+				),
+		});
+		await kernel.startInstances();
+		const opened = await kernel.call<{ prompt: { overlayId: string } }>('palette-run', {
+			command: 'work-a-read',
+		});
+		const filled = await kernel.call('palette-run', {
+			command: 'work-a-read',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(filled.success).toBe(false);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const wrapper = entries.filter(({ command }) => command === 'palette-run').at(-1);
+		expect(wrapper?.result.success).toBe(false);
+		expect(wrapper?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(wrapper)).not.toContain(big);
 	});
 
 	it('leaves a record under the bound, and any other entry, unchanged', () => {

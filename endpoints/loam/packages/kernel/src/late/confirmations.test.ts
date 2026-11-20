@@ -8,7 +8,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { CommandResult } from '@lushly-dev/afd-core';
-import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
@@ -101,6 +101,14 @@ const KEEPER_MANIFEST = {
 			},
 		},
 		{
+			name: 'keeper-big',
+			title: 'Make a big one',
+			description: 'Answer with more than the journal keeps of one entry.',
+			effects: ['store-write'],
+			confirm_prompt: 'Make a big one?',
+			input_schema: EMPTY,
+		},
+		{
 			name: 'keeper-get',
 			title: 'Read the count',
 			description: 'Read the count and the value.',
@@ -124,6 +132,8 @@ const KEEPER = defineApp({
 			return success({ value: input.value });
 		}) as never,
 		'keeper-note': (async (input: { text: string }) => success({ text: input.text })) as never,
+		// More than `journalEntryBytes`' default: its own entry is cut by the journal's final bound.
+		'keeper-big': (async () => success({ big: 'b'.repeat(1_100_000) })) as never,
 		'keeper-get': (async (_input: unknown, context: AppCallContextV1) =>
 			success({
 				count: (await context.store?.get<number>('count')) ?? 0,
@@ -3371,5 +3381,167 @@ describe('the fifth round', () => {
 		expect(counts.reduce((sum, each) => sum + each, 0)).toBe(1);
 		const row = (await store.get('notification', notification)) as { readAt?: number };
 		expect(row.readAt).toBeDefined();
+	});
+
+	it("seventh (2): a confirmed run cut by the journal's final bound: the act's settle carries the run's own entry", async () => {
+		const { kernel, journal } = await boot();
+		const asked = await kernel.agent.call('keeper-big');
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const acted = await kernel.call('notification-act', {
+			notification: idOf(asked),
+			answer: 'confirm',
+		});
+		expect(acted.data).toMatchObject({ state: 'confirmed' });
+		const entries = (await journal.read()) as Array<JournalEntry & { unreplayable?: true }>;
+		const run = entries.find(
+			(entry) => entry.command === 'keeper-big' && entry.context?.confirmation === idOf(asked)
+		);
+		const settle = entries.find(
+			(entry) =>
+				entry.command === 'prompt-settle' &&
+				(entry.input as { settle?: { id?: string } }).settle?.id === idOf(asked)
+		);
+		expect(run?.unreplayable).toBe(true);
+		expect(settle?.unreplayable).toBeUndefined();
+		expect(
+			(settle?.input as { settle?: { result?: unknown } } | undefined)?.settle?.result
+		).toEqual({
+			success: run?.result.success,
+			...(run?.result.data !== undefined ? { data: run?.result.data } : {}),
+			...(run?.result.error !== undefined ? { error: run?.result.error } : {}),
+		});
+	});
+
+	it("seventh (5): a palette fill whose run the journal's final bound cut journals what the run's own entry kept", async () => {
+		const { kernel, journal } = await boot();
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'keeper-big',
+		});
+		const filling = kernel.call('palette-run', {
+			command: 'keeper-big',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'confirm',
+		});
+		expect((await filling).success).toBe(true);
+		const entries = (await journal.read()) as Array<JournalEntry & { unreplayable?: true }>;
+		const run = entries.find((entry) => entry.command === 'keeper-big');
+		const wrapper = entries.filter((entry) => entry.command === 'palette-run').at(-1);
+		expect(run?.unreplayable).toBe(true);
+		expect(wrapper?.unreplayable).toBeUndefined();
+		expect(wrapper?.result.success).toBe(true);
+		expect(wrapper?.result.data).toEqual(run?.result.data);
+	});
+
+	it("seventh C4: the first decline's cleanup never drops a second one's count", async () => {
+		const gates: Array<() => void> = [];
+		const held = (index: number) =>
+			new Promise<void>((resolve) => {
+				gates[index] = resolve;
+			});
+		const first = held(0);
+		const second = held(1);
+		let declines = 0;
+		const { made, store, overlayStore } = unit({
+			openerOf: () => ({ kind: 'app', owner: { kind: 'app', id: 'keeper' } }),
+			isActive: async () => true,
+			runBoot: async (_name: string, input: unknown) => {
+				const settle = made.settle.handler as (
+					input: unknown,
+					context: unknown
+				) => Promise<CommandResult>;
+				if (!(input as { decline?: unknown }).decline) return settle(input, {});
+				declines++;
+				// The first: its row written, its journaling held. The second: held before its row is written.
+				if (declines === 1) {
+					const done = await settle(input, {});
+					await first;
+					return done;
+				}
+				await second;
+				return settle(input, {});
+			},
+		});
+		const now = Date.now();
+		for (let index = 0; index < SLOT_KEPT - 2; index++)
+			await put(store, {
+				...rowOf(`ntf_held${String(index).padStart(12, '0')}`, 'declined', {
+					cslot: true,
+					readAt: now,
+					ckey: `held-${index}`,
+				}),
+				confirmation: {
+					...rowOf('x').confirmation,
+					state: 'declined',
+					reason: 'person',
+					answeredAt: now,
+					expiresAt: now + DECLINE_WINDOW_MS,
+				},
+			} as never);
+		const port = { interface: 'palette', caller: 'keeper' } as never;
+		const run = async () => success({});
+		const decline = async (value: number) => {
+			const asked = made.gate('keeper-set', { value }, port, run);
+			for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++) await tick();
+			overlayStore.close(
+				overlayStore.modalOpen()?.overlayId as string,
+				'cancel',
+				'user',
+				undefined,
+				true
+			);
+			return asked;
+		};
+		const one = decline(1);
+		for (let tries = 0; tries < 100 && declines < 1; tries++) await tick();
+		const two = decline(2);
+		for (let tries = 0; tries < 100 && declines < 2; tries++) await tick();
+		// The first's journaling ends while the second is outstanding.
+		gates[0]?.();
+		await tick();
+		await tick();
+		// 19 rows and one outstanding: the bound is met, refused at once rather than asked.
+		const third = await Promise.race([
+			made.gate('keeper-set', { value: 3 }, port, run).then((result) => result.error?.code),
+			new Promise<string>((resolve) => setTimeout(() => resolve('asking'), 200)),
+		]);
+		expect(third).toBe('RATE_LIMITED');
+		gates[1]?.();
+		expect((await one).error?.code).toBe('CONFIRMATION_DECLINED');
+		expect((await two).error?.code).toBe('CONFIRMATION_DECLINED');
+	});
+
+	it('seventh (Opus 3): prompt-settle refuses a mixed input before it writes anything', async () => {
+		const { made, store } = unit();
+		const settle = settleOf(made);
+		const refused = await settle({
+			decline: {
+				id: 'ntf_mixedmixedmixed',
+				person: 'local',
+				key: 'k',
+				command: 'keeper-set',
+				caller: 'keeper',
+				header: 'Keeper asks',
+				title: 'Set',
+				prompt: 'Sure?',
+				danger: false,
+				scope: { workspace: 'personal' },
+				input: {},
+			},
+			open: {
+				id: 'cnf_mixed',
+				key: 'k',
+				command: 'keeper-set',
+				header: 'Run it?',
+				prompt: 'Sure?',
+				danger: false,
+				input: {},
+			},
+		});
+		expect(refused.error?.code).toBe('VALIDATION_ERROR');
+		expect((await store.list('notification')).data).toHaveLength(0);
 	});
 });

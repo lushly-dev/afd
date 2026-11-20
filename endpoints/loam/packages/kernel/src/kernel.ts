@@ -40,6 +40,11 @@ import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.j
 import type { CopilotTraceV1 } from './copilot/types.js';
 import { LoamKernelError } from './errors.js';
 import {
+	createJournalProvenance,
+	JOURNAL_WRAPPERS,
+	type JournalProvenance,
+} from './journal-provenance.js';
+import {
 	createKeybindings,
 	type KeybindingRegistry,
 	needsInput,
@@ -141,15 +146,44 @@ const changed = (
 };
 
 /**
- * What the journal itself kept of the calls a wrapper made, private to the kernel (step 6's sixth round, B5 and B7): a
- * child's journal-safe result by the trace of the call that made it (`origin`, or a nested call's `parent`), a confirmed
- * run's by its confirmation, and the command a notice's act ran, by the act's trace. Each is taken once.
+ * The journal's provenance for its wrappers (`journal-provenance.ts`; step 6's sixth and seventh rounds), with which
+ * commands the journal holds an entry of, so an act whose action has none (an unjournaled query) is redacted by the
+ * action's own rule instead.
  */
-export interface JournalProvenance {
-	child(trace: string | undefined): JournalRecord['result'] | undefined;
-	run(confirmation: unknown): JournalRecord['result'] | undefined;
-	action(trace: string | undefined): string | undefined;
-}
+export type WrapperProvenance = JournalProvenance & { journals(command: string): boolean };
+
+/** The metadata the registry sets on every result, the wrapper's own and never the child's server content. */
+const REGISTRY_METADATA = ['commandVersion', 'executionTimeMs', 'traceId'] as const;
+
+/**
+ * A child's outcome as its entry holds it, without the journal's own sequence, with the wrapper's own registry metadata
+ * alone from its live result (seventh round, C1): the wrapper's registry sets those whatever the child answered.
+ */
+const outcomeOfEntry = (
+	result: JournalRecord['result'],
+	wrapper: JournalRecord['result']
+): JournalRecord['result'] => {
+	const { 'dev.loam/seq': _seq, ...metadata } = (result.metadata ?? {}) as Record<string, unknown>;
+	const own = (wrapper.metadata ?? {}) as Record<string, unknown>;
+	// As the wrapper's registry left them: set, or absent where its own definition has none.
+	for (const key of REGISTRY_METADATA) {
+		if (own[key] !== undefined) metadata[key] = own[key];
+		else delete metadata[key];
+	}
+	return {
+		success: result.success,
+		...(result.data !== undefined ? { data: result.data } : {}),
+		...(result.error !== undefined ? { error: result.error } : {}),
+		...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+	} as JournalRecord['result'];
+};
+
+/** What an untracked wrapper keeps of its outcome: whether it succeeded, and an error's code (fail closed). */
+const closedOutcome = (result: JournalRecord['result']): JournalRecord['result'] =>
+	({
+		success: result.success,
+		...(result.error !== undefined ? { error: { code: result.error.code, message: '' } } : {}),
+	}) as JournalRecord['result'];
 
 /** How deep wrappers inside wrappers are followed; past it, an input is dropped (step 6's fourth round, 2). */
 const WRAPPED_DEPTH = 8;
@@ -170,7 +204,7 @@ export function redactWrapped(
 	redact: (record: JournalRecord) => JournalRecord,
 	known: (command: string) => boolean = () => true,
 	depth = 0,
-	provenance?: JournalProvenance
+	provenance?: WrapperProvenance
 ): JournalRecord {
 	/** `holder`'s `input`, redacted as `holder.command`'s own entry would be, alone, or dropped. */
 	const within = (holder: Record<string, unknown>): Record<string, unknown> => {
@@ -222,11 +256,18 @@ export function redactWrapped(
 		// by the action's own rule, else dropped (fail closed: Opus 4).
 		if (command === 'notification-act' && 'result' in data) {
 			const { result: given, ...rest } = data;
-			const child = provenance?.child(record.traceId);
+			// Unit callers with no provenance: by the result's shapes alone.
+			if (!provenance) return data;
+			if (!provenance.tracked(record.traceId)) return rest;
+			const child = provenance.nested(record.traceId);
 			if (child) return child.data === undefined ? rest : { ...rest, result: child.data };
-			const action = provenance?.action(record.traceId);
+			const action = provenance.action(record.traceId);
 			const object = objectOf(given);
-			return object && action !== undefined ? { ...rest, result: forwarded(action, object) } : rest;
+			// An action the journal holds no entry of (an unjournaled query) by its own rule; any other without its entry,
+			// or a value no rule reads, is dropped (fail closed: Opus 4; seventh round).
+			return object && action !== undefined && !provenance.journals(action)
+				? { ...rest, result: forwarded(action, object) }
+				: rest;
 		}
 		// Any other command's result is its own entry's, which no rule reads today.
 		return data;
@@ -247,19 +288,18 @@ export function redactWrapped(
 		if (command === 'palette-run') {
 			// The run's outcome is the target's, forwarded: as the target's own entry kept it, failures included (sixth
 			// round, B5), else redacted by the target's rule (the fourth round's 1).
-			const child = provenance?.child(record.traceId);
-			if (child && record.result) {
-				const { data: _data, error: _error, ...kept } = record.result;
-				return {
-					...record,
-					input: within(input),
-					result: {
-						...kept,
-						success: child.success,
-						...(child.data !== undefined ? { data: child.data } : {}),
-						...(child.error !== undefined ? { error: child.error } : {}),
-					},
-				};
+			if (provenance && record.result) {
+				// Wholly the run's own entry, as the sink appended it, nothing of the live result (seventh round, C1, C2);
+				// untracked, no result data at all (C3, fail closed).
+				if (!provenance.tracked(record.traceId))
+					return { ...record, input: within(input), result: closedOutcome(record.result) };
+				const child = provenance.origin(record.traceId);
+				if (child)
+					return {
+						...record,
+						input: within(input),
+						result: outcomeOfEntry(child, record.result),
+					};
 			}
 			if (data) data = forwarded(input.command, data);
 			input = within(input);
@@ -277,6 +317,11 @@ export function redactWrapped(
 							...(run.error !== undefined ? { error: run.error } : {}),
 						},
 					};
+				// Its run's entry missing: no result kept (fail closed, seventh round).
+				if (provenance) {
+					const { result: _result, ...rest } = settle;
+					return rest;
+				}
 				return changed(settle, 'result', (result) =>
 					changed(result, 'data', (inner) => forwarded(settle.command, inner) ?? {})
 				);
@@ -286,10 +331,13 @@ export function redactWrapped(
 	}
 	if (data && command !== 'palette-run') data = resultOf(command, data);
 	// An act whose action failed answers the action's failure: as the action's own entry kept it (sixth round, B5).
-	if (command === 'notification-act' && record.result && !record.result.success) {
-		const child = provenance?.child(record.traceId);
-		if (child && !child.success && child.error !== undefined)
-			return { ...record, result: { ...record.result, error: child.error } };
+	// Only on the action's path, its code the act's (Opus I2): another failure of the act is its own (seventh round, C1).
+	if (command === 'notification-act' && record.result && !record.result.success && provenance) {
+		if (!provenance.tracked(record.traceId))
+			return { ...record, result: closedOutcome(record.result) };
+		const child = provenance.nested(record.traceId);
+		if (child && !child.success && child.error?.code === record.result.error?.code)
+			return { ...record, result: outcomeOfEntry(child, record.result) };
 	}
 	return {
 		...record,
@@ -306,15 +354,14 @@ export function redactSafely(
 	record: JournalRecord,
 	redact: (record: JournalRecord) => JournalRecord,
 	known: (command: string) => boolean,
-	provenance?: JournalProvenance
+	provenance?: WrapperProvenance
 ): JournalRecord {
 	try {
 		return redactWrapped(redact(record), redact, known, 0, provenance);
 	} catch {
 		// Lossy, so never replayed as if whole (fifth round's improvement): what it ran is not in it. Only the fields known
-		// to hold no input: its name, timing, digest, and whether it succeeded, with an error's code and message.
-		// A fixed diagnostic of the kernel's own, never the handler's code or message, which may hold the input (sixth round,
-		// B6).
+		// to hold no input, its name, timing, digest and whether it succeeded, with a fixed diagnostic of the kernel's own,
+		// never the handler's code or message, which may hold the input (sixth round, B6).
 		return {
 			timestamp: record.timestamp,
 			...(record.traceId !== undefined ? { traceId: record.traceId } : {}),
@@ -599,54 +646,31 @@ export async function createKernelParts(
 	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
 	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
 	const seqs = new Map<string, number>();
-	/** The journal's own provenance for wrappers (step 6's sixth round, B5, B7), each map bounded, each entry taken once. */
-	const children = new Map<string, JournalRecord['result']>();
-	const runs = new Map<string, JournalRecord['result']>();
-	const actions = new Map<string, string>();
-	const keep = <T>(map: Map<string, T>, key: string, value: T) => {
-		map.delete(key);
-		map.set(key, value);
-		if (map.size > 256) map.delete(map.keys().next().value as string);
-	};
-	const take = <T>(map: Map<string, T>, key: unknown): T | undefined => {
-		if (typeof key !== 'string') return undefined;
-		const found = map.get(key);
-		map.delete(key);
-		return found;
-	};
-	const provenance: JournalProvenance = {
-		child: (trace) => take(children, trace),
-		run: (confirmation) => take(runs, confirmation),
-		action: (trace) => take(actions, trace),
+	/** The journal's provenance for its wrappers, private to the kernel (step 6's sixth and seventh rounds). */
+	const tracker = createJournalProvenance();
+	const provenance: WrapperProvenance = {
+		...tracker,
+		journals: (command) => !UNJOURNALED_COMMANDS.includes(command),
 	};
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
 	const journal = createJournalMiddleware(
-		seqTrackingSink(options.journal, seqs, (record) =>
-			limits.bound(
+		seqTrackingSink(options.journal, seqs, (record) => {
+			const kept = limits.bound(
 				record,
 				(entry) =>
 					(entry.context?.caller as string | undefined) ?? apps.owners.get(entry.command)?.instance
-			)
-		),
+			);
+			// What the sink appends, after the redaction and the bound, for a running wrapper's entry (seventh round, C2).
+			tracker.appended(kept);
+			return kept;
+		}),
 		{
 			...kernelJournalOptions(),
 			redact: (record) => {
 				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
 				// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
-				const done = redactSafely(
-					record,
-					own,
-					(command) => mutations?.has(command) === true,
-					provenance
-				);
-				// What this entry kept, for the wrapper journaled after it (step 6's sixth round, B5).
-				const made = record.context?.origin ?? record.context?.parent;
-				if (typeof made === 'string') keep(children, made, done.result);
-				const confirmation = record.context?.confirmation;
-				if (typeof confirmation === 'string' && confirmation.startsWith('ntf_'))
-					keep(runs, confirmation, done.result);
-				return done;
+				return redactSafely(record, own, (command) => mutations?.has(command) === true, provenance);
 			},
 		}
 	);
@@ -765,7 +789,7 @@ export async function createKernelParts(
 				runNow: (iface, name, input, fields) =>
 					execute(iface, name, input, {}, fields as KernelCallFields),
 				// The command a notice's act runs, the journal's private provenance (step 6's sixth round, B7).
-				noteAction: (trace, command) => keep(actions, trace, command),
+				noteAction: (trace, command) => tracker.noteAction(trace, command),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
@@ -1066,10 +1090,13 @@ export async function createKernelParts(
 		// fields reach no other command.
 		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
 		let result: CommandResult<T>;
+		// A wrapper is tracked while it runs: its entry, written before `execute` returns, forwards its children's.
+		const wrapping = JOURNAL_WRAPPERS.includes(name) && tracker.begin(traceId);
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} finally {
 			traces.delete(traceId);
+			if (wrapping) tracker.end(traceId);
 		}
 		const seq = seqs.get(traceId);
 		seqs.delete(traceId);
