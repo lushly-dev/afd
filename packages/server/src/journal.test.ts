@@ -174,6 +174,32 @@ describe('createJournalMiddleware', () => {
 		expect(entry?.tape).toMatchObject({ clock: [expect.any(Number)], truncated: true });
 	});
 
+	it('appends concurrent calls in the order they finished, whichever digest settles first', async () => {
+		const sink = new MemoryJournalSink();
+		const journal = createJournalMiddleware(sink);
+		// The first digest taken settles after the second, as the threadpool may order them.
+		const subtle = globalThis.crypto.subtle;
+		const digest = subtle.digest.bind(subtle);
+		let calls = 0;
+		const spy = vi.spyOn(subtle, 'digest').mockImplementation(async (algorithm, data) => {
+			const slow = calls++ === 0;
+			const hash = await digest(algorithm, data);
+			if (slow) await new Promise((resolve) => setTimeout(resolve, 20));
+			return hash;
+		});
+		try {
+			const call = (name: string) =>
+				journal(name, {}, { traceId: name }, async () => ({ success: true, data: name }));
+			await Promise.all([call('first-done'), call('second-done')]);
+			expect((await sink.read()).map((entry) => entry.command)).toEqual([
+				'first-done',
+				'second-done',
+			]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it('reports sink errors to onError without changing the result', async () => {
 		const onError = vi.fn();
 		const broken: JournalSink = {

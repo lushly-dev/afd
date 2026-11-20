@@ -37,7 +37,8 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
  *
  * - **A call that ends while a write is in flight waits for it**, so one that saw a change after the handler that made
- *   it returned, as a second `app-open` of the same app does, is not journaled before that call. A change made before
+ *   it returned, as a second `app-open` of the same app does, is not journaled before that call, since the journal
+ *   appends calls in the order they finish. A change made before
  *   a handler awaits more work, as `project-archive`'s scope move before its record's write, is seen by calls that end
  *   meanwhile as it was before. The wait has no time limit: the store's write is what every such call waits for.
  * - **A handler that throws after a change** is written through all the same, and its error is the call's.
