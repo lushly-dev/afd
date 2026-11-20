@@ -15,6 +15,7 @@ import {
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
 	type KernelEventV4,
+	type KeybindingInForceV1,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
@@ -23,10 +24,12 @@ import {
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
+	focusHolds,
 	isMacPlatform,
-	matchKeybinding,
 	nextPart,
 	type PartName,
+	type PendingChord,
+	pressKey,
 	toggleInput,
 } from '../keyboard.js';
 import {
@@ -424,6 +427,9 @@ export class LoamShell extends FASTElement {
 		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
+		// Each key resolved once, in the capture phase, and done in the bubble phase (phase 4 specification, 8.1).
+		view.addEventListener('keydown', this.#capture, { capture: true });
+		this.#cleanup.push(() => view.removeEventListener('keydown', this.#capture, { capture: true }));
 		this.#listen(view, 'keydown', (event) => this.#onKeydown(event as KeyboardEvent));
 		this.#listen(view, 'pagehide', () => void kernel.flush());
 		this.#listen(this.ownerDocument, 'visibilitychange', () => {
@@ -1026,15 +1032,81 @@ export class LoamShell extends FASTElement {
 		);
 	}
 
+	readonly #capture = (event: Event): void => this.#onKeyCapture(event as KeyboardEvent);
+	/** A sequence's first chord, waiting for its second (phase 4 specification, 8.1). */
+	#pending: PendingChord | null = null;
+	/** What a key resolved to in the capture phase, done in the bubble phase unless the page consumed the key. */
+	#resolved:
+		| { event: KeyboardEvent; binding?: KeybindingInForceV1; wait?: PendingChord }
+		| undefined;
+	/** The editor area's save of the editor on a key's path (documents specification, 5.5): true when one was there. */
+	#saver: ((path: readonly EventTarget[], repeat: boolean) => boolean) | undefined;
+
+	/**
+	 * The editor area's answer to save's chord: a callback, never an event a frame's script could send (step 7's R6;
+	 * a same-page script is D54's, R10). The shell resolves each key once, and asks the area only when save's binding
+	 * wins.
+	 */
+	answerSave(saver: (path: readonly EventTarget[], repeat: boolean) => boolean): void {
+		this.#saver = saver;
+	}
+
+	/**
+	 * Each key resolved once, in the capture phase (phase 4 specification, 8.1; step 7's reviews, 4): only a person's own
+	 * press (R6), the bindings in force whose `when` holds for focus. Save is answered here, first, as the editor area
+	 * answered Mod+S before; every other binding is done in the bubble phase, unless the page consumed the key.
+	 */
+	#onKeyCapture(event: KeyboardEvent): void {
+		this.#resolved = undefined;
+		if (!event.isTrusted || !this.kernel || !this.booted) return;
+		const focus = this.#focus(event);
+		const bindings = this.kernel.listKeybindings().filter(({ when }) => focusHolds(when, focus));
+		const press = pressKey(event, this.mac, bindings, this.#pending, Date.now());
+		if (press.kind === 'wait') {
+			// A new prefix displaces the one that waited, here, so a key the page stops leaves none behind; the bubble
+			// phase sets it (a held chord's repeats keep it, and their deadline, in `pressKey`).
+			if (press.pending !== this.#pending) this.#pending = null;
+			this.#resolved = { event, wait: press.pending };
+			return;
+		}
+		this.#pending = null;
+		if (press.kind === 'none') return;
+		if (press.binding.save) {
+			// A key the page already prevented is not save's (the re-check's 4).
+			if (event.defaultPrevented) return;
+			// R9: the person's keys are not known yet, so save's chord is held, never the browser's, and said.
+			if (press.binding.unready) {
+				event.preventDefault();
+				if (!event.repeat) this.#notReady();
+				return;
+			}
+			// With no editor to save, the browser's, as before (documents specification, 5.5).
+			if (this.#saver?.(event.composedPath(), event.repeat)) event.preventDefault();
+			return;
+		}
+		this.#resolved = { event, binding: press.binding };
+	}
+
 	#onKeydown(event: KeyboardEvent): void {
-		if (event.defaultPrevented || !this.kernel || !this.booted) return;
-		const binding = matchKeybinding(event, this.mac, this.kernel.listKeybindings());
+		const resolved = this.#resolved?.event === event ? this.#resolved : undefined;
+		this.#resolved = undefined;
+		if (!event.isTrusted || !this.kernel || !this.booted) return;
+		if (event.defaultPrevented) {
+			// The page consumed the key: a sequence it would have begun does not wait.
+			if (resolved?.wait) this.#pending = null;
+			return;
+		}
 		// A modal of an app's, like the palette, keeps the keyboard to itself (section 8).
 		const paletteOpen =
 			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
 			this.apps?.modalOpen === true;
-		// Mod+S is the editor area's, which answers it first while an editor is the active owner (5.5).
-		if (binding && !binding.save) {
+		if (resolved?.wait) {
+			event.preventDefault();
+			this.#pending = paletteOpen ? null : resolved.wait;
+			return;
+		}
+		const binding = resolved?.binding;
+		if (binding) {
 			event.preventDefault();
 			if (binding.focus) {
 				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.
@@ -1043,8 +1115,12 @@ export class LoamShell extends FASTElement {
 			}
 			if (paletteOpen || event.repeat) return;
 			if (binding.command === 'palette-open') void this.openPalette();
+			else if (binding.switcher) this.#pressSwitcher();
 			else if (binding.toggle) void this.toggle(binding.toggle);
-			else if (binding.command) this.apps?.run(binding.command);
+			// A person's override of `section-open` names its section (8.1's `target`).
+			else if (binding.command === 'section-open' && binding.target)
+				this.#run('section-open', { section: binding.target });
+			else if (binding.command) this.#run(binding.command, {});
 			return;
 		}
 		if (event.key === 'Escape' && !paletteOpen && !this.#drawerOpen()) {
@@ -1052,6 +1128,55 @@ export class LoamShell extends FASTElement {
 			if (p.inspector === 'overlay') void this.#closePart('inspector');
 			else if (p.panel === 'sheet') void this.#closePart('panel');
 			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
+		}
+	}
+
+	/** R9: a key pressed before the person's own keys are known, said once per press. */
+	#notReady(): void {
+		void this.kernel?.call('toast-show', {
+			message: 'Your keys are not ready yet. Try again in a moment.',
+			tone: 'warning',
+		});
+	}
+
+	/**
+	 * A binding's command, as the person's call, through the kernel whether or not any app surface is loaded (step 7's
+	 * reviews, 3); what it answers shows as a toast when it fails, the only report of a failure the person asked for.
+	 */
+	#run(command: string, input: Record<string, unknown>): void {
+		const kernel = this.kernel;
+		void kernel?.call(command, input).then((result) => {
+			if (result.success) return;
+			void kernel.call('toast-show', {
+				message: (result.error?.message ?? `${command} failed`).slice(0, 200),
+				tone: 'danger',
+				durationMs: 30_000,
+			});
+		});
+	}
+
+	/** Where focus is, for a binding's `when` (8.1, R4): the shell's part holding it, and whether an editor does. */
+	#focus(event: Event): { part: string | undefined; editor: boolean } {
+		const path = event.composedPath();
+		const part = path.find(
+			(node) =>
+				node instanceof HTMLElement && node.dataset.part && node.getRootNode() === this.shadowRoot
+		) as HTMLElement | undefined;
+		const editor = path.some(
+			(node) => node instanceof HTMLElement && node.localName === 'loam-editor-frame'
+		);
+		return { part: part?.dataset.part, editor };
+	}
+
+	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */
+	#pressSwitcher(): void {
+		for (const variant of ['rail', 'tabbar']) {
+			const nav = this.shadowRoot?.querySelector<HTMLElement>(`loam-${variant}`);
+			const switcher = nav?.shadowRoot?.querySelector<LoamProjectSwitcher>('loam-project-switcher');
+			if (nav && switcher && !nav.closest('[hidden]') && switcher.checkVisibility()) {
+				switcher.press();
+				return;
+			}
 		}
 	}
 

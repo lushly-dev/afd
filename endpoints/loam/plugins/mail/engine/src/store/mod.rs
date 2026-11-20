@@ -11,6 +11,7 @@ mod bursts;
 mod classes;
 mod decisions;
 mod derived;
+mod drafts;
 mod operations;
 mod parts;
 mod policy;
@@ -33,6 +34,9 @@ pub use decisions::{
     Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use drafts::{
+    Authors, DISCARD_LIFETIME, DraftChange, DraftRefusal, DraftRow, NewDraft, Recipients,
+};
 pub use operations::{
     Action, ItemStep, Kind, MOST_PROPOSALS, NewItem, NewOperation, OperationItem, OperationRow,
     OperationState, OperationStates, PROPOSAL_LIFETIME, PlacesIn, Proposal, ProposalPreview, Step,
@@ -1224,6 +1228,8 @@ mod bursts_tests;
 mod classes_tests;
 #[cfg(test)]
 mod derived_tests;
+#[cfg(test)]
+mod drafts_tests;
 #[cfg(test)]
 mod operations_tests;
 #[cfg(test)]

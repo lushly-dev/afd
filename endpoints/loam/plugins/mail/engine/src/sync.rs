@@ -329,6 +329,8 @@ pub async fn sync_account(
         }
     }
     connection.close().await;
+    // Mail that arrived in a snoozed thread ended its snooze: it stays ended.
+    engine.with_store(|store| store.wake_snoozes().map(|_| ()))?;
     Ok(AccountReport {
         account: account.id.0,
         mailboxes: plans.into_iter().map(|plan| plan.report).collect(),

@@ -203,6 +203,9 @@ class Completed:
     #: A failed job's failing tests, read from its whole log where ``stdout`` is only the tail
     #: (``failures.failing_tests``); None when not read.
     failures: tuple[str, ...] | None = None
+    #: A failed job's line saying the disk is full, read from its whole log
+    #: (``failures.disk_full``); None when it says nothing of the kind.
+    disk_full: str | None = None
 
 
 @runtime_checkable
@@ -371,6 +374,11 @@ class Git(Protocol):
         """Forget the lane checkout at ``path`` (one ``park_slot`` made); absent is done."""
         ...
 
+    def remove_build(self, path: str) -> None:
+        """Remove a slot's build directory (its ``CARGO_TARGET_DIR``) without waiting on the
+        deletion: it is moved aside at once and deleted in the background; absent is done."""
+        ...
+
     def merge_main(
         self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
     ) -> MergeOutcome:
@@ -438,6 +446,10 @@ class Machine(Protocol):
     def free_memory_gb(self) -> float: ...
 
     def free_disk_gb(self, path: str) -> float: ...
+
+    def is_dir(self, path: str) -> bool:
+        """Whether ``path`` is an existing directory (a mounted volume's, for ``host.buildDir``)."""
+        ...
 
     def has_program(self, name: str) -> bool: ...
 

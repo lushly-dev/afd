@@ -27,8 +27,8 @@ kind                    required fields                                     writ
                         checksRun, testsRun (when the adapter reports
                         them), flaky, logPath
 ``rerun``               branch, attempt, reason (main-moved | restart |     the lane loop
-                        slot-needed); optional detail (why main's move
-                        needs a new validation)
+                        slot-needed | disk-full); optional detail (why
+                        main's move needs a new validation)
 ``base-advanced``       branch, attempt, previous, base: main moved under   the lane loop
                         a validated branch and nothing it changed can touch
                         what was validated; optional head; with reason

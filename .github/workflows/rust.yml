@@ -116,6 +116,9 @@ jobs:
       - name: Test (no default features)
         run: cargo test --no-default-features
 
+      - name: Test (all features, library and batch control vectors)
+        run: cargo test --all-features --lib --test batch_controls_vectors
+
       # The MCP server (rmcp); off by default, and it needs Rust 1.88.
       - name: Clippy (server feature)
         run: cargo clippy --all-targets --features server -- -D warnings

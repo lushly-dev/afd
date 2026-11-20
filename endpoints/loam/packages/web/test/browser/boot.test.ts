@@ -77,7 +77,9 @@ describe('the built shell', () => {
 		await opened.context.close();
 	});
 
-	it('paints with the late chunk held, and runs a chord pressed before it answers', async () => {
+	// Amended by phase 4's step 7 (its 8.3, R9): a chord pressed before the person's overrides are known runs nothing,
+	// so the palette opens on a fresh press once they are, never on the early one.
+	it('paints with the late chunk held, runs no chord pressed before it answers, and one pressed after', async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 		let release: () => void = () => {};
 		const held = new Promise<void>((resolve) => {
@@ -92,6 +94,16 @@ describe('the built shell', () => {
 		await page.waitForFunction(
 			() => performance.getEntriesByName('first-contentful-paint').length > 0
 		);
+		// Every call the kernel runs from here, to show the early press ran no `palette-open` (the fifth round's 7).
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { subscribe(listener: (event: { command: string }) => void): () => void };
+			};
+			const ran: string[] = [];
+			(globalThis as { loamRan?: string[] }).loamRan = ran;
+			shell.kernel.subscribe(({ command }) => ran.push(command));
+		});
+		const ran = () => (globalThis as { loamRan?: string[] }).loamRan ?? [];
 		await page.keyboard.press('ControlOrMeta+K');
 		const paletteOpen = () => {
 			const palette = document
@@ -101,7 +113,28 @@ describe('the built shell', () => {
 		};
 		expect(await page.evaluate(paletteOpen)).toBe(false);
 		release();
+		// Ready: the keybindings list more than F6, Shift+F6 and the held save.
+		await page.waitForFunction(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel?: { listKeybindings(): Array<{ chord: string }> };
+			};
+			return (shell.kernel?.listKeybindings() ?? []).some(({ chord }) => chord === 'Mod+K');
+		});
+		// Stage B has ended, and a call made now runs after anything queued before it: an early press's late run would
+		// have come by then (the fifth round's 7).
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { appsReady: Promise<void>; call(name: string, input: unknown): Promise<unknown> };
+			};
+			await shell.kernel.appsReady;
+			await shell.kernel.call('keybinding-list', {});
+		});
+		expect(await page.evaluate(ran)).not.toContain('palette-open');
+		expect(await page.evaluate(paletteOpen)).toBe(false);
+		await page.keyboard.press('ControlOrMeta+K');
 		await page.waitForFunction(paletteOpen);
+		// The positive control: the fresh press is heard as `palette-open`.
+		expect(await page.evaluate(ran)).toContain('palette-open');
 		expect(errors).toEqual([]);
 		await context.close();
 	});

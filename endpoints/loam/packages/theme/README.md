@@ -70,9 +70,10 @@ collapsed whitespace). After changing a value:
 1. `pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks`;
 2. `pnpm -F @lushly-dev/violet-elements theme:build` and `cem:analyze`, since the
    manifest records the style defaults;
-3. record every edited file under `foundations/fast-af` in
-   `foundations/fast-af/provenance/adaptations.json`, and its new hash in
-   `provenance.json`.
+3. record every edited file under `foundations/fast-af` with
+   `node scripts/release/provenance.mjs fast-af "<reason>"`, which writes its row
+   in `foundations/fast-af/provenance/adaptations.json`. FAST-AF's
+   `provenance.json` holds no hash of `adaptations.json`, and its test refuses one.
 
 ## The lint
 

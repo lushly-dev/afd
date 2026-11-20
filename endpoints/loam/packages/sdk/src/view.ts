@@ -232,6 +232,8 @@ export async function connectView(info?: {
 	if (reference && !reference.readOnly) {
 		window.addEventListener('keydown', (event: Event) => {
 			const key = event as KeyboardEvent;
+			// Only a person's own press asks the shell (phase 4 specification, 8.3; step 7's re-check, 2).
+			if (!key.isTrusted) return;
 			// The shell's own rule for Mod+S (`isMacPlatform`, `isSave`): Command on Apple platforms, read from the
 			// platform or the user agent, Control elsewhere, never both, by physical key.
 			const nav = globalThis.navigator;

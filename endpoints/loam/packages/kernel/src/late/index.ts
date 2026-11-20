@@ -15,6 +15,7 @@ import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
+import type { KeybindingRegistry } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
 import { createPaletteIndex } from '../palette-index.js';
@@ -45,6 +46,7 @@ import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
+import { emptyMeets } from './empty-meets.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
@@ -87,6 +89,13 @@ export type LateCommandDeps = ShellCommandDeps &
 		auth: AuthAdapter;
 		/** The limits the kernel enforces from boot, which `late-settings` reads into (phase 4 specification, section 11). */
 		limits?: KernelLimits;
+		/** The kernel's keybindings, which `late-settings` gives the person's overrides (phase 4 specification, 8.3). */
+		keybindings?: KeybindingRegistry;
+		/**
+		 * Whether a command's advertised JSON Schema needs input: first paint's `needsInput`, given here so this chunk
+		 * imports none of it. A mounted command's runtime input is loose, so its advertised schema decides (8.3).
+		 */
+		needsInput?(schema: unknown): boolean;
 		store: DataAdapter;
 		/** The projection's generation this page booted with. */
 		generation(): string;
@@ -139,6 +148,11 @@ export type LateCommandDeps = ShellCommandDeps &
 		noteAction?(trace: string, command: string): void;
 		/** The kernel's journal provenance: an act returns its action's failure as its own (step 6's ninth round). */
 		noteReturned?(trace: string): void;
+		/**
+		 * Whether the kernel is disposed, perhaps before the late load installed its hook: what it makes after stops at
+		 * once (step 7's fifth round, 1).
+		 */
+		disposed?(): boolean;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -355,7 +369,9 @@ export async function createLateParts(
 			createAutonomy,
 			createConfirmations,
 			bucketOf,
+			createKeybindingCommands,
 			createLimitCommands,
+			KEYBINDING_RESOLVER,
 			limitNotice,
 			isHumanGesture,
 			orphanNotice,
@@ -369,6 +385,14 @@ export async function createLateParts(
 	]);
 	// The copilot's records and commands, `late-copilot`, beside them (phase 5 specification, 2 and 3.5).
 	const { createCopilotParts } = await import('../copilot/commands.js');
+	/**
+	 * The kernel disposed while the load awaited: it ends there, reading and writing nothing more, and the kernel's
+	 * `loadLate`, which knows it is disposed, says nothing of it (step 7's fifth and sixth rounds, 1 and 2).
+	 */
+	const endIfDisposed = () => {
+		if (deps.disposed?.()) throw new Error('The kernel was disposed');
+	};
+	endIfDisposed();
 	const copilot: CopilotParts = createCopilotParts({
 		store: deps.store,
 		workspace: deps.scope.workspace.id,
@@ -432,6 +456,7 @@ export async function createLateParts(
 		kit: { ...DOCUMENT_KIT, decideAccess, isOwner, membershipUnavailable },
 	});
 	await agentMembers.cache.load(deps.store);
+	endIfDisposed();
 	deps.scope.agents = agentMembers.cache;
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
@@ -458,6 +483,7 @@ export async function createLateParts(
 		identity: deps.identity,
 		kit: DOCUMENT_KIT,
 	});
+	endIfDisposed();
 	// Step 4's account and member commands (5.1, 5.3, 5.4, 7.2), decided on the membership the kernel holds.
 	const memberCommands = createMemberCommands({
 		auth: deps.auth,
@@ -506,7 +532,14 @@ export async function createLateParts(
 	// The editor area's dirty tabs and selections, made here so a change of person can move them (4.5).
 	const drafts: EditorDraftsV1 = { dirty: new Map(), selections: new Map() };
 	const editorParts = createEditorParts(
-		{ ...deps, lateScope, check: documents, drafts },
+		{
+			...deps,
+			lateScope,
+			check: documents,
+			drafts,
+			// The active tab's owner and type, which a binding's `when` reads (phase 4 specification, 8.1).
+			...(deps.keybindings ? { editorHeld: (held) => deps.keybindings?.setEditor(held) } : {}),
+		},
 		DOCUMENT_KIT
 	);
 	editor = editorParts;
@@ -535,10 +568,13 @@ export async function createLateParts(
 		},
 		...(quiet ? { quiet } : {}),
 	});
+	if (deps.disposed?.()) sessions.stop();
 	// The kernel's `dispose` destroys the view state last: the listener and the timer stop with it.
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
 	deps.viewState.destroy = () => {
 		sessions?.stop();
+		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
+		settings?.stop();
 		return destroy();
 	};
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
@@ -548,7 +584,9 @@ export async function createLateParts(
 	// The link index, built by one `list` at its first read, and kept by the link commands and expiry (9.3).
 	const index = createDocumentIndex(deps.store);
 	await editor.ensure(deps.scope.active().project);
+	endIfDisposed();
 	await declare();
+	endIfDisposed();
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	/** Whether the applied projection's host is the desktop, as `shell-info-get` says (phase 6 specification, 10.1). */
@@ -608,10 +646,20 @@ export async function createLateParts(
 		},
 		paletteIndex: createPaletteIndex,
 		...(deps.limits ? { limits: deps.limits } : {}),
+		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// Made after a disposal, it reads nothing (the fifth round's 1).
+	if (deps.disposed?.()) settings.stop();
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
+	endIfDisposed();
+	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
+	const keybindingCommands = createKeybindingCommands({
+		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
+		activeApp: () => deps.state.activeApp(),
+		kit: DOCUMENT_KIT,
+	});
 	// `limit-usage-get` and boot's `store-usage-settle` (section 11), in `late-settings` beside the settings.
 	const limitCommands = createLimitCommands({
 		scope: deps.scope,
@@ -959,6 +1007,7 @@ export async function createLateParts(
 			...confirmations.commands,
 			confirmations.settle,
 			...limitCommands.commands,
+			...keybindingCommands,
 			limitCommands.settleCommand,
 			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])
@@ -970,6 +1019,49 @@ export async function createLateParts(
 		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
 	);
 	appearance = byName.get('appearance-set');
+	// 8.1's precedence for the kernel's keybindings, with whom the shell is for and what a command an override names
+	// is (the reviews' 7): registered, listed in the palette and taking the chord's input, `section-open`'s section or
+	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
+	deps.keybindings?.setResolver(KEYBINDING_RESOLVER, {
+		person: shellPerson,
+		// An expired session still names its user, whose keys stay until the settle ends it; a sign-out names no one (the
+		// fifth round's 5, as `expiredOnly` decides an expiry).
+		adapter: () => {
+			const state = deps.auth.getSession();
+			return (
+				personKey(sessionActor(deps.auth, deps.clock)) ??
+				(state.status === 'authenticated' ? state.user.id : undefined)
+			);
+		},
+		info(command, target) {
+			const app = deps.apps().owners.get(command)?.instance;
+			const definition =
+				INTERNAL_COMMANDS.includes(command) ||
+				BOOT_ONLY.includes(command) ||
+				command === 'layout-set'
+					? undefined
+					: app !== undefined
+						? deps.apps().commands.find((each) => each.name === command)
+						: byName.get(command);
+			const input = command === 'section-open' ? { section: target } : {};
+			// A mounted command takes any input at run time; whether it needs some is its advertised schema's (the
+			// re-check's 6). Every other command's input is parsed as the chord would give it, `section-open`'s section.
+			const owner = deps.apps().owners.get(command);
+			const mounted = owner?.recorded === true;
+			const runnable =
+				definition !== undefined &&
+				definition.expose?.palette !== false &&
+				(mounted
+					? owner?.replaced !== true &&
+						deps.needsInput !== undefined &&
+						!deps.needsInput(definition.jsonSchema) &&
+						emptyMeets(definition.jsonSchema)
+					: z.safeParse(definition.inputSchema as z.ZodMiniType, input).success);
+			return { runnable, ...(app !== undefined ? { app } : {}) };
+		},
+	});
+	await settings.readOverrides();
+	endIfDisposed();
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
 	const appList = byName.get('app-list') as ZodCommandDefinition;
 	byName.set('app-list', {

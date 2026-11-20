@@ -91,6 +91,12 @@ function exempted(name: string, schema: unknown): unknown {
 		for (const branch of copy.properties?.link?.anyOf ?? []) delete branch.properties?.route;
 		return copy;
 	}
+	// Phase 4's `keybinding-list` filters the list by a binding's `command` (its 8.5): a name it reads, written nowhere.
+	if (name === 'keybinding-list') {
+		const copy = structuredClone(schema) as { properties?: { command?: unknown } };
+		delete copy.properties?.command;
+		return copy;
+	}
 	// Phase 4's autonomy rows name a registered command by `command` (its 4.1): a shell or app command's name, checked
 	// against the registry, never a mounted server's process, which only a deployment entry holds.
 	if (name === 'autonomy-get' || name === 'autonomy-set') {

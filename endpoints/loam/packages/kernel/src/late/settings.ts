@@ -22,6 +22,7 @@ import type { AppearanceStateV0 } from '../appearance.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { KeybindingRegistry } from '../keybindings.js';
 import type { KernelLimits, LimitKeyV1 } from '../limits.js';
 import type { createPaletteIndex, PaletteIndex, PaletteItem } from '../palette-index.js';
 import type { AccessActorV1 } from '../scope/access.js';
@@ -30,6 +31,7 @@ import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { DocumentKit } from './document-kit.js';
 import { enforcedLimits, LIMIT_KEY_ORDER, LIMITS_SECTION_ID } from './limit-commands.js';
+import { createOverridesReader } from './setting-overrides.js';
 import {
 	checkKnownValue,
 	isHumanGesture,
@@ -50,6 +52,8 @@ import type { SettingRows } from './shell-commands.js';
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
 export { bucketOf, createConfirmations, KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
+export { createKeybindingCommands } from './keybinding-commands.js';
+export { KEYBINDING_RESOLVER } from './keybinding-resolve.js';
 export { createLimitCommands, limitNotice } from './limit-commands.js';
 export { createNotifications, orphanNotice, orphanRecipients } from './notifications.js';
 export {
@@ -70,6 +74,9 @@ const SETTINGS = 'settings';
 
 /** The person's record's id, before `provider` mode's suffix (3.4); not a view-state id. */
 export const PERSON_SETTINGS_ID = 'loam.settings';
+
+/** The person's keybindings section (3.7, 8.3). */
+const KEYBINDINGS_ID = 'loam.keybindings';
 
 /** The profile's last appearance in `provider` mode (3.6, R4); not a view-state id either. */
 export const APPEARANCE_LAST_ID = 'loam.appearance.last';
@@ -156,6 +163,8 @@ export interface SettingsDeps {
 	paletteIndex: typeof createPaletteIndex;
 	/** The limits the kernel enforces, which `loam.limits` sets once read (section 11); absent, nothing is set. */
 	limits?: KernelLimits;
+	/** The kernel's keybindings, given the person's overrides once read (8.3); absent, nothing is set. */
+	keybindings?: KeybindingRegistry;
 	kit: SettingsKit;
 }
 
@@ -205,6 +214,10 @@ export interface Settings {
 	 * the section. A read that fails leaves what the kernel enforces, the defaults from boot or the last values read.
 	 */
 	readLimits(): Promise<void>;
+	/** Read the person's `loam.keybindings.overrides` into the kernel's keybindings (8.3). */
+	readOverrides(): Promise<void>;
+	/** The kernel is disposed: the overrides' retry and any read in flight end (the third round's improvement). */
+	stop(): void;
 	ownValue(
 		section: string,
 		key: string,
@@ -278,6 +291,13 @@ export function createSettings(deps: SettingsDeps): Settings {
 		if (await store.get(SETTINGS, id)) await store.update(SETTINGS, id, row);
 		else await store.create(SETTINGS, { id, ...row });
 	}
+
+	/**
+	 * Where a person's values of `known` sit in their record: `<workspace>/<section>` for a workspace-keyed section,
+	 * `loam.keybindings` (step 7's R5), so another workspace in this browser never reads them; else the section's id.
+	 */
+	const slotOf = (known: KnownSectionV1): string =>
+		known.workspaceKeyed ? `${scope.workspace.id}/${known.fullId}` : known.fullId;
 
 	const rowId = (fullId: string, level: 'workspace' | 'project', project?: string) =>
 		level === 'workspace'
@@ -407,7 +427,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const atProject =
 			project === undefined ? undefined : await readRow(rowId(known.fullId, 'project', project));
 		const out: Partial<Record<SettingLevelV1, StoredSettingV1>> = {};
-		const own = storedOf(person[known.fullId]?.[key]);
+		const own = storedOf(person[slotOf(known)]?.[key]);
 		if (own) out.person = own;
 		const shared = storedOf(workspace?.values[key]);
 		if (shared) out.workspace = shared;
@@ -577,12 +597,13 @@ export function createSettings(deps: SettingsDeps): Settings {
 		if (level === 'person') {
 			const id = deps.recordId(personKeyOf(context));
 			const record = await readRecord(id);
-			const section = record[known.fullId] ?? {};
+			const slot = slotOf(known);
+			const section = record[slot] ?? {};
 			const previous = storedOf(section[key]);
 			if (entry) section[key] = entry;
 			else delete section[key];
-			if (Object.keys(section).length === 0) delete record[known.fullId];
-			else record[known.fullId] = section;
+			if (Object.keys(section).length === 0) delete record[slot];
+			else record[slot] = section;
 			await writeRecord(id, record, at);
 			return previous;
 		}
@@ -643,6 +664,24 @@ export function createSettings(deps: SettingsDeps): Settings {
 			: undefined;
 	}
 
+	/** The person's overrides, read into the kernel's keybindings (8.3; `setting-overrides.ts`). */
+	const overrides = createOverridesReader({
+		keybindings: deps.keybindings,
+		person: () => deps.person(),
+		provider: deps.provider,
+		replaying: () => deps.replaying(),
+		async stored(person) {
+			const known = SHELL_SECTIONS.find(
+				(entry) => entry.fullId === KEYBINDINGS_ID
+			) as KnownSectionV1;
+			const record = await readRecord(deps.recordId(person ?? 'local'));
+			return storedOf(record[slotOf(known)]?.overrides)?.value;
+		},
+	});
+	const readOverrides = () => overrides.read();
+	/** The kernel is disposed: a read in flight sets nothing after (the seventh round's 2). */
+	let stopped = false;
+
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
 	async function readLimits(): Promise<void> {
 		if (!deps.limits) return;
@@ -654,6 +693,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 		) as KnownSectionV1;
 		// `readRow` answers undefined for a read that fails, so the defaults hold: never no limit at all.
 		const row = deps.hosted() ? undefined : await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
+		// Stopped with the kernel while the row was read: the kernel's limits are left as they were (the seventh round's 2).
+		if (stopped) return;
 		const resolved = {} as Record<LimitKeyV1, number>;
 		for (const key of LIMIT_KEY_ORDER) {
 			const stored = storedOf(row?.values[key]);
@@ -672,6 +713,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 	async function afterWrite(known: KnownSectionV1, _key: string, context: CommandContext) {
 		if (known.fullId === 'loam.appearance') await applyAppearance();
 		if (known.fullId === LIMITS_SECTION_ID) await readLimits();
+		if (known.fullId === KEYBINDINGS_ID) await readOverrides();
 		scope.note(context.traceId, { settings: [known.fullId] });
 	}
 
@@ -1049,11 +1091,12 @@ export function createSettings(deps: SettingsDeps): Settings {
 				return fail(
 					wrong.code ?? 'VALIDATION_ERROR',
 					`The value of '${known.fullId}.${input.key}' ${wrong.problem}`,
-					wrong.code === 'SETTING_MUTE_SHELL'
-						? 'Mute an app instead'
-						: wrong.code === 'KEYBINDING_RESERVED'
-							? 'Bind another key'
-							: 'Read the key with setting-schema-get { section, key }, and give a value inside it',
+					wrong.suggestion ??
+						(wrong.code === 'SETTING_MUTE_SHELL'
+							? 'Mute an app instead'
+							: wrong.code === 'KEYBINDING_RESERVED'
+								? 'Bind another key'
+								: 'Read the key with setting-schema-get { section, key }, and give a value inside it'),
 					{ field: 'value' }
 				);
 			}
@@ -1383,9 +1426,17 @@ export function createSettings(deps: SettingsDeps): Settings {
 				await writeRecord(id, record, kit.callNow(context));
 				return previous;
 			}),
+		readOverrides,
+		stop: () => {
+			stopped = true;
+			overrides.stop();
+		},
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);
+			// The new person's own keybindings (8.3), whatever their appearance does: in `local` mode a sign-in keeps the
+			// record's id and changes the person the registry holds them for.
+			await overrides.follow();
 			if (id === following) return;
 			if (id === undefined) {
 				// Signed out in `provider` mode: no one's own appearance; the page paints `.last` (3.6).

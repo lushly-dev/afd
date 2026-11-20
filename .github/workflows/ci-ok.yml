@@ -38,7 +38,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # The owner is the credited contributor: no commit names an agent as author or co-author,
-      # and a merge group's commits, which are what main receives, name no co-author at all.
+      # and a merge group's commits, which are what main receives, name no co-author but their author.
       - name: Check commit credit
         env:
           GITHUB_TOKEN: ${{ github.token }}

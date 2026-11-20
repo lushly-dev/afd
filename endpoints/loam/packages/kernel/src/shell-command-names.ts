@@ -139,4 +139,6 @@ export const SHELL_COMMAND_NAMES = [
 	'confirmation-withdraw',
 	// Phase 4's step 10 (its section 11): the limits' usage, owners only.
 	'limit-usage-get',
+	// Phase 4's step 7 (its 8.5): the bindings in force.
+	'keybinding-list',
 ] as const;

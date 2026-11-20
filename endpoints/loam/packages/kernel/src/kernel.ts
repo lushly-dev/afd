@@ -38,7 +38,7 @@ import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import type { CopilotTraceV1 } from './copilot/types.js';
-import { LoamKernelError } from './errors.js';
+import { kernelFailure, LoamKernelError } from './errors.js';
 import {
 	createJournalProvenance,
 	JOURNAL_WRAPPERS,
@@ -48,6 +48,7 @@ import {
 	createKeybindings,
 	type KeybindingRegistry,
 	needsInput,
+	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
 import type { LateParts } from './late/index.js';
@@ -602,7 +603,10 @@ export async function createKernelParts(
 	// The limits, enforced with their defaults from boot, whether or not `late-settings` ever reads the workspace's
 	// (phase 4 specification, section 11): a replay's refusals are its journal's, so its rate takes nothing.
 	const limits = createKernelLimits(() => internals.replaying === true);
-	let keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, []);
+	// Phase 4 specification, 8.1: the reserved chords' registry; `late-settings` gives it the resolver and overrides.
+	const keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, [], {
+		project: () => scope.active().project !== undefined,
+	});
 	let commandSet = 0;
 
 	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
@@ -795,6 +799,8 @@ export async function createKernelParts(
 			const parts = await createLateParts(bootCommands, {
 				...options,
 				limits,
+				keybindings,
+				needsInput,
 				viewState,
 				state,
 				overlays,
@@ -830,6 +836,7 @@ export async function createKernelParts(
 				noteAction: (trace, command) => tracker.noteAction(trace, command),
 				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
+				disposed: () => disposed,
 			});
 			lateParts = parts;
 			internals.recordedRun = (confirmation, result) =>
@@ -844,8 +851,12 @@ export async function createKernelParts(
 			bootOnly = parts.bootOnly;
 			lateScope = parts.lateScope;
 		} catch (cause) {
+			// Disposed while it loaded: the late load ended there, as it should (step 7's sixth round, 2).
+			if (disposed) return;
 			reportKernelError(cause);
 			lateFailure = lateUnavailable();
+			// No override can be read: the reserved chords apply (R9, D66).
+			keybindings.useDefaults();
 			return;
 		}
 		checkNames([...shell, ...bootOnly, ...extra]);
@@ -953,8 +964,9 @@ export async function createKernelParts(
 				clock: () => options.clock?.() ?? Date.now(),
 				scope,
 				limits,
+				keysCollide: (a, b) => keybindings.collide(a, b),
 			});
-			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
+			keybindings.setApps(apps.keybindings);
 		} catch (cause) {
 			// A chunk that does not load refuses every app, and never the shell (D66).
 			reportKernelError(cause);
@@ -969,10 +981,14 @@ export async function createKernelParts(
 	 */
 	function startApps(): Promise<void> {
 		stageB ??= (async () => {
+			// A kernel disposed meanwhile goes no further: no store read or write after (step 7's sixth round, 2).
 			await loadLate();
+			if (disposed) return;
 			await loadAppsStage();
+			if (disposed) return;
 			if (hydrated) {
 				await state.hydrateLate();
+				if (disposed) return;
 				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
 				apps.reconcileLayouts();
 			}
@@ -981,10 +997,12 @@ export async function createKernelParts(
 			if (applying) {
 				registries = { ...registries, boot: build('palette', bootOnly) };
 				await lateParts?.apply(applying, runBoot, hydrated);
+				if (disposed) return;
 			}
 			setAppCommands(apps.commands);
 			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).
 			await lateParts?.begin();
+			if (disposed) return;
 			// An old appearance record moves into the person's settings, once stage A has read it (phase 4's 3.6).
 			if (hydrated) await lateParts?.migrate(runNow);
 		})()
@@ -992,6 +1010,7 @@ export async function createKernelParts(
 				stageBError = cause;
 				reportKernelError(cause);
 				lateFailure = { ...lateUnavailable(), message: String((cause as Error)?.message ?? cause) };
+				keybindings.useDefaults();
 			})
 			.finally(() => {
 				stageBEnded = true;
@@ -1067,6 +1086,14 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
+		// A reserved chord's action is named in `keybinding-list` and overrides, but is no command yet (8.5, R1).
+		if (SHELL_KEY_ACTIONS.includes(name)) {
+			return kernelFailure(
+				'KEYBINDING_ACTION_ONLY',
+				`${name} is a reserved chord's action in the shell's chrome, not a command`,
+				`Press its keys: keybinding-list { command: '${name}' } names them`
+			);
+		}
 		if (fields.parent !== undefined) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;

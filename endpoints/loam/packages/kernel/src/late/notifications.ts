@@ -1001,7 +1001,12 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 						deps.pushRate.record(source.bucket, at);
 					}
 				}
-				const prefs = await deps.prefs(context);
+				// The shell's own toast shows whatever the person's record does: one that cannot be read gives the defaults,
+				// as the shell is never muted and its toast then lands only as `danger` would (R9's "keys not ready").
+				const prefs = await deps.prefs(context).catch((cause: unknown) => {
+					if (source.kind !== 'shell') throw cause;
+					return { toastSticky: 'danger' as const, muted: [] as readonly string[] };
+				});
 				const muted = source.kind === 'app' && prefs.muted.includes(source.instance);
 				if (sticky) {
 					return admit(person, async () => {

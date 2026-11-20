@@ -5,6 +5,7 @@
 
 import {
 	GRANT_CATALOG_V1,
+	keybindingWhenProblem,
 	LAYOUT_DEFAULTS_V0,
 	SERVED_GRANTS_V2,
 	SHELL_RESERVED_CHORDS_V1,
@@ -108,14 +109,37 @@ const describeKey = (key: VersionKey): string =>
  */
 export function versionKeyFindings(document: unknown): Finding[] {
 	if (valueAt(document, '/manifest_version') !== 1) return [];
-	return VERSION_TWO_KEYS.flatMap((key) =>
-		heldAt(document, key).map((pointer) => ({
-			code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
-			pointer,
-			message: `${describeKey({ ...key, pointer })} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
-			suggestion: 'Set manifest_version = 2.',
-		}))
+	// Each place a key of version 2 is held, a command's `confirm_prompt` among them (step 6), and a keybinding's
+	// sequence or `when` (step 7).
+	const keys = VERSION_TWO_KEYS.flatMap((key) =>
+		heldAt(document, key).map((pointer) => ({ pointer, said: describeKey({ ...key, pointer }) }))
 	);
+	return [...keys, ...versionTwoKeybindings(document)].map(({ pointer, said }) => ({
+		code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
+		pointer,
+		message: `${said} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
+		suggestion: 'Set manifest_version = 2.',
+	}));
+}
+
+/**
+ * A keybinding's version 2 parts (phase 4 specification, 12.1, step 7): a sequence of two chords, and `when`. Phase 4
+ * adds no manifest version, so a version 1 manifest holding one is told the version, as for `VERSION_TWO_KEYS`.
+ */
+export function versionTwoKeybindings(document: unknown): Array<{ pointer: string; said: string }> {
+	const bindings = valueAt(document, '/ui/surfaces/keybindings');
+	if (!Array.isArray(bindings)) return [];
+	return bindings.flatMap((binding: unknown, index) => {
+		if (typeof binding !== 'object' || binding === null) return [];
+		const { chord, when } = binding as { chord?: unknown; when?: unknown };
+		const at = `/ui/surfaces/keybindings/${index}`;
+		return [
+			...(typeof chord === 'string' && chord.includes(' ')
+				? [{ pointer: `${at}/chord`, said: `A sequence of two chords (\`${chord}\`)` }]
+				: []),
+			...(when !== undefined ? [{ pointer: `${at}/when`, said: '`when`' }] : []),
+		];
+	});
 }
 
 /**
@@ -440,12 +464,44 @@ function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings)
 
 function chordRules(surfaces: Surfaces, found: Findings): void {
 	(surfaces.keybindings ?? []).forEach((binding, index) => {
-		if (SHELL_RESERVED_CHORDS_V1.includes(binding.chord)) {
+		const at = `/ui/surfaces/keybindings/${index}`;
+		const [first, second] = binding.chord.split(' ') as [string, string | undefined];
+		if (SHELL_RESERVED_CHORDS_V1.includes(first)) {
+			// Phase 4 specification, 8.1: a sequence never begins on a reserved chord either, which it would delay.
 			found.refuse(
 				'KEYBINDING_RESERVED',
-				`/ui/surfaces/keybindings/${index}/chord`,
-				`The shell keeps \`${binding.chord}\`.`,
-				'Choose another chord.'
+				`${at}/chord`,
+				second === undefined
+					? `The shell keeps \`${first}\`.`
+					: `A sequence never begins on \`${first}\`, which the shell keeps.`,
+				second === undefined
+					? 'Choose another chord.'
+					: 'Choose another chord to begin the sequence.'
+			);
+		} else if (second === 'F6' || second === 'Shift+F6') {
+			// F6 and Shift+F6 move focus between the parts, never a sequence's end either (8.3; step 7's reviews, 5).
+			found.refuse(
+				'KEYBINDING_RESERVED',
+				`${at}/chord`,
+				`The shell keeps \`${second}\`, which moves focus between the parts.`,
+				'Choose another chord to end the sequence.'
+			);
+		} else if (second !== undefined && !first.split('+').includes('Mod')) {
+			found.refuse(
+				'MANIFEST_KEYBINDING_KEYS',
+				`${at}/chord`,
+				`A sequence's first chord has Mod, and \`${first}\` has not.`,
+				'Begin the sequence with a Mod chord, such as `Mod+G P`.'
+			);
+		}
+		const when = (binding as { when?: string }).when;
+		const problem = when === undefined ? undefined : keybindingWhenProblem(when);
+		if (problem !== undefined) {
+			found.refuse(
+				'MANIFEST_KEYBINDING_WHEN',
+				`${at}/when`,
+				`The \`when\` ${problem}.`,
+				'Use editor, sidebar, main, project, !project or documentType == <type>, joined by " && ".'
 			);
 		}
 	});

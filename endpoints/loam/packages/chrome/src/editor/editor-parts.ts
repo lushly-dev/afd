@@ -143,13 +143,6 @@ export function focusMain(shell: LoamShell, main: HTMLElement): void {
 /** The chunk's elements, defined, for a fixture that renders them on their own. */
 export const defineEditorElements = (): Promise<unknown> => define();
 
-/** Whether a key event is Mod+S: Command on macOS, Control elsewhere, by physical key. */
-export const isSave = (event: KeyboardEvent, mac: boolean): boolean =>
-	(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) &&
-	!event.altKey &&
-	!event.shiftKey &&
-	event.code === 'KeyS';
-
 /** A rejected save's `danger` toast, with its code and suggestion (5.5). */
 export { notSaved } from './not-saved.js';
 

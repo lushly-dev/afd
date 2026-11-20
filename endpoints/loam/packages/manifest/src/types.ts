@@ -105,6 +105,9 @@ export type ManifestRefusalCode =
 	| 'GRANT_UNAVAILABLE'
 	| 'GRANT_UNKNOWN'
 	| 'KEYBINDING_RESERVED'
+	// Phase 4 specification, 12.1 (step 7): a sequence's first chord without Mod, and a `when` outside 8.1's terms.
+	| 'MANIFEST_KEYBINDING_KEYS'
+	| 'MANIFEST_KEYBINDING_WHEN'
 	| 'VIEW_CSP_IGNORED';
 
 /** A code a deployment file's or a projection's refusal can carry. */

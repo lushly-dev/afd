@@ -155,6 +155,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'confirmation-withdraw': { notification: 'ntf_0000000000000000' },
 	// Phase 4's step 10: the limits' usage, an owner's read of the workspace (section 11).
 	'limit-usage-get': {},
+	// Phase 4's step 7: the bindings in force, the person's own overrides among them (8.5).
+	'keybinding-list': { all: true },
 };
 
 /**

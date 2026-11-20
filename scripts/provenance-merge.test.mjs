@@ -6,7 +6,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { encode, merge3, RecordConflict, resolve, UNITS, unitOf } from './provenance-merge.mjs';
+import {
+	encode,
+	merge3,
+	mergeUnit,
+	RecordConflict,
+	resolve,
+	UNITS,
+	unitOf,
+} from './provenance-merge.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (text) => createHash('sha256').update(text).digest('hex');
@@ -30,6 +38,46 @@ describe('the records it writes', () => {
 		assert.equal(unitOf(`${FAST_AF}/adaptations.json`).name, 'adaptations.json');
 		assert.equal(unitOf('endpoints/botcore/src/botcore/server.py'), null);
 		assert.equal(unitOf('packages/core/provenance/provenance.json'), null);
+	});
+});
+
+describe('whether the envelope commits the adaptations digest merges as a value (#1610)', () => {
+	/** One unit's records three ways: `[rows, digest?]` per side, as base, ours, theirs. */
+	const unit = (...sides) => {
+		const versions = sides.map(([paths, digest]) => {
+			const adaptations = encode({ files: paths.map((path) => ({ path, import_reason: '' })) });
+			const record = { manifest: 'adaptations.json' };
+			if (digest) record.sha256 = sha(adaptations);
+			return {
+				'adaptations.json': JSON.parse(adaptations),
+				'provenance.json': { records: { adaptations: record } },
+			};
+		});
+		return mergeUnit({
+			names: () => new Set(['adaptations.json']),
+			versions: (name) => versions.map((side) => side[name]),
+			current: () => undefined,
+			fileSha: () => null,
+		});
+	};
+	const envelope = (out) => JSON.parse(out['provenance.json']).records.adaptations;
+
+	it('drops it when ours dropped it, even where theirs changed it', () => {
+		// The base committed it; this branch dropped it; main recorded a file, so its digest changed.
+		const out = unit([['a'], true], [['a'], false], [['a', 'b'], true]);
+		assert.deepEqual(envelope(out), { manifest: 'adaptations.json' });
+		assert.deepEqual(
+			JSON.parse(out['adaptations.json']).files.map((row) => row.path),
+			['a', 'b']
+		);
+	});
+
+	it('keeps one a side added to a base without it, recomputed; the unit test then refuses it', () => {
+		// Neither the base nor this branch commits it; main gained one (for Botcore or FAST-AF, a
+		// regression). The merge carries it, recomputed from the merged adaptations.json, and the
+		// unit's own provenance test refuses a committed digest until its recorder removes it.
+		const out = unit([['a'], false], [['a', 'c'], false], [['a'], true]);
+		assert.equal(envelope(out).sha256, sha(out['adaptations.json']));
 	});
 });
 
@@ -66,8 +114,11 @@ describe('resolve, against a real merge', () => {
 			writeFileSync(join(root, path), text);
 		}
 	};
-	/** A unit's records for `files`, as its recorder writes them, with the mirror for Botcore. */
-	const records = (dir, files, extra = {}) => {
+	/**
+	 * A unit's records for `files`, as its recorder writes them, with the mirror for Botcore.
+	 * `digest: false` is Botcore's and FAST-AF's shape since #1610: no committed adaptations digest.
+	 */
+	const records = (dir, files, extra = {}, { digest = true } = {}) => {
 		const adaptations = encode({ kind: 'reviewed-import-adaptations', files });
 		const upstream = encode({ files: [] });
 		const envelope = encode({
@@ -75,7 +126,10 @@ describe('resolve, against a real merge', () => {
 			...extra,
 			records: {
 				upstream: { manifest: 'upstream-selected.json', sha256: sha(upstream) },
-				adaptations: { manifest: 'adaptations.json', sha256: sha(adaptations) },
+				adaptations: {
+					manifest: 'adaptations.json',
+					...(digest ? { sha256: sha(adaptations) } : {}),
+				},
 			},
 		});
 		const out = {};
@@ -219,6 +273,119 @@ describe('resolve, against a real merge', () => {
 			['c.py', 'c2', '', shape]
 		);
 		assert.throws(() => resolve(git, root), /\[c\.py\], which is not hashed by its bytes/);
+	});
+
+	describe('a unit that does not commit the adaptations digest (#1610)', () => {
+		/** Rows of several fields apart, as real rows are: a file each side records is not adjacent. */
+		const spaced = (...paths) =>
+			rows(...paths).map((row) => ({ ...row, stage_reason: 'staged', origin: 'imported' }));
+		const base = [
+			['a.py', 'a0'],
+			['b.py', 'b0'],
+			['c.py', 'c0'],
+		];
+		const branchRows = [['a.py', 'a1'], ...base.slice(1)];
+		const mainRows = [...base.slice(0, 2), ['c.py', 'c1']];
+		/** Branch and main each record a different file, then git merges main into the branch. */
+		const twoBranches = (t, digest) => {
+			const { root, git, commit } = repo(t);
+			const both = (paths) => ({
+				...records(BOTCORE, spaced(...paths), {}, { digest }),
+				...records(FAST_AF, spaced(...paths), {}, { digest }),
+			});
+			commit(both(base), 'base');
+			git(['checkout', '-q', '-b', 'feat']);
+			commit(both(branchRows), 'branch');
+			git(['checkout', '-q', 'main']);
+			commit(both(mainRows), 'main');
+			git(['checkout', '-q', 'feat']);
+			let conflicted = false;
+			try {
+				git(['merge', '-q', '--no-edit', 'main']);
+			} catch {
+				conflicted = true;
+			}
+			return { root, git, conflicted };
+		};
+
+		it('merges two branches that recorded different files with no conflict at all', (t) => {
+			const committed = twoBranches(t, true);
+			assert.ok(committed.conflicted, 'with the digest committed, the envelope conflicts');
+			assert.deepEqual(
+				committed.git(['diff', '--name-only', '--diff-filter=U']).trim().split('\n').sort(),
+				[BOTCORE, MIRROR, FAST_AF].map((dir) => `${dir}/provenance.json`).sort()
+			);
+			const stamped = twoBranches(t, false);
+			assert.equal(stamped.conflicted, false, 'without it, git merges the records itself');
+			for (const dir of [BOTCORE, FAST_AF]) {
+				const adaptations = read(stamped.root, `${dir}/adaptations.json`).files;
+				assert.deepEqual(
+					adaptations.map((row) => row.current_import_sha256),
+					['a1', 'b0', 'c1']
+				);
+				assert.ok(!('sha256' in read(stamped.root, `${dir}/provenance.json`).records.adaptations));
+			}
+		});
+
+		it('merges rows that do conflict, and commits no adaptations digest', (t) => {
+			const { root, git } = diverge(t, [
+				['a.py', 'a1'],
+				['c.py', 'c0'],
+			]);
+			// diverge() commits the digest shape; take main and the branch to the new one.
+			git(['merge', '--abort']);
+			const strip = (message) => {
+				for (const dir of [BOTCORE, MIRROR, FAST_AF]) {
+					const path = join(root, dir, 'provenance.json');
+					const envelope = JSON.parse(readFileSync(path, 'utf8'));
+					delete envelope.records.adaptations.sha256;
+					writeFileSync(path, encode(envelope));
+				}
+				git(['commit', '-q', '-am', message]);
+			};
+			strip('branch drops the digest');
+			git(['checkout', '-q', 'main']);
+			strip('main drops the digest');
+			git(['checkout', '-q', 'feat']);
+			assert.throws(() => git(['merge', '-q', '--no-edit', 'main']));
+			const unmerged = git(['diff', '--name-only', '--diff-filter=U']);
+			assert.doesNotMatch(unmerged, /provenance\.json/, 'only the rows conflict');
+			resolve(git, root);
+			const envelope = read(root, `${BOTCORE}/provenance.json`);
+			assert.ok(!('sha256' in envelope.records.adaptations));
+			const text = (path) => readFileSync(join(root, path), 'utf8');
+			assert.equal(
+				envelope.records.upstream.sha256,
+				sha(text(`${BOTCORE}/upstream-selected.json`))
+			);
+			assert.equal(text(`${MIRROR}/provenance.json`), text(`${BOTCORE}/provenance.json`));
+			assert.deepEqual(
+				read(root, `${BOTCORE}/adaptations.json`).files.map((row) => row.current_import_sha256),
+				['a1', 'b1', 'c2']
+			);
+		});
+
+		it('drops the digest from a branch that still commits it once the base does not', (t) => {
+			const { root, git } = diverge(t, [
+				['a.py', 'a1'],
+				['c.py', 'c0'],
+			]);
+			git(['merge', '--abort']);
+			git(['checkout', '-q', 'main']);
+			const path = join(root, BOTCORE, 'provenance.json');
+			const envelope = JSON.parse(readFileSync(path, 'utf8'));
+			delete envelope.records.adaptations.sha256;
+			for (const dir of [BOTCORE, MIRROR])
+				writeFileSync(join(root, dir, 'provenance.json'), encode(envelope));
+			git(['commit', '-q', '-am', 'main drops the digest']);
+			git(['checkout', '-q', 'feat']);
+			assert.throws(() => git(['merge', '-q', '--no-edit', 'main']));
+			resolve(git, root);
+			assert.ok(!('sha256' in read(root, `${BOTCORE}/provenance.json`).records.adaptations));
+			// FAST-AF still commits it on both sides here, so it is recomputed as before.
+			const fast = read(root, `${FAST_AF}/provenance.json`).records.adaptations.sha256;
+			assert.equal(fast, sha(readFileSync(join(root, FAST_AF, 'adaptations.json'))));
+		});
 	});
 
 	it('refuses a conflict outside the records', (t) => {

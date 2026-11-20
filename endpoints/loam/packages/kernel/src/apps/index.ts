@@ -328,8 +328,12 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		const needing = new Map(
 			definitions.map((definition) => [definition.name, definition.jsonSchema])
 		);
-		for (const { chord, command } of manifest.ui?.surfaces?.keybindings ?? []) {
-			const holder = chords.get(chord);
+		for (const binding of manifest.ui?.surfaces?.keybindings ?? []) {
+			const { chord, command } = binding;
+			// Keys another app holds, the same or a sequence on the same first chord (phase 4 specification, 8.1).
+			const collide = rest.keysCollide ?? ((a: string, b: string) => a === b);
+			const held = [...chords.keys()].find((each) => collide(each, chord));
+			const holder = held === undefined ? undefined : chords.get(held);
 			if (holder !== undefined) {
 				record.notices.push({
 					code: 'KEYBINDING_CONFLICT',
@@ -343,7 +347,13 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 				});
 			} else {
 				chords.set(chord, entry.instance);
-				keybindings.push({ chord, command, instance: entry.instance });
+				const when = (binding as { when?: string }).when;
+				keybindings.push({
+					chord,
+					command,
+					instance: entry.instance,
+					...(when !== undefined ? { when } : {}),
+				});
 			}
 		}
 		record.port = port;

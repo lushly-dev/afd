@@ -457,6 +457,9 @@ async def test_dial_set_returns_the_previous_value_and_refuses_out_of_range(make
         ("cells.max", 0, "DIAL_OUT_OF_RANGE"),
         ("experience.hold", 1, "DIAL_OUT_OF_RANGE"),
         ("plans.ceiling", True, "DIAL_OUT_OF_RANGE"),
+        ("cells.max", "3", "DIAL_OUT_OF_RANGE"),
+        ("host.buildDir", "relative/build", "DIAL_OUT_OF_RANGE"),
+        ("host.buildDir", 5, "DIAL_OUT_OF_RANGE"),
         ("review.enabled", False, "CONFIRMATION_REQUIRED"),
         ("no.such", 1, "NOT_FOUND"),
     ],
@@ -467,6 +470,13 @@ async def test_dial_set_refusals_write_nothing(make_run, key, value, code):
     result = await run.call("dial_set", key=key, value=value)
     assert result.error.code == code and result.error.suggestion
     assert run.snapshot() == before
+
+
+async def test_host_build_dir_takes_an_absolute_directory_or_empty_for_the_default(make_run):
+    run = make_run()
+    first = await run.call("dial_set", key="host.buildDir", value=" /Volumes/Dev ")
+    assert (first.data["value"], first.data["previous"]) == ("/Volumes/Dev", "")
+    assert (await run.call("dial_set", key="host.buildDir", value="")).data["value"] == ""
 
 
 async def test_an_unmeasured_lane_host_carries_one_slot(make_run):

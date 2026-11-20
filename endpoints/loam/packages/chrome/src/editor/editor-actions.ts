@@ -8,29 +8,24 @@ import { type AskedClose, hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
-import { focusMain, isSave } from './editor-parts.js';
+import { focusMain } from './editor-parts.js';
 
-/**
- * The editor Mod+S saves, its default prevented, or undefined to leave the chord to the browser (5.5): the one
- * holding focus, which may be in another group than the active one, else the active group's, ready and its
- * tab's, while the area shows.
- */
-export function keyFrame(
-	event: KeyboardEvent,
-	mac: boolean,
-	shows: boolean,
-	state: { activeGroup: string; groups: Array<{ id: string; active: string | null }> } | null,
+type EditorGroupsState = {
+	activeGroup: string;
+	groups: Array<{ id: string; active: string | null }>;
+};
+
+/** The editor a save asks: the one on `path`, which may be in another group than the active one, else the active group's. */
+export function saveFrame(
+	path: readonly EventTarget[],
+	state: EditorGroupsState | null,
 	frames: Map<string, LoamEditorFrame>
 ): LoamEditorFrame | undefined {
-	if (event.defaultPrevented || !isSave(event, mac) || !shows) return undefined;
 	const group = state?.groups.find((each) => each.id === state.activeGroup);
 	const frame =
-		(event.composedPath().find((node) => node instanceof LoamEditorFrame) as
-			| LoamEditorFrame
-			| undefined) ?? (group?.active ? frames.get(group.active) : undefined);
-	if (frame?.state !== 'ready' || frames.get(frame.tab) !== frame) return undefined;
-	event.preventDefault();
-	return frame;
+		(path.find((node) => node instanceof LoamEditorFrame) as LoamEditorFrame | undefined) ??
+		(group?.active ? frames.get(group.active) : undefined);
+	return frame?.state === 'ready' && frames.get(frame.tab) === frame ? frame : undefined;
 }
 
 /** Every dirty editor's `save()`, not waited for, as on `pagehide` (5.5). */

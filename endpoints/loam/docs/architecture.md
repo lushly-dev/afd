@@ -380,7 +380,8 @@ sequenceDiagram
   `toast-show`, `dialog-open`, `modal-open`, `popover-open`, `prompt-open`,
   `overlay-list`, `overlay-dismiss`; `setting-get`, `setting-set`,
   `setting-list`, `setting-schema-get`; `limit-usage-get`, with `limit` among the shell's
-  domains (phase 4's section 11); `experiment-list`,
+  domains (phase 4's section 11); `keybinding-list`, with `keybinding` among the shell's domains
+  (phase 4's 8.5); `experiment-list`,
   `experiment-enable`, `experiment-disable`, `experiment-check`;
   `notification-list`, `notification-push`, `notification-read`, `notification-archive`,
   `notification-act`; `confirmation-get`, `confirmation-withdraw`;

@@ -239,6 +239,23 @@ const styles = css`
 	}
 `;
 
+/**
+ * A script's Enter or Space never chooses a row (phase 4 specification, 8.3; step 7's R6 and re-check, 3): heard on the
+ * listbox's own shadow root before its control, so Violet's listbox is unchanged. Escape and F6 pass, as before.
+ */
+function hearOnlyPeople(listbox: VioletListbox | undefined): void {
+	listbox?.shadowRoot?.addEventListener(
+		'keydown',
+		(event) => {
+			const key = (event as KeyboardEvent).key;
+			if (event.isTrusted || (key !== 'Enter' && key !== ' ')) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		},
+		{ capture: true }
+	);
+}
+
 export class LoamPalette extends FASTElement {
 	declare dialog: VioletDialog;
 	declare field: HTMLInputElement;
@@ -258,6 +275,11 @@ export class LoamPalette extends FASTElement {
 
 	get isOpen(): boolean {
 		return this.dialog?.open === true;
+	}
+
+	override connectedCallback(): void {
+		super.connectedCallback();
+		hearOnlyPeople(this.listbox);
 	}
 
 	/** Open with a query and search it. */
@@ -306,7 +328,8 @@ export class LoamPalette extends FASTElement {
 				return false;
 			case 'Enter':
 				event.preventDefault();
-				void this.runActive();
+				// Only a person's own Enter runs the row (8.3; step 7's R6 and re-check, 3).
+				if (event.isTrusted) void this.runActive();
 				return false;
 			default:
 				return true;

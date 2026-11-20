@@ -54,11 +54,13 @@ export const documentViewSource = (
 	},
 });
 
-/** The SDK's editor events (5.6), which `loam-editor-frame` hears, named here so this chunk imports none. */
+/**
+ * The SDK's editor events (5.6), which `loam-editor-frame` hears, named here so this chunk imports none. A save request
+ * is no event: `onSaveRequest` answers it.
+ */
 const EDITOR_EVENTS = {
 	dirty: 'loam-editor-dirty',
 	selection: 'loam-editor-selection',
-	save: 'loam-editor-save',
 } as const;
 
 export interface ViewFrameOptions {
@@ -158,6 +160,12 @@ export class LoamViewFrame extends FASTElement {
 	declare heading: string;
 	declare state: 'loading' | 'ready' | 'failed';
 	declare failure: ViewFrameFailure | null;
+	/**
+	 * The editor frame's answer to this view's own save request (documents specification, 5.6): a callback, set only on
+	 * a document's editor, never an embed's, and never an event (step 7's R6 and re-check, 2; a same-page script is
+	 * D54's, R10).
+	 */
+	onSaveRequest: (() => void) | undefined;
 	#options: ViewFrameOptions | null = null;
 	#channel: ProxyChannel | null = null;
 	#host: ViewHost | null = null;
@@ -314,16 +322,18 @@ export class LoamViewFrame extends FASTElement {
 			...(options.document?.readOnly === false
 				? {
 						onEditor: (kind: 'dirty' | 'selection' | 'save', params: unknown) =>
-							this.dispatchEvent(
-								new CustomEvent(EDITOR_EVENTS[kind], {
-									detail:
-										kind === 'dirty'
-											? { dirty: (params as { dirty?: unknown } | null)?.dirty === true }
-											: ((params as { selection?: unknown } | null)?.selection ?? null),
-									bubbles: true,
-									composed: true,
-								})
-							),
+							kind === 'save'
+								? this.onSaveRequest?.()
+								: this.dispatchEvent(
+										new CustomEvent(EDITOR_EVENTS[kind], {
+											detail:
+												kind === 'dirty'
+													? { dirty: (params as { dirty?: unknown } | null)?.dirty === true }
+													: ((params as { selection?: unknown } | null)?.selection ?? null),
+											bubbles: true,
+											composed: true,
+										})
+									),
 					}
 				: {}),
 			onInitialized: () => {

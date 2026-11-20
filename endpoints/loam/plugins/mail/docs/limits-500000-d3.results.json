@@ -1,0 +1,150 @@
+{
+	"bursts": {
+		"found": 0,
+		"found_on_listing_ms": 11.29,
+		"headers_batch_after_listing_ms": 1238.01
+	},
+	"bytes": {
+		"database": 869532976,
+		"directory": 7366837511,
+		"directory_on_disk": 7366837511,
+		"held": 10872983530,
+		"index": 907391071,
+		"index_on_disk": 907391071,
+		"log": 5589878744,
+		"log_on_disk": 5589878744,
+		"messages_without_attachments": 6218869666
+	},
+	"checks": {
+		"hits": 15000,
+		"opened_with_text": 300,
+		"queries": 300,
+		"queries_with_hits": 300,
+		"snoozed_listed": 20,
+		"threads_listed": 14950
+	},
+	"derived_ratio": 0.29,
+	"directory_ratio": 0.68,
+	"directory_ratio_by_file_length": 0.68,
+	"import": {
+		"bodies_to_a_batch": 50,
+		"messages_per_second": 119.78,
+		"seconds": 4174.19,
+		"seconds_bodies": 2027.43,
+		"seconds_headers": 2138.32
+	},
+	"limits": {
+		"derived_ratio": {
+			"limit": 3.0,
+			"met": true
+		},
+		"directory_ratio": {
+			"limit": 1.5,
+			"met": true
+		},
+		"import_per_second": {
+			"limit": 500.0,
+			"met": false
+		},
+		"list_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"list_snoozed_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"open_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"search_p95_ms": {
+			"limit": 200.0,
+			"met": true
+		},
+		"selection_ms": {
+			"limit": 60000.0,
+			"met": true
+		}
+	},
+	"list_50_threads_ms": {
+		"max": 1.96,
+		"p50": 0.56,
+		"p95": 1.38
+	},
+	"list_snoozed_threads_ms": {
+		"max": 0.96,
+		"p50": 0.14,
+		"p95": 0.18
+	},
+	"load_averages": {
+		"at_end": "",
+		"at_start": ""
+	},
+	"messages": 500000,
+	"open_message_ms": {
+		"max": 226.89,
+		"p50": 15.63,
+		"p95": 26.42
+	},
+	"search_ms": {
+		"max": 345.39,
+		"p50": 5.38,
+		"p95": 14.37
+	},
+	"selections": {
+		"bulk_class": {
+			"messages": 500250,
+			"ms": 3218.61,
+			"threads": 156514
+		},
+		"commonest_word": {
+			"messages": 499986,
+			"ms": 2273.54,
+			"threads": 156459
+		},
+		"large_mailbox": {
+			"messages": 417000,
+			"ms": 4685.76,
+			"threads": 139126
+		},
+		"largest_story": {
+			"messages": 42083,
+			"ms": 1180.79,
+			"threads": 30426
+		},
+		"whole_account": {
+			"messages": 500250,
+			"ms": 2920.97,
+			"threads": 156514
+		}
+	},
+	"shape": {
+		"in_threads": 0.67,
+		"senders": 2906,
+		"templated": 0.82,
+		"vocabulary": 50000
+	},
+	"stories": {
+		"largest_kinds": 517,
+		"largest_messages": 42083,
+		"list_50_ms": {
+			"max": 1.19,
+			"p50": 0.36,
+			"p95": 0.62
+		},
+		"open_largest_ms": {
+			"max": 4.26,
+			"p50": 2.08,
+			"p95": 2.84
+		},
+		"page_of_a_kind_ms": {
+			"max": 131.84,
+			"p50": 13.5,
+			"p95": 19.38
+		},
+		"stories": 2371
+	},
+	"threads": 156514,
+	"tool": "loam_mail limits"
+}

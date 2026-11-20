@@ -475,6 +475,48 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 6's eighth round, under D115, the same machine: `kernelMinified` 129,000 to 129,500 (128,497 to 129,028): a
  * wrapper's child started, the whole recorded outcome, and the lossy entry of an untracked wrapper. First paint 317,299
  * and 99,456 gzip, within their rows.
+ *
+ * Phase 4's step 7 (keybindings, section 8), measured on Windows with Node 26.13.1 on its branch from `main` at
+ * `ca1b11f3`, against step 10's merged figures above, each raised to its measurement plus a margin under D115:
+ * `jsMinified` 312,800 to 316,500 and `jsGzip` 98,000 to 99,500 (315,952, +3,384, and 99,161, +1,276; section 14
+ * estimated 600 and 250 for the key matcher): the matcher on any layout (8.2), a sequence's wait (8.1), `when`'s focus
+ * terms, Mod+Alt+P's switcher, save through the bindings in force, the registry's resolver seam and its phase 1 band
+ * until the late load, and a reserved action's refusal (R1). The resolver itself, overrides and `keybinding-list` were
+ * moved out of first paint into `late-settings` first (-1,526); `kernelMinified` 122,600 to 125,200 (124,650: the
+ * registry, the refusal, the runnable check, and the index's types and `whenProblem`); `lateMinified` 109,800 to
+ * 110,500 (110,224: the wiring); `lateEditorMinified` 15,400 to 15,600 (15,447: the active tab's type for `when`);
+ * `lateSettingsMinified` 68,000 to 73,500 (72,883, +5,042: the resolver, `keybinding-list` and the person's overrides
+ * read per workspace); `appsMinified` 424,000 to 426,500 (426,064, +2,354: the manifest's sequences and `when`, their
+ * two codes and the version 1 refusal); `settingsMinified` 42,200 to 44,800 (44,352, +2,152: the editor's sequences,
+ * target and warnings, and the chunk's copies of the matcher's rules).
+ * After step 7's reviews (keys trusted and resolved once in the shell, overrides tied to their person, eligibility and
+ * the palette's shortcut map moved into `late-settings`, `whenProblem` no longer re-exported), against the step's own
+ * figures: first paint 316,078 and 99,262 gzip (+126 and +101), within `jsMinified` and `jsGzip`; `kernelMinified`
+ * 125,200 to 124,300 (123,775, -875); `lateMinified` 110,500 to 111,000 (110,541: the command info read from the
+ * registry); `lateSettingsMinified` 73,500 to 74,200 (73,694: the shortcut map, R7's and R8's checks);
+ * `settingsMinified` 44,800 to 46,400 (45,912, +1,560: the editor's copy of the whole list's check and its warnings).
+ * Of those moves, the override eligibility went to `late` (its command info, read from the registry) and the palette's
+ * shortcut map to `late-settings` (the re-check's 10).
+ * After step 7's re-check (one readiness for dispatch, the list and the hints; the late load's failure applying the
+ * defaults; Mod+S held while not ready; repeats and AltGr; the switcher's and palette's guards), against the figures
+ * above: `jsMinified` 316,500 to 317,500 and `jsGzip` 99,500 to 100,000 (316,988, +910, and 99,580, +318: the shell's
+ * held save and its notice, the prefix cleared in the capture phase, the matcher's repeats and AltGr, and the kernel's
+ * readiness states); `kernelMinified` 124,300 to 125,000 (124,503); `switcherMinified` 11,317 to 11,600 (11,445: the
+ * guard on the listbox); `settingsMinified` 46,400 to 46,900 (46,410: the warnings by the list's order).
+ * After step 7's third round (the adapter's person in readiness, the shell's toast with unreadable preferences, the
+ * retry stopped on dispose, `oneOf` eligibility): first paint 317,050 and 99,602 gzip, within its rows; `late` 110,968
+ * of 111,000; `lateSettingsMinified` 74,200 to 74,800 (74,598: the toast's default preferences, the retry's stop and
+ * the overrides reader moved into `setting-overrides.ts`).
+ * After step 7's fourth round (the failure state first, disposal across the late load, `emptyMeets`, the editor's
+ * winner): first paint 317,125 and 99,614 gzip, within its rows; `lateMinified` 111,000 to 111,500 (111,103: `emptyMeets`
+ * and the disposal flag); `settings` 46,865 of 46,900.
+ * After step 7's fifth round (the kernel's disposal carried into the late load, `emptyMeets` failing safe in its own
+ * module, the failure's defaults in `keybinding-list`, an expiring session still naming its user): first paint 317,298
+ * and 99,660 gzip, within its rows; `lateMinified` 111,500 to 112,800 (112,243); the `settings` chunk 46,900 to 47,400
+ * (47,028: the editor's warning runs the resolver's rule over the proposed list, R12).
+ * After step 7's sixth round (stage B and the late load end at each await once the kernel is disposed; a mounted
+ * schema discovery replaced gets no chord; the failure's hints leave out an app's `when` bindings): first paint 317,362
+ * and 99,692 gzip, within its rows; the kernel alone 125,000 to 125,500 (125,037); `late` 112,345 of 112,800.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -503,12 +545,14 @@ export const CEILINGS = Object.freeze({
 	// Step 6's fifth round: 314,747 (the header records it); set to 315,500 under D115.
 	// Step 6's sixth round: 315,994 and 99,048 gzip (the header records it); set to 316,500 and 99,300 under D115.
 	// Step 6's seventh round: 316,903 and 99,332 gzip (the header records it); set to 317,500 and 99,600 under D115.
+	// Phase 4's step 7: 315,952 and 99,161 gzip, the key matcher (the header records it); set to 316,500 and 99,500.
+	// After its re-check: 316,988 and 99,580; set to 317,500 and 100,000.
 	jsMinified: 317_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 99_600,
+	jsGzip: 100_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -559,7 +603,7 @@ export const CEILINGS = Object.freeze({
 	viewMinified: 26_800,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
-	switcherMinified: 11_317,
+	switcherMinified: 11_600,
 	switcherColdMinified: 45_163,
 	// Raised from 3,126 to 3,490 by AFD #1054: an Escape is the dialog's while a modal dialog that does not hold
 	// the tooltip's entry is open, so the tooltip looks for one through the shadow roots; measured against `main`
@@ -576,7 +620,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 42_200,
+	settingsMinified: 47_400,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 	inboxMinified: 12_000,
