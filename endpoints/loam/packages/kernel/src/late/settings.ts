@@ -678,6 +678,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 		},
 	});
 	const readOverrides = () => overrides.read();
+	/** The kernel is disposed: a read in flight sets nothing after (the seventh round's 2). */
+	let stopped = false;
 
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
 	async function readLimits(): Promise<void> {
@@ -690,6 +692,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 		) as KnownSectionV1;
 		// `readRow` answers undefined for a read that fails, so the defaults hold: never no limit at all.
 		const row = deps.hosted() ? undefined : await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
+		// Stopped with the kernel while the row was read: the kernel's limits are left as they were (the seventh round's 2).
+		if (stopped) return;
 		const resolved = {} as Record<LimitKeyV1, number>;
 		for (const key of LIMIT_KEY_ORDER) {
 			const stored = storedOf(row?.values[key]);
@@ -1418,7 +1422,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 				return previous;
 			}),
 		readOverrides,
-		stop: () => overrides.stop(),
+		stop: () => {
+			stopped = true;
+			overrides.stop();
+		},
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);

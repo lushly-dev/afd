@@ -11,7 +11,7 @@ import type { IdentityV1, ManifestV2, ProjectionV3 } from '@lushly-dev/loam-mani
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createKernel } from '../kernel.js';
+import { createKernel, createKernelParts } from '../kernel.js';
 import type { KeybindingEntryV1 } from '../keybindings.js';
 import type { MembershipV1 } from '../scope/access.js';
 import { createScopedWorkspace } from '../scope/fixtures.js';
@@ -797,8 +797,8 @@ describe("step 7's fifth round", () => {
 		digest: 'd1',
 	};
 	/**
-	 * Holds stage B's list of one table, fails reads of the person's settings, and counts every call: reads and writes
-	 * (the sixth round's 2).
+	 * Holds stage B's list of one table, fails reads of the person's settings, and counts every call: reads, writes and
+	 * `health()` (the sixth and seventh rounds' 2 and 3).
 	 */
 	class HeldStore extends MemoryAdapter {
 		hold: { table: string; until: Promise<void> } | undefined;
@@ -836,6 +836,10 @@ describe("step 7's fifth round", () => {
 		override async batch(...args: Parameters<MemoryAdapter['batch']>) {
 			this.calls++;
 			return super.batch(...args);
+		}
+		override async health() {
+			this.calls++;
+			return super.health();
 		}
 	}
 	/**
@@ -961,5 +965,111 @@ describe("step 7's sixth round", () => {
 		);
 		expect(hello).toBeDefined();
 		expect(hello?.idle).toBeUndefined();
+	});
+});
+
+describe("step 7's seventh round", () => {
+	/** Holds the one read `held` names, by its record and the module on the call's stack. */
+	class TailStore extends MemoryAdapter {
+		hold: { table: string; id: string; from: string; until: Promise<void> } | undefined;
+		held = 0;
+		override async get<T>(table: string, id: string): Promise<T | null> {
+			const hold = this.hold;
+			if (
+				hold &&
+				table === hold.table &&
+				id === hold.id &&
+				new Error().stack?.includes(hold.from)
+			) {
+				this.held++;
+				await hold.until;
+			}
+			return super.get<T>(table, id);
+		}
+	}
+	const disposedDuring = async (
+		table: string,
+		id: string,
+		from: string,
+		store = new TailStore()
+	) => {
+		let release: () => void = () => {};
+		const parts = await createKernelParts({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		store.hold = {
+			table,
+			id,
+			from,
+			until: new Promise<void>((resolve) => {
+				release = resolve;
+			}),
+		};
+		const stageB = parts.kernel.startApps().catch(() => undefined);
+		await expect.poll(() => store.held, { timeout: 5_000 }).toBe(1);
+		await parts.kernel.dispose();
+		release();
+		await stageB;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		return parts;
+	};
+
+	it('2: a kernel disposed while the late load reads the overrides installs no late parts after', async () => {
+		const parts = await disposedDuring('settings', 'loam.settings', 'setting-overrides');
+		// `mcpOptions` is the late parts': undefined until they are installed.
+		expect(parts.mcpOptions()).toBeUndefined();
+	});
+
+	it("2: a kernel disposed while the late load reads the workspace's limits keeps the limits it had", async () => {
+		const store = new TailStore();
+		await store.create('setting', {
+			id: 'personal/loam.limits/workspace',
+			workspace: 'personal',
+			section: 'loam.limits',
+			level: 'workspace',
+			values: { callsPerSecond: { value: 20, updatedAt: 1, updatedBy: 'local' } },
+			updatedAt: 1,
+			updatedBy: 'local',
+		});
+		const parts = await disposedDuring(
+			'setting',
+			'personal/loam.limits/workspace',
+			'readLimits',
+			store
+		);
+		expect(parts.limits.values().callsPerSecond).toBe(50);
+		expect(parts.mcpOptions()).toBeUndefined();
+	});
+
+	it('2: the limits row is read into the limits when no disposal comes (the control)', async () => {
+		const store = new MemoryAdapter();
+		await store.create('setting', {
+			id: 'personal/loam.limits/workspace',
+			workspace: 'personal',
+			section: 'loam.limits',
+			level: 'workspace',
+			values: { callsPerSecond: { value: 20, updatedAt: 1, updatedBy: 'local' } },
+			updatedAt: 1,
+			updatedBy: 'local',
+		});
+		const parts = await createKernelParts({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		kernels.push(parts.kernel);
+		await parts.kernel.startApps();
+		expect(parts.limits.values().callsPerSecond).toBe(20);
+		expect(parts.mcpOptions()).toBeDefined();
 	});
 });

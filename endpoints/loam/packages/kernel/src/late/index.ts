@@ -929,6 +929,7 @@ export async function createLateParts(
 		},
 	});
 	await settings.readOverrides();
+	endIfDisposed();
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
 	const appList = byName.get('app-list') as ZodCommandDefinition;
 	byName.set('app-list', {

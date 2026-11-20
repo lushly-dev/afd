@@ -16,7 +16,9 @@ import { createFixedEnvironment, createFixturePorts } from './testing.js';
 /** Run as stage B fails, before the failure: the positive control that the override was read (the fifth round's 2). */
 const failing = vi.hoisted(() => ({
 	before: undefined as
-		| ((deps: { keybindings?: { list(active: null): Array<{ chord: string }> } }) => void)
+		| ((deps: {
+				keybindings?: { list(active: null): Array<{ chord: string }>; refused(): number };
+		  }) => void)
 		| undefined,
 }));
 
@@ -139,8 +141,10 @@ describe('the keybindings with stage B failed (R9)', () => {
 		// The positive control: the person's override was read and in force just before stage B failed, which a
 		// deployment's kernel reaches inside `createKernel`.
 		let before: string[] = [];
+		let refusedBefore: number | undefined;
 		failing.before = (deps) => {
 			before = deps.keybindings?.list(null).map(({ chord }) => chord) ?? [];
+			refusedBefore = deps.keybindings?.refused();
 		};
 		const kernel = await createKernel({
 			store,
@@ -163,6 +167,8 @@ describe('the keybindings with stage B failed (R9)', () => {
 		await kernel.startApps().catch(() => undefined);
 		failing.before = undefined;
 		expect(before).toContain('Mod+Shift+K');
+		// The F6 rebind was read and refused before the failure (the seventh round's 4).
+		expect(refusedBefore).toBe(1);
 		await expect
 			.poll(() => kernel.lateFailure?.code, { timeout: 5_000 })
 			.toBe('LATE_COMMANDS_UNAVAILABLE');
