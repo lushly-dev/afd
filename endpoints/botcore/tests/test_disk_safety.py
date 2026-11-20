@@ -338,3 +338,15 @@ def test_an_uninstall_that_cannot_confirm_says_why(monkeypatch: pytest.MonkeyPat
         "linux", True, "crontab", "the crontab could not be read"))
     result = asyncio.run(setup.disk_setup(uninstall=True))
     assert not result.success and "could not be read" in result.error.message
+
+
+def test_deep_trees_are_searched_and_shallow_patterns_stop_early(tmp_path: Path) -> None:
+    deep = tmp_path.joinpath(*[f"d{i}" for i in range(15)])
+    (deep / "gen").mkdir(parents=True)
+    found, complete = find_candidates(tmp_path, [DiskRegenerable(path="**/gen")], 1e18)
+    assert complete and [c.rel.split("/")[-1] for c in found] == ["gen"]
+    (tmp_path / "dist").mkdir()
+    found, complete = find_candidates(tmp_path, [DiskRegenerable(path="dist")], 1e18)
+    assert complete and [c.rel for c in found] == ["dist"]
+    found, complete = find_candidates(tmp_path, [], 1e18)
+    assert complete and found == []

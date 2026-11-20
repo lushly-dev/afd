@@ -2380,10 +2380,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b2d0f8f4bd78e1e72416fdc8e317b85b9b920aa742831061a8126f9d256c58ac",
+      "current_import_sha256": "202060cc5c80e8440fa91b217e445d2400a49d5e7c529b6d08bec78d6a830ac3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690)"
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
     },
     {
       "path": "src/botcore/commands/disk/reclaim.py",
@@ -2424,10 +2424,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "eba2912ad619f6e12baa4db9e780f39e59da4b46b59b765e1fdf1d40e7c7d7f0",
+      "current_import_sha256": "b5e380fe439107c2208eee71048183ad789b02ff07bab3a6e1ceaabd663623dd",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
     },
     {
       "path": "src/botcore/commands/disk/schedule.py",
@@ -6087,10 +6087,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e7ae283fe480e216cbec60069f71188baa0faea44e9ecaa84bff75de38918726",
+      "current_import_sha256": "5f6dd6ea637b963afa3c22d711d8ecf166d905d6ff605e45262bea99429758a6",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690)"
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
     },
     {
       "path": "tests/test_disk_reclaim_safety.py",
@@ -6098,10 +6098,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1d216dcc7a319e2646f6138d1e37144eb4fa49a3df581f00ab2175be219877ee",
+      "current_import_sha256": "fa5389c0b57c69d91cfd303ea497196e0f05a988ee06f730979e01505c8458a5",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690)"
+      "import_reason": "disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
     },
     {
       "path": "tests/test_disk_report.py",
@@ -6120,10 +6120,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "cd3e2a164fcedb14a5f856b282384a4d1f94b7fcfb2daf7d629c277c089c8e16",
+      "current_import_sha256": "5aee7eb917f62bd46df4feb8828cbd77216ebe4ebbc641fe06f1df3726f9b8ef",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688)"
+      "import_reason": "disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
     },
     {
       "path": "tests/test_disk_setup.py",

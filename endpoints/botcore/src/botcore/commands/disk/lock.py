@@ -3,7 +3,8 @@
 The lock file is never deleted. A run opens it and asks the kernel for an exclusive,
 non-blocking lock (`flock` on macOS and Linux, `msvcrt.locking` on Windows). The kernel drops
 it when the process exits however it exits, so there is no stale-lock guessing and no window in
-which two runs can both believe they hold it. The holder's pid is written in for people to read.
+which two runs can both believe they hold it. The holder's pid goes in a separate `.json` file
+beside it for people to read: on Windows the locked file itself cannot be read while held.
 """
 
 from __future__ import annotations
@@ -53,13 +54,17 @@ def _unlock(fd: int) -> None:
     fcntl.flock(fd, fcntl.LOCK_UN)
 
 
+def record_path(path: Path) -> Path:
+    return path.with_name(path.name + ".json")
+
+
 def holder(path: Path) -> dict:
-    """What the last holder wrote into the lock file (for messages only)."""
+    """Who last took the lock (for messages only)."""
     try:
-        text = path.read_text(encoding="utf-8").strip("\0 \n")
-        return json.loads(text) if text else {}
+        data = json.loads(record_path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 class RunLock:
@@ -82,11 +87,11 @@ class RunLock:
             detail = f" (pid {who['pid']} on {who.get('host', '?')})" if "pid" in who else ""
             raise LockHeld(f"another disk run holds {self.path}{detail}")
         self.fd = fd
-        record = json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()})
-        # Windows locks byte 0; write the record after it so the lock byte stays ours.
-        os.lseek(fd, 1, os.SEEK_SET)
-        os.write(fd, record.encode("utf-8") + b"\n")
-        os.ftruncate(fd, 1 + len(record) + 1)
+        record = {"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()}
+        try:
+            record_path(self.path).write_text(json.dumps(record), encoding="utf-8")
+        except OSError:
+            pass  # only a courtesy for messages; the kernel lock is what counts
         return self
 
     def __exit__(self, *_exc: object) -> None:

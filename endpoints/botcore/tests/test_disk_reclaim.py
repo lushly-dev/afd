@@ -68,7 +68,7 @@ def test_apply_strips_only_ready_untracked_ignored_output(
     assert record["paths"] == [str(repo["old"] / "dist")]
     status_ = json.loads((state / "status.json").read_text())
     assert status_["last_apply"]["ok"] is True
-    assert "/" in json.dumps(status_["volumes"])
+    assert str(mount_point(repo["old"])) in {v["mount"] for v in status_["volumes"]}
 
 
 def test_a_worktree_that_came_back_to_life_is_left_alone(

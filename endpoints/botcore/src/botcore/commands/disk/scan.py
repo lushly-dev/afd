@@ -23,7 +23,20 @@ DAY = 86400.0
 # Folders a pattern search never enters: their contents belong to a package manager or git,
 # and a pattern such as "**/dist" must not match a package's own dist inside node_modules.
 NEVER_ENTER = {".git", "node_modules", ".venv", "venv", "__pycache__"}
-MAX_DEPTH = 12
+# How deep a `**` pattern is searched. afd's main checkout passes 12 inside CMake-fetched sources.
+MAX_DEPTH = 32
+
+
+def long_path(path: Path | str) -> str:
+    """Windows long-path syntax for an absolute path, so a deep folder is still readable when
+    the system's 260-character limit is on. Other platforms: unchanged."""
+    text = str(path)
+    if os.name != "nt" or text.startswith("\\\\?\\"):
+        return text
+    absolute = os.path.abspath(text)
+    if absolute.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + absolute[2:]
+    return "\\\\?\\" + absolute
 
 
 # ── Volumes ─────────────────────────────────────────────────────────────────
@@ -384,10 +397,15 @@ def find_candidates(
     folder that could not be read, or a depth cutoff, makes the walk incomplete, and an
     incomplete walk must not make anything ready: a recent build may be in what was missed.
     """
+    if not entries:
+        return [], True
     compiled = [(compile_pattern(e.path), e) for e in entries]
+    recursive = any("**" in e.path for e in entries)
+    # Without `**`, nothing deeper than the longest pattern can match: stopping there is complete
+    limit = MAX_DEPTH if recursive else max(len(e.path.strip("/").split("/")) for e in entries)
     found: list[Candidate] = []
     complete = True
-    stack: list[tuple[Path, str, int]] = [(worktree, "", 0)]
+    stack: list[tuple[Path, str, int]] = [(Path(long_path(worktree)), "", 0)]
     while stack:
         if time.monotonic() > deadline:
             return found, False
@@ -414,8 +432,8 @@ def find_candidates(
                 continue
             if not folder_like or nested or child.name in NEVER_ENTER:
                 continue
-            if depth >= MAX_DEPTH:
-                complete = False
+            if depth + 1 >= limit:
+                complete = complete and not recursive
                 continue
             stack.append((Path(child.path), rel + "/", depth + 1))
     return found, complete
@@ -432,7 +450,7 @@ def allocated(path: Path, deadline: float) -> int | None:
     """
     total = 0
     seen: set[tuple[int, int]] = set()
-    stack = [path]
+    stack = [Path(long_path(path))]
     while stack:
         if time.monotonic() > deadline:
             return None

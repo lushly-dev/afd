@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from botcore.commands.disk import caches, reclaim, remove, schedule, setup
-from botcore.commands.disk.lock import RunLock
+from botcore.commands.disk.lock import RunLock, holder
 from botcore.commands.disk.remove import remove_inside
 from tests.test_disk_reclaim import run_reclaim, state  # noqa: F401
 from tests.test_disk_report import age, age_worktree, git, repo  # noqa: F401
@@ -179,7 +179,7 @@ def test_hard_link_evidence_must_come_from_the_store_being_pruned(tmp_path: Path
 def test_the_lock_survives_a_reader_and_frees_on_exit(state: Path) -> None:  # noqa: F811
     lock_path = state / "run.lock"
     with RunLock(lock_path):
-        assert json.loads(lock_path.read_text().strip("\0 \n"))["pid"] == os.getpid()
+        assert holder(lock_path)["pid"] == os.getpid()
     with RunLock(lock_path) as again:
         assert again.held
     assert lock_path.exists()  # never deleted: the kernel, not the file, is the lock
