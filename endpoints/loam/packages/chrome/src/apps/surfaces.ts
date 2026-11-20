@@ -346,7 +346,8 @@ export class AppSurfaces implements ShellApps {
 			if (rescoped) this.#enqueue(() => this.#overlays.read());
 			return;
 		}
-		if (!event.success && !rescoped) {
+		// A person's close of a dirty tab fails, and opens the close prompt (phase 4 specification, 7.3): read below.
+		if (!event.success && !rescoped && command !== 'editor-close') {
 			// A first call that failed to import marks its app failed.
 			if (event.instance !== undefined) this.#enqueue(() => this.#sync());
 			return;
@@ -363,6 +364,8 @@ export class AppSurfaces implements ShellApps {
 			// that then failed (3.4).
 			rescoped ||
 			(event.mutation && /^(toast|modal|popover|dialog|prompt|overlay)-/.test(command)) ||
+			// The palette's input prompt (phase 4 specification, 7.1).
+			command === 'palette-run' ||
 			// A change of the active tab's owner parks, closes or restores overlays (the review's 4): only the calls that
 			// move it, never a caret's `editor-selection-set`, `editor-dirty-set` or a read, each of which would journal a read.
 			/^(editor-(activate|close|move|pin)|document-open)$/.test(command) ||

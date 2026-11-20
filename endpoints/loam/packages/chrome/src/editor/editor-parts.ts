@@ -143,15 +143,6 @@ export function focusMain(shell: LoamShell, main: HTMLElement): void {
 /** The chunk's elements, defined, for a fixture that renders them on their own. */
 export const defineEditorElements = (): Promise<unknown> => define();
 
-/** The phase 1 modal's input: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
-export const discardModal = (title: string) => ({
-	title: 'Close without saving?',
-	body: `Your changes to ${title.slice(0, 200)} are not saved. Closing loses them.`,
-	confirmLabel: 'Discard',
-	cancelLabel: 'Keep editing',
-	danger: true,
-});
-
 /** A rejected save's `danger` toast, with its code and suggestion (5.5). */
 export { notSaved } from './not-saved.js';
 
@@ -246,7 +237,7 @@ export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefine
 /** Each modal of `modals` the kernel's list no longer holds, closed with no answer, answered `cancel`; a failed read answers none. */
 export async function lostModals(
 	kernel: LoamKernelV5,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>
+	modals: Map<string, (result: string) => void>
 ): Promise<void> {
 	const open = (await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
 		?.overlays;
@@ -289,20 +280,7 @@ export async function readRecord(
 	return held;
 }
 
-/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5); its answer by `modals`. */
-export async function confirmDiscard(
-	kernel: LoamKernelV5,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>,
-	title: string
-): Promise<boolean> {
-	const opened = await kernel.call<{ overlayId: string }>('modal-open', discardModal(title));
-	const overlayId = opened.data?.overlayId;
-	if (!opened.success || overlayId === undefined) return false;
-	const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
-		modals.set(overlayId, resolve)
-	);
-	return result === 'confirm';
-}
+export { askClose, CLOSE_PROMPT } from './same-close.js';
 
 /**
  * A group leaving the area goes, unless it holds a view editor with unsaved work, which its frame's removal

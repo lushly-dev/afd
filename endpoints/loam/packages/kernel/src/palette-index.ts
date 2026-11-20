@@ -31,7 +31,10 @@ export interface PaletteItem {
 	/** A setting row's section's full id, and its key, apart (3.10). */
 	section?: string;
 	key?: string;
-	/** A setting row's owning app's title; none for the shell's own sections. */
+	/**
+	 * The owning app's title: a setting row's, and from phase 4's step 6 a command row's (A-P0-1, A-P1-1); none for the
+	 * shell's own.
+	 */
 	app?: string;
 }
 

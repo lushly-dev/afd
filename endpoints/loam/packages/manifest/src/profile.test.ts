@@ -129,6 +129,8 @@ describe("Loam's profile", () => {
 			'ui-documents',
 			'ui-new',
 			'ui-settings',
+			// Phase 4's step 6: a command's `confirm_prompt` (its 7.2).
+			'confirm-prompt',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
 			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's,
@@ -184,6 +186,10 @@ describe("Loam's profile", () => {
 			const holdsVersionTwo =
 				valueAt(document, '/manifest_version') !== 1 ||
 				versionTwo.some((pointer) => valueAt(document, pointer) !== undefined) ||
+				// Phase 4's step 6: any command's `confirm_prompt` (7.2).
+				((valueAt(document, '/commands') as unknown[] | undefined) ?? []).some(
+					(command) => valueAt(command, '/confirm_prompt') !== undefined
+				) ||
 				// Phase 4's step 7: a keybinding's sequence and `when` are version 2's (its 12.1).
 				versionTwoKeybindings(document).length > 0 ||
 				valueAt(document, '/ui/surfaces/sidebar/shape') === 'tree';

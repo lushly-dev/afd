@@ -1,10 +1,11 @@
 /**
  * @fileoverview The `inbox` chunk (phase 4 specification, 10.3 and 15), loaded when main first shows the inbox, at
  * `/<workspace>[/p/<project>]/~/inbox[/<notice>]`: `loam-inbox`, the person's notices, newest first, with any
- * confirmation waiting for them first (step 6 raises them; until then none is). Each notice says who left it (6.6) and
- * when, offers its action, its link, Mark read and Archive; "Mark all read" and "Archive all" act on every one but a
- * confirmation waiting for an answer. A path names a notice to open the inbox at, as a sticky toast's "Open inbox"
- * does (6.7).
+ * confirmation waiting for them first. Each notice says who left it (6.6) and when, offers its action, its link, Mark
+ * read and Archive; "Mark all read" and "Archive all" act on every one but a confirmation waiting for an answer. A
+ * confirmation (7.2, step 6) shows the shell's header, the app's text and the input, and Confirm and Decline, each
+ * naming the command (15); one that ended says how, "Declined automatically" with how many calls the window refused.
+ * A path names a notice to open the inbox at, as a sticky toast's "Open inbox" does (6.7).
  *
  * Every read and write is a command: `notification-list`, `-read`, `-archive` and `-act`. Native controls with a
  * constructable sheet, tokens only, as the settings section's are, so the chunk needs nothing of FAST's.
@@ -51,6 +52,37 @@ const when = (value: number): string => {
 		);
 	} catch {
 		return '';
+	}
+};
+
+/** A confirmation's input as text, one line per field, never markup (7.2). */
+const inputWords = (input: unknown): string => {
+	if (input === undefined) return '';
+	if (input === null || typeof input !== 'object' || Array.isArray(input))
+		return JSON.stringify(input) ?? '';
+	const entries = Object.entries(input as Record<string, unknown>);
+	return entries.length === 0
+		? 'No input'
+		: entries.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join('\n');
+};
+
+/** How a confirmation that is no longer waiting ended (7.2), in words. */
+const endedWords = (record: NonNullable<NotificationV1['confirmation']>): string => {
+	const again =
+		record.declinedAgain !== undefined && record.declinedAgain > 0
+			? ` · Declined automatically ${record.declinedAgain === 1 ? 'once' : `${record.declinedAgain} times`}`
+			: '';
+	switch (record.state) {
+		case 'confirmed':
+			return 'Confirmed';
+		case 'declined':
+			return `${record.reason === 'access' ? 'Declined: access changed before it could run' : 'Declined'}${again}`;
+		case 'expired':
+			return 'Expired: no one answered within 10 minutes';
+		case 'withdrawn':
+			return 'Withdrawn by whoever asked';
+		default:
+			return '';
 	}
 };
 
@@ -158,6 +190,14 @@ const STYLES = `
 		background: var(--color-action-primary-background);
 		color: var(--color-action-primary-text);
 	}
+	.action.danger {
+		border-color: var(--color-action-danger-background);
+		background: var(--color-action-danger-background);
+		color: var(--color-action-danger-text);
+	}
+	.action.danger:hover {
+		background: var(--color-action-danger-hover);
+	}
 	.action:focus-visible,
 	a:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
@@ -196,6 +236,8 @@ export class LoamInbox extends HTMLElement {
 	#unsubscribe: (() => void) | null = null;
 	/** The notices whose action the person's press is running now. */
 	#acting = new Set<string>();
+	/** A confirmation's whole input, read by its id, where the list cut it (the trust review's blocker 9). */
+	#whole = new Map<string, unknown>();
 
 	constructor() {
 		super();
@@ -245,11 +287,13 @@ export class LoamInbox extends HTMLElement {
 					void this.#read();
 					return;
 				}
-				// A mutation that may change the list, never the list's own read, which would read again for ever.
+				// A mutation that may change the list, never the list's own read, which would read again for ever; or a call
+				// that raised or ended a confirmation, which may itself have failed (7.2).
 				if (
-					event.success &&
-					event.mutation &&
-					(event.command.startsWith('notification-') || event.command === 'toast-show')
+					event.inbox === true ||
+					(event.success &&
+						event.mutation &&
+						(event.command.startsWith('notification-') || event.command === 'toast-show'))
 				)
 					void this.#read();
 			}) ?? null;
@@ -304,13 +348,17 @@ export class LoamInbox extends HTMLElement {
 		this.#status.textContent = text;
 	}
 
-	#button(label: string, run: () => unknown, primary = false): HTMLElement {
+	#button(label: string, run: () => unknown, primary = false, trusted = false): HTMLElement {
 		const made = el(
 			'button',
 			{ type: 'button', class: primary ? 'action primary' : 'action' },
 			label
 		);
-		made.addEventListener('click', () => void run());
+		// A confirmation's answer is a person's own press alone (the trust review's blocker 1): a script's `click()` or a
+		// dispatched event answers nothing.
+		made.addEventListener('click', (event) => {
+			if (!trusted || event.isTrusted) void run();
+		});
 		return made;
 	}
 
@@ -366,8 +414,15 @@ export class LoamInbox extends HTMLElement {
 	#item(notice: NotificationV1): HTMLElement {
 		const unread = notice.readAt === undefined;
 		const heading = el('h2', {}, notice.title);
+		const asked = notice.kind === 'confirmation' ? notice.confirmation : undefined;
 		const meta = [
-			waiting(notice) ? 'Waiting for your answer' : unread ? 'Unread' : '',
+			waiting(notice)
+				? 'Waiting for your answer'
+				: asked
+					? endedWords(asked)
+					: unread
+						? 'Unread'
+						: '',
 			this.#from(notice),
 			when(notice.createdAt),
 			notice.state === 'done'
@@ -387,11 +442,54 @@ export class LoamInbox extends HTMLElement {
 				...(unread ? { 'data-unread': '' } : {}),
 				...(notice.id === this.#target ? { 'data-target': '' } : {}),
 			},
+			// A confirmation's header is the shell's, above the app's own words (7.2).
+			...(asked ? [el('p', { class: 'meta' }, asked.header)] : []),
 			heading,
 			el('p', { class: 'meta' }, meta.join(' · ')),
 			...(notice.body ? [el('p', { class: 'body' }, notice.body)] : []),
+			...(asked
+				? [
+						el('p', { class: 'body' }, asked.prompt),
+						el(
+							'p',
+							{ class: 'body input' },
+							this.#cut(notice)
+								? `The input is too long to list (${(asked.input as { bytes: number }).bytes} bytes): show it before you answer`
+								: inputWords(this.#whole.get(notice.id) ?? asked.input)
+						),
+					]
+				: []),
 			actions
 		);
+		if (asked && waiting(notice)) {
+			// Confirm and Decline name the command (15); only the person's press answers, as `notification-act`.
+			const answer = (given: 'confirm' | 'decline') => async () => {
+				if (this.#acting.has(notice.id)) return;
+				this.#acting.add(notice.id);
+				try {
+					await this.#write(
+						'notification-act',
+						{ notification: notice.id, answer: given },
+						(data) => `${notice.title}: ${(data as unknown as { state?: string }).state ?? given}`
+					);
+				} finally {
+					this.#acting.delete(notice.id);
+				}
+			};
+			const decline = this.#button('Decline', answer('decline'), false, true);
+			decline.setAttribute('aria-label', `Decline ${notice.title}`);
+			// The person sees the whole input before Confirm is offered (blocker 9): read by its id, as a list never shows it.
+			if (this.#cut(notice)) {
+				const show = this.#button('Show the full input', () => this.#readWhole(notice.id));
+				show.setAttribute('aria-label', `Show the full input of ${notice.title}`);
+				actions.append(decline, show);
+			} else {
+				const confirm = this.#button('Confirm', answer('confirm'), !asked.danger, true);
+				confirm.setAttribute('aria-label', `Confirm ${notice.title}`);
+				if (asked.danger) confirm.classList.add('danger');
+				actions.append(decline, confirm);
+			}
+		}
 		if (notice.action && notice.state === undefined && notice.kind === 'notice') {
 			const { label } = notice.action;
 			const run = this.#button(
@@ -431,6 +529,27 @@ export class LoamInbox extends HTMLElement {
 				)
 			);
 		return item;
+	}
+
+	/** Whether a list cut this confirmation's input, and its whole input is not read yet (10.2, blocker 9). */
+	#cut(notice: NotificationV1): boolean {
+		const input = notice.confirmation?.input as { truncated?: unknown } | undefined;
+		return input?.truncated === true && !this.#whole.has(notice.id);
+	}
+
+	/** Read one confirmation by its id, whose input comes whole, then show it. */
+	async #readWhole(id: string): Promise<void> {
+		const answer = (await this.kernel?.call<Page>('notification-list', {
+			notification: id,
+			body: true,
+		})) as Answer<Page> | undefined;
+		const found = answer?.success ? answer.data?.notifications[0] : undefined;
+		if (!found?.confirmation) {
+			if (answer) this.#say(failed(answer));
+			return;
+		}
+		this.#whole.set(id, found.confirmation.input);
+		this.#render();
 	}
 
 	/** A notice's link (10.1), formed as a toast's is, in the `overlays` chunk. */

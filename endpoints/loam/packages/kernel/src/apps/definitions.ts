@@ -11,7 +11,7 @@ import {
 } from '@lushly-dev/afd-server/define';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { deriveMutation } from '@lushly-dev/loam-manifest/validate';
-import { fromJSONSchema } from 'zod';
+import { fromJSONSchema, z } from 'zod';
 
 export type ManifestCommand = NonNullable<ManifestV2['commands']>[number];
 
@@ -44,12 +44,28 @@ export function defineAppCommand(
 ): ZodCommandDefinition {
 	const schema = command.input_schema as Record<string, unknown>;
 	const expose = exposureOf(command);
+	const declared = fromJSONSchema(schema as JsonSchemaInput);
+	const prompt = (command as { confirm_prompt?: string }).confirm_prompt;
 	return defineCommand({
 		name: command.name,
 		description: command.description,
 		version: command.version ?? appVersion,
 		mutation: deriveMutation(command.effects),
-		input: fromJSONSchema(schema as JsonSchemaInput),
+		// A `confirm: true` never confirms in Loam (phase 4 specification, 7.2): refused here, naming what does.
+		input:
+			prompt !== undefined
+				? z
+						.custom<unknown>(
+							(value) =>
+								typeof value !== 'object' || value === null || !Object.hasOwn(value, 'confirm'),
+							{
+								message:
+									'confirm never confirms in Loam: the person confirms in the shell; read the outcome with confirmation-get',
+							}
+						)
+						.pipe(declared)
+				: declared,
+		...(prompt !== undefined ? { confirmPrompt: prompt } : {}),
 		advertisedInputSchema: command.input_schema as unknown as JsonSchema,
 		...(command.title !== undefined ? { title: command.title } : {}),
 		...(command.category !== undefined ? { category: command.category } : {}),

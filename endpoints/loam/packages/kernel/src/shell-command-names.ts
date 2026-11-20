@@ -133,6 +133,10 @@ export const SHELL_COMMAND_NAMES = [
 	'autonomy-get',
 	'autonomy-list',
 	'autonomy-set',
+	// Phase 4's step 6 (its 7.1, 7.2): the palette's input prompt, and a confirmation's caller reading or withdrawing it.
+	'palette-run',
+	'confirmation-get',
+	'confirmation-withdraw',
 	// Phase 4's step 10 (its section 11): the limits' usage, owners only.
 	'limit-usage-get',
 	// Phase 4's step 7 (its 8.5): the bindings in force.

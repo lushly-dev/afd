@@ -216,9 +216,9 @@ export function createPopoverLayer(
 	shell: LoamShell,
 	kernel: LoamKernelV5,
 	find: AnchorFinder,
-	{ ownerLine, focusFallback, anchorOwnerOf, optionsOf, answerFor }: LayerHelpers
+	{ ownerLine, focusFallback, anchorOwnerOf, optionsOf, bindAnswer }: LayerHelpers
 ): OverlayLayer {
-	const dialogs = createDialogs(shell, { optionsOf, answerFor, focusFallback });
+	const dialogs = createDialogs(shell, { optionsOf, bindAnswer, focusFallback });
 	const globals = createGlobals(shell);
 	if (!customElements.get(popoverDefinition.name)) LoamPopover.define(popoverDefinition);
 	const shown = new Map<string, { element: LoamPopover; anchor: HTMLElement }>();

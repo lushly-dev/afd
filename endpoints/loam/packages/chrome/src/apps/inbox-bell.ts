@@ -26,12 +26,13 @@ export interface InboxBellShell {
 
 /**
  * Whether a call may have changed the person's unread count: a mutation, never the list's own read, which would read
- * again for ever.
+ * again for ever; or a call that raised or ended a confirmation, which may itself have failed (phase 4's 7.2).
  */
 export const touchesInbox = (event: KernelEventV4): boolean =>
-	event.success &&
-	event.mutation &&
-	(event.command.startsWith('notification-') || event.command === 'toast-show');
+	event.inbox === true ||
+	(event.success &&
+		event.mutation &&
+		(event.command.startsWith('notification-') || event.command === 'toast-show'));
 
 /** Keep `shell.unread` and announce new notices; returns its stop. */
 export function watchInbox(shell: InboxBellShell, kernel: LoamKernelV5): () => void {
@@ -56,7 +57,14 @@ export function watchInbox(shell: InboxBellShell, kernel: LoamKernelV5): () => v
 		const fresh = started && top !== undefined && top.id !== newest;
 		newest = top?.id ?? newest;
 		started = true;
-		if (!fresh || event?.command !== 'notification-push') return;
+		if (!fresh) return;
+		// A confirmation raised for the person (7.2): announced with who asks, and where to answer it (10.3, 15).
+		if (top.kind === 'confirmation' && event?.inbox === true) {
+			const asker = ownerWords(top.from);
+			shell.announcement = `${asker ? `${asker}: ` : ''}confirm ${top.title}? ${INBOX_KEYBOARD_PATH}`;
+			return;
+		}
+		if (event?.command !== 'notification-push') return;
 		if (top.kind === 'notice' && top.source !== 'shell' && !top.source.startsWith('agent:')) {
 			const muted = await kernel.call<{ value: unknown }>('setting-get', {
 				section: 'loam.notifications',

@@ -112,6 +112,10 @@ const pending = (id: number) =>
 			command: 'probe-note',
 			caller: 'agent:shell-agent',
 			input: {},
+			header: 'Requested by shell-agent for you',
+			prompt: 'Note it?',
+			title: 'Note',
+			expiresAt: 1_900_000_000_000,
 			state: 'pending',
 		},
 	});
@@ -272,14 +276,15 @@ describe('actions (10.1)', () => {
 		}
 	});
 
-	it('answers a confirmation as not served yet, running nothing (step 6)', async () => {
+	it('answers no confirmation the kernel did not raise, running nothing (step 6)', async () => {
 		const { kernel, store } = await boot();
 		await store.create(NOTIFICATION_TABLE, pending(1) as never);
 		const refused = await kernel.call('notification-act', {
 			notification: pending(1).id,
 			answer: 'confirm',
 		});
-		expect(refused.error?.code).toBe('NOTIFICATION_ACTION_UNAVAILABLE');
+		// A row with no key of the kernel's is no confirmation it raised (7.2): nothing runs.
+		expect(refused.error?.code).toBe('NOTIFICATION_NOT_FOUND');
 	});
 });
 

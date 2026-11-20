@@ -75,11 +75,26 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/new' },
 	// Phase 4's step 1: a key of version 2, as phase 4 adds no manifest version (its 12.1).
 	{ pointer: '/ui/settings' },
+	// Phase 4's step 6: a command's `confirm_prompt` (7.2), each command's; `*` is an index.
+	{ pointer: '/commands/*/confirm_prompt' },
 ];
 
-const holds = (document: unknown, key: VersionKey): boolean => {
-	const found = valueAt(document, key.pointer);
-	return key.value === undefined ? found !== undefined : found === key.value;
+/** The concrete pointers of `key` a document holds: one at most, or one per item where the key has a `*`. */
+const heldAt = (document: unknown, key: VersionKey): string[] => {
+	const star = key.pointer.indexOf('/*/');
+	const pointers =
+		star < 0
+			? [key.pointer]
+			: (() => {
+					const list = valueAt(document, key.pointer.slice(0, star));
+					return Array.isArray(list)
+						? list.map((_, index) => key.pointer.replace('/*/', `/${index}/`))
+						: [];
+				})();
+	return pointers.filter((pointer) => {
+		const found = valueAt(document, pointer);
+		return key.value === undefined ? found !== undefined : found === key.value;
+	});
 };
 
 const describeKey = (key: VersionKey): string =>
@@ -94,12 +109,13 @@ const describeKey = (key: VersionKey): string =>
  */
 export function versionKeyFindings(document: unknown): Finding[] {
 	if (valueAt(document, '/manifest_version') !== 1) return [];
-	const keys = VERSION_TWO_KEYS.filter((key) => holds(document, key)).map((key) => ({
-		pointer: key.pointer,
-		said: describeKey(key),
-	}));
+	// Each place a key of version 2 is held, a command's `confirm_prompt` among them (step 6), and a keybinding's
+	// sequence or `when` (step 7).
+	const keys = VERSION_TWO_KEYS.flatMap((key) =>
+		heldAt(document, key).map((pointer) => ({ pointer, said: describeKey({ ...key, pointer }) }))
+	);
 	return [...keys, ...versionTwoKeybindings(document)].map(({ pointer, said }) => ({
-		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		code: 'MANIFEST_SURFACE_UNAVAILABLE' as const,
 		pointer,
 		message: `${said} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
 		suggestion: 'Set manifest_version = 2.',
@@ -701,6 +717,27 @@ function newRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
+/**
+ * `confirm` is the shell's word (phase 4 specification, 7.2): a command that declares a `confirm_prompt` may not take an
+ * input of that name, so `confirm: true` is always refused naming `confirmation-get`, and never reads as an answer.
+ */
+function confirmRules(manifest: ManifestV2, found: Findings): void {
+	(manifest.commands ?? []).forEach((command, index) => {
+		if ((command as { confirm_prompt?: unknown }).confirm_prompt === undefined) return;
+		const properties =
+			(command.input_schema as { properties?: unknown } | string | undefined) ?? {};
+		if (typeof properties === 'string') return;
+		const declared = (properties as { properties?: Record<string, unknown> }).properties ?? {};
+		if (!Object.hasOwn(declared, 'confirm')) return;
+		found.refuse(
+			'MANIFEST_CONFIRM_UNAVAILABLE',
+			`/commands/${index}/input_schema/properties/confirm`,
+			'A command with a `confirm_prompt` may not take an input named `confirm`: the shell confirms it, and `confirm: true` never does.',
+			'Name the input something else.'
+		);
+	});
+}
+
 /** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
@@ -719,5 +756,6 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	settingRules(manifest, found.refuse.bind(found), found.warnings);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
+	confirmRules(manifest, found);
 	return found;
 }

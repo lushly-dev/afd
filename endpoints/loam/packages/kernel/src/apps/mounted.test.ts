@@ -159,6 +159,7 @@ async function boot(
 		},
 	};
 	const journal = new MemoryJournalSink();
+	const store = new MemoryAdapter();
 	const deployment = {
 		deployment_version: 2,
 		generation: 'test',
@@ -167,7 +168,7 @@ async function boot(
 		apps: entries,
 	} as ProjectionV3;
 	const parts = await createKernelParts({
-		store: new MemoryAdapter(),
+		store,
 		storeKind: 'memory',
 		journal,
 		auth: new MockAuthAdapter(),
@@ -201,7 +202,7 @@ async function boot(
 			: { deployment, ports }),
 		...(options.clock ? { clock: options.clock } : {}),
 	});
-	return { ...parts, journal, deployment, packages, asked };
+	return { ...parts, journal, deployment, packages, asked, store };
 }
 
 async function instance(kernel: LoamKernelV5, name = 'work'): Promise<AppInstanceV1 | undefined> {
@@ -792,6 +793,157 @@ describe('a mounted call', () => {
 		expect(entry?.result.metadata?.['dev.loam/trust']).toBe('untrusted');
 	});
 
+	it("phase 4's step 6, sixth round B5: a palette fill of a mounted command keeps its result as the command's own entry does", async () => {
+		const big = 'x'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{ answer: () => ({ structuredContent: { success: true, data: { big } } }) }
+				),
+		});
+		await kernel.startInstances();
+		const opened = await kernel.call<{ prompt: { overlayId: string } }>('palette-run', {
+			command: 'work-a-read',
+		});
+		expect(opened.success, JSON.stringify(opened.error)).toBe(true);
+		const filled = await kernel.call<{ big: string }>('palette-run', {
+			command: 'work-a-read',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(filled.data?.big).toHaveLength(big.length);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const wrapper = entries.filter(({ command }) => command === 'palette-run').at(-1);
+		expect(own?.result.data).toEqual({ truncated: true, bytes: expect.any(Number) });
+		expect(wrapper?.result.data).toEqual(own?.result.data);
+		expect(JSON.stringify(entries)).not.toContain(big);
+	});
+
+	it("phase 4's step 6, seventh round (1): a notice's mounted action failing over the bound: the act journals the action's own entry", async () => {
+		const big = 'm'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal, store } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{
+						answer: () => ({
+							structuredContent: {
+								success: false,
+								error: { code: 'TOO_BIG', message: big },
+								metadata: { server: big },
+							},
+						}),
+					}
+				),
+		});
+		await kernel.startInstances();
+		const id = 'ntf_workaction000000';
+		await store.batch([
+			{
+				method: 'PUT',
+				path: `/notification/${id}`,
+				body: {
+					id,
+					workspace: 'personal',
+					person: 'local',
+					source: 'work',
+					kind: 'notice',
+					title: 'Read it',
+					tone: 'info',
+					scope: { workspace: 'personal' },
+					createdAt: 1,
+					action: { command: 'work-a-read', label: 'Read' },
+				},
+			},
+		]);
+		const acted = await kernel.call('notification-act', { notification: id });
+		expect(acted.success).toBe(false);
+		expect(acted.error?.message).toHaveLength(big.length);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const act = entries.find(({ command }) => command === 'notification-act');
+		expect(own?.result.error?.message.length).toBeLessThan(big.length);
+		expect(act?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(entries)).not.toContain(big);
+	});
+
+	it("phase 4's step 6, seventh round (3): a palette fill's failure and its metadata are the target's own entry's", async () => {
+		const big = 'f'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{
+						answer: () => ({
+							structuredContent: {
+								success: false,
+								error: { code: 'TOO_BIG', message: big },
+								metadata: { server: big },
+							},
+						}),
+					}
+				),
+		});
+		await kernel.startInstances();
+		const opened = await kernel.call<{ prompt: { overlayId: string } }>('palette-run', {
+			command: 'work-a-read',
+		});
+		const filled = await kernel.call('palette-run', {
+			command: 'work-a-read',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(filled.success).toBe(false);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const wrapper = entries.filter(({ command }) => command === 'palette-run').at(-1);
+		expect(wrapper?.result.success).toBe(false);
+		expect(wrapper?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(wrapper)).not.toContain(big);
+	});
+
+	it("phase 4's step 6, eighth round D1: an action failing with a code the recorder shortens: the act journals the action's own entry", async () => {
+		const code = 'C'.repeat(300);
+		const message = 'n'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal, store } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{ answer: () => ({ structuredContent: { success: false, error: { code, message } } }) }
+				),
+		});
+		await kernel.startInstances();
+		const id = 'ntf_workaction000001';
+		await store.batch([
+			{
+				method: 'PUT',
+				path: `/notification/${id}`,
+				body: {
+					id,
+					workspace: 'personal',
+					person: 'local',
+					source: 'work',
+					kind: 'notice',
+					title: 'Read it',
+					tone: 'info',
+					scope: { workspace: 'personal' },
+					createdAt: 1,
+					action: { command: 'work-a-read', label: 'Read' },
+				},
+			},
+		]);
+		const acted = await kernel.call('notification-act', { notification: id });
+		expect(acted.error?.code).toBe(code);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const act = entries.find(({ command }) => command === 'notification-act');
+		expect(own?.result.error?.code.length).toBeLessThan(code.length);
+		expect(act?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(act)).not.toContain(code);
+	});
+
 	it('leaves a record under the bound, and any other entry, unchanged', () => {
 		const record = {
 			at: 0,
@@ -982,9 +1134,12 @@ describe('section 3.3: nothing writes an instance', () => {
 				const properties = Object.keys(
 					(inputSchema as { properties?: Record<string, unknown> }).properties ?? {}
 				)
-					// Phase 4's `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes
-					// nowhere: that property alone is exempt, as P2-E10 exempts it (`stores.test.ts`).
-					.filter((key) => !(name === 'keybinding-list' && key === 'command'));
+					// `palette-run`'s `command` alone is a palette command's name (phase 4 specification, 7.1), never a command
+					// line; and `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes nowhere, as
+					// P2-E10 exempts it (`stores.test.ts`). Their other keys are checked as any command's.
+					.filter(
+						(key) => !((name === 'palette-run' || name === 'keybinding-list') && key === 'command')
+					);
 				return properties.some((key) => /^(command|url|bearer.*|cwd)$/.test(key));
 			})
 			.map(({ name }) => name);
@@ -1558,9 +1713,12 @@ describe('4.1: a disabled mounted instance is not discovered, and enabling one d
 			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
 		);
 		expect(nested).toBeDefined();
-		const parent = recorded.find(({ traceId }) => traceId === nested?.context?.parent);
-		// As a journal recorded before step 8 would hold it, or one with the entry lost.
-		const entries = recorded.filter((entry) => entry !== nested);
+		// As a journal recorded before step 8 would hold it: no such entry, and so no gap in its seq (a gap is refused as
+		// `REPLAY_JOURNAL_GAP` before anything runs, phase 4's step 6).
+		const entries = recorded
+			.filter((entry) => entry !== nested)
+			.map((entry, index) => ({ ...entry, seq: index + 1 }));
+		const parent = entries.find(({ traceId }) => traceId === nested?.context?.parent);
 		let made = 0;
 		const refusal = await replayKernel(entries, {
 			deployment,

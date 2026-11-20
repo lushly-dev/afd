@@ -2,8 +2,8 @@
  * @fileoverview The inbox (phase 4 specification, section 10; D120), in the `late-settings` chunk beside the settings
  * (its section 1): the `notification` table, `notification-push`, `-list`, `-read`, `-archive` and `-act`, and the
  * inbox's half of `toast-show`, by which a sticky toast, and one `loam.notifications.toastSticky` selects, also lands
- * as a notice (6.1). Confirmations, `kind: 'confirmation'`, are step 6's: the record's shape and the protections of a
- * pending one (R10) are here, raising and answering one are not.
+ * as a notice (6.1). Confirmations, `kind: 'confirmation'`, are raised by step 6's `confirmations.ts`, in the same
+ * table: the protections of a pending one (R10) are here, and `notification-act` answers one through `answer`.
  *
  * Everything of `late` and first paint reaches this module through its deps, so it imports types alone (13).
  */
@@ -11,6 +11,7 @@
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type {
+	ConfirmationRecordV1,
 	NotificationActionV1,
 	NotificationV1,
 	OverlayFromV1,
@@ -24,6 +25,7 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
+import { KERNEL_ONLY_FIELDS, ownedBy, stateNow, summaryOf } from './confirmations.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PushRate } from './push-rate.js';
 import type { NotificationPrefsV1, SettingsKit } from './settings.js';
@@ -107,13 +109,35 @@ export interface NotificationDeps {
 	overlays: Pick<OverlayStore, 'land' | 'hideNext'>;
 	/** Whose a notice is, as the shell shows it (6.6): step 3's owner line for an app or an agent, none for the shell. */
 	fromOf(source: string): OverlayFromV1 | undefined;
+	/**
+	 * The queue ticket a queued act holds, as fields its action carries, so an action that waits on the person (a
+	 * confirmation in the slot) releases the act's queue, and the answer reaches it (step 6's fourth round, 4).
+	 */
+	queueOf?(context: CommandContext): Record<symbol, unknown>;
+	/**
+	 * The confirmations' per-person chain, which every write to a confirmation row takes, so a read or an archive and an
+	 * act's settle never write over each other (step 6's fifth round, 5).
+	 */
+	confirmationChain?<T>(person: string, work: () => Promise<T>): Promise<T>;
+	/** The command an act runs, kept by the kernel for its journal alone, never in the result (step 6's sixth round, B7). */
+	noteAction?(trace: string, command: string): void;
+	/** The act returns its action's failure as its own: the journal's provenance, never in the result (ninth round). */
+	noteReturned?(trace: string): void;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
 		input: unknown,
-		fields: { parent: string; scope: ScopeV1; actor?: unknown }
+		fields: { parent: string; scope: ScopeV1; actor?: unknown } & Record<symbol, unknown>
 	): Promise<CommandResult>;
 	kit: SettingsKit & Pick<DocumentKit, 'projectNotFound'>;
+	/** Who a caller is to its confirmations (7.2, R1): the raising app's instance or the agent interface's bucket. */
+	bucketOf?(context: CommandContext): string | undefined;
+	/** Step 6's answer to a confirmation (7.2), a person's `notification-act { answer }`. Absent: none is answered. */
+	answer?(
+		row: NotificationV1,
+		answer: 'confirm' | 'decline' | undefined,
+		context: CommandContext
+	): Promise<CommandResult>;
 }
 
 export interface Notifications {
@@ -149,10 +173,11 @@ const newestFirst = (a: NotificationV1, b: NotificationV1): number =>
 
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
 
-/** A pending confirmation (R10): step 6 raises them; a step 5 store may already hold one from a later build. */
-const pendingConfirmation = (notice: NotificationV1): boolean =>
+/** A confirmation waiting for the person now (R10): protected while pending, and no longer once expired. */
+const pendingConfirmation = (notice: NotificationV1, now: number): boolean =>
 	notice.kind === 'confirmation' &&
-	(notice.confirmation as { state?: unknown } | undefined)?.state === 'pending';
+	notice.confirmation !== undefined &&
+	stateNow(notice.confirmation, now) === 'pending';
 
 /** Unread, and so never dropped (10.1): no `readAt`, and not archived. */
 const unread = (notice: NotificationV1): boolean =>
@@ -575,9 +600,28 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 	 * A row as the list gives it (10.2): whose it is (6.6); `body` and a confirmation's `input` only when asked; never
 	 * the act's claim.
 	 */
-	const shown = (row: StoredNotice, body: boolean): NotificationV1 => {
+	const shown = (
+		row: StoredNotice,
+		body: boolean,
+		now: number,
+		reader: { bucket?: string; one: boolean }
+	): NotificationV1 => {
 		const copy = structuredClone(row);
-		delete copy.claim;
+		const raisedBy = (row as { cbucket?: string }).cbucket;
+		for (const field of KERNEL_ONLY_FIELDS)
+			delete (copy as unknown as Record<string, unknown>)[field];
+		if (copy.confirmation) {
+			const record = copy.confirmation as ConfirmationRecordV1;
+			// A pending confirmation past its 10 minutes is listed `expired` (7.2): no write records it.
+			record.state = stateNow(record, now);
+			// Its outcome is the raiser's, as `confirmation-get` gives it (R1); a list bounds its input, a read by id shows it
+			// whole, so the person sees all of it before confirming (blocker 9).
+			if (!ownedBy({ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot }, reader.bucket))
+				delete record.result;
+			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
+			// And its stored outcome, as its input (step 6's second round, 8): a large result never breaks a page.
+			if (!reader.one && record.result !== undefined) record.result = summaryOf(record.result);
+		}
 		const from = deps.fromOf(copy.source);
 		if (from) copy.from = from;
 		if (body) return copy;
@@ -640,14 +684,19 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				.sort(newestFirst);
 			const limit = input.limit ?? NOTIFICATION_PAGE;
 			const unreadCount = all.filter(unread).length;
+			const reader = {
+				one: input.notification !== undefined,
+				...((b) => (b === undefined ? {} : { bucket: b }))(deps.bucketOf?.(context)),
+			};
 			const page: NotificationV1[] = [];
 			// The budget (10.2): a page ends early rather than past it, with the cursor to the rest.
 			let bytes = bytesOf({ notifications: [], cursor: 'x'.repeat(40), unread: unreadCount });
 			for (const row of matching) {
 				if (page.length >= limit) break;
-				const item = shown(row, input.body === true);
+				const item = shown(row, input.body === true, kit.callNow(context), reader);
 				const size = bytesOf(item) + 1;
-				if (bytes + size > NOTIFICATION_LIST_BUDGET) {
+				// A read of one notice by id shows it whole (blocker 9): a confirmation's input is bounded by the call's own.
+				if (bytes + size > NOTIFICATION_LIST_BUDGET && !reader.one) {
 					if (page.length > 0) break;
 					// One row past the budget alone: a bounded refusal, never a page past it.
 					return fail(
@@ -709,7 +758,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if ('notification' in input) {
 					const row = rows.find((each) => each.id === input.notification);
 					if (!row) return notFound(input.notification);
-					if (pendingConfirmation(row) && !human) {
+					if (pendingConfirmation(row, kit.callNow(context)) && !human) {
 						return fail(
 							'HUMAN_REQUIRED',
 							'A confirmation waiting for the person is read or archived only by the person',
@@ -728,15 +777,23 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					chosen = rows.filter(
 						(row) =>
 							(input.source === undefined || row.source === input.source) &&
-							(human || !pendingConfirmation(row))
+							(human || !pendingConfirmation(row, kit.callNow(context)))
 					);
 				}
 				const at = kit.callNow(context);
 				let count = 0;
+				// Decided and written in the person's chain, on the row as it stands there, so two marks never both count, and
+				// the second never replaces the first's time (step 6's sixth round, B8).
+				const chained = <T>(work: () => Promise<T>) =>
+					deps.confirmationChain ? deps.confirmationChain(person, work) : work();
 				for (const row of chosen) {
-					if (row[field] !== undefined) continue;
-					await store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
-					count++;
+					const marked = await chained(async () => {
+						const now = await store.get<NotificationV1>(NOTIFICATION_TABLE, row.id);
+						if (!now || now[field] !== undefined) return false;
+						await store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
+						return true;
+					});
+					if (marked) count++;
 				}
 				return kit.success({ [counted]: count });
 			},
@@ -811,12 +868,15 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			const row = (await readable(context, person)).find((each) => each.id === input.notification);
 			if (!row || row.archivedAt !== undefined) return notFound(input.notification);
 			if (row.kind === 'confirmation') {
-				// Step 6 answers a confirmation; until then nothing runs.
-				return fail(
-					'NOTIFICATION_ACTION_UNAVAILABLE',
-					'A confirmation is answered with confirm or decline, which this build does not serve yet',
-					'Answer it once the shell serves confirmations'
-				);
+				// A person's confirm or decline (7.2): the shell re-checks access and runs the call itself, once.
+				if (!deps.answer) {
+					return fail(
+						'NOTIFICATION_ACTION_UNAVAILABLE',
+						'This build does not answer confirmations',
+						'Answer it where the shell serves confirmations'
+					);
+				}
+				return deps.answer(row, input.answer, context) as Promise<CommandResult<never>>;
 			}
 			if (input.answer !== undefined) {
 				return fail(
@@ -855,7 +915,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (claimed === null || claimed === 'failed' || claimed.claim !== claim)
 					return stillActing();
 				// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
+				if (context.traceId !== undefined) deps.noteAction?.(context.traceId, action.command);
 				const result = await deps.run(action.command, action.input ?? {}, {
+					...deps.queueOf?.(context),
 					parent: context.traceId ?? '',
 					scope: row.scope,
 					...(context.actor ? { actor: context.actor } : {}),
@@ -870,6 +932,8 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (!result.success) {
 					// Nothing ran: the claim goes, so the person may try again.
 					if (base) await putBack(kept);
+					// Noted only once the release is written, as it returns the action's failure (step 6's ninth round).
+					if (context.traceId !== undefined) deps.noteReturned?.(context.traceId);
 					return result as CommandResult<never>;
 				}
 				const at = kit.callNow(context);
@@ -883,6 +947,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				} catch {
 					// The action ran; the notice stays `acting`, which never runs it again.
 				}
+				// Step 5's shape: the action's command is the journal's private provenance, never here (sixth round, B7).
 				return kit.success({
 					state: 'done' as const,
 					...(result.data !== undefined ? { result: structuredClone(result.data) } : {}),

@@ -96,6 +96,23 @@ export interface LateScopeDeps {
 const AT_CALL_SCOPE =
 	/^(document-|editor-|new-list$|app-get$|app-selection-|status-item-set$|setting-|notification-)/;
 
+/**
+ * A chained call's document chain (documents specification, Status, deviation 18), for the confirmations gate (phase 4's
+ * 7.2): `release` gives it up while the call waits on a person, so the next change to the document, and the answer queued
+ * behind it, go on; `again` takes it back, repeats the resource checks (lines 5 and 6) against what the changes in
+ * between left, and runs `run` with the stamp after it (step 6's third round, A).
+ */
+export interface DocumentChain {
+	release(): void;
+	again(run: () => Promise<CommandResult>): Promise<CommandResult>;
+	/** Lines 5 and 6 again, in place, for a run that holds its chain already (step 6's fifth round, 2). */
+	check(): Promise<CommandResult | undefined>;
+}
+const CHAINS = new WeakMap<CommandContext, DocumentChain>();
+/** The chain the scope middleware holds for `call`, or undefined for a call it chains to no document. */
+export const documentChainOf = (call: CommandContext): DocumentChain | undefined =>
+	CHAINS.get(call);
+
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
 	a.workspace === b.workspace && a.project === b.project;
 
@@ -391,8 +408,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					scope.note(call.traceId, { scope: call.scope });
 				}
 			}
-			const rest = async () => {
-				if (owner === undefined) return next();
+			/** Lines 5 and 6, before the handler and again when a call that waited takes its chain back. */
+			const resources = async (): Promise<CommandResult | undefined> => {
 				// Line 5: a type's instance command names a document in this scope, of its type, under 256 KiB
 				// (documents specification, 4.2 and 4.4); then a store key in another scope.
 				const mismatch =
@@ -404,15 +421,45 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				const project = at === undefined ? undefined : scope.projects.get(at);
 				if (project?.status === 'archived' && deps.isMutation(name))
 					return archivedRefusal(project);
-				const done = await next();
-				await deps.documents?.after(name, call, done.success);
-				return done;
+				return undefined;
 			};
 			// An instance mutation's check, write and stamp run in its document's chain, so a move or a trash of
 			// it waits, or it waits for theirs and is checked against what they left (documents specification,
 			// Status, deviation 18). A nested mutation is refused at the port, and nothing chained waits on itself.
 			const documents = owner === undefined ? undefined : deps.documents;
 			const chained = documents?.chained(name, input);
+			const hold: { release?: () => void } = {};
+			/** Set when the call took its chain back: its stamp ran there, with its write. */
+			let retaken = false;
+			if (owner !== undefined) {
+				/** Lines 5 and 6 again, then `run`, then the stamp: the checks a call that waited repeats before it runs. */
+				const checked = async (run: () => Promise<CommandResult>) => {
+					retaken = true;
+					const refused = await resources();
+					if (refused) return refused;
+					const done = await run();
+					await deps.documents?.after(name, call, done.success);
+					return done;
+				};
+				// Every app command's, chained or not (step 6's fourth round, 3): a query or a command with a resource key
+				// checks its resources again too; only a chained one gives up and retakes its document's chain.
+				CHAINS.set(call, {
+					release: () => hold.release?.(),
+					again: (run) =>
+						documents && chained !== undefined
+							? documents.serial(chained, () => checked(run))
+							: checked(run),
+					check: resources,
+				});
+			}
+			const rest = async () => {
+				if (owner === undefined) return next();
+				const refused = await resources();
+				if (refused) return refused;
+				const done = await next();
+				if (!retaken) await deps.documents?.after(name, call, done.success);
+				return done;
+			};
 			// An `auth-*` call settles inside itself (phase 3 specification, 4.4). A passkey autofill waits for as long as
 			// the page offers it, with no end the person sees, so the adapter's listener settles what it brings instead.
 			const asked = input as { method?: unknown; autoFill?: unknown } | null;
@@ -422,8 +469,11 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			let result: CommandResult | undefined;
 			try {
 				result =
-					documents && chained !== undefined ? await documents.serial(chained, rest) : await rest();
+					documents && chained !== undefined
+						? await documents.serial(chained, rest, hold)
+						: await rest();
 			} finally {
+				CHAINS.delete(call);
 				await auth?.authEnd(call, name, result?.success === true);
 			}
 			await deps.settle?.(name, call);

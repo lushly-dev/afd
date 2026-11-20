@@ -58,11 +58,11 @@ import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { AGENT_PUSH_RATE, APP_PUSH_RATE, createPushRate } from './push-rate.js';
-import { createLateScope, type LateScopeDeps } from './scope-change.js';
+import { createLateScope, documentChainOf, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
 import type { Settings } from './settings.js';
-import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
+import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
 
 /**
@@ -78,6 +78,7 @@ interface Presented {
 }
 
 import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
+import type { Confirmations } from './confirmations.js';
 import type { ActionVerdict } from './notifications.js';
 
 export { createOverlayStore } from '../overlays.js';
@@ -132,6 +133,21 @@ export type LateCommandDeps = ShellCommandDeps &
 		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 		/** Every registered command's name, the live registry's (phase 4's step 8, R4). */
 		commandNames?(): readonly string[];
+		/** Whether the journal records a call of `command` (`UNJOURNALED_COMMANDS`; phase 4's 7.1). */
+		journaled?(command: string): boolean;
+		/** The palette registry's commands, with their input schemas: `palette-run`'s prompt (phase 4's 7.1). */
+		paletteCommands?(): Array<{ name: string; inputSchema?: unknown }>;
+		/** The kernel's `execute`, past the queue: a top-level call journaled as its own (phase 4's 7.1, 7.2). */
+		runNow?(
+			iface: 'palette' | 'agent',
+			name: string,
+			input: unknown,
+			fields: Record<string | symbol, unknown>
+		): Promise<CommandResult>;
+		/** The kernel's journal provenance: the command a notice's act runs, by the act's trace (step 6's sixth round, B7). */
+		noteAction?(trace: string, command: string): void;
+		/** The kernel's journal provenance: an act returns its action's failure as its own (step 6's ninth round). */
+		noteReturned?(trace: string): void;
 		/**
 		 * Whether the kernel is disposed, perhaps before the late load installed its hook: what it makes after stops at
 		 * once (step 7's fifth round, 1).
@@ -251,6 +267,8 @@ export interface LateParts {
 	 * its stop of every running turn (phase 5 specification, 3.2, 6.1).
 	 */
 	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
+	/** Phase 4's confirmations (its 7.2): the chain's last gate, after the copilot's, and their context fields. */
+	confirmations: Pick<Confirmations, 'gate' | 'contextFields' | 'recorded'>;
 	/**
 	 * Right inside the journal, before the scope middleware, whose own changes of person and scope it must see too:
 	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
@@ -349,6 +367,8 @@ export async function createLateParts(
 			createSettings,
 			createNotifications,
 			createAutonomy,
+			createConfirmations,
+			bucketOf,
 			createKeybindingCommands,
 			createLimitCommands,
 			KEYBINDING_RESOLVER,
@@ -532,6 +552,8 @@ export async function createLateParts(
 		lateScope,
 		drafts,
 		ensureEditor: (project) => editorParts.ensure(project),
+		// Phase 4's 7.2: a change of person withdraws the leaving person's pending confirmations, built below.
+		personLeft: (person, context) => confirmations.withdraw(context, () => true, person),
 		kit: {
 			define: DOCUMENT_KIT.define,
 			success: DOCUMENT_KIT.success,
@@ -804,6 +826,113 @@ export async function createLateParts(
 					: { kind: 'app', title: ownerTitle(deps.summaries(), source) },
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
+		confirmationChain: (person, work) => confirmations.chain(person, work),
+		noteAction: (trace, command) => deps.noteAction?.(trace, command),
+		noteReturned: (trace) => deps.noteReturned?.(trace),
+		queueOf: (context) => {
+			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
+			return ticket ? { [deps.queued]: ticket } : {};
+		},
+		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
+		answer: (row, answer, context) => confirmations.answer(row, answer, context),
+		bucketOf: (context) => bucketOf(openerOf(context, isHumanGesture)),
+	});
+	/** Whether an app is active, or owns the active tab (6.1). */
+	const appActive = async (instance: string): Promise<boolean> =>
+		instance === deps.state.activeApp() || instance === (await editor?.owner());
+	// Phase 4's confirmations (its 7.1, 7.2), in `late-settings` beside the inbox whose table holds a pending one.
+	const confirmations: Confirmations = createConfirmations({
+		store: deps.store,
+		workspace: () => deps.scope.workspace.id,
+		provider,
+		overlays: deps.overlays,
+		openerOf: (context) => openerOf(context, isHumanGesture),
+		isActive: appActive,
+		askedFor(command) {
+			const owner = deps.apps().owners.get(command);
+			const definition = owner && deps.apps().commands.find((each) => each.name === command);
+			const prompt = (definition as { confirmPrompt?: string } | undefined)?.confirmPrompt;
+			if (!owner || !definition || typeof prompt !== 'string' || owner.recorded) return undefined;
+			return {
+				prompt,
+				instance: owner.instance,
+				title: definition.title ?? command,
+				danger: definition.destructive === true,
+			};
+		},
+		paletteCommand(command) {
+			if (command === 'palette-run' || INTERNAL_COMMANDS.includes(command)) return undefined;
+			if (!deps.paletteRows().some((row) => row.name === command)) return undefined;
+			const definition =
+				byName.get(command) ?? deps.apps().commands.find((each) => each.name === command);
+			const json = deps.paletteCommands?.().find((each) => each.name === command)?.inputSchema;
+			return definition ? { definition, json } : undefined;
+		},
+		journaled: (command) => deps.journaled?.(command) ?? true,
+		inputFault(command, input) {
+			const parsed = z.safeParse(command.inputSchema as z.ZodMiniType, input);
+			return parsed.success ? undefined : (parsed.error.issues[0]?.message ?? 'it is invalid');
+		},
+		allows: (actor, scope) => deps.scope.allows(actor, scope),
+		// The re-check past access (7.2): the command's app still enabled for the project and loaded, and a calling app
+		// still the command's own (an app calls no other app's command in phase 4).
+		served(command, caller, scope) {
+			const owner = deps.apps().owners.get(command);
+			if (!owner) return `'${command}' is no longer registered`;
+			const app = deps.summaries().find((each) => each.instance === owner.instance);
+			if (app?.state !== 'ready') return `'${owner.instance}' is not loaded`;
+			const refused = canOpen(deps.apps(), deps.scope, owner.instance, scope.project);
+			if (refused) return refused.error?.message ?? `'${owner.instance}' cannot open here`;
+			if (caller !== undefined && caller !== owner.instance) return `'${caller}' may not call it`;
+			return undefined;
+		},
+		appTitle: (instance) => ownerTitle(deps.summaries(), instance),
+		projectName: (project) => deps.scope.project(project)?.name,
+		personLabel,
+		runNow: (iface, name, input, fields) =>
+			deps.runNow?.(iface, name, input, fields) ??
+			Promise.resolve(
+				DOCUMENT_KIT.kernelFailure(
+					'HUMAN_REQUIRED',
+					'This kernel cannot run a confirmed call',
+					'None: only a kernel runs one'
+				)
+			),
+		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
+		replaying: () => deps.internals?.replaying === true,
+		noteInbox: (context) => deps.scope.note(context.traceId, { inbox: true }),
+		archived: (command, scope) =>
+			scope.project !== undefined &&
+			deps.scope.projects.get(scope.project)?.status === 'archived' &&
+			deps.isMutation(command),
+		chainOf: documentChainOf,
+		// The settled person, and only while the adapter reports the same one: a sign-in the shell is still settling (its
+		// membership read in flight) is no one's yet, so a confirmed run fails closed (step 6's sixth round, B1).
+		personNow: () => {
+			const settled = shellPerson() ?? (provider ? undefined : 'local');
+			const adapter =
+				personKey(sessionActor(deps.auth, deps.clock)) ?? (provider ? undefined : 'local');
+			return settled === adapter ? settled : undefined;
+		},
+		// Measured here rather than with first paint's `measureJson`, whose import would part first paint's chunks.
+		inputOver(input) {
+			const bound = deps.limits?.values().inputBytes;
+			if (bound === undefined) return false;
+			try {
+				const json = JSON.stringify(input);
+				return json === undefined || new TextEncoder().encode(json).length > bound;
+			} catch {
+				// No JSON form: over every limit (section 11's R2).
+				return true;
+			}
+		},
+		releaseQueue: (context) =>
+			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
+		digest: async (value) => {
+			const bytes = new TextEncoder().encode(canonical(value));
+			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+			return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+		},
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	const byName: Map<string, ZodCommandDefinition> = new Map(
@@ -815,6 +944,7 @@ export async function createLateParts(
 				editorOwner: editor.owner,
 				documentRows: rows,
 				settingRows: () => settings?.rows,
+				appTitle: (instance) => ownerTitle(deps.summaries(), instance),
 				desktop: () => desktop,
 				// A signed-out `provider` page lists only the signed-out commands, filtered before the search ranks (2.1, I4).
 				paletteOnly: () =>
@@ -874,6 +1004,8 @@ export async function createLateParts(
 			...notifications.commands,
 			...autonomy.commands,
 			autonomy.settleCommand,
+			...confirmations.commands,
+			confirmations.settle,
 			...limitCommands.commands,
 			...keybindingCommands,
 			limitCommands.settleCommand,
@@ -968,7 +1100,8 @@ export async function createLateParts(
 			persona.paletteSearch(
 				byName.get('palette-search') as ZodCommandDefinition,
 				deps.paletteRows,
-				(name) => categories.get(name)
+				(name) => categories.get(name),
+				paletteGroupOf
 			),
 			SIGNED_OUT_COMMANDS
 		)
@@ -1026,6 +1159,7 @@ export async function createLateParts(
 			byName.get('overlay-global-set') as ZodCommandDefinition,
 		],
 		copilot,
+		confirmations,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
@@ -1081,6 +1215,8 @@ export async function createLateParts(
 					command.category !== 'setting' &&
 					// The shell's inbox by name (the reviews' item 9): an app's own command of that category stays served.
 					!SHELL_NOTIFICATION_COMMANDS.has(command.name) &&
+					// And its confirmations (phase 4's 7.2, section 13): no MCP caller raises one, so none reads one.
+					!command.name.startsWith('confirmation-') &&
 					!MCP_UNSERVED_OVERLAYS.has(command.name)
 			),
 			middleware: [

@@ -51,6 +51,7 @@ import type { SettingRows } from './shell-commands.js';
 
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
+export { bucketOf, createConfirmations, KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
 export { createKeybindingCommands } from './keybinding-commands.js';
 export { KEYBINDING_RESOLVER } from './keybinding-resolve.js';
 export { createLimitCommands, limitNotice } from './limit-commands.js';
@@ -1338,6 +1339,10 @@ export function createSettings(deps: SettingsDeps): Settings {
 				if (out.length === limit) break;
 			}
 			return structuredClone(out);
+		},
+		ownerOf(section) {
+			const owner = sections().find((entry) => entry.fullId === section)?.owner;
+			return owner === undefined || owner === 'shell' ? undefined : owner;
 		},
 	};
 

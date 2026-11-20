@@ -67,9 +67,17 @@ const DEPLOYER_KEYS = [
  * adds `autonomy-get`'s and `autonomy-set`'s `command`, a registered command's name (its 4.1); its step 5 adds
  * `notification-push`'s `action.command`, a command's name (its 10.1), and its `link.route`, an app's route within its
  * own URL (10.1's `ResourceLinkV1`), never a projection entry's `route`, both kept by the coordinator on 2026-11-19.
- * Each below.
+ * Its step 6 adds `palette-run`'s `command`, the palette command whose input the person gives (7.1), for that step's
+ * review. Each below.
  */
 function exempted(name: string, schema: unknown): unknown {
+	// The palette's input prompt names the command the person runs (phase 4 specification, 7.1), as a menu item does,
+	// checked against the palette's rows; never a mounted server's process, which only a deployment entry holds.
+	if (name === 'palette-run') {
+		const copy = structuredClone(schema) as { properties?: Record<string, unknown> };
+		delete copy.properties?.command;
+		return copy;
+	}
 	if (name === 'notification-push') {
 		// A notice's action names one of the pushing app's own palette commands (10.1), as a menu item does; its link's
 		// `route` is an app's own route, navigation a person follows (documents specification, 9.1).

@@ -76,10 +76,20 @@ export const SLOT_KINDS: ReadonlySet<string> = new Set(['modal', 'prompt']);
 export const unanswered = (kind: string): 'cancel' | 'dismissed' =>
 	kind === 'modal' || kind === 'prompt' || kind === 'dialog' ? 'cancel' : 'dismissed';
 
-/** What the kernel's own prompts carry (6.1), set by the kernel alone: the command asked for, and who raised it. */
+/**
+ * What the kernel's own prompts carry (6.1), set by the kernel alone: the command asked for, and who raised it; from
+ * step 6, which of its prompts it is (7.1 to 7.3), and a confirmation's input as it will run.
+ */
 export interface OverlayFor {
 	command: string;
 	caller?: string;
+	kind?: 'input' | 'confirmation' | 'close';
+	input?: unknown;
+	/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
+	scope?: ScopeV1;
+	/** The close prompt: the tab whose close it asks about (7.3), and its document. */
+	tab?: string;
+	document?: string;
 }
 
 /** What `open` takes besides the input: whose line the shell shows, and when it opened, on the call's clock. */
@@ -175,9 +185,17 @@ export interface OverlayStore {
 	 */
 	closeAll(reason: OverlayReasonV1): void;
 	/** Who owns the overlay, and its result when it closes, or at once if it has; undefined if unknown. */
-	whenClosed(
-		overlayId: string
-	): { owner: OverlayOwner; settled: Promise<OverlayResultV1> } | undefined;
+	whenClosed(overlayId: string):
+		| {
+				owner: OverlayOwner;
+				settled: Promise<OverlayResultV1>;
+				/**
+				 * Whether a person's own gesture closed it, as the close recorded it: never read later from the bounded history
+				 * (phase 4's step 6, sixth round, B4).
+				 */
+				byPerson: Promise<boolean>;
+		  }
+		| undefined;
 }
 
 /** A detached copy, so no caller holds the store's own record or input (step 1's review). */
@@ -202,7 +220,7 @@ export function createOverlayStore(): OverlayStore {
 	const scopes = new Map<string, ScopeV1>();
 	let people = 0;
 	const closed = new Map<string, Closed>();
-	const waiters = new Map<string, Array<(result: OverlayResultV1) => void>>();
+	const waiters = new Map<string, Array<(result: OverlayResultV1, byPerson: boolean) => void>>();
 	let counter = 0;
 
 	/**
@@ -222,7 +240,7 @@ export function createOverlayStore(): OverlayStore {
 		const copy = detached(overlay);
 		if (parked.has(overlay.overlayId)) copy.state = 'parked';
 		const asked = fors.get(overlay.overlayId);
-		if (asked) copy.for = { ...asked };
+		if (asked) copy.for = detached(asked);
 		const scope = scopes.get(overlay.overlayId);
 		if (scope) copy.scope = { ...scope };
 		return copy;
@@ -250,7 +268,7 @@ export function createOverlayStore(): OverlayStore {
 		if (options.openedAt !== undefined) opened.set(ref.overlayId, options.openedAt);
 		// Only the shell's own prompts carry `for` (6.1).
 		if (options.for && owner.kind === 'shell' && kind === 'prompt') {
-			fors.set(ref.overlayId, { ...options.for });
+			fors.set(ref.overlayId, detached(options.for));
 		}
 		if (options.scope && owner.kind === 'app') scopes.set(ref.overlayId, { ...options.scope });
 		return { ...ref };
@@ -280,7 +298,7 @@ export function createOverlayStore(): OverlayStore {
 		},
 		forOf(overlayId) {
 			const asked = fors.get(overlayId) ?? closed.get(overlayId)?.for;
-			return asked && { ...asked };
+			return asked && detached(asked);
 		},
 		setGlobal(id, input) {
 			const held = globals.get(id);
@@ -371,7 +389,8 @@ export function createOverlayStore(): OverlayStore {
 				if (closed.size <= CLOSED_KEPT) break;
 				closed.delete(old);
 			}
-			for (const resolve of waiters.get(overlayId) ?? []) resolve(detached(outcome));
+			for (const resolve of waiters.get(overlayId) ?? [])
+				resolve(detached(outcome), byPerson === true);
 			waiters.delete(overlayId);
 			return detached(outcome);
 		},
@@ -440,15 +459,30 @@ export function createOverlayStore(): OverlayStore {
 		whenClosed(overlayId) {
 			const done = closed.get(overlayId);
 			if (done)
-				return { owner: { ...done.owner }, settled: Promise.resolve(detached(done.result)) };
+				return {
+					owner: { ...done.owner },
+					settled: Promise.resolve(detached(done.result)),
+					byPerson: Promise.resolve(done.byPerson),
+				};
 			const live = open.get(overlayId);
 			const owner = owners.get(overlayId);
 			if (!live || !owner) return undefined;
+			let gesture: (byPerson: boolean) => void = () => {};
+			const byPerson = new Promise<boolean>((resolve) => {
+				gesture = resolve;
+			});
 			return {
 				owner: { ...owner },
 				settled: new Promise((resolve) => {
-					waiters.set(overlayId, [...(waiters.get(overlayId) ?? []), resolve]);
+					waiters.set(overlayId, [
+						...(waiters.get(overlayId) ?? []),
+						(result, person) => {
+							gesture(person);
+							resolve(result);
+						},
+					]);
 				}),
+				byPerson,
 			};
 		},
 	};

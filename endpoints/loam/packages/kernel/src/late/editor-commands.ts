@@ -14,7 +14,7 @@
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import type { DocumentRecordV1 } from '@lushly-dev/loam-sdk';
+import type { DocumentRecordV1, PromptInputV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
@@ -501,8 +501,45 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		jsonSchema: tabWith('discard', { type: 'boolean' }, false),
 		handler: (input, context) =>
 			read(context, (before, project) => {
-				if (editors.dirty(project, input.tab) && input.discard !== true) {
-					return unsavedTab(input.tab, true);
+				// The tab as shown, whose document the close prompt names: a dirty mark a closed tab kept asks nothing, and the
+				// close answers EDITOR_TAB_UNKNOWN (step 6's third round, H).
+				const shown = before.groups
+					.flatMap((group) => group.tabs)
+					.find((tab) => tab.id === input.tab);
+				if (shown && editors.dirty(project, input.tab) && input.discard !== true) {
+					const refused = unsavedTab(input.tab, true);
+					// Only the person's own close opens the close prompt (phase 4 specification, 7.3; A-P2-1): an agent's or a
+					// port's gets `EDITOR_TAB_DIRTY` alone, with no modal. Its answers are the person's: save, discard, cancel.
+					if (!person(context) || context.actor?.kind === 'agent' || deps.overlays.modalOpen())
+						return refused;
+					const prompt = deps.overlays.open(
+						{ kind: 'shell', id: 'shell' },
+						'prompt',
+						{
+							title: 'Save your changes?',
+							body: 'This tab has changes that are not saved. Closing without saving loses them.',
+							actions: [
+								{ id: 'save', label: 'Save', tone: 'primary', default: true },
+								{ id: 'discard', label: 'Discard', tone: 'danger' },
+								{ id: 'cancel', label: 'Cancel' },
+							],
+						} as PromptInputV1,
+						// Its tab, scope and document (step 6's second round, 2): tab ids repeat per project, so the chrome acts
+						// on an answer only where all three still match.
+						{
+							for: {
+								command: 'editor-close',
+								kind: 'close',
+								tab: input.tab,
+								scope: here(context),
+								document: shown.document,
+							},
+						}
+					);
+					return {
+						...refused,
+						error: { ...refused.error, details: { tab: input.tab, prompt } },
+					} as typeof refused;
 				}
 				const done = apply(context, before, closeTab(before, input.tab), 'replace');
 				if (isRefusal(done)) return done;

@@ -40,6 +40,11 @@ import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.j
 import type { CopilotTraceV1 } from './copilot/types.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import {
+	createJournalProvenance,
+	JOURNAL_WRAPPERS,
+	type JournalProvenance,
+} from './journal-provenance.js';
+import {
 	createKeybindings,
 	type KeybindingRegistry,
 	needsInput,
@@ -125,6 +130,291 @@ export function kernelJournalOptions(
 	};
 }
 
+/** An object, never an array or null; undefined for anything else. */
+const objectOf = (value: unknown): Record<string, unknown> | undefined =>
+	typeof value === 'object' && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+
+/** `holder` with its `key` replaced by `change` of it, when that is an object. */
+const changed = (
+	holder: Record<string, unknown> | undefined,
+	key: string,
+	change: (value: Record<string, unknown>) => unknown
+): Record<string, unknown> | undefined => {
+	const value = objectOf(holder?.[key]);
+	return value ? { ...holder, [key]: change(value) } : holder;
+};
+
+/**
+ * The journal's provenance for its wrappers (`journal-provenance.ts`; step 6's sixth and seventh rounds), with which
+ * commands the journal holds an entry of, so an act whose action has none (an unjournaled query) is redacted by the
+ * action's own rule instead.
+ */
+export type WrapperProvenance = JournalProvenance & { journals(command: string): boolean };
+
+/** The metadata the registry sets on every result, the wrapper's own and never the child's server content. */
+const REGISTRY_METADATA = ['commandVersion', 'executionTimeMs', 'traceId'] as const;
+
+/**
+ * A child's outcome as its entry holds it, without the journal's own sequence, with the wrapper's own registry metadata
+ * alone from its live result (seventh round, C1): the wrapper's registry sets those whatever the child answered.
+ */
+const outcomeOfEntry = (
+	result: JournalRecord['result'],
+	wrapper: JournalRecord['result']
+): JournalRecord['result'] => {
+	const { 'dev.loam/seq': _seq, ...metadata } = (result.metadata ?? {}) as Record<string, unknown>;
+	const own = (wrapper.metadata ?? {}) as Record<string, unknown>;
+	// As the wrapper's registry left them: set, or absent where its own definition has none.
+	for (const key of REGISTRY_METADATA) {
+		if (own[key] !== undefined) metadata[key] = own[key];
+		else delete metadata[key];
+	}
+	// The whole recorded outcome, its undo and warnings among them (eighth round, D3), its metadata the wrapper's own.
+	const { metadata: _metadata, ...whole } = result;
+	return {
+		...whole,
+		...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+	} as JournalRecord['result'];
+};
+
+/** What a wrapper keeps of an outcome it cannot vouch for: whether it succeeded, and an error's code (fail closed). */
+const closedOutcome = (result: JournalRecord['result']): JournalRecord['result'] =>
+	({
+		success: result.success,
+		...(result.error !== undefined ? { error: { code: result.error.code, message: '' } } : {}),
+	}) as JournalRecord['result'];
+
+/** A wrapper's entry kept at its least, lossy: a replay stops there rather than compare it (eighth round, D4). */
+const closedEntry = (record: JournalRecord, input: unknown): JournalRecord =>
+	({
+		...record,
+		input,
+		result: closedOutcome(record.result),
+		unreplayable: true,
+		lossy: true,
+	}) as unknown as JournalRecord;
+
+/** How deep wrappers inside wrappers are followed; past it, an input is dropped (step 6's fourth round, 2). */
+const WRAPPED_DEPTH = 8;
+
+/**
+ * Every input a record carries for another command, redacted as that command's own entry is (phase 4's 7.1 and 7.2; the
+ * trust review's R4; step 6's third and fourth rounds, B, 1 and 2): `redact` applied to each `{ command, input }` inside
+ * it, through every wrapper up to {@link WRAPPED_DEPTH}, each on its own input alone, and an input dropped where no
+ * command `known` names it, since no rule can say what it holds. The input shapes: `palette-run`'s target;
+ * `prompt-settle`'s `open` and `decline`; a notice's `action` (`notification-push`); a popover menu's `items`
+ * (`popover-open`). The result shapes, by the command whose result it is: a notice's action (`notification-push`), each
+ * listed notice's action and confirmation (`notification-list`), `overlay-list`'s projection of each overlay's `for` and
+ * items, `palette-run`'s forwarded result by its target's, and `prompt-settle`'s `settle.result` by the act's command. A
+ * replay answers the same, since what it opens and stores holds what the redacted entries gave it.
+ */
+export function redactWrapped(
+	record: JournalRecord,
+	redact: (record: JournalRecord) => JournalRecord,
+	known: (command: string) => boolean = () => true,
+	depth = 0,
+	provenance?: WrapperProvenance
+): JournalRecord {
+	/** `holder`'s `input`, redacted as `holder.command`'s own entry would be, alone, or dropped. */
+	const within = (holder: Record<string, unknown>): Record<string, unknown> => {
+		if (!('input' in holder)) return holder;
+		const { input: inner, ...rest } = holder;
+		const { command } = holder;
+		if (typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH) return rest;
+		// Its own input alone: never the outer result, which would lead back here (the fourth round's 2).
+		const own = redact({ ...record, command, input: inner, result: { success: true } });
+		return { ...rest, input: redactWrapped(own, redact, known, depth + 1).input };
+	};
+	const items = (holder: Record<string, unknown>) =>
+		Array.isArray(holder.items)
+			? { ...holder, items: holder.items.map((item) => (objectOf(item) ? within(item) : item)) }
+			: holder;
+	const each = (list: unknown, change: (value: Record<string, unknown>) => unknown) =>
+		Array.isArray(list)
+			? list.map((value) =>
+					objectOf(value) ? change(objectOf(value) as Record<string, unknown>) : value
+				)
+			: list;
+	/** A result's data as `command`'s own entry would keep it; dropped for a command no rule can read. */
+	const resultOf = (
+		command: unknown,
+		data: Record<string, unknown> | undefined
+	): Record<string, unknown> | undefined => {
+		if (!data) return data;
+		if (command === 'notification-push')
+			return changed(data, 'notification', (notice) => changed(notice, 'action', within));
+		if (command === 'notification-list')
+			return {
+				...data,
+				notifications: each(data.notifications, (notice) =>
+					changed(changed(notice, 'action', within), 'confirmation', within)
+				),
+			};
+		if (command === 'overlay-list')
+			return {
+				...data,
+				overlays: each(data.overlays, (overlay) =>
+					changed(
+						overlay.kind === 'popover' ? changed(overlay, 'input', items) : overlay,
+						'for',
+						within
+					)
+				),
+			};
+		// An act's result is its action's (step 5; step 6's fifth and sixth rounds): as the action's own entry kept it, else
+		// by the action's own rule, else dropped (fail closed: Opus 4).
+		// Any other command's result is its own entry's, which no rule reads today.
+		return data;
+	};
+	/**
+	 * A forwarded result, the target's: through the target's own `redact` rule and its result's shapes (fifth round, 1;
+	 * Opus 3), and dropped for a target no rule can read.
+	 */
+	function forwarded(command: unknown, data: Record<string, unknown>): Record<string, unknown> {
+		if (typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH) return {};
+		const own = redact({ ...record, command, input: {}, result: { success: true, data } });
+		return resultOf(command, objectOf(own.result?.data) ?? {}) ?? {};
+	}
+	const { command } = record;
+	let input = objectOf(record.input);
+	let data = objectOf(record.result?.data);
+	if (input) {
+		if (command === 'palette-run') {
+			// The run's outcome is the target's, forwarded: as the target's own entry kept it, failures included (sixth
+			// round, B5), else redacted by the target's rule (the fourth round's 1).
+			if (provenance && record.result) {
+				// Wholly the run's own entry, as the sink accepted it, nothing of the live result (seventh round, C1, C2;
+				// eighth round, D2, D3); untracked, the least of it, lossy (C3; D4).
+				if (!provenance.tracked(record.traceId)) return closedEntry(record, within(input));
+				const child = provenance.origin(record.traceId);
+				if (child)
+					return {
+						...record,
+						input: within(input),
+						result: outcomeOfEntry(child, record.result),
+					};
+				// It ran its target, whose entry is not held: a journaled target's is missing, so fail closed; an unjournaled
+				// one's never is, and its own rule applies (Opus I3).
+				if (provenance.startedOrigin(record.traceId) && provenance.journals(String(input.command)))
+					return closedEntry(record, within(input));
+			}
+			if (data) data = forwarded(input.command, data);
+			input = within(input);
+		} else if (command === 'prompt-settle') {
+			input = changed(changed(input, 'open', within), 'decline', within);
+			input = changed(input, 'settle', (settle) => {
+				// The run's outcome as its own entry kept it (sixth round, B5), else by its command's rule.
+				const run = provenance?.run(settle.id);
+				if (run)
+					return {
+						...settle,
+						result: {
+							success: run.success,
+							...(run.data !== undefined ? { data: run.data } : {}),
+							...(run.error !== undefined ? { error: run.error } : {}),
+						},
+					};
+				// Its run's entry missing: no result kept (fail closed, seventh round).
+				if (provenance) {
+					const { result: _result, ...rest } = settle;
+					return rest;
+				}
+				return changed(settle, 'result', (result) =>
+					changed(result, 'data', (inner) => forwarded(settle.command, inner) ?? {})
+				);
+			});
+		} else if (command === 'notification-push') input = changed(input, 'action', within);
+		else if (command === 'popover-open') input = items(input);
+	}
+	if (data && command !== 'palette-run') data = resultOf(command, data);
+	// An act whose action failed answers the action's failure: as the action's own entry kept it (sixth round, B5).
+	// The act, by what it started (eighth round, D1, D4): untracked, the least of it, lossy. Its action started: the act's
+	// outcome is the action's, from its entry, a failure whole and a success's `result`; with no entry held, a journaled
+	// action's is missing, so fail closed, and an unjournaled one's by its own rule. No action started: the act's own (a
+	// confirmation's answer, a settle's failure), as it is.
+	if (command === 'notification-act' && record.result && provenance) {
+		if (!provenance.tracked(record.traceId)) return closedEntry(record, record.input);
+		if (provenance.startedNested(record.traceId)) {
+			const child = provenance.nested(record.traceId);
+			const own = objectOf(record.result.data) ?? {};
+			const { result: given, ...rest } = own;
+			// A failure is the action's only when the act returned it (ninth round): any other, a store's throw while the
+			// claim is released among them, is the act's own, which a replay with a healthy store cannot reconstruct, so it
+			// stops there.
+			if (!record.result.success && !provenance.returned(record.traceId))
+				return { ...record, unreplayable: true, lossy: true } as unknown as JournalRecord;
+			if (child) {
+				if (!record.result.success)
+					return { ...record, result: outcomeOfEntry(child, record.result) };
+				return {
+					...record,
+					result: {
+						...record.result,
+						data: child.data === undefined ? rest : { ...rest, result: child.data },
+					},
+				};
+			}
+			const action = provenance.action(record.traceId);
+			if (action === undefined || provenance.journals(action))
+				return closedEntry(record, record.input);
+			const object = objectOf(given);
+			return {
+				...record,
+				result: {
+					...record.result,
+					...(record.result.success
+						? { data: object ? { ...rest, result: forwarded(action, object) } : rest }
+						: {}),
+				},
+			};
+		}
+	}
+	return {
+		...record,
+		...(input ? { input } : {}),
+		...(data ? { result: { ...record.result, data } } : {}),
+	};
+}
+
+/**
+ * `redactWrapped`, never failing: a record it cannot redact keeps no input and no result data, so a mutation that ran
+ * keeps its entry, its secrets out (step 6's fourth round, 2).
+ */
+export function redactSafely(
+	record: JournalRecord,
+	redact: (record: JournalRecord) => JournalRecord,
+	known: (command: string) => boolean,
+	provenance?: WrapperProvenance
+): JournalRecord {
+	try {
+		return redactWrapped(redact(record), redact, known, 0, provenance);
+	} catch {
+		// Lossy, so never replayed as if whole (fifth round's improvement): what it ran is not in it. Only the fields known
+		// to hold no input, its name, timing, digest and whether it succeeded, with a fixed diagnostic of the kernel's own,
+		// never the handler's code or message, which may hold the input (sixth round, B6).
+		return {
+			timestamp: record.timestamp,
+			...(record.traceId !== undefined ? { traceId: record.traceId } : {}),
+			command: record.command,
+			contextDigest: record.contextDigest,
+			durationMs: record.durationMs,
+			input: {},
+			result: {
+				success: record.result?.success === true,
+				error: {
+					code: 'JOURNAL_REDACTION_FAILED',
+					message:
+						'The journal could not redact this entry, so it keeps neither its input nor its result',
+				},
+			},
+			unreplayable: true,
+			unredacted: true,
+		} as unknown as JournalRecord;
+	}
+}
+
 /** Remove `input.password` from an `auth-sign-in` record. */
 export function redactJournalRecord(record: JournalRecord): JournalRecord {
 	if (record.command !== 'auth-sign-in') return record;
@@ -167,12 +457,15 @@ function checkNames(commands: readonly ZodCommandDefinition[]): void {
 function seqTrackingSink(
 	sink: JournalSink,
 	seqs: Map<string, number>,
-	bound: (record: JournalRecord) => JournalRecord = (record) => record
+	bound: (record: JournalRecord) => JournalRecord = (record) => record,
+	accepted: (entry: JournalRecord) => void = () => {}
 ): JournalSink {
 	return {
 		async append(record) {
 			const entry = await sink.append(bound(record));
 			if (record.traceId !== undefined) seqs.set(record.traceId, entry.seq);
+			// What the sink accepted and holds, never what it refused (step 6's eighth round, D2).
+			accepted(entry);
 			return entry;
 		},
 		read: (range) => sink.read(range),
@@ -248,6 +541,11 @@ export interface KernelPartsInternals {
 	drive?(person: string | null): void;
 	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
 	startPage?(): void;
+	/**
+	 * Set by the kernel for the replay: a confirmed run (`confirmation`, an `ntf_` id) the replay answered from its
+	 * record, with its result, so the act that ran it may settle its row confirmed (phase 4's step 6, fifth round, 3).
+	 */
+	recordedRun?(confirmation: string, result: CommandResult): void;
 }
 
 /**
@@ -386,19 +684,36 @@ export async function createKernelParts(
 	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
 	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
 	const seqs = new Map<string, number>();
+	/** The journal's provenance for its wrappers, private to the kernel (step 6's sixth and seventh rounds). */
+	const tracker = createJournalProvenance();
+	const provenance: WrapperProvenance = {
+		...tracker,
+		journals: (command) => !UNJOURNALED_COMMANDS.includes(command),
+	};
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
 	const journal = createJournalMiddleware(
-		seqTrackingSink(options.journal, seqs, (record) =>
-			limits.bound(
-				record,
-				(entry) =>
-					(entry.context?.caller as string | undefined) ?? apps.owners.get(entry.command)?.instance
-			)
+		seqTrackingSink(
+			options.journal,
+			seqs,
+			(record) =>
+				limits.bound(
+					record,
+					(entry) =>
+						(entry.context?.caller as string | undefined) ??
+						apps.owners.get(entry.command)?.instance
+				),
+			// What the sink accepted, after the redaction and the bound, for a running wrapper's entry (seventh round, C2;
+			// eighth round, D2).
+			(entry) => tracker.appended(entry)
 		),
 		{
 			...kernelJournalOptions(),
-			redact: (record) => apps.redact(redactJournalRecord(record)),
+			redact: (record) => {
+				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
+				// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
+				return redactSafely(record, own, (command) => mutations?.has(command) === true, provenance);
+			},
 		}
 	);
 
@@ -430,8 +745,9 @@ export async function createKernelParts(
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
 		...(lateParts ? [lateParts.writeThrough] : []),
 		scopeMiddleware,
-		// The copilot's gate, after access (phase 5 specification, 6.1's order): once `late/` has loaded.
-		...(lateParts ? [lateParts.copilot.gate] : []),
+		// The copilot's gate, after access (phase 5 specification, 6.1's order), then the confirmations' (phase 4's 7.2,
+		// F9): once `late/` has loaded.
+		...(lateParts ? [lateParts.copilot.gate, lateParts.confirmations.gate] : []),
 	];
 	const build = (
 		iface: KernelInterfaceV0,
@@ -511,11 +827,28 @@ export async function createKernelParts(
 					return run('agent', name, input, made);
 				},
 				agentCommands: () => registries.agent.listCommands(),
+				paletteCommands: () => registries.palette.listCommands(),
+				journaled: (name) => !UNJOURNALED_COMMANDS.includes(name),
+				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
+				runNow: (iface, name, input, fields) =>
+					execute(iface, name, input, {}, fields as KernelCallFields),
+				// The command a notice's act runs, the journal's private provenance (step 6's sixth round, B7).
+				noteAction: (trace, command) => tracker.noteAction(trace, command),
+				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 				disposed: () => disposed,
 			});
+			// Disposed once the late parts were made, before this resumed: none of them is installed, the replay's callback
+			// among them (step 6 merged with step 7).
+			if (disposed) return;
 			lateParts = parts;
-			contextFields = [...KERNEL_CONTEXT_FIELDS, ...parts.copilot.contextFields];
+			internals.recordedRun = (confirmation, result) =>
+				parts.confirmations.recorded(confirmation, result);
+			contextFields = [
+				...KERNEL_CONTEXT_FIELDS,
+				...parts.copilot.contextFields,
+				...parts.confirmations.contextFields,
+			];
 			shell = [...parts.shell, ...parts.internal];
 			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
 			bootOnly = parts.bootOnly;
@@ -730,7 +1063,12 @@ export async function createKernelParts(
 		const drained = () => {
 			if (queue === tail) queue = undefined;
 		};
-		const tail: Promise<unknown> = mine.then(drained, drained);
+		// A call that waits on a person's answer releases the queue (phase 4's 7.2): what comes after it, the answer and
+		// the chrome's reads that draw the question among them, goes on in order (step 6's second round, 3).
+		const released = new Promise<void>((resolve) => {
+			ticket.release = resolve;
+		});
+		const tail: Promise<unknown> = Promise.race([mine, released]).then(drained, drained);
 		queue = tail;
 		return mine;
 	}
@@ -822,11 +1160,18 @@ export async function createKernelParts(
 		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
 		// fields reach no other command.
 		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
+		// A running wrapper's child, started whether or not its entry is ever written (step 6's eighth round).
+		const origin = (fields as { origin?: unknown }).origin;
+		if (typeof origin === 'string') tracker.started(origin, 'origin');
+		if (typeof fields.parent === 'string') tracker.started(fields.parent, 'parent');
 		let result: CommandResult<T>;
+		// A wrapper is tracked while it runs: its entry, written before `execute` returns, forwards its children's.
+		const wrapping = JOURNAL_WRAPPERS.includes(name) && tracker.begin(traceId);
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} finally {
 			traces.delete(traceId);
+			if (wrapping) tracker.end(traceId);
 		}
 		const seq = seqs.get(traceId);
 		seqs.delete(traceId);

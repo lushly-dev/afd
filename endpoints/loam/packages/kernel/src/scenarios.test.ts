@@ -37,7 +37,8 @@ const PHASE_5 = fileURLToPath(
  * Phase 4's files, by the step that makes each runnable (its section 20). Step 1 built the settings core and
  * `p4-base`; step 2 the settings section, the palette's setting rows, hello's sections and `p4-base`'s apps, so the
  * three settings jobs run; step 5 the inbox and hello's guest book, so its two jobs run; step 8 autonomy, with the
- * second app's reset command, so the three autonomy jobs run; step 10 the limits, with step 5 merged, so
+ * second app's reset command, so the three autonomy jobs run; step 6 confirmations, with the reset command's
+ * `confirm_prompt`, and the palette's input prompt, so their two jobs run; step 10 the limits, with step 5 merged, so
  * `limit-refuses-call` runs; step 7 the keybindings, so `rebind-a-chord` runs. The rest need a later step's commands.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
@@ -49,9 +50,8 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'owner-ceiling': 'now',
 	'opt-into-experiment': "step 9: experiments and hello's `hello.inspector-v2`",
 	'workspace-experiment-opt-out': 'step 9: experiments',
-	'decline-confirmation':
-		"step 6: confirmations, and the second app's command with a `confirm_prompt`",
-	'palette-prompts-for-input': "step 6: the palette's input prompt",
+	'decline-confirmation': 'now',
+	'palette-prompts-for-input': 'now',
 	'inbox-action': 'now',
 	'agent-leaves-notice': 'now',
 	'rebind-a-chord': 'now',
