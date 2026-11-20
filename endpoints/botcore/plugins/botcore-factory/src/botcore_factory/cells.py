@@ -9,8 +9,10 @@ take the last seat or issue. ``lane-drop`` releases the claims and forgets the c
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import PurePath
 
 from botcore_factory import dials, records
 from botcore_factory.claims import Claim, claim_body, format_time, parse_time, release_body
@@ -161,6 +163,10 @@ def holding_seats(state: dict) -> list[dict]:
     return [cell for cell in seated(state) if not waits_on_owner(cell, state["dials"])]
 
 
+#: Where the lane's slots keep their build output; empty keeps it beside the slots.
+BUILD_DIR_DIAL = "host.buildDir"
+
+
 @dataclass(frozen=True)
 class DiskShort:
     """Free disk below ``host.minFreeDiskGb`` where cells and the lane's slots build."""
@@ -180,30 +186,58 @@ class DiskShort:
     @property
     def suggestion(self) -> str:
         return (
-            f"Free disk on that volume: the lane's slots in {self.where} keep each slot's build "
-            "output (Rust target directories reach tens of GB: `du -sh` them), or lower "
-            "host.minFreeDiskGb with dial-set if the host can spare it"
+            f"Free disk on that volume: {self.where} holds the lane's slots or their build "
+            "output (Rust target directories reach tens of GB: `du -sh` them; a slot's is "
+            "removed when it takes another branch), point host.buildDir at a data volume, or "
+            "lower host.minFreeDiskGb with dial-set if the host can spare it"
         )
+
+
+def build_root(factory: Factory, overrides: dict) -> str:
+    """Where the lane's slots keep their build output (lushly-dev/afd#1641): under
+    ``host.buildDir`` when set (a data volume, in a folder named for the slots' own), else
+    ``.build`` in the slots' directory. A ``host.buildDir`` that is not a directory raises
+    WorldError: an unmounted volume's mount point would put the build on the system disk."""
+    slots = factory.world.git.slots_dir()
+    chosen = dials.value(overrides, BUILD_DIR_DIAL)
+    if chosen:
+        if not factory.world.machine.is_dir(chosen):
+            raise WorldError(
+                f"host.buildDir {chosen} is not a directory on {factory.world.machine.id()}: "
+                "mount its volume or create it, or set host.buildDir to an empty string with "
+                "dial-set, then lane-resume"
+            )
+        return str(PurePath(chosen) / PurePath(slots).name)
+    return str(PurePath(slots) / ".build")
+
+
+def build_dir(factory: Factory, overrides: dict, slot: str) -> str:
+    """The slot's own build directory, which its jobs get as ``CARGO_TARGET_DIR``."""
+    return str(PurePath(build_root(factory, overrides)) / slot)
 
 
 def disk_short(factory: Factory, overrides: dict) -> DiskShort | None:
     """Whether free disk where the lane's slots build is below ``host.minFreeDiskGb``: a full
     disk ejected a good branch mid-build (lushly-dev/afd#1565), so it refuses work instead.
-    A floor of 0 reads nothing; a failed read refuses ``DISK_UNREADABLE``."""
+    Both the slots' directory and, when ``host.buildDir`` names another, the build output's are
+    read; the shorter is reported. A floor of 0 reads nothing; a failed read refuses
+    ``DISK_UNREADABLE``."""
     floor = dials.value(overrides, "host.minFreeDiskGb")
     if floor <= 0:
         return None
     world = factory.world
     try:
-        where = world.git.slots_dir()
-        free = world.machine.free_disk_gb(where)
+        places = [world.git.slots_dir()]
+        if dials.value(overrides, BUILD_DIR_DIAL):
+            places.append(build_root(factory, overrides))
+        free, where = min((world.machine.free_disk_gb(place), place) for place in places)
     except WorldError as exc:
         raise Refusal(
             "DISK_UNREADABLE",
             f"Cannot read free disk where the lane's slots build: {exc}",
             "Fix what the message names (the lane's slots go beside the checkout, so a checkout "
-            "at a filesystem root or inside a submodule has none), or set host.minFreeDiskGb to "
-            "0 with dial-set to skip the check",
+            "at a filesystem root or inside a submodule has none; host.buildDir must be on a "
+            "mounted volume), or set host.minFreeDiskGb to 0 with dial-set to skip the check",
         ) from exc
     if free >= floor:
         return None
@@ -323,14 +357,18 @@ def register(
     route: str,
     thread: str | None,
     related_because: str | None = None,
+    guard: Callable[[dict], None] | None = None,
 ):
     """Claim ``issues`` for a new cell on ``branch`` and record it; the cell is returned.
 
     More than one issue is a package the foreman names: ``related_because`` says why they share
-    a cell, and ``cells.issuesMax`` caps the count.
+    a cell, and ``cells.issuesMax`` caps the count. ``guard`` (the foreman's session check) runs
+    first inside the transaction.
     """
     _validate(issues, branch, route)
     with factory.store.update(f"cell-register {branch}") as state:
+        if guard is not None:
+            guard(state)
         _check_issue_count(issues, state["dials"], related_because)
         if any(cell["branch"] == branch for cell in state["cells"]):
             raise Refusal(
@@ -409,7 +447,9 @@ def attach(factory: Factory, branch: str, thread: str) -> dict:
     return cell
 
 
-def gate_allow(factory: Factory, branch: str, reason: str) -> dict:
+def gate_allow(
+    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
+) -> dict:
     """Record that a diagnosis found the repair's gate edit to be the right one.
 
     Only the foreman calls it (the factory host), after a diagnosis on the stronger route;
@@ -418,12 +458,16 @@ def gate_allow(factory: Factory, branch: str, reason: str) -> dict:
     if not reason.strip():
         raise Refusal("VALIDATION_ERROR", "reason is empty", "Say what the diagnosis found")
     with factory.store.update(f"gate-allow {branch}") as state:
+        if guard is not None:
+            guard(state)
         cell = find(state, branch)
         cell["gateAllowed"] = {"reason": reason, "at": format_time(factory.world.clock.now())}
     return {"allowed": True, "branch": branch}
 
 
-def ejection_excuse(factory: Factory, branch: str, reason: str) -> dict:
+def ejection_excuse(
+    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
+) -> dict:
     """Record that the cell's latest ejection was not its branch's fault, so it stops counting
     toward ``cells.maxEjections``.
 
@@ -440,6 +484,8 @@ def ejection_excuse(factory: Factory, branch: str, reason: str) -> dict:
             "Say why the ejection was not the branch's fault, e.g. the flake's issue",
         )
     with factory.store.update(f"ejection-excuse {branch}") as state:
+        if guard is not None:
+            guard(state)
         cell = find(state, branch)
         latest = cell.get("lastEjection")
         if latest is None and int(cell.get("ejections", 0)) > 0:
@@ -491,7 +537,9 @@ def ejection_excuse(factory: Factory, branch: str, reason: str) -> dict:
     }
 
 
-def drop(factory: Factory, branch: str, reason: str) -> dict:
+def drop(
+    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
+) -> dict:
     """Dequeue the branch, release its claims and forget the cell; its worktree is left alone.
 
     Each issue goes back to ``status:planned`` with one release comment. A drop that frees the
@@ -500,6 +548,8 @@ def drop(factory: Factory, branch: str, reason: str) -> dict:
     if not reason.strip():
         raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the cell is dropped")
     with factory.store.update(f"lane-drop {branch}") as state:
+        if guard is not None:
+            guard(state)
         cell = find(state, branch)
         for entry in state["queue"]:
             if entry["branch"] == branch and entry.get("state") == MERGE_QUEUED:

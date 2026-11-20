@@ -3,7 +3,12 @@ hands over, and the refusal another session gets while it is live."""
 
 from __future__ import annotations
 
-from botcore_factory import foreman
+import asyncio
+
+import pytest
+
+from botcore_factory import cells, events, foreman, status
+from botcore_factory.runtime import Refusal
 
 START = "2030-01-01T00:00:00Z"
 
@@ -168,3 +173,71 @@ def test_the_longest_superseded_sessions_are_forgotten_first(monkeypatch):
     for previous, session, at in [("z", "y", "1"), ("y", "b", "2"), ("b", "a", "3")]:
         foreman._supersede(lane, previous, session, at)
     assert set(lane["supersededForemen"]) == {"y", "b"}
+
+
+async def test_a_wait_left_open_by_a_superseded_session_leaves_the_event_to_its_successor(
+    make_run,
+):
+    """lushly-dev/afd#1633: A waits, hands over to B, and an event arrives while A's wait is still
+    open: the session is checked again where events are marked delivered, so B gets it."""
+    run = make_run()
+    waiting_a = asyncio.create_task(
+        run.call("lane_wait", consumer="foreman", timeout_ms=5000, session="thread-a")
+    )
+    await asyncio.sleep(0.3)  # A's wait is polling.
+    assert (await run.call("foreman_handoff", session="thread-a")).success
+    took = await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    assert took.data == {"events": [], "timedOut": True}
+    with run.store.update("an event arrives") as state:
+        events.emit(state, START, "queue-room", detail="A seat is free")
+
+    refused = await waiting_a
+    assert refused.error.code == "FOREMAN_STALE"
+    [event] = run.state()["events"]
+    assert event["deliveredTo"] == []
+    got = await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    assert [e["id"] for e in got.data["events"]] == [event["id"]]
+
+
+def queued_cell(run, branch: str = "fix/a") -> None:
+    with run.store.update("a cell") as state:
+        state["cells"].append({"branch": branch, "issues": [101], "state": "working"})
+
+
+async def test_gate_allow_and_lane_drop_are_guarded_as_ejection_excuse_is(make_run):
+    run = make_run()
+    queued_cell(run)
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
+    for command in ("gate_allow", "lane_drop"):
+        busy = await run.call(command, branch="fix/a", reason="why", session="thread-b")
+        assert busy.error.code == "FOREMAN_BUSY", command
+    assert (await run.call("foreman_handoff", session="thread-a")).success
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    for command in ("gate_allow", "lane_drop"):
+        stale = await run.call(command, branch="fix/a", reason="why", session="thread-a")
+        assert stale.error.code == "FOREMAN_STALE", command
+    assert "gateAllowed" not in run.state()["cells"][0]
+    # The holder may, and so may the owner, who names no session.
+    allowed = await run.call("gate_allow", branch="fix/a", reason="why", session="thread-b")
+    assert allowed.success
+    assert (await run.call("lane_drop", branch="fix/a", reason="owner's call")).success
+
+
+async def test_a_mutation_whose_session_lost_the_lane_meanwhile_does_nothing(make_run):
+    """The session is checked inside the mutation's own transaction, not only before it."""
+    run = make_run()
+    queued_cell(run)
+    factory = run.factory()
+    guard = foreman.acting(factory, "thread-a", "gate-allow")  # A holds the lane here.
+    await run.call("foreman_handoff", session="thread-a")
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    with pytest.raises(Refusal) as refused:
+        cells.gate_allow(factory, "fix/a", "why", guard)
+    assert refused.value.code == "FOREMAN_STALE"
+    assert "gateAllowed" not in run.state()["cells"][0]
+    with pytest.raises(Refusal) as busy:
+        status.dial_set(factory, "lane.queueMax", 4, "thread-c")
+    assert busy.value.code == "FOREMAN_BUSY"
+    with run.store.update("test") as state, pytest.raises(Refusal) as unnamed:
+        foreman.check(state, None, "dial-set", factory.world.clock.now())
+    assert unnamed.value.code == "FOREMAN_BUSY"

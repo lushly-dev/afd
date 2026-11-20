@@ -4,8 +4,9 @@
 ``{"steps": [{"label": "install", "args": [...], "timeout": 1800}, {"label": "validate", ...}]}``.
 Each step is an argument list (never a shell string) whose output goes to this process's own
 output, the job's log. A step's ``path`` (directories) goes before ``PATH`` for that step, so it
-runs on the Node the checkout's ``.nvmrc`` names. A failed step ends the job with one last line
-naming it::
+runs on the Node the checkout's ``.nvmrc`` names, and its ``env`` (names to values, such as the
+slot's ``CARGO_TARGET_DIR``) is set over the inherited environment. A failed step ends the job
+with one last line naming it::
 
     botcore-factory-job: {"failed": "install", "code": 1, "timedOut": false}
 
@@ -15,6 +16,7 @@ and the job exits with the step's code (124 when it timed out; its process tree 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
@@ -30,6 +32,8 @@ NOT_FOUND = 127
 def run_step(step: dict) -> tuple[int, bool]:
     """Run one step; its exit code and whether it timed out."""
     env = path_env(step.get("path") or ())
+    if step.get("env"):
+        env = {**(env if env is not None else os.environ), **step["env"]}
     try:
         program = resolve_program(step["args"][0], env["PATH"] if env else None)
     except WorldError as exc:

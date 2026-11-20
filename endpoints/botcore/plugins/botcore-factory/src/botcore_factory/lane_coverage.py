@@ -8,9 +8,15 @@ clears only the merges it ran after, so a merge that landed meanwhile still owes
 
 from __future__ import annotations
 
-from botcore_factory.cells import seated
+from botcore_factory.cells import build_dir, seated
 from botcore_factory.events import is_open
-from botcore_factory.lane_base import AT_THE_FRONT, LaneTrouble, StepBase, first_lines
+from botcore_factory.lane_base import (
+    AT_THE_FRONT,
+    LaneTrouble,
+    StepBase,
+    first_lines,
+    out_of_disk,
+)
 from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 
 INSTALL_TIMEOUT_SECONDS = 1800
@@ -62,9 +68,14 @@ class NodeUnavailable(LaneTrouble):
 
 
 class Coverage(StepBase):
-    def job_steps(self, label: str, command: list[str], cwd: str) -> list[dict]:
+    def job_steps(
+        self, label: str, command: list[str], cwd: str, slot: str, branch: str
+    ) -> list[dict]:
         """Install (bounded by a timeout), then the command: one background job, on the Node
-        the checkout at ``cwd`` names in ``.nvmrc``."""
+        the checkout at ``cwd`` names in ``.nvmrc``, with ``CARGO_TARGET_DIR`` at the slot's
+        build directory (``slot_build``)."""
+        node = self.node_bin(cwd)
+        env = {"CARGO_TARGET_DIR": self.slot_build(slot, branch)}
         steps = []
         if self.config.install:
             steps.append(
@@ -75,8 +86,24 @@ class Coverage(StepBase):
                 }
             )
         steps.append({"label": label, "args": command})
-        node = self.node_bin(cwd)
-        return [{**s, "path": [node]} for s in steps] if node else steps
+        return [{**s, "env": env, **({"path": [node]} if node else {})} for s in steps]
+
+    def slot_build(self, slot: str, branch: str) -> str:
+        """The slot's build directory (lushly-dev/afd#1641), under ``host.buildDir``. A slot that
+        takes another branch is recycled: the build output it kept for the last one is removed
+        first, so each slot holds one branch's build at most (the same branch validated again
+        keeps it). Where it was before ``host.buildDir`` changed is removed too."""
+        path = build_dir(self.factory, self.state["dials"], slot)
+        builds = self.lane.setdefault("slotBuilds", {})
+        last = builds.get(slot)
+        if last is not None and last.get("path") != path:
+            self.world.git.remove_build(last["path"])
+        if last is None or last.get("branch") != branch or last.get("path") != path:
+            self.world.git.remove_build(path)
+            if last is not None:
+                self.actions.append(f"recycled slot {slot}'s build output for {branch or 'main'}")
+        builds[slot] = {"branch": branch, "path": path}
+        return path
 
     def node_bin(self, cwd: str) -> str | None:
         """The bin directory of the Node the checkout's ``.nvmrc`` names; None without one.
@@ -107,7 +134,7 @@ class Coverage(StepBase):
         path = self.world.git.prepare_slot("coverage", "", base)
         log = f"coverage/{base[:12]}.log"
         handle = self.world.processes.start_job(
-            self.job_steps("coverage", self.config.coverage, path),
+            self.job_steps("coverage", self.config.coverage, path, "coverage", ""),
             cwd=path,
             log=self.absolute(log),
             label="coverage",
@@ -136,6 +163,13 @@ class Coverage(StepBase):
             return
         self.lane.pop("coverage")
         passed = done.returncode == 0
+        full = None if passed else out_of_disk(done.stdout + "\n" + done.stderr)
+        if full is not None:
+            # The host's trouble, not main's: its merges still owe coverage, run on resuming.
+            raise LaneTrouble(
+                f"Coverage on {running['main']} ran out of disk: {full}. Free disk where the "
+                "lane's slots build (or point host.buildDir at a data volume), then lane-resume"
+            )
         after = running["after"]
         self.record(
             "coverage",

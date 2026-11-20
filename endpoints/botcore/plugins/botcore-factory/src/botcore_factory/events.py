@@ -78,12 +78,17 @@ def answer(state: dict, action: str, at: str, *, branch: str | None = None) -> l
     return closed
 
 
-def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None) -> dict:
+def lane_wait(
+    factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None, guard=None
+) -> dict:
     """The open events ``consumer`` has not been given, each with a compact status, or a timeout.
 
     ``status`` computes the compact status; it is called once, after delivery is recorded, so a
     failed GitHub read never loses an event. ``keep``, when given, runs on each poll while waiting
-    (a foreman's lease is renewed so).
+    (a foreman's lease is renewed so). ``guard``, when given, runs on the state inside the
+    transaction that marks events delivered, before it does: a foreman's session is checked
+    again there, so a wait its session no longer holds the lane for refuses and leaves the
+    events to its successor (lushly-dev/afd#1633).
     """
     if not consumer.strip():
         raise Refusal("VALIDATION_ERROR", "consumer is empty", "Name the consumer, e.g. foreman")
@@ -101,6 +106,8 @@ def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status, k
     while True:
         if any(pending_for_consumer(e) for e in factory.store.read()["events"]):
             with factory.store.update(f"lane-wait {consumer}") as state:
+                if guard is not None:
+                    guard(state)
                 pending = [e for e in state["events"] if pending_for_consumer(e)]
                 for event in pending:
                     event.setdefault("deliveredTo", []).append(consumer)

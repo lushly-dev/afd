@@ -58,6 +58,9 @@ class LocalMachine:
             where = where.parent
         return shutil.disk_usage(where).free / GIB
 
+    def is_dir(self, path: str) -> bool:
+        return Path(path).is_dir()
+
     def has_program(self, name: str) -> bool:
         return shutil.which(name) is not None
 

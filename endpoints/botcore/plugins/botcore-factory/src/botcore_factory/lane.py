@@ -21,7 +21,11 @@ a fixture world and a fake clock. Each step, in order:
    ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
    ``.nvmrc``, deleted it or left it blank, and is the lane's trouble when the ``.nvmrc`` is
    the base's own); free disk at the slots below ``host.minFreeDiskGb`` is the lane's trouble
-   before any of it starts, so a full disk pauses the lane rather than ejecting a good branch;
+   before any of it starts, so a full disk pauses the lane rather than ejecting a good branch,
+   and so is a job that fails on a full disk anyway (``ENOSPC``): it is validated again once
+   the lane resumes, and no ejection is counted (lushly-dev/afd#1641). Each slot's jobs build
+   Rust under its own ``CARGO_TARGET_DIR`` (``host.buildDir``), removed when the slot takes
+   another branch;
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -46,6 +50,7 @@ from botcore_factory.lane_base import (
     LaneTrouble,
     first_lines,
     log_path,
+    out_of_disk,
 )
 from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
@@ -95,6 +100,15 @@ class Step(Merging, Coverage):
             if done is None:
                 continue
             output = done.stdout + "\n" + done.stderr
+            full = out_of_disk(output) if done.returncode != 0 else None
+            if full is not None:
+                # The host's trouble, not the branch's: pause, and count no ejection.
+                self.requeue(entry, "disk-full", detail=full)
+                raise LaneTrouble(
+                    f"Validating {entry['branch']} ran out of disk: {full}. Free disk where the "
+                    "lane's slots build (or point host.buildDir at a data volume), then "
+                    "lane-resume; the branch validates again"
+                )
             if done.returncode != 0 and done.step == "install":
                 failed = job.failure(output) or {}
                 # Job metadata names timedOut even when false. Search only the tool's
@@ -255,7 +269,7 @@ class Step(Merging, Coverage):
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
-        steps = self.validation_steps(entry, path, base)
+        steps = self.validation_steps(entry, path, base, slot)
         if steps is None:
             return False
         handle = self.world.processes.start_job(
@@ -288,7 +302,7 @@ class Step(Merging, Coverage):
         self.actions.append(f"validating {branch} in slot {slot}")
         return True
 
-    def validation_steps(self, entry: dict, path: str, base: str) -> list[dict] | None:
+    def validation_steps(self, entry: dict, path: str, base: str, slot: str) -> list[dict] | None:
         """The validation job's steps, on the Node the merged slot's ``.nvmrc`` names. That Node
         missing ejects the branch as ``node-missing`` when the branch changed ``.nvmrc``; when
         the ``.nvmrc`` is the base's own, no branch is to blame, and the lane pauses
@@ -297,7 +311,9 @@ class Step(Merging, Coverage):
         (lushly-dev/afd#1505). None when the branch was
         ejected."""
         try:
-            steps = self.job_steps("validate", self.config.validate_command, path)
+            steps = self.job_steps(
+                "validate", self.config.validate_command, path, slot, entry["branch"]
+            )
         except NodeUnavailable as unavailable:
             if ".nvmrc" not in self.world.git.changed_files(path, base):
                 raise

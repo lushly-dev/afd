@@ -57,6 +57,22 @@ INFRASTRUCTURE = re.compile(
     r"rate limit|socket",
     re.I,
 )
+#: A job that ran out of disk: the host's trouble, never the branch's (lushly-dev/afd#1641).
+DISK_FULL = re.compile(
+    r"\bENOSPC\b|No space left on device|not enough space on the disk|disk quota exceeded", re.I
+)
+
+
+def out_of_disk(output: str) -> str | None:
+    """The first line of a job's output that says the disk is full, or None. A line a runner
+    marked passed is skipped: a test may be named for the case."""
+    for line in output.splitlines():
+        clean = _ANSI.sub("", line).strip()
+        if DISK_FULL.search(clean) and not _PASSED_MARK.match(clean):
+            return clean
+    return None
+
+
 #: The state of a queue entry whose pull request GitHub was asked to merge and has not merged
 #: yet: it waits in GitHub's merge queue (``lane_merge``).
 MERGE_QUEUED = "merge-queued"

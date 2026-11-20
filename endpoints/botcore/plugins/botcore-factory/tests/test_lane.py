@@ -989,3 +989,116 @@ def test_an_unreadable_disk_pauses_the_lane_with_the_way_out(lane):
     run_steps(lane)
     assert "Cannot read free disk" in lane.state()["lane"]["pauseReason"]
     assert "host.minFreeDiskGb" in lane.state()["lane"]["pauseReason"]
+
+
+@pytest.mark.parametrize(
+    ("label", "message", "config"),
+    [
+        ("validate", "error: failed to write target/x.rlib: No space left on device", {}),
+        ("install", "ERR_PNPM_ENOSPC  ENOSPC: no space left on device, write", INSTALL),
+    ],
+)
+def test_a_job_that_runs_out_of_disk_pauses_the_lane_and_counts_no_ejection(
+    lane, label, message, config
+):
+    """lushly-dev/afd#1641: a full disk is the host's failure, not the branch's."""
+    lane.change_world(outcomes={label: {"feat/export-csv": f"fail: {message}"}})
+    run_steps(lane, 2, **config)
+    assert not events(lane, "ejected") and "ejected" not in kinds(lane)
+    assert queue(lane)[0] == ("feat/export-csv", "queued")
+    cell = next(c for c in lane.state()["cells"] if c["branch"] == "feat/export-csv")
+    assert cell["ejections"] == 0 and "lastEjection" not in cell
+    [error] = events(lane, "lane-error")
+    assert "ran out of disk" in error["detail"] and "host.buildDir" in error["detail"]
+    assert lane.state()["lane"]["paused"] is True
+    rerun = [r for r in lane.store.read_records() if r["kind"] == "rerun"][-1]
+    assert (rerun["reason"], rerun["detail"]) == ("disk-full", message)
+
+    lane.change_world(outcomes={label: {"feat/export-csv": "pass"}})
+    lane_resume(lane.factory(), "freed disk")
+    assert run_steps(lane, **config) == ["validating feat/export-csv in slot 1"]
+
+
+def test_a_failure_that_only_names_the_disk_in_a_passed_test_still_ejects(lane):
+    output = "✓ handles ENOSPC when the cache is full\nFAIL src/a.test.ts > parses"
+    lane.change_world(outcomes={"validate": {"feat/export-csv": f"fail: {output}"}})
+    run_steps(lane, 2)
+    assert events(lane, "ejected")[0]["reason"] == "final-failed"
+    assert lane.state()["lane"].get("paused") is not True
+
+
+def test_coverage_that_runs_out_of_disk_pauses_without_calling_main_broken(make_run):
+    run = make_run("running", queue=[], held=[], lane={"mergedSinceCoverage": [1, 2, 3, 4, 5]})
+    config = {"coverage": ["pnpm", "test:coverage"]}
+    run.change_world(outcomes={"coverage": {"": "fail: ENOSPC: no space left on device"}})
+    run_steps(run, 2, **config)
+    assert not events(run, "main-broken") and "coverage" not in kinds(run)
+    assert "ran out of disk" in run.state()["lane"]["pauseReason"]
+    assert run.state()["lane"]["mergedSinceCoverage"] == [1, 2, 3, 4, 5]  # Still owed.
+
+
+def job_env(run) -> list[str]:
+    """Each started job's CARGO_TARGET_DIR, in the order the jobs started."""
+    running = run.world_data()["processes"]["running"]
+    return [running[h]["steps"][-1]["env"]["CARGO_TARGET_DIR"] for h in sorted(running)]
+
+
+def test_each_slot_builds_rust_in_its_own_directory_removed_when_it_takes_another_branch(lane):
+    """lushly-dev/afd#1641: Rust build output in the slots reached 51 GB on the lane host."""
+    lane.change_world(outcomes={"validate": {"fix/retry-backoff": "running"}})
+    run_steps(lane, 2)
+    assert job_env(lane) == ["slots/.build/1"]  # The first job finished; this is the second.
+    assert lane.world_data()["removedBuilds"] == ["slots/.build/1", "slots/.build/1"]
+    assert lane.state()["lane"]["slotBuilds"] == {
+        "1": {"branch": "fix/retry-backoff", "path": "slots/.build/1"}
+    }
+
+
+def test_host_build_dir_puts_the_build_output_on_another_volume(make_run):
+    lane = make_run("running", dials={"host.buildDir": "/Volumes/Dev"})
+    lane.change_world(outcomes={"validate": {"feat/export-csv": "running"}})
+    run_steps(lane)
+    assert job_env(lane) == ["/Volumes/Dev/slots/1"]
+
+
+def test_a_slot_keeps_its_build_for_the_same_branch_and_drops_it_when_the_dial_moves(make_run):
+    from botcore_factory.lane import Step
+
+    run = make_run("running")
+    factory = run.factory()
+    with factory.store.update("test") as state:
+        slots = Step(factory, state)
+        assert slots.slot_build("1", "fix/a") == "slots/.build/1"
+        assert slots.slot_build("1", "fix/a") == "slots/.build/1"  # Kept: nothing removed.
+        state["dials"]["host.buildDir"] = "/Volumes/Dev"
+        assert slots.slot_build("1", "fix/a") == "/Volumes/Dev/slots/1"
+    assert run.world_data()["removedBuilds"] == [
+        "slots/.build/1",
+        "slots/.build/1",
+        "/Volumes/Dev/slots/1",
+    ]
+
+
+def test_a_short_build_volume_pauses_the_lane_and_names_it(make_run):
+    lane = make_run(
+        "running",
+        dials={"host.buildDir": "/Volumes/Dev"},
+        host={"freeDiskGb": 200, "freeDiskGbAt": {"/Volumes/Dev/slots": 5}},
+    )
+    run_steps(lane)
+    assert "validation-started" not in kinds(lane)
+    assert "5 GB of disk is free" in lane.state()["lane"]["pauseReason"]
+    assert "/Volumes/Dev/slots" in lane.state()["lane"]["pauseReason"]
+
+
+def test_a_build_dir_that_is_not_mounted_pauses_the_lane(make_run):
+    """An unmounted volume's mount point would put the build back on the system disk."""
+    lane = make_run(
+        "running",
+        dials={"host.buildDir": "/Volumes/Dev"},
+        host={"freeDiskGb": 200, "missingDirs": ["/Volumes/Dev"]},
+    )
+    run_steps(lane)
+    assert "validation-started" not in kinds(lane) and not events(lane, "ejected")
+    reason = lane.state()["lane"]["pauseReason"]
+    assert "host.buildDir /Volumes/Dev is not a directory" in reason

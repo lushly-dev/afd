@@ -143,9 +143,9 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `lane-wait` | `consumer`, `timeout_ms?` (at most 300000 over MCP; unlimited from the CLI) | `events[] { id, type, branch?, reason?, detail?, logPath? }` still open and not yet delivered to this consumer, each with a compact `status` (`canStartCell`, `plan`, `nextIssue`, queue length, `waitingOnOwner`), or `{ events: [], timedOut: true }` | — |
 | `event-resolve` | `id`, `note` | `resolved` | `NOT_FOUND` |
 | `lane-pause`, `lane-resume` | `reason?` | `paused`; `lane-resume` resolves an open `lane-error` | — |
-| `lane-drop` | `branch`, `reason` | `dropped`, `released[]`: dequeues the branch, releases its claims (issue back to `status:planned` with one comment) and forgets the cell; the worktree is left | `NOT_FOUND` |
+| `lane-drop` | `branch`, `reason`, `session?` | `dropped`, `released[]`: dequeues the branch, releases its claims (issue back to `status:planned` with one comment) and forgets the cell; the worktree is left | `FOREMAN_STALE`, `FOREMAN_BUSY`, `NOT_FOUND` |
 | `lane-revert` | `prs[]`, `reason` | `revertPrs[]`, each merged by the lane | `NOT_FOUND`, `NOT_MERGED` |
-| `gate-allow` | `branch`, `reason` | `allowed`: the diagnosis found the gate edit to be the right repair | `NOT_FOUND` |
+| `gate-allow` | `branch`, `reason`, `session?` | `allowed`: the diagnosis found the gate edit to be the right repair | `FOREMAN_STALE`, `FOREMAN_BUSY`, `NOT_FOUND` |
 | `plan-list` | — | `plans[] { id, provider, used, elapsed, room, aboveCeiling, resetsAt }` | `PLANS_UNREADABLE` (the foreman then uses the configured order) |
 | `dial-get` | `key?` | `key`, `value`, `default`, or every dial | `NOT_FOUND` |
 | `dial-set` | `key`, `value` | `key`, `value`, `previous`, `default` | `DIAL_OUT_OF_RANGE`, `NOT_FOUND` |
