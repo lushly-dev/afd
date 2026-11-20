@@ -533,6 +533,42 @@ export async function openShell(
 	return opened;
 }
 
+/** The journal's writer lock, `<JOURNAL_NAME>:writer` (`src/host.ts`, phase 0 specification, 6.6). */
+const WRITER_LOCK_NAME = 'loam-journal:writer';
+/** How long {@link closeAndRelease} waits for the release: well inside a test's 30 s. */
+const RELEASE_BOUND_MS = 10_000;
+
+/**
+ * Close a shell's page and wait until the browser has let go of the journal's writer lock it held, so the
+ * next page opened in its context (the same profile) takes the lock rather than showing "Loam is open in
+ * another tab". The browser releases a closed page's Web Locks a little after `close` resolves, and on a
+ * loaded machine later than the host's second of patience (#1315). `url` is the deployment's root: the
+ * probe reads the locks from its `deployment.json`, at the same origin. Call it only when the closed page
+ * was the context's one writer, and with `deployment.json` neither routed nor held: otherwise the lock is
+ * never seen free, and it throws once its bound has passed.
+ */
+export async function closeAndRelease(opened: ShellPage, url: string): Promise<void> {
+	await opened.page.close();
+	const probe = await opened.context.newPage();
+	try {
+		await probe.goto(new URL('deployment.json', url).href);
+		const deadline = Date.now() + RELEASE_BOUND_MS;
+		// A loop, not `waitForFunction`, which takes the promise an async predicate returns as truthy.
+		for (;;) {
+			const locks = await probe.evaluate(() => navigator.locks.query());
+			if (!locks.held?.some((lock) => lock.name === WRITER_LOCK_NAME)) return;
+			if (Date.now() >= deadline) {
+				throw new Error(
+					`${WRITER_LOCK_NAME} at ${new URL(url).origin} was still held ${RELEASE_BOUND_MS} ms after its page closed: ${JSON.stringify(locks)}`
+				);
+			}
+			await probe.waitForTimeout(50);
+		}
+	} finally {
+		await probe.close();
+	}
+}
+
 export interface EntrySummary {
 	seq: number;
 	command: string;
