@@ -30,6 +30,16 @@ async def test_wait_delivers_each_event_once_per_consumer_with_a_compact_status(
     assert [e["id"] for e in (await run.call("lane_status")).data["openEvents"]] == ["ev-7"]
 
 
+async def test_wait_delivers_only_open_events_to_a_new_foreman(make_run):
+    run = make_run(events=[{"id": "ev-1", "type": "merged"}, {"id": "ev-2", "type": "merged"}])
+    assert (await run.call("event_resolve", id="ev-1", note="Already reviewed")).success
+
+    data = (await run.call("lane_wait", consumer="foreman", timeout_ms=0)).data
+
+    assert [event["id"] for event in data["events"]] == ["ev-2"]
+    assert "foreman" not in run.state()["events"][0].get("deliveredTo", [])
+
+
 async def test_wait_times_out_after_its_timeout(make_run):
     run = make_run()
     started = time.monotonic()

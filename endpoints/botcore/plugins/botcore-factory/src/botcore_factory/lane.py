@@ -128,7 +128,7 @@ class Step(Merging, Coverage):
                 entry["state"] = "validated"
                 self.actions.append(f"validated {entry['branch']}")
             else:
-                self.eject(entry, "final-failed", output, entry.get("logPath"))
+                self.eject(entry, "final-failed", output, entry.get("logPath"), done.failures)
 
     def queue_held(self) -> None:
         room = self.dial("lane.queueMax") - len(self.state["queue"])

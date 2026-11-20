@@ -680,6 +680,61 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Where message `message` is now in mailbox `mailbox`, for an undo whose
+    /// recorded place, `validity` and `provider_id`, may have gone since: a
+    /// later change moved it away and back, and the provider gave it a new
+    /// id. The recorded place while the store still shows it there; else the
+    /// one place the store shows the message in that mailbox that it first
+    /// saw after `after`, when the operation began, so that a copy that was
+    /// there before the operation is never taken for one it made; else
+    /// `None`, and the undo finds it missing. Two such places are not chosen
+    /// between.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn place_now(
+        &self,
+        message: i64,
+        mailbox: i64,
+        validity: &str,
+        provider_id: &str,
+        after: i64,
+    ) -> Result<Option<(String, String)>, StoreError> {
+        // When the store first saw each place: a place's observation is
+        // ended and made again when its flags change, so its current row's
+        // time is not when it was first seen.
+        let mut statement = self.connection.prepare_cached(
+            "SELECT current.validity, current.provider_id,
+                    (SELECT min(first.seen_at) FROM observation AS first
+                     WHERE first.mailbox_id = current.mailbox_id
+                       AND first.validity = current.validity
+                       AND first.provider_id = current.provider_id
+                       AND first.message_id = current.message_id)
+             FROM observation AS current
+             WHERE current.message_id = ?1 AND current.mailbox_id = ?2
+               AND current.ended_at IS NULL",
+        )?;
+        let places: Vec<(String, String, i64)> = statement
+            .query_map(params![message, mailbox], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        if places
+            .iter()
+            .any(|(v, id, _)| v == validity && id == provider_id)
+        {
+            return Ok(Some((validity.to_string(), provider_id.to_string())));
+        }
+        let mut later = places
+            .into_iter()
+            .filter(|(_, _, seen_at)| *seen_at > after)
+            .map(|(validity, provider_id, _)| (validity, provider_id));
+        Ok(match (later.next(), later.next()) {
+            (Some(one), None) => Some(one),
+            _ => None,
+        })
+    }
+
     /// How many messages `creator` set out to move to the trash since
     /// `since`, in operations it made: not in its proposals, approved or not
     /// (9.4).

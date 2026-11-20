@@ -185,10 +185,10 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
     async def lane_wait(
         consumer: str, timeout_ms: int | None = None, session: str | None = None
     ) -> CommandResult:
-        """Wait for events this consumer has not been given; reading never resolves them.
+        """Wait for open events this consumer has not been given. Reading never resolves them.
 
         Args:
-            consumer: Who reads, e.g. foreman; each consumer is given each event once.
+            consumer: Who reads, e.g. foreman; each consumer is given an open event at most once.
             timeout_ms: How long to wait; no limit when left out (over MCP pass at most 300000).
             session: The foreman's own session (its T3 Code thread id); it holds the lane, and
                 waiting keeps it.

@@ -7246,9 +7246,8 @@ function renderReferenceKitLab(): HTMLElement {
               <p class="kit-section-title">Dense structured data</p>
               <div class="data-grid-shell">
                 <violet-data-grid
-                  heading="Cultivation planning"
-                  row-label="plant"
-                  selectable
+                  aria-label="Cultivation planning"
+                  selection-mode="multiple"
                   sticky-header
                 ></violet-data-grid>
               </div>

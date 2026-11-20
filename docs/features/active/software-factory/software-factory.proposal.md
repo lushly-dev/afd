@@ -140,7 +140,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `lane-handoff-status` | — | `queue[]`, `cellsActive`, this machine's `cells[]` | — |
 | `lane-handoff-sync` | `worktree` | `head`, `logPath`: the lane's copy of the branch and the ejection's log, fetched into the worktree | `NOT_FOUND` |
 | `lane-handoff-watch` | `consumer`, `timeout_ms?` | As `lane-wait`, for this machine's cells | — |
-| `lane-wait` | `consumer`, `timeout_ms?` (at most 300000 over MCP; unlimited from the CLI) | `events[] { id, type, branch?, reason?, detail?, logPath? }` not yet delivered to this consumer, each with a compact `status` (`canStartCell`, `plan`, `nextIssue`, queue length, `waitingOnOwner`), or `{ events: [], timedOut: true }` | — |
+| `lane-wait` | `consumer`, `timeout_ms?` (at most 300000 over MCP; unlimited from the CLI) | `events[] { id, type, branch?, reason?, detail?, logPath? }` still open and not yet delivered to this consumer, each with a compact `status` (`canStartCell`, `plan`, `nextIssue`, queue length, `waitingOnOwner`), or `{ events: [], timedOut: true }` | — |
 | `event-resolve` | `id`, `note` | `resolved` | `NOT_FOUND` |
 | `lane-pause`, `lane-resume` | `reason?` | `paused`; `lane-resume` resolves an open `lane-error` | — |
 | `lane-drop` | `branch`, `reason` | `dropped`, `released[]`: dequeues the branch, releases its claims (issue back to `status:planned` with one comment) and forgets the cell; the worktree is left | `NOT_FOUND` |
@@ -156,7 +156,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `owner-queue` | — | `items[] { kind, ref, question, since, answered }`: `decision` and `operator` issues, `sign-in` lane errors, `parked` cells, and `look` for UI PRs held by `experience.hold`; `answered` once he has replied, until triage acts | `READ_FAILED` |
 | `pr-preview` | `pr` | `before { url }`, `after { url }`, `stopAfter`: the app served from `main` and from the PR's head, for a merged PR or an open lane PR, stopped after `stopAfter` | `NOT_FOUND`, `NO_PREVIEW` (the adapter has no `preview`) |
 
-**Events.** `lane-wait` returns events this consumer has not seen; reading does not
+**Events.** `lane-wait` returns open events this consumer has not seen; reading does not
 resolve them. An event stays in `openEvents` until the action that answers it happens
 (a re-enqueue or drop answers `ejected`, `lane-resume` answers `lane-error`, a new
 `cell-register` answers `queue-room`) or `event-resolve` records a decision. A foreman that

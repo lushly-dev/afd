@@ -2,9 +2,9 @@
 name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
-  PR and readiness, merging only when separately authorized. `inspect` changes
-  nothing; `quick` reruns gates and the PR; `lane` hands a factory cell to the
-  merge lane. Use when the user says ship it or open a PR.
+  PR and readiness, then the merge queue. `inspect` changes nothing; `quick`
+  reruns gates and the PR; `lane` hands a factory cell to the merge lane. Use
+  when the user says ship it or open a PR.
 argument-hint: inspect | quick | lane
 ---
 
@@ -78,7 +78,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
 6. **Push.** `git push -u origin <branch>`; on a hook failure, fix and push again. Never `--no-verify` without the user's explicit approval and separate gate evidence for that exact commit.
 
 7. **Create or update the PR.**
-   - **New:** `gh pr create --base main --title "<type>(scope): description"`, body **Summary** (why, and the behaviour change), **Changes**, **Scope notes** (deliberately not done, parity follow-ups, why a changeset or not), **Review** (passes, dispositions), **Test changes** (the report above with each item's reason; omitted when it lists nothing) and **Test plan** (exact commands and results, and what was not run). No filler or restated diff. `--draft` when someone else owns the ship decision. Straight after creating it, fill the PR's number into any status entry from step 3 ("merged in #N"), commit and push before reading readiness. That one-line edit needs no re-review and no local gate rerun (`pnpm verify --list --files <status file>` confirms nothing is triggered); step 8 reads the new head's checks.
+   - **New:** `gh pr create --base main --title "<type>(scope): description"`, body **Summary** (why, and the behaviour change), **Changes**, **Scope notes** (deliberately not done, parity follow-ups, why a changeset or not), **Review** (passes, dispositions), **Test changes** (the report above with each item's reason; omitted when it lists nothing) and **Test plan** (exact commands and results, and what was not run). No filler or restated diff. `--draft` only while a decision is the owner's (step 9). Straight after creating it, fill the PR's number into any status entry from step 3 ("merged in #N"), commit and push before reading readiness. That one-line edit needs no re-review and no local gate rerun (`pnpm verify --list --files <status file>` confirms nothing is triggered); step 8 reads the new head's checks.
    - **Existing:** the push updates it; `gh pr edit` the title and body if scope changed. Never open a second PR for the same work.
    - **Closing an issue:** confirm `gh pr view <n> --json closingIssuesReferences` lists it; a keyword inside a code span looks right and does nothing.
 
@@ -87,8 +87,9 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - `UNKNOWN`: not computed yet. Read again; don't infer a conflict.
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
+   - A head change of your own after the review (a fix, a conflict resolution) is reviewed before the enqueue by a focused pass on the new diff, outside step 2's pass limit, which the PR's Review section records. Step 7's status-number edit is exempt.
 
-9. **Enqueue only when authorized.** `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With the user's authorization and every check on the exact head green, enqueue that head and nothing else:
+9. **Enqueue once reviewed and green.** AGENTS.md authorizes a session to enqueue the pull request it opened or resumed when step 2's review covers the head with no blocker unresolved; no human review follows. A second-provider reviewer that could not start, recorded in the PR as step 2 says, does not hold it; no independent review at all does. Leave it open and report when a decision is the owner's: publishing, a UI change held for the owner's look, or a change to the factory's own measures ([software-factory](../../../docs/features/active/software-factory/software-factory.proposal.md)). A gate change the rules already let a session make, such as step 5's ceiling raise or a test change step 2's review settled, is not one. `main` merges through GitHub's merge queue; nothing merges into it directly. The queue squashes the pull request onto those ahead of it, runs every gate on that commit, and moves `main` to it when `ci-ok` passes there ([gates.md](references/gates.md)). Never run `gh pr merge` to merge or enqueue a pull request to `main`: when a check has not finished it enables auto-merge instead of enqueueing, which lands whatever head is there later, not the one you reviewed; with `--admin` it bypasses the queue and `ci-ok`. With that authorization and every check on the exact head green, `gh pr ready <n>` if it is a draft (the queue refuses drafts), then enqueue that head and nothing else:
 
    ```bash
    gh api graphql -f id="$(gh pr view <n> --json id --jq .id)" -f oid=<full headRefOid verified in step 8> -f query='
@@ -115,7 +116,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    - **A queued pull request's branch is locked:** a push to it is refused. To change it, remove it from the queue first ("Remove from queue" on the pull request, or the `dequeuePullRequest` mutation, which no session has exercised yet), then push and return to step 8.
    - A pull request that changes `pnpm-lock.yaml` needs no turn of its own; [gates.md](references/gates.md) says what to do when the queue refuses one.
 
-   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. When step 9 says to leave it open, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Lane mode
 

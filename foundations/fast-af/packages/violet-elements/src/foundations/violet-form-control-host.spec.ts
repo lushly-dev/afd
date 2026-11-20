@@ -205,7 +205,7 @@ describe("form control hosts", () => {
     }
 
     it("moves focus to a field focused when its dialog opens", async () => {
-        document.body.innerHTML = `<button type="button">Edit</button><violet-dialog heading="Edit bed"><violet-date-picker label="Sown"></violet-date-picker></violet-dialog>`;
+        document.body.innerHTML = `<button type="button">Edit</button><violet-dialog><span slot="title">Edit bed</span><violet-date-picker label="Sown"></violet-date-picker></violet-dialog>`;
         await customElements.whenDefined("violet-dialog");
         await settle();
         const dialog = document.querySelector("violet-dialog") as HTMLElement & { show(): void };
