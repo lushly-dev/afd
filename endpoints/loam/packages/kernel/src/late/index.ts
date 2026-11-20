@@ -365,6 +365,14 @@ export async function createLateParts(
 	]);
 	// The copilot's records and commands, `late-copilot`, beside them (phase 5 specification, 2 and 3.5).
 	const { createCopilotParts } = await import('../copilot/commands.js');
+	/**
+	 * The kernel disposed while the load awaited: it ends there, reading and writing nothing more, and the kernel's
+	 * `loadLate`, which knows it is disposed, says nothing of it (step 7's fifth and sixth rounds, 1 and 2).
+	 */
+	const endIfDisposed = () => {
+		if (deps.disposed?.()) throw new Error('The kernel was disposed');
+	};
+	endIfDisposed();
 	const copilot: CopilotParts = createCopilotParts({
 		store: deps.store,
 		workspace: deps.scope.workspace.id,
@@ -428,6 +436,7 @@ export async function createLateParts(
 		kit: { ...DOCUMENT_KIT, decideAccess, isOwner, membershipUnavailable },
 	});
 	await agentMembers.cache.load(deps.store);
+	endIfDisposed();
 	deps.scope.agents = agentMembers.cache;
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
@@ -454,6 +463,7 @@ export async function createLateParts(
 		identity: deps.identity,
 		kit: DOCUMENT_KIT,
 	});
+	endIfDisposed();
 	// Step 4's account and member commands (5.1, 5.3, 5.4, 7.2), decided on the membership the kernel holds.
 	const memberCommands = createMemberCommands({
 		auth: deps.auth,
@@ -552,7 +562,9 @@ export async function createLateParts(
 	// The link index, built by one `list` at its first read, and kept by the link commands and expiry (9.3).
 	const index = createDocumentIndex(deps.store);
 	await editor.ensure(deps.scope.active().project);
+	endIfDisposed();
 	await declare();
+	endIfDisposed();
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	/** Whether the applied projection's host is the desktop, as `shell-info-get` says (phase 6 specification, 10.1). */
@@ -619,6 +631,7 @@ export async function createLateParts(
 	if (deps.disposed?.()) settings.stop();
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
+	endIfDisposed();
 	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
 	const keybindingCommands = createKeybindingCommands({
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
@@ -901,12 +914,14 @@ export async function createLateParts(
 			const input = command === 'section-open' ? { section: target } : {};
 			// A mounted command takes any input at run time; whether it needs some is its advertised schema's (the
 			// re-check's 6). Every other command's input is parsed as the chord would give it, `section-open`'s section.
-			const mounted = deps.apps().owners.get(command)?.recorded === true;
+			const owner = deps.apps().owners.get(command);
+			const mounted = owner?.recorded === true;
 			const runnable =
 				definition !== undefined &&
 				definition.expose?.palette !== false &&
 				(mounted
-					? deps.needsInput !== undefined &&
+					? owner?.replaced !== true &&
+						deps.needsInput !== undefined &&
 						!deps.needsInput(definition.jsonSchema) &&
 						emptyMeets(definition.jsonSchema)
 					: z.safeParse(definition.inputSchema as z.ZodMiniType, input).success);

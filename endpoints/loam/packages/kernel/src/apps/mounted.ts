@@ -361,6 +361,11 @@ export interface CatalogCommandV1 extends CommandFlags {
 	title?: string;
 	description: string;
 	inputSchema: unknown;
+	/**
+	 * Discovery replaced the server's schema, whose root was not an object's, with `{ type: 'object' }`: whether `{}`
+	 * meets the server's own is not known, so no chord runs it (step 7's R11; the sixth round's 1).
+	 */
+	replaced?: true;
 	undoable?: boolean;
 	approval?: 'required';
 }
@@ -526,6 +531,10 @@ export async function discoverInstance(
 			continue;
 		}
 		const inputSchema = advertisedSchema(detail.inputSchema);
+		const reported: unknown = detail.inputSchema;
+		const replaced =
+			reported !== undefined &&
+			(!isRecord(reported) || (reported.type !== undefined && reported.type !== 'object'));
 		if (inputSchema === undefined) {
 			warnings.push({
 				code: 'MOUNT_SCHEMA_UNUSABLE',
@@ -558,6 +567,7 @@ export async function discoverInstance(
 					? detail.description.slice(0, DISCOVERY_LIMITS.descriptionChars)
 					: '',
 			inputSchema,
+			...(replaced ? { replaced: true as const } : {}),
 			...(detail.undoable === true ? { undoable: true } : {}),
 			...(detail.approval === 'required' ? { approval: 'required' as const } : {}),
 		};
@@ -771,7 +781,12 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			definitions.push(definition);
 			admitted.push(command);
 			if (command.approval) approvals.set(name, command.approval);
-			owners.set(name, { app, instance, recorded: true });
+			owners.set(name, {
+				app,
+				instance,
+				recorded: true,
+				...(command.replaced ? { replaced: true as const } : {}),
+			});
 		}
 		commands.push(...definitions);
 		record.commands = admitted.map((command) => command.name);

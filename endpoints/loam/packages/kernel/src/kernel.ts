@@ -521,6 +521,8 @@ export async function createKernelParts(
 			bootOnly = parts.bootOnly;
 			lateScope = parts.lateScope;
 		} catch (cause) {
+			// Disposed while it loaded: the late load ended there, as it should (step 7's sixth round, 2).
+			if (disposed) return;
 			reportKernelError(cause);
 			lateFailure = lateUnavailable();
 			// No override can be read: the reserved chords apply (R9, D66).
@@ -649,10 +651,14 @@ export async function createKernelParts(
 	 */
 	function startApps(): Promise<void> {
 		stageB ??= (async () => {
+			// A kernel disposed meanwhile goes no further: no store read or write after (step 7's sixth round, 2).
 			await loadLate();
+			if (disposed) return;
 			await loadAppsStage();
+			if (disposed) return;
 			if (hydrated) {
 				await state.hydrateLate();
+				if (disposed) return;
 				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
 				apps.reconcileLayouts();
 			}
@@ -661,10 +667,12 @@ export async function createKernelParts(
 			if (applying) {
 				registries = { ...registries, boot: build('palette', bootOnly) };
 				await lateParts?.apply(applying, runBoot, hydrated);
+				if (disposed) return;
 			}
 			setAppCommands(apps.commands);
 			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).
 			await lateParts?.begin();
+			if (disposed) return;
 			// An old appearance record moves into the person's settings, once stage A has read it (phase 4's 3.6).
 			if (hydrated) await lateParts?.migrate(runNow);
 		})()

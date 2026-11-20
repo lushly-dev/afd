@@ -796,12 +796,16 @@ describe("step 7's fifth round", () => {
 		]),
 		digest: 'd1',
 	};
-	/** Holds stage B's list of one table, and fails and counts reads of the person's settings. */
+	/**
+	 * Holds stage B's list of one table, fails reads of the person's settings, and counts every call: reads and writes
+	 * (the sixth round's 2).
+	 */
 	class HeldStore extends MemoryAdapter {
 		hold: { table: string; until: Promise<void> } | undefined;
 		held = 0;
-		reads = 0;
+		calls = 0;
 		override async list<T>(table: string, ...rest: unknown[]) {
+			this.calls++;
 			if (this.hold && table === this.hold.table) {
 				this.held++;
 				await this.hold.until;
@@ -812,11 +816,26 @@ describe("step 7's fifth round", () => {
 			) as never;
 		}
 		override async get<T>(table: string, id: string): Promise<T | null> {
-			if (table === 'settings' && id.startsWith('loam.settings')) {
-				this.reads++;
+			this.calls++;
+			if (table === 'settings' && id.startsWith('loam.settings'))
 				throw new Error('the store failed');
-			}
 			return super.get<T>(table, id);
+		}
+		override async create<T>(table: string, data: Partial<T>): Promise<T> {
+			this.calls++;
+			return super.create<T>(table, data);
+		}
+		override async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
+			this.calls++;
+			return super.update<T>(table, id, patch);
+		}
+		override async remove(table: string, id: string): Promise<void> {
+			this.calls++;
+			return super.remove(table, id);
+		}
+		override async batch(...args: Parameters<MemoryAdapter['batch']>) {
+			this.calls++;
+			return super.batch(...args);
 		}
 	}
 	/**
@@ -835,7 +854,7 @@ describe("step 7's fifth round", () => {
 
 	// `begin()`'s one early return guards the adapter's subscription and `provider` mode's membership watch alike; there,
 	// `createKernel` runs the late load itself, so no disposal can come during it.
-	it('1: a kernel disposed while stage B reads the agent members reads no overrides after, and subscribes to nothing', async () => {
+	it('1: a kernel disposed while stage B reads the agent members calls the store no more, and subscribes to nothing', async () => {
 		let release: () => void = () => {};
 		const store = new HeldStore();
 		store.hold = {
@@ -858,11 +877,12 @@ describe("step 7's fifth round", () => {
 		const stageB = kernel.startApps().catch(() => undefined);
 		await expect.poll(() => store.held, { timeout: 5_000 }).toBe(1);
 		await kernel.dispose();
-		const before = { reads: store.reads, subscribed: seen.subscribed };
+		const before = { calls: store.calls, subscribed: seen.subscribed };
 		release();
 		await stageB;
 		await new Promise((resolve) => setTimeout(resolve, 1_200));
-		expect({ reads: store.reads, subscribed: seen.subscribed }).toEqual(before);
+		// No store call at all: the editor's record and the workspace limits' row included.
+		expect({ calls: store.calls, subscribed: seen.subscribed }).toEqual(before);
 	});
 
 	const providerKernel = async (readMembership: () => Promise<unknown>) => {
@@ -920,5 +940,26 @@ describe("step 7's fifth round", () => {
 		const { kernel, auth } = await providerKernel(async () => ({ role: 'member', digest: 'd1' }));
 		auth._setUser({ id: ADA, email: 'ada@example.com', name: 'ada' }, { expiresAt: new Date(0) });
 		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+	});
+});
+
+describe("step 7's sixth round", () => {
+	it('4: `keybinding-list { all: true }` marks an override no chord can run `idle`, and a runnable one not', async () => {
+		const { kernel } = await workspace();
+		await override(kernel, [
+			{ command: 'ghost-gone', keys: 'Mod+Shift+Q' },
+			{ command: 'keys-hello', keys: 'Mod+Shift+L' },
+		]);
+		const bindings = await list(kernel, { all: true });
+		expect(bindings.find(({ command }) => command === 'ghost-gone')).toMatchObject({
+			source: 'you',
+			active: false,
+			idle: true,
+		});
+		const hello = bindings.find(
+			({ command, source }) => command === 'keys-hello' && source === 'you'
+		);
+		expect(hello).toBeDefined();
+		expect(hello?.idle).toBeUndefined();
 	});
 });

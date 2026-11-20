@@ -442,6 +442,12 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 							$schema: 'http://json-schema.org/draft-07/schema#',
 						},
 					},
+					// Discovery replaces a root whose `type` is not `object` with `{ type: 'object' }`: whether `{}` meets the
+					// server's own is not known, so no shortcut (the sixth round's 1).
+					'a-nullable': {
+						mutation: false,
+						inputSchema: { type: ['object', 'null'], required: ['id'] },
+					},
 					'a-either': {
 						mutation: false,
 						inputSchema: {
@@ -463,6 +469,7 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		const one = names.find((name) => name.endsWith('one')) as string;
 		const not = names.find((name) => name.endsWith('not')) as string;
 		const ref = names.find((name) => name.endsWith('ref')) as string;
+		const nullable = names.find((name) => name.endsWith('nullable')) as string;
 
 		const written = await kernel.call('setting-set', {
 			section: 'loam.keybindings',
@@ -474,6 +481,7 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 				{ command: one, keys: 'Mod+Shift+O' },
 				{ command: not, keys: 'Mod+Shift+T' },
 				{ command: ref, keys: 'Mod+Shift+R' },
+				{ command: nullable, keys: 'Mod+Shift+U' },
 			],
 			level: 'person',
 		});
@@ -491,7 +499,7 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		expect(listed.data?.bindings.find(({ command }) => command === one)).toMatchObject({
 			active: true,
 		});
-		for (const undecided of [not, ref])
+		for (const undecided of [not, ref, nullable])
 			expect(listed.data?.bindings.find(({ command }) => command === undecided)).toMatchObject({
 				active: false,
 			});

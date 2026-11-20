@@ -230,7 +230,11 @@ describe("a person's overrides (8.3)", () => {
 		expect(entries.find((entry) => entry.command === 'ghost-gone')).toMatchObject({
 			inForce: false,
 			active: false,
+			idle: true,
 		});
+		// A runnable one is never idle (step 7's R12; the sixth round's 4).
+		for (const command of ['section-open', 'hello-board'])
+			expect(entries.find((entry) => entry.command === command)?.idle).toBeUndefined();
 	});
 });
 

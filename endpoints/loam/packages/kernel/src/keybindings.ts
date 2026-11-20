@@ -286,8 +286,12 @@ export function createKeybindings(
 				.map((binding) => (binding.save ? { ...binding, unready: true as const } : { ...binding }));
 		},
 		keybindingFor(command) {
+			// An app's binding under a `when` dispatches nowhere in the defaults, so it shows no keys (the sixth round's 3).
 			if (defaults)
-				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
+				return (
+					keybindingFor(command) ??
+					held.find((binding) => binding.command === command && binding.when === undefined)?.chord
+				);
 			const known = mine();
 			if (known && resolver && source) {
 				shown ??= resolver.shortcuts(shell, held, known, source.info);

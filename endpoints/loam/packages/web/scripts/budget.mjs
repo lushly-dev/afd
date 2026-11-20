@@ -448,6 +448,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * module, the failure's defaults in `keybinding-list`, an expiring session still naming its user): first paint 317,298
  * and 99,660 gzip, within its rows; `lateMinified` 111,500 to 112,800 (112,243); the `settings` chunk 46,900 to 47,400
  * (47,028: the editor's warning runs the resolver's rule over the proposed list, R12).
+ * After step 7's sixth round (stage B and the late load end at each await once the kernel is disposed; a mounted
+ * schema discovery replaced gets no chord; the failure's hints leave out an app's `when` bindings): first paint 317,362
+ * and 99,692 gzip, within its rows; the kernel alone 125,000 to 125,500 (125,037); `late` 112,345 of 112,800.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -489,7 +492,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 125_000,
+	kernelMinified: 125_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
