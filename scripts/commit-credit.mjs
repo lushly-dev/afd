@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Keeps the owner the credited contributor: no commit names an AI agent as its author, its
- * committer or a co-author, and no commit on main names a co-author at all.
+ * committer or a co-author, and no commit on main names a co-author at all, other than its own
+ * author by the same address, which credits nobody else.
  *
  * GitHub's contributor graph credits a commit to its author and to every `Co-authored-by:`
  * trailer whose email it can match to an account, so an agent named either way is credited in
@@ -17,15 +18,17 @@
  *   node scripts/commit-credit.mjs --push-event       Actions (main-credit.yml): every commit a
  *                                                     push to main brought, from the event at
  *                                                     GITHUB_EVENT_PATH; any Co-authored-by line
- *                                                     fails, since GitHub writes one into a squash
- *                                                     message after ci-ok has checked the branch
+ *                                                     but the author's own fails, since GitHub
+ *                                                     writes one into a squash message after
+ *                                                     ci-ok has checked the branch
  *   node scripts/commit-credit.mjs --merge-group      Actions (ci-ok, on a merge queue's commit):
  *                                                     every commit the merge group holds that
  *                                                     its target branch does not, the squash
  *                                                     GitHub wrote for it and for each pull
  *                                                     request queued ahead; any Co-authored-by
- *                                                     line fails. GITHUB_TOKEN, GITHUB_REPOSITORY,
- *                                                     BASE_REF (refs/heads/main) and HEAD_SHA set
+ *                                                     line but the author's own fails.
+ *                                                     GITHUB_TOKEN, GITHUB_REPOSITORY, BASE_REF
+ *                                                     (refs/heads/main) and HEAD_SHA set
  * Exit 0 clean, 1 an agent or co-author is credited, 2 a failed read.
  */
 
@@ -83,14 +86,28 @@ function agentIdentities(commit) {
 
 /**
  * Every way one commit on main credits anyone but its author: an agent as its author or
- * committer, and any co-author line, a person's included.
+ * committer, and any co-author line, a person's included, except one that names the commit's own
+ * author by the same address. That line credits nobody else, and GitHub writes it into the
+ * queue's squash of a pull request `github-actions` opened, whose commit `github-actions[bot]`
+ * authored (#1590 on 2026-11-20).
  */
 export function mainProblems(commit) {
 	const found = agentIdentities(commit);
 	for (const [line] of commit.message.matchAll(ANY_CO_AUTHOR)) {
+		if (namesOwnAuthor(line, commit.author)) continue;
 		found.push(`has the line "${line.trim()}"`);
 	}
 	return found;
+}
+
+/**
+ * A co-author line in the form GitHub writes, `Co-authored-by: <name> <<address>>`, with a name
+ * and one address, and that address the commit author's, compared without case.
+ */
+function namesOwnAuthor(line, author) {
+	const match = /^co-authored-by: ([^<>\s][^<>]*) <([^<>\s]+)>[ \t]*$/i.exec(line);
+	const own = author?.email?.trim().toLowerCase();
+	return Boolean(match && own && match[2].toLowerCase() === own);
 }
 
 export const MAIN_FIX = [
@@ -249,7 +266,8 @@ export async function mergeGroupCommits({
 async function main(argv) {
 	const at = argv.indexOf('--message');
 	const inQueue = argv.includes('--merge-group');
-	// Both read what main receives, so both refuse any co-author line, a person's included.
+	// Both read what main receives, so both refuse any co-author line, a person's included, but
+	// one naming the commit's own author.
 	const onMain = argv.includes('--push-event') || inQueue;
 	let commits;
 	try {

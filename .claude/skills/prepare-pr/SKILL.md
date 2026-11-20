@@ -103,7 +103,7 @@ Stop on unknown dirty files, an in-progress merge (except one of `origin/main`, 
    It answers with a `mergeQueueEntry` (its state is `QUEUED` at first), or with an error and nothing has changed: "expected head oid does not match" means the head moved, so go back to step 8. It never enables auto-merge.
 
    - **GitHub writes the squash; no body can be passed.** A pull request of one commit lands as that commit's message. With more, the subject is the pull request's title and each commit's message follows as a bullet, merges of `main` left out. Both gain ` (#n)`. So the title must be a commit subject in step 7's form. (The repository's `squash_merge_commit_title` and `squash_merge_commit_message` settings decide this.)
-   - **A `Co-authored-by:` line fails the queue**, whether a commit's message carries it or GitHub adds it for a commit whose author is not the pull request's. `ci-ok` reads the queue's commit, so the pull request leaves the queue and `main` never receives the line. Read which commit it names, correct that commit's author or remove its trailer, push, and go back to step 8.
+   - **A `Co-authored-by:` line fails the queue**, whether a commit's message carries it or GitHub adds it for a commit whose author is not the pull request's; only a line naming the commit's own author by the same address, which GitHub writes for a bot's version PR, passes. `ci-ok` reads the queue's commit, so the pull request leaves the queue and `main` never receives the line. Read which commit it names, correct that commit's author or remove its trailer, push, and go back to step 8.
    - **Wait until it is `MERGED`.** A queued pull request is still `OPEN`, and so is one the queue removed, so read the queue as well:
 
      ```bash
