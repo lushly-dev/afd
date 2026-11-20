@@ -2305,7 +2305,7 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 - **`mounted.test.ts`:** the name-key check exempts `palette-run`'s `command` and `keybinding-list`'s `command` together.
 
 **Interactions checked:**
-- **Confirm and Decline:** no key confirms a question. While any modal is open, the confirmation slot among them, the shell runs no binding, and a binding runs its command with empty input, so it reaches neither `overlay-dismiss` nor `notification-act`. Decline is still the focused default.
+- **Confirm and Decline:** no key confirms a question. While a modal is open, the confirmation slot among them, no binding runs a command or answers it; F6 moves focus and the save chord may save the active editor. A binding runs its command with empty input, so it reaches neither `overlay-dismiss` nor `notification-act`. Decline is still the focused default.
 - **The close prompt's Save:** it calls the frame's save, a callback, never an event, as step 7's rule asks.
 - **The palette:** step 7's `hearOnlyPeople` and its trusted-Enter guard cover the palette's input rows as they cover every row.
 - **The late load:** step 6 builds the confirmations synchronously after one of step 7's guarded awaits, so a disposal stops the load before they are made.
@@ -2318,6 +2318,11 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 - `lateEditorMinified`: 16,074; its row 16,400.
 - `lateSettingsMinified`: 100,819; its row 101,500.
 - `appsMinified`: 428,162; its row 428,800.
+
+**Step 6's own, for the reconciliation:** measured at `caba4525`, before the merge, in a separate worktree on the same machine:
+- `late`: 113,706, so step 7 adds 2,855 to reach 116,561.
+- `late-settings`: 93,957, so step 7 adds 6,862 (its keybinding resolver and overrides reader) to reach 100,819.
+- `late-editor`: 15,913, so step 7 adds 161 to reach 16,074.
 
 `budget.mjs` records each.
 

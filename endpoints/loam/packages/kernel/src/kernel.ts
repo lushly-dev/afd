@@ -838,6 +838,9 @@ export async function createKernelParts(
 				commandNames: () => [...(mutations?.keys() ?? [])],
 				disposed: () => disposed,
 			});
+			// Disposed once the late parts were made, before this resumed: none of them is installed, the replay's callback
+			// among them (step 6 merged with step 7).
+			if (disposed) return;
 			lateParts = parts;
 			internals.recordedRun = (confirmation, result) =>
 				parts.confirmations.recorded(confirmation, result);
