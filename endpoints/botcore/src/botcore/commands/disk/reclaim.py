@@ -39,6 +39,8 @@ from botcore.commands.disk.scan import (
     DAY,
     Processes,
     busy_reason,
+    exists,
+    is_dir,
     last_activity,
     newest_mtime,
     running_processes,
@@ -203,16 +205,16 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
     problem = _volume_problem(action.target, run.ctx)
     if problem:
         return problem
-    if os.path.islink(worktree) or not worktree.is_dir():
+    if os.path.islink(worktree) or not is_dir(worktree):
         return "the worktree folder changed since planning"
     if _toplevel(worktree) != path_key(worktree):
         return "the folder is no longer this worktree"
-    if target.parent.is_dir() and _toplevel(target.parent) != path_key(worktree):
+    if is_dir(target.parent) and _toplevel(target.parent) != path_key(worktree):
         return "it is inside another repository"
     admin = _admin(worktree)
     if admin is None:
         return "git's record of the worktree is gone"
-    if (admin / "locked").exists():
+    if exists(admin / "locked"):
         return "the worktree was locked (kept) since planning"
     if busy_reason(worktree, run.processes_for(str(worktree))):
         return "a process is using the worktree"

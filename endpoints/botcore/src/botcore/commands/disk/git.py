@@ -213,9 +213,15 @@ def status(worktree: Path, admin: Path | None, timeout: float = GIT_TIMEOUT) -> 
     operation = None
     if admin is not None:
         for marker, name in _OPERATIONS.items():
-            if os.path.lexists(admin / marker):
-                operation = name
+            try:
+                os.lstat(admin / marker)
+            except FileNotFoundError:
+                continue
+            except OSError:
+                operation = f"unknown ({marker} unreadable)"
                 break
+            operation = name
+            break
     return Status(changed, operation)
 
 
@@ -238,6 +244,11 @@ def case_insensitive(folder: Path) -> bool:
     while current.name and current.name == current.name.swapcase():
         if current.parent == current:
             break
+        try:
+            if os.stat(current).st_dev != os.stat(current.parent).st_dev:
+                return True  # the parent is another volume: it cannot answer for this one
+        except OSError:
+            return True
         current = current.parent
     name = current.name
     if not name or name == name.swapcase():

@@ -168,8 +168,10 @@ def _session_path(path: str) -> bool:
         if not value:
             continue
         resolved = os.path.realpath(value)
-        if os.path.dirname(resolved) == resolved or resolved == home:
-            continue  # a root or the home folder is not a session folder
+        if os.path.dirname(resolved) == resolved or home == resolved or home.startswith(
+            resolved.rstrip(os.sep) + os.sep
+        ):
+            continue  # a root, the home folder or one above it is not a session folder
         for form in (value, resolved):
             prefixes.append(form.replace("\\", "/").rstrip("/") + "/")
     candidates = (folded, text) if os.name == "nt" else (text,)

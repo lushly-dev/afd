@@ -84,7 +84,8 @@ class RunLock:
         if not _try_lock(fd):
             os.close(fd)
             who = holder(self.path)
-            detail = f" (pid {who['pid']} on {who.get('host', '?')})" if "pid" in who else ""
+            detail = (f" (last taken by pid {who['pid']} on {who.get('host', '?')})"
+                      if "pid" in who else "")
             raise LockHeld(f"another disk run holds {self.path}{detail}")
         self.fd = fd
         record = {"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()}

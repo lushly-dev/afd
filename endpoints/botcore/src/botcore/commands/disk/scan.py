@@ -31,7 +31,7 @@ def long_path(path: Path | str) -> str:
     """Windows long-path syntax for an absolute path, so a deep folder is still readable when
     the system's 260-character limit is on. Other platforms: unchanged."""
     text = str(path)
-    if os.name != "nt" or text.startswith("\\\\?\\"):
+    if os.name != "nt" or text.replace("/", "\\").startswith(("\\\\?\\", "\\\\.\\")):
         return text
     absolute = os.path.abspath(text)
     if absolute.startswith("\\\\"):

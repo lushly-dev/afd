@@ -350,3 +350,24 @@ def test_deep_trees_are_searched_and_shallow_patterns_stop_early(tmp_path: Path)
     assert complete and [c.rel for c in found] == ["dist"]
     found, complete = find_candidates(tmp_path, [], 1e18)
     assert complete and found == []
+
+
+def test_a_cutoff_under_a_recursive_pattern_is_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(scan, "MAX_DEPTH", 4)
+    tmp_path.joinpath("a", "b", "c", "d", "e", "gen").mkdir(parents=True)
+    tmp_path.joinpath("x", "gen").mkdir(parents=True)
+    found, complete = find_candidates(tmp_path, [DiskRegenerable(path="**/gen")], 1e18)
+    assert not complete and [c.rel for c in found] == ["x/gen"]
+
+
+def test_a_temp_folder_above_home_is_not_a_session_folder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botcore.commands.disk import setup
+
+    monkeypatch.setenv("TMPDIR", str(Path.home().parent))
+    monkeypatch.delenv("TEMP", raising=False)
+    monkeypatch.delenv("TMP", raising=False)
+    assert not setup._session_path(str(Path.home() / ".local" / "bin" / "uv"))

@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import os
 import stat
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from botcore.commands.disk.scan import long_path
 
 REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 DIRECTORY = 0x10  # FILE_ATTRIBUTE_DIRECTORY
@@ -48,13 +49,8 @@ class Removal:
 
 
 def _long(path: str) -> str:
-    """Windows long-path syntax for an absolute path; other platforms unchanged."""
-    if sys.platform != "win32" or path.startswith("\\\\?\\"):
-        return path
-    absolute = os.path.abspath(path)
-    if absolute.startswith("\\\\"):
-        return "\\\\?\\UNC\\" + absolute[2:]
-    return "\\\\?\\" + absolute
+    """Windows long-path syntax; the same helper the walk uses, so both read paths alike."""
+    return long_path(path)
 
 
 def _is_link(info: os.stat_result) -> bool:
