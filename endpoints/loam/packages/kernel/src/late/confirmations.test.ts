@@ -21,7 +21,14 @@ import {
 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createKernel, redactJournalRecord, redactSafely, redactWrapped } from '../kernel.js';
+import { createJournalProvenance } from '../journal-provenance.js';
+import {
+	createKernel,
+	redactJournalRecord,
+	redactSafely,
+	redactWrapped,
+	type WrapperProvenance,
+} from '../kernel.js';
 import { createOverlayStore } from '../overlays.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
@@ -101,6 +108,13 @@ const KEEPER_MANIFEST = {
 			},
 		},
 		{
+			name: 'keeper-undo',
+			title: 'Do and say how to undo',
+			description: 'Answer with an undo and a warning.',
+			effects: ['store-write'],
+			input_schema: EMPTY,
+		},
+		{
 			name: 'keeper-big',
 			title: 'Make a big one',
 			description: 'Answer with more than the journal keeps of one entry.',
@@ -132,6 +146,16 @@ const KEEPER = defineApp({
 			return success({ value: input.value });
 		}) as never,
 		'keeper-note': (async (input: { text: string }) => success({ text: input.text })) as never,
+		// A result with more than its data: an undo and a warning, which a replay compares (eighth round, D3).
+		'keeper-undo': (async () =>
+			success(
+				{ done: true },
+				{
+					undoCommand: 'keeper-set',
+					undoArgs: { value: 0 },
+					warnings: [{ code: 'KEEPER_NOTE', message: 'Undone by keeper-set' }],
+				}
+			)) as never,
 		// More than `journalEntryBytes`' default: its own entry is cut by the journal's final bound.
 		'keeper-big': (async () => success({ big: 'b'.repeat(1_100_000) })) as never,
 		'keeper-get': (async (_input: unknown, context: AppCallContextV1) =>
@@ -3543,5 +3567,132 @@ describe('the fifth round', () => {
 		});
 		expect(refused.error?.code).toBe('VALIDATION_ERROR');
 		expect((await store.list('notification')).data).toHaveLength(0);
+	});
+
+	it('eighth D3: a palette fill and an act of a command with an undo and warnings replay the same, whole', async () => {
+		const { kernel, journal } = await boot();
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'keeper-undo',
+		});
+		const filled = await kernel.call('palette-run', {
+			command: 'keeper-undo',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(filled).toMatchObject({ success: true, undoCommand: 'keeper-set' });
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Undo it',
+				action: { command: 'keeper-undo', label: 'Do it' },
+			});
+		const acted = await kernel.call('notification-act', {
+			notification: (pushed.data as { notification: NotificationV1 }).notification.id,
+		});
+		expect(acted.success).toBe(true);
+		const entries = await journal.read();
+		const wrapper = entries.filter((entry) => entry.command === 'palette-run').at(-1);
+		expect(wrapper?.result).toMatchObject({
+			undoCommand: 'keeper-set',
+			undoArgs: { value: 0 },
+			warnings: [{ code: 'KEEPER_NOTE' }],
+		});
+		const { report } = await replayKernel(entries, { deployment: deployment(), ports: ports() });
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('eighth D2: a child whose entry the sink rejected leaves its wrapper nothing of its outcome', async () => {
+		class Refusing extends MemoryJournalSink {
+			override async append(record: Parameters<MemoryJournalSink['append']>[0]) {
+				if (record.command === 'keeper-note') throw new Error('The sink refused it');
+				return super.append(record);
+			}
+		}
+		const journal = new Refusing();
+		const workspace = await createScopedWorkspace({
+			journal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'keeper-note',
+		});
+		const filling = kernel.call('palette-run', {
+			command: 'keeper-note',
+			prompt: opened.data?.prompt.overlayId,
+			input: { text: 'secretish' },
+		});
+		await kernel.call('overlay-dismiss', {
+			overlayId: (await slotPrompt(kernel)).overlayId,
+			result: 'confirm',
+		});
+		expect((await filling).data).toEqual({ text: 'secretish' });
+		const entries = await journal.read();
+		expect(entries.some((entry) => entry.command === 'keeper-note')).toBe(false);
+		const wrapper = entries.filter((entry) => entry.command === 'palette-run').at(-1);
+		expect(wrapper?.result.data).toBeUndefined();
+		expect(JSON.stringify(wrapper?.result)).not.toContain('secretish');
+	});
+
+	it('eighth D4 and Opus I2: an untracked wrapper keeps the least of its outcome, lossy; a settle failure stays the act’s own', () => {
+		const record = (command: string, result: unknown) =>
+			({
+				timestamp: '2027-01-01T00:00:00.000Z',
+				traceId: 't-1',
+				command,
+				input: { command: 'keeper-note', prompt: 'p', input: { text: 'x' } },
+				contextDigest: { hash: 'h' },
+				durationMs: 0,
+				result,
+			}) as never;
+		const untracked = {
+			...createJournalProvenance(),
+			tracked: () => false,
+			journals: () => true,
+		} as WrapperProvenance;
+		const big = { success: true, data: { text: 'kept?' }, metadata: { server: 'kept?' } };
+		for (const [command, result] of [
+			['palette-run', big],
+			['notification-act', { success: true, data: { state: 'done', result: { text: 'kept?' } } }],
+			['notification-act', { success: true, data: { state: 'confirmed' } }],
+			['notification-act', { success: false, error: { code: 'X', message: 'kept?', details: {} } }],
+		] as const) {
+			const done = redactWrapped(
+				record(command, result),
+				(each) => each,
+				() => true,
+				0,
+				untracked
+			) as unknown as {
+				result: Record<string, unknown>;
+				unreplayable?: boolean;
+			};
+			expect(JSON.stringify(done.result), command).not.toContain('kept?');
+			expect(Object.keys(done.result).sort(), command).toEqual(
+				result.success ? ['success'] : ['error', 'success']
+			);
+			expect(done.unreplayable, command).toBe(true);
+		}
+		// Tracked, no action started under it: the act's own failure, a settle's write among them, stays its own.
+		const tracked = {
+			...createJournalProvenance(),
+			tracked: () => true,
+			journals: () => true,
+		} as WrapperProvenance;
+		const own = {
+			success: false,
+			error: { code: 'STORE_FAILED', message: 'The store refused the settle' },
+		};
+		expect(
+			redactWrapped(
+				record('notification-act', own),
+				(each) => each,
+				() => true,
+				0,
+				tracked
+			).result
+		).toEqual(own);
 	});
 });

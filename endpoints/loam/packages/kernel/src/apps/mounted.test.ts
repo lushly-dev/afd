@@ -791,6 +791,46 @@ describe('a mounted call', () => {
 		expect(JSON.stringify(wrapper)).not.toContain(big);
 	});
 
+	it("phase 4's step 6, eighth round D1: an action failing with a code the recorder shortens: the act journals the action's own entry", async () => {
+		const code = 'C'.repeat(300);
+		const message = 'n'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal, store } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{ answer: () => ({ structuredContent: { success: false, error: { code, message } } }) }
+				),
+		});
+		await kernel.startInstances();
+		const id = 'ntf_workaction000001';
+		await store.batch([
+			{
+				method: 'PUT',
+				path: `/notification/${id}`,
+				body: {
+					id,
+					workspace: 'personal',
+					person: 'local',
+					source: 'work',
+					kind: 'notice',
+					title: 'Read it',
+					tone: 'info',
+					scope: { workspace: 'personal' },
+					createdAt: 1,
+					action: { command: 'work-a-read', label: 'Read' },
+				},
+			},
+		]);
+		const acted = await kernel.call('notification-act', { notification: id });
+		expect(acted.error?.code).toBe(code);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const act = entries.find(({ command }) => command === 'notification-act');
+		expect(own?.result.error?.code.length).toBeLessThan(code.length);
+		expect(act?.result.error).toEqual(own?.result.error);
+		expect(JSON.stringify(act)).not.toContain(code);
+	});
+
 	it('leaves a record under the bound, and any other entry, unchanged', () => {
 		const record = {
 			at: 0,

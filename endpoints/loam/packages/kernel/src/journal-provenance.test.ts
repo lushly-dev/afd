@@ -51,6 +51,8 @@ describe('the journal provenance', () => {
 		const tracked = (action: string, journals: boolean): WrapperProvenance => ({
 			...createJournalProvenance(),
 			tracked: () => true,
+			// Its action started, its entry not held (eighth round).
+			startedNested: () => true,
 			nested: () => undefined,
 			action: () => action,
 			journals: () => journals,
@@ -62,18 +64,16 @@ describe('the journal provenance', () => {
 				traceId: 't-1',
 				result: { success: true, data: { state: 'done', result: data } },
 			}) as JournalRecord;
-		// A journaled action whose entry is missing: dropped, an object or not.
-		expect(
-			redactWrapped(
-				act({ a: 1 }),
-				(each) => each,
-				() => true,
-				0,
-				tracked('keeper-get', true)
-			).result.data
-		).toEqual({
-			state: 'done',
-		});
+		// A journaled action whose entry is missing: the least of the act, lossy (eighth round), an object or not.
+		const missing = redactWrapped(
+			act({ a: 1 }),
+			(each) => each,
+			() => true,
+			0,
+			tracked('keeper-get', true)
+		) as unknown as { result: { data?: unknown }; unreplayable?: boolean };
+		expect(missing.result.data).toBeUndefined();
+		expect(missing.unreplayable).toBe(true);
 		// An unjournaled action: by its own rule when the result is an object, and dropped when it is not.
 		expect(
 			redactWrapped(

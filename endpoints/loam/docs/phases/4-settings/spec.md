@@ -2068,6 +2068,17 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Measured after the seventh round,** D115: first paint 316,903 and 99,332 gzip, `jsMinified` raised to 317,500 and `jsGzip` to 99,600, with `first-paint.test.ts`'s literal; `kernelMinified` 128,497, its row 129,000. `late-settings` 93,909 is within its row. `budget.mjs` records each.
 
+**Eighth round,** 2026-11-19: two re-checks of `cc78292c`. Opus approved, with improvements; Astra asked for revisions with four findings, D1 to D4. Each was shown first by a unit that fails on `cc78292c` and passes after its fix.
+
+**The coordinator's ruling R6, to converge:** after this round, a finding about the wrappers' provenance that exposes no secret and is capped by step 10's journal-entry bound (sizes, metadata, fail-closed consistency) is filed as a follow-up issue, not fixed in #1654. This round fixes D1 to D4 and Opus's I1 to I3, which are small; D3 is a real replay bug.
+
+1. **D3, the whole outcome:** confirmed. A wrapper rebuilt its child's outcome from four fields and dropped `undoCommand`, `undoArgs` and `warnings`, so an honest journal's fill diverged on replay. The wrapper now keeps the whole recorded outcome and replaces only its own registry metadata (`commandVersion`, `executionTimeMs`, `traceId`). Unit: a fill and an act of `keeper-undo`, replayed, are the same.
+2. **D1 and Opus I1, the act's failure:** confirmed (the act kept the live error, its code longer than the one the recorder kept). There is no comparison of codes now. The tracker marks when a wrapper starts a child (`started`): a run by `origin`, an action nested by `parent`. When the act started its action, its outcome is the action's entry: a failure whole, a success's `result`. With no entry held for a journaled action, the act keeps the least of its outcome. When no action started, as for a confirmation's answer or a settle's failure, the act's outcome is its own. Unit in `mounted.test.ts`: an action failing with a 300-character code in a result over 256 KiB, its act's error the action's own entry's.
+3. **D2, a rejected append:** confirmed. The provenance now records a child's outcome from the entry the sink accepted and returned, so an append the sink refused records nothing. Unit: a sink that refuses the run's entry; the fill's entry keeps no data. A palette fill whose journaled target started but whose entry is missing fails closed the same way (Opus I3). An unjournaled target's result is still redacted by its own rule.
+4. **D4 and Opus I2, untracked wrappers:** every untracked fill or act now keeps the least of its outcome, whether it succeeded and an error's code, whatever its data holds. The entry is marked `lossy` and `unreplayable`, and a replay stops there with `REPLAY_ENTRY_TRUNCATED`, saying why. Units: `palette-run`, a successful act with and without `result`, and a failed act, all untracked; and a tracked act whose own failure, a settle's write, stays its own.
+
+**Measured after the eighth round,** D115: `kernelMinified` 129,028, its row raised from 129,000 to 129,500. First paint 317,299 and 99,456 gzip are within their rows. `budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).

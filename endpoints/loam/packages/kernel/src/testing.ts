@@ -599,7 +599,9 @@ export async function replayKernel(
 				code: 'REPLAY_ENTRY_TRUNCATED',
 				message: (truncated as { unredacted?: unknown }).unredacted
 					? `The journal kept seq ${truncated.seq} (${truncated.command}) without its input, since its redaction failed, so the replay stops there`
-					: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
+					: (truncated as { lossy?: unknown }).lossy
+						? `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
+						: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
 				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
 				details: { seq: truncated.seq, command: truncated.command },
 			});

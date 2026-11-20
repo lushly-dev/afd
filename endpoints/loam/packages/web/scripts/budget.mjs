@@ -472,6 +472,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * (315,994 to 316,903, +909, and 99,048 to 99,332): `journal-provenance.ts`, the running wrappers' children taken from
  * the sink, and each wrapper's entry built from them, failing closed. `kernelMinified` 127,800 to 129,000 (127,272 to
  * 128,497). A follow-up in the spec moves this into `late`.
+ * Step 6's eighth round, under D115, the same machine: `kernelMinified` 129,000 to 129,500 (128,497 to 129,028): a
+ * wrapper's child started, the whole recorded outcome, and the lossy entry of an untracked wrapper. First paint 317,299
+ * and 99,456 gzip, within their rows.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -517,7 +520,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 129_000,
+	kernelMinified: 129_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

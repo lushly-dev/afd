@@ -30,6 +30,9 @@ interface Wrapper {
 	runs: Map<string, Outcome>;
 	/** The command its action runs (the act's). */
 	action?: string;
+	/** Whether it started a run by `origin`, and an action by `parent`, whether or not their entries were written. */
+	startedOrigin?: true;
+	startedNested?: true;
 }
 
 export interface JournalProvenance {
@@ -39,8 +42,16 @@ export interface JournalProvenance {
 	end(trace: string): void;
 	/** The command an act runs, kept for its entry alone. */
 	noteAction(trace: string, command: string): void;
-	/** An entry as the sink appends it: kept when its parent or origin is a running wrapper. */
+	/**
+	 * An entry the sink accepted, as it holds it: kept when its parent or origin is a running wrapper. A rejected append
+	 * records nothing (eighth round, D2).
+	 */
 	appended(record: JournalRecord): void;
+	/** A call a running wrapper started, by `origin` or as a nested `parent`, before its entry is written, if ever. */
+	started(trace: string, via: 'origin' | 'parent'): void;
+	/** Whether a wrapper started a run by `origin`, or an action nested by `parent`. */
+	startedOrigin(trace: string | undefined): boolean;
+	startedNested(trace: string | undefined): boolean;
 	/** Whether a wrapper is tracked now. */
 	tracked(trace: string | undefined): boolean;
 	origin(trace: string | undefined): Outcome | undefined;
@@ -80,6 +91,14 @@ export function createJournalProvenance(limit = TRACKED_WRAPPERS): JournalProven
 				}
 			}
 		},
+		started(trace, via) {
+			const wrapper = running.get(trace);
+			if (!wrapper) return;
+			if (via === 'origin') wrapper.startedOrigin = true;
+			else wrapper.startedNested = true;
+		},
+		startedOrigin: (trace) => of(trace)?.startedOrigin === true,
+		startedNested: (trace) => of(trace)?.startedNested === true,
 		tracked: (trace) => of(trace) !== undefined,
 		origin: (trace) => of(trace)?.origin,
 		nested: (trace) => of(trace)?.nested,
