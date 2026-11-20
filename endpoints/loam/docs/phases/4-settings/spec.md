@@ -1929,6 +1929,8 @@ Measured: first paint 317,298 and 99,660 gzip, within its rows; `late` 112,243, 
 
 Declined: none.
 
+**Verified after the fifth round,** 2026-11-19, same machine, at `b906ea26`: `test --coverage` for the kernel (63 files, 1,288 tests), chrome (21 files, 275) and `web`'s units (11 files, 54); the typecheck of the kernel, chrome and `web`; `lint:tokens`; `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and Chromium's `boot`, `keybindings`, `settings` and `scope/rail` (4 files, 75 tests). **Not run:** the rest of `test:browser`, `test:hosted`, `test:walk`, `test:mounted`, `pnpm verify` and the Cargo gates (no Rust changed).
+
 ## Step 8, 2026-11-19
 
 Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after steps 1 and 2), not merged. It gets a trust review (section 20).
