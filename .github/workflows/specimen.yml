@@ -209,10 +209,14 @@ jobs:
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
+      # Shared by this workflow's stories and Chromium jobs and loam.yml's: one entry for every
+      # ubuntu-latest release build of the host. Keyed per job, each kept its own 272 MB copy and
+      # the stories job rarely wrote one on main; an exact hit saves nothing (#1675).
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
+          shared-key: specimen-host-release
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
       - name: Story typecheck, every story, the story contract, the review page's budgets and the component pack
@@ -238,10 +242,14 @@ jobs:
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
+      # Shared by this workflow's stories and Chromium jobs and loam.yml's: one entry for every
+      # ubuntu-latest release build of the host. Keyed per job, each kept its own 272 MB copy and
+      # the stories job rarely wrote one on main; an exact hit saves nothing (#1675).
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
+          shared-key: specimen-host-release
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
       - name: Full native suite (unit, resource, process-worker and Chromium)
