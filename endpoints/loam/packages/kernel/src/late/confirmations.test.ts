@@ -21,7 +21,7 @@ import {
 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createKernel, redactJournalRecord, redactWrapped } from '../kernel.js';
+import { createKernel, redactJournalRecord, redactSafely, redactWrapped } from '../kernel.js';
 import { createOverlayStore } from '../overlays.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
@@ -495,6 +495,7 @@ describe('the pending path (R9)', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -868,6 +869,7 @@ describe('the run a person confirmed', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			archived: () => false,
 			kit: { ...DOCUMENT_KIT, personKey } as never,
 		} as never);
@@ -971,6 +973,7 @@ describe('after the trust review', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			archived: () => false,
 			digest: async (value) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey } as never,
@@ -1437,6 +1440,7 @@ describe('after the trust review', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1482,6 +1486,7 @@ describe('after the trust review', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			archived: () => false,
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1760,6 +1765,7 @@ describe('the third round', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1782,7 +1788,7 @@ describe('the third round', () => {
 			details: { overlay: question?.overlayId },
 		});
 		expect((await store.list('notification')).data).toHaveLength(0);
-		overlayStore.close(question?.overlayId as string, 'confirm', 'user');
+		overlayStore.close(question?.overlayId as string, 'confirm', 'user', undefined, true);
 		expect(await waiting).toMatchObject({ success: true, data: { ran: 1 } });
 		// Settled: the key is free, and an inactive port's repeat now waits in the inbox, once.
 		expect((await made.gate('keeper-bump', {}, port(), run)).error?.code).toBe(
@@ -1818,6 +1824,7 @@ describe('the third round', () => {
 			releaseQueue: () => {},
 			chainOf: () => undefined,
 			inputOver: () => false,
+			personNow: () => 'local',
 			noteInbox: () => {},
 			digest: async (value: unknown) => JSON.stringify(value),
 			kit: { ...DOCUMENT_KIT, personKey },
@@ -1888,7 +1895,7 @@ describe('the third round', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		const question = overlayStore.modalOpen();
 		expect(overlayStore.forOf(question?.overlayId as string)?.kind).toBe('confirmation');
-		overlayStore.close(question?.overlayId as string, 'confirm', 'user');
+		overlayStore.close(question?.overlayId as string, 'confirm', 'user', undefined, true);
 		expect((await asking).success).toBe(true);
 		expect(ran).toBe(true);
 	});
@@ -2206,6 +2213,7 @@ describe('the fourth round', () => {
 			served: () => (served ? undefined : 'gone'),
 			archived: () => false,
 			inputOver: () => false,
+			personNow: () => 'local',
 			appTitle: (instance: string) => instance,
 			projectName: () => undefined,
 			personLabel: () => null,
@@ -2239,7 +2247,13 @@ describe('the fourth round', () => {
 		);
 		for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++)
 			await new Promise((resolve) => setTimeout(resolve, 0));
-		overlayStore.close(overlayStore.modalOpen()?.overlayId as string, 'confirm', 'user');
+		overlayStore.close(
+			overlayStore.modalOpen()?.overlayId as string,
+			'confirm',
+			'user',
+			undefined,
+			true
+		);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		// Revoked while it waits for the chain, after its answer.
 		served = false;
@@ -2422,6 +2436,9 @@ describe('the fourth round', () => {
 		await store.batch([{ method: 'PUT', path: `/notification/${row.id}`, body: row }]);
 		// Another command's name: refused.
 		expect((await settle({ settle: { ...ended, command: 'keeper-set' } })).success).toBe(false);
+		// Pending to confirmed only for a run the replay recorded with this outcome (fifth round, 3).
+		expect((await settle({ settle: ended })).success).toBe(false);
+		made.recorded(row.id, ended.result as CommandResult);
 		expect((await settle({ settle: ended })).success).toBe(true);
 		const kept = (await store.get('notification', row.id)) as typeof row & {
 			confirmation: { state: string; reason?: string; result?: unknown };
@@ -2543,5 +2560,513 @@ describe('the fourth round', () => {
 		);
 		open();
 		expect((await asked).error?.code).toBe('CONFIRMATION_DECLINED');
+	});
+});
+
+describe('the fifth round', () => {
+	const sign = { method: 'credentials', email: 'ana@example.com', password: 'hunter11' };
+
+	it("1: an act's result, its action's, is redacted by the action's rule, directly and forwarded by palette-run", async () => {
+		const { kernel, journal } = await boot();
+		expect(
+			(
+				await kernel.call('notification-push', {
+					title: 'Sign in again',
+					action: { command: 'auth-sign-in', label: 'Sign in', input: sign },
+				})
+			).success
+		).toBe(true);
+		const listing = await kernel.call<{ notification: NotificationV1 }>('notification-push', {
+			title: 'Look',
+			action: { command: 'notification-list', label: 'Look', input: { body: true } },
+		});
+		expect(listing.success).toBe(true);
+		const id = (listing.data as { notification: NotificationV1 }).notification.id;
+		const direct = await kernel.call('notification-act', { notification: id });
+		expect(JSON.stringify(direct.data)).toContain('hunter11');
+		const second = await kernel.call<{ notification: NotificationV1 }>('notification-push', {
+			title: 'Look again',
+			action: { command: 'notification-list', label: 'Look', input: { body: true } },
+		});
+		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
+			command: 'notification-act',
+		});
+		const forwarded = await kernel.call('palette-run', {
+			command: 'notification-act',
+			prompt: opened.data?.prompt.overlayId,
+			input: { notification: (second.data as { notification: NotificationV1 }).notification.id },
+		});
+		expect(JSON.stringify(forwarded.data)).toContain('hunter11');
+		const text = JSON.stringify(await journal.read());
+		expect(text).not.toContain('hunter11');
+		expect(text).toContain('ana@example.com');
+	});
+
+	/** Confirmations over fake deps, with the person signed in now and the document chain the test holds. */
+	function unit(overrides: Record<string, unknown> = {}) {
+		const overlayStore = createOverlayStore();
+		const store = new MemoryAdapter();
+		const made: ReturnType<typeof createConfirmations> = createConfirmations({
+			store,
+			workspace: () => 'personal',
+			provider: false,
+			overlays: overlayStore,
+			openerOf: () => ({ kind: 'shell', owner: { kind: 'shell', id: 'shell' } }),
+			isActive: async () => false,
+			askedFor: () => ({ prompt: 'Sure?', instance: 'keeper', title: 'Set', danger: false }),
+			allows: () => true,
+			served: () => undefined,
+			archived: () => false,
+			inputOver: () => false,
+			personNow: () => 'local',
+			appTitle: (instance: string) => instance,
+			projectName: () => undefined,
+			personLabel: () => null,
+			runBoot: async (_name: string, input: unknown) =>
+				(made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>)(
+					input,
+					{}
+				),
+			replaying: () => false,
+			releaseQueue: () => {},
+			chainOf: () => undefined,
+			noteInbox: () => {},
+			digest: async (value: unknown) => JSON.stringify(value),
+			kit: { ...DOCUMENT_KIT, personKey },
+			...overrides,
+		} as never);
+		return { made, store, overlayStore };
+	}
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	it('2: a change of person after Confirm, while the run waits for its chain, runs nothing', async () => {
+		let person = 'local';
+		let open: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			open = resolve;
+		});
+		let ran = false;
+		const { made, overlayStore } = unit({
+			personNow: () => person,
+			chainOf: () => ({
+				release: () => {},
+				check: async () => undefined,
+				again: async (run: () => Promise<CommandResult>) => {
+					await gate;
+					return run();
+				},
+			}),
+		});
+		const waiting = made.gate(
+			'keeper-set',
+			{ value: 1 },
+			{ interface: 'palette' } as never,
+			async () => {
+				ran = true;
+				return success({});
+			}
+		);
+		for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++) await tick();
+		overlayStore.close(
+			overlayStore.modalOpen()?.overlayId as string,
+			'confirm',
+			'user',
+			undefined,
+			true
+		);
+		await tick();
+		person = 'someone-else';
+		open();
+		expect((await waiting).success).toBe(false);
+		expect(ran).toBe(false);
+	});
+
+	it("2: the inbox's run checks its resources after its row lookup and digest, right before the handler", async () => {
+		const order: string[] = [];
+		const agent = { kind: 'agent', id: 'shell-agent', onBehalfOf: 'local' };
+		const { made, store } = unit({
+			openerOf: (context: { interface?: string }) =>
+				context.interface === 'agent'
+					? {
+							kind: 'agent',
+							owner: { kind: 'agent', id: 'agent:shell-agent' },
+							bucket: 'agents:local',
+						}
+					: { kind: 'shell', owner: { kind: 'shell', id: 'shell' } },
+			digest: async (value: unknown) => {
+				order.push('digest');
+				return JSON.stringify(value);
+			},
+			chainOf: () => ({
+				release: () => {},
+				check: async () => {
+					order.push('check');
+					return undefined;
+				},
+				again: async (run: () => Promise<CommandResult>) => run(),
+			}),
+			runNow: async (
+				_iface: string,
+				name: string,
+				input: unknown,
+				fields: Record<string, unknown>
+			) =>
+				made.gate(
+					name,
+					input,
+					{ ...fields, actor: agent, interface: 'agent' } as never,
+					async () => {
+						order.push('next');
+						return success({});
+					}
+				),
+		});
+		const raised = await made.gate(
+			'keeper-bump',
+			{},
+			{ actor: agent, interface: 'agent' } as never,
+			async () => success({})
+		);
+		const row = (await store.get('notification', idOf(raised))) as never;
+		order.length = 0;
+		await made.answer(row, 'confirm', {
+			actor: { kind: 'human', id: 'local' },
+			interface: 'palette',
+			traceId: 't1',
+		} as never);
+		expect(order.slice(-3)).toEqual(['digest', 'check', 'next']);
+	});
+
+	/** A stored confirmation row for the units: keeper's, pending unless `state` says otherwise. */
+	const rowOf = (id: string, state = 'pending', extra: Record<string, unknown> = {}) => ({
+		id,
+		workspace: 'personal',
+		person: 'local',
+		source: 'keeper',
+		kind: 'confirmation',
+		title: 'Bump',
+		tone: 'warning',
+		confirmation: {
+			command: 'keeper-bump',
+			caller: 'keeper',
+			input: {},
+			header: 'Keeper asks',
+			prompt: 'Sure?',
+			title: 'Bump',
+			expiresAt: Date.now() + 600_000,
+			state,
+		},
+		scope: { workspace: 'personal' },
+		createdAt: 1,
+		ckey: JSON.stringify({
+			workspace: 'personal',
+			person: 'local',
+			caller: 'app:keeper',
+			command: 'keeper-bump',
+			input: '{}',
+			scope: { workspace: 'personal' },
+		}),
+		ciface: 'palette',
+		cbucket: 'app:keeper',
+		...extra,
+	});
+	const put = (store: MemoryAdapter, row: { id: string }) =>
+		store.batch([{ method: 'PUT', path: `/notification/${row.id}`, body: row }]);
+	const settleOf = (made: ReturnType<typeof createConfirmations>) => (input: unknown) =>
+		(made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>)(
+			input,
+			{}
+		);
+
+	it('3: a pending row is confirmed by a settle only for a run the replay recorded, and a replayed run needs a pending row', async () => {
+		const { made, store } = unit({ replaying: () => true });
+		await put(store, rowOf('ntf_aaaaaaaaaaaaaaaa'));
+		const settle = settleOf(made);
+		const ended = {
+			id: 'ntf_aaaaaaaaaaaaaaaa',
+			person: 'local',
+			command: 'keeper-bump',
+			state: 'confirmed',
+			result: { success: true, data: { count: 9 } },
+		};
+		// No run behind it: refused, the row still pending.
+		expect((await settle({ settle: ended })).success).toBe(false);
+		expect(
+			(
+				(await store.get('notification', 'ntf_aaaaaaaaaaaaaaaa')) as {
+					confirmation: { state: string };
+				}
+			).confirmation.state
+		).toBe('pending');
+		// The replay recorded this row's run with this outcome: accepted.
+		made.recorded('ntf_aaaaaaaaaaaaaaaa', { success: true, data: { count: 9 } } as CommandResult);
+		expect((await settle({ settle: ended })).success).toBe(true);
+		// A replayed run against a declined row runs nothing.
+		await put(store, rowOf('ntf_bbbbbbbbbbbbbbbb', 'declined'));
+		let ran = false;
+		const refused = await made.gate(
+			'keeper-bump',
+			{},
+			{ confirmation: 'ntf_bbbbbbbbbbbbbbbb', interface: 'palette', caller: 'keeper' } as never,
+			async () => {
+				ran = true;
+				return success({});
+			}
+		);
+		expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+		expect(ran).toBe(false);
+	});
+
+	it("4: a slot's replay needs the person's recorded answer, of its own command and key, and never waits", async () => {
+		const { made, overlayStore } = unit({ replaying: () => true });
+		const settle = settleOf(made);
+		const open = (id: string, command: string) =>
+			settle({
+				open: {
+					id,
+					key: JSON.stringify({
+						workspace: 'personal',
+						person: 'local',
+						caller: 'person',
+						command,
+						input: '{}',
+						scope: { workspace: 'personal' },
+					}),
+					command,
+					header: 'Run it?',
+					prompt: 'Sure?',
+					danger: false,
+					input: {},
+				},
+			});
+		const opened = await open('cnf_one', 'keeper-bump');
+		const overlay = (opened.data as { overlay: OverlayRefV1 }).overlay.overlayId;
+		// Boot's own close never answers a confirmation, with confirm least of all.
+		expect((await settle({ close: overlay })).success).toBe(false);
+		expect(overlayStore.get(overlay)).toBeDefined();
+		let ran = false;
+		const next = async () => {
+			ran = true;
+			return success({});
+		};
+		// No recorded answer: refused at once, never waiting on the overlay.
+		const unanswered = await Promise.race([
+			made.gate(
+				'keeper-bump',
+				{},
+				{ confirmation: 'cnf_one', interface: 'palette' } as never,
+				next
+			),
+			new Promise<CommandResult>((resolve) =>
+				setTimeout(() => resolve({ success: false, error: { code: 'WAITED' } } as never), 200)
+			),
+		]);
+		expect(unanswered.error?.code).toBe('REPLAY_NOT_RECORDED');
+		overlayStore.close(overlay, 'cancel', 'user', undefined, true);
+		// Another command's call with this confirmation's id: refused.
+		const other = await open('cnf_two', 'keeper-bump');
+		overlayStore.close(
+			(other.data as { overlay: OverlayRefV1 }).overlay.overlayId,
+			'confirm',
+			'user',
+			undefined,
+			true
+		);
+		expect(
+			(
+				await made.gate(
+					'keeper-set',
+					{},
+					{ confirmation: 'cnf_two', interface: 'palette' } as never,
+					next
+				)
+			).error?.code
+		).toBe('OVERLAY_NOT_FOUND');
+		// Closed with confirm by no person's gesture: no run.
+		const third = await open('cnf_three', 'keeper-bump');
+		overlayStore.close(
+			(third.data as { overlay: OverlayRefV1 }).overlay.overlayId,
+			'confirm',
+			'user',
+			undefined,
+			false
+		);
+		expect(
+			(
+				await made.gate(
+					'keeper-bump',
+					{},
+					{ confirmation: 'cnf_three', interface: 'palette' } as never,
+					next
+				)
+			).success
+		).toBe(false);
+		expect(ran).toBe(false);
+	});
+
+	it("5: a person's archive of a confirmation while its act settles is kept", async () => {
+		/** A store that holds the settle's write until `open`, as a slow store would. */
+		let open: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			open = resolve;
+		});
+		let held = false;
+		const store = new MemoryAdapter();
+		const batch = store.batch.bind(store);
+		store.batch = (async (
+			operations: Array<{
+				method: string;
+				body?: { readAt?: number; confirmation?: { state?: string } };
+			}>
+		) => {
+			const settling = operations.some(
+				(each) =>
+					each.method === 'PUT' &&
+					each.body?.confirmation?.state === 'confirmed' &&
+					each.body.readAt !== undefined
+			);
+			if (settling && !held) {
+				held = true;
+				await gate;
+			}
+			return batch(operations as never);
+		}) as never;
+		const workspace = await createScopedWorkspace({
+			store,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		const asked = await kernel.agent.call('keeper-bump');
+		const acting = kernel.call('notification-act', {
+			notification: idOf(asked),
+			answer: 'confirm',
+		});
+		for (let tries = 0; tries < 200 && !held; tries++) await tick();
+		expect(held).toBe(true);
+		const archiving = kernel.call('notification-archive', { notification: idOf(asked) });
+		await tick();
+		open();
+		expect((await acting).success).toBe(true);
+		expect((await archiving).success).toBe(true);
+		const row = (await store.get('notification', idOf(asked))) as {
+			archivedAt?: number;
+			confirmation: { state: string };
+		};
+		expect(row.confirmation.state).toBe('confirmed');
+		expect(row.archivedAt).toBeDefined();
+	});
+
+	it('6: a decline counts once while it is written: at 19 distinct, the 20th question still asks', async () => {
+		let open: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			open = resolve;
+		});
+		const { made, store, overlayStore } = unit({
+			openerOf: () => ({ kind: 'app', owner: { kind: 'app', id: 'keeper' } }),
+			isActive: async () => true,
+			// The decline's row is written, then its journaling held until `open`.
+			runBoot: async (_name: string, input: unknown) => {
+				const done = await (
+					made.settle.handler as (input: unknown, context: unknown) => Promise<CommandResult>
+				)(input, {});
+				if ((input as { decline?: unknown }).decline) await gate;
+				return done;
+			},
+		});
+		const now = Date.now();
+		for (let index = 0; index < SLOT_KEPT - 2; index++)
+			await put(store, {
+				...rowOf(`ntf_held${String(index).padStart(12, '0')}`, 'declined', {
+					cslot: true,
+					readAt: now,
+					ckey: `held-${index}`,
+				}),
+				confirmation: {
+					...rowOf('x').confirmation,
+					state: 'declined',
+					reason: 'person',
+					answeredAt: now,
+					expiresAt: now + DECLINE_WINDOW_MS,
+				},
+			} as never);
+		const port = { interface: 'palette', caller: 'keeper' } as never;
+		const run = async () => success({});
+		// The 19th: declined, its row written, its journaling still held.
+		const asked = made.gate('keeper-set', { value: 1 }, port, run);
+		for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++) await tick();
+		overlayStore.close(
+			overlayStore.modalOpen()?.overlayId as string,
+			'cancel',
+			'user',
+			undefined,
+			true
+		);
+		for (let tries = 0; tries < 100; tries++) {
+			const rows = (await store.list<{ cslot?: true }>('notification')).data.filter(
+				(row) => row.cslot
+			);
+			if (rows.length === SLOT_KEPT - 1) break;
+			await tick();
+		}
+		// 19 distinct declines: the 20th asks.
+		const twentieth = made.gate('keeper-set', { value: 2 }, port, run);
+		for (let tries = 0; tries < 100 && !overlayStore.modalOpen(); tries++) await tick();
+		expect(overlayStore.modalOpen()).toBeDefined();
+		overlayStore.close(
+			overlayStore.modalOpen()?.overlayId as string,
+			'cancel',
+			'user',
+			undefined,
+			true
+		);
+		open();
+		expect((await asked).error?.code).toBe('CONFIRMATION_DECLINED');
+		expect((await twentieth).error?.code).toBe('CONFIRMATION_DECLINED');
+		// 20 distinct: the 21st is refused.
+		expect((await made.gate('keeper-set', { value: 3 }, port, run)).error?.code).toBe(
+			'RATE_LIMITED'
+		);
+	});
+
+	it('improvement: an entry whose redaction throws is kept unreplayable with safe fields alone; depth 8 is the bound', async () => {
+		const record = {
+			timestamp: '2027-01-01T00:00:00.000Z',
+			traceId: 't-1',
+			command: 'notification-push',
+			input: { title: 'x', action: { command: 'auth-sign-in', label: 'Go', input: sign } },
+			contextDigest: { hash: 'h' },
+			durationMs: 1,
+			result: {
+				success: false,
+				error: { code: 'X', message: 'm', suggestion: 's', details: { secret: 'hunter11' } },
+				metadata: { secret: 'hunter11' },
+			},
+		};
+		const kept = redactSafely(
+			record as never,
+			() => {
+				throw new Error('boom');
+			},
+			() => true
+		) as unknown as Record<string, unknown>;
+		expect(kept.unreplayable).toBe(true);
+		expect(JSON.stringify(kept)).not.toContain('hunter11');
+		expect(kept.result).toEqual({ success: false, error: { code: 'X', message: 'm' } });
+		// Nine notices deep: the innermost input is past the bound, dropped.
+		let action: Record<string, unknown> = {
+			command: 'auth-sign-in',
+			label: 'Go',
+			input: { ...sign },
+		};
+		for (let depth = 0; depth < 9; depth++)
+			action = { command: 'notification-push', label: 'Go', input: { title: 'x', action } };
+		const deep = redactWrapped(
+			{ ...record, input: { title: 'x', action }, result: { success: true } } as never,
+			(each) => redactJournalRecord(each),
+			() => true
+		);
+		expect(JSON.stringify(deep)).not.toContain('hunter11');
 	});
 });

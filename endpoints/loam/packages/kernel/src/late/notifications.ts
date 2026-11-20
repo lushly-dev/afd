@@ -114,6 +114,11 @@ export interface NotificationDeps {
 	 * confirmation in the slot) releases the act's queue, and the answer reaches it (step 6's fourth round, 4).
 	 */
 	queueOf?(context: CommandContext): Record<symbol, unknown>;
+	/**
+	 * The confirmations' per-person chain, which every write to a confirmation row takes, so a read or an archive and an
+	 * act's settle never write over each other (step 6's fifth round, 5).
+	 */
+	confirmationChain?<T>(person: string, work: () => Promise<T>): Promise<T>;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
@@ -775,7 +780,10 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				let count = 0;
 				for (const row of chosen) {
 					if (row[field] !== undefined) continue;
-					await store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
+					const write = () => store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
+					await (row.kind === 'confirmation' && deps.confirmationChain
+						? deps.confirmationChain(row.person, write)
+						: write());
 					count++;
 				}
 				return kit.success({ [counted]: count });
@@ -819,7 +827,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		if (summary.failed > 0) throw new Error(`The store could not write the notice '${row.id}'`);
 	};
 
-	const act = kit.define<typeof actInput, { state: 'done'; result?: unknown }>({
+	const act = kit.define<typeof actInput, { state: 'done'; command?: string; result?: unknown }>({
 		name: 'notification-act',
 		title: 'Act on a notice',
 		description:
@@ -927,8 +935,10 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				} catch {
 					// The action ran; the notice stays `acting`, which never runs it again.
 				}
+				// With the action's command, so the journal redacts its result by that command's rule (step 6's fifth round, 1).
 				return kit.success({
 					state: 'done' as const,
+					command: action.command,
 					...(result.data !== undefined ? { result: structuredClone(result.data) } : {}),
 				});
 			} finally {

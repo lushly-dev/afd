@@ -105,6 +105,8 @@ const AT_CALL_SCOPE =
 export interface DocumentChain {
 	release(): void;
 	again(run: () => Promise<CommandResult>): Promise<CommandResult>;
+	/** Lines 5 and 6 again, in place, for a run that holds its chain already (step 6's fifth round, 2). */
+	check(): Promise<CommandResult | undefined>;
 }
 const CHAINS = new WeakMap<CommandContext, DocumentChain>();
 /** The chain the scope middleware holds for `call`, or undefined for a call it chains to no document. */
@@ -447,6 +449,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 						documents && chained !== undefined
 							? documents.serial(chained, () => checked(run))
 							: checked(run),
+					check: resources,
 				});
 			}
 			const rest = async () => {

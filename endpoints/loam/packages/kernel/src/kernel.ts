@@ -206,14 +206,24 @@ export function redactWrapped(
 					)
 				),
 			};
+		// An act's result is its action's (step 5; step 6's fifth round, 1): by the action's own rule.
+		if (command === 'notification-act' && objectOf(data.result))
+			return {
+				...data,
+				result: forwarded(data.command, objectOf(data.result) as Record<string, unknown>),
+			};
 		// Any other command's result is its own entry's, which no rule reads today.
 		return data;
 	};
-	/** A forwarded result, the target's: dropped for a target no rule can read. */
-	const forwarded = (command: unknown, data: Record<string, unknown>) =>
-		typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH
-			? {}
-			: resultOf(command, data);
+	/**
+	 * A forwarded result, the target's: through the target's own `redact` rule and its result's shapes (fifth round, 1;
+	 * Opus 3), and dropped for a target no rule can read.
+	 */
+	function forwarded(command: unknown, data: Record<string, unknown>): Record<string, unknown> {
+		if (typeof command !== 'string' || !known(command) || depth >= WRAPPED_DEPTH) return {};
+		const own = redact({ ...record, command, input: {}, result: { success: true, data } });
+		return resultOf(command, objectOf(own.result?.data) ?? {}) ?? {};
+	}
 	const { command } = record;
 	let input = objectOf(record.input);
 	let data = objectOf(record.result?.data);
@@ -252,8 +262,23 @@ export function redactSafely(
 	try {
 		return redactWrapped(redact(record), redact, known);
 	} catch {
-		const { data: _data, ...result } = record.result ?? { success: false };
-		return { ...record, input: {}, result: result as JournalRecord['result'] };
+		// Lossy, so never replayed as if whole (fifth round's improvement): what it ran is not in it. Only the fields known
+		// to hold no input: its name, timing, digest, and whether it succeeded, with an error's code and message.
+		const error = record.result?.error;
+		return {
+			timestamp: record.timestamp,
+			...(record.traceId !== undefined ? { traceId: record.traceId } : {}),
+			command: record.command,
+			contextDigest: record.contextDigest,
+			durationMs: record.durationMs,
+			input: {},
+			result: {
+				success: record.result?.success === true,
+				...(error ? { error: { code: error.code, message: error.message } } : {}),
+			},
+			unreplayable: true,
+			unredacted: true,
+		} as unknown as JournalRecord;
 	}
 }
 
@@ -380,6 +405,11 @@ export interface KernelPartsInternals {
 	drive?(person: string | null): void;
 	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
 	startPage?(): void;
+	/**
+	 * Set by the kernel for the replay: a confirmed run (`confirmation`, an `ntf_` id) the replay answered from its
+	 * record, with its result, so the act that ran it may settle its row confirmed (phase 4's step 6, fifth round, 3).
+	 */
+	recordedRun?(confirmation: string, result: CommandResult): void;
 }
 
 /**
@@ -651,6 +681,8 @@ export async function createKernelParts(
 				commandNames: () => [...(mutations?.keys() ?? [])],
 			});
 			lateParts = parts;
+			internals.recordedRun = (confirmation, result) =>
+				parts.confirmations.recorded(confirmation, result);
 			contextFields = [
 				...KERNEL_CONTEXT_FIELDS,
 				...parts.copilot.contextFields,

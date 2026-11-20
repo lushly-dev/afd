@@ -250,7 +250,7 @@ export interface LateParts {
 	 */
 	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
 	/** Phase 4's confirmations (its 7.2): the chain's last gate, after the copilot's, and their context fields. */
-	confirmations: Pick<Confirmations, 'gate' | 'contextFields'>;
+	confirmations: Pick<Confirmations, 'gate' | 'contextFields' | 'recorded'>;
 	/**
 	 * Right inside the journal, before the scope middleware, whose own changes of person and scope it must see too:
 	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
@@ -774,6 +774,7 @@ export async function createLateParts(
 					: { kind: 'app', title: ownerTitle(deps.summaries(), source) },
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
+		confirmationChain: (person, work) => confirmations.chain(person, work),
 		queueOf: (context) => {
 			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
 			return ticket ? { [deps.queued]: ticket } : {};
@@ -851,6 +852,7 @@ export async function createLateParts(
 			deps.scope.projects.get(scope.project)?.status === 'archived' &&
 			deps.isMutation(command),
 		chainOf: documentChainOf,
+		personNow: () => shellPerson() ?? (provider ? undefined : 'local'),
 		// Measured here rather than with first paint's `measureJson`, whose import would part first paint's chunks.
 		inputOver(input) {
 			const bound = deps.limits?.values().inputBytes;

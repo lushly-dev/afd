@@ -6,7 +6,7 @@
  * expectation that reads it is marked `D29`, here and in `first-paint.test.ts` and `chrome/src/rail/bands.test.ts`.
  */
 
-import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -796,6 +796,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 			await opened.context.close();
 		} finally {
 			await mixed.close();
+			await rm(copy, { recursive: true, force: true });
 		}
 	});
 });

@@ -44,7 +44,6 @@ import {
 	ownedBy,
 	PENDING_LIMIT,
 	PERSON_LIMIT,
-	promptSchemaOf,
 	REPLACES,
 	refusalsOf,
 	SLOT_KEPT,
@@ -55,6 +54,7 @@ import {
 	TABLE,
 } from './confirmation-parts.js';
 import type { Opener } from './overlay-commands.js';
+import { createPaletteRun } from './palette-run.js';
 import type { SettingsKit } from './settings.js';
 
 export {
@@ -125,6 +125,11 @@ export interface ConfirmationDeps {
 	 * call, measured by its port then, is measured again before its confirmed run, as the limit may have fallen since.
 	 */
 	inputOver(input: unknown): boolean;
+	/**
+	 * The person signed in now, as `personKey` keys them (`local` outside `provider` mode, signed out): a confirmed run
+	 * runs only for the person it was asked of (step 6's fifth round, 2).
+	 */
+	personNow(): string | undefined;
 	/** Whether `command` is a mutation under an archived project in `scope` (line 6; step 6's second round, 4). */
 	archived(command: string, scope: ScopeV1): boolean;
 	/** Release the queue a queued call holds, as it starts waiting on a person (7.2; step 6's second round, 3). */
@@ -133,10 +138,13 @@ export interface ConfirmationDeps {
 	 * The document chain a chained call holds (the scope middleware's): given up while it waits on a person, and taken
 	 * back, its resource checks repeated, before it runs (step 6's third round, A). Undefined for a call it chains to none.
 	 */
-	chainOf(
-		context: CommandContext
-	):
-		| { release(): void; again(run: () => Promise<CommandResult>): Promise<CommandResult> }
+	chainOf(context: CommandContext):
+		| {
+				release(): void;
+				again(run: () => Promise<CommandResult>): Promise<CommandResult>;
+				/** Lines 5 and 6 again, in place: the inbox's run, which holds its chain already (fifth round, 2). */
+				check(): Promise<CommandResult | undefined>;
+		  }
 		| undefined;
 	/** Mark the call's kernel event: its inbox changed, though the call may have failed (`CONFIRMATION_PENDING`). */
 	noteInbox(context: CommandContext): void;
@@ -157,6 +165,13 @@ export interface Confirmations {
 	commands: ZodCommandDefinition[];
 	/** `prompt-settle`, in `BOOT_ONLY`. */
 	settle: ZodCommandDefinition;
+	/**
+	 * A replay's: a confirmed run it answered from its record, with that outcome, so the act's settle may confirm the
+	 * row it leaves pending, and no other (step 6's fifth round, 3).
+	 */
+	recorded(confirmation: string, result: CommandResult): void;
+	/** The person's chain every write to a confirmation row takes: a read or an archive of one too (fifth round, 5). */
+	chain<T>(person: string, work: () => Promise<T>): Promise<T>;
 	/** `notification-act { answer }` on a confirmation (10.2): only a person's gesture reaches it. */
 	answer(
 		row: NotificationV1,
@@ -312,8 +327,19 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	 * being active, gets `CONFIRMATION_PENDING` with the question already asked, never a second one.
 	 */
 	const reserved = new Map<string, { overlay?: string }>();
-	/** By app's bucket, its slot declines being written now, which its bound counts (step 6's fourth round, 7). */
-	const declining = new Map<string, number>();
+	/**
+	 * By person and app's bucket, the ids of its slot declines being written now, which its bound counts until each row
+	 * is visible, so none counts twice (step 6's fourth round, 7; fifth round, 6).
+	 */
+	const declining = new Map<string, Set<string>>();
+	const decliningOf = (person: string, bucket: string): Set<string> => {
+		const at = `${person} ${bucket}`;
+		const held = declining.get(at) ?? new Set<string>();
+		declining.set(at, held);
+		return held;
+	};
+	/** The replay's confirmed runs it answered from their records, by confirmation (fifth round, 3). */
+	const recordedRuns = new Map<string, unknown>();
 	/**
 	 * The confirmations a person confirmed whose run this page is making now, by id (live only), with the claim this page
 	 * wrote: the run is allowed only while the stored row still holds that claim (R2).
@@ -398,10 +424,24 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		command: string,
 		caller: string | undefined,
 		scope: ScopeV1,
-		input: unknown
-	): boolean =>
-		refusedAccess(actor, command, caller, scope) ||
-		(caller !== undefined && deps.inputOver(input ?? {}));
+		input: unknown,
+		person: string | undefined
+	): CommandResult | undefined => {
+		// The person signed in now, the one it was asked of (fifth round, 2): a sign-in or sign-out after Confirm runs nothing.
+		if (deps.personNow() !== person) {
+			return fail(
+				'SESSION_CHANGED',
+				'The person changed before this confirmed call could run, so it did not run',
+				'Ask again only if the new person should answer it'
+			);
+		}
+		if (
+			refusedAccess(actor, command, caller, scope) ||
+			(caller !== undefined && deps.inputOver(input ?? {}))
+		)
+			return declined(command, { reason: 'access' });
+		return undefined;
+	};
 
 	// ─── The slot (a person's gesture, the active app's port) ──────────────────────
 
@@ -472,6 +512,15 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				'Call again to be asked again'
 			);
 		}
+		// A replay never waits on the page: the person's answer is in the entries before this one, or the journal lacks it
+		// (fifth round, 4).
+		if (deps.replaying() && record.answer === undefined) {
+			return fail(
+				'REPLAY_NOT_RECORDED',
+				"The journal records no answer to this call's confirmation before it, so the replay does not run it",
+				'Replay the whole journal the session recorded'
+			);
+		}
 		const answer =
 			record.answer ??
 			(await (async () => {
@@ -489,6 +538,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			call.replay = 'recorded';
 			return result;
 		};
+		// A confirm is the person's own gesture, live and in a replay, or nothing runs (fifth round, 4).
+		if (answer?.result === 'confirm' && !overlays.closedByPerson(record.overlayId))
+			return unrun(declined(name, { reason: 'withdrawn', closed: 'confirm' }));
 		if (answer?.result === 'confirm') {
 			// Settled as confirmed: a repeat of the key is a new call from here (third round, D). A decline keeps the key until
 			// its row is written (fourth round, 7), where `ask` lets it go.
@@ -496,13 +548,14 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			// Re-checked immediately before the run, inside the chain it retakes (blocker 5; fourth round, 3): access, the
 			// app, the archive and the input may all have changed while the slot, or the chain, waited.
 			const caller = opener.kind === 'app' ? opener.owner.id : undefined;
+			const asker = personOf(call);
 			// Once on the answer, so a refusal says access as the inbox's does, and again once the chain is retaken.
-			if (stale(call.actor, name, caller, scope, input))
-				return unrun(declined(name, { reason: 'access' }));
+			const early = stale(call.actor, name, caller, scope, input, asker);
+			if (early) return unrun(early);
 			let ran = false;
 			const run = async (): Promise<CommandResult> => {
-				if (stale(call.actor, name, caller, scope, input))
-					return declined(name, { reason: 'access' });
+				const late = stale(call.actor, name, caller, scope, input, asker);
+				if (late) return late;
 				ran = true;
 				return next();
 			};
@@ -529,13 +582,16 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		// that answers this call from its record writes it all the same (third round, C).
 		const person = personOf(call);
 		if (opener.kind === 'app' && person !== undefined) {
-			// Counted toward the app's bound while it is written (fourth round, 7).
+			// Counted toward the app's bound while it is written, by its id until its row is visible (fourth round, 7;
+			// fifth round, 6).
 			const bucket = bucketOf(opener) as string;
-			declining.set(bucket, (declining.get(bucket) ?? 0) + 1);
+			const declineId = newId(call, 'ntf');
+			const outstanding = decliningOf(person, bucket);
+			outstanding.add(declineId);
 			const written = await deps
 				.runBoot('prompt-settle', {
 					decline: {
-						id: newId(call, 'ntf'),
+						id: declineId,
 						person,
 						key,
 						command: name,
@@ -548,11 +604,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						input: summaryOf(jsonOf(input)),
 					},
 				})
-				.finally(() => {
-					const left = (declining.get(bucket) ?? 1) - 1;
-					if (left > 0) declining.set(bucket, left);
-					else declining.delete(bucket);
-				});
+				.finally(() => outstanding.delete(declineId));
 			deps.noteInbox(call);
 			if (!written.success) return unrun(written);
 		}
@@ -624,6 +676,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			]);
 			if (summary.failed > 0)
 				throw new Error(`The store could not write the confirmation '${row.id}'`);
+			// Visible now: counted by its row from here, never twice (fifth round, 6).
+			declining.get(`${person} ${row.cbucket}`)?.delete(row.id);
 		});
 	}
 
@@ -741,7 +795,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		// A replay follows the route its entry recorded (fourth round, 5): a slot confirmation's id says it asked in the
 		// slot, whatever is active when the replay reaches it.
 		const slot =
-			(deps.replaying() && call.confirmation?.startsWith('cnf_') === true) ||
+			(deps.replaying() &&
+				opener.kind !== 'agent' &&
+				call.confirmation?.startsWith('cnf_') === true) ||
 			opener.kind === 'shell' ||
 			(opener.kind === 'app' && (await deps.isActive(opener.owner.id)));
 		// Not in a replay, whose waiting call's entry already asked. A refusal decided by what this page holds in memory is
@@ -772,7 +828,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 							(row) =>
 								row.cslot === true && row.cbucket === caller && row.confirmation.expiresAt > now
 						);
-						const outstanding = declining.get(caller) ?? 0;
+						const outstanding = declining.get(`${person} ${caller}`)?.size ?? 0;
 						if (windows.length + outstanding < SLOT_KEPT) return undefined;
 						// One being written ends its window last of all: a full window from now.
 						const soonest = Math.min(
@@ -834,8 +890,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			row && person !== undefined
 				? await keyOf(person, row.cbucket, name, input, scopeOf(call), row.confirmation.group)
 				: undefined;
+		// A replay's run needs a pending row too (fifth round, 3): a declined or withdrawn one never runs.
 		const allowed = deps.replaying()
-			? row !== undefined && key === row.ckey
+			? row !== undefined && key === row.ckey && row.confirmation.state === 'pending'
 			: live !== undefined &&
 				live.command === name &&
 				live.key === key &&
@@ -848,27 +905,34 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				'Call the command itself to ask the person'
 			);
 		}
-		// The same re-check, immediately before the handler (fourth round, 3): the act's was before its claim.
+		// The same re-checks, together, immediately before the handler, after this run's own awaits (fourth round, 3;
+		// fifth round, 2): the resources (lines 5 and 6) in place, then access, the app, the input and the person.
 		const caller = row.ciface === 'palette' ? row.source : undefined;
-		if (stale(row.cactor, name, caller, row.scope, input)) {
+		const refused =
+			(await deps.chainOf(call)?.check()) ??
+			stale(row.cactor, name, caller, row.scope, input, row.person);
+		if (refused) {
 			// Decided by what changed since the act: a replay answers it from its record, running nothing.
 			(call as KernelFieldContext).replay = 'recorded';
-			return declined(name, { reason: 'access' });
+			return refused;
 		}
 		const result = await next();
 		deps.noteInbox(call);
 		const now = kit.callNow(call);
-		const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
-		const { claim: _claim, ...kept } = stored;
-		await putBack({
-			...kept,
-			confirmation: {
-				...kept.confirmation,
-				state: 'confirmed',
-				reason: 'person',
-				answeredAt: now,
-				result: outcomeOf(result),
-			},
+		// On the person's chain, as every write to the row is (fifth round, 5).
+		await serial(row.person, async () => {
+			const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
+			const { claim: _claim, ...kept } = stored;
+			await putBack({
+				...kept,
+				confirmation: {
+					...kept.confirmation,
+					state: 'confirmed',
+					reason: 'person',
+					answeredAt: now,
+					result: outcomeOf(result),
+				},
+			});
 		});
 		return result;
 	}
@@ -937,6 +1001,18 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					{ retryable: true }
 				);
 			}
+			// Boot closes the palette's input prompt alone: a confirmation is answered by the person (fifth round, 4).
+			if (
+				input.close !== undefined &&
+				overlays.get(input.close) &&
+				overlays.forOf(input.close)?.kind !== 'input'
+			) {
+				return fail(
+					'VALIDATION_ERROR',
+					'close names the palette input prompt a fill answered or replaced',
+					'None: only the kernel closes one'
+				);
+			}
 			if (input.close !== undefined && overlays.get(input.close)) {
 				overlays.close(
 					input.close,
@@ -991,10 +1067,16 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		return serial(ended.person, async () => {
 			const row = (await rowsOf(ended.person)).find((each) => each.id === ended.id);
 			const from = row?.confirmation.state;
+			// Pending to confirmed only for a run the replay answered from its record, with this outcome: live, the run itself
+			// writes confirmed before the act settles (fifth round, 3).
+			const ran = recordedRuns.get(ended.id);
+			const bound =
+				ended.state === 'declined' ||
+				(ran !== undefined && JSON.stringify(ran) === JSON.stringify(jsonOf(ended.result)));
 			const allowed =
 				row !== undefined &&
 				row.confirmation.command === ended.command &&
-				(from === 'pending' || (from === 'confirmed' && ended.state === 'confirmed'));
+				((from === 'pending' && bound) || (from === 'confirmed' && ended.state === 'confirmed'));
 			if (!row || !allowed) {
 				return fail(
 					'VALIDATION_ERROR',
@@ -1123,167 +1205,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		},
 	});
 
-	// ─── palette-run (7.1) ─────────────────────────────────────────────────────────
+	// ─── palette-run (7.1), in its own module ──────────────────────────────────────
 
-	const runInput = z.strictObject({
-		command: z.string().check(z.minLength(1), z.maxLength(128)),
-		prompt: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
-		input: z.optional(z.unknown()),
-	});
-
-	const notOpen = (prompt: string) =>
-		fail(
-			'OVERLAY_NOT_FOUND',
-			`No input prompt '${prompt}' is open for this command`,
-			'Open it again with palette-run { command }'
-		);
-
-	const paletteRun = kit.define<typeof runInput, unknown>({
-		name: 'palette-run',
-		title: 'Run a command from the palette',
-		description:
-			"Open a prompt for a command's input, then run it with the input the prompt collected; a person's alone",
-		category: 'palette',
-		mutation: true,
-		executionTime: 'instant',
-		input: runInput,
-		jsonSchema: {
-			type: 'object',
-			properties: {
-				command: { type: 'string', minLength: 1, maxLength: 128 },
-				prompt: { type: 'string', minLength: 1, maxLength: 64 },
-				input: {},
-			},
-			required: ['command'],
-			additionalProperties: false,
-		} as unknown as JsonSchema,
-		async handler(input, context) {
-			const opener = deps.openerOf(context);
-			// Human only (R8): the chain refuses the agent interface first (`HUMAN_COMMANDS`) and no port may call it;
-			// refused here too, failing closed.
-			if (opener.kind !== 'shell') {
-				return fail(
-					'HUMAN_REQUIRED',
-					'Only a person runs a command from the palette',
-					'Call the command itself, or ask the person to run it from the palette'
-				);
-			}
-			const traceId = context.traceId ?? '';
-			// A replay of a run this call made: its own entry ran before this one, and this call answers from it.
-			const replayed = deps.replaying() ? ran.get(traceId) : undefined;
-			if (replayed) {
-				ran.delete(traceId);
-				const { 'dev.loam/seq': _seq, ...metadata } = (replayed.metadata ?? {}) as Record<
-					string,
-					unknown
-				>;
-				return { ...replayed, metadata } as CommandResult;
-			}
-			const listed = deps.paletteCommand(input.command);
-			const definition = listed?.definition;
-			if (input.prompt === undefined) {
-				if (input.input !== undefined) {
-					return fail(
-						'VALIDATION_ERROR',
-						'input fills an open prompt, which prompt names',
-						'Open the prompt with palette-run { command } first'
-					);
-				}
-				if (!definition) {
-					return fail(
-						'COMMAND_NOT_FOUND',
-						`'${input.command}' is not a command the palette runs here`,
-						'Search the palette with palette-search'
-					);
-				}
-				if (overlays.modalOpen()) {
-					return fail(
-						'OVERLAY_MODAL_BUSY',
-						'A modal or a prompt is already open',
-						'Answer or close it, then try again',
-						{ retryable: true }
-					);
-				}
-				const schema = promptSchemaOf(listed?.json);
-				if (schema === undefined) {
-					return fail(
-						'VALIDATION_ERROR',
-						`'${input.command}' takes input the palette cannot ask for: only plain text, number and switch fields`,
-						'Run it from its app, or call it with its input'
-					);
-				}
-				const prompt = overlays.open(
-					{ kind: 'shell', id: 'shell' },
-					'prompt',
-					{
-						title: (definition.title ?? definition.name).slice(0, 80),
-						body: definition.description.slice(0, 1000),
-						...(schema ? { schema } : {}),
-						confirmLabel: 'Run',
-					} as PromptInputV1,
-					// The scope it opened in, which its fill runs in whatever is active then (blocker 10).
-					{ for: { command: definition.name, kind: 'input', scope: scopeOf(context) } }
-				);
-				return kit.success({ prompt });
-			}
-			const held = overlays.get(input.prompt);
-			const asked = overlays.forOf(input.prompt);
-			if (
-				held?.kind !== 'prompt' ||
-				overlays.ownerOf(input.prompt)?.kind !== 'shell' ||
-				asked?.kind !== 'input' ||
-				asked.command !== input.command ||
-				consumed.has(input.prompt) ||
-				!definition
-			) {
-				return notOpen(input.prompt);
-			}
-			// The command's own schema; on a failure the prompt stays open and shows why (7.1).
-			const fault = deps.inputFault(definition, input.input ?? {});
-			if (fault !== undefined) {
-				return fail(
-					'VALIDATION_ERROR',
-					`The input does not fit '${input.command}': ${fault}`,
-					'Correct the input in the prompt, then run it again',
-					{ details: { overlay: input.prompt } }
-				);
-			}
-			// Taken at once, with no await since the check (blocker 7): a second fill finds no prompt open. Released when the
-			// fill ends, so a prompt a refusal left open can be filled again.
-			const promptId = input.prompt;
-			consumed.add(promptId);
-			// A target the journal does not record leaves no entry to replay: this call's own outcome is replayed instead,
-			// answered from its record (blocker 11).
-			if (!deps.journaled(input.command)) (context as { replay?: string }).replay = 'recorded';
-			const fields: Record<string | symbol, unknown> = {
-				origin: traceId,
-				...(context.actor !== undefined ? { actor: context.actor } : {}),
-				// The scope the prompt opened in, whatever is active now (blocker 10).
-				scope: asked.scope ?? scopeOf(context),
-			};
-			let result: CommandResult;
-			try {
-				if (deps.askedFor(input.command)) {
-					// Its confirmation replaces the input prompt in the slot, showing the input (R15); this call waits on it.
-					fields[REPLACES] = promptId;
-					deps.releaseQueue(context);
-				} else {
-					// The prompt is answered, journaled before the run, so a replay closes it before the run as this did.
-					const closed = await deps.runBoot('prompt-settle', { close: promptId, reason: 'user' });
-					if (!closed.success) return closed;
-				}
-				result = await deps.runNow('palette', input.command, input.input ?? {}, fields);
-			} finally {
-				consumed.delete(promptId);
-			}
-			// The run's own journal sequence is its entry's, never this call's: a replay answers without it.
-			const { 'dev.loam/seq': _seq, ...metadata } = (result.metadata ?? {}) as Record<
-				string,
-				unknown
-			>;
-			return { ...result, metadata } as CommandResult;
-		},
-	});
+	const paletteRun = createPaletteRun(deps, { fail, scopeOf, consumed, ran });
 
 	// ─── notification-act on a confirmation (10.2) ─────────────────────────────────
 
@@ -1428,6 +1352,10 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		commands: [paletteRun, get, withdrawOne] as unknown as ZodCommandDefinition[],
 		answer,
 		ask,
+		recorded(confirmation, result) {
+			recordedRuns.set(confirmation, outcomeOf(result));
+		},
+		chain: serial,
 		async withdraw(context, match, person) {
 			const whose = person ?? personOf(context);
 			if (whose === undefined) return 0;

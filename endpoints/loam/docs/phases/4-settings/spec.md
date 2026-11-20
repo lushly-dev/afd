@@ -1995,6 +1995,31 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Measured after the fourth round,** D115: `lateSettingsMinified` 91,964, its row raised from 91,200 to 92,500. First paint 314,281 and 98,524 gzip, and the kernel alone 124,857, are within their rows. `budget.mjs` records each.
 
+**Fifth round,** 2026-11-19: two re-checks of `d727f707` (one approved, one "revise", six blockers, all inside step 6). Each finding was shown first by a unit that fails on `d727f707` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **1, an act's forwarded result** (R4, 10.2): **confirmed.** `notification-act` puts its action's result under `data.result`. An action of `notification-list` returned the stored notices, an `auth-sign-in` action's password among them, in the act's own entry and in `palette-run`'s forwarding one. The act's result now names its action's `command`, and the journal redacts `data.result` by that command's rule. A forwarded result also passes through the target's own `redact` rule before its shapes (Opus 3). **This closes step 5's direct-act gap too:** the act's own entry is redacted the same way.
+2. **2, the last check** (7.2): **confirmed** (two units).
+   - **The person:** `stale` now also refuses `SESSION_CHANGED` when the person signed in now (`personNow`, the settled person, `local` outside `provider` mode) is not the one the call was asked of. It runs on the slot's answer and again once the chain is retaken, so a sign-in after Confirm runs nothing.
+   - **The inbox's run:** its resource checks (lines 5 and 6, the scope middleware's new `check`) run after the run's own row lookup and key digest, together with `stale`, immediately before the handler (Opus 2).
+3. **3, impossible states in a replay** (7.2, P4-E15): **confirmed.**
+   - **A replayed run:** `confirmedRun` in a replay needs a pending row, as live does, so a declined or withdrawn one never runs.
+   - **Pending to confirmed:** the act's `settle` may still take a row from pending to confirmed, which a replay needs when it answered the run from its record. It is bound: accepted only for a run the replay recorded for that confirmation (`recordedRun`, from `replayKernel`), with the same outcome. Live, the run writes confirmed itself before the act settles.
+   - **Units:** a standalone pending-to-confirmed settle is refused, and a replayed run against a declined row runs nothing.
+4. **4, the slot's replay:** **confirmed.**
+   - In a replay, the slot needs the person's answer already recorded. With none, it fails at once with `REPLAY_NOT_RECORDED` and never waits on the page.
+   - A confirm runs only from the person's own gesture (`closedByPerson`), live and in a replay.
+   - `prompt-settle`'s `close` closes the palette's input prompt alone, so it can never answer a confirmation.
+   - The recorded slot route is not an agent's (Opus 4).
+   - **Units:** an unanswered slot replays promptly refused; another command's call with a confirmation's id is refused; a confirm with no person's gesture runs nothing; boot's close of a confirmation is refused.
+5. **5, a settle against a read or an archive** (10.2): **confirmed** (the archive was lost). `notification-read` and `-archive` write a confirmation row on the confirmations' per-person chain, the one the act's settle and the run's write take. Unit: an archive made while the settle's write is held is kept.
+6. **6, a decline counted twice** (second round, 9): **confirmed** (a 20th question was refused at 19 distinct). The declines being written are counted by id, per person and app, and an id leaves the count in the same chain step that writes its row. Unit: with 18 rows and the 19th written but still journaling, the 20th question asks; at 20 distinct, the 21st is refused.
+
+**The improvement:** an entry whose redaction throws is kept `unreplayable` and `unredacted`, holding only its name, timing, digest, success, and an error's code and message. A replay stops there with `REPLAY_ENTRY_TRUNCATED`, saying its redaction failed. Units: a throwing redactor; a nine-deep `notification-push` chain, whose innermost input is past the depth of 8 and dropped.
+
+**The nit:** rail P2-E11 removes its copy of tally's package after it runs.
+
+**Measured after the fifth round,** D115, `palette-run` moved to `palette-run.ts` first to keep `confirmations.ts` within the size gate: first paint 314,747 and 98,653 gzip, `jsMinified` raised to 315,500 with `first-paint.test.ts`'s literal; `kernelMinified` 125,473, its row 126,000; `lateSettingsMinified` 93,273, its row 94,000. `budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).

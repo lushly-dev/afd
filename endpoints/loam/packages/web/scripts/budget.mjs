@@ -459,6 +459,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * +1,385): the one re-check before every confirmed run, the recorded route in a replay, a settle bound to its row and
  * merged onto it, and the key and the bound held through a decline's write. First paint 314,281 and 98,524 gzip, the
  * kernel alone 124,857 (forwarded results redacted, never failing), within their rows.
+ * Step 6's fifth round, under D115, the same machine, `palette-run` split into its own module first: `jsMinified`
+ * 314,500 to 315,500 (314,281 to 314,747, +466; gzip 98,653 of 98,700): an act's result redacted by its action's rule,
+ * a forwarded result through its target's own rule, and a failed redaction kept unreplayable. `kernelMinified` 125,000
+ * to 126,000 (124,857 to 125,473). `lateSettingsMinified` 92,500 to 94,000 (91,964 to 93,273, +1,309): the person in
+ * the last check, a replay's bound settle and recorded answer, the shared chain, and declines counted by id.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -484,7 +489,8 @@ export const CEILINGS = Object.freeze({
 	// Step 6's trust review: 310,720 (the header records it); set to 311,000 under D115.
 	// Step 6's third round: 311,462 (the header records it); set to 312,000 under D115.
 	// Step 6 merged with step 10: 313,878 and 98,362 gzip (the header records it); set to 314,500 and 98,700 under D115.
-	jsMinified: 314_500,
+	// Step 6's fifth round: 314,747 (the header records it); set to 315,500 under D115.
+	jsMinified: 315_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -501,7 +507,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 125_000,
+	kernelMinified: 126_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -514,8 +520,8 @@ export const CEILINGS = Object.freeze({
 	lateEditorMinified: 16_000,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500.
-	lateSettingsMinified: 92_500,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000.
+	lateSettingsMinified: 94_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,

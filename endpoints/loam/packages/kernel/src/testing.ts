@@ -547,6 +547,10 @@ export async function replayKernel(
 						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)))
 				) {
 					recorded.push(entry.seq);
+					// A confirmed run answered from its record: the act that ran it may settle its row (step 6's fifth round, 3).
+					const confirmation = entry.context?.confirmation;
+					if (typeof confirmation === 'string' && confirmation.startsWith('ntf_'))
+						internals.recordedRun?.(confirmation, entry.result);
 					if (entry.command === 'app-instance-refresh' && entry.result.success) {
 						const { instance, catalog } = entry.result.data as {
 							instance?: unknown;
@@ -593,7 +597,9 @@ export async function replayKernel(
 		if (truncated) {
 			throw new LoamKernelError({
 				code: 'REPLAY_ENTRY_TRUNCATED',
-				message: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
+				message: (truncated as { unredacted?: unknown }).unredacted
+					? `The journal kept seq ${truncated.seq} (${truncated.command}) without its input, since its redaction failed, so the replay stops there`
+					: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
 				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
 				details: { seq: truncated.seq, command: truncated.command },
 			});
