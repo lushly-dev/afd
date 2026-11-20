@@ -36,7 +36,7 @@ import type {
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { CopilotOptionsV1, CopilotTraceV1 } from './copilot/types.js';
-import type { ShellKeybindingV0 } from './keybindings.js';
+import type { KeybindingInForceV1 } from './keybindings.js';
 import type { MembershipV1 } from './scope/access.js';
 import type { ProjectV1, ScopeChangeV2 } from './scope/records.js';
 
@@ -149,8 +149,11 @@ export interface LoamKernelV1 {
 	 *   one, which has no manifest to render from
 	 */
 	appPort(instance: string): AppPortV1;
-	/** The reserved chords, then the active app's bindings (4.2). */
-	listKeybindings(): ShellKeybindingV0[];
+	/**
+	 * The bindings in force, first to last by precedence (4.2; phase 4 specification, 8.1): a person's overrides, the
+	 * reserved chords, the active app's, then the active tab owner's, each `when` the kernel decides holding.
+	 */
+	listKeybindings(): KeybindingInForceV1[];
 	/** Calls `app-instance-refresh` for each mounted instance. The chrome calls it after first paint. */
 	startInstances(): Promise<void>;
 	flush(): Promise<void>;

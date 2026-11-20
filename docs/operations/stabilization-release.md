@@ -213,7 +213,7 @@ took a few minutes to list all nine, so the check queried
 
 Two release-workflow gaps surfaced on the way:
 
-- **The version PR started without CI.** `release.yml` opens it with
+- **The version PR started without CI.** `release.yml` opened it with
   `GITHUB_TOKEN`, and GitHub starts no workflows for events that token causes,
   so #453 showed no checks until a person closed and reopened it.
   [#470](https://github.com/lushly-dev/afd/issues/470) tracks running CI on the

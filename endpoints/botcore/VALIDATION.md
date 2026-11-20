@@ -12,7 +12,8 @@ as `provenance/staged-input-allowlist.json` and explicitly labeled by the envelo
 `adaptations.json` records original SHA or null, staged SHA or null, current-import
 SHA, classifications and reasons for each transition. Both provenance directories
 contain identical bytes; immutable source/staging digests are pinned in the verifier.
-The envelope advertises each manifest's hash and explicit original authority/quarantine.
+The envelope advertises the frozen manifests' hashes and explicit original authority/quarantine;
+since lushly-dev/afd#1610 the build stamps `adaptations.json`'s hash into the packaged copy only.
 The immutable Git baseline contains 532 paths (531 staged selections plus the original
 AGENTS reference). The frozen staged input contains 523 unchanged upstream files,
 8 modified upstream files and 10 staging additions. The current chain classifies

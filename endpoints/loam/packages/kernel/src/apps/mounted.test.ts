@@ -402,6 +402,119 @@ describe('7.4: exposure and trust', () => {
 	});
 });
 
+describe("a person's binding of a mounted command (phase 4 specification, 8.3; step 7's re-check, 6)", () => {
+	it('runs one needing no input, and never one whose advertised schema needs input', async () => {
+		const { kernel } = await boot({
+			work: () =>
+				fakeTransport({
+					'a-needs': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: { space: { type: 'string' } },
+							required: ['space'],
+						},
+					},
+					'a-free': { mutation: false, inputSchema: { type: 'object', properties: {} } },
+					// `{}` meets both branches, so a `oneOf` refuses it, which the shape alone cannot see (the third round's F).
+					// `{}` meets one branch, the object's, so it needs no input: a shortcut keeps it (the fourth round's 3).
+					'a-one': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: {},
+							oneOf: [{ type: 'object' }, { type: 'string' }],
+						},
+					},
+					// R11: a keyword it does not decide makes the command ineligible: Astra's `not`, and zod-to-json-schema's `$ref`
+					// to an object requiring a field (the fifth round's 3).
+					'a-not': {
+						mutation: false,
+						inputSchema: { type: 'object', properties: {}, not: { const: {} } },
+					},
+					'a-ref': {
+						mutation: false,
+						inputSchema: {
+							$ref: '#/definitions/Input',
+							definitions: {
+								Input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+							},
+							$schema: 'http://json-schema.org/draft-07/schema#',
+						},
+					},
+					// Discovery replaces a root whose `type` is not `object` with `{ type: 'object' }`: whether `{}` meets the
+					// server's own is not known, so no shortcut (the sixth round's 1).
+					// No schema at all: whether the server needs input is not known (the seventh round's 1).
+					// Explicitly absent: the fake's `afd-detail` gives one otherwise.
+					'a-omitted': { mutation: false, inputSchema: undefined },
+					'a-nullable': {
+						mutation: false,
+						inputSchema: { type: ['object', 'null'], required: ['id'] },
+					},
+					'a-either': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: {},
+							oneOf: [{ type: 'object' }, { type: 'object' }],
+						},
+					},
+				}),
+		});
+		await kernel.startInstances();
+		const { data } = await kernel.call<{ commands: Array<{ name: string }> }>('app-command-list', {
+			instance: 'work',
+		});
+		const names = data?.commands.map(({ name }) => name) ?? [];
+		const needs = names.find((name) => name.endsWith('needs')) as string;
+		const free = names.find((name) => name.endsWith('free')) as string;
+		const either = names.find((name) => name.endsWith('either')) as string;
+		const one = names.find((name) => name.endsWith('one')) as string;
+		const not = names.find((name) => name.endsWith('not')) as string;
+		const ref = names.find((name) => name.endsWith('ref')) as string;
+		const nullable = names.find((name) => name.endsWith('nullable')) as string;
+		const omitted = names.find((name) => name.endsWith('omitted')) as string;
+
+		const written = await kernel.call('setting-set', {
+			section: 'loam.keybindings',
+			key: 'overrides',
+			value: [
+				{ command: needs, keys: 'Mod+Shift+N' },
+				{ command: free, keys: 'Mod+Shift+F' },
+				{ command: either, keys: 'Mod+Shift+E' },
+				{ command: one, keys: 'Mod+Shift+O' },
+				{ command: not, keys: 'Mod+Shift+T' },
+				{ command: ref, keys: 'Mod+Shift+R' },
+				{ command: nullable, keys: 'Mod+Shift+U' },
+				{ command: omitted, keys: 'Mod+Shift+M' },
+			],
+			level: 'person',
+		});
+		expect(written.error, JSON.stringify(names)).toBeUndefined();
+		const listed = await kernel.call<{
+			bindings: Array<{ command: string; active: boolean; app?: string }>;
+		}>('keybinding-list', { all: true });
+		expect(listed.data?.bindings.find(({ command }) => command === needs)).toMatchObject({
+			active: false,
+			app: 'work',
+		});
+		expect(listed.data?.bindings.find(({ command }) => command === either)).toMatchObject({
+			active: false,
+		});
+		expect(listed.data?.bindings.find(({ command }) => command === one)).toMatchObject({
+			active: true,
+		});
+		for (const undecided of [not, ref, nullable, omitted])
+			expect(listed.data?.bindings.find(({ command }) => command === undecided)).toMatchObject({
+				active: false,
+			});
+		expect(listed.data?.bindings.find(({ command }) => command === free)).toMatchObject({
+			active: true,
+			app: 'work',
+		});
+	});
+});
+
 describe('parseMountedResult (7.3)', () => {
 	it('takes structuredContent, else the text, and labels the result', () => {
 		const shaped = parseMountedResult({ structuredContent: { success: true, data: 1 } }, 'work');
@@ -865,10 +978,13 @@ describe('section 3.3: nothing writes an instance', () => {
 		const offending = registries.palette
 			.listCommands()
 			.filter(({ name }) => !INTERNAL_COMMANDS.includes(name))
-			.filter(({ inputSchema }) => {
+			.filter(({ name, inputSchema }) => {
 				const properties = Object.keys(
 					(inputSchema as { properties?: Record<string, unknown> }).properties ?? {}
-				);
+				)
+					// Phase 4's `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes
+					// nowhere: that property alone is exempt, as P2-E10 exempts it (`stores.test.ts`).
+					.filter((key) => !(name === 'keybinding-list' && key === 'command'));
 				return properties.some((key) => /^(command|url|bearer.*|cwd)$/.test(key));
 			})
 			.map(({ name }) => name);

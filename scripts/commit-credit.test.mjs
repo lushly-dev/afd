@@ -83,6 +83,40 @@ describe('mainProblems', () => {
 			'has the line "Co-authored-by: Owner <old@example.com>"',
 		]);
 	});
+	it("passes the line GitHub adds naming the commit's own author, and only that one", () => {
+		const bot = {
+			name: 'github-actions[bot]',
+			email: '41898282+github-actions[bot]@users.noreply.github.com',
+		};
+		const own = `Co-authored-by: github-actions[bot] <${bot.email}>`;
+		const message = `chore: release packages (#1590)\n\n${own}\n`;
+		const check = (text, author = bot) => mainProblems({ message: text, author, committer: owner });
+		assert.deepEqual(check(message), []);
+		assert.deepEqual(check(`chore: x\n\n${own.toUpperCase()}  \n`), []);
+		const other = 'Co-authored-by: Owner <owner@example.com>';
+		assert.deepEqual(check(`${message}${other}\n`), [`has the line "${other}"`]);
+		// A second address in the name part is someone else, whichever address GitHub takes.
+		for (const name of ['Claude <noreply@anthropic.com>', 'Mallory <mallory@example.com>']) {
+			const two = `Co-authored-by: ${name} <${bot.email}>`;
+			assert.deepEqual(check(`chore: x\n\n${two}\n`), [`has the line "${two}"`]);
+		}
+		assert.equal(check(`chore: x\n\n  ${own}\n`).length, 1);
+		for (const malformed of [
+			`Co-authored-by:x<${bot.email}>z`,
+			`Co-authored-by: <${bot.email}>`,
+			`Co-authored-by:  <${bot.email}>`,
+			`Co-authored-by: bot < ${bot.email} >`,
+			'Co-authored-by: bot <>',
+		]) {
+			assert.equal(check(`chore: x\n\n${malformed}\n`).length, 1, malformed);
+		}
+		assert.equal(
+			check('chore: x\n\nCo-authored-by: bot < >\n', { name: 'x', email: ' ' }).length,
+			1
+		);
+		assert.deepEqual(check(message, null), [`has the line "${own}"`]);
+		assert.deepEqual(check(message, { name: 'x', email: '' }), [`has the line "${own}"`]);
+	});
 	it('reports every co-author line however it is written, and an agent once', () => {
 		const agent = { name: 'Claude', email: 'noreply@anthropic.com' };
 		const message =

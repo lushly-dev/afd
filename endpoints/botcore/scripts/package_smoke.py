@@ -19,7 +19,7 @@ import tomllib
 import zipfile
 from pathlib import Path
 
-from verify_provenance import verify_records
+from verify_provenance import packaged_records, verify_artifacts, verify_records
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECTS = (
@@ -111,9 +111,6 @@ def audit(artifacts: Path) -> list[dict]:
                     "report-test-changes.mjs",
                 ):
                     assert f"botcore/skills/gate-discipline/scripts/{script}" in names
-                verify_records(lambda path: archive.read("botcore/provenance/" + path))
-                for path in (ROOT / "provenance").glob("*.json"):
-                    assert archive.read("botcore/provenance/" + path.name) == path.read_bytes()
 
         rows.append(
             {
@@ -124,6 +121,18 @@ def audit(artifacts: Path) -> list[dict]:
             }
         )
     assert not expected, f"Missing wheels: {expected}"
+    # The wheel and sdist carry the repository's records, the envelope stamped with
+    # adaptations.json's digest (hatch_build.py).
+    verify_artifacts(artifacts)
+    for artifact in artifacts.glob("lushly_botcore-*"):
+        shipped = packaged_records(artifact)
+        for path in (ROOT / "provenance").glob("*.json"):
+            if path.name != "provenance.json":
+                assert shipped[path.name] == path.read_bytes(), f"{artifact.name}: {path.name}"
+        envelope = json.loads(shipped["provenance.json"])
+        del envelope["records"]["adaptations"]["sha256"]
+        committed = (ROOT / "provenance/provenance.json").read_bytes()
+        assert (json.dumps(envelope, indent=2) + "\n").encode() == committed, artifact.name
     sdists = list(artifacts.glob("*.tar.gz"))
     assert len(sdists) == len(PROJECTS)
     for sdist in sdists:

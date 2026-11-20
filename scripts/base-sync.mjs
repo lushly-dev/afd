@@ -6,12 +6,13 @@
  *
  * It fetches `main` into `origin/main` with an explicit refspec, so the shared tracking ref is
  * proven to have moved, and merges that SHA (never `git pull`). Any edit to an imported unit
- * changes its provenance records' shared hash lines, so two branches that edit different files of
- * one unit always conflict there; when every conflict is a record, `scripts/provenance-merge.mjs`
- * merges them and this concludes the merge. When other paths conflict too it leaves the merge
- * open and names them: resolve and stage those, then run it again, and it merges the records and
- * concludes. A real record conflict, one the provenance merge refuses, is left open with its
- * reason.
+ * changes its provenance records. Where a unit commits a shared hash line (Specimen, Violet), two
+ * branches that edit different files of it always conflict there; in Botcore and FAST-AF, which
+ * do not (#1610), only neighbouring rows do. When every conflict is a record,
+ * `scripts/provenance-merge.mjs` merges them and this concludes the merge. When other paths
+ * conflict too it leaves the merge open and names them: resolve and stage those, then run it
+ * again, and it merges the records and concludes. A real record conflict, one the provenance merge
+ * refuses, is left open with its reason.
  *
  * It refuses uncommitted changes, untracked files included (set them aside with a WIP commit,
  * never `git stash`: worktrees share one stash stack), and an in-progress rebase, `git am`,

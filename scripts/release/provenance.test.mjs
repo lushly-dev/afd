@@ -203,6 +203,62 @@ test('a removed record without its earlier classification is refused when the fi
 	);
 });
 
+test("a family that does not commit the adaptations digest keeps its envelope's bytes (#1610)", (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const directory = 'foundations/fast-af/provenance';
+	write(root, `${directory}/adaptations.json`, `${JSON.stringify({ files: [] }, null, 2)}\n`);
+	const envelope = `${JSON.stringify({ records: { adaptations: { manifest: 'adaptations.json' } } }, null, 2)}\n`;
+	write(root, `${directory}/provenance.json`, envelope);
+	write(root, 'foundations/fast-af/src/a.ts', 'export const a = 1;\n');
+	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+	assert.deepEqual(recordProvenance(root, 'fast-af', 'Added'), ['foundations/fast-af/src/a.ts']);
+	assert.equal(read(root, `${directory}/adaptations.json`).files[0].import_reason, 'Added');
+	assert.equal(readFileSync(join(root, directory, 'provenance.json'), 'utf8'), envelope);
+});
+
+test('the recorder removes a FAST-AF digest an older base:sync merged back (#1610)', (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const directory = 'foundations/fast-af/provenance';
+	const adaptations = `${JSON.stringify({ files: [] }, null, 2)}\n`;
+	write(root, `${directory}/adaptations.json`, adaptations);
+	const envelope = (record) => `${JSON.stringify({ records: { adaptations: record } }, null, 2)}\n`;
+	// The old resolver's output: every record's sha256 recomputed, adaptations.json's included.
+	const merged = envelope({ manifest: 'adaptations.json', sha256: sha(adaptations) });
+	write(root, `${directory}/provenance.json`, merged);
+	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+	const heard = [];
+	const onDigest = (outcome) => heard.push(outcome);
+	// Nothing to record: the repair alone.
+	assert.deepEqual(recordProvenance(root, 'fast-af', 'Repair', { onDigest }), []);
+	assert.deepEqual(heard, ['removed']);
+	const repaired = readFileSync(join(root, directory, 'provenance.json'), 'utf8');
+	assert.equal(repaired, envelope({ manifest: 'adaptations.json' }));
+	assert.equal(readFileSync(join(root, directory, 'adaptations.json'), 'utf8'), adaptations);
+	assert.deepEqual(recordProvenance(root, 'fast-af', 'Again', { onDigest }), []);
+	assert.deepEqual(heard, ['removed'], 'a second run finds nothing to repair');
+});
+
+test('the recorder restores a Specimen digest that went missing, as Specimen commits it', (t) => {
+	const root = fixture(t);
+	const path = join(root, 'foundations/specimen/provenance/provenance.json');
+	const envelope = JSON.parse(readFileSync(path, 'utf8'));
+	const committed = envelope.records.adaptations.sha256;
+	delete envelope.records.adaptations.sha256;
+	writeFileSync(path, `${JSON.stringify(envelope, null, 2)}\n`);
+	const heard = [];
+	assert.deepEqual(
+		recordProvenance(root, 'specimen', 'Repair', { onDigest: (o) => heard.push(o) }),
+		[]
+	);
+	assert.deepEqual(heard, ['written']);
+	assert.equal(
+		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
+		committed
+	);
+});
+
 test('recording requires a known family and a reason', (t) => {
 	const root = fixture(t);
 	assert.throws(() => recordProvenance(root, 'violet', 'x'), /No provenance for family: violet/);

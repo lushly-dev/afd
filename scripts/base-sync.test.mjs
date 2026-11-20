@@ -13,8 +13,12 @@ const BOTCORE = 'endpoints/botcore/provenance';
 const MIRROR = 'endpoints/botcore/src/botcore/provenance';
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
 
-/** Botcore's records for `rows` ([path, hash, extra]), with the packaged mirror. */
-const records = (rows) => {
+/**
+ * Botcore's records for `rows` ([path, hash, extra]), with the packaged mirror. The envelope
+ * commits the adaptations digest, as Specimen's and Violet's do; `digest: false` is the shape
+ * Botcore and FAST-AF have since #1610.
+ */
+const records = (rows, { digest = true } = {}) => {
 	const files = rows.map(([path, current, extra = {}]) => ({
 		path,
 		current_import_sha256: current,
@@ -24,7 +28,12 @@ const records = (rows) => {
 	const adaptations = encode({ kind: 'reviewed-import-adaptations', files });
 	const envelope = encode({
 		schema_version: 1,
-		records: { adaptations: { manifest: 'adaptations.json', sha256: sha(adaptations) } },
+		records: {
+			adaptations: {
+				manifest: 'adaptations.json',
+				...(digest ? { sha256: sha(adaptations) } : {}),
+			},
+		},
 	});
 	const out = {};
 	for (const dir of [BOTCORE, MIRROR]) {
@@ -119,12 +128,15 @@ const BASE_ROWS = [
 	['c.py', 'c0'],
 ];
 /** Both sides record a different Botcore file, so the records conflict and nothing else does. */
-function recordConflict(t, { branchRow = ['a.py', 'a1'], mainRow = ['c.py', 'c1'] } = {}) {
-	const s = setup(t, records(BASE_ROWS));
+function recordConflict(
+	t,
+	{ branchRow = ['a.py', 'a1'], mainRow = ['c.py', 'c1'], digest = true } = {}
+) {
+	const s = setup(t, records(BASE_ROWS, { digest }));
 	const rowsWith = ([path, ...rest]) =>
 		BASE_ROWS.map((row) => (row[0] === path ? [path, ...rest] : row));
-	s.commit(records(rowsWith(branchRow)), 'branch');
-	s.main(records(rowsWith(mainRow)), 'main');
+	s.commit(records(rowsWith(branchRow), { digest }), 'branch');
+	s.main(records(rowsWith(mainRow), { digest }), 'main');
 	return s;
 }
 
@@ -172,6 +184,22 @@ describe('base:sync', () => {
 		assert.match(lines, /already up to date/);
 		assert.doesNotMatch(lines, /pnpm-lock/);
 		assert.equal(s.git(['rev-parse', 'HEAD']).trim(), head);
+	});
+
+	it('merges two records of a unit that commits no adaptations digest with no conflict (#1610)', (t) => {
+		// The same two records conflict when the envelope commits the digest (the test below).
+		const s = recordConflict(t, { digest: false });
+		const lines = s.sync().join('\n');
+		assert.doesNotMatch(lines, /merged the provenance records/, 'git merged them itself');
+		assert.ok(lines.includes(`both sides changed ${BOTCORE}: run its provenance test`), lines);
+		assertConcluded(s);
+		const rows = JSON.parse(readFileSync(join(s.root, BOTCORE, 'adaptations.json'), 'utf8')).files;
+		assert.deepEqual(
+			rows.map((row) => row.current_import_sha256),
+			['a1', 'c1']
+		);
+		const envelope = JSON.parse(readFileSync(join(s.root, BOTCORE, 'provenance.json'), 'utf8'));
+		assert.deepEqual(envelope.records.adaptations, { manifest: 'adaptations.json' });
 	});
 
 	it('merges conflicting records alone and concludes the merge', (t) => {

@@ -355,8 +355,7 @@
       "sha256": "3aa1e0c76e087f2242696cdaf36528eaff66b9d8a52317e01c7e42708f33afb4"
     },
     "adaptations": {
-      "manifest": "adaptations.json",
-      "sha256": "744e716d83e36ee0cd025017c7efe113a3399861077c5a17c2ac84c522dd075e"
+      "manifest": "adaptations.json"
     }
   },
   "units": [

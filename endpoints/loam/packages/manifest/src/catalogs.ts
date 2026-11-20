@@ -223,6 +223,8 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 	'notification',
 	// Phase 4's step 10 (its 12): the limits.
 	'limit',
+	// Phase 4's step 7 (its 12): the keybindings.
+	'keybinding',
 	'event',
 	'account',
 	'persona',
@@ -260,7 +262,25 @@ export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [
 	'F6',
 	'Shift+F6',
 	'Mod+S',
+	// Phase 4 specification, 8.4: the project switcher (#857).
+	'Mod+Alt+P',
 ];
+
+/**
+ * A keybinding's `when` (phase 4 specification, 8.1): `editor`, `sidebar`, `main`, `project`, `!project` and
+ * `documentType == <type>`, a document type's id, joined by ` && `, each term once.
+ */
+const KEYBINDING_WHEN_TERM =
+	/^(?:editor|sidebar|main|project|!project|documentType == [a-z][a-z0-9]{0,31}(?:-[a-z][a-z0-9]{0,31})?)$/;
+
+/** Why a keybinding's `when` is not 8.1's closed form, in words, or undefined. */
+export function keybindingWhenProblem(when: string): string | undefined {
+	if (when.length < 1 || when.length > 200) return 'must be 1 to 200 characters';
+	const terms = when.split(' && ');
+	const bad = terms.find((term) => !KEYBINDING_WHEN_TERM.test(term));
+	if (bad !== undefined) return `has the term '${bad}', which is not one of 8.1's`;
+	return new Set(terms).size === terms.length ? undefined : 'repeats a term';
+}
 
 /** What `app check`, `app-get` and an app's README say of each kind (D54). */
 export const TRUST_LINES_V1 = {

@@ -8,7 +8,9 @@
  * refuses that line on the queue's commit (`scripts/commit-credit.mjs --merge-group`). The
  * Changesets action commits with whatever identity git already has, and with
  * `github-actions[bot]` when it has none. That matches a pull request GITHUB_TOKEN opened. It does
- * not match one the release App opened, which every release would then fail on (#1624).
+ * not match one the release App opened, which every release would then fail on (#1624). Even when
+ * they match, GitHub adds a line naming the bot author itself (#1590's squash, 2026-11-20), which
+ * credits nobody else and which `commit-credit.mjs` allows.
  *
  * The identity follows the pull request, not the token: the action force-pushes a new commit to
  * the open version pull request on every push to `main`, and that pull request keeps the author

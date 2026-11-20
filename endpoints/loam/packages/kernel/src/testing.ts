@@ -41,8 +41,11 @@ import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
 import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV5 } from './types.js';
 
+/** The resolver's collision rule and the overrides' check, which the chrome's settings chunk repeats (step 7). */
+export { keysCollide } from './late/keybinding-resolve.js';
 /** The link index, which A4 builds from the reference workspace's links (documents specification, 9.3). */
 export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './late/links.js';
+export { overridesProblem } from './late/setting-sections.js';
 export {
 	createReferenceWorkspace,
 	type ReferenceDocumentType,

@@ -10,6 +10,7 @@ export {
 	GRANT_CATALOG_V1,
 	type GrantEntry,
 	ICONS_V1,
+	keybindingWhenProblem,
 	NOTICES_V1,
 	SERVED_GRANTS_V2,
 	SHELL_DOMAINS_V1,

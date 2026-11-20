@@ -181,7 +181,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		"/ui/surfaces/keybindings": [],
 		"/ui/surfaces/keybindings/*": [
 			"chord",
-			"command"
+			"command",
+			"when"
 		],
 		"/ui/layout": [
 			"sidebar",

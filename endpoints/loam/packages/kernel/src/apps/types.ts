@@ -54,6 +54,11 @@ export interface AppsHost {
 	 * defaults when none is given, so an app is never unbounded.
 	 */
 	limits?: KernelLimits;
+	/**
+	 * Whether two bindings' keys collide (phase 4 specification, 8.1): the kernel's `keysCollide`, given here so this
+	 * chunk imports nothing of first paint (phase 3 specification, 13). Absent, only the same keys collide.
+	 */
+	keysCollide?(a: string, b: string): boolean;
 	/** The `store` grant's quota, one per runtime, which `loadApps` makes (section 11). */
 	storeQuota?: StoreQuota;
 	/**
