@@ -1058,7 +1058,7 @@ def test_host_build_dir_puts_the_build_output_on_another_volume(make_run):
     lane = make_run("running", dials={"host.buildDir": "/Volumes/Dev"})
     lane.change_world(outcomes={"validate": {"feat/export-csv": "running"}})
     run_steps(lane)
-    assert job_env(lane) == ["/Volumes/Dev/slots/1"]
+    assert job_env(lane) == ["/Volumes/Dev/slots-build/1"]
 
 
 def test_a_slot_keeps_its_build_for_the_same_branch_and_drops_it_when_the_dial_moves(make_run):
@@ -1071,11 +1071,11 @@ def test_a_slot_keeps_its_build_for_the_same_branch_and_drops_it_when_the_dial_m
         assert slots.slot_build("1", "fix/a") == "slots/.build/1"
         assert slots.slot_build("1", "fix/a") == "slots/.build/1"  # Kept: nothing removed.
         state["dials"]["host.buildDir"] = "/Volumes/Dev"
-        assert slots.slot_build("1", "fix/a") == "/Volumes/Dev/slots/1"
+        assert slots.slot_build("1", "fix/a") == "/Volumes/Dev/slots-build/1"
     assert run.world_data()["removedBuilds"] == [
         "slots/.build/1",
         "slots/.build/1",
-        "/Volumes/Dev/slots/1",
+        "/Volumes/Dev/slots-build/1",
     ]
 
 
@@ -1083,12 +1083,12 @@ def test_a_short_build_volume_pauses_the_lane_and_names_it(make_run):
     lane = make_run(
         "running",
         dials={"host.buildDir": "/Volumes/Dev"},
-        host={"freeDiskGb": 200, "freeDiskGbAt": {"/Volumes/Dev/slots": 5}},
+        host={"freeDiskGb": 200, "freeDiskGbAt": {"/Volumes/Dev/slots-build": 5}},
     )
     run_steps(lane)
     assert "validation-started" not in kinds(lane)
     assert "5 GB of disk is free" in lane.state()["lane"]["pauseReason"]
-    assert "/Volumes/Dev/slots" in lane.state()["lane"]["pauseReason"]
+    assert "/Volumes/Dev/slots-build" in lane.state()["lane"]["pauseReason"]
 
 
 def test_a_build_dir_that_is_not_mounted_pauses_the_lane(make_run):
@@ -1102,3 +1102,54 @@ def test_a_build_dir_that_is_not_mounted_pauses_the_lane(make_run):
     assert "validation-started" not in kinds(lane) and not events(lane, "ejected")
     reason = lane.state()["lane"]["pauseReason"]
     assert "host.buildDir /Volumes/Dev is not a directory" in reason
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "✗ maps ENOSPC to a friendly message",
+        "tests/test_fs.py::test_write[ENOSPC] PASSED",
+        "_____ test_runs_out_of_disk[No space left on device] _____",
+        "FAIL src/errors.test.ts > maps ENOSPC",
+        "test disk::full_is_reported ... FAILED (No space left on device)",
+    ],
+)
+def test_a_test_named_for_a_full_disk_is_not_read_as_one(line):
+    from botcore_factory.failures import disk_full
+
+    assert disk_full(f"{line}\nAssertionError: expected 1") is None
+
+
+def test_a_full_disk_is_read_from_the_whole_log_and_through_pnpm_prefixes():
+    from botcore_factory.failures import disk_full
+
+    noise = "\n".join(f"line {n}" for n in range(500))
+    full = "packages/x test: error: ENOSPC: no space left on device, write"
+    assert disk_full(f"{full}\n{noise}") == "error: ENOSPC: no space left on device, write"
+
+
+def test_a_second_full_disk_in_one_attempt_ejects_as_any_failure(lane):
+    """Once per attempt: a branch whose own failure says so must not pause the lane for ever."""
+    lane.change_world(outcomes={"validate": {"feat/export-csv": "fail: No space left on device"}})
+    run_steps(lane, 2)
+    lane_resume(lane.factory(), "freed disk")
+    run_steps(lane, 2)
+    assert events(lane, "ejected")[0]["reason"] == "final-failed"
+    assert len(events(lane, "lane-error")) == 1
+
+
+def test_a_free_slot_s_build_is_removed_once_its_branch_left_the_queue(lane):
+    with lane.store.update("a slot that built a merged branch") as state:
+        state["lane"]["slotBuilds"] = {"1": {"branch": "fix/merged", "path": "slots/.build/1"}}
+    actions = run_steps(lane)
+    assert actions[0] == "removed slot 1's build output for fix/merged"
+    assert lane.world_data()["removedBuilds"][0] == "slots/.build/1"
+
+
+def test_the_build_dir_is_never_the_slots_own_directory(make_run):
+    """With the repository on the data volume, <buildDir>/<slots' folder> holds the slots."""
+    from botcore_factory.cells import build_dir
+
+    run = make_run("running")
+    root = build_dir(run.factory(), {"host.buildDir": "/Volumes/Dev"}, "1")
+    assert root == "/Volumes/Dev/slots-build/1" and not root.startswith("/Volumes/Dev/slots/")

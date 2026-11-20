@@ -129,13 +129,28 @@ def take(state: dict, session: str, command: str, now) -> dict:
 
 def check(state: dict, session: str | None, command: str, now, owner_may: bool = False) -> None:
     """``hold``'s refusals again, inside the transaction that acts: a named session must not be
-    superseded and must hold (or take) the lease; a call that names none is refused while a
-    session holds it, unless ``owner_may``."""
+    superseded and must still hold a live lease, which is renewed; it never takes the lane
+    here, so one whose lease was handed over or ran out since ``hold`` is refused
+    ``FOREMAN_LOST``. A call that names none is refused while a session holds the lane,
+    unless ``owner_may``."""
+    lease = state["lane"].get("foreman")
     if session is None:
-        lease = state["lane"].get("foreman")
         if not owner_may and _live(lease, now):
             raise _busy(lease, command)
         return
+    if stale := _stale(state["lane"], session, command):
+        raise stale
+    if _live(lease, now) and lease["session"] != session:
+        raise _busy(lease, command)
+    if not _live(lease, now):
+        raise Refusal(
+            "FOREMAN_LOST",
+            f"Session {session} no longer holds the lane (its lease was handed over or ran out "
+            f"before {command} acted); nothing was changed",
+            "Read lane-status first: if the owner handed the lane over, stop and report; "
+            "otherwise call again, which takes the lane while no other session holds it",
+            session=session,
+        )
     take(state, session, command, now)
 
 

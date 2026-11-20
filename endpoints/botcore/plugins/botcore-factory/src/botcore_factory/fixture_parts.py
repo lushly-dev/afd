@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from botcore_factory.claims import parse_time
-from botcore_factory.failures import failing_tests
+from botcore_factory.failures import disk_full, failing_tests
 from botcore_factory.world import (
     LANE_HOST_VARIABLE,
     TAIL_LINES,
@@ -604,7 +604,8 @@ class FixtureProcesses:
                 # As the real world does: the log's tail, and every failing test in all of it.
                 tail = "\n".join(output.splitlines()[-TAIL_LINES:])
                 tests = tuple(failing_tests(output))
-                return Completed(tuple(step["args"]), 1, tail, "", step["label"], tests)
+                full = disk_full(output)
+                return Completed(tuple(step["args"]), 1, tail, "", step["label"], tests, full)
         del self._processes()["running"][handle]
         self.store.save()
         return Completed(tuple(run["steps"][-1]["args"]), 0, "ok", "")

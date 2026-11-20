@@ -125,7 +125,8 @@ def check(dial: Dial, raw: Any, maximum: float | None = None) -> str | None:
     if dial.kind == "path":
         if not isinstance(raw, str):
             return f"{dial.key} takes a directory path, or an empty string for the default"
-        if raw.strip() and not (raw.strip().startswith("/") or PureWindowsPath(raw).is_absolute()):
+        path = raw.strip()
+        if path and not (path.startswith("/") or PureWindowsPath(path).is_absolute()):
             return f"{dial.key} takes an absolute directory path; {raw!r} is relative"
         return None
     if dial.kind == "bool":

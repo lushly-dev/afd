@@ -241,3 +241,50 @@ async def test_a_mutation_whose_session_lost_the_lane_meanwhile_does_nothing(mak
     with run.store.update("test") as state, pytest.raises(Refusal) as unnamed:
         foreman.check(state, None, "dial-set", factory.world.clock.now())
     assert unnamed.value.code == "FOREMAN_BUSY"
+
+
+async def test_a_wait_whose_lease_was_handed_over_takes_nothing_before_a_successor_comes(
+    make_run,
+):
+    """The check inside the delivery never takes the lane: a handed-over wait is refused."""
+    run = make_run()
+    waiting_a = asyncio.create_task(
+        run.call("lane_wait", consumer="foreman", timeout_ms=5000, session="thread-a")
+    )
+    await asyncio.sleep(0.3)
+    assert (await run.call("foreman_handoff", session="thread-a")).success
+    with run.store.update("an event arrives") as state:
+        events.emit(state, START, "queue-room", detail="A seat is free")
+    refused = await waiting_a
+    assert refused.error.code == "FOREMAN_LOST" and refused.error.suggestion
+    assert run.state()["events"][0]["deliveredTo"] == [] and lease(run) is None
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments"),
+    [
+        ("cell_register", {"issues": [101], "branch": "fix/b", "route": "sol/high"}),
+        ("dial_set", {"key": "lane.queueMax", "value": 4}),
+        ("ejection_excuse", {"branch": "fix/a", "reason": "a flake"}),
+        ("gate_allow", {"branch": "fix/a", "reason": "why"}),
+        ("lane_drop", {"branch": "fix/a", "reason": "why"}),
+        ("lane_wait", {"consumer": "foreman", "timeout_ms": 1}),
+    ],
+)
+async def test_each_foreman_command_checks_the_session_inside_its_own_change(
+    make_run, monkeypatch, command, arguments
+):
+    """With the check before it skipped (as if the lane changed hands in between), the one
+    inside the change still refuses and writes nothing."""
+    run = make_run()
+    queued_cell(run)
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
+    await run.call("foreman_handoff", session="thread-a")
+    await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
+    with run.store.update("an event") as state:
+        events.emit(state, START, "queue-room", detail="A seat is free")
+    monkeypatch.setattr(foreman, "hold", lambda *args, **kwargs: None)
+    before = run.state()
+    refused = await run.call(command, **arguments, session="thread-a")
+    assert refused.error.code == "FOREMAN_STALE", command
+    assert run.state() == before

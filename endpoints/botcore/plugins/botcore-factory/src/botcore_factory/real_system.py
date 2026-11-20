@@ -325,14 +325,15 @@ class OsProcesses:
         del self._running[handle]
         output = _read_from(log, start)  # This job's own, not an earlier job's in the log.
         tail = "\n".join(output.splitlines()[-TAIL_LINES:])
-        from botcore_factory.failures import failing_tests
+        from botcore_factory.failures import disk_full, failing_tests
         from botcore_factory.job import failure
 
         failed = failure(tail) if code else None
         # Every failing test, from all this job wrote: the tail misses those a long run
         # pushed out of it (lushly-dev/afd#1607).
         tests = tuple(failing_tests(output)) if code else None
-        return Completed(args, code, tail, "", (failed or {}).get("failed"), tests)
+        full = disk_full(output) if code else None
+        return Completed(args, code, tail, "", (failed or {}).get("failed"), tests, full)
 
     def kill(self, handle: str) -> None:
         entry = self._running.pop(handle, None)

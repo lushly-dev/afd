@@ -203,6 +203,9 @@ class Completed:
     #: A failed job's failing tests, read from its whole log where ``stdout`` is only the tail
     #: (``failures.failing_tests``); None when not read.
     failures: tuple[str, ...] | None = None
+    #: A failed job's line saying the disk is full, read from its whole log
+    #: (``failures.disk_full``); None when it says nothing of the kind.
+    disk_full: str | None = None
 
 
 @runtime_checkable

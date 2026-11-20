@@ -50,7 +50,6 @@ from botcore_factory.lane_base import (
     LaneTrouble,
     first_lines,
     log_path,
-    out_of_disk,
 )
 from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
@@ -100,9 +99,12 @@ class Step(Merging, Coverage):
             if done is None:
                 continue
             output = done.stdout + "\n" + done.stderr
-            full = out_of_disk(output) if done.returncode != 0 else None
-            if full is not None:
-                # The host's trouble, not the branch's: pause, and count no ejection.
+            full = done.disk_full if done.returncode != 0 else None
+            if full is not None and not entry.get("diskFull"):
+                # The host's trouble, not the branch's: pause, and count no ejection. Once per
+                # attempt: a branch whose own failure says so (a test that fills a disk) is
+                # ejected the next time, as any failure is, rather than pause the lane for ever.
+                entry["diskFull"] = full
                 self.requeue(entry, "disk-full", detail=full)
                 raise LaneTrouble(
                     f"Validating {entry['branch']} ran out of disk: {full}. Free disk where the "
@@ -165,6 +167,8 @@ class Step(Merging, Coverage):
             if e.get("state") in ("validating", "validated")
         }
         free = [str(n) for n in range(1, self.dial("lane.slots") + 1) if str(n) not in busy]
+        if any(e.get("state") == "queued" for e in self.state["queue"]):
+            self.sweep_builds(free)
         for entry in [e for e in self.state["queue"] if e.get("state") == "queued"]:
             reserved = None
             if not free:

@@ -15,7 +15,6 @@ from botcore_factory.lane_base import (
     LaneTrouble,
     StepBase,
     first_lines,
-    out_of_disk,
 )
 from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 
@@ -87,6 +86,18 @@ class Coverage(StepBase):
             )
         steps.append({"label": label, "args": command})
         return [{**s, "env": env, **({"path": [node]} if node else {})} for s in steps]
+
+    def sweep_builds(self, free: list[str]) -> None:
+        """Remove the build output of free slots whose branch left the queue (merged, ejected or
+        dropped) before free disk is read, so what they kept does not pause the lane."""
+        builds = self.lane.get("slotBuilds") or {}
+        queued = {entry["branch"] for entry in self.state["queue"]}
+        for slot in free:
+            last = builds.get(slot)
+            if last is not None and last.get("branch") not in queued:
+                self.world.git.remove_build(last["path"])
+                builds.pop(slot)
+                self.actions.append(f"removed slot {slot}'s build output for {last['branch']}")
 
     def slot_build(self, slot: str, branch: str) -> str:
         """The slot's build directory (lushly-dev/afd#1641), under ``host.buildDir``. A slot that
@@ -163,8 +174,9 @@ class Coverage(StepBase):
             return
         self.lane.pop("coverage")
         passed = done.returncode == 0
-        full = None if passed else out_of_disk(done.stdout + "\n" + done.stderr)
-        if full is not None:
+        full = None if passed else done.disk_full
+        if full is not None and running.get("main") != self.lane.get("diskFullCoverage"):
+            self.lane["diskFullCoverage"] = running["main"]
             # The host's trouble, not main's: its merges still owe coverage, run on resuming.
             raise LaneTrouble(
                 f"Coverage on {running['main']} ran out of disk: {full}. Free disk where the "

@@ -35,7 +35,7 @@ def run_step(step: dict) -> tuple[int, bool]:
     if step.get("env"):
         env = {**(env if env is not None else os.environ), **step["env"]}
     try:
-        program = resolve_program(step["args"][0], env["PATH"] if env else None)
+        program = resolve_program(step["args"][0], env.get("PATH") if env else None)
     except WorldError as exc:
         print(str(exc), flush=True)
         return NOT_FOUND, False

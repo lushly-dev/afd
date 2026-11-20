@@ -195,9 +195,11 @@ class DiskShort:
 
 def build_root(factory: Factory, overrides: dict) -> str:
     """Where the lane's slots keep their build output (lushly-dev/afd#1641): under
-    ``host.buildDir`` when set (a data volume, in a folder named for the slots' own), else
-    ``.build`` in the slots' directory. A ``host.buildDir`` that is not a directory raises
-    WorldError: an unmounted volume's mount point would put the build on the system disk."""
+    ``host.buildDir`` when set (a data volume), in ``<slots' folder name>-build``, else
+    ``.build`` in the slots' directory. Never the slots' directory itself: with the repository
+    on that volume, ``<host.buildDir>/<slots' folder name>`` is where its slots are checked out.
+    A ``host.buildDir`` that is not a directory raises WorldError: an unmounted volume's mount
+    point would put the build on the system disk."""
     slots = factory.world.git.slots_dir()
     chosen = dials.value(overrides, BUILD_DIR_DIAL)
     if chosen:
@@ -207,7 +209,7 @@ def build_root(factory: Factory, overrides: dict) -> str:
                 "mount its volume or create it, or set host.buildDir to an empty string with "
                 "dial-set, then lane-resume"
             )
-        return str(PurePath(chosen) / PurePath(slots).name)
+        return str(PurePath(chosen) / f"{PurePath(slots).name}-build")
     return str(PurePath(slots) / ".build")
 
 
