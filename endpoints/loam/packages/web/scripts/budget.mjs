@@ -475,6 +475,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 6's eighth round, under D115, the same machine: `kernelMinified` 129,000 to 129,500 (128,497 to 129,028): a
  * wrapper's child started, the whole recorded outcome, and the lossy entry of an untracked wrapper. First paint 317,299
  * and 99,456 gzip, within their rows.
+ * Step 6 merged with step 7 (`main` at `c5a97c9d`, #1657), measured on the combined build, under D115: `jsMinified`
+ * to 322,800 and `jsGzip` to 101,700 (322,160 and 101,328: step 7's key matcher beside step 6's gate and the journal's
+ * wrapper provenance); `kernelMinified` to 132,200 (131,578); `lateMinified` to 117,200 (116,561); `lateEditorMinified`
+ * to 16,400 (16,074); `lateSettingsMinified` to 101,500 (100,819: the keybinding resolver and overrides beside the
+ * confirmations); `appsMinified` to 428,800 (428,162). Every other row within its ceiling.
  *
  * Phase 4's step 7 (keybindings, section 8), measured on Windows with Node 26.13.1 on its branch from `main` at
  * `ca1b11f3`, against step 10's merged figures above, each raised to its measurement plus a margin under D115:
@@ -547,12 +552,13 @@ export const CEILINGS = Object.freeze({
 	// Step 6's seventh round: 316,903 and 99,332 gzip (the header records it); set to 317,500 and 99,600 under D115.
 	// Phase 4's step 7: 315,952 and 99,161 gzip, the key matcher (the header records it); set to 316,500 and 99,500.
 	// After its re-check: 316,988 and 99,580; set to 317,500 and 100,000.
-	jsMinified: 317_500,
+	// Steps 6 and 7 merged: 322,160 and 101,328 gzip (the header records it); set to 322,800 and 101,700 under D115.
+	jsMinified: 322_800,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 100_000,
+	jsGzip: 101_700,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -564,7 +570,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 129_500,
+	kernelMinified: 132_200,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -572,13 +578,13 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 113_800,
+	lateMinified: 117_200,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 16_000,
+	lateEditorMinified: 16_400,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
-	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000.
-	lateSettingsMinified: 94_000,
+	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
+	lateSettingsMinified: 101_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -590,7 +596,7 @@ export const CEILINGS = Object.freeze({
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
-	appsMinified: 426_500,
+	appsMinified: 428_800,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	surfacesMinified: 97_000,

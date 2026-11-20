@@ -2297,6 +2297,30 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 - An action the auth gate refuses now stops a replay, since the act's failure is not its returned action's.
 - The Opus I2 unit is synthetic; it has no kernel-level test of a failed settle write.
 
+**Merged with step 7,** 2026-11-19: `main` at `c5a97c9d` (step 7, keybindings, [#1657](https://github.com/lushly-dev/afd/pull/1657)) merged in `005249c2`, both steps kept.
+
+**Conflicts that were more than text:**
+- **The chrome's editor:** the close prompt's orphan handler for `hearModals` (step 6) and step 7's `answerSave` callback both stay. Step 6 had removed `discardModal`, which the close prompt replaced, and step 7 had removed `isSave`, since the shell now resolves the key; neither is used, so both go.
+- **The manifest:** the version-1 refusal reads every place a key of version 2 is held, each command's `confirm_prompt` by its own pointer (step 6), together with step 7's keybinding sequences and `when`.
+- **`mounted.test.ts`:** the name-key check exempts `palette-run`'s `command` and `keybinding-list`'s `command` together.
+
+**Interactions checked:**
+- **Confirm and Decline:** no key confirms a question. While any modal is open, the confirmation slot among them, the shell runs no binding, and a binding runs its command with empty input, so it reaches neither `overlay-dismiss` nor `notification-act`. Decline is still the focused default.
+- **The close prompt's Save:** it calls the frame's save, a callback, never an event, as step 7's rule asks.
+- **The palette:** step 7's `hearOnlyPeople` and its trusted-Enter guard cover the palette's input rows as they cover every row.
+- **The late load:** step 6 builds the confirmations synchronously after one of step 7's guarded awaits, so a disposal stops the load before they are made.
+- **`settings.ts`:** step 6's exports sit beside step 7's resolver and overrides reader.
+
+**Measured on the combined build,** D115:
+- First paint 322,160 and 101,328 gzip; `jsMinified` set to 322,800 and `jsGzip` to 101,700, with `first-paint.test.ts`'s literal.
+- `kernelMinified`: 131,578; its row 132,200.
+- `lateMinified`: 116,561; its row 117,200.
+- `lateEditorMinified`: 16,074; its row 16,400.
+- `lateSettingsMinified`: 100,819; its row 101,500.
+- `appsMinified`: 428,162; its row 428,800.
+
+`budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
