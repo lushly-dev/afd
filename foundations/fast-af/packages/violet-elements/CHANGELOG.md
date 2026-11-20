@@ -12,6 +12,7 @@
 
 - Give the data-grid fill handle a 24 × 24 CSS px pointer target while retaining its visual size. Cell focus mode includes keyboard-accessible Fill down and Fill right buttons that emit the same `cell-fill` detail as dragging one row or column, with touch support and live feedback (#506).
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
+- Run four stories at once in `test:stories` (Specimen's `test.workers`, default 2), for both the story contract and the pack check. No published file changes.
 
 ## 0.2.0-preview.2
 
