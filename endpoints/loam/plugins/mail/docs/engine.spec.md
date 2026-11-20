@@ -136,7 +136,7 @@ Each crate's maintenance history was not read.
 | `html5ever`, `markup5ever_rcdom` | 0.40, 0.40 | MIT or Apache-2.0 | Reading a message's HTML for its evidence ([6.1](#61-what-is-read)) | Added by step B4. The DOM crate is published as unofficial by html5ever's authors; the engine reads with it and builds nothing on it |
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Checked by step B3. With `imap-proto` 0.17 it parses `VANISHED`, `HIGHESTMODSEQ`, `MODSEQ` and the `COPYUID` code, and it has `UID EXPUNGE`. It has no call that opens a mailbox with QRESYNC, and it sets aside on a bounded channel, dropping when full, any response its own calls do not expect. So the engine uses it for the connection, the sign-in and the parser, sends its own commands and reads every response itself. `imap-codec` is not needed |
 | `rustls`, `tokio-rustls`, `rustls-native-certs` | 0.23, 0.26, 0.8 | MIT, Apache-2.0 or ISC | TLS to the provider, with the operating system's certificates | Added by step B3, with `ring` rather than the default `aws-lc-rs`, which needs CMake to build |
-| `lettre` | 0.11 | MIT | SMTP, from phase D | None |
+| `lettre` | 0.11 | MIT | SMTP, from phase D | Not added: step D3's second part spoke SMTP submission directly over `tokio` and `rustls` (reusing IMAP's TLS setup) for exact control over the handover boundary (`.\r\n` written -> `unknown`) with no new dependency |
 | `keyring-core`, `apple-native-keyring-store` | 1, 1 | MIT or Apache-2.0 | The operating system's keychain | Step B3 took these in place of `keyring` 4.2, which advises an application that knows its platforms to link them directly. macOS only for now: on another platform adding an account says there is no keychain yet |
 | `getrandom` | 0.3 | MIT or Apache-2.0 | The approval middleware's key, made afresh for each process; the tokens of [3.3](#33-callers) | Already in the lockfile through `tantivy` |
 | `tokio` | 1 | MIT | Running a command from the command line; the `afd` crate's deadlines use it; the connection to the provider; the server | Step B5 added `rt-multi-thread`, `io-std` and `sync` to `rt`, `time`, `net`, `io-util`, `signal` and `macros` |
@@ -1899,6 +1899,52 @@ local and open to every caller. Sending and unsubscribing are its second and thi
   Without a time it ends the snooze. Its result gives the time before, which undoes it. Removing
   an account removes the snoozes of the mail that goes.
 
+**As step D3 built it** (its second part, migration 16): sending drafts at the terminal over SMTP,
+tested on scripted SMTP and IMAP servers.
+
+- **Subject characters.** Draft subjects allow the zero-width joiner (`U+200D`) and emoji variation
+  selector 16 (`U+FE0F`) so ordinary emoji sequences work, while continuing to refuse hidden
+  formatting characters (zero-width spaces, direction controls, tags).
+- **Send state and `outbound` (migration 16).** `draft` gains `send_state` (`none`, `sending`,
+  `sent`, `unknown`), and a new `outbound` table records each send attempt before and after
+  handover (account, draft, approved `draft_revision`, Message-ID, sender, state, sent-copy flag,
+  reason, timestamps). Active draft lists show only open (`send_state = 'none'`) drafts; sent and
+  unknown drafts stay in the store as audit records and are neither editable nor discardable.
+  Reopening a store marks any interrupted `sending` row as `unknown`, and an in-flight send carries
+  a drop guard so a server call timeout or terminal interrupt immediately marks it `unknown` rather
+  than leaving it stuck in `sending`. `mail-account-remove` refuses with `WORK_RUNNING` while a
+  send is in flight, reports unknown sends in its removal summary, and deletes the account's
+  `outbound` rows.
+- **Recipient rule and preview.** `mail-draft-show` (and create/update results) add `state`,
+  `recipientBasis` (`own`, `thread`, `written-to` or `new` per recipient, in parallel arrays) and
+  `replyToDiffers`. Thread participants come only from messages currently shown in the draft's
+  account outside junk and trash that are reachable from the answered message through non-junk/trash
+  `Message-ID`/`In-Reply-To`/`References` links (never from a differing `Reply-To`, never from a
+  junk/trash answered message, and never across a junk bridge). `mail-label` refuses filing mail
+  into a `Sent` mailbox so an agent cannot forge `own` or `written-to` evidence. Before asking for
+  approval at the terminal, the command line strips any pre-supplied `typedRecipients` from JSON
+  input, prints the labelled preview and bases, flags a differing `Reply-To`, and asks the person to
+  type every `new` address verbatim (preserving local-part case) for this send. The engine accepts
+  `mail-draft-send` only from a human over `cli` (`PERSON_REQUIRED` otherwise), and refuses any
+  remaining `new` recipient with `RECIPIENT_NOT_ALLOWED`.
+- **`mail-draft-send`** is a person's command, destructive and held for approval (M18, M29),
+  exposed to `cli` alone. It takes `draft` and `revision` (the command line fills in `revision`
+  only when omitted); a mismatch fails with `PREVIEW_CHANGED`. It atomically checks the revision
+  and recipients, records `outbound` as `sending`, builds an RFC 5322 plain-text message (RFC 2047
+  UTF-8 subject, folded `References`, quoted-printable UTF-8 body, `In-Reply-To` when answering,
+  and no `Bcc:` header on the SMTP wire, preserving local-part case in envelope deduplication), and
+  submits it over SMTP (`smtp.mail.me.com:587` with STARTTLS, `AUTH PLAIN` with `AUTH LOGIN`
+  fallback; plain TCP refused on non-loopback hosts).
+- **Handover and sent copy.** A failure before `.\r\n` or an explicit 4xx/5xx complete reply after
+  `DATA` marks the attempt `failed` and returns the draft to `open` (452 maps to retryable
+  `PROVIDER_LIMIT`, permanent 5xx such as 550/552 maps to non-retryable `PROVIDER_REFUSED`). A drop,
+  truncated reply line, unexpected non-2xx/4xx/5xx code, or timeout at or after `.\r\n` marks both
+  `outbound` and `draft` `unknown` and returns non-retryable `SEND_OUTCOME_UNKNOWN`; `mail-status`
+  reports `sending` and `unknown` sends under `outbound`, and the engine never retries them. On 2xx,
+  the draft becomes `sent` and the engine makes a bounded best-effort IMAP `APPEND` of the sent copy
+  (with `Bcc:` and `\Seen`) to the account's sent mailbox; if that append fails or times out, the
+  send still succeeds with `sentCopy: false` and warning `SENT_COPY_FAILED`.
+
 ## 10. Records, proposed stories and reply sets
 
 Phase E. Its shape is the proposal's ([4.3](../../../../../docs/features/active/mail/mail.proposal.md#43-layers),
@@ -1946,7 +1992,7 @@ says otherwise.
 
 | Command | Phase | Class | Exposed to | Notes |
 | --- | --- | --- | --- | --- |
-| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome. Step B5: and the server's work ([3.2](#32-modes)). Step D1: the operations running and stopped, and the proposals waiting for the person ([9.4](#94-the-policy)) |
+| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome (`outbound`, step D3). Step B5: and the server's work ([3.2](#32-modes)). Step D1: the operations running and stopped, and the proposals waiting for the person ([9.4](#94-the-policy)) |
 | `mail-account-list` | B | Read | cli, mcp | |
 | `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's ([3.5](#35-commands-only-a-person-may-run)) |
 | `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND` |
@@ -1972,8 +2018,8 @@ says otherwise.
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | Step D3: until a time within a year, or until mail arrives in the thread; `mail-thread-list` with `snoozed` lists the snoozed threads ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | Step D3: an update names the revision it read ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
-| `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send |
-| `mail-draft-send` | D | Remote, destructive; a person | cli | |
+| `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send (step D3: adds `state`, `recipientBasis` and `replyToDiffers`) |
+| `mail-draft-send` | D | Remote, destructive; a person | cli | Step D3's second part ([9.5](#95-drafts-and-sending)): names the previewed `revision`, enforces the recipient rule, submits over SMTP, appends a sent copy with `Bcc:` and records `outbound` |
 | `mail-unsubscribe` | D | Remote, destructive; a person | cli | |
 | `mail-policy-show` | D | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)) |
 | `mail-policy-set` | D | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before |
@@ -2045,6 +2091,7 @@ Beside the crate's own codes:
 | `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND`, `SENDER_NOT_FOUND`, `STORY_NOT_FOUND`, `OPERATION_NOT_FOUND` | A named thing does not exist. `SENDER_NOT_FOUND` also when a suggestion's address has become one of the person's own |
 | `SIGN_IN_REQUIRED` | The provider refused the stored credential |
 | `PROVIDER_UNAVAILABLE` | The provider could not be reached; retryable |
+| `PROVIDER_REFUSED` | The provider permanently refused a send (5xx); not retryable (step D3) |
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
 | `PART_NOT_FOUND` | A message has no part at the place named |
@@ -2063,6 +2110,7 @@ Beside the crate's own codes:
 | `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
+| `PREVIEW_CHANGED` | A send names a revision the draft is no longer at since its preview was read (step D3) |
 
 Each failure carries a suggestion in the engine's words.
 
@@ -2121,6 +2169,8 @@ It is in the data directory and is as private as the mail.
 - A scripted IMAP server, grown from the census's fake connection. It can list a message it
   never returns, drop a connection mid-batch, change `UIDVALIDITY`, and answer with or without
   CONDSTORE, QRESYNC, IDLE and MOVE.
+- A scripted SMTP submission server on loopback (step D3), recording envelopes and raw bytes and
+  injecting pre- and post-handover faults, STARTTLS errors, stalls and malformed replies.
 - A scripted Gmail API with a history that expires.
 - A corpus of messages: ordinary mail, malformed mail, hidden-text cases, and the parser's fuzz
   findings. It holds no real person's mail.

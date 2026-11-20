@@ -8,6 +8,7 @@
 //! ([`crate::operate`]).
 
 pub mod imap;
+pub mod smtp;
 
 use std::fmt;
 
@@ -30,6 +31,9 @@ pub enum ProviderError {
     /// The provider could not be reached, or the connection dropped
     /// (`PROVIDER_UNAVAILABLE`). Worth trying again.
     Unavailable(&'static str),
+    /// The provider's rate or quota limit (`PROVIDER_LIMIT`). Worth trying
+    /// again later.
+    Limit(&'static str),
     /// The provider refused a request: a mailbox it will not open, for one.
     Refused(&'static str),
     /// The provider said something the engine cannot read.
@@ -44,7 +48,10 @@ impl ProviderError {
     /// Whether trying again on a new connection may help.
     #[must_use]
     pub fn retryable(&self) -> bool {
-        matches!(self, Self::Unavailable(_) | Self::Protocol(_))
+        matches!(
+            self,
+            Self::Unavailable(_) | Self::Limit(_) | Self::Protocol(_)
+        )
     }
 }
 
@@ -55,6 +62,7 @@ impl fmt::Display for ProviderError {
             Self::NoCredential => write!(f, "there is no stored sign-in for the account"),
             Self::Keychain => write!(f, "the keychain refused to give the account's sign-in"),
             Self::Unavailable(what) => write!(f, "the provider could not be reached: {what}"),
+            Self::Limit(what) => write!(f, "the provider's limit was reached: {what}"),
             Self::Refused(what) => write!(f, "the provider refused: {what}"),
             Self::Protocol(what) => write!(f, "the provider's reply could not be read: {what}"),
             Self::TooDeep => write!(f, "the provider's reply nests deeper than the engine reads"),
@@ -302,6 +310,17 @@ pub trait Provider: Send {
     /// carries it.
     async fn remove(&mut self, _ids: &[String]) -> Result<(), ProviderError> {
         Err(ProviderError::Refused("changing mail"))
+    }
+
+    /// Appends a message to `mailbox` with `flags` (for example, a copy of a
+    /// sent message into the sent mailbox).
+    async fn append(
+        &mut self,
+        _mailbox: &str,
+        _flags: &[&str],
+        _bytes: &[u8],
+    ) -> Result<(), ProviderError> {
+        Err(ProviderError::Refused("appending mail"))
     }
 
     /// Ends the connection politely. Failing to is not an error.

@@ -20,6 +20,8 @@ pub struct RemovalPreview {
     pub messages: u64,
     /// Its drafts, discarded or not, which go with it for good.
     pub drafts: u64,
+    /// Its sends whose outcome is unknown, whose records go with it.
+    pub unknown_sends: u64,
 }
 
 /// What removing an account took.
@@ -73,11 +75,17 @@ impl Store {
             [account.0],
             |row| row.get(0),
         )?;
+        let unknown_sends: i64 = self.connection.query_row(
+            "SELECT count(*) FROM outbound WHERE account_id = ?1 AND state = 'unknown'",
+            [account.0],
+            |row| row.get(0),
+        )?;
         Ok(Some(RemovalPreview {
             account: row,
             mailboxes: u64::try_from(mailboxes).unwrap_or(0),
             messages: u64::try_from(messages).unwrap_or(0),
             drafts: u64::try_from(drafts).unwrap_or(0),
+            unknown_sends: u64::try_from(unknown_sends).unwrap_or(0),
         }))
     }
 
@@ -104,6 +112,9 @@ impl Store {
             .is_some();
         if !exists {
             return Err(StoreError::NotFound("account"));
+        }
+        if self.has_sending_outbound(account)? {
+            return Err(StoreError::Sending);
         }
         self.rebuild_begin()?;
         let transaction = self.connection.transaction()?;
@@ -171,9 +182,10 @@ impl Store {
             [account.0],
         )?;
         transaction.execute("DELETE FROM mailbox WHERE account_id = ?1", [account.0])?;
-        // The account's drafts go with it: nothing could send them. Another
-        // account's draft that answers mail that goes keeps its text and
-        // answers nothing; a snooze on mail that goes goes.
+        // The account's outbound records and drafts go with it: nothing could
+        // send them. Another account's draft that answers mail that goes keeps
+        // its text and answers nothing; a snooze on mail that goes goes.
+        transaction.execute("DELETE FROM outbound WHERE account_id = ?1", [account.0])?;
         transaction.execute("DELETE FROM draft WHERE account_id = ?1", [account.0])?;
         transaction.execute_batch(
             "UPDATE draft SET answers_message_id = NULL, revision = revision + 1
@@ -232,6 +244,7 @@ const HANDLED: &[(&str, &str)] = &[
     ("operation_item", "message"),
     ("draft", "account"),
     ("draft", "message"),
+    ("outbound", "account"),
     ("snooze", "message"),
     // Twice: where the message was, and where it goes.
     ("operation_item", "mailbox"),

@@ -55,10 +55,10 @@ fn version_prints_the_crate_version() {
 
 #[test]
 fn an_unknown_argument_fails_and_points_to_help() {
-    let (status, out, err) = run_with(&["mail-draft-send"]);
+    let (status, out, err) = run_with(&["mail-not-a-command"]);
     assert_eq!(status, EXIT_USAGE);
     assert!(out.is_empty());
-    assert!(err.contains("`mail-draft-send` is not something this build can do"));
+    assert!(err.contains("`mail-not-a-command` is not something this build can do"));
     assert!(err.contains("loam-mail help"));
 }
 

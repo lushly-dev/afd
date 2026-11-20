@@ -376,7 +376,9 @@ impl From<ProviderError> for Failure {
                 Self::Stop(SyncError::Provider(error))
             }
             ProviderError::Refused(_) => Self::Mailbox(error),
-            ProviderError::Unavailable(_) | ProviderError::Protocol(_) => Self::Again(error),
+            ProviderError::Unavailable(_)
+            | ProviderError::Protocol(_)
+            | ProviderError::Limit(_) => Self::Again(error),
             // Another request would get the same reply. For a batch of
             // messages the batch is narrowed and a message that keeps
             // failing is passed over ([`Failure::of_batch`]); any other

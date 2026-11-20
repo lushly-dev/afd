@@ -100,6 +100,8 @@ pub struct World {
     pub drop_after_doing: Option<String>,
     /// Wait this long before answering each command, as a far server would.
     pub slow: Option<std::time::Duration>,
+    /// Answer `NO` to `APPEND` commands.
+    pub refuse_append: bool,
 }
 
 impl World {
@@ -122,6 +124,7 @@ impl World {
             moves: false,
             drop_after_doing: None,
             slow: None,
+            refuse_append: false,
         }
     }
 
@@ -346,6 +349,17 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
         if let Some(slow) = slow {
             tokio::time::sleep(slow).await;
         }
+        // `APPEND mailbox [(flags)] {len}` reads a literal across lines.
+        if rest
+            .split_whitespace()
+            .next()
+            .is_some_and(|w| w.eq_ignore_ascii_case("APPEND"))
+        {
+            if handle_append(tag, rest, &world, &mut lines, &mut write).await {
+                return;
+            }
+            continue;
+        }
         let (output, close) = answer(tag, rest, &world, &mut session);
         for chunk in output {
             match chunk {
@@ -370,6 +384,74 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
 enum Chunk {
     Bytes(Vec<u8>),
     Drop,
+}
+
+/// Handles `APPEND <mailbox> [(flags)] {<len>}\r\n` by sending `+ Ready\r\n`,
+/// reading `<len>` bytes plus `\r\n`, storing the message in the target
+/// mailbox and answering `OK [APPENDUID ...]`. Returns `true` if the stream
+/// closed.
+async fn handle_append(
+    tag: &str,
+    rest: &str,
+    world: &Mutex<World>,
+    lines: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+    write: &mut tokio::net::tcp::OwnedWriteHalf,
+) -> bool {
+    use tokio::io::AsyncReadExt;
+    let words = tokens(rest);
+    world.lock().unwrap().log.push(rest.to_string());
+    let Some(mailbox) = words.get(1).cloned() else {
+        return write
+            .write_all(format!("{tag} BAD no mailbox\r\n").as_bytes())
+            .await
+            .is_err();
+    };
+    let len: Option<usize> = words
+        .last()
+        .and_then(|tok| tok.strip_prefix('{'))
+        .and_then(|tok| tok.strip_suffix('}'))
+        .and_then(|n| n.parse().ok());
+    let Some(len) = len else {
+        return write
+            .write_all(format!("{tag} BAD no literal\r\n").as_bytes())
+            .await
+            .is_err();
+    };
+    let flags: Vec<String> = rest
+        .find('(')
+        .and_then(|start| {
+            rest[start + 1..]
+                .find(')')
+                .map(|end| &rest[start + 1..start + 1 + end])
+        })
+        .map(|list| list.split_whitespace().map(ToString::to_string).collect())
+        .unwrap_or_default();
+    if write.write_all(b"+ Ready\r\n").await.is_err() {
+        return true;
+    }
+    let mut bytes = vec![0u8; len];
+    if lines.read_exact(&mut bytes).await.is_err() {
+        return true;
+    }
+    // Consume the trailing CRLF after the literal.
+    let mut trail = String::new();
+    if lines.read_line(&mut trail).await.is_err() {
+        return true;
+    }
+    let reply = {
+        let mut world = world.lock().unwrap();
+        if world.refuse_append {
+            format!("{tag} NO append refused\r\n")
+        } else if !world.mailboxes.iter().any(|m| m.name == mailbox) {
+            format!("{tag} NO [TRYCREATE] no such mailbox\r\n")
+        } else {
+            let flag_refs: Vec<&str> = flags.iter().map(String::as_str).collect();
+            let uid = world.add(&mailbox, bytes, &flag_refs);
+            let validity = world.find(&mailbox).validity;
+            format!("{tag} OK [APPENDUID {validity} {uid}] appended\r\n")
+        }
+    };
+    write.write_all(reply.as_bytes()).await.is_err()
 }
 
 fn text(out: &mut Vec<Chunk>, line: String) {
