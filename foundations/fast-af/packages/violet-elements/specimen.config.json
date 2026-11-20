@@ -5,7 +5,7 @@
   "manifest": "custom-elements.json",
   "guides": ["src/**/*.guide.json"],
   "guideSources": ["specimen/guides.mjs"],
-  "test": { "settledAccessibility": true },
+  "test": { "settledAccessibility": true, "workers": 4 },
   "pack": {
     "library": "violet-elements",
     "title": "Violet elements",
