@@ -199,7 +199,8 @@ function recordingSources(
  * Appends are awaited, so entries are in call order for sequential calls, and sink latency is
  * added to each recorded call. Concurrent calls are appended in the order they finished: each
  * takes its turn as its command returns, and the context digest, which is asynchronous, never
- * reorders them. A sink error goes to `onError` and never changes the command
+ * reorders them. So an `append` that never settles holds every later recorded call, and a sink
+ * whose `append` runs a command this middleware records would wait on itself. A sink error goes to `onError` and never changes the command
  * result. Commands named `auth-*` are not recorded unless `filter` allows them. During
  * `replayJournal()` this middleware records nothing; it restarts the replay tape at its position.
  *
@@ -306,6 +307,8 @@ export function createJournalMiddleware(
 					// A failing onError has nowhere left to report.
 				}
 			} finally {
+				// Never released before the call ahead has appended, even when this record failed to build.
+				await previous;
 				done();
 			}
 		}
