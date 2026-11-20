@@ -43,7 +43,11 @@ def long_path(path: Path | str) -> str:
 
 
 def exists(path: Path) -> bool:
-    """Path.exists() that answers False on a permission error, as Python 3.12+ does."""
+    """Path.exists() that answers False instead of raising on a permission error.
+
+    Only for deciding what to look at: a check whose answer protects something reads the file
+    itself and treats an unreadable answer as "yes".
+    """
     try:
         os.stat(path)
     except (OSError, ValueError):

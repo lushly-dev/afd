@@ -39,7 +39,6 @@ from botcore.commands.disk.scan import (
     DAY,
     Processes,
     busy_reason,
-    exists,
     is_dir,
     last_activity,
     newest_mtime,
@@ -214,7 +213,13 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
     admin = _admin(worktree)
     if admin is None:
         return "git's record of the worktree is gone"
-    if exists(admin / "locked"):
+    try:
+        os.lstat(admin / "locked")
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return "whether the worktree is locked cannot be read"
+    else:
         return "the worktree was locked (kept) since planning"
     if busy_reason(worktree, run.processes_for(str(worktree))):
         return "a process is using the worktree"
