@@ -418,9 +418,15 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 	class GatedStore extends MemoryAdapter {
 		hold: Promise<void> | undefined;
 		refuse = false;
+		private reach: () => void = () => {};
+		/** Resolved when a write of `loam.apps` reaches the store while `hold` is set. */
+		reached: Promise<void> = new Promise((resolve) => {
+			this.reach = resolve;
+		});
 		private async gate(table: string, id: string | undefined): Promise<void> {
 			if (table !== 'settings' || id !== 'loam.apps') return;
 			if (this.refuse) throw new Error('HTTP 500: storage refused');
+			if (this.hold) this.reach();
 			await this.hold;
 		}
 		override async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
@@ -445,8 +451,8 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 			release = resolve;
 		});
 		const first = kernel.call('app-open', { instance: 'probe' });
-		// The first call has changed `loam.apps` and waits for the store; the second sees the app already open.
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		// The first call's handler has returned and its write-through waits on the store; the second sees the app open.
+		await store.reached;
 		const second = kernel.call('app-open', { instance: 'probe' });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		release();
@@ -499,6 +505,33 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		await kernel.dispose();
 		// The warning is the recording's store, not the call: a replay, whose store writes, compares the rest.
 		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	it('#861: replays an entry answered from its record that carries the unsaved-write warning', async () => {
+		const recorded = await recordSession(
+			[{ interface: 'palette', name: 'app-list' }],
+			probeOptions()
+		);
+		const warned = recorded.entries.map((entry) =>
+			entry.command === 'app-list'
+				? {
+						...entry,
+						result: {
+							...entry.result,
+							warnings: [
+								{
+									code: 'VIEW_STATE_NOT_SAVED',
+									message: 'not saved',
+									details: { records: ['loam.apps'] },
+								},
+							],
+						},
+					}
+				: entry
+		);
+		expect(warned.some((entry) => entry.result.warnings?.length)).toBe(true);
+		const { report } = await replayKernel(warned, probeOptions());
 		expect(report.diverged).toBe(false);
 	});
 

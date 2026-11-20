@@ -119,7 +119,9 @@ export const REPLAY_IGNORE: readonly string[] = Object.freeze([
 
 /**
  * `entry` without its `VIEW_STATE_NOT_SAVED` warnings: the recording's store failed to write a record, which says
- * nothing of what the call did, and a replay's store does not fail, so the replay compares the rest (#861).
+ * nothing of what the call did, and a replay's store does not fail, so the replay reads the rest (#861). A result with
+ * no other warning loses the key; one whose handler returned `warnings: []` itself would compare as `added`, which no
+ * kernel command does.
  */
 function withoutUnsavedWarning(entry: JournalEntry): JournalEntry {
 	const warnings = entry.result.warnings;
@@ -423,7 +425,9 @@ export async function replayKernel(
 	entries: readonly JournalEntry[],
 	options: ReplayKernelOptions = {}
 ): Promise<ReplayKernelResult> {
-	const sorted = [...entries].sort((a, b) => a.seq - b.seq);
+	// Without the recording store's unsaved-write warnings, everywhere the replay reads an entry: what it compares, what
+	// it answers from a record, and a nested answer (#861).
+	const sorted = entries.map(withoutUnsavedWarning).sort((a, b) => a.seq - b.seq);
 	// A replay stops at the first entry kept truncated (section 11): what it did is not in the journal.
 	const cut = sorted.findIndex(
 		(entry) => (entry as JournalEntry & { unreplayable?: unknown }).unreplayable === true
@@ -604,7 +608,7 @@ export async function replayKernel(
 			},
 		};
 		const report = withNestedProblems(
-			await replayJournal(target, ordered.map(withoutUnsavedWarning), {
+			await replayJournal(target, ordered, {
 				ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
 			}),
 			ordered,
