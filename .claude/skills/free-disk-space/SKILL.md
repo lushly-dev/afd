@@ -15,8 +15,9 @@ metadata:
 
 Development machines fill up with worktrees, Rust `target/` folders, `node_modules` and
 caches. An hourly job (`botcore disk-run`) keeps them in check; when space is short anyway,
-use the same commands it uses. Every one of them except `disk-reclaim --apply` and
-`disk-setup` only reads.
+use the same commands it uses. `disk-report` and `disk-status` only read. `disk-reclaim`
+without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, `disk-run`
+(which applies a reclaim when one is due) and `disk-setup` make changes.
 
 ## When space is short
 

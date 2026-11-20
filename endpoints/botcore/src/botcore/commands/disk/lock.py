@@ -1,42 +1,65 @@
-"""One disk-* run at a time per machine: an exclusive lock file with the holder's pid."""
+"""One disk-* run at a time per machine: a lock the operating system holds for the process.
+
+The lock file is never deleted. A run opens it and asks the kernel for an exclusive,
+non-blocking lock (`flock` on macOS and Linux, `msvcrt.locking` on Windows). The kernel drops
+it when the process exits however it exits, so there is no stale-lock guessing and no window in
+which two runs can both believe they hold it. The holder's pid is written in for people to read.
+"""
 
 from __future__ import annotations
 
 import json
 import os
 import socket
-import sys
 import time
 from pathlib import Path
-
-STALE_SECONDS = 6 * 3600
 
 
 class LockHeld(Exception):
     """Another live run holds the lock."""
 
 
-def pid_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    if sys.platform == "win32":
-        import ctypes
+def _try_lock(fd: int) -> bool:
+    if os.name == "nt":
+        import msvcrt
 
-        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError:
             return False
-        code = ctypes.c_ulong()
-        kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-        kernel32.CloseHandle(handle)
-        return code.value == 259  # STILL_ACTIVE
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
         return True
+    import fcntl
+
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
     return True
+
+
+def _unlock(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        return
+    import fcntl
+
+    fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+def holder(path: Path) -> dict:
+    """What the last holder wrote into the lock file (for messages only)."""
+    try:
+        text = path.read_text(encoding="utf-8").strip("\0 \n")
+        return json.loads(text) if text else {}
+    except (OSError, ValueError):
+        return {}
 
 
 class RunLock:
@@ -44,37 +67,30 @@ class RunLock:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.held = False
+        self.fd: int | None = None
 
-    def _take(self) -> bool:
-        try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError:
-            return False
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump({"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()}, handle)
-        self.held = True
-        return True
-
-    def _stale(self) -> bool:
-        try:
-            holder = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return True
-        too_old = time.time() - float(holder.get("at", 0)) > STALE_SECONDS
-        return too_old or not pid_alive(int(holder.get("pid", 0)))
+    @property
+    def held(self) -> bool:
+        return self.fd is not None
 
     def __enter__(self) -> RunLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self._take():
-            return self
-        if self._stale():
-            self.path.unlink(missing_ok=True)
-            if self._take():
-                return self
-        raise LockHeld(f"another disk run holds {self.path}")
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        if not _try_lock(fd):
+            os.close(fd)
+            who = holder(self.path)
+            detail = f" (pid {who['pid']} on {who.get('host', '?')})" if "pid" in who else ""
+            raise LockHeld(f"another disk run holds {self.path}{detail}")
+        self.fd = fd
+        record = json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()})
+        # Windows locks byte 0; write the record after it so the lock byte stays ours.
+        os.lseek(fd, 1, os.SEEK_SET)
+        os.write(fd, record.encode("utf-8") + b"\n")
+        os.ftruncate(fd, 1 + len(record) + 1)
+        return self
 
     def __exit__(self, *_exc: object) -> None:
-        if self.held:
-            self.path.unlink(missing_ok=True)
-            self.held = False
+        if self.fd is not None:
+            _unlock(self.fd)
+            os.close(self.fd)
+            self.fd = None

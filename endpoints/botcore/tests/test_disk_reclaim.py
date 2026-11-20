@@ -50,7 +50,7 @@ def test_a_dry_run_changes_nothing(repo: dict[str, Path], state: Path) -> None: 
     assert [Path(a["target"]).relative_to(repo["old"]).as_posix() for a in strips] == ["dist"]
     assert strips[0]["outcome"] == "planned"
     assert (repo["old"] / "dist" / "bundle.js").exists()
-    assert Path(data["receipt"]).name.endswith("-dry.json")
+    assert "-dry-" in Path(data["receipt"]).name
     assert "last_dry_run" in json.loads((state / "status.json").read_text())
 
 
@@ -127,7 +127,7 @@ def test_low_space_strips_pressure_patterns_and_younger_output(
     two_days = time.time() - 2 * 86400
     age_worktree(repo["main"], fresh)
     admin = Path(git(fresh, "rev-parse", "--absolute-git-dir").strip())
-    for name in ("HEAD", "index", "logs/HEAD"):
+    for name in ("HEAD", "index", "logs/HEAD", "ORIG_HEAD", "FETCH_HEAD"):
         age(admin / name, two_days)
     for child in fresh.iterdir():
         age(child, two_days)

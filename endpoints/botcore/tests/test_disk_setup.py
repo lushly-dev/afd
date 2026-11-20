@@ -37,6 +37,7 @@ def test_settings_toml_round_trips() -> None:
     settings = MachineSettings(
         repos=["/a b/repo", 'C:\\x\\"y"'],
         strip_after_days=2.5,
+        tools={"git": "/usr/bin/git", "pnpm": "C:\\Program Files\\pnpm.cmd"},
         volume=[{"mount": "/Volumes/Dev", "id": "UUID-1", "low_space_gb": 80}],
         aged=[{"path": "/Volumes/Dev/cache/*", "max_age_days": 7}],
     )
@@ -106,7 +107,8 @@ def test_the_job_only_reclaims_when_due(
     assert run(setup.disk_run())["ran"] is False  # ran a moment ago
     assert run(setup.disk_run(force=True))["ran"] is True
     assert [c["apply"] for c in calls] == [True, True]
-    assert json.loads((state / "status.json").read_text())["last_check"]
+    assert json.loads((state / "check.json").read_text())["last_check"]
+    assert "last_check" not in json.loads((state / "status.json").read_text())
 
 
 def test_the_job_notifies_once_while_space_stays_low(

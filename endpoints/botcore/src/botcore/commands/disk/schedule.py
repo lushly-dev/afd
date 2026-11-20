@@ -12,6 +12,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -69,9 +70,12 @@ def _macos_install(exe: str, logs: Path, path_env: str) -> ScheduleState:
     domain = f"gui/{os.getuid()}"
     _run(["launchctl", "bootout", domain, str(plist)])
     done = _run(["launchctl", "bootstrap", domain, str(plist)])
-    if done.returncode != 0:
-        return ScheduleState("macos", False, str(plist), done.stderr.strip()[:300])
-    return ScheduleState("macos", True, str(plist))
+    for _attempt in range(10):  # bootout of a running job finishes asynchronously
+        if done.returncode == 0:
+            return ScheduleState("macos", True, str(plist))
+        time.sleep(0.5)
+        done = _run(["launchctl", "bootstrap", domain, str(plist)])
+    return ScheduleState("macos", False, str(plist), done.stderr.strip()[:300])
 
 
 def _macos_uninstall() -> ScheduleState:
@@ -187,15 +191,34 @@ def _linux_install(exe: str, path_env: str) -> ScheduleState:
         done = _run(["systemctl", "--user", "enable", "--now", "botcore-disk.timer"])
         if done.returncode == 0:
             return ScheduleState("linux", True, str(timer))
+        timer.unlink(missing_ok=True)  # fall back to cron without leaving half a unit behind
+        service.unlink(missing_ok=True)
+        _run(["systemctl", "--user", "daemon-reload"])
     command = " ".join(_quote(a) for a in job_command(exe))
     line = f"17 * * * * PATH={_quote(path_env)} {command} {CRON_MARK}"
-    current = _run(["crontab", "-l"]).stdout if shutil.which("crontab") else None
+    current = read_crontab()
     if current is None:
-        return ScheduleState("linux", False, None, "neither systemd --user nor crontab exists")
+        return ScheduleState("linux", False, None,
+                             "no systemd --user, and the crontab could not be read")
     lines = [ln for ln in current.splitlines() if not ln.endswith(CRON_MARK)] + [line]
     done = _run(["crontab", "-"], stdin="\n".join(lines) + "\n")
     detail = done.stderr.strip()[:300] or None
     return ScheduleState("linux", done.returncode == 0, "crontab", detail)
+
+
+def read_crontab() -> str | None:
+    """The user's crontab: "" when they have none, None when it could not be read.
+
+    A failed read must never be taken as an empty table: writing back would erase every job.
+    """
+    if not shutil.which("crontab"):
+        return None
+    done = _run(["crontab", "-l"])
+    if done.returncode == 0:
+        return done.stdout
+    if "no crontab" in (done.stderr or "").lower():
+        return ""
+    return None
 
 
 def _linux_uninstall() -> ScheduleState:
@@ -205,11 +228,10 @@ def _linux_uninstall() -> ScheduleState:
         timer.unlink(missing_ok=True)
         service.unlink(missing_ok=True)
         _run(["systemctl", "--user", "daemon-reload"])
-    if shutil.which("crontab"):
-        current = _run(["crontab", "-l"]).stdout
-        if CRON_MARK in current:
-            lines = [ln for ln in current.splitlines() if not ln.endswith(CRON_MARK)]
-            _run(["crontab", "-"], stdin="\n".join(lines) + ("\n" if lines else ""))
+    current = read_crontab()
+    if current and CRON_MARK in current:
+        lines = [ln for ln in current.splitlines() if not ln.endswith(CRON_MARK)]
+        _run(["crontab", "-"], stdin="\n".join(lines) + ("\n" if lines else ""))
     return ScheduleState("linux", False, None)
 
 
@@ -218,7 +240,7 @@ def _linux_state() -> ScheduleState:
     if timer.exists():
         enabled = _run(["systemctl", "--user", "is-enabled", "botcore-disk.timer"]).returncode == 0
         return ScheduleState("linux", enabled, str(timer))
-    if shutil.which("crontab") and CRON_MARK in _run(["crontab", "-l"]).stdout:
+    if CRON_MARK in (read_crontab() or ""):
         return ScheduleState("linux", True, "crontab")
     return ScheduleState("linux", False, None)
 

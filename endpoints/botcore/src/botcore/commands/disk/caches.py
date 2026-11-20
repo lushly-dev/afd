@@ -26,69 +26,88 @@ def _tool_out(args: list[str], cwd: Path | None) -> str | None:
     return out if done.returncode == 0 and out else None
 
 
-def pnpm_link_mode(checkouts: list[Path]) -> str:
-    """How pnpm put packages into these checkouts: "hardlink", "clone-or-copy" or "unknown".
+def _sample_mode(checkout: Path) -> str:
+    """How pnpm put packages into one checkout: "hardlink", "clone-or-copy" or "unknown".
 
     `pnpm store prune` deletes every store file with one link, taking it to mean no project
     uses it. Clones and copies always have one link, so prune is only safe with hard links.
     """
-    for checkout in checkouts:
-        store = checkout / "node_modules" / ".pnpm"
-        if not store.is_dir():
+    store = checkout / "node_modules" / ".pnpm"
+    if not store.is_dir():
+        return "unknown"
+    seen = 0
+    for package_json in store.glob("*/node_modules/*/package.json"):
+        try:
+            links = package_json.stat().st_nlink
+        except OSError:
             continue
-        seen = 0
-        for package_json in store.glob("*/node_modules/*/package.json"):
-            try:
-                links = package_json.stat().st_nlink
-            except OSError:
-                continue
-            if links > 1:
-                return "hardlink"
-            seen += 1
-            if seen >= 20:
-                return "clone-or-copy"
-        if seen:
-            return "clone-or-copy"
-    return "unknown"
+        if links > 1:
+            return "hardlink"
+        seen += 1
+        if seen >= 20:
+            break
+    return "clone-or-copy" if seen else "unknown"
+
+
+def pnpm_link_mode(checkouts: list[Path]) -> str:
+    """The link mode across checkouts: "hardlink" only if every sampled one hard-links."""
+    modes = {_sample_mode(c) for c in checkouts} - {"unknown"}
+    if not modes:
+        return "unknown"
+    return "hardlink" if modes == {"hardlink"} else "clone-or-copy"
 
 
 def pnpm_store_dir(checkouts: list[Path]) -> str | None:
-    """The store an install used, from its node_modules/.modules.yaml.
+    """The store the first of these checkouts' installs used, from node_modules/.modules.yaml.
 
     Read from the install's own record rather than `pnpm store path`, which writes probe files.
     """
     for checkout in checkouts:
-        manifest = checkout / "node_modules" / ".modules.yaml"
-        try:
-            text = manifest.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        for line in text.splitlines():
-            key, _, value = line.partition(":")
-            if key.strip() == "storeDir" and value.strip():
-                return value.strip().strip("'\"")
+        found = _store_of(checkout)
+        if found:
+            return found
     return None
 
 
-def _pnpm(repos: list[Path], deadline: float) -> dict | None:
-    store = pnpm_store_dir(repos)
-    if store is None:
+def _store_of(checkout: Path) -> str | None:
+    manifest = checkout / "node_modules" / ".modules.yaml"
+    try:
+        text = manifest.read_text(encoding="utf-8")
+    except OSError:
         return None
-    mode = pnpm_link_mode(repos)
-    row = {
-        "name": "pnpm",
-        "path": store,
-        "bytes": allocated(Path(store), deadline),
-        "link_mode": mode,
-        "action": "pnpm store prune" if mode == "hardlink" else None,
-        "reclaimable_bytes": None,
-    }
-    if mode != "hardlink":
-        row["note"] = (
-            "not pruned: packages are cloned or copied, so pnpm store prune would empty the "
-            "whole store" if mode == "clone-or-copy" else "not pruned: link mode unknown"
-        )
-    return row
+    for line in text.splitlines():
+        key, _, value = line.partition(":")
+        if key.strip() == "storeDir" and value.strip():
+            return value.strip().strip("'\"")
+    return None
+
+
+def _pnpm(checkouts: list[Path], deadline: float) -> list[dict]:
+    """One row per store, judged only from the checkouts that use that store."""
+    by_store: dict[str, list[Path]] = {}
+    for checkout in checkouts:
+        store = _store_of(checkout)
+        if store:
+            by_store.setdefault(store, []).append(checkout)
+    rows = []
+    for store, users in by_store.items():
+        mode = pnpm_link_mode(users)
+        row = {
+            "name": "pnpm",
+            "path": store,
+            "cwd": str(users[0]),
+            "bytes": allocated(Path(store), deadline),
+            "link_mode": mode,
+            "action": "pnpm store prune" if mode == "hardlink" else None,
+            "reclaimable_bytes": None,
+        }
+        if mode != "hardlink":
+            row["note"] = (
+                "not pruned: packages are cloned or copied, so pnpm store prune would empty the "
+                "whole store" if mode == "clone-or-copy" else "not pruned: link mode unknown"
+            )
+        rows.append(row)
+    return rows
 
 
 def _uv(deadline: float) -> dict | None:
@@ -134,18 +153,16 @@ def report_caches(settings: MachineSettings, repos: list[Path], deadline: float)
     """One row per cache in the machine settings' `caches` list."""
     makers = {
         "pnpm": lambda: _pnpm(repos, deadline),
-        "uv": lambda: _uv(deadline),
-        "playwright": lambda: _playwright(deadline),
+        "uv": lambda: [r for r in [_uv(deadline)] if r],
+        "playwright": lambda: [r for r in [_playwright(deadline)] if r],
     }
-    rows = []
+    rows: list[dict] = []
     for name in settings.caches:
         maker = makers.get(name)
         if maker is None:
             rows.append({"name": name, "error": "unknown cache name"})
             continue
-        row = maker()
-        if row is not None:
-            rows.append(row)
+        rows += maker()
     return rows
 
 

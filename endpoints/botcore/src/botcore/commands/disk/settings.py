@@ -58,6 +58,9 @@ class MachineSettings(BaseModel):
     worktree_roots: list[str] = []
     # T3 Code's settings.json; None = the default location, "" = don't read it
     t3_settings: str | None = None
+    # Absolute paths of the tools the scheduled job runs (git, pnpm, uv, gh, node), recorded
+    # by setup because a scheduler does not start jobs with the user's shell PATH
+    tools: dict[str, str] = {}
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 

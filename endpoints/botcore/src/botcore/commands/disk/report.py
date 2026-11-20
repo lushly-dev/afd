@@ -412,6 +412,16 @@ def _repos(settings: MachineSettings, repo: str | None) -> list[Path]:
     return [Path.cwd()]
 
 
+def _unique(paths: list[Path]) -> list[Path]:
+    seen: set[str] = set()
+    out = []
+    for path in paths:
+        if path_key(path) not in seen:
+            seen.add(path_key(path))
+            out.append(path)
+    return out
+
+
 def _all_checkouts(repos: list[Path]) -> list[Path]:
     paths: list[Path] = []
     for repo in repos:
@@ -554,7 +564,7 @@ def build_report(
     protected = [Path(w["path"]) for r in repo_rows for w in r.get("worktrees", [])]
     protected += [Path(r["git_common_dir"]) for r in repo_rows if r.get("git_common_dir")]
     protected += ctx.t3_roots
-    cache_rows = cache_mod.report_caches(settings, repos, ctx.deadline)
+    cache_rows = cache_mod.report_caches(settings, _unique(list(repos) + checkouts), ctx.deadline)
     aged_rows = cache_mod.report_aged(settings, ctx.now, ctx.deadline, protected, ctx.processes)
     data = {
         "processes": {
