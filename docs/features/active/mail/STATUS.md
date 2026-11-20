@@ -123,7 +123,7 @@ waits for Gmail has a line of its own.
 
 - D2, the Gmail half. Not started. It waits for step B6 (the owner deferred the Gmail steps on 2026-11-14).
 
-- D3, first of three pull requests: drafts with a revision, `mail-draft-create`, `-update`, `-discard`, `-restore`, `-list` and `-show`, and `mail-thread-snooze`, migration 15. In progress, [#PR](https://github.com/lushly-dev/afd/pull/PR).
+- D3, first of three pull requests: drafts with a revision, `mail-draft-create`, `-update`, `-discard`, `-restore`, `-list` and `-show`, and `mail-thread-snooze`, migration 15. Merged as [#1663](https://github.com/lushly-dev/afd/pull/1663).
 
 - D3, second: `mail-draft-send` at the terminal, its recipient rule, SMTP, the sent copy and `outbound`, on a scripted SMTP server. Not started.
 
