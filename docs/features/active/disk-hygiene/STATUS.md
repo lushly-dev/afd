@@ -14,6 +14,23 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Hero, 2026-11-20 (#1685)
+
+- **Room to spare, same pattern.** C: has 2,754 GB free of 3,725, D: 1,669 of 3,726 and E: 2,347
+  of 5,589 (all NTFS). The 84 worktrees hold about 1.4 TB, about 95% of it Rust `target/`
+  folders in afd (`endpoints\umbel\target` alone is 83 to 149 GB per copy); 12 afd worktrees are
+  over 50 GB. Lushly's 29 worktrees hold 35 GB.
+- **Where things live.** T3 Code's `worktreesDirectory` is `D:\Github\worktrees` (77 worktrees).
+  Five afd worktrees sit under `C:\Users\falki\afd\.claude\worktrees`, inside the main
+  checkout; one of them holds 150 GB. No Cargo `build-dir` or shared target is set.
+- **pnpm** keeps its store at `D:\pnpm-store\v10` (1.9 GB) with the default import method, so
+  the worktrees on D: hard-link to it and a prune is meaningful there.
+- **Windows settings.** `core.longpaths` is on in git but `LongPathsEnabled` is 0, so the
+  deletion code's long-path syntax matters. `%TEMP%` holds 32 GB. No scheduled cleanup exists.
+- **disk-report ran** read-only in 19 s on 56 afd worktrees, and the botcore suite passed on
+  Windows 11 (907 passed). It showed that worktrees on D: were not watched as a volume, now
+  fixed.
+
 ### Wave 0 on the MacBook Air, 2026-11-20 (#1685)
 
 - **Relief.** Deleted the Rust `target/` folders of the 18 afd worktrees registered in
@@ -35,11 +52,11 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   plus compact archives without build output (~7 GiB), git bundles (~1 GiB per run) and two
   older runs (~26 and ~27 GiB). What to keep is
   [#1687](https://github.com/lushly-dev/afd/issues/1687).
-- **Hero** is surveyed in a separate run; its findings get their own section here.
+- **Hero** was surveyed the same day; see its section above.
 
 ## Phase 0. Relief and facts
 
-- Free space on the Air and settle the facts (#1685): relief, T3 Code and pnpm done; Hero survey in progress.
+- Free space on the Air and settle the facts (#1685): done 2026-11-20; findings above.
 
 - T3 Code's storage cleanup on each machine (#1686): waiting for the owner.
 
