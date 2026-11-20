@@ -164,6 +164,8 @@ export function pressKey<T extends { chord: string }>(
 	if (!hit) return { kind: 'none' };
 	const [first, then] = chordsOf(hit.chord);
 	if (then === undefined) return { kind: 'run', binding: hit };
+	// A repeat starts no wait, past a deadline too: only a fresh press does (the third round's E).
+	if (event.repeat) return { kind: 'none' };
 	return { kind: 'wait', pending: { first: first as string, until: now + SEQUENCE_WAIT_MS } };
 }
 

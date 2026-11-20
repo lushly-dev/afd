@@ -142,6 +142,33 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 		);
 	});
 
+	it("leaves out of the winner an earlier override no chord runs (the third round's G)", () => {
+		const stored = [
+			{ command: 'ghost-gone', keys: 'Mod+Shift+L' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+M' },
+		];
+		const listed = [
+			{ keys: 'Mod+Shift+L', command: 'ghost-gone', source: 'you' as const, active: false },
+			{
+				keys: 'Mod+Shift+M',
+				command: 'section-open',
+				target: 'projects',
+				source: 'you' as const,
+				active: true,
+			},
+		];
+		// Editing the second onto the first's keys: the first is not in force, so this one is the binding that runs.
+		expect(
+			overrideWarning(
+				{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
+				listed,
+				stored
+			)
+		).toBe(
+			'Mod+Shift+L is yours too, for ghost-gone, not in force now; this binding would be the one in force.'
+		);
+	});
+
 	it('refuses keys never bound, and a sequence that begins on a reserved chord or without Mod (8.1)', () => {
 		expect(keysRefused(null)).toBeUndefined();
 		expect(keysRefused('Mod+G P')).toBeUndefined();

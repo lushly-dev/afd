@@ -163,7 +163,13 @@ export interface KeybindingResolverV1 {
 
 /** What `late-settings` tells the registry with the resolver: whom the shell is for, and what a command is. */
 export interface KeybindingSourceV1 {
+	/** Whom the shell is for: the settled person. */
 	person(): string | undefined;
+	/**
+	 * Whom the adapter names now, which may be ahead of the settle while it reads a membership (the third round's A):
+	 * the keys are not ready until the two agree.
+	 */
+	adapter?(): string | undefined;
 	info: KeybindingInfoV1;
 }
 
@@ -240,7 +246,13 @@ export function createKeybindings(
 	});
 	/** The overrides of the person the shell is for now, or undefined while they are not known. */
 	const mine = (): KeybindingOverrideV1[] | undefined =>
-		resolver && source && readFor !== UNREAD && readFor === source.person() ? overrides : undefined;
+		resolver &&
+		source &&
+		readFor !== UNREAD &&
+		readFor === source.person() &&
+		(source.adapter === undefined || source.adapter() === readFor)
+			? overrides
+			: undefined;
 	/** Phase 1's chords: the reserved band, then the active app's with no `when`. */
 	const phaseOne = (active: string | null): KeybindingInForceV1[] => [
 		...shell.map((binding) => ({ ...binding })),

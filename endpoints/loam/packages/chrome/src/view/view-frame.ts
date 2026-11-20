@@ -161,8 +161,9 @@ export class LoamViewFrame extends FASTElement {
 	declare state: 'loading' | 'ready' | 'failed';
 	declare failure: ViewFrameFailure | null;
 	/**
-	 * The editor frame's answer to this view's own save request (documents specification, 5.6): a private callback, set
-	 * only on a document's editor, never an embed's, and never a public event (step 7's R6 and re-check, 2).
+	 * The editor frame's answer to this view's own save request (documents specification, 5.6): a callback, set only on
+	 * a document's editor, never an embed's, and never an event (step 7's R6 and re-check, 2; a same-page script is
+	 * D54's, R10).
 	 */
 	onSaveRequest: (() => void) | undefined;
 	#options: ViewFrameOptions | null = null;

@@ -416,6 +416,15 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 						},
 					},
 					'a-free': { mutation: false, inputSchema: { type: 'object', properties: {} } },
+					// `{}` meets both branches, so a `oneOf` refuses it, which the shape alone cannot see (the third round's F).
+					'a-either': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: {},
+							oneOf: [{ type: 'object' }, { type: 'object' }],
+						},
+					},
 				}),
 		});
 		await kernel.startInstances();
@@ -425,12 +434,15 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		const names = data?.commands.map(({ name }) => name) ?? [];
 		const needs = names.find((name) => name.endsWith('needs')) as string;
 		const free = names.find((name) => name.endsWith('free')) as string;
+		const either = names.find((name) => name.endsWith('either')) as string;
+
 		const written = await kernel.call('setting-set', {
 			section: 'loam.keybindings',
 			key: 'overrides',
 			value: [
 				{ command: needs, keys: 'Mod+Shift+N' },
 				{ command: free, keys: 'Mod+Shift+F' },
+				{ command: either, keys: 'Mod+Shift+E' },
 			],
 			level: 'person',
 		});
@@ -441,6 +453,9 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		expect(listed.data?.bindings.find(({ command }) => command === needs)).toMatchObject({
 			active: false,
 			app: 'work',
+		});
+		expect(listed.data?.bindings.find(({ command }) => command === either)).toMatchObject({
+			active: false,
 		});
 		expect(listed.data?.bindings.find(({ command }) => command === free)).toMatchObject({
 			active: true,

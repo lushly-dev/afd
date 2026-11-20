@@ -1043,8 +1043,9 @@ export class LoamShell extends FASTElement {
 	#saver: ((path: readonly EventTarget[], repeat: boolean) => boolean) | undefined;
 
 	/**
-	 * The editor area's answer to save's chord: a private callback, never a public event a script could send (step 7's
-	 * R6). The shell resolves each key once, and asks the area only when save's binding wins.
+	 * The editor area's answer to save's chord: a callback, never an event a frame's script could send (step 7's R6;
+	 * a same-page script is D54's, R10). The shell resolves each key once, and asks the area only when save's binding
+	 * wins.
 	 */
 	answerSave(saver: (path: readonly EventTarget[], repeat: boolean) => boolean): void {
 		this.#saver = saver;

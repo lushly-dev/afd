@@ -602,3 +602,86 @@ describe("P4-E9: step 7's re-check", () => {
 		await context.close();
 	});
 });
+
+describe("P4-E9: step 7's third round", () => {
+	const stored = async (page: Page, document: string) =>
+		((await agentCall(page, 'notes-content-get', { document })) as { data?: { text: string } }).data
+			?.text;
+
+	it("B, R9: holds Mod+S while the person's settings cannot be read, saves nothing, and says the keys are not ready", async () => {
+		const context = await browser.newContext();
+		// The person's settings record fails to read once `__failSettings` is set, as a broken store would.
+		await context.addInitScript(() => {
+			const get = IDBObjectStore.prototype.get;
+			IDBObjectStore.prototype.get = function (
+				this: IDBObjectStore,
+				key: IDBValidKey | IDBKeyRange
+			) {
+				const held = (window as unknown as { __failSettings?: boolean }).__failSettings;
+				if (
+					held &&
+					Array.isArray(key) &&
+					key[0] === 'settings' &&
+					String(key[1]).startsWith('loam.settings')
+				)
+					throw new DOMException('The store failed', 'UnknownError');
+				return get.call(this, key);
+			};
+		});
+		const opened = await openShell(browser, editors.origin, {}, context);
+		const { page } = opened;
+		const note = await createNote(page, 'Held');
+		await open(page, note);
+		await typeInto(page, 't1', 'Not while the keys are unknown');
+		const before = await stored(page, note);
+		await page.evaluate(() => {
+			(window as unknown as { __failSettings: boolean }).__failSettings = true;
+		});
+		// A sign-in changes the person, whose overrides then cannot be read.
+		await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'x',
+		});
+		await page.evaluate(() =>
+			window.addEventListener('keydown', (event) => {
+				(window as unknown as { prevented: boolean }).prevented = event.defaultPrevented;
+			})
+		);
+		await page.keyboard.press('ControlOrMeta+KeyS');
+		expect(await page.evaluate(() => (window as unknown as { prevented: boolean }).prevented)).toBe(
+			true
+		);
+		await expect
+			.poll(() =>
+				page
+					.locator('loam-toast[message="Your keys are not ready yet. Try again in a moment."]')
+					.count()
+			)
+			.toBe(1);
+		expect(await stored(page, note)).toBe(before);
+		await context.close();
+	});
+
+	it("Opus 2: the palette's listbox chooses nothing on a script's Enter or Space", async () => {
+		const { page } = await openShell(browser, site.origin);
+		await page.keyboard.press('ControlOrMeta+K');
+		await expect.poll(() => paletteOpen(page)).toBe(true);
+		await page.locator('loam-palette input').fill('close the palette');
+		await settle(page);
+		for (const key of ['Enter', ' ']) {
+			await page.evaluate((key) => {
+				const palette = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-palette');
+				const listbox = palette?.shadowRoot?.querySelector('violet-listbox');
+				listbox?.shadowRoot
+					?.querySelector('[role="listbox"]')
+					?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+			}, key);
+			await settle(page);
+			expect(await paletteOpen(page), key).toBe(true);
+		}
+		await page.close();
+	});
+});

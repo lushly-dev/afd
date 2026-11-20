@@ -437,6 +437,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * held save and its notice, the prefix cleared in the capture phase, the matcher's repeats and AltGr, and the kernel's
  * readiness states); `kernelMinified` 124,300 to 125,000 (124,503); `switcherMinified` 11,317 to 11,600 (11,445: the
  * guard on the listbox); `settingsMinified` 46,400 to 46,900 (46,410: the warnings by the list's order).
+ * After step 7's third round (the adapter's person in readiness, the shell's toast with unreadable preferences, the
+ * retry stopped on dispose, `oneOf` eligibility): first paint 317,050 and 99,602 gzip, within its rows; `late` 110,968
+ * of 111,000; `lateSettingsMinified` 74,200 to 74,800 (74,324: the toast's default preferences and the retry's stop).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -492,7 +495,7 @@ export const CEILINGS = Object.freeze({
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
-	lateSettingsMinified: 74_200,
+	lateSettingsMinified: 74_800,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,

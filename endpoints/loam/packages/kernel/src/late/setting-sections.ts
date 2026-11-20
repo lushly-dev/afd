@@ -282,7 +282,7 @@ export function usableOverrides(value: unknown): { kept: KeybindingOverrideV1[];
 	const kept: KeybindingOverrideV1[] = [];
 	const seen = new Set<string>();
 	for (const item of value) {
-		if (kept.length >= 64 || overridesProblem([item]) !== undefined) continue;
+		if (kept.length >= SHELL_LIST_MAX || overridesProblem([item]) !== undefined) continue;
 		const { command, target } = item as KeybindingOverrideV1;
 		const binding = JSON.stringify([command, target ?? null]);
 		if (seen.has(binding)) continue;

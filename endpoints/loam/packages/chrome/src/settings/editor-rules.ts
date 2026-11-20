@@ -187,10 +187,13 @@ export function overrideWarning(
 					!binding.active
 			);
 			const note = idle ? ', not in force now' : '';
+			// The resolver passes over an override no chord runs, so an earlier one that is not in force never wins.
 			said.push(
-				yours < at
-					? `${other.keys} is already yours, for ${nameOf(other)}${note}, which would win: this binding would be shadowed.`
-					: `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding comes first and would shadow it.`
+				yours < at && !idle
+					? `${other.keys} is already yours, for ${nameOf(other)}, which would win: this binding would be shadowed.`
+					: yours < at
+						? `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding would be the one in force.`
+						: `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding comes first and would shadow it.`
 			);
 		} else if (!kept) {
 			const hit = bindings.find(

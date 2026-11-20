@@ -77,7 +77,9 @@ describe('the built shell', () => {
 		await opened.context.close();
 	});
 
-	it('paints with the late chunk held, and runs a chord pressed before it answers', async () => {
+	// Amended by phase 4's step 7 (its 8.3, R9): a chord pressed before the person's overrides are known runs nothing,
+	// so the palette opens on a fresh press once they are, never on the early one.
+	it('paints with the late chunk held, runs no chord pressed before it answers, and one pressed after', async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 		let release: () => void = () => {};
 		const held = new Promise<void>((resolve) => {
@@ -101,6 +103,15 @@ describe('the built shell', () => {
 		};
 		expect(await page.evaluate(paletteOpen)).toBe(false);
 		release();
+		// Ready: the keybindings list more than F6, Shift+F6 and the held save.
+		await page.waitForFunction(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel?: { listKeybindings(): Array<{ chord: string }> };
+			};
+			return (shell.kernel?.listKeybindings() ?? []).some(({ chord }) => chord === 'Mod+K');
+		});
+		expect(await page.evaluate(paletteOpen)).toBe(false);
+		await page.keyboard.press('ControlOrMeta+K');
 		await page.waitForFunction(paletteOpen);
 		expect(errors).toEqual([]);
 		await context.close();

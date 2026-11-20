@@ -136,6 +136,28 @@ export type LateCommandDeps = ShellCommandDeps &
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
 
 /**
+ * Whether `{}` meets two branches of a `oneOf` somewhere in `schema`, which a `oneOf` then refuses, though the shape
+ * alone says no input is needed (manifest `needs-input.test.ts`): a mounted command's schema meets no rule against it,
+ * so a chord leaves such a command alone (phase 4 specification, 8.3; the third round's F).
+ */
+function oneOfMetTwice(schema: unknown): boolean {
+	if (typeof schema !== 'object' || schema === null) return false;
+	const { oneOf, anyOf, allOf } = schema as {
+		oneOf?: unknown[];
+		anyOf?: unknown[];
+		allOf?: unknown[];
+	};
+	const empty = (branch: unknown) => {
+		const shape = branch as { required?: unknown[]; minProperties?: number } | null;
+		return !(Number(shape?.required?.length) > 0 || Number(shape?.minProperties) > 0);
+	};
+	if (Array.isArray(oneOf) && oneOf.filter(empty).length > 1) return true;
+	return [oneOf, anyOf, allOf].some(
+		(branches) => Array.isArray(branches) && branches.some(oneOfMetTwice)
+	);
+}
+
+/**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
  * agent's in process, never a server's, which holds no active scope (phase 2 specification, 3.3).
  */
@@ -534,6 +556,8 @@ export async function createLateParts(
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
 	deps.viewState.destroy = () => {
 		sessions?.stop();
+		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
+		settings?.stop();
 		return destroy();
 	};
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
@@ -868,6 +892,7 @@ export async function createLateParts(
 	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
 	deps.keybindings?.setResolver(KEYBINDING_RESOLVER, {
 		person: shellPerson,
+		adapter: () => personKey(sessionActor(deps.auth, deps.clock)),
 		info(command, target) {
 			const app = deps.apps().owners.get(command)?.instance;
 			const definition =
@@ -886,7 +911,9 @@ export async function createLateParts(
 				definition !== undefined &&
 				definition.expose?.palette !== false &&
 				(mounted
-					? deps.needsInput !== undefined && !deps.needsInput(definition.jsonSchema)
+					? deps.needsInput !== undefined &&
+						!deps.needsInput(definition.jsonSchema) &&
+						!oneOfMetTwice(definition.jsonSchema)
 					: z.safeParse(definition.inputSchema as z.ZodMiniType, input).success);
 			return { runnable, ...(app !== undefined ? { app } : {}) };
 		},

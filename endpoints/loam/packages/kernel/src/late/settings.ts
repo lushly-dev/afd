@@ -31,6 +31,7 @@ import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { DocumentKit } from './document-kit.js';
 import { enforcedLimits, LIMIT_KEY_ORDER, LIMITS_SECTION_ID } from './limit-commands.js';
+import { createOverridesReader } from './setting-overrides.js';
 import {
 	checkKnownValue,
 	isHumanGesture,
@@ -45,7 +46,7 @@ import {
 	sharedRecordUnavailable,
 	writerOf,
 } from './setting-rules.js';
-import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS, usableOverrides } from './setting-sections.js';
+import { OWN_COMMAND_SECTIONS, SHELL_SECTIONS } from './setting-sections.js';
 import type { SettingRows } from './shell-commands.js';
 
 export { createAutonomy } from './autonomy.js';
@@ -214,6 +215,8 @@ export interface Settings {
 	readLimits(): Promise<void>;
 	/** Read the person's `loam.keybindings.overrides` into the kernel's keybindings (8.3). */
 	readOverrides(): Promise<void>;
+	/** The kernel is disposed: the overrides' retry and any read in flight end (the third round's improvement). */
+	stop(): void;
 	ownValue(
 		section: string,
 		key: string,
@@ -660,50 +663,21 @@ export function createSettings(deps: SettingsDeps): Settings {
 			: undefined;
 	}
 
-	/** The person the overrides were last read for, and each read's number: a read overtaken sets nothing. */
-	let reading = 0;
-
-	/** A failed read's next try, and how long it waits: from half a second, doubling to 30 seconds (R9). */
-	let retry: ReturnType<typeof setTimeout> | undefined;
-	let retryMs = 500;
-	/** The person the overrides were last read for: a change of person reads again, even when the record is the same. */
-	let overridesFor: string | undefined | null = null;
-
-	/**
-	 * The person's `loam.keybindings.overrides`, read into the kernel's keybindings (8.3): at the late load, after each
-	 * write of the section and on a change of person, the adapter's own included (`session-settle`). Signed out in
-	 * `provider` mode, none. Entries a newer rule refuses are dropped and counted, the rest kept (the re-check's 8). A
-	 * read that fails keeps what the registry holds for the same person only, and is tried again with backoff (R9);
-	 * until it lands, the registry, which compares whom it holds them for with whom the shell is for, dispatches only
-	 * the focus chords.
-	 */
-	async function readOverrides(): Promise<void> {
-		const registry = deps.keybindings;
-		if (!registry) return;
-		const person = deps.person();
-		overridesFor = person;
-		const generation = ++reading;
-		clearTimeout(retry);
-		retry = undefined;
-		if (deps.provider && person === undefined) {
-			registry.setOverrides([], person);
-			return;
-		}
-		const known = SHELL_SECTIONS.find((entry) => entry.fullId === KEYBINDINGS_ID) as KnownSectionV1;
-		const record = await readRecord(deps.recordId(person ?? 'local')).catch(() => undefined);
-		if (generation !== reading || deps.person() !== person) return;
-		if (!record) {
-			if (!deps.replaying()) {
-				retry = setTimeout(() => void readOverrides(), retryMs);
-				retryMs = Math.min(retryMs * 2, 30_000);
-			}
-			return;
-		}
-		retryMs = 500;
-		const stored = storedOf(record[slotOf(known)]?.overrides);
-		const { kept, dropped } = usableOverrides(stored?.value);
-		registry.setOverrides(kept, person, dropped);
-	}
+	/** The person's overrides, read into the kernel's keybindings (8.3; `setting-overrides.ts`). */
+	const overrides = createOverridesReader({
+		keybindings: deps.keybindings,
+		person: () => deps.person(),
+		provider: deps.provider,
+		replaying: () => deps.replaying(),
+		async stored(person) {
+			const known = SHELL_SECTIONS.find(
+				(entry) => entry.fullId === KEYBINDINGS_ID
+			) as KnownSectionV1;
+			const record = await readRecord(deps.recordId(person ?? 'local'));
+			return storedOf(record[slotOf(known)]?.overrides)?.value;
+		},
+	});
+	const readOverrides = () => overrides.read();
 
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
 	async function readLimits(): Promise<void> {
@@ -1444,12 +1418,13 @@ export function createSettings(deps: SettingsDeps): Settings {
 				return previous;
 			}),
 		readOverrides,
+		stop: () => overrides.stop(),
 		async follow() {
 			const person = deps.person();
 			const id = deps.provider && person === undefined ? undefined : deps.recordId(person);
 			// The new person's own keybindings (8.3), whatever their appearance does: in `local` mode a sign-in keeps the
 			// record's id and changes the person the registry holds them for.
-			if (deps.person() !== overridesFor) await readOverrides();
+			await overrides.follow();
 			if (id === following) return;
 			if (id === undefined) {
 				// Signed out in `provider` mode: no one's own appearance; the page paints `.last` (3.6).

@@ -237,6 +237,19 @@ describe('sequences (8.1)', () => {
 		});
 	});
 
+	it("starts no wait on a repeat after the deadline: only a fresh press does (the third round's E)", () => {
+		const doubled = [{ chord: 'Mod+G P', command: 'hello-board' }];
+		const expired = { first: 'Mod+G', until: 2500 };
+		const held = key({ key: 'g', code: 'KeyG', ctrlKey: true, repeat: true });
+		expect(pressKey(held, false, doubled, expired, 3000)).toEqual({ kind: 'none' });
+		expect(pressKey(held, false, doubled, null, 3000)).toEqual({ kind: 'none' });
+		const fresh = key({ key: 'g', code: 'KeyG', ctrlKey: true });
+		expect(pressKey(fresh, false, doubled, expired, 3000)).toEqual({
+			kind: 'wait',
+			pending: { first: 'Mod+G', until: 3000 + SEQUENCE_WAIT_MS },
+		});
+	});
+
 	it('names no chord for a printable key AltGr makes, as Ctrl+Alt reports it on Windows (the re-check, 9)', () => {
 		const bindings = [{ chord: 'Mod+Alt+Q', command: 'hello-quote' }];
 		// A German layout's AltGr+Q types "@", and Windows reports AltGr as Ctrl and Alt both.

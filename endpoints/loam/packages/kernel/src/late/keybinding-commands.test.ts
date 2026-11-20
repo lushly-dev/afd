@@ -586,3 +586,128 @@ describe("step 7's reviews", () => {
 		expect(served).not.toContain('keybinding-list');
 	});
 });
+
+describe("step 7's third round", () => {
+	const PROVIDER: IdentityV1 = {
+		mode: 'provider',
+		organization: 'acme',
+		path: 'api/auth',
+		methods: ['passkey', 'password'],
+	};
+	const ADA = 'mock-user-ada@example.com';
+	const OLU = 'mock-user-olu@example.com';
+	const membership: MembershipV1 = {
+		mode: 'provider',
+		members: new Map([
+			[ADA, 'member'],
+			[OLU, 'owner'],
+		]),
+		digest: 'd1',
+	};
+	/** A store whose reads of one record fail while `failing` holds it, counting each read of it. */
+	class FailingStore extends MemoryAdapter {
+		failing: string | undefined;
+		reads = 0;
+		override async get<T>(table: string, id: string): Promise<T | null> {
+			if (table === 'settings' && id === this.failing) {
+				this.reads++;
+				throw new Error('the store failed');
+			}
+			return super.get<T>(table, id);
+		}
+	}
+	const providerKernel = async (store: DataAdapter, auth: MockAuthAdapter, ports = {}) => {
+		const clock = createSteppingClock();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock,
+			identity: PROVIDER,
+			membership,
+			identityPorts: ports as never,
+		});
+		kernels.push(kernel);
+		return kernel;
+	};
+
+	it('A: holds the keys unready while the adapter names a person the settle has not yet', async () => {
+		let release: () => void = () => {};
+		let held: Promise<void> | null = null;
+		const auth = new MockAuthAdapter();
+		const kernel = await providerKernel(new MemoryAdapter(), auth, {
+			readMembership: async () => {
+				if (held) await held;
+				return { role: 'owner', digest: 'd1' };
+			},
+		});
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'x',
+		});
+		await override(kernel, [{ command: 'palette-open', keys: 'Mod+Shift+K' }]);
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+		held = new Promise((resolve) => {
+			release = resolve;
+		});
+		// Another tab signs Olu in; the settle waits for Olu's membership.
+		auth._setUser({ id: OLU, email: 'olu@example.com', name: 'olu' });
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(kernel.listKeybindings().map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
+		expect(
+			kernel.listCommands().find(({ name }) => name === 'palette-open')?.keybinding
+		).toBeUndefined();
+		held = null;
+		release();
+		await expect
+			.poll(() => kernel.listKeybindings().map(({ chord }) => chord), { timeout: 5_000 })
+			.toContain('Mod+K');
+	});
+
+	it("B: shows the shell's own toast while the person's settings record cannot be read", async () => {
+		const store = new FailingStore();
+		const { kernel } = await workspace(store);
+		store.failing = 'loam.settings';
+		const shown = await kernel.call('toast-show', {
+			message: 'Your keys are not ready yet. Try again in a moment.',
+			tone: 'warning',
+		});
+		expect(shown.error).toBeUndefined();
+		const listed = await kernel.call<{ overlays: Array<{ kind: string }> }>('overlay-list');
+		expect(listed.data?.overlays.some(({ kind }) => kind === 'toast')).toBe(true);
+	});
+
+	it('the retry doubles its wait, and stops when the kernel is disposed', async () => {
+		const delays: number[] = [];
+		const real = globalThis.setTimeout;
+		const spy = (fn: () => void, ms?: number) => {
+			// The overrides reader's retry (`setting-overrides.ts`), by its callback's source.
+			if (String(fn).includes('void read()')) delays.push(ms ?? 0);
+			return real(fn, ms);
+		};
+		globalThis.setTimeout = spy as typeof setTimeout;
+		try {
+			const store = new FailingStore();
+			const { kernel } = await workspace(store);
+			store.failing = 'loam.settings';
+			// A sign-in changes the person, so the overrides are read again, and that read fails.
+			await kernel.call('auth-sign-in', {
+				method: 'credentials',
+				email: 'ada@example.com',
+				password: 'x',
+			});
+			await expect.poll(() => delays.length, { timeout: 4_000 }).toBeGreaterThanOrEqual(2);
+			expect(delays.slice(0, 2)).toEqual([500, 1000]);
+			await kernel.dispose();
+			const reads = store.reads;
+			await new Promise((resolve) => real(resolve, 2_500));
+			expect(store.reads).toBe(reads);
+		} finally {
+			globalThis.setTimeout = real;
+		}
+	});
+});
