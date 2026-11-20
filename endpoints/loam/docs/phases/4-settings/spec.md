@@ -2020,6 +2020,32 @@ Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's h
 
 **Measured after the fifth round,** D115, `palette-run` moved to `palette-run.ts` first to keep `confirmations.ts` within the size gate: first paint 314,747 and 98,653 gzip, `jsMinified` raised to 315,500 with `first-paint.test.ts`'s literal; `kernelMinified` 125,473, its row 126,000; `lateSettingsMinified` 93,273, its row 94,000. `budget.mjs` records each.
 
+**Sixth round,** 2026-11-19: two re-checks of `9f6b1286` (one approved, one "revise", eight blockers). Each fixed finding was shown first by a unit that fails on `9f6b1286` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise.
+
+**The coordinator's ruling R5, replay's scope:** `replayKernel` is a verification harness for tests, specimens and test pages. It never runs in the product and never reads a journal from outside, so robustness against a crafted or inconsistent journal is not a trust boundary. B2 (a recorded run's credit not bound to its act and run) and B3 (an entry whose `caller` and interface or actor disagree reaching the slot route) are filed as [#1656](https://github.com/lushly-dev/afd/issues/1656) and not fixed here. Replay of an honest journal must still match live exactly, so B4 and B7 are fixed.
+
+1. **B1, the person at the last check** (7.2): **confirmed** with the production wiring, not a hand-set `personNow`. In `provider` mode, while the shell waits on the new person's membership read, the adapter already reports them, and a held run went on as the old person. `personNow` now gives the settled person only while the adapter reports the same one, so a sign-in still settling is no one's yet and the run fails closed. The unit holds the run past its gates, signs Bea in with her read never answered, and the act ends declined, running nothing.
+2. **B4, the gesture's provenance** (7.2): **confirmed.**
+   - The overlays' `whenClosed` now also gives `byPerson`, as the close recorded it. The slot's answer keeps it until the run reads it, never reading it again from the overlays' history of 64 closes.
+   - Unit: a replayed slot answer read after 65 other closes still runs.
+3. **B5, a child's journal-safe outcome** (R4): **confirmed.** A palette fill of a mounted command journaled the whole result the command's own entry kept bounded to 256 KiB. The journal now keeps, privately and taken once, what each child's own entry kept, by the trace of the call that made it, and a confirmed run's by its confirmation. Each wrapper journals that outcome, failures included:
+   - `palette-run`'s result;
+   - `notification-act`'s action result or failure;
+   - `prompt-settle`'s `settle.result`.
+
+   With no child entry (an unjournaled action such as `notification-list`), the action's own rule applies as before. With neither, the act's result is dropped (Opus 4: a non-object result too). Unit in `mounted.test.ts`.
+4. **B6, the redaction fallback:** **confirmed.** It kept the handler's own code and message. It now keeps a fixed kernel diagnostic, `JOURNAL_REDACTION_FAILED`. The depth unit now asserts exactly where the bound falls: eight wrappers deep the innermost input is kept, nine deep it is dropped (Opus 5).
+5. **B7, the act's public result:** **confirmed** (a journal in step 5's shape diverged). `notification-act`'s result is step 5's again, `{ state, result }`. The action's command is the journal's private provenance (`noteAction`), never in the result.
+6. **B8, marks counted twice:** **confirmed.** `notification-read` and `-archive` now decide "already marked", and count, inside the person's chain, on the row as it stands there. Unit: two reads of one notice at once count once.
+7. **Opus 1 and 2, and Astra's improvement:** the slot's command check and key check each have a unit of their own: a key for another command, and the same command with another input. A replayed agent call carrying a slot's id takes the inbox's route.
+
+**The nits:**
+- `prompt-settle` checks its whole input before it writes: a `decline` and a `settle` each stand alone, and a `close` of anything but the palette's input prompt is refused first.
+- The declines' empty sets go.
+- Rail P2-E11's cleanup covers a failure during its setup.
+
+**Measured after the sixth round,** D115: first paint 315,994 and 99,048 gzip, `jsMinified` raised to 316,500 and `jsGzip` to 99,300, with `first-paint.test.ts`'s literal; `kernelMinified` 127,272, its row 127,800. `late` 113,670 and `late-settings` 93,887 are within their rows. `budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).

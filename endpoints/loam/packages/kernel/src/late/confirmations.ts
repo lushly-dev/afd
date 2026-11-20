@@ -206,7 +206,11 @@ interface SlotRecord {
 	key: string;
 	command: string;
 	/** The overlay's answer once it closed: its result and reason. */
-	answer?: { result: string; reason: string };
+	/**
+	 * The overlay's answer once it closed: its result, its reason, and whether it was the person's own gesture, kept here
+	 * until the run reads it, never read again from the overlays' bounded history (step 6's sixth round, B4).
+	 */
+	answer?: { result: string; reason: string; byPerson: boolean };
 }
 
 export function createConfirmations(deps: ConfirmationDeps): Confirmations {
@@ -524,8 +528,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const answer =
 			record.answer ??
 			(await (async () => {
-				const closed = await overlays.whenClosed(record.overlayId)?.settled;
-				return closed ? { result: closed.result, reason: closed.reason } : undefined;
+				const closing = overlays.whenClosed(record.overlayId);
+				const closed = await closing?.settled;
+				return closed && closing
+					? { result: closed.result, reason: closed.reason, byPerson: await closing.byPerson }
+					: undefined;
 			})());
 		slots.delete(id);
 		const scope = scopeOf(call);
@@ -539,7 +546,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			return result;
 		};
 		// A confirm is the person's own gesture, live and in a replay, or nothing runs (fifth round, 4).
-		if (answer?.result === 'confirm' && !overlays.closedByPerson(record.overlayId))
+		if (answer?.result === 'confirm' && answer.byPerson !== true)
 			return unrun(declined(name, { reason: 'withdrawn', closed: 'confirm' }));
 		if (answer?.result === 'confirm') {
 			// Settled as confirmed: a repeat of the key is a new call from here (third round, D). A decline keeps the key until
@@ -575,7 +582,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		if (answer?.reason === 'withdrawn') return unrun(declined(name, { reason: 'withdrawn' }));
 		// Only a person's own decline opens the window: a prompt closed for any other reason, the shell's switch or a close
 		// with no gesture of theirs among them, ends `withdrawn`, never their decline (second round, 6 and 11).
-		if (answer?.reason !== 'user' || !overlays.closedByPerson(record.overlayId))
+		if (answer?.reason !== 'user' || answer.byPerson !== true)
 			return unrun(declined(name, { reason: 'withdrawn', closed: answer?.reason ?? 'closed' }));
 		// A person's gesture is exempt from the window (N8); the active app's port is held by it, kept in the store (blocker
 		// 6), so a reload and the inbox's path see it. Written by `prompt-settle`, journaled as its own entry, so a replay
@@ -604,7 +611,10 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						input: summaryOf(jsonOf(input)),
 					},
 				})
-				.finally(() => outstanding.delete(declineId));
+				.finally(() => {
+					outstanding.delete(declineId);
+					if (outstanding.size === 0) declining.delete(`${person} ${bucket}`);
+				});
 			deps.noteInbox(call);
 			if (!written.success) return unrun(written);
 		}
@@ -677,7 +687,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			if (summary.failed > 0)
 				throw new Error(`The store could not write the confirmation '${row.id}'`);
 			// Visible now: counted by its row from here, never twice (fifth round, 6).
-			declining.get(`${person} ${row.cbucket}`)?.delete(row.id);
+			const at = `${person} ${row.cbucket}`;
+			declining.get(at)?.delete(row.id);
+			if (declining.get(at)?.size === 0) declining.delete(at);
 		});
 	}
 
@@ -977,6 +989,28 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		jsonSchema: { type: 'object', additionalProperties: true } as JsonSchema,
 		async handler(input, context) {
 			const { open } = input;
+			// The whole input checked before anything is written (sixth round): a decline and a settle each stand alone.
+			if (
+				(input.decline && (input.settle || input.open || input.close !== undefined)) ||
+				(input.settle && (input.open || input.close !== undefined))
+			) {
+				return fail(
+					'VALIDATION_ERROR',
+					'decline and settle are each a whole prompt-settle of its own',
+					'None: only the kernel settles one'
+				);
+			}
+			if (
+				input.close !== undefined &&
+				overlays.get(input.close) &&
+				overlays.forOf(input.close)?.kind !== 'input'
+			) {
+				return fail(
+					'VALIDATION_ERROR',
+					'close names the palette input prompt a fill answered or replaced',
+					'None: only the kernel closes one'
+				);
+			}
 			if (input.decline) await writeDecline(input.decline as never, context);
 			if (input.settle) {
 				const settled = await settleRow(input.settle, context);
@@ -1042,8 +1076,13 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				command: open.command,
 			};
 			slots.set(open.id, record);
-			void overlays.whenClosed(overlay.overlayId)?.settled.then((closed) => {
-				record.answer = { result: closed.result, reason: closed.reason };
+			const closing = overlays.whenClosed(overlay.overlayId);
+			void closing?.settled.then(async (closed) => {
+				record.answer = {
+					result: closed.result,
+					reason: closed.reason,
+					byPerson: await closing.byPerson,
+				};
 			});
 			return kit.success({ overlay });
 		},

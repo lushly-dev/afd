@@ -135,6 +135,8 @@ export type LateCommandDeps = ShellCommandDeps &
 			input: unknown,
 			fields: Record<string | symbol, unknown>
 		): Promise<CommandResult>;
+		/** The kernel's journal provenance: the command a notice's act runs, by the act's trace (step 6's sixth round, B7). */
+		noteAction?(trace: string, command: string): void;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -775,6 +777,7 @@ export async function createLateParts(
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
 		confirmationChain: (person, work) => confirmations.chain(person, work),
+		noteAction: (trace, command) => deps.noteAction?.(trace, command),
 		queueOf: (context) => {
 			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
 			return ticket ? { [deps.queued]: ticket } : {};
@@ -852,7 +855,14 @@ export async function createLateParts(
 			deps.scope.projects.get(scope.project)?.status === 'archived' &&
 			deps.isMutation(command),
 		chainOf: documentChainOf,
-		personNow: () => shellPerson() ?? (provider ? undefined : 'local'),
+		// The settled person, and only while the adapter reports the same one: a sign-in the shell is still settling (its
+		// membership read in flight) is no one's yet, so a confirmed run fails closed (step 6's sixth round, B1).
+		personNow: () => {
+			const settled = shellPerson() ?? (provider ? undefined : 'local');
+			const adapter =
+				personKey(sessionActor(deps.auth, deps.clock)) ?? (provider ? undefined : 'local');
+			return settled === adapter ? settled : undefined;
+		},
 		// Measured here rather than with first paint's `measureJson`, whose import would part first paint's chunks.
 		inputOver(input) {
 			const bound = deps.limits?.values().inputBytes;

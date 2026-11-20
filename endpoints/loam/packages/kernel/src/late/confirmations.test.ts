@@ -3053,7 +3053,11 @@ describe('the fifth round', () => {
 		) as unknown as Record<string, unknown>;
 		expect(kept.unreplayable).toBe(true);
 		expect(JSON.stringify(kept)).not.toContain('hunter11');
-		expect(kept.result).toEqual({ success: false, error: { code: 'X', message: 'm' } });
+		// A fixed diagnostic of the kernel's own (sixth round, B6).
+		expect(kept.result).toMatchObject({
+			success: false,
+			error: { code: 'JOURNAL_REDACTION_FAILED' },
+		});
 		// Nine notices deep: the innermost input is past the bound, dropped.
 		let action: Record<string, unknown> = {
 			command: 'auth-sign-in',
@@ -3068,5 +3072,304 @@ describe('the fifth round', () => {
 			() => true
 		);
 		expect(JSON.stringify(deep)).not.toContain('hunter11');
+	});
+
+	it('sixth B1: a sign-in of another person while the run waits, their membership still read, runs nothing (production wiring)', async () => {
+		const BEA = 'mock-user-bea@example.com';
+		const OLU = 'mock-user-olu@example.com';
+		let holdList = false;
+		let held = false;
+		let open: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			open = resolve;
+		});
+		const store = new MemoryAdapter();
+		const list = store.list.bind(store);
+		const update = store.update.bind(store);
+		// The act's claim, then the run's row lookup held: the run waits there, past its gates, before its last check.
+		store.update = (async (table: string, id: string, patch: { claim?: string }) => {
+			if (table === 'notification' && patch?.claim !== undefined) holdList = true;
+			return update(table, id, patch as never);
+		}) as never;
+		store.list = (async (table: string, filter: unknown) => {
+			if (table === 'notification' && holdList) {
+				holdList = false;
+				held = true;
+				await gate;
+			}
+			return list(table, filter as never);
+		}) as never;
+		const auth = new MockAuthAdapter();
+		const workspace = await createScopedWorkspace({
+			store,
+			auth,
+			empty: true,
+			deployment: deployment(),
+			identity: { mode: 'provider', organization: 'acme', path: 'api/auth', methods: ['password'] },
+			membership: {
+				mode: 'provider',
+				members: new Map([
+					[OLU, 'owner'],
+					[BEA, 'member'],
+				]),
+				digest: 'd1',
+			},
+			ports: {
+				...ports(),
+				// Olu's membership answers; Bea's read is never answered while this test runs.
+				readMembership: () =>
+					auth.getSession().user?.id === OLU
+						? Promise.resolve({ role: 'owner' as const, digest: 'd1' })
+						: new Promise(() => {}),
+			} as never,
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		expect(
+			(
+				await kernel.call('auth-sign-in', {
+					method: 'credentials',
+					email: 'olu@example.com',
+					password: 'x',
+				})
+			).success
+		).toBe(true);
+		const asked = await kernel.agent.call('keeper-bump');
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const acting = kernel.call('notification-act', {
+			notification: idOf(asked),
+			answer: 'confirm',
+		});
+		for (let tries = 0; tries < 200 && !held; tries++) await tick();
+		expect(held).toBe(true);
+		// The adapter reports Bea now; the shell's settle waits on her membership read.
+		auth._setUser({ id: BEA, email: 'bea@example.com', name: 'bea' });
+		for (let tries = 0; tries < 20; tries++) await tick();
+		open();
+		const ended = await acting;
+		expect(ended.data).toMatchObject({ state: 'declined' });
+		const row = (await store.get('notification', idOf(asked))) as {
+			confirmation: { state: string; result?: { error?: { code: string } } };
+		};
+		expect(row.confirmation.state).toBe('declined');
+	});
+
+	it("sixth B4: a slot's replayed answer keeps the person's gesture past 64 other closes", async () => {
+		const { made, overlayStore } = unit({ replaying: () => true });
+		const settle = settleOf(made);
+		const opened = await settle({
+			open: {
+				id: 'cnf_slow',
+				key: JSON.stringify({
+					workspace: 'personal',
+					person: 'local',
+					caller: 'person',
+					command: 'keeper-bump',
+					input: '{}',
+					scope: { workspace: 'personal' },
+				}),
+				command: 'keeper-bump',
+				header: 'Run it?',
+				prompt: 'Sure?',
+				danger: false,
+				input: {},
+			},
+		});
+		overlayStore.close(
+			(opened.data as { overlay: OverlayRefV1 }).overlay.overlayId,
+			'confirm',
+			'user',
+			undefined,
+			true
+		);
+		// 65 other closes before the slow call reads its answer.
+		for (let index = 0; index < 65; index++) {
+			const toast = overlayStore.open({ kind: 'shell', id: 'shell' }, 'toast', {
+				message: `t${index}`,
+			} as never);
+			overlayStore.close(toast.overlayId, 'dismissed', 'user');
+		}
+		let ran = false;
+		const done = await made.gate(
+			'keeper-bump',
+			{},
+			{ confirmation: 'cnf_slow', interface: 'palette' } as never,
+			async () => {
+				ran = true;
+				return success({ ran: true });
+			}
+		);
+		expect(done.success).toBe(true);
+		expect(ran).toBe(true);
+	});
+
+	it("sixth: the slot's command check and key check each refuse on their own, and an agent's cnf_ takes the inbox", async () => {
+		const keyFor = (command: string, input: unknown) =>
+			JSON.stringify({
+				workspace: 'personal',
+				person: 'local',
+				caller: 'person',
+				command,
+				input: JSON.stringify(input),
+				scope: { workspace: 'personal' },
+			});
+		const { made, overlayStore } = unit({ replaying: () => true });
+		const settle = settleOf(made);
+		let ran = false;
+		const next = async () => {
+			ran = true;
+			return success({});
+		};
+		const answered = async (id: string, command: string, key: string) => {
+			const opened = await settle({
+				open: { id, key, command, header: 'Run it?', prompt: 'Sure?', danger: false, input: {} },
+			});
+			overlayStore.close(
+				(opened.data as { overlay: OverlayRefV1 }).overlay.overlayId,
+				'confirm',
+				'user',
+				undefined,
+				true
+			);
+		};
+		// The key is keeper-set's with its input, the command another's: the command check alone refuses it.
+		await answered('cnf_cmd', 'keeper-bump', keyFor('keeper-set', { value: 1 }));
+		expect(
+			(
+				await made.gate(
+					'keeper-set',
+					{ value: 1 },
+					{ confirmation: 'cnf_cmd', interface: 'palette' } as never,
+					next
+				)
+			).error?.code
+		).toBe('OVERLAY_NOT_FOUND');
+		// The same command with another input: the key check alone refuses it.
+		await answered('cnf_key', 'keeper-set', keyFor('keeper-set', { value: 1 }));
+		expect(
+			(
+				await made.gate(
+					'keeper-set',
+					{ value: 2 },
+					{ confirmation: 'cnf_key', interface: 'palette' } as never,
+					next
+				)
+			).error?.code
+		).toBe('OVERLAY_NOT_FOUND');
+		expect(ran).toBe(false);
+		// An agent's call carrying a slot's id takes the inbox's route, as live it would.
+		const agent = unit({
+			replaying: () => true,
+			openerOf: () => ({
+				kind: 'agent',
+				owner: { kind: 'agent', id: 'agent:a' },
+				bucket: 'agents:local',
+			}),
+		});
+		expect(
+			(
+				await agent.made.gate(
+					'keeper-bump',
+					{},
+					{
+						confirmation: 'cnf_x',
+						interface: 'agent',
+						actor: { kind: 'agent', id: 'a', onBehalfOf: 'local' },
+					} as never,
+					next
+				)
+			).error?.code
+		).toBe('CONFIRMATION_PENDING');
+	});
+
+	it('sixth B6: a failed redaction keeps a fixed kernel diagnostic; the depth bound drops exactly the ninth input', () => {
+		const record = {
+			timestamp: '2027-01-01T00:00:00.000Z',
+			command: 'keeper-note',
+			input: { text: 'hunter12' },
+			contextDigest: { hash: 'h' },
+			durationMs: 1,
+			result: { success: false, error: { code: 'hunter12', message: 'hunter12 was refused' } },
+		};
+		const kept = redactSafely(
+			record as never,
+			() => {
+				throw new Error('boom');
+			},
+			() => true
+		) as unknown as { result: { error: { code: string; message: string } } };
+		expect(JSON.stringify(kept)).not.toContain('hunter12');
+		expect(kept.result.error.code).toBe('JOURNAL_REDACTION_FAILED');
+		// Eight wrappers deep, the innermost input is kept, redacted; nine deep, it is dropped.
+		const chain = (depth: number) => {
+			let action: Record<string, unknown> = {
+				command: 'notification-push',
+				label: 'Go',
+				input: { title: 'innermost' },
+			};
+			for (let index = 1; index < depth; index++)
+				action = { command: 'notification-push', label: 'Go', input: { title: 'x', action } };
+			return redactWrapped(
+				{
+					...record,
+					command: 'notification-push',
+					input: { title: 'x', action },
+					result: { success: true },
+				} as never,
+				(each) => each,
+				() => true
+			).input as Record<string, unknown>;
+		};
+		const innermost = (input: Record<string, unknown>) => {
+			let at = input;
+			for (;;) {
+				const action = at.action as Record<string, unknown> | undefined;
+				if (!action || !('input' in action)) return action;
+				at = action.input as Record<string, unknown>;
+			}
+		};
+		expect(innermost(chain(8))).toBeUndefined();
+		expect(JSON.stringify(chain(8))).toContain('innermost');
+		expect(innermost(chain(9))).toMatchObject({ command: 'notification-push' });
+		expect(innermost(chain(9))).not.toHaveProperty('input');
+		expect(JSON.stringify(chain(9))).not.toContain('innermost');
+	});
+
+	it("sixth B7: a journal recorded in step 5's shape, an act's result with no command, replays the same", async () => {
+		const { kernel, journal } = await boot();
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Count',
+				action: { command: 'keeper-get', label: 'Count' },
+			});
+		expect(pushed.success).toBe(true);
+		const acted = await kernel.call('notification-act', {
+			notification: (pushed.data as { notification: NotificationV1 }).notification.id,
+		});
+		expect(acted.success).toBe(true);
+		expect(acted.data).not.toHaveProperty('command');
+		const entries = (await journal.read()).map((entry) => {
+			if (entry.command !== 'notification-act') return entry;
+			const { command: _command, ...data } = (entry.result.data ?? {}) as Record<string, unknown>;
+			return { ...entry, result: { ...entry.result, data } };
+		});
+		const { report } = await replayKernel(entries, { deployment: deployment(), ports: ports() });
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('sixth B8: two marks of one notice at once count once', async () => {
+		const { kernel, store, advance } = await boot();
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', { title: 'Twice' });
+		const notification = (pushed.data as { notification: NotificationV1 }).notification.id;
+		const first = kernel.call<{ read: number }>('notification-read', { notification });
+		advance(1_000);
+		const second = kernel.call<{ read: number }>('notification-read', { notification });
+		const counts = (await Promise.all([first, second])).map((each) => each.data?.read ?? 0);
+		expect(counts.reduce((sum, each) => sum + each, 0)).toBe(1);
+		const row = (await store.get('notification', notification)) as { readAt?: number };
+		expect(row.readAt).toBeDefined();
 	});
 });

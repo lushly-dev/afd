@@ -119,6 +119,8 @@ export interface NotificationDeps {
 	 * act's settle never write over each other (step 6's fifth round, 5).
 	 */
 	confirmationChain?<T>(person: string, work: () => Promise<T>): Promise<T>;
+	/** The command an act runs, kept by the kernel for its journal alone, never in the result (step 6's sixth round, B7). */
+	noteAction?(trace: string, command: string): void;
 	/** The kernel's `run`: a call with `parent` is nested, journaled under it and never queued (phase 2's 11.1). */
 	run(
 		name: string,
@@ -778,13 +780,18 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				}
 				const at = kit.callNow(context);
 				let count = 0;
+				// Decided and written in the person's chain, on the row as it stands there, so two marks never both count, and
+				// the second never replaces the first's time (step 6's sixth round, B8).
+				const chained = <T>(work: () => Promise<T>) =>
+					deps.confirmationChain ? deps.confirmationChain(person, work) : work();
 				for (const row of chosen) {
-					if (row[field] !== undefined) continue;
-					const write = () => store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
-					await (row.kind === 'confirmation' && deps.confirmationChain
-						? deps.confirmationChain(row.person, write)
-						: write());
-					count++;
+					const marked = await chained(async () => {
+						const now = await store.get<NotificationV1>(NOTIFICATION_TABLE, row.id);
+						if (!now || now[field] !== undefined) return false;
+						await store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
+						return true;
+					});
+					if (marked) count++;
 				}
 				return kit.success({ [counted]: count });
 			},
@@ -827,7 +834,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		if (summary.failed > 0) throw new Error(`The store could not write the notice '${row.id}'`);
 	};
 
-	const act = kit.define<typeof actInput, { state: 'done'; command?: string; result?: unknown }>({
+	const act = kit.define<typeof actInput, { state: 'done'; result?: unknown }>({
 		name: 'notification-act',
 		title: 'Act on a notice',
 		description:
@@ -906,6 +913,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				if (claimed === null || claimed === 'failed' || claimed.claim !== claim)
 					return stillActing();
 				// As the person, at the notice's scope, nested under this call: the chain decides it as any call of theirs.
+				if (context.traceId !== undefined) deps.noteAction?.(context.traceId, action.command);
 				const result = await deps.run(action.command, action.input ?? {}, {
 					...deps.queueOf?.(context),
 					parent: context.traceId ?? '',
@@ -935,10 +943,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				} catch {
 					// The action ran; the notice stays `acting`, which never runs it again.
 				}
-				// With the action's command, so the journal redacts its result by that command's rule (step 6's fifth round, 1).
+				// Step 5's shape: the action's command is the journal's private provenance, never here (sixth round, B7).
 				return kit.success({
 					state: 'done' as const,
-					command: action.command,
 					...(result.data !== undefined ? { result: structuredClone(result.data) } : {}),
 				});
 			} finally {

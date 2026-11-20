@@ -679,6 +679,34 @@ describe('a mounted call', () => {
 		expect(entry?.result.metadata?.['dev.loam/trust']).toBe('untrusted');
 	});
 
+	it("phase 4's step 6, sixth round B5: a palette fill of a mounted command keeps its result as the command's own entry does", async () => {
+		const big = 'x'.repeat(RECORDED_RESULT_MAX_BYTES + 10);
+		const { kernel, journal } = await boot({
+			work: () =>
+				fakeTransport(
+					{ 'a-read': { mutation: false } },
+					{ answer: () => ({ structuredContent: { success: true, data: { big } } }) }
+				),
+		});
+		await kernel.startInstances();
+		const opened = await kernel.call<{ prompt: { overlayId: string } }>('palette-run', {
+			command: 'work-a-read',
+		});
+		expect(opened.success, JSON.stringify(opened.error)).toBe(true);
+		const filled = await kernel.call<{ big: string }>('palette-run', {
+			command: 'work-a-read',
+			prompt: opened.data?.prompt.overlayId,
+			input: {},
+		});
+		expect(filled.data?.big).toHaveLength(big.length);
+		const entries = await journal.read();
+		const own = entries.find(({ command }) => command === 'work-a-read');
+		const wrapper = entries.filter(({ command }) => command === 'palette-run').at(-1);
+		expect(own?.result.data).toEqual({ truncated: true, bytes: expect.any(Number) });
+		expect(wrapper?.result.data).toEqual(own?.result.data);
+		expect(JSON.stringify(entries)).not.toContain(big);
+	});
+
 	it('leaves a record under the bound, and any other entry, unchanged', () => {
 		const record = {
 			at: 0,
