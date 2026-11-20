@@ -38,7 +38,6 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "prepack": "node ../../scripts/pack-provenance.mjs",
     "build": "tsc -p tsconfig.lib.json && node scripts/strip-style-comments.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.spec.json",
     "dev": "tsc -p tsconfig.lib.json --watch",
@@ -63,8 +62,7 @@
     "dist",
     "custom-elements.json",
     "tokens",
-    "README.md",
-    "provenance"
+    "README.md"
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",

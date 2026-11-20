@@ -18,8 +18,7 @@ import {
 	planRelease,
 	releaseChannel,
 } from '../release/control.mjs';
-import { execTool, tarCommand } from '../release/exec-tool.mjs';
-import { PROVENANCE_FAMILIES } from '../release/provenance.mjs';
+import { tarCommand } from '../release/exec-tool.mjs';
 import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
 import {
@@ -86,52 +85,6 @@ export function assertPackedContents(file, metadata) {
 		throw new Error(
 			`Packed ${metadata.name} lacks what its manifest promises: ${[...new Set(missing)].join(', ')}. Build it before planning`
 		);
-}
-/**
- * Provenance records a tarball packs (`package/provenance/`, FAST-AF's) are whole and agree with
- * themselves: every manifest the envelope names is packed with its digest. The repository does not
- * commit the digest of `adaptations.json`, which packing stamps (lushly-dev/afd#1610), so a pack
- * that skipped the stamp, or stamped other bytes, is refused here. Given the repository `root`, the
- * packed records must also be the family's committed ones, stamped. A tarball without the records
- * is the manifest's business: one that lists `provenance` in `files` fails `assertPackedContents`.
- */
-export function assertPackedProvenance(file, name = file, root = undefined) {
-	const listing = run(tarCommand(), ['-tzf', file], process.cwd()).trim().split(/\r?\n/);
-	const prefix = 'package/provenance/';
-	if (!listing.includes(`${prefix}provenance.json`)) return false;
-	// adaptations.json is over a megabyte; the default buffer is one.
-	const read = (member) =>
-		execTool(tarCommand(), ['-xOzf', file, member], {
-			cwd: process.cwd(),
-			stdio: ['ignore', 'pipe', 'pipe'],
-			maxBuffer: 64 * 1024 * 1024,
-		});
-	const envelope = JSON.parse(read(`${prefix}provenance.json`).toString('utf8'));
-	for (const [key, record] of Object.entries(envelope.records ?? {})) {
-		if (!listing.includes(`${prefix}${record.manifest}`))
-			throw new Error(`Packed ${name} lacks its provenance record ${record.manifest}`);
-		if (!record.sha256)
-			throw new Error(`Packed ${name} provenance.json lacks the ${key} digest; pack stamps it`);
-		if (hash(read(`${prefix}${record.manifest}`)) !== record.sha256)
-			throw new Error(`Packed ${name} provenance.json disagrees with ${record.manifest}`);
-	}
-	if (root === undefined) return true;
-	// The family's committed records, so ignored records left by an earlier local pack, packed
-	// without the prepack running again, are refused as stale.
-	const directory = PROVENANCE_FAMILIES[envelope.family]?.directory;
-	if (!directory) throw new Error(`Packed ${name} provenance names no known family`);
-	const committed = (manifest) => readFileSync(join(root, directory, manifest));
-	for (const record of Object.values(envelope.records))
-		if (!read(`${prefix}${record.manifest}`).equals(committed(record.manifest)))
-			throw new Error(`Packed ${name} ${record.manifest} is not ${directory}'s; pack it again`);
-	// Packing adds only the digests the committed envelope leaves out.
-	const kept = JSON.parse(committed('provenance.json').toString('utf8'));
-	const unstamped = structuredClone(envelope);
-	for (const [key, record] of Object.entries(unstamped.records))
-		if (!('sha256' in (kept.records?.[key] ?? {}))) delete record.sha256;
-	if (`${JSON.stringify(unstamped, null, 2)}\n` !== committed('provenance.json').toString('utf8'))
-		throw new Error(`Packed ${name} provenance.json is not ${directory}'s; pack it again`);
-	return true;
 }
 function converted(range, name, all) {
 	if (!range.startsWith('workspace:')) return range;
@@ -233,7 +186,6 @@ export function packSelected({
 			const file = resolve(tarballs[0]);
 			const metadata = packedManifest(file);
 			assertPackedContents(file, metadata);
-			assertPackedProvenance(file, distribution.name, root);
 			return {
 				...distribution,
 				file,

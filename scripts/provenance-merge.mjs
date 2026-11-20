@@ -156,7 +156,7 @@ export function mergeUnit(read) {
 	const [b, o, t] = read.versions('provenance.json');
 	const envelope = merge3(withoutHashes(b), withoutHashes(o), withoutHashes(t), 'provenance.json');
 	for (const [key, record] of Object.entries(envelope.records ?? {})) {
-		if (record.sha256 !== HASHED) continue; // Not committed: packing stamps it.
+		if (record.sha256 !== HASHED) continue; // Not committed (#1610).
 		const text = out[record.manifest] ?? read.current(record.manifest);
 		if (text === undefined) throw new RecordConflict(`${record.manifest} is missing (${key})`);
 		record.sha256 = sha256(text);

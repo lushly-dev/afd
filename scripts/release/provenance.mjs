@@ -2,9 +2,9 @@
 /**
  * Records changes to imported files in a family's provenance: each changed or new file's digest in
  * `adaptations.json`, with the reason, and that file's digest in `provenance.json` where the family
- * commits it. FAST-AF does not: its packages stamp it into their tarballs when packed
- * (`foundations/fast-af/scripts/pack-provenance.mjs`), so two branches that record different files
- * do not both rewrite one line (lushly-dev/afd#1610).
+ * commits it. FAST-AF does not, so two branches that record different files do not both rewrite
+ * one line (lushly-dev/afd#1610); its npm packages ship no provenance records, so nothing is
+ * stamped for it.
  *
  * Run from the command line, it also records a removal. A recorded file that is gone is recorded
  * as removed, never dropped: its record keeps its history and digest, takes the
@@ -192,7 +192,7 @@ export function recordProvenance(root, family, reason, { today, removals = false
 	writeFileSync(adaptationsPath, `${JSON.stringify(adaptations, null, 2)}\n`);
 	const provenancePath = join(directory, 'provenance.json');
 	const provenance = JSON.parse(readFileSync(provenancePath, 'utf8'));
-	// A family whose envelope leaves out the digest gets it when packed (stampedProvenance).
+	// A family whose envelope leaves out the digest (FAST-AF, #1610) keeps it out.
 	if ('sha256' in provenance.records.adaptations) {
 		provenance.records.adaptations.sha256 = sha(readFileSync(adaptationsPath));
 		writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);

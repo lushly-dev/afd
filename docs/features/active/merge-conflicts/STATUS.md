@@ -17,7 +17,7 @@ for:
 - **1, shrink the one-line cells; the line-limit check.** Merged in [#1605](https://github.com/lushly-dev/afd/pull/1605). Left: nothing.
 
 - **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). Left: [#1610](https://github.com/lushly-dev/afd/issues/1610), option 2 approved;
-  Botcore and FAST-AF stamp the `adaptations.json` digest at packing instead of committing it ([#1658](https://github.com/lushly-dev/afd/pull/1658), draft); Specimen, Violet and Health still commit it.
+  Botcore and FAST-AF stop committing the `adaptations.json` digest, and Botcore's build stamps it into the wheel and sdist ([#1658](https://github.com/lushly-dev/afd/pull/1658), draft); Specimen, Violet and Health still commit it.
 
 - **3, Changesets for Python, Botcore and the spec contract.** Merged in
   [#1613](https://github.com/lushly-dev/afd/pull/1613). Left: the first Python or Botcore release

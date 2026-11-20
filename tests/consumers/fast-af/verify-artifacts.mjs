@@ -27,7 +27,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
-import { assertPackedProvenance } from '../../../scripts/release-operations/publish.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const argument = (name, fallback) => {
@@ -124,10 +123,6 @@ const license = (name) =>
 assert.match(license(runtimeName), /Copyright \(c\) Microsoft Corporation/);
 assert.match(license(componentName), /Copyright \(c\) 2026 Lushly Dev/);
 passed('packed manifests: identities, 38 runtime exports, portable ranges, licenses, no hooks');
-// prepack stamps adaptations.json's digest, which the repository does not commit (#1610).
-for (const name of [runtimeName, componentName])
-	assert(assertPackedProvenance(packs[name], name, repository), `${name} packs no provenance`);
-passed('packed provenance: each tarball carries its records, stamped with their digests');
 
 async function install(name, dependencies, { expected = true } = {}) {
 	const root = join(consumers, name);

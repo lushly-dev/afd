@@ -65,12 +65,7 @@ try {
     files.some((file) => file.startsWith("tokens/")),
     "tarball is missing tokens/",
   );
-  // prepack writes FAST-AF's provenance records, stamped with the adaptations digest (#1610).
-  const records = ["adaptations.json", "provenance.json", "upstream-selected.json"].map(
-    (name) => `provenance/${name}`,
-  );
-  for (const record of records) check(files.includes(record), `tarball is missing ${record}`);
-  const allowedTopLevel = ["package.json", "custom-elements.json", "README.md", "LICENSE", ...records];
+  const allowedTopLevel = ["package.json", "custom-elements.json", "README.md", "LICENSE"];
   const unexpected = files.filter(
     (file) =>
       !(file.startsWith("dist/") || file.startsWith("tokens/") || allowedTopLevel.includes(file)) ||
