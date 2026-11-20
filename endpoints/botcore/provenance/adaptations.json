@@ -2413,10 +2413,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3ad50200cc150224268018d16b619a49291b83854c342e639f7eef7f437f20e0",
+      "current_import_sha256": "704a95aa9b402eaac689f6b62ed9d03da54223edad6d899e8dd49d347ffff4ad",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690)"
     },
     {
       "path": "src/botcore/commands/disk/scan.py",
@@ -2457,10 +2457,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a3fc216d4d2d3d099e087fd2cbfa4f343885881419bcaee87d39e2f3d715ae20",
+      "current_import_sha256": "146379efbbf83f42841d4d9bbaeb8c7ba2063c93ca152634fafb4cb22d473983",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690)"
     },
     {
       "path": "src/botcore/commands/disk/unclassified.py",
@@ -6120,10 +6120,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4af8e0a584eebda7d07a01397693160e1c63439f411241bd75638318597c33c3",
+      "current_import_sha256": "a8841b11d2d48863a10633c828dec8cd6f1f4e1e392cef654f0500cbdc6bfa48",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690)"
+      "import_reason": "disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690)"
     },
     {
       "path": "tests/test_disk_setup.py",

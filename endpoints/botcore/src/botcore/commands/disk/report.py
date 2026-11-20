@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import errno
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
@@ -175,10 +176,13 @@ def may_contain(folder: str, pattern: str, fold: bool | None = None) -> bool:
     return len(parts) > len(outer)
 
 
-def _holds_copy(cand: Candidate, copy: str) -> bool:
-    if compile_pattern(copy).match(cand.rel):
+def _holds_copy(cand: Candidate, copy: str, fold: bool) -> bool:
+    pattern = compile_pattern(copy)
+    if fold:
+        pattern = re.compile(pattern.pattern, re.IGNORECASE)
+    if pattern.match(cand.rel):
         return True
-    return cand.kind == "dir" and may_contain(cand.rel, copy)
+    return cand.kind == "dir" and may_contain(cand.rel, copy, fold=fold or None)
 
 
 def _holds_checkout(folder: Path, checkouts: list[str]) -> bool:
@@ -191,21 +195,21 @@ def _strippable(
 ) -> tuple[list[Candidate], list[dict]]:
     """Candidates that may be stripped, and those refused with the reason."""
     git_timeout = ctx.git_timeout()
+    fold = case_insensitive(worktree)
     refused: list[dict] = []
     keep: list[Candidate] = []
     for cand in found:
         nested = cand.kind == "dir" and _holds_checkout(worktree / cand.rel, ctx.checkouts)
         if cand.kind == "checkout" or nested:
             refused.append({"path": cand.rel, "reason": "holds another checkout"})
-        elif any(_holds_copy(cand, copy) for copy in config.copies):
+        elif any(_holds_copy(cand, copy, fold) for copy in config.copies):
             refused.append({"path": cand.rel, "reason": "it is or may hold a declared copy"})
         elif cand.kind != "link" and not _inside(worktree, worktree / cand.rel):
             refused.append({"path": cand.rel, "reason": "resolves outside the worktree"})
         else:
             keep.append(cand)
     rels = [c.rel for c in keep]
-    tracked = tracked_under(worktree, rels, tracked_files(worktree, git_timeout),
-                            case_insensitive(worktree))
+    tracked = tracked_under(worktree, rels, tracked_files(worktree, git_timeout), fold)
     ignored_set = ignored(worktree, [r for r in rels if r not in tracked], git_timeout)
     result: list[Candidate] = []
     for cand in keep:

@@ -42,8 +42,10 @@ SYSTEM_PATH = {
     "darwin": ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"],
     "linux": ["/usr/local/bin", "/usr/bin", "/bin"],
 }
-# Folders that hold a shell session's links and vanish with it
-SESSION_MARKERS = ("fnm_multishells", "/tmp/", "/private/var/folders/", "\\temp\\")
+# Folders that hold a shell session's links and vanish with it: path prefixes, plus one name
+# that may sit anywhere (fnm keeps its session links under the user's state folder)
+SESSION_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
+SESSION_PART = "fnm_multishells"
 
 
 # ── The settings file ───────────────────────────────────────────────────────
@@ -154,12 +156,23 @@ def _persistent_exe(checkouts: list[Path]) -> tuple[str | None, str | None]:
 
 
 def _session_path(path: str) -> bool:
-    text = path.replace("\\", "/").lower() + ("/" if os.name != "nt" else "")
-    marks = [m.replace("\\", "/").lower() for m in SESSION_MARKERS]
-    temp = os.environ.get("TMPDIR") or os.environ.get("TEMP")
-    if temp:
-        marks.append(os.path.realpath(temp).replace("\\", "/").lower().rstrip("/") + "/")
-    return any(mark in text for mark in marks)
+    """Whether path lies in a folder that lives only as long as a shell session or a boot."""
+    text = path.replace("\\", "/")
+    folded = text.lower()
+    if SESSION_PART in folded.split("/"):
+        return True
+    prefixes = list(SESSION_PREFIXES)
+    for name in ("TMPDIR", "TEMP", "TMP"):
+        value = os.environ.get(name)
+        if value:
+            for form in (value, os.path.realpath(value)):
+                prefixes.append(form.replace("\\", "/").rstrip("/") + "/")
+    candidates = (folded, text) if os.name == "nt" else (text,)
+    for prefix in prefixes:
+        mark = prefix.lower() if os.name == "nt" else prefix
+        if any(c.startswith(mark) for c in candidates):
+            return True
+    return False
 
 
 def _tool_name(path: str) -> str:
@@ -191,9 +204,12 @@ def stable_tool_path(name: str, found: str) -> str | None:
         if not os.path.islink(path):
             return None
         target = os.readlink(path)
-        path = os.path.normpath(os.path.join(os.path.dirname(path), target))
+        path = os.path.join(os.path.realpath(os.path.dirname(path)), target)
+        path = os.path.normpath(path)
         if _tool_name(path) != name:
             return None
+        if not _session_path(path):
+            return path if os.path.isfile(path) else None
     return None
 
 
@@ -244,7 +260,9 @@ async def disk_setup(
         schedule.uninstall()
         state = schedule.current()
         if state.installed:
-            return error("DISK_SCHEDULE_FAILED", f"the job is still installed at {state.where}",
+            detail = f" ({state.detail})" if state.detail else ""
+            return error("DISK_SCHEDULE_FAILED",
+                         f"the job is still installed at {state.where}{detail}",
                          suggestion="Remove it with the platform's scheduler, then run again")
         return success(data={"schedule": state.as_dict(), "settings": str(settings_path()),
                              "state": str(state_path())},

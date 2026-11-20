@@ -272,3 +272,28 @@ def test_deletion_never_goes_through_a_checkout(tmp_path: Path) -> None:
     assert not removal.complete
     assert (nested / "work.txt").read_text() == "unique"
     assert not (root / "gen" / "built.js").exists()
+
+
+def test_declared_copies_fold_case_where_the_volume_does() -> None:
+    from botcore.commands.disk.report import _holds_copy
+    from botcore.commands.disk.scan import Candidate
+
+    cand = Candidate("apps/web/.next", DiskRegenerable(path="apps/*/.next"), "dir")
+    assert _holds_copy(cand, "Apps/web/.next/cache/**", fold=True)
+    assert not _holds_copy(cand, "Apps/web/.next/cache/**", fold=False)
+
+
+def test_session_folders_are_matched_as_prefixes_not_substrings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botcore.commands.disk import setup
+
+    for name in ("TMPDIR", "TEMP", "TMP"):
+        monkeypatch.delenv(name, raising=False)
+    assert setup._session_path("/var/folders/ab/T/x/bin/uv")
+    assert setup._session_path("/Users/j/.local/state/fnm_multishells/123_456/bin/node")
+    assert setup._session_path("/tmp/session/bin/git")
+    assert not setup._session_path("/home/j/tmp/bin/uv")
+    assert not setup._session_path("/opt/homebrew/bin/uv")
+    monkeypatch.setenv("TMPDIR", "/scratch/me")
+    assert setup._session_path("/scratch/me/bin/gh")
