@@ -1848,6 +1848,8 @@ Keybindings, on `lush/loam-p4-step7-keybindings` from `main` at `ca1b11f3` (step
 
 Declined: none. Recorded: when a key that begins a sequence arrives while another sequence waits, and the page stops that key before it reaches the window's bubble phase, the earlier wait is not replaced or ended; it ends at its 1,500 ms.
 
+**Verified after the reviews,** 2026-11-19, same machine, at `64ab539b`: `test --coverage` for the kernel (60 files, 1,255 tests), the manifest (15 files, 1,118), chrome (21 files, 268) and `web`'s units (11 files, 54); the typecheck of every Loam package and app; `lint:tokens`; `node --test scripts/plugin-manifest.test.mjs` (48); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and six Chromium files, 121 tests: `keybindings` (13), `layout`, `settings`, `shell`, `documents/editor` and `documents/references`. **Not run:** the whole `test:browser`, `test:hosted`, `test:walk`, `test:mounted`, `pnpm verify` and the Cargo gates.
+
 ## Step 8, 2026-11-19
 
 Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after steps 1 and 2), not merged. It gets a trust review (section 20).
