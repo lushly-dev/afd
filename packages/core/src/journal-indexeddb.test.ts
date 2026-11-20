@@ -119,6 +119,8 @@ describe('IndexedDbJournalSink', () => {
 		expect(await commands({ last: 3, from: 4 })).toEqual(['d', 'e']);
 		expect(await commands({ last: 2, from: 1.5, to: 3.5 })).toEqual(['b', 'c']);
 		expect(await commands({ last: 9 })).toEqual(['a', 'b', 'c', 'd', 'e']);
+		expect(await commands({ last: 6 })).toEqual(['a', 'b', 'c', 'd', 'e']);
+		expect(await commands({ last: 4, to: 3 })).toEqual(['a', 'b', 'c']);
 		expect(await commands({ last: 0 })).toEqual([]);
 		expect(await commands({ last: 1, from: 9 })).toEqual([]);
 		expect(await commands({ last: 1, from: 3, to: 2 })).toEqual([]);

@@ -21,6 +21,7 @@ export { ViewStateRegistry } from './registry.js';
 export type {
 	PersistedViewState,
 	ViewStateEntry,
+	ViewStateFlushResult,
 	ViewStateHandler,
 	ViewStateRegistryOptions,
 } from './types.js';

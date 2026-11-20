@@ -440,7 +440,9 @@ describe('the trust review of step 10', () => {
 			details: { limit: 262_144 },
 			suggestion: expect.stringContaining('JSON'),
 		});
-		expect((await journal.read()).at(-1)?.input).toEqual({
+		// The refusal's own entry: the owner notice of a first refusal is journaled beside it, after it or not yet.
+		const refusals = (await journal.read()).filter((entry) => entry.command === 'app-limit-refuse');
+		expect(refusals.at(-1)?.input).toEqual({
 			command: 'dual-put',
 			limit: 'inputBytes',
 			bound: 262_144,

@@ -5,7 +5,7 @@
  */
 
 import type { CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
-import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import type { ViewStateFlushResult, ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
 import type { ProjectV1 } from '../scope/records.js';
@@ -35,17 +35,72 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * `app-open` and `app-close`, and the scope middleware's own leaving and settling around a change of person, which is
  * why it sits right inside the journal. The store may then hold a change a moment before the journal holds its entry;
  * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
+ *
+ * - **A call that ends while a write is in flight waits for it**, so one that saw a change after the handler that made
+ *   it returned, as a second `app-open` of the same app does, is not journaled before that call, since the journal
+ *   appends calls in the order they finish. A change made before
+ *   a handler awaits more work, as `project-archive`'s scope move before its record's write, is seen by calls that end
+ *   meanwhile as it was before. The wait has no time limit: the store's write is what every such call waits for.
+ * - **A handler that throws after a change** is written through all the same, and its error is the call's.
+ * - **A write that fails** leaves the call as it was, since the change is in memory and the shell runs on it, with a
+ *   `VIEW_STATE_NOT_SAVED` warning naming the records that changed while it ran, which the journal keeps: a reload
+ *   would not find them. A call that ran beside the one that changed them is named too, since what changed is read
+ *   from the shared state. A replay leaves the warning out of what it compares. They stay unsaved until a write of them succeeds, and every call writes them again until one does.
  */
 export function writeThrough(
 	viewState: ViewStateRegistry,
 	state: Pick<ShellState, 'main' | 'scopeProject'>
 ): CommandMiddleware {
-	const read = () => JSON.stringify([state.main(), state.scopeProject()]);
-	return async (_name, _input, _context, next) => {
-		const before = read();
-		const result = await next();
-		if (read() !== before) await viewState.flush();
-		return result;
+	const records: ReadonlyArray<readonly [string, () => string]> = [
+		[APPS_VIEW_STATE_ID, () => JSON.stringify(state.main())],
+		[SCOPE_VIEW_STATE_ID, () => JSON.stringify(state.scopeProject())],
+	];
+	/** The records whose last write failed: every call writes them again until one succeeds. */
+	const unsaved = new Set<string>();
+	/** The last write-through started, until it settles. */
+	let inFlight: Promise<ViewStateFlushResult> | undefined;
+	const start = (): Promise<ViewStateFlushResult> => {
+		const flush = viewState.flush();
+		inFlight = flush;
+		void flush.then(() => {
+			if (inFlight === flush) inFlight = undefined;
+		});
+		return flush;
+	};
+	return async (name, _input, _context, next) => {
+		const before = records.map(([, read]) => read());
+		let outcome: { result: CommandResult } | { thrown: unknown };
+		try {
+			outcome = { result: await next() };
+		} catch (thrown) {
+			outcome = { thrown };
+		}
+		const changed = records.filter(([, read], i) => read() !== before[i]).map(([id]) => id);
+		const mine = changed.length > 0 || unsaved.size > 0 ? start() : undefined;
+		const waited = mine ?? inFlight;
+		if (waited) {
+			const { failed } = await waited;
+			// A record that was waiting is written by every flush, so one not failed is saved.
+			if (mine) {
+				unsaved.clear();
+				for (const [id] of records) if (failed.includes(id)) unsaved.add(id);
+			}
+		}
+		if ('thrown' in outcome) throw outcome.thrown;
+		const lost = changed.filter((id) => unsaved.has(id));
+		if (lost.length === 0) return outcome.result;
+		return {
+			...outcome.result,
+			warnings: [
+				...(outcome.result.warnings ?? []),
+				{
+					code: 'VIEW_STATE_NOT_SAVED',
+					message: `\`${name}\` changed ${lost.join(' and ')}, but the store did not save it; a reload would not find it`,
+					severity: 'warning',
+					details: { records: lost },
+				},
+			],
+		};
 	};
 }
 

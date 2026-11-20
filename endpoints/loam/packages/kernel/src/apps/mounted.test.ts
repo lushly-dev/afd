@@ -1931,19 +1931,82 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 				named('auth-sign-in')
 			)
 		).toEqual({ success: true });
-		// The kernel's own 256 KiB refusal, marked `recorded`, keeps the document's id alone.
+		// The kernel's own 256 KiB refusal, marked `oversized`, keeps the document's id alone.
 		const big = { document: 'doc-1', content: 'x'.repeat(256 * 1024) };
 		const refused = {
 			success: false,
 			error: { code: 'DOCUMENT_CONTENT_TOO_LARGE', message: 'm', suggestion: 's' },
 		};
-		const kernel = nestedReplay([
-			entry('work-a-save', { document: 'doc-1' }, refused, { replay: 'recorded' }),
-		]);
+		const marked = { replay: 'recorded', oversized: true };
+		const kernel = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, marked)]);
 		expect(kernel.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toEqual(refused);
 		// An app's own refusal with that code keeps its whole input, so it is never cut down.
 		const app = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused)]);
 		expect(app.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toBeUndefined();
+		// Nor when it is a mounted command's, which the kernel marks `recorded`: its whole input is compared.
+		const mounted = nestedReplay([entry('work-a-save', big, refused, { replay: 'recorded' })]);
+		expect(mounted.answer('outer-1', 'work-a-save', big, named('work-a-save'))).toEqual(refused);
+		const small = { document: 'doc-1' };
+		const mountedSmall = nestedReplay([
+			entry('work-a-save', { document: 'doc-1', content: 'x' }, refused, { replay: 'recorded' }),
+		]);
+		expect(
+			mountedSmall.answer(
+				'outer-1',
+				'work-a-save',
+				{ document: 'doc-1', content: 'x' },
+				named('work-a-save')
+			)
+		).toEqual(refused);
+		// A call to the same document under the bound is not the refused one: it runs, as it would live.
+		const under = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, marked)]);
+		expect(under.answer('outer-1', 'work-a-save', small, named('work-a-save'))).toBeUndefined();
+		// The bound is the replay kernel's `inputBytes`: under a larger one the same call is not refused.
+		const raised = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, marked)]);
+		expect(
+			raised.answer('outer-1', 'work-a-save', big, named('work-a-save'), 1024 * 1024)
+		).toBeUndefined();
+		// Over the bound, but another document: not it.
+		const other = nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, marked)]);
+		expect(
+			other.answer('outer-1', 'work-a-save', { ...big, document: 'doc-2' }, named('work-a-save'))
+		).toBeUndefined();
+		// A mounted server's own refusal of `{ document }` is marked untrusted, and matched whole.
+		const untrusted = {
+			...refused,
+			metadata: { 'dev.loam/trust': 'untrusted', 'dev.loam/replay': 'recorded' },
+		};
+		const mountedId = nestedReplay([
+			entry('work-a-save', { document: 'doc-1' }, untrusted, { replay: 'recorded' }),
+		]);
+		expect(mountedId.answer('outer-1', 'work-a-save', small, named('work-a-save'))).toEqual(
+			untrusted
+		);
+		// `document-import` is measured by its envelope, as the live check measures it.
+		const imported = () => nestedReplay([entry('document-import', {}, refused, marked)]);
+		const envelope = { content: 'x'.repeat(256 * 1024) };
+		expect(
+			imported().answer(
+				'outer-1',
+				'document-import',
+				{ type: 'probe', envelope },
+				named('document-import')
+			)
+		).toEqual(refused);
+		const nearly = { content: 'x'.repeat(256 * 1024 - 64) };
+		expect(
+			imported().answer(
+				'outer-1',
+				'document-import',
+				{ type: 'probe', envelope: nearly, title: 't'.repeat(200) },
+				named('document-import')
+			)
+		).toBeUndefined();
+		// An entry from before the mark that may be what was left of a larger call answers nothing, either way.
+		const older = () =>
+			nestedReplay([entry('work-a-save', { document: 'doc-1' }, refused, { replay: 'recorded' })]);
+		expect(older().answer('outer-1', 'work-a-save', small, named('work-a-save'))).toBeUndefined();
+		expect(older().answer('outer-1', 'work-a-save', big, named('work-a-save'))).toBeUndefined();
 	});
 
 	it('answers two nested calls a handler made together, recorded in the other order', () => {

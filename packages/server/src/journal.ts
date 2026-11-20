@@ -197,7 +197,10 @@ function recordingSources(
  * the actor it records is the one auth middleware settled on.
  *
  * Appends are awaited, so entries are in call order for sequential calls, and sink latency is
- * added to each recorded call. A sink error goes to `onError` and never changes the command
+ * added to each recorded call. Concurrent calls are appended in the order they finished: each
+ * takes its turn as its command returns, and the context digest, which is asynchronous, never
+ * reorders them. So an `append` that never settles holds every later recorded call, and a sink
+ * whose `append` runs a command this middleware records would wait on itself. A sink error goes to `onError` and never changes the command
  * result. Commands named `auth-*` are not recorded unless `filter` allows them. During
  * `replayJournal()` this middleware records nothing; it restarts the replay tape at its position.
  *
@@ -226,6 +229,8 @@ export function createJournalMiddleware(
 		maxTapeReads = DEFAULT_MAX_TAPE_READS,
 		onError,
 	} = options;
+	/** Settles when the last call to finish has appended, or given up: the next one appends after it. */
+	let turn: Promise<void> = Promise.resolve();
 
 	return async (commandName, input, context, next) => {
 		const replay = (context as Record<symbol, unknown>)[JOURNAL_REPLAY] as
@@ -268,6 +273,12 @@ export function createJournalMiddleware(
 		// What the server returns for a throw outside devMode, never the exception message.
 		const recorded: CommandResult = result ?? executionFailure(thrown?.error, false);
 		if (recorded.success || recordFailures) {
+			// Taken now, before any await, so entries keep the order calls finished in.
+			const previous = turn;
+			let done!: () => void;
+			turn = new Promise((resolve) => {
+				done = resolve;
+			});
 			try {
 				const actor = journalActor(context.actor);
 				const hasTape = tape.clock.length > 0 || tape.random.length > 0 || tape.truncated;
@@ -287,6 +298,7 @@ export function createJournalMiddleware(
 					durationMs,
 					...(hasTape ? { tape } : {}),
 				});
+				await previous;
 				if (record) await sink.append(record);
 			} catch (error) {
 				try {
@@ -294,6 +306,10 @@ export function createJournalMiddleware(
 				} catch {
 					// A failing onError has nowhere left to report.
 				}
+			} finally {
+				// Never released before the call ahead has appended, even when this record failed to build.
+				await previous;
+				done();
 			}
 		}
 

@@ -57,7 +57,9 @@ Every sink's `read(range)` takes an inclusive `seq` range (`from`, `to`) and `la
 many entries from the end of the range, still in `seq` order: `read({ last: 1 })` is the last
 entry, which gives the last `seq` without reading the rest. The IndexedDB sink walks back from the
 end for it; the file sink still reads the file. A custom sink written before `last` returns the
-whole range, so take its tail with `.slice(-n)` when the sink is not yours.
+whole range, so take its tail with `n === 0 ? [] : entries.slice(-n)` when the sink is not
+yours (`.slice(-0)` is the whole range). `last` must be a safe integer, 0 or more; anything else
+is a `RangeError`.
 
 In a browser, web worker or webview, `IndexedDbJournalSink` keeps the journal in IndexedDB:
 

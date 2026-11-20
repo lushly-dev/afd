@@ -59,10 +59,11 @@ import type { LoamTitlebar } from './titlebar.js';
 
 /**
  * What the shell reads the last sequence number from at boot: a `JournalSink`, asked for its last entry alone
- * (#663). A reader that returns more, as one written before `last`, still ends with it.
+ * (#663). A reader that returns more, as one written before `last`, still ends with it. The range is optional, as
+ * on `JournalSink`, so a caller holding a reader may still read the whole journal with `read()`.
  */
 export interface JournalReader {
-	read(range: { last: number }): Promise<readonly { seq: number }[]>;
+	read(range?: { last?: number }): Promise<readonly { seq: number }[]>;
 }
 
 /** The address the title bar's "Sign in" uses with the Mock adapter (6.5). */

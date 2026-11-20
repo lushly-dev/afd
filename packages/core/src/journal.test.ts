@@ -47,6 +47,10 @@ describe('MemoryJournalSink', () => {
 		expect(await seqs({ last: 2 })).toEqual([5, 8]);
 		expect(await seqs({ last: 2, to: 4 })).toEqual([2, 3]);
 		expect(await seqs({ last: 9, from: 3 })).toEqual([3, 5, 8]);
+		// One more than the range holds is the whole range, not a start counted from the end.
+		expect(await seqs({ last: 5 })).toEqual([2, 3, 5, 8]);
+		expect(await seqs({ last: 4, from: 3 })).toEqual([3, 5, 8]);
+		expect(await seqs({ last: 4 })).toEqual([2, 3, 5, 8]);
 		expect(await seqs({ last: 0 })).toEqual([]);
 		expect(await seqs({ last: 1, from: 9 })).toEqual([]);
 		await expect(sink.read({ last: -1 })).rejects.toThrow(RangeError);

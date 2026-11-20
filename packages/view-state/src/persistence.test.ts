@@ -91,7 +91,97 @@ describe('DebouncedPersistence', () => {
 		dp.schedule('bad', { x: 1 });
 		await vi.advanceTimersByTimeAsync(100);
 
-		expect(warnSpy).toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		// Kept and tried again by every flush, it is logged once until a write of it succeeds.
+		expect(await dp.flush()).toEqual({ failed: ['bad'] });
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		(adapter.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+		expect(await dp.flush()).toEqual({ failed: [] });
+		(adapter.update as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail again'));
+		dp.schedule('bad', { x: 2 });
+		expect(await dp.flush()).toEqual({ failed: ['bad'] });
+		expect(warnSpy).toHaveBeenCalledTimes(2);
+		warnSpy.mockRestore();
+	});
+
+	it('reports a failed write and keeps it for the next flush', async () => {
+		const adapter = mockAdapter();
+		const update = adapter.update as ReturnType<typeof vi.fn>;
+		update.mockRejectedValueOnce(new Error('HTTP 500: locked'));
+		(adapter.get as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'a' });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const dp = new DebouncedPersistence(adapter, 'settings', 'view-state', 100);
+
+		dp.schedule('a', { open: true });
+		dp.schedule('b', { tab: 'styles' });
+		expect(await dp.flush()).toEqual({ failed: ['a'] });
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		// The next flush writes it again, and reports nothing.
+		expect(await dp.flush()).toEqual({ failed: [] });
+		expect(update).toHaveBeenLastCalledWith(
+			'settings',
+			'a',
+			expect.objectContaining({ value: { open: true } })
+		);
+		expect(update).toHaveBeenCalledTimes(3);
+		expect(await dp.flush()).toEqual({ failed: [] });
+		expect(update).toHaveBeenCalledTimes(3);
+		warnSpy.mockRestore();
+	});
+
+	it('never retries a failed write over a newer state scheduled meanwhile', async () => {
+		const adapter = mockAdapter();
+		const update = adapter.update as ReturnType<typeof vi.fn>;
+		(adapter.get as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'a' });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const dp = new DebouncedPersistence(adapter, 'settings', 'view-state', 100);
+		let fail!: (error: Error) => void;
+		update.mockImplementationOnce(
+			() =>
+				new Promise((_, reject) => {
+					fail = reject;
+				})
+		);
+
+		dp.schedule('a', { width: 1 });
+		const first = dp.flush();
+		await vi.advanceTimersByTimeAsync(0);
+		dp.schedule('a', { width: 2 });
+		fail(new Error('HTTP 500: locked'));
+		expect(await first).toEqual({ failed: ['a'] });
+		expect(await dp.flush()).toEqual({ failed: [] });
+		expect(update).toHaveBeenLastCalledWith(
+			'settings',
+			'a',
+			expect.objectContaining({ value: { width: 2 } })
+		);
+		expect(update).toHaveBeenCalledTimes(2);
+		warnSpy.mockRestore();
+	});
+
+	it('never keeps a write that failed after a hydrate discarded its ID', async () => {
+		const adapter = mockAdapter();
+		const update = adapter.update as ReturnType<typeof vi.fn>;
+		(adapter.get as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'a' });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const dp = new DebouncedPersistence(adapter, 'settings', 'view-state', 100);
+		let fail!: (error: Error) => void;
+		update.mockImplementationOnce(
+			() =>
+				new Promise((_, reject) => {
+					fail = reject;
+				})
+		);
+
+		dp.schedule('a', { width: 1 });
+		const first = dp.flush();
+		await vi.advanceTimersByTimeAsync(0);
+		// A hydrate applies the stored state while the write is in flight, then the write fails.
+		dp.discard('a');
+		fail(new Error('HTTP 500: locked'));
+		expect(await first).toEqual({ failed: ['a'] });
+		expect(await dp.flush()).toEqual({ failed: [] });
+		expect(update).toHaveBeenCalledTimes(1);
 		warnSpy.mockRestore();
 	});
 

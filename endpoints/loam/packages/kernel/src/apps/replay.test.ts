@@ -1,6 +1,6 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryAdapter } from '@lushly-dev/local-db';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from '../errors.js';
 import { createKernel } from '../kernel.js';
 import {
@@ -265,6 +265,32 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 			expect(report.diverged).toBe(false);
 		});
 
+		it('#859: diverges when the nested command is no longer exposed to the interface that calls it', async () => {
+			const run = async (client: NestedClient) =>
+				(await client.call('probe-list')).error?.code ?? null;
+			const recorded = await recordSession(calls, optionsFor(run));
+			const outer = recorded.entries.at(-1)?.result.data as { seen: unknown };
+			expect(outer.seen).toBeNull();
+			// The same app with `probe-list` hidden from the palette: live, the call is `COMMAND_NOT_EXPOSED`.
+			const hidden = {
+				deployment: probeDeployment(),
+				ports: createFixturePorts({
+					'apps/probe/': {
+						manifest: {
+							...PROBE_MANIFEST,
+							commands: PROBE_MANIFEST.commands?.map((command) =>
+								command.name === 'probe-list' ? { ...command, expose: { palette: false } } : command
+							),
+						},
+						definition: nestedDefinition(run),
+					},
+				}),
+			};
+			await expect(replayKernel(recorded.entries, hidden)).rejects.toMatchObject({
+				code: 'REPLAY_DIVERGED',
+			});
+		});
+
 		it('passes an unchanged handler that returns a nested result as its own', async () => {
 			const base = probeDefinition();
 			const passThrough = {
@@ -385,6 +411,127 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		await second.dispose();
 		await first.kernel.dispose();
 		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	/** A store whose writes of `loam.apps` a test can hold, or refuse. */
+	class GatedStore extends MemoryAdapter {
+		hold: Promise<void> | undefined;
+		refuse = false;
+		private reach: () => void = () => {};
+		/** Resolved when a write of `loam.apps` reaches the store while `hold` is set. */
+		reached: Promise<void> = new Promise((resolve) => {
+			this.reach = resolve;
+		});
+		private async gate(table: string, id: string | undefined): Promise<void> {
+			if (table !== 'settings' || id !== 'loam.apps') return;
+			if (this.refuse) throw new Error('HTTP 500: storage refused');
+			if (this.hold) this.reach();
+			await this.hold;
+		}
+		override async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
+			await this.gate(table, id);
+			return super.update(table, id, patch);
+		}
+		override async create<T>(table: string, data: Partial<T>): Promise<T> {
+			await this.gate(table, (data as { id?: string }).id);
+			return super.create(table, data);
+		}
+	}
+
+	it('#861: a call that sees a change still being written is journaled after the call that made it', async () => {
+		const store = new GatedStore();
+		const { kernel, journal } = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		let release!: () => void;
+		store.hold = new Promise((resolve) => {
+			release = resolve;
+		});
+		const first = kernel.call('app-open', { instance: 'probe' });
+		// The first call's handler has returned and its write-through waits on the store; the second sees the app open.
+		await store.reached;
+		const second = kernel.call('app-open', { instance: 'probe' });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		release();
+		expect((await first).success).toBe(true);
+		expect((await second).success).toBe(true);
+		const opens = (await journal.read()).filter((entry) => entry.command === 'app-open');
+		expect(opens.map((entry) => (entry.result.data as { previous: unknown }).previous)).toEqual([
+			null,
+			'probe',
+		]);
+		await kernel.dispose();
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	it('#861: a change the store did not save is warned of and journaled, and written again until it is', async () => {
+		const store = new GatedStore();
+		const { kernel, journal } = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
+		store.refuse = true;
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const stored = async () =>
+			((await store.get('settings', 'loam.apps')) as { value?: { active?: unknown } } | null)?.value
+				?.active;
+		// The app is open in memory, so the call succeeded; its warning says a reload would not find it.
+		const opened = await kernel.call('app-open', { instance: 'probe' });
+		expect(opened.success).toBe(true);
+		expect(opened.warnings).toEqual([
+			expect.objectContaining({
+				code: 'VIEW_STATE_NOT_SAVED',
+				details: { records: ['loam.apps'] },
+			}),
+		]);
+		expect((await journal.read()).at(-1)?.result.warnings?.[0]?.code).toBe('VIEW_STATE_NOT_SAVED');
+		expect(await stored()).toBeUndefined();
+		// A call that changed nothing writes it again, and is not blamed for it.
+		const again = await kernel.call('app-open', { instance: 'probe' });
+		expect(again.success).toBe(true);
+		expect(again.warnings ?? []).toEqual([]);
+		expect(await stored()).toBeUndefined();
+		// Once the store takes writes, the next call saves it, with no flush of its own.
+		store.refuse = false;
+		const read = await kernel.call('layout-get');
+		expect(read.warnings ?? []).toEqual([]);
+		expect(await stored()).toBe('probe');
+		warn.mockRestore();
+		await kernel.dispose();
+		// The warning is the recording's store, not the call: a replay, whose store writes, compares the rest.
+		const { report } = await replayKernel(await journal.read(), probeOptions());
+		expect(report.diverged).toBe(false);
+	});
+
+	it('#861: replays an entry answered from its record that carries the unsaved-write warning', async () => {
+		const recorded = await recordSession(
+			[{ interface: 'palette', name: 'app-list' }],
+			probeOptions()
+		);
+		const warned = recorded.entries.map((entry) =>
+			entry.command === 'app-list'
+				? {
+						...entry,
+						result: {
+							...entry.result,
+							warnings: [
+								{
+									code: 'VIEW_STATE_NOT_SAVED',
+									message: 'not saved',
+									details: { records: ['loam.apps'] },
+								},
+							],
+						},
+					}
+				: entry
+		);
+		expect(warned.some((entry) => entry.result.warnings?.length)).toBe(true);
+		const { report } = await replayKernel(warned, probeOptions());
 		expect(report.diverged).toBe(false);
 	});
 

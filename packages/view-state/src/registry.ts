@@ -2,6 +2,7 @@ import { DebouncedPersistence } from './persistence.js';
 import type {
 	PersistedViewState,
 	ViewStateEntry,
+	ViewStateFlushResult,
 	ViewStateHandler,
 	ViewStateRegistryOptions,
 } from './types.js';
@@ -163,8 +164,9 @@ export class ViewStateRegistry {
 	 * record, or one in another category, leaves the handler as it is.
 	 *
 	 * Await it before any `set` or `replace` on this ID: the record is applied
-	 * over the handler's state, so a change made first is lost in memory while
-	 * its scheduled write still reaches the adapter.
+	 * over the handler's state, and a write scheduled for it and not yet made is
+	 * dropped, so a change made first is lost. One already being written still
+	 * reaches the adapter, and is not kept if it fails.
 	 */
 	async hydrateOne(id: string): Promise<void> {
 		if (!this.handlers.has(id)) return;
@@ -175,11 +177,12 @@ export class ViewStateRegistry {
 		});
 	}
 
-	/** Immediately write all pending persistence. */
-	async flush(): Promise<void> {
-		if (this.persistence) {
-			await this.persistence.flush();
-		}
+	/**
+	 * Immediately write all pending persistence. Resolves with the IDs whose write failed, which are kept and
+	 * written again by the next flush; with no adapter, none. Never rejects.
+	 */
+	async flush(): Promise<ViewStateFlushResult> {
+		return this.persistence ? this.persistence.flush() : { failed: [] };
 	}
 
 	/** Flush pending writes and clear all handlers. */
@@ -202,6 +205,8 @@ export class ViewStateRegistry {
 				const handler = this.handlers.get(record.id);
 				if (handler && record.value) {
 					handler.set(cloneState(record.value));
+					// The store's state is now the handler's: a write kept from a failed flush would overwrite it.
+					this.persistence?.discard(record.id);
 				}
 			}
 		} catch (err) {

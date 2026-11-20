@@ -66,6 +66,16 @@ describe('FileJournalSink', () => {
 			'a',
 			'b',
 		]);
+		// One more than the range holds is the whole range, not a start counted from the end.
+		expect((await reopened.read({ last: 4 })).map((entry) => entry.command)).toEqual([
+			'a',
+			'b',
+			'c',
+		]);
+		expect((await reopened.read({ last: 3, to: 2 })).map((entry) => entry.command)).toEqual([
+			'a',
+			'b',
+		]);
 		await expect(reopened.read({ last: -1 })).rejects.toThrow(RangeError);
 	});
 
@@ -80,6 +90,8 @@ describe('FileJournalSink', () => {
 		// A failed append does not block later reads or appends.
 		await expect(sink.append(record('b'))).rejects.toThrow(/line 2/);
 		await expect(sink.read()).rejects.toThrow(/line 2/);
+		// An invalid `last` is refused before the file is read, so it is a RangeError, not the parse error.
+		await expect(sink.read({ last: -1 })).rejects.toThrow(RangeError);
 	});
 
 	it('drops a torn last line and completes an unterminated entry', async () => {

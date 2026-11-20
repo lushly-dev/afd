@@ -570,7 +570,11 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 132_200,
+	// The second review of #1604 (#859, #861, #663), measured in one tree against `main` at `1ec16f4c`: 131,596 to
+	// 132,207 (+611): the `oversized` journal mark, the nested-call exposure check, and `afd-view-state` reporting and
+	// keeping a failed write; set to 132,600 under D115. First paint (322,183 to 322,639, 101,339 to 101,493 gzip) and
+	// `late` (116,561 to 117,193) stay within their rows.
+	kernelMinified: 132_600,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

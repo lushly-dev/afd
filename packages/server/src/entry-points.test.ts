@@ -233,6 +233,9 @@ const HOST_IMPORTS =
  *   itself is in `createAppCallRegistry`'s own module, which this host does not bundle (asserted
  *   below); `createDirectRegistry` only throws for `apps` unless that registry built it, through
  *   a module-private symbol, which adds 104. Putting the check here cost 772.
+ *   Raised to 39,600 by the journal's append order and `JournalRange.last`'s clamp (#1650, under D115):
+ *   measured 39,419 bytes on `main` at `1ec16f4c` and 39,508 after, with esbuild 0.28.2. The journal
+ *   middleware takes a turn as a command returns, so concurrent calls append in the order they finished.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -245,7 +248,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_500,
+		bytes: 39_600,
 	},
 	{
 		what: 'the same host with the approval middleware',

@@ -1139,9 +1139,17 @@ describe('P2-D10: an instance command’s input is bounded at 256 KiB, before it
 		const refused = entries.filter(
 			(entry) => entry.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE'
 		);
-		expect(refused.map((entry) => [entry.command, entry.input, entry.context?.replay])).toEqual([
-			['probe-content-set', { document: record.id }, 'recorded'],
-			['document-import', {}, 'recorded'],
+		// #859: marked `oversized` too, so a replay matches a nested call to it by its document and the bound alone.
+		expect(
+			refused.map((entry) => [
+				entry.command,
+				entry.input,
+				entry.context?.replay,
+				entry.context?.oversized,
+			])
+		).toEqual([
+			['probe-content-set', { document: record.id }, 'recorded', true],
+			['document-import', {}, 'recorded', true],
 		]);
 		const { report } = await replayKernel(entries, {
 			deployment: documentsDeployment(),
@@ -1166,6 +1174,7 @@ describe('P2-D10: an instance command’s input is bounded at 256 KiB, before it
 		// The app chose the code, not what the journal keeps: its input is whole and it is not marked.
 		expect(entry?.input).toEqual({ document: record.id, text: 'kept' });
 		expect(entry?.context?.replay).toBeUndefined();
+		expect(entry?.context?.oversized).toBeUndefined();
 		// The handler ran and wrote: a replay runs it again, which an answer from the record would not.
 		expect(
 			(await store.get<AppStoreRecord>('app-probe', documentContentKey(record.id)))?.value
