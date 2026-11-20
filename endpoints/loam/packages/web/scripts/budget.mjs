@@ -439,7 +439,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * guard on the listbox); `settingsMinified` 46,400 to 46,900 (46,410: the warnings by the list's order).
  * After step 7's third round (the adapter's person in readiness, the shell's toast with unreadable preferences, the
  * retry stopped on dispose, `oneOf` eligibility): first paint 317,050 and 99,602 gzip, within its rows; `late` 110,968
- * of 111,000; `lateSettingsMinified` 74,200 to 74,800 (74,324: the toast's default preferences and the retry's stop).
+ * of 111,000; `lateSettingsMinified` 74,200 to 74,800 (74,598: the toast's default preferences, the retry's stop and
+ * the overrides reader moved into `setting-overrides.ts`).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into

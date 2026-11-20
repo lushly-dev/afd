@@ -1887,9 +1887,11 @@ Declined: none. Also found and fixed while verifying: in `local` mode a sign-in 
 - **G, the editor's winner:** an earlier override that is not in force does not win; the warning says the new one would be in force (unit, failed before).
 - **Opus 1, the toast:** B. **Opus 2:** a Chromium case sends a script's Enter and Space to the palette's own listbox control; it fails with `hearOnlyPeople` removed (checked). **Opus 3:** the retry and any read in flight end on dispose (unit, failed before: a read after dispose); the backoff doubles, 500 then 1,000 ms (unit, passed at once: it did); a replay schedules no retry, its keys staying not ready, recorded. **Opus 4:** `usableOverrides` uses `SHELL_LIST_MAX`; stage B's failure path applies the defaults (unit with the person's record unreadable; it fails with `useDefaults` removed, checked).
 
-Measured: first paint 317,050 and 99,602 gzip, within its rows; `late-settings` 74,324, its row raised to 74,800 under D115 (the toast's default preferences and the retry's stop); `budget.mjs` records it.
+Measured: first paint 317,050 and 99,602 gzip, within its rows; `late-settings` 74,598, its row raised to 74,800 under D115 (the toast's default preferences, the retry's stop, and the overrides reader moved into `late/setting-overrides.ts` to keep `settings.ts` under the file-size gate); `budget.mjs` records it.
 
 Declined: none. D is unchanged by R10's ruling.
+
+**Verified after the third round,** 2026-11-19, same machine, at `ec313226`: `test --coverage` for the kernel (62 files, 1,263 tests), chrome (21 files, 273) and `web`'s units (11 files, 54); the typecheck of every Loam package and app; `lint:tokens`; `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and, step 6's `pnpm verify` having finished, the whole `test:browser` once: 42 files, 496 tests, and its conformance suite, 24, all passing (`boot`, `keybindings`, `shell`, `documents/editor` and `documents/references` among them). **Not run:** `test:hosted`, `test:walk`, `test:mounted`, `pnpm verify` and the Cargo gates (no Rust changed since the second round's run).
 
 ## Step 8, 2026-11-19
 
