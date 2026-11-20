@@ -1,0 +1,81 @@
+# Draft JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
+# `loam-mail serve` on the scripted IMAP server, seeded as `mail-f-base`, with
+# `afd scenario run <dir> --server <url>` and an ordinary agent's token. The data is invented.
+# mail-f-base holds mailbox 9, "Notifications", in the person's account 1, with 120 messages, and
+# the default policy: an agent trashes at most 50 messages a call.
+# What a scenario cannot show: the approval itself, held for every caller here, and that a
+# proposal dismissed and proposed again between the hold and an approved retry changes nothing
+# (the engine's test F-T7). Each step runs as the same agent, so the proposer and the caller are one.
+name: Approve exactly what an agent proposed
+description: >-
+  When an agent proposes a change larger than it may make alone, I want to approve it from a
+  preview that says what it touches, and have exactly that run, so that a change steered by a
+  message or altered after I looked cannot run under my approval.
+job: approve-what-was-proposed
+tags: [slice, mail-engine]
+steps:
+  - description: The agent selects the notifications mailbox
+    command: mail-selection-create
+    input: { account: 1, mailbox: 9 }
+    expect:
+      success: true
+      data:
+        count: 120
+  - description: Its trash of 120 messages is over its limit, so it becomes a proposal and changes nothing
+    command: mail-trash
+    input: { selection: "${{ steps[0].data.selection }}", expectedCount: 120 }
+    expect:
+      success: true
+      data:
+        state: proposed
+  - description: The preview says what the proposal touches, with a digest of what it shows
+    command: mail-operation-show
+    input: { operation: "${{ steps[1].data.operation }}" }
+    expect:
+      success: true
+      data:
+        preview:
+          approvable: true
+          byAccount: { '0': { account: 1, places: 120 } }
+          proposal: 1
+          digest: { matches: '^[A-Za-z0-9_-]{43}$' }
+  - description: Asked as a preview with that digest, it gives the verb, the query and the proposer, with no page of items
+    command: mail-operation-show
+    input: { operation: "${{ steps[1].data.operation }}", digest: "${{ steps[2].data.preview.digest }}" }
+    expect:
+      success: true
+      data:
+        command: mail-trash
+        query: { trust: content }
+        proposal: { proposer: { exists: true } }
+        preview: { approvable: true, proposal: 1 }
+        items: { notExists: true }
+  - description: Asked as a preview with another digest, it shows nothing
+    command: mail-operation-show
+    input: { operation: "${{ steps[1].data.operation }}", digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: An approval naming another digest is refused before it is held
+    command: mail-operation-approve
+    input: { operation: "${{ steps[1].data.operation }}", digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+        suggestion: { contains: mail-operation-show }
+  - description: Its approval, naming that digest, is held for the person
+    command: mail-operation-approve
+    input: { operation: "${{ steps[1].data.operation }}", digest: "${{ steps[2].data.preview.digest }}" }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+  - description: An approval that names no digest is refused before it is held
+    command: mail-operation-approve
+    input: { operation: "${{ steps[1].data.operation }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR

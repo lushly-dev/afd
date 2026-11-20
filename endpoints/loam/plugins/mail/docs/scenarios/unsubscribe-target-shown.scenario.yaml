@@ -1,0 +1,55 @@
+# Draft JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
+# `loam-mail serve` on the scripted IMAP server, seeded as `mail-f-base`, with
+# `afd scenario run <dir> --server <url>` and an ordinary agent's token. The data is invented.
+# mail-f-base holds message 41, a newsletter whose List-Unsubscribe header offers
+# https://lists.example.com/u/41 with List-Unsubscribe-Post, so a one-click post.
+# What a scenario cannot show: the unsubscribe itself, which is held for every caller here, and
+# that a target re-derived between the hold and an approved retry is not contacted (the engine's
+# test F-T7).
+name: See what an unsubscribe will contact
+description: >-
+  When I'm asked to unsubscribe from a list, I want to see exactly what the engine will contact
+  and how, so that an unsubscribe never reaches a place I did not see.
+job: unsubscribe-target-shown
+tags: [slice, mail-engine]
+steps:
+  - description: The preview gives the method, the target as the message wrote it, and a digest
+    command: mail-unsubscribe-show
+    input: { message: 41 }
+    expect:
+      success: true
+      data:
+        unsubscribe:
+          message: 41
+          account: { id: 1 }
+          method: one-click
+          content: { trust: content, target: https://lists.example.com/u/41 }
+          digest: { matches: '^[A-Za-z0-9_-]{43}$' }
+  - description: A preview asked for another digest shows nothing
+    command: mail-unsubscribe-show
+    input: { message: 41, digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: An unsubscribe naming another digest is refused before it is held
+    command: mail-unsubscribe
+    input: { message: 41, digest: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: An agent's unsubscribe naming that digest is held for the person
+    command: mail-unsubscribe
+    input: { message: 41, digest: "${{ steps[0].data.unsubscribe.digest }}" }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+  - description: An unsubscribe without the digest is refused before it is held
+    command: mail-unsubscribe
+    input: { message: 41 }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR

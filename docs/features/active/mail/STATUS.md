@@ -131,7 +131,7 @@ waits for Gmail has a line of its own.
 
 - E3: Reply sets. Not started.
 
-- F: The Loam plugin: the mount and the native app. Not started; needs Loam's phase 5 and phase 6's desktop lane, M3, where it runs (Loam's D132, 2026-11-16).
+- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is reviewed and merged as [#1652](https://github.com/lushly-dev/afd/pull/1652), not approved: the owner's answers to its Q1 to Q5 are open. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
 - G: Composition with a connected Umbel. Not started.
 
@@ -139,6 +139,10 @@ waits for Gmail has a line of its own.
 
 How each step was verified: one line each, newest first within its phase. A step adds its line at
 the top of its phase's list, and a phase that starts adds its heading above the others.
+
+### Verified: phase F
+
+- 2026-11-19 UTC for step F's specification, on `lush/mail-f-spec` with `main` at `5a631f89` merged in: its five scenario files parsed and validated by `afd scenario validate`, the dry-run validation and the coverage report (29 steps, and 35 after the second revision); nothing built or run.
 
 ### Verified: phase D
 
@@ -284,6 +288,11 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-19 | Step F's specification drafted | [`plugin.spec.md`](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) written against `main` at `d890d02d`, with five scenario files checked by AFD's parser and coverage report: an approver role on tokens, the four commands released over MCP with previews, revisions and digests (`PREVIEW_CHANGED`), units from reply sets, taint per account, the hand mount and the native app's shape. Three questions for the owner. Not reviewed; nothing built. |
+| 2026-11-19 | Step F's specification revised | Two independent reviews (both "revise") checked against the code: discovery through `afd-help`, the desktop transport's MCP version, a proposal's generation, claims on units, the approver token's real power, whole previews with caps, the revision checked before the hold, the app's send slice before Loam's step 7, and the reply scenario fixed. Q4 and Q5 added. Not built. |
+| 2026-11-19 | Step F's specification revised again | A focused re-review of `8c44d05c` found three new blockers, each checked against the code: previews now take the revision or digest the held call names, so what Loam shows is what the token binds; a test-only credential source lets Loam's Linux desktop suite send through the real engine; previews declare their largest budget and targets are sized by their rendered preview. M39, M40 added. Not built. |
+| 2026-11-19 | Step F's specification, a third revision | A pass on `a2620b94` found three blockers, each checked against the code: the operation's preview form now shows the verb, its arguments, the query and the proposer it digests; a contract point asks phase 5 to show nothing when a preview fails; a `test-doubles` build runs the scripted servers as `loam-mail test-world` with endpoint and sign-in files, as a new pull request F0. Not built. |
+| 2026-11-19 | Step F's specification, a fourth revision | A confirming pass on `56172fb6` found one blocker, checked against the code: `loam-mail test-world` now makes an agent's token and an approver token as the person into `--out`, since the command line without a terminal cannot approve. Its improvements taken. Not built. |
 
 ### Sessions: phase G, composition with a connected Umbel
 
