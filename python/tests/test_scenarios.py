@@ -1177,6 +1177,7 @@ class TestReporterColorDefault:
     def test_no_ansi_codes_when_the_output_is_not_a_terminal(self, monkeypatch):
         monkeypatch.delenv('FORCE_COLOR', raising=False)
         monkeypatch.delenv('NO_COLOR', raising=False)
+        monkeypatch.delenv('TERM', raising=False)
         output = StringIO()
         TerminalReporter(format='human', output=output).report_scenario(self._result())
         assert '1 passed' in output.getvalue()
@@ -1185,6 +1186,7 @@ class TestReporterColorDefault:
     def test_a_terminal_is_colored_unless_colors_is_false(self, monkeypatch):
         monkeypatch.delenv('FORCE_COLOR', raising=False)
         monkeypatch.delenv('NO_COLOR', raising=False)
+        monkeypatch.delenv('TERM', raising=False)
         colored = _Terminal()
         TerminalReporter(format='human', output=colored).report_scenario(self._result())
         assert '\x1b[' in colored.getvalue()
