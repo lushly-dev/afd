@@ -2120,21 +2120,21 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "13426531c236d6cf57d059fb3810a80571b80a48128f589ee2455de7c196de85",
+      "current_import_sha256": "bbf1d4b18c8804a1e2a71484184b155aefbb9a9dca902b6b4316d216823d2728",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/commands/__init__.py",
       "upstream_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
       "staged_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
-      "current_import_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
+      "current_import_sha256": "8ca4fcb73069ced4e14ff0c17b03ded29aa4d4326a014e70ff4881f112f0e340",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/commands/cdp/__init__.py",
@@ -2342,6 +2342,83 @@
       "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
+      "path": "src/botcore/commands/disk/__init__.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "dd90461cc154895d5d74d02a37831653da3d5382186fd15a0da04a3444525c44",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/caches.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7bfebf6441a0eb5160df02336e2a061f58b53300e55f0ceb0eeb85eeb72b191a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/git.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ac93bac856617aa5db37a8b048dd5208e84b5f4e0aac3230b0a24f6fc2825ece",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "daf0d4aea3261f57a200ef54e8accd6d8c97a6ed5735ed9ca35bfe05befa1ecb",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/scan.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "89b566fabeda8f85720b6164380e77c648da4ae9f1bb745116a2af6d351757ee",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/settings.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "74839c1996947aa7ae87756b2d2c8f40c966ed7625169039bdad97cb1289f360",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/unclassified.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f8e25c575f2b575a547a8649f68c2bc8aabf96c331e47edabf65515198805fb6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
@@ -2505,11 +2582,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "0e16a5891c3675c836cd0a535ddbe5f9859d6fb90ec07dd736b6d062f1c98598",
+      "current_import_sha256": "0fcc50fc71187f9ac40fb99373b0ba7d92bee99a4c5061cc0e19c39533b2be65",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/context.py",
@@ -2525,11 +2602,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "34c0e632e0957f46b9c6b1d4ae918b9983a5ade3028024c46f9abe53fef06b19",
+      "current_import_sha256": "b39448fc22ccb8f4bdc70ecf231c4ab4fd821bbda30bed8f82f23fcdc1c79c61",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/host.py",
@@ -5937,6 +6014,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "tests/test_disk_report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "1717e59f8a434ae7b6a7f41367f5d9e3c51404a5709c21b294e00fd800fc0957",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "tests/test_docs.py",

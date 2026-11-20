@@ -5,9 +5,9 @@ from __future__ import annotations
 import tomllib
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from botcore.utils.workspace import detect_language, detect_package, find_workspace
 
@@ -55,6 +55,67 @@ class SweepConfig(BaseModel):
     extensions: list[str] | None = None
     # A command printing repository-specific measures as JSON, such as bundle sizes
     measures: str | None = None
+
+
+def _check_disk_pattern(pattern: str) -> str:
+    """A [disk] pattern names paths inside a worktree: relative, forward slashes, no `..`."""
+    text = pattern.strip()
+    if not text:
+        raise ValueError("a [disk] pattern is empty")
+    if "\\" in text:
+        raise ValueError(f"[disk] pattern {pattern!r}: use forward slashes")
+    if text.startswith("/") or (len(text) > 1 and text[1] == ":"):
+        raise ValueError(f"[disk] pattern {pattern!r} must be relative to the worktree")
+    parts = text.split("/")
+    if any(part in ("..", ".") for part in parts):
+        raise ValueError(f"[disk] pattern {pattern!r} may not contain '.' or '..' segments")
+    if parts[0] == ".git" or text == "**":
+        raise ValueError(f"[disk] pattern {pattern!r} would reach the worktree's git files")
+    return text
+
+
+class DiskRegenerable(BaseModel):
+    """One rebuildable path pattern in [disk].regenerable."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    # "idle": stripped once the worktree is idle; "pressure": only when a volume is low
+    when: Literal["idle", "pressure"] = "idle"
+    # Days without activity before this pattern is stripped; None = the machine's default
+    after_days: float | None = Field(default=None, ge=0)
+
+    @field_validator("path")
+    @classmethod
+    def _relative(cls, value: str) -> str:
+        return _check_disk_pattern(value)
+
+
+class DiskConfig(BaseModel):
+    """The disk-* commands' settings for this repository (botcore.toml [disk])."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # A worktree's work has landed when it is reachable from, or matches, this ref
+    landing_ref: str = "origin/main"
+    # Paths inside a worktree that a build or install recreates
+    regenerable: list[str | DiskRegenerable] = []
+    # Ignored files copied into a worktree at setup, such as .env; never stripped
+    copies: list[str] = []
+
+    @field_validator("regenerable")
+    @classmethod
+    def _entries(cls, value: list[str | DiskRegenerable]) -> list[str | DiskRegenerable]:
+        return [_check_disk_pattern(v) if isinstance(v, str) else v for v in value]
+
+    @field_validator("copies")
+    @classmethod
+    def _copies(cls, value: list[str]) -> list[str]:
+        return [_check_disk_pattern(v) for v in value]
+
+    def entries(self) -> list[DiskRegenerable]:
+        """Every regenerable pattern as a DiskRegenerable."""
+        return [DiskRegenerable(path=v) if isinstance(v, str) else v for v in self.regenerable]
 
 
 class LanguageConfig(BaseModel):
@@ -119,6 +180,7 @@ class BotCoreConfig(BaseModel):
     # Nested sections
     skills: SkillsConfig = SkillsConfig()
     sweep: SweepConfig = SweepConfig()
+    disk: DiskConfig = DiskConfig()
     language_config: dict[str, LanguageConfig] = {}
     packages: dict[str, PackageOverrideConfig] = {}
     plugins: dict[str, dict[str, Any]] = {}

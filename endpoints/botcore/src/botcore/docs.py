@@ -172,4 +172,24 @@ View undo/history status.
 ## undo_clear()
 Clear undo history.
 """,
+    "disk": """\
+# Disk Commands
+
+Keep development machines from filling up with worktree build output and caches. Use these
+commands instead of freeing space by hand: never `rm -rf` a worktree or run
+`git worktree prune` yourself.
+
+## disk_report(repo=None, unclassified=False, budget_seconds=180)
+Read-only. Every worktree of every registered repository (machine settings `repos`, or the
+repository holding the working directory) with its tier, idle days, whether a process uses it,
+and the build output its `[disk].regenerable` patterns name. Also watched volumes, tool caches
+and aged cache folders. `unclassified=True` lists ignored paths no pattern covers.
+
+Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 report only
+(missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
+`managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
+
+Settings: the repository's `[disk]` in botcore.toml, read from origin's HEAD (never from a
+worktree's branch), and the machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
+""",
 }

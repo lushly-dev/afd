@@ -433,6 +433,31 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("disk-report")
+@click.option("--repo", default=None, help="Report one repository instead of the registered ones")
+@click.option(
+    "--unclassified", is_flag=True, default=False,
+    help="List ignored paths no [disk] pattern covers",
+)
+@click.option(
+    "--budget", "budget_seconds", type=float, default=180.0, show_default=True,
+    help="Seconds to spend measuring before reporting what is left unmeasured",
+)
+@_json_option
+@click.pass_context
+def disk_report_cmd(
+    ctx: click.Context, repo: str | None, unclassified: bool, budget_seconds: float,
+    **_kwargs: Any,
+) -> None:
+    """Report worktrees, caches and volumes, and what a reclaim would free. Read-only."""
+    from botcore.commands.disk import disk_report
+
+    result = _run_async(
+        disk_report(repo=repo, unclassified=unclassified, budget_seconds=budget_seconds)
+    )
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command()
 @_json_option
 @click.pass_context
