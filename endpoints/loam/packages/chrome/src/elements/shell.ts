@@ -15,23 +15,21 @@ import {
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
 	type KernelEventV4,
+	type KeybindingInForceV1,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
 	type LoamKernelV5,
-	SHELL_KEYBINDINGS_V0,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
-	chordMatches,
 	focusHolds,
 	isMacPlatform,
 	nextPart,
 	type PartName,
 	type PendingChord,
 	pressKey,
-	SAVE_ASKED_EVENT,
 	toggleInput,
 } from '../keyboard.js';
 import {
@@ -74,7 +72,7 @@ export const MOCK_SIGN_IN_EMAIL = 'person@example.com';
 export interface ShellApps {
 	readonly modalOpen: boolean;
 	undeclared(part: 'sidebar' | 'inspector' | 'panel'): boolean;
-	run(command: string, input?: Record<string, unknown>): void;
+	run(command: string): void;
 	start(): Promise<void>;
 	dispose(): void;
 	/** The editor frame's way in (documents specification, 5.6). */
@@ -429,6 +427,9 @@ export class LoamShell extends FASTElement {
 		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
+		// Each key resolved once, in the capture phase, and done in the bubble phase (phase 4 specification, 8.1).
+		view.addEventListener('keydown', this.#capture, { capture: true });
+		this.#cleanup.push(() => view.removeEventListener('keydown', this.#capture, { capture: true }));
 		this.#listen(view, 'keydown', (event) => this.#onKeydown(event as KeyboardEvent));
 		this.#listen(view, 'pagehide', () => void kernel.flush());
 		this.#listen(this.ownerDocument, 'visibilitychange', () => {
@@ -1031,36 +1032,69 @@ export class LoamShell extends FASTElement {
 		);
 	}
 
+	readonly #capture = (event: Event): void => this.#onKeyCapture(event as KeyboardEvent);
 	/** A sequence's first chord, waiting for its second (phase 4 specification, 8.1). */
 	#pending: PendingChord | null = null;
+	/** What a key resolved to in the capture phase, done in the bubble phase unless the page consumed the key. */
+	#resolved:
+		| { event: KeyboardEvent; binding?: KeybindingInForceV1; wait?: PendingChord }
+		| undefined;
+	/** The editor area's save of the editor on a key's path (documents specification, 5.5): true when one was there. */
+	#saver: ((path: readonly EventTarget[], repeat: boolean) => boolean) | undefined;
 
-	#onKeydown(event: KeyboardEvent): void {
-		if (event.defaultPrevented || !this.kernel || !this.booted) return;
-		// The bindings in force whose `when` holds for focus too (8.1, R4); the kernel decided the rest.
+	/**
+	 * The editor area's answer to save's chord: a private callback, never a public event a script could send (step 7's
+	 * R6). The shell resolves each key once, and asks the area only when save's binding wins.
+	 */
+	answerSave(saver: (path: readonly EventTarget[], repeat: boolean) => boolean): void {
+		this.#saver = saver;
+	}
+
+	/**
+	 * Each key resolved once, in the capture phase (phase 4 specification, 8.1; step 7's reviews, 4): only a person's own
+	 * press (R6), the bindings in force whose `when` holds for focus. Save is answered here, first, as the editor area
+	 * answered Mod+S before; every other binding is done in the bubble phase, unless the page consumed the key.
+	 */
+	#onKeyCapture(event: KeyboardEvent): void {
+		this.#resolved = undefined;
+		if (!event.isTrusted || !this.kernel || !this.booted) return;
 		const focus = this.#focus(event);
 		const bindings = this.kernel.listKeybindings().filter(({ when }) => focusHolds(when, focus));
 		const press = pressKey(event, this.mac, bindings, this.#pending, Date.now());
+		if (press.kind === 'wait') {
+			// A held chord's repeats keep the wait.
+			this.#resolved = { event, wait: press.pending };
+			return;
+		}
 		this.#pending = null;
+		if (press.kind === 'none') return;
+		if (press.binding.save) {
+			if (this.#saver?.(event.composedPath(), event.repeat)) event.preventDefault();
+			return;
+		}
+		this.#resolved = { event, binding: press.binding };
+	}
+
+	#onKeydown(event: KeyboardEvent): void {
+		const resolved = this.#resolved?.event === event ? this.#resolved : undefined;
+		this.#resolved = undefined;
+		if (!event.isTrusted || !this.kernel || !this.booted) return;
+		if (event.defaultPrevented) {
+			// The page consumed the key: a sequence it would have begun does not wait.
+			if (resolved?.wait) this.#pending = null;
+			return;
+		}
 		// A modal of an app's, like the palette, keeps the keyboard to itself (section 8).
 		const paletteOpen =
 			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
 			this.apps?.modalOpen === true;
-		if (press.kind === 'wait') {
+		if (resolved?.wait) {
 			event.preventDefault();
-			if (!paletteOpen && !event.repeat) this.#pending = press.pending;
+			this.#pending = paletteOpen ? null : resolved.wait;
 			return;
 		}
-		const binding = press.kind === 'run' ? press.binding : undefined;
-		// Save is the editor area's, which answers its chord first while an editor is the active owner (5.5); a
-		// sequence's second key the area cannot see as save, so the shell asks it (8.1).
-		if (binding?.save && binding.chord.includes(' ')) {
-			event.preventDefault();
-			this.dispatchEvent(
-				new CustomEvent(SAVE_ASKED_EVENT, { detail: { path: event.composedPath() } })
-			);
-			return;
-		}
-		if (binding && !binding.save) {
+		const binding = resolved?.binding;
+		if (binding) {
 			event.preventDefault();
 			if (binding.focus) {
 				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.
@@ -1073,8 +1107,8 @@ export class LoamShell extends FASTElement {
 			else if (binding.toggle) void this.toggle(binding.toggle);
 			// A person's override of `section-open` names its section (8.1's `target`).
 			else if (binding.command === 'section-open' && binding.target)
-				this.apps?.run('section-open', { section: binding.target });
-			else if (binding.command) this.apps?.run(binding.command);
+				this.#run('section-open', { section: binding.target });
+			else if (binding.command) this.#run(binding.command, {});
 			return;
 		}
 		if (event.key === 'Escape' && !paletteOpen && !this.#drawerOpen()) {
@@ -1083,6 +1117,22 @@ export class LoamShell extends FASTElement {
 			else if (p.panel === 'sheet') void this.#closePart('panel');
 			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
 		}
+	}
+
+	/**
+	 * A binding's command, as the person's call, through the kernel whether or not any app surface is loaded (step 7's
+	 * reviews, 3); what it answers shows as a toast when it fails, the only report of a failure the person asked for.
+	 */
+	#run(command: string, input: Record<string, unknown>): void {
+		const kernel = this.kernel;
+		void kernel?.call(command, input).then((result) => {
+			if (result.success) return;
+			void kernel.call('toast-show', {
+				message: (result.error?.message ?? `${command} failed`).slice(0, 200),
+				tone: 'danger',
+				durationMs: 30_000,
+			});
+		});
 	}
 
 	/** Where focus is, for a binding's `when` (8.1, R4): the shell's part holding it, and whether an editor does. */
@@ -1096,20 +1146,6 @@ export class LoamShell extends FASTElement {
 			(node) => node instanceof HTMLElement && node.localName === 'loam-editor-frame'
 		);
 		return { part: part?.dataset.part, editor };
-	}
-
-	/**
-	 * Whether a key event is save, which the editor area asks (documents specification, 5.5): a single chord of a save
-	 * binding in force, Mod+S or the person's own (phase 4 specification, 8.3), matched on any layout (8.2, #877). A save
-	 * binding that is a sequence the shell asks the area for itself.
-	 */
-	isSave(event: KeyboardEvent): boolean {
-		return (this.kernel?.listKeybindings() ?? SHELL_KEYBINDINGS_V0).some(
-			(binding) =>
-				binding.save === true &&
-				!binding.chord.includes(' ') &&
-				chordMatches(binding.chord, event, this.mac)
-		);
 	}
 
 	/** Mod+Alt+P (8.4): the project switcher's press, on the rail's or the tab bar's, whichever is shown. */

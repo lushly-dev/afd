@@ -13,6 +13,7 @@ import {
 	type ListedBindingV1,
 	type OverrideV1,
 	overrideRefused,
+	overridesRefused,
 	overrideWarning,
 	reorder,
 	SEQUENCE_WAIT,
@@ -390,10 +391,14 @@ export class LoamKeybindingEditor extends Editor<OverrideV1[]> {
 		return this.#recorded ? { command: this.#command, ...target, keys: this.#recorded } : undefined;
 	}
 
-	/** Why Add cannot send what is pending: F6's own binding, a key never bound, a sequence's first chord (8.1, 8.3). */
+	/**
+	 * Why Add cannot send what is pending: F6's own binding, a key never bound, a sequence's first chord (8.1, 8.3),
+	 * or anything else the kernel would refuse of the whole list it would write (the reviews' 8).
+	 */
 	#refused(): string | undefined {
 		const pending = this.#pending();
-		if (pending) return overrideRefused(pending);
+		if (pending)
+			return overrideRefused(pending) ?? overridesRefused(withOverride(this.value, pending));
 		return this.#unbind ? undefined : keysRefused(this.#recorded);
 	}
 

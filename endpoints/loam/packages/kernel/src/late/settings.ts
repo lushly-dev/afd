@@ -674,15 +674,17 @@ export function createSettings(deps: SettingsDeps): Settings {
 		const person = deps.person();
 		const generation = ++reading;
 		if (deps.provider && person === undefined) {
-			registry.setOverrides([]);
+			registry.setOverrides([], person);
 			return;
 		}
 		const known = SHELL_SECTIONS.find((entry) => entry.fullId === KEYBINDINGS_ID) as KnownSectionV1;
+		// A read that fails keeps what the registry holds for this person; for another, none are known, and the
+		// registry, which compares whom it holds them for with whom the shell is for, dispatches no rebindable chord.
 		const record = await readRecord(deps.recordId(person ?? 'local')).catch(() => undefined);
 		if (!record || generation !== reading || deps.person() !== person) return;
 		const stored = storedOf(record[slotOf(known)]?.overrides);
 		const usable = stored !== undefined && overridesProblem(stored.value) === undefined;
-		registry.setOverrides(usable ? (stored.value as KeybindingOverrideV1[]) : []);
+		registry.setOverrides(usable ? (stored.value as KeybindingOverrideV1[]) : [], person);
 	}
 
 	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
@@ -1092,11 +1094,12 @@ export function createSettings(deps: SettingsDeps): Settings {
 				return fail(
 					wrong.code ?? 'VALIDATION_ERROR',
 					`The value of '${known.fullId}.${input.key}' ${wrong.problem}`,
-					wrong.code === 'SETTING_MUTE_SHELL'
-						? 'Mute an app instead'
-						: wrong.code === 'KEYBINDING_RESERVED'
-							? 'Bind another key'
-							: 'Read the key with setting-schema-get { section, key }, and give a value inside it',
+					wrong.suggestion ??
+						(wrong.code === 'SETTING_MUTE_SHELL'
+							? 'Mute an app instead'
+							: wrong.code === 'KEYBINDING_RESERVED'
+								? 'Bind another key'
+								: 'Read the key with setting-schema-get { section, key }, and give a value inside it'),
 					{ field: 'value' }
 				);
 			}

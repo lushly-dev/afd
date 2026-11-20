@@ -114,8 +114,14 @@ export interface KeybindingContextV1 {
 	project: boolean;
 }
 
-/** Whether a command an override names runs from a chord: registered and needing no input, or given its target. */
-export type KeybindingRunnable = (command: string, target: string | undefined) => boolean;
+/**
+ * What the late chunk knows of a command an override names (8.3): whether a chord runs it, registered, listed in the
+ * palette and taking the input the chord gives (none, or `section-open`'s section), and the instance it belongs to.
+ */
+export type KeybindingInfoV1 = (
+	command: string,
+	target: string | undefined
+) => { runnable: boolean; app?: string };
 
 export interface ResolvedKeybindingsV1 {
 	/** In force, first to last by precedence, the kernel's `when` terms holding: what the chrome matches. */
@@ -134,17 +140,30 @@ export interface KeybindingResolverV1 {
 		apps: readonly AppKeybinding[],
 		overrides: readonly KeybindingOverrideV1[],
 		context: KeybindingContextV1,
-		runnable: KeybindingRunnable,
+		info: KeybindingInfoV1,
 		everyApp?: boolean
 	): ResolvedKeybindingsV1;
+	/** The keys each command is run by, as the palette shows them: the person's own, else its binding's. */
+	shortcuts(
+		shell: readonly Readonly<ShellKeybindingV0>[],
+		apps: readonly AppKeybinding[],
+		overrides: readonly KeybindingOverrideV1[],
+		info: KeybindingInfoV1
+	): Map<string, string>;
 	collide(a: string, b: string): boolean;
 }
 
-/** Why a `when` is not 8.1's closed form: the manifest's rule, which `MANIFEST_KEYBINDING_WHEN` gives. */
-export { keybindingWhenProblem as whenProblem } from '@lushly-dev/loam-manifest';
+/** What `late-settings` tells the registry with the resolver: whom the shell is for, and what a command is. */
+export interface KeybindingSourceV1 {
+	person(): string | undefined;
+	info: KeybindingInfoV1;
+}
 
 export interface KeybindingRegistry {
-	/** The bindings in force now, first to last by precedence (8.1), as the chrome matches them. */
+	/**
+	 * The bindings in force now, first to last by precedence (8.1), as the chrome matches them. Until the overrides of
+	 * the person the shell is for are known, only F6 and Shift+F6, which no override touches (step 7's reviews, 2 and 6).
+	 */
 	list(active: string | null): KeybindingInForceV1[];
 	/** The keys that run `command`, as `listCommands` reports them: the person's own, else its binding's. */
 	keybindingFor(command: string): string | undefined;
@@ -154,25 +173,27 @@ export interface KeybindingRegistry {
 	context(active: string | null): KeybindingContextV1;
 	/** Whether two keys collide: the resolver's rule, else only the same keys (8.1). */
 	collide(a: string, b: string): boolean;
-	/** The resolver, once `late-settings` has loaded. */
-	setResolver(resolver: KeybindingResolverV1): void;
+	/** The resolver and its source, once `late-settings` has loaded. */
+	setResolver(resolver: KeybindingResolverV1, source: KeybindingSourceV1): void;
 	/** The apps' bindings, once stage B has loaded them. */
 	setApps(apps: readonly AppKeybinding[]): void;
-	/** The person's overrides, which `late-settings` reads at its load, after each write and on a change of person. */
-	setOverrides(overrides: readonly KeybindingOverrideV1[]): void;
+	/** The overrides of `person`, which `late-settings` reads at its load, after each write and on a change of person. */
+	setOverrides(overrides: readonly KeybindingOverrideV1[], person: string | undefined): void;
 	/** The active tab's owner and document type, after a call that may have moved them. */
 	setEditor(editor: { owner: string; type: string } | null): void;
 }
 
 export interface KeybindingRegistryOptions {
-	runnable?: KeybindingRunnable;
 	/** Whether a project is in the active scope now. */
 	project?: () => boolean;
 }
 
+/** No overrides read yet for anyone. */
+const UNREAD: unique symbol = Symbol();
+
 /**
- * The registry (phase 1 specification, 4.2; phase 4 specification, 8.1). Until `late-settings` gives the resolver, the
- * reserved chords and the active app's bindings with no `when`, as phase 1 had them; then 8.1's precedence.
+ * The registry (phase 1 specification, 4.2; phase 4 specification, 8.1). Until `late-settings` gives the resolver and
+ * the overrides of the person the shell is for, only the focus chords dispatch; then 8.1's precedence.
  */
 export function createKeybindings(
 	shell: readonly Readonly<ShellKeybindingV0>[],
@@ -181,52 +202,51 @@ export function createKeybindings(
 ): KeybindingRegistry {
 	let held = [...apps];
 	let overrides: KeybindingOverrideV1[] = [];
+	let readFor: string | undefined | typeof UNREAD = UNREAD;
 	let editor: { owner: string; type: string } | null = null;
 	let resolver: KeybindingResolverV1 | undefined;
+	let source: KeybindingSourceV1 | undefined;
 	let shown: Map<string, string> | undefined;
-	const runnable = options.runnable ?? (() => false);
 	const context = (active: string | null): KeybindingContextV1 => ({
 		active,
 		editor,
 		project: options.project?.() ?? false,
 	});
+	/** The overrides of the person the shell is for now, or undefined while they are not known. */
+	const mine = (): KeybindingOverrideV1[] | undefined =>
+		source && readFor !== UNREAD && readFor === source.person() ? overrides : undefined;
 	return {
 		list(active) {
-			if (resolver)
-				return resolver.resolve(shell, held, overrides, context(active), runnable).force;
-			const band = held
-				.filter((binding) => binding.instance === active && binding.when === undefined)
-				.map(({ chord, command }) => ({ chord, command }));
-			return [...shell.map((binding) => ({ ...binding })), ...band];
+			const known = mine();
+			if (!resolver || !source || !known)
+				return shell.filter((binding) => binding.focus).map((binding) => ({ ...binding }));
+			return resolver.resolve(shell, held, known, context(active), source.info).force;
 		},
 		keybindingFor(command) {
-			if (!resolver)
+			const known = mine();
+			if (!resolver || !source || !known)
 				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
-			if (!shown) {
-				const map = new Map<string, string>();
-				const all = resolver.resolve(shell, held, overrides, context(null), runnable, true);
-				for (const entry of all.entries) {
-					if (entry.inForce && entry.target === undefined && !map.has(entry.command))
-						map.set(entry.command, entry.keys);
-				}
-				shown = map;
-			}
+			shown ??= resolver.shortcuts(shell, held, known, source.info);
 			return shown.get(command);
 		},
 		resolve: (at) =>
-			resolver?.resolve(shell, held, overrides, at, runnable) ?? { force: [], entries: [] },
+			resolver && source
+				? resolver.resolve(shell, held, mine() ?? [], at, source.info)
+				: { force: [], entries: [] },
 		context,
 		collide: (a, b) => resolver?.collide(a, b) ?? a === b,
-		setResolver(next) {
+		setResolver(next, from) {
 			resolver = next;
+			source = from;
 			shown = undefined;
 		},
 		setApps(next) {
 			held = [...next];
 			shown = undefined;
 		},
-		setOverrides(next) {
+		setOverrides(next, person) {
 			overrides = next.map((each) => ({ ...each }));
+			readFor = person;
 			shown = undefined;
 		},
 		setEditor(next) {

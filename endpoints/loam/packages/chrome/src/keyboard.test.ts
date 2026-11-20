@@ -1,6 +1,5 @@
 import { createDefaultLayout, SHELL_KEYBINDINGS_V0 } from '@lushly-dev/loam-kernel';
 import { describe, expect, it } from 'vitest';
-import { SAVE_ASKED } from './editor/save-asked.js';
 import {
 	type ChordEvent,
 	focusHolds,
@@ -10,7 +9,6 @@ import {
 	nextPart,
 	type PendingChord,
 	pressKey,
-	SAVE_ASKED_EVENT,
 	SEQUENCE_WAIT_MS,
 	sameChord,
 	toggleInput,
@@ -227,6 +225,14 @@ describe('sequences (8.1)', () => {
 		expect(pressKey(p, false, bindings, pending, 2501)).toEqual({ kind: 'none' });
 	});
 
+	it("ends the wait on a key no chord names, which is left to the page (the reviews' 5)", () => {
+		const pending = { first: 'Mod+G', until: 2500 };
+		const bracket = key({ key: 'Dead', code: 'BracketLeft' });
+		expect(pressKey(bracket, false, bindings, pending, 2000)).toEqual({ kind: 'none' });
+		const altGraph = key({ key: 'AltGraph', code: 'AltRight', ctrlKey: true, altKey: true });
+		expect(pressKey(altGraph, false, bindings, pending, 2000)).toEqual({ kind: 'wait', pending });
+	});
+
 	it('ends the wait on any other key, which is matched afresh', () => {
 		const pending = { first: 'Mod+G', until: 2500 };
 		const greet = key({ key: 'H', code: 'KeyH', ctrlKey: true, shiftKey: true });
@@ -260,11 +266,5 @@ describe("when's focus terms (8.1, R4)", () => {
 		expect(
 			focusHolds('project && documentType == jot-page', { part: undefined, editor: false })
 		).toBe(true);
-	});
-});
-
-describe("the editor chunk's copy of the save ask (phase 3 specification, 13)", () => {
-	it('names the same event', () => {
-		expect(SAVE_ASKED).toBe(SAVE_ASKED_EVENT);
 	});
 });

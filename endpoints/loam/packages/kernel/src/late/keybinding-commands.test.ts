@@ -383,3 +383,130 @@ describe("a person's overrides, kept per workspace and person (8.3, R5)", () => 
 		expect(Object.keys(held?.value ?? {})).toContain('personal/loam.keybindings');
 	});
 });
+
+describe("step 7's reviews", () => {
+	const PROVIDER: IdentityV1 = {
+		mode: 'provider',
+		organization: 'acme',
+		path: 'api/auth',
+		methods: ['passkey', 'password'],
+	};
+	const ADA = 'mock-user-ada@example.com';
+	const OLU = 'mock-user-olu@example.com';
+	const membership: MembershipV1 = {
+		mode: 'provider',
+		members: new Map([
+			[ADA, 'member'],
+			[OLU, 'owner'],
+		]),
+		digest: 'd1',
+	};
+
+	/** A store whose reads of one record fail while `failing` holds it. */
+	class FailingStore extends MemoryAdapter {
+		failing: string | undefined;
+		override async get<T>(table: string, id: string): Promise<T | null> {
+			if (table === 'settings' && id === this.failing) throw new Error('the store failed');
+			return super.get<T>(table, id);
+		}
+	}
+
+	it('2: drops one person’s overrides on a direct change to another whose read fails (Astra 2, Opus 4)', async () => {
+		const store = new FailingStore();
+		const clock = createSteppingClock();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter({ clock: { now: clock } }),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock,
+			identity: PROVIDER,
+			membership,
+		});
+		kernels.push(kernel);
+		const signIn = (email: string) =>
+			kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+		await signIn('ada@example.com');
+		await override(kernel, [{ command: 'palette-open', keys: 'Mod+Shift+K' }]);
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+		store.failing = personalRecordId('loam.settings', OLU);
+		// Straight from Ada to Olu, with no sign-out between, and Olu's record unreadable.
+		await signIn('olu@example.com');
+		const chords = kernel.listKeybindings().map(({ chord }) => chord);
+		expect(chords).not.toContain('Mod+Shift+K');
+		// Olu's own overrides are not known, so only F6 and Shift+F6, which no override touches, dispatch.
+		expect(chords).toEqual(['F6', 'Shift+F6']);
+		const listed = await list(kernel, { all: true });
+		expect(listed.some((entry) => entry.source === 'you')).toBe(false);
+	});
+
+	it('6: dispatches no rebindable default until the person’s overrides are known (Astra 6)', async () => {
+		const store = new MemoryAdapter();
+		await store.create('settings', {
+			id: 'loam.settings',
+			category: 'settings',
+			value: {
+				'personal/loam.keybindings': {
+					overrides: {
+						value: [{ command: 'layout-set', target: 'sidebar', keys: null }],
+						updatedAt: 1,
+						updatedBy: 'local',
+					},
+				},
+			},
+		});
+		const { kernel } = await workspace(store);
+		expect(kernel.listKeybindings().map(({ chord }) => chord)).not.toContain('Mod+B');
+	});
+
+	it('7: names an app command’s instance from the registry, and section-open active only for a real section (Astra 7)', async () => {
+		const { kernel } = await workspace();
+		await override(kernel, [
+			{ command: 'keys-peek', keys: 'Mod+Shift+Y' },
+			{ command: 'section-open', target: 'nowhere', keys: 'Mod+G N' },
+			{ command: 'section-open', target: 'documents', keys: 'Mod+G D' },
+		]);
+		expect(await list(kernel, { command: 'keys-peek' })).toEqual([
+			{ keys: 'Mod+Shift+Y', command: 'keys-peek', source: 'you', app: 'keys', active: true },
+		]);
+		const sections = await list(kernel, { command: 'section-open', all: true });
+		expect(sections.find((entry) => entry.target === 'nowhere')).toMatchObject({ active: false });
+		expect(sections.find((entry) => entry.target === 'documents')).toMatchObject({ active: true });
+		expect(kernel.listKeybindings().some(({ chord }) => chord === 'Mod+G N')).toBe(false);
+	});
+
+	it('R7: refuses a single chord with no modifier but a function key; R8: a target off section-open and layout-set', async () => {
+		const { kernel } = await workspace();
+		for (const keys of ['A', 'Enter', 'Shift+A', 'Alt+X', 'Space']) {
+			const refused = await override(kernel, [{ command: 'palette-open', keys }]);
+			expect(refused.error, keys).toMatchObject({
+				code: 'VALIDATION_ERROR',
+				suggestion: 'Bind a chord with Mod, such as Mod+Shift+K, or a function key, such as F7',
+			});
+		}
+		for (const keys of ['F7', 'Shift+F7', 'Mod+A', 'Ctrl+A', 'Mod+G P'])
+			expect((await override(kernel, [{ command: 'palette-open', keys }])).success, keys).toBe(
+				true
+			);
+		for (const value of [
+			[{ command: 'palette-open', target: 'documents', keys: 'Mod+Shift+K' }],
+			[{ command: 'layout-set', target: 'footer', keys: 'Mod+Shift+K' }],
+		]) {
+			const refused = await override(kernel, value);
+			expect(refused.error, JSON.stringify(value)).toMatchObject({
+				code: 'VALIDATION_ERROR',
+				suggestion:
+					"Give a target only to section-open, a section, or layout-set, one of 'sidebar', 'inspector' or 'panel'",
+			});
+		}
+	});
+
+	it('11: is not served over MCP (Opus 1)', async () => {
+		const made = await workspace();
+		const served = (made.mcpOptions()?.commands ?? []).map((command) => command.name);
+		expect(served.length).toBeGreaterThan(0);
+		expect(served).not.toContain('keybinding-list');
+	});
+});

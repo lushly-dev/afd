@@ -932,9 +932,7 @@
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
 				},
 				"when": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 200
+					"type": "string"
 				}
 			},
 			"required": ["chord", "command"],

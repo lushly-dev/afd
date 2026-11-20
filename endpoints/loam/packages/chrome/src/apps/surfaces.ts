@@ -225,12 +225,9 @@ export class AppSurfaces implements ShellApps {
 		};
 	}
 
-	/**
-	 * Run a command for a person, with no input or a chord's own (a `section-open` override's section, phase 4
-	 * specification, 8.1); what it answers shows as a toast when it fails.
-	 */
-	run(command: string, input: Record<string, unknown> = {}): void {
-		void this.#kernel.call(command, input).then((result) => {
+	/** Run a command for a person, with no input; what it answers shows as a toast when it fails. */
+	run(command: string): void {
+		void this.#kernel.call(command, {}).then((result) => {
 			if (result.success) return;
 			const message = result.error?.message ?? `${command} failed`;
 			// As long as a toast may last: this is the only report of a failure the person asked for.

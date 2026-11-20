@@ -153,15 +153,82 @@ export function overrideWarning(
 			: 'Mod+K would no longer open the command palette.';
 	if (override.keys === null) return undefined;
 	const keys = override.keys;
-	const hit = bindings.find(
+	const colliding = bindings.filter(
 		(binding) =>
-			binding.source !== 'you' &&
 			!(binding.command === override.command && binding.target === override.target) &&
 			keysCollide(binding.keys, keys)
 	);
+	// One of the person's own comes first: it wins, since an override added goes after it (8.1; the reviews' 8).
+	const yours = colliding.find((binding) => binding.source === 'you');
+	const hit = yours ?? colliding[0];
 	if (!hit) return undefined;
 	const what = hit.target ? `${hit.command} (${hit.target})` : hit.command;
+	if (yours)
+		return `${hit.keys} is already yours, for ${what}, which would win: this binding would be shadowed.`;
 	return `${hit.keys} runs ${what}, the ${hit.source === 'app' ? "app's" : "shell's"}; this binding would shadow it.`;
+}
+
+/** A chord's modifiers, in this order, each once: the kernel's `isChord`. */
+const MODIFIERS = ['Mod', 'Ctrl', 'Alt', 'Shift', 'Meta'];
+const CHORD_KEY =
+	/^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Enter|Escape|Tab|Space|Backspace|Delete|Home|End|PageUp|PageDown|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|[,./;=-])$/;
+const isChord = (chord: string): boolean => {
+	const parts = chord.split('+');
+	const key = parts.pop() as string;
+	let at = -1;
+	for (const modifier of parts) {
+		const index = MODIFIERS.indexOf(modifier);
+		if (index <= at) return false;
+		at = index;
+	}
+	return CHORD_KEY.test(key);
+};
+const COMMAND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+/** How many overrides a person keeps (3.7). */
+const MOST_OVERRIDES = 64;
+
+/**
+ * Why the kernel would refuse a whole list of overrides, in words, or undefined: the kernel's `overridesProblem`,
+ * repeated so the editor refuses before Add what the write would (the reviews' 8); a unit holds the two equal.
+ */
+export function overridesRefused(list: readonly OverrideV1[]): string | undefined {
+	if (list.length > MOST_OVERRIDES)
+		return `You keep at most ${MOST_OVERRIDES} overrides: remove one first.`;
+	const seen = new Set<string>();
+	for (const { command, target, keys } of list) {
+		if (typeof command !== 'string' || command.length > 128 || !COMMAND.test(command))
+			return `'${command}' is not a command's name, such as palette-open.`;
+		if (target !== undefined && (target.length < 1 || target.length > 128))
+			return 'A target is 1 to 128 characters, or none.';
+		if (
+			target !== undefined &&
+			command !== 'section-open' &&
+			!(command === 'layout-set' && ['sidebar', 'inspector', 'panel'].includes(target))
+		)
+			return 'Give a target only to section-open, a section, or layout-set, sidebar, inspector or panel.';
+		if (keys !== null) {
+			const chords = keys.split(' ');
+			if (chords.length > 2 || !chords.every(isChord))
+				return `${keys} is not one chord or two, such as Mod+Shift+H.`;
+			const refused = keysRefused(keys);
+			if (refused) return refused;
+			const [first, second] = chords as [string, string | undefined];
+			const modifiers = first.split('+').slice(0, -1);
+			if (
+				second === undefined &&
+				!/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(first.split('+').pop() as string) &&
+				!modifiers.some((modifier) => ['Mod', 'Ctrl', 'Meta'].includes(modifier))
+			)
+				return `${first} alone is pressed by typing: bind a chord with Mod, or a function key.`;
+		}
+		const refused = overrideRefused({ command, keys: null });
+		if (refused) return refused;
+		const binding = JSON.stringify([command, target ?? null]);
+		if (seen.has(binding)) return `${command} is overridden twice.`;
+		seen.add(binding);
+	}
+	return undefined;
 }
 
 /** The editor of each of the shell's custom keys (3.7), by `<section>.<key>`. */

@@ -4,6 +4,7 @@
  * shadow, the reserved chords' names (R1) and targets (R2), and the `when` terms the kernel decides (R4).
  */
 
+import { keybindingWhenProblem as whenProblem } from '@lushly-dev/loam-manifest';
 import { describe, expect, it } from 'vitest';
 import {
 	type AppKeybinding,
@@ -11,7 +12,6 @@ import {
 	type KeybindingContextV1,
 	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
-	whenProblem,
 } from './keybindings.js';
 import {
 	KEYBINDING_RESOLVER,
@@ -38,12 +38,16 @@ const at = (context: Partial<KeybindingContextV1> = {}): KeybindingContextV1 => 
 	project: false,
 	...context,
 });
-const runnable = (command: string, target: string | undefined) =>
+const runnable = (command: string, target: string | undefined): boolean =>
 	command === 'section-open' ? target !== undefined : /^(hello|count|jot)-/.test(command);
+const info = (command: string, target: string | undefined) => ({
+	runnable: runnable(command, target),
+	...(/^(hello|count|jot)-/.test(command) ? { app: command.split('-')[0] as string } : {}),
+});
 const resolve = (
 	overrides: Parameters<typeof resolveKeybindings>[2] = [],
 	context: Partial<KeybindingContextV1> = {}
-) => resolveKeybindings(SHELL_KEYBINDINGS_V0, APPS, overrides, at(context), runnable);
+) => resolveKeybindings(SHELL_KEYBINDINGS_V0, APPS, overrides, at(context), info);
 
 describe('the reserved chords as bindings (8.4, R1, R2)', () => {
 	it('names each by its command, or by its action in the shell domain, and each layout toggle by its part', () => {
@@ -143,7 +147,7 @@ describe('collisions (8.1)', () => {
 			apps,
 			[],
 			at({ editor: { owner: 'count', type: 'count-sheet' } }),
-			runnable
+			info
 		);
 		expect(entries.find((entry) => entry.command === 'hello-go')?.shadowed).toEqual([
 			{ source: 'app', command: 'count-pick' },
@@ -231,21 +235,59 @@ describe("a person's overrides (8.3)", () => {
 });
 
 describe('the registry', () => {
+	const source = (person: () => string | undefined) => ({
+		person,
+		info: (command: string, target: string | undefined) => ({
+			runnable: runnable(command, target),
+			...(/^count-/.test(command) ? { app: 'count' } : {}),
+		}),
+	});
+
+	it("dispatches only F6 and Shift+F6 until the person's overrides are known (step 7's reviews, 6)", () => {
+		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, APPS);
+		// Before the late load: nothing rebindable, as a stored unbind may hold any of it.
+		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		registry.setResolver(
+			KEYBINDING_RESOLVER,
+			source(() => 'ada')
+		);
+		// The resolver, but no overrides read for Ada yet.
+		expect(registry.list('hello').map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		registry.setOverrides([{ command: 'layout-set', target: 'sidebar', keys: null }], 'ada');
+		const known = registry.list('hello').map(({ chord }) => chord);
+		expect(known).toContain('Mod+K');
+		expect(known).not.toContain('Mod+B');
+	});
+
+	it("drops a person's overrides the moment the person changes, before the next read (step 7's reviews, 2)", () => {
+		let person: string | undefined = 'ada';
+		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, APPS);
+		registry.setResolver(
+			KEYBINDING_RESOLVER,
+			source(() => person)
+		);
+		registry.setOverrides([{ command: 'palette-open', keys: 'Mod+Shift+K' }], 'ada');
+		expect(registry.list(null)[0]?.chord).toBe('Mod+Shift+K');
+		person = 'olu';
+		expect(registry.list(null).map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6']);
+		expect(
+			registry.resolve(registry.context(null)).entries.some((entry) => entry.source === 'you')
+		).toBe(false);
+		person = 'ada';
+		expect(registry.list(null)[0]?.chord).toBe('Mod+Shift+K');
+	});
+
 	it('lists in force for the active app, and gives the palette each command its keys, the person’s own first', () => {
 		let project = false;
-		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, [], {
-			runnable,
-			project: () => project,
-		});
+		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, [], { project: () => project });
 		registry.setApps(APPS);
-		// Before the late load: the reserved chords and the active app's with no `when`, as phase 1 had them.
-		expect(registry.list('hello').map(({ chord }) => chord)).toEqual([
-			...SHELL_KEYBINDINGS_V0.map(({ chord }) => chord),
-			'Mod+Shift+H',
-		]);
 		expect(registry.resolve(registry.context('hello'))).toEqual({ force: [], entries: [] });
 		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(false);
-		registry.setResolver(KEYBINDING_RESOLVER);
+		registry.setResolver(
+			KEYBINDING_RESOLVER,
+			source(() => undefined)
+		);
+		registry.setOverrides([], undefined);
 		expect(registry.collide('Mod+G', 'Mod+G P')).toBe(true);
 		expect(registry.list('count').map(({ chord }) => chord)).toContain('Mod+Shift+T');
 		expect(registry.list('hello').map(({ chord }) => chord)).not.toContain('Mod+G P');
@@ -253,10 +295,13 @@ describe('the registry', () => {
 		expect(registry.list('hello').map(({ chord }) => chord)).toContain('Mod+G P');
 		expect(registry.keybindingFor('count-add')).toBe('Mod+Shift+T');
 		expect(registry.keybindingFor('palette-open')).toBe('Mod+K');
-		registry.setOverrides([
-			{ command: 'count-add', keys: 'Mod+Shift+A' },
-			{ command: 'palette-open', keys: null },
-		]);
+		registry.setOverrides(
+			[
+				{ command: 'count-add', keys: 'Mod+Shift+A' },
+				{ command: 'palette-open', keys: null },
+			],
+			undefined
+		);
 		expect(registry.keybindingFor('count-add')).toBe('Mod+Shift+A');
 		expect(registry.keybindingFor('palette-open')).toBeUndefined();
 		registry.setEditor({ owner: 'jot', type: 'jot-page' });

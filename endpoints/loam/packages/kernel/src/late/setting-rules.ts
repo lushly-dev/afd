@@ -41,6 +41,8 @@ export interface SettingValueProblemV1 {
 	code?: 'SETTING_MUTE_SHELL' | 'KEYBINDING_RESERVED';
 	/** What is wrong, as the end of a sentence about the key: "must be a list". */
 	problem: string;
+	/** How to put it right, where the key's own rule says more than "read the key's schema". */
+	suggestion?: string;
 }
 
 /**

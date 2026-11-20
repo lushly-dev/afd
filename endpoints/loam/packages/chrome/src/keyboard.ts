@@ -59,6 +59,8 @@ const CODE_NAMES: Readonly<Record<string, string>> = {
 	Minus: '-',
 };
 const FUNCTION = /^F(?:[1-9]|1[0-9]|2[0-4])$/;
+/** The keys that only modify another, which a sequence's wait lets pass (8.1). */
+const MODIFIER = /^(?:Control|Shift|Alt|AltGraph|Meta|OS|Super|Hyper|Fn|CapsLock)$/;
 const NAMED =
 	/^(?:Enter|Escape|Tab|Backspace|Delete|Home|End|PageUp|PageDown|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/;
 
@@ -105,12 +107,6 @@ export function matchKeybinding(
 	);
 }
 
-/**
- * The shell's ask of the editor area to save, when a person's save binding is a sequence whose second key the area
- * cannot read as save (phase 4 specification, 8.1): `detail.path`, the key event's composed path.
- */
-export const SAVE_ASKED_EVENT = 'loam-save-asked';
-
 /** How long a sequence waits for its second chord (8.1). */
 export const SEQUENCE_WAIT_MS = 1500;
 
@@ -139,8 +135,11 @@ export function pressKey<T extends { chord: string }>(
 	pending: PendingChord | null,
 	now: number
 ): KeyPress<T> {
+	// A modifier alone keeps a sequence waiting; any other key no chord names ends the wait, left to the page.
 	if (keyOf(event) === undefined)
-		return pending && now <= pending.until ? { kind: 'wait', pending } : { kind: 'none' };
+		return pending && now <= pending.until && MODIFIER.test(event.key)
+			? { kind: 'wait', pending }
+			: { kind: 'none' };
 	if (pending && now <= pending.until) {
 		const second = bindings.find((binding) => {
 			const [first, then] = chordsOf(binding.chord);

@@ -423,6 +423,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * read per workspace); `appsMinified` 424,000 to 426,500 (426,064, +2,354: the manifest's sequences and `when`, their
  * two codes and the version 1 refusal); `settingsMinified` 42,200 to 44,800 (44,352, +2,152: the editor's sequences,
  * target and warnings, and the chunk's copies of the matcher's rules).
+ * After step 7's reviews (keys trusted and resolved once in the shell, overrides tied to their person, eligibility and
+ * the palette's shortcut map moved into `late-settings`, `whenProblem` no longer re-exported), against the step's own
+ * figures: first paint 316,078 and 99,262 gzip (+126 and +101), within `jsMinified` and `jsGzip`; `kernelMinified`
+ * 125,200 to 124,300 (123,775, -875); `lateMinified` 110,500 to 111,000 (110,541: the command info read from the
+ * registry); `lateSettingsMinified` 73,500 to 74,200 (73,694: the shortcut map, R7's and R8's checks);
+ * `settingsMinified` 44,800 to 46,400 (45,912, +1,560: the editor's copy of the whole list's check and its warnings).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -463,7 +469,7 @@ export const CEILINGS = Object.freeze({
 	// Raised again under D115 by phase 4's step 1 (the settings core) on top of it: 118,693 of 118,000 (the person's
 	// settings read for stage A's paint, the migration's call and kernel interface 4), set to 119,500. `late` 80,500 to
 	// 82,000 the same step (81,372: the host decision, the move and the settings chunk's loader).
-	kernelMinified: 125_200,
+	kernelMinified: 124_300,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -471,13 +477,13 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 110_500,
+	lateMinified: 111_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_600,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it).
-	lateSettingsMinified: 73_500,
+	lateSettingsMinified: 74_200,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -519,7 +525,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 44_800,
+	settingsMinified: 46_400,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 	inboxMinified: 10_000,

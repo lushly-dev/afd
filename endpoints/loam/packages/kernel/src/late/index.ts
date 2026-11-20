@@ -603,9 +603,6 @@ export async function createLateParts(
 	});
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
-	// 8.1's precedence for the kernel's keybindings, then the person's overrides (8.3), as the limits are read.
-	deps.keybindings?.setResolver(KEYBINDING_RESOLVER);
-	await settings.readOverrides();
 	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
 	const keybindingCommands = createKeybindingCommands({
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
@@ -861,6 +858,30 @@ export async function createLateParts(
 		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
 	);
 	appearance = byName.get('appearance-set');
+	// 8.1's precedence for the kernel's keybindings, with whom the shell is for and what a command an override names
+	// is (the reviews' 7): registered, listed in the palette and taking the chord's input, `section-open`'s section or
+	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
+	deps.keybindings?.setResolver(KEYBINDING_RESOLVER, {
+		person: shellPerson,
+		info(command, target) {
+			const app = deps.apps().owners.get(command)?.instance;
+			const definition =
+				INTERNAL_COMMANDS.includes(command) ||
+				BOOT_ONLY.includes(command) ||
+				command === 'layout-set'
+					? undefined
+					: app !== undefined
+						? deps.apps().commands.find((each) => each.name === command)
+						: byName.get(command);
+			const input = command === 'section-open' ? { section: target } : {};
+			const runnable =
+				definition !== undefined &&
+				definition.expose?.palette !== false &&
+				z.safeParse(definition.inputSchema as z.ZodMiniType, input).success;
+			return { runnable, ...(app !== undefined ? { app } : {}) };
+		},
+	});
+	await settings.readOverrides();
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
 	const appList = byName.get('app-list') as ZodCommandDefinition;
 	byName.set('app-list', {

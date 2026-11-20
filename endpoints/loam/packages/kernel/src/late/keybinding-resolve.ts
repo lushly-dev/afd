@@ -10,9 +10,9 @@ import type {
 	KeybindingContextV1,
 	KeybindingEntryV1,
 	KeybindingInForceV1,
+	KeybindingInfoV1,
 	KeybindingOverrideV1,
 	KeybindingResolverV1,
-	KeybindingRunnable,
 	ResolvedKeybindingsV1,
 	ShellKeybindingV0,
 } from '../keybindings.js';
@@ -107,7 +107,7 @@ export function resolveKeybindings(
 	apps: readonly AppKeybinding[],
 	overrides: readonly KeybindingOverrideV1[],
 	context: KeybindingContextV1,
-	runnable: KeybindingRunnable,
+	info: KeybindingInfoV1,
 	everyApp = false
 ): ResolvedKeybindingsV1 {
 	const owner = context.editor?.owner ?? null;
@@ -147,6 +147,9 @@ export function resolveKeybindings(
 		for (const base of matched) base.replaced = true;
 		if (keys === null) continue;
 		const base = matched[0];
+		// The registry's answer, for a command no binding names: whether a chord runs it, and whose it is (the reviews' 7).
+		const known = info(command, target);
+		const app = base?.entry.app ?? known.app;
 		const shadowed = matched.map(({ entry }) => ({ source: entry.source, command: entry.command }));
 		// The person's binding holds everywhere: no app's `when` comes with it.
 		const { when: _when, ...action } = base?.binding ?? { command };
@@ -156,13 +159,13 @@ export function resolveKeybindings(
 				command,
 				...(target !== undefined ? { target } : {}),
 				source: 'you',
-				...(base?.entry.app !== undefined ? { app: base.entry.app } : {}),
+				...(app !== undefined ? { app } : {}),
 				...(shadowed.length > 0 ? { shadowed } : {}),
 				active: false,
 			},
 			binding: { ...action, chord: keys, ...(target !== undefined ? { target } : {}) },
 			band: true,
-			...(base || runnable(command, target) ? {} : { idle: true as const }),
+			...(base || known.runnable ? {} : { idle: true as const }),
 		});
 	}
 	const ordered = [...yours, ...bases];
@@ -193,8 +196,32 @@ export function resolveKeybindings(
 	};
 }
 
+/** The keys each command is run by, as the palette shows them: every app's band counted, the person's own first. */
+export function keybindingShortcuts(
+	shell: readonly Readonly<ShellKeybindingV0>[],
+	apps: readonly AppKeybinding[],
+	overrides: readonly KeybindingOverrideV1[],
+	info: KeybindingInfoV1
+): Map<string, string> {
+	const map = new Map<string, string>();
+	const all = resolveKeybindings(
+		shell,
+		apps,
+		overrides,
+		{ active: null, project: false },
+		info,
+		true
+	);
+	for (const entry of all.entries) {
+		if (entry.inForce && entry.target === undefined && !map.has(entry.command))
+			map.set(entry.command, entry.keys);
+	}
+	return map;
+}
+
 /** The resolver the registry is given at the late load. */
 export const KEYBINDING_RESOLVER: KeybindingResolverV1 = Object.freeze({
 	resolve: resolveKeybindings,
+	shortcuts: keybindingShortcuts,
 	collide: keysCollide,
 });

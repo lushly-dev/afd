@@ -865,12 +865,13 @@ describe('section 3.3: nothing writes an instance', () => {
 		const offending = registries.palette
 			.listCommands()
 			.filter(({ name }) => !INTERNAL_COMMANDS.includes(name))
-			// Phase 4's `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes nowhere.
-			.filter(({ name }) => name !== 'keybinding-list')
-			.filter(({ inputSchema }) => {
+			.filter(({ name, inputSchema }) => {
 				const properties = Object.keys(
 					(inputSchema as { properties?: Record<string, unknown> }).properties ?? {}
-				);
+				)
+					// Phase 4's `keybinding-list` (its 8.5) filters by a binding's `command`, a name it reads and writes
+					// nowhere: that property alone is exempt, as P2-E10 exempts it (`stores.test.ts`).
+					.filter((key) => !(name === 'keybinding-list' && key === 'command'));
 				return properties.some((key) => /^(command|url|bearer.*|cwd)$/.test(key));
 			})
 			.map(({ name }) => name);

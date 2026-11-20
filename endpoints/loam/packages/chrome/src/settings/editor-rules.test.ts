@@ -5,8 +5,9 @@
  */
 
 import { SHELL_KEYBINDINGS_V0 } from '@lushly-dev/loam-kernel';
+import { keysCollide as kernelCollide, overridesProblem } from '@lushly-dev/loam-kernel/testing';
 import { describe, expect, it } from 'vitest';
-import { keyOf as matcherKeyOf, SEQUENCE_WAIT_MS, sameChord } from '../keyboard.js';
+import { keyOf as matcherKeyOf, SEQUENCE_WAIT_MS } from '../keyboard.js';
 import {
 	CUSTOM_EDITORS,
 	chordOf,
@@ -14,7 +15,9 @@ import {
 	keysCollide,
 	keysRefused,
 	NEVER_BOUND,
+	type OverrideV1,
 	overrideRefused,
+	overridesRefused,
 	overrideWarning,
 	reorder,
 	SEQUENCE_WAIT,
@@ -87,6 +90,16 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 		expect(
 			overrideWarning({ command: 'count-add', keys: 'Mod+Shift+Z' }, bindings)
 		).toBeUndefined();
+		// One of your own on colliding keys: said, and which wins, the earlier of yours (the reviews' 8).
+		const yours = [
+			...bindings,
+			{ keys: 'Mod+Shift+Z', command: 'jot-zap', source: 'you' as const, active: true },
+		];
+		expect(overrideWarning({ command: 'count-add', keys: 'Mod+Shift+Z' }, yours)).toBe(
+			'Mod+Shift+Z is already yours, for jot-zap, which would win: this binding would be shadowed.'
+		);
+		// Rebinding your own command is no collision.
+		expect(overrideWarning({ command: 'jot-zap', keys: 'Mod+Shift+Z' }, yours)).toBeUndefined();
 	});
 
 	it('refuses keys never bound, and a sequence that begins on a reserved chord or without Mod (8.1)', () => {
@@ -170,20 +183,52 @@ describe("the settings chunk's copies of first paint's rules (phase 3 specificat
 			expect(keyOf({ key, code }), `${key} ${code}`).toBe(matcherKeyOf({ key, code }));
 	});
 
-	it("collides keys as the kernel's resolver does, and waits the matcher's 1,500 ms", () => {
-		// The kernel's own table is `keybindings.test.ts`; here, the same cases, and the matcher's chord identity.
-		expect(keysCollide('Mod+G', 'Mod+G P')).toBe(true);
-		expect(keysCollide('Mod+G P', 'Mod+G')).toBe(true);
-		expect(keysCollide('Mod+G P', 'Mod+G Q')).toBe(false);
-		expect(keysCollide('Mod+G P', 'Mod+G P')).toBe(true);
-		expect(keysCollide('Mod+Shift+Alt+H', 'Mod+Alt+Shift+H')).toBe(true);
-		expect(keysCollide('Mod+H', 'Mod+Shift+H')).toBe(false);
-		for (const [a, b] of [
-			['Mod+Shift+Alt+H', 'Mod+Alt+Shift+H'],
-			['Mod+H', 'Mod+Shift+H'],
-			['F7', 'F7'],
-		] as const)
-			expect(keysCollide(a, b), `${a} ${b}`).toBe(sameChord(a, b));
+	it("collides keys as the kernel's resolver does, and waits the matcher's 1,500 ms (the reviews' 14)", () => {
+		const keys = [
+			'Mod+G',
+			'Mod+G P',
+			'Mod+G Q',
+			'Mod+Shift+Alt+H',
+			'Mod+Alt+Shift+H',
+			'Mod+H',
+			'F7',
+			'Ctrl+K',
+		];
+		for (const a of keys)
+			for (const b of keys) expect(keysCollide(a, b), `${a} ${b}`).toBe(kernelCollide(a, b));
 		expect(SEQUENCE_WAIT).toBe(SEQUENCE_WAIT_MS);
+	});
+
+	it("refuses a proposed list as the kernel's check does (the reviews' 8)", () => {
+		const one = (override: object) => [override];
+		const lists: unknown[] = [
+			one({ command: 'palette-open', keys: 'Mod+Shift+K' }),
+			one({ command: 'Palette', keys: 'Mod+K' }),
+			one({ command: 'palette-open', keys: 'Shift+F6' }),
+			one({ command: 'palette-open', keys: 'Mod+K P' }),
+			one({ command: 'palette-open', keys: 'Alt+G P' }),
+			one({ command: 'palette-open', keys: 'A' }),
+			one({ command: 'palette-open', keys: 'F7' }),
+			one({ command: 'palette-open', keys: 'Mod+G P Q' }),
+			one({ command: 'palette-open', target: 'documents', keys: 'Mod+K' }),
+			one({ command: 'layout-set', target: 'footer', keys: 'Mod+Shift+K' }),
+			one({ command: 'layout-set', target: 'sidebar', keys: null }),
+			one({ command: 'section-open', target: 'documents', keys: 'Mod+G D' }),
+			one({ command: 'shell-focus-next', keys: null }),
+			one({ command: 'palette-open', target: '', keys: 'Mod+K' }),
+			[
+				{ command: 'palette-open', keys: 'Mod+K' },
+				{ command: 'palette-open', keys: 'Mod+L' },
+			],
+			Array.from({ length: 65 }, (_, index) => ({ command: `count-c${index}`, keys: 'Mod+K' })),
+			Array.from({ length: 64 }, (_, index) => ({ command: `count-c${index}`, keys: 'Mod+K' })),
+		];
+		for (const list of lists) {
+			const kernel = overridesProblem(list);
+			expect(
+				overridesRefused(list as OverrideV1[]) !== undefined,
+				JSON.stringify(list).slice(0, 80)
+			).toBe(kernel !== undefined);
+		}
 	});
 });

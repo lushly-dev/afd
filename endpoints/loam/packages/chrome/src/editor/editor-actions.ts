@@ -10,24 +10,6 @@ import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
 import { focusMain } from './editor-parts.js';
 
-/**
- * The editor Mod+S saves, its default prevented, or undefined to leave the chord to the browser (5.5): the one
- * holding focus, which may be in another group than the active one, else the active group's, ready and its
- * tab's, while the area shows.
- */
-export function keyFrame(
-	event: KeyboardEvent,
-	saves: boolean,
-	shows: boolean,
-	state: EditorGroupsState | null,
-	frames: Map<string, LoamEditorFrame>
-): LoamEditorFrame | undefined {
-	if (event.defaultPrevented || !saves || !shows) return undefined;
-	const frame = saveFrame(event.composedPath(), state, frames);
-	if (frame) event.preventDefault();
-	return frame;
-}
-
 type EditorGroupsState = {
 	activeGroup: string;
 	groups: Array<{ id: string; active: string | null }>;

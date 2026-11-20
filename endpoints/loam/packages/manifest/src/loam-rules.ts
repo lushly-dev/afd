@@ -462,6 +462,14 @@ function chordRules(surfaces: Surfaces, found: Findings): void {
 					? 'Choose another chord.'
 					: 'Choose another chord to begin the sequence.'
 			);
+		} else if (second === 'F6' || second === 'Shift+F6') {
+			// F6 and Shift+F6 move focus between the parts, never a sequence's end either (8.3; step 7's reviews, 5).
+			found.refuse(
+				'KEYBINDING_RESERVED',
+				`${at}/chord`,
+				`The shell keeps \`${second}\`, which moves focus between the parts.`,
+				'Choose another chord to end the sequence.'
+			);
 		} else if (second !== undefined && !first.split('+').includes('Mod')) {
 			found.refuse(
 				'MANIFEST_KEYBINDING_KEYS',

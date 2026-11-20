@@ -9,7 +9,9 @@
 
 import { type Browser, chromium, type Frame, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createNote, open, typeInto } from './documents/support';
 import {
+	agentCall,
 	axe,
 	type DeploymentSite,
 	deploymentEntry,
@@ -26,6 +28,8 @@ import {
 let browser: Browser;
 let site: DeploymentSite;
 let views: DeploymentSite;
+let editors: DeploymentSite;
+let empty: DeploymentSite;
 beforeAll(async () => {
 	site = await serveDeployment({
 		config: deploymentFile(
@@ -37,12 +41,18 @@ beforeAll(async () => {
 		sandbox: true,
 		config: deploymentFile(deploymentEntry('hello', await packApp('hello', 'view'))),
 	});
+	editors = await serveDeployment({
+		config: deploymentFile(deploymentEntry('notes', await packApp('notes'))),
+	});
+	empty = await serveDeployment({ config: 'deployment_version = 2\n\n[apps]\n' });
 	browser = await chromium.launch();
 }, 120_000);
 afterAll(async () => {
 	await browser?.close();
 	await site?.close();
 	await views?.close();
+	await editors?.close();
+	await empty?.close();
 });
 
 const MAC = process.platform === 'darwin';
@@ -306,6 +316,133 @@ describe('P4-E9: keybindings', () => {
 		await page.keyboard.press('ControlOrMeta+K');
 		await settle(page);
 		expect(await paletteOpen(page)).toBe(false);
+		await page.close();
+	});
+});
+
+describe("P4-E9: step 7's reviews", () => {
+	/** The note's stored text, as an agent reads it. */
+	const stored = async (page: Page, document: string) =>
+		((await agentCall(page, 'notes-content-get', { document })) as { data?: { text: string } }).data
+			?.text;
+	const sidebarOpen = (page: Page) =>
+		kernelCall(page, 'layout-get', {}).then(
+			(read) => (read as { data: { sidebar: { open: boolean } } }).data.sidebar.open
+		);
+
+	it('R6: runs no binding for a key a script dispatched, and saves nothing for an event a script sent', async () => {
+		const opened = await openShell(browser, editors.origin);
+		const { page } = opened;
+		await page.evaluate((mac) => {
+			window.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 'k',
+					code: 'KeyK',
+					ctrlKey: !mac,
+					metaKey: mac,
+					bubbles: true,
+					cancelable: true,
+				})
+			);
+		}, MAC);
+		await settle(page);
+		expect(await paletteOpen(page)).toBe(false);
+		const note = await createNote(page, 'Kept');
+		await open(page, note);
+		await typeInto(page, 't1', 'Not by a script');
+		const before = await stored(page, note);
+		await page.evaluate((mac) => {
+			const shell = document.querySelector('loam-shell') as HTMLElement;
+			// The old public ask, and a dispatched Mod+S: neither saves.
+			shell.dispatchEvent(
+				new CustomEvent('loam-save-asked', { detail: { path: [] }, bubbles: true, composed: true })
+			);
+			window.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 's',
+					code: 'KeyS',
+					ctrlKey: !mac,
+					metaKey: mac,
+					bubbles: true,
+					cancelable: true,
+				})
+			);
+		}, MAC);
+		await page.waitForTimeout(300);
+		// Inside autosave's 2,000 ms, nothing saved it.
+		expect(await stored(page, note)).toBe(before);
+		await opened.context.close();
+	});
+
+	it("3: runs a shell command's binding in a workspace with no apps", async () => {
+		const { page } = await openShell(browser, empty.origin);
+		await overrides(page, [{ command: 'section-open', target: 'documents', keys: 'Mod+G D' }]);
+		const path = () => decodeURIComponent(new URL(page.url()).pathname);
+		await page.keyboard.press('ControlOrMeta+G');
+		await page.keyboard.press('KeyD');
+		await expect.poll(path).toMatch(/~\/documents$/);
+		await page.close();
+	});
+
+	it('4: keeps a sequence waiting through a held first chord’s repeats', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await overrides(page, [{ command: 'section-open', target: 'documents', keys: 'Mod+G D' }]);
+		const path = () => decodeURIComponent(new URL(page.url()).pathname);
+		const mod = MAC ? 'Meta' : 'Control';
+		await page.keyboard.down(mod);
+		await page.keyboard.down('KeyG');
+		// Held: the browser repeats it, `repeat` set.
+		await page.keyboard.down('KeyG');
+		await page.keyboard.up('KeyG');
+		await page.keyboard.up(mod);
+		await page.keyboard.press('KeyD');
+		await expect.poll(path).toMatch(/~\/documents$/);
+		await page.close();
+	});
+
+	it('4: resolves a key once: a sequence ending on Mod+S runs its binding, and the editor saves nothing', async () => {
+		const opened = await openShell(browser, editors.origin);
+		const { page } = opened;
+		await overrides(page, [{ command: 'layout-set', target: 'sidebar', keys: 'Mod+G Mod+S' }]);
+		const note = await createNote(page, 'Sequenced');
+		await open(page, note);
+		const sidebar = await sidebarOpen(page);
+		await typeInto(page, 't1', 'Not by the sequence');
+		const before = await stored(page, note);
+		await page.keyboard.press('ControlOrMeta+KeyG');
+		await page.keyboard.press('ControlOrMeta+KeyS');
+		await expect.poll(() => sidebarOpen(page)).toBe(!sidebar);
+		expect(await stored(page, note)).toBe(before);
+		// Mod+S alone still saves.
+		await page.keyboard.press('ControlOrMeta+KeyS');
+		await expect.poll(() => stored(page, note), { timeout: 1500 }).not.toBe(before);
+		await opened.context.close();
+	});
+
+	it("8: the editor warns on your own binding's keys, saying which wins, and refuses what the kernel would before Add", async () => {
+		const { page } = await openShell(browser, site.origin);
+		await overrides(page, [{ command: 'palette-open', keys: 'Mod+Shift+L' }]);
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.keybindings.overrides',
+		});
+		const keys = page.locator('loam-main loam-settings-section loam-keybinding-editor');
+		const said = () => keys.locator('#override-said').textContent();
+		const add = () => keys.getByRole('button', { name: 'Add' });
+		await keys.locator('#override-command').fill('section-open');
+		await keys.locator('#override-target').fill('projects');
+		await keys.locator('#override-record').click();
+		await page.keyboard.press('ControlOrMeta+Shift+KeyL');
+		await expect
+			.poll(said)
+			.toBe(
+				'Recorded Mod+Shift+L. Mod+Shift+L is already yours, for palette-open, which would win: this binding would be shadowed.'
+			);
+		// A name no command has the kernel would refuse: said, and Add disabled.
+		await keys.locator('#override-target').fill('');
+		await keys.locator('#override-command').fill('Palette');
+		await expect.poll(said).toBe("'Palette' is not a command's name, such as palette-open.");
+		expect(await add().getAttribute('aria-disabled')).toBe('true');
 		await page.close();
 	});
 });

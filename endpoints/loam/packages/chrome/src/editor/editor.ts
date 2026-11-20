@@ -15,14 +15,7 @@ import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
-import {
-	hearModals,
-	keyFrame,
-	saveAll,
-	saveFrame,
-	saveOnce,
-	settleFocus,
-} from './editor-actions.js';
+import { hearModals, saveAll, saveFrame, saveOnce, settleFocus } from './editor-actions.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, type FrameListener, type LoamEditorFrame } from './editor-frame.js';
 import {
@@ -55,7 +48,6 @@ import {
 	readRecord,
 	readTypes,
 	releaseGroups,
-	SAVE_ASKED,
 	type ScopeOf,
 	same,
 	savesToMove,
@@ -144,8 +136,6 @@ export class EditorController implements FrameListener {
 		this.#area = shell.ownerDocument.createElement(editorAreaDefinition.name) as LoamEditorArea;
 		const view = shell.ownerDocument.defaultView ?? window;
 		this.#kernel.subscribe((event) => this.#onEvent(event));
-		// Before the shell's own listener, which leaves Mod+S to this one (5.5).
-		view.addEventListener('keydown', (event) => this.#onKeydown(event), { capture: true });
 		view.addEventListener('pagehide', () => saveAll([...this.#frames.values(), ...this.#kept]));
 		shell.addEventListener(
 			EDITOR_GROUP_EVENT,
@@ -153,12 +143,12 @@ export class EditorController implements FrameListener {
 				void this.#onAction((event as CustomEvent<EditorGroupAction & { group: string }>).detail)
 		);
 		hearModals(shell, this.#modals);
-		// A person's save binding that is a sequence (phase 4 specification, 8.1): the shell asks once it completes.
-		shell.addEventListener(SAVE_ASKED, (event) => {
-			if (!shows(this.#area)) return;
-			const path = (event as CustomEvent<{ path: EventTarget[] }>).detail.path;
-			const frame = saveFrame(path, this.#state, this.#frames);
-			if (frame) this.saveAsked(frame);
+		// Save's chord, Mod+S or the person's own (phase 4 specification, 8.3), as the shell resolves each key once: the
+		// editor on the key's path, else the active group's, while the area shows (5.5); the browser's when none is.
+		shell.answerSave((path, repeat) => {
+			const frame = shows(this.#area) ? saveFrame(path, this.#state, this.#frames) : undefined;
+			if (frame && !repeat) this.saveAsked(frame);
+			return frame !== undefined;
 		});
 	}
 
@@ -976,19 +966,6 @@ export class EditorController implements FrameListener {
 			await this.#kernel.call('toast-show', notSaved(frame.title, cause, unseen));
 			return false;
 		}
-	}
-
-	/** Mod+S in the page: the editor `keyFrame` chooses saves (5.5). */
-	#onKeydown(event: KeyboardEvent): void {
-		// Save's chord as the shell's bindings in force have it: Mod+S, or the person's own (phase 4 specification, 8.3).
-		const frame = keyFrame(
-			event,
-			this.#shell.isSave(event),
-			shows(this.#area),
-			this.#state,
-			this.#frames
-		);
-		if (frame && !event.repeat) this.saveAsked(frame);
 	}
 
 	/** Mod+S, in the page or inside a view editor's frame (5.5, 5.6): its save, said politely when it lands. */

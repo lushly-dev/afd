@@ -187,6 +187,11 @@ export const RESERVED_CHORDS: readonly string[] = Object.freeze([
 	'Mod+Alt+P',
 ]);
 
+/** The parts a layout toggle's override names (8.1, R2). */
+const LAYOUT_TARGETS: readonly string[] = ['sidebar', 'inspector', 'panel'];
+const TARGET_SUGGESTION =
+	"Give a target only to section-open, a section, or layout-set, one of 'sidebar', 'inspector' or 'panel'";
+
 /** The chords no override binds (8.3): focus between parts, and Escape. */
 export const OVERRIDE_RESERVED: readonly string[] = Object.freeze(['F6', 'Shift+F6', 'Escape']);
 
@@ -215,6 +220,16 @@ export const overridesProblem: ShellKeyCheckV1 = (value) => {
 			(typeof target !== 'string' || target.length < 1 || target.length > 128)
 		)
 			return { problem: 'must give a target of 1 to 128 characters, or none' };
+		// R8 (step 7's reviews): a target names `section-open`'s section or a layout toggle's part, and nothing else's.
+		if (
+			target !== undefined &&
+			command !== 'section-open' &&
+			!(command === 'layout-set' && LAYOUT_TARGETS.includes(target as string))
+		)
+			return {
+				problem: `must not give '${command}' the target '${target}'`,
+				suggestion: TARGET_SUGGESTION,
+			};
 		if (keys !== null) {
 			const chords = typeof keys === 'string' ? keys.split(' ') : [];
 			if (chords.length < 1 || chords.length > 2 || !chords.every(isChord))
@@ -225,6 +240,18 @@ export const overridesProblem: ShellKeyCheckV1 = (value) => {
 			if (reserved) return { code: 'KEYBINDING_RESERVED', problem: `must not bind ${reserved}` };
 			// A sequence's first chord has Mod and is never a reserved chord (8.1), so it never delays one.
 			const [first, second] = chords as [string, string | undefined];
+			// R7 (step 7's reviews): a chord alone carries Mod, Ctrl or Meta, as an app's does, or is a function key.
+			if (
+				second === undefined &&
+				!/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(first.split('+').pop() as string)
+			) {
+				const modifiers = first.split('+').slice(0, -1);
+				if (!modifiers.some((modifier) => ['Mod', 'Ctrl', 'Meta'].includes(modifier)))
+					return {
+						problem: `must not bind ${first} alone, which typing would press`,
+						suggestion: 'Bind a chord with Mod, such as Mod+Shift+K, or a function key, such as F7',
+					};
+			}
 			if (second !== undefined && !first.split('+').includes('Mod'))
 				return { problem: 'must begin a sequence with a Mod chord, such as Mod+G P' };
 			if (second !== undefined && RESERVED_CHORDS.includes(first))

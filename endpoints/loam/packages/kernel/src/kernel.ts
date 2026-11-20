@@ -305,17 +305,9 @@ export async function createKernelParts(
 	// The limits, enforced with their defaults from boot, whether or not `late-settings` ever reads the workspace's
 	// (phase 4 specification, section 11): a replay's refusals are its journal's, so its rate takes nothing.
 	const limits = createKernelLimits(() => internals.replaying === true);
-	// Phase 4 specification, 8.1: an override runs a command needing no input, or `section-open` with its section.
+	// Phase 4 specification, 8.1: the reserved chords' registry; `late-settings` gives it the resolver and overrides.
 	const keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, [], {
 		project: () => scope.active().project !== undefined,
-		runnable: (command, target) => {
-			if (command === 'section-open') return target !== undefined;
-			const found = registries?.palette
-				.listCommands()
-				.find((each) => each.name === command && !INTERNAL_COMMANDS.includes(each.name));
-			if (!found) return false;
-			return !(apps.owners.get(command)?.needsInput ?? needsInput(found.inputSchema));
-		},
 	});
 	let commandSet = 0;
 

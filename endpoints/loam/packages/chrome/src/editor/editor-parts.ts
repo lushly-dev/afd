@@ -143,8 +143,6 @@ export function focusMain(shell: LoamShell, main: HTMLElement): void {
 /** The chunk's elements, defined, for a fixture that renders them on their own. */
 export const defineEditorElements = (): Promise<unknown> => define();
 
-export { SAVE_ASKED } from './save-asked.js';
-
 /** The phase 1 modal's input: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
 export const discardModal = (title: string) => ({
 	title: 'Close without saving?',
