@@ -29,6 +29,23 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### Slots build Rust off the system disk, and a full disk counts no ejection, 2026-11-19
+
+Branch `fleet/lane-builddir-foreman-1641-1633`, for
+[#1641](https://github.com/lushly-dev/afd/issues/1641). On the lane host one slot's Cargo
+`target` folders reached 51 GB and took free disk to 135 MiB in run-8.
+
+- Each slot's jobs run with `CARGO_TARGET_DIR` at the slot's own build directory: under the new
+  `host.buildDir` dial (an absolute path, such as a data volume) in `<slots folder>-build/`, or
+  `.build/` in the slots' directory. A slot that takes another branch, a moved dial, or a free
+  slot whose branch left the queue removes it. A missing `host.buildDir` pauses the lane.
+- A validation, install or coverage run whose whole log says `ENOSPC` or "No space left on
+  device" (a test's own row or name never counts) is the lane's trouble: it pauses, the branch
+  is validated again on resuming (`rerun` `disk-full`, once per attempt) and no ejection is
+  counted. `host.minFreeDiskGb` also reads `host.buildDir`.
+- Not done: a slot above a lowered `lane.slots` keeps its build directory until it is used again,
+  and Specimen's `build:host` pins `--target-dir target`, so its output stays in the slot (#1659).
+
 #### An ejection lists every failing test, 2026-11-19
 
 Branch `fleet/lane-full-failures-1607`, for
@@ -99,6 +116,20 @@ deleted the queue ref while the pull request was still open.
 ### Cells, plans and the foreman
 
 What a cell may take, which plan it runs on, the foreman's commands and `run-fleet`.
+
+#### The foreman's session is checked where it acts, 2026-11-19
+
+Branch `fleet/lane-builddir-foreman-1641-1633`, for
+[#1633](https://github.com/lushly-dev/afd/issues/1633). A wait left open by a session that had
+handed over could take its successor's events.
+
+- `lane-wait` checks the foreman's session again in the transaction that marks events delivered,
+  and `cell-register`, `dial-set`, `ejection-excuse`, `gate-allow` and `lane-drop` check it in
+  their own transaction: a session that lost the lane meanwhile changes nothing.
+- `gate-allow` and `lane-drop` take an optional `session`, guarded as `ejection-excuse` is; the
+  owner's call names none.
+- The check inside the change never takes the lane: a session whose lease was handed over or ran
+  out since is refused `FOREMAN_LOST`.
 
 #### Answered events no longer wake a new foreman, 2026-11-19
 

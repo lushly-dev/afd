@@ -48,6 +48,30 @@ _TAP_DIRECTIVE = re.compile(r"\s#\s*(?:TODO|SKIP)\b", re.I)
 _NOT_A_TEST = re.compile(r"^\d+ problems?\b")
 
 
+#: A job that ran out of disk: the host's trouble, never the branch's (lushly-dev/afd#1641).
+_DISK_FULL = re.compile(
+    r"\bENOSPC\b|No space left on device|not enough space on the disk|disk quota exceeded", re.I
+)
+#: A runner's row for one test, passed or failed, or pytest's header for one: a test may be
+#: named for the case (``handles ENOSPC``), which says nothing about this host's disk.
+_TEST_ROW = re.compile(
+    r"^\s*(?:[✓✔√✗✖×]|FAIL\b|PASS\b|not ok\b|ok \d|test .+ \.\.\. |_{3,}|\d+\) \[)"
+    r"|::\S|\b(?:PASSED|FAILED|XFAIL|XPASS)\b"
+)
+
+
+def disk_full(text: str) -> str | None:
+    """The first line of a job's whole log that says the disk is full, or None. A runner's row
+    for a test, or a test's name, is never read as one."""
+    for raw in text.splitlines():
+        line = _ANSI.sub("", raw).strip()
+        if prefix := _PNPM.match(line):
+            line = line[prefix.end() :].strip()
+        if _DISK_FULL.search(line) and not _TEST_ROW.search(line):
+            return line
+    return None
+
+
 def failing_tests(text: str) -> list[str]:
     """Each failing test the runners in ``text`` reported, in order and once each."""
     reader = _Reader()

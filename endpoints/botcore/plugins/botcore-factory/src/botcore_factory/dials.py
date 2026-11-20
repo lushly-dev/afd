@@ -8,6 +8,7 @@ which botcore's host does not carry yet, so it is refused until it does.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PureWindowsPath
 from typing import Any
 
 
@@ -15,7 +16,7 @@ from typing import Any
 class Dial:
     key: str
     default: Any
-    kind: str  # "int", "number", "percent" or "bool"
+    kind: str  # "int", "number", "percent", "bool" or "path"
     minimum: float | None = None
     maximum: float | None = None
     trades: str = ""
@@ -44,6 +45,13 @@ DIALS: dict[str, Dial] = {
             0,
             100000,
             "Disk kept free for cells' and slots' build output against refusing work",
+        ),
+        Dial(
+            "host.buildDir",
+            "",
+            "path",
+            trades="Where the lane's slots keep their Rust build output (a data volume) against "
+            "the slots' own volume; empty keeps it beside the slots",
         ),
         _int("lane.queueTarget", 2, 1, 100, "When the foreman starts another cell"),
         _int("lane.queueMax", 10, 1, 100, "Queued branches before new ones are held"),
@@ -114,6 +122,13 @@ def value(overrides: dict[str, Any], key: str) -> Any:
 def check(dial: Dial, raw: Any, maximum: float | None = None) -> str | None:
     """Why ``raw`` is not a value ``dial`` accepts, or None when it is."""
     high = dial.maximum if maximum is None else maximum
+    if dial.kind == "path":
+        if not isinstance(raw, str):
+            return f"{dial.key} takes a directory path, or an empty string for the default"
+        path = raw.strip()
+        if path and not (path.startswith("/") or PureWindowsPath(path).is_absolute()):
+            return f"{dial.key} takes an absolute directory path; {raw!r} is relative"
+        return None
     if dial.kind == "bool":
         return None if isinstance(raw, bool) else f"{dial.key} takes true or false"
     if isinstance(raw, bool) or not isinstance(raw, int | float):
@@ -127,6 +142,8 @@ def check(dial: Dial, raw: Any, maximum: float | None = None) -> str | None:
 
 
 def normalize(dial: Dial, raw: Any) -> Any:
+    if dial.kind == "path":
+        return raw.strip()
     return int(raw) if dial.kind == "int" else raw
 
 

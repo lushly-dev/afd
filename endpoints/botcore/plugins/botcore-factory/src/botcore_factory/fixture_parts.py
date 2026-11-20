@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from botcore_factory.claims import parse_time
-from botcore_factory.failures import failing_tests
+from botcore_factory.failures import disk_full, failing_tests
 from botcore_factory.world import (
     LANE_HOST_VARIABLE,
     TAIL_LINES,
@@ -373,6 +373,13 @@ class FixtureGit:
         self.store.data.setdefault("removedCheckouts", []).append(path)
         self.store.save()
 
+    def remove_build(self, path: str) -> None:
+        """Removed build directories are listed in ``removedBuilds``; ``outcomes.removeBuild``
+        fails it."""
+        _fail(self.store, "removeBuild")
+        self.store.data.setdefault("removedBuilds", []).append(path)
+        self.store.save()
+
     def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")
@@ -483,9 +490,16 @@ class FixtureMachine:
             raise WorldError("The fixture does not say how much memory is free (host.freeMemoryGb)")
         return float(host["freeMemoryGb"])
 
+    def is_dir(self, path: str) -> bool:
+        """True unless ``host.missingDirs`` lists ``path``."""
+        return path not in self.store.data.get("host", {}).get("missingDirs", [])
+
     def free_disk_gb(self, path: str) -> float:
-        """``host.freeDiskGb``, else this machine's record's ``freeDiskGb``."""
+        """``host.freeDiskGbAt[path]``, else ``host.freeDiskGb``, else this machine's record's
+        ``freeDiskGb``."""
         host = self.store.data.get("host", {})
+        if path in host.get("freeDiskGbAt", {}):
+            return float(host["freeDiskGbAt"][path])
         if "freeDiskGb" in host:
             return float(host["freeDiskGb"])
         record = self.store.this_machine()
@@ -590,7 +604,8 @@ class FixtureProcesses:
                 # As the real world does: the log's tail, and every failing test in all of it.
                 tail = "\n".join(output.splitlines()[-TAIL_LINES:])
                 tests = tuple(failing_tests(output))
-                return Completed(tuple(step["args"]), 1, tail, "", step["label"], tests)
+                full = disk_full(output)
+                return Completed(tuple(step["args"]), 1, tail, "", step["label"], tests, full)
         del self._processes()["running"][handle]
         self.store.save()
         return Completed(tuple(run["steps"][-1]["args"]), 0, "ok", "")
