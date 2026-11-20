@@ -34,6 +34,7 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 | Delegate work or choose a model | [Model routing](docs/operations/model-routing.md), which is separate from the models an application built with AFD selects |
 | Push, open a pull request or merge | `prepare-pr`: review, changeset, gates, the pull request, and the merge queue, which is the only way into `main` |
 | Triage issues, plan factory work, or open an epic or file work under one | `triage-issues`: the label rules in `.github/labels.json` and `scripts/issue-labels.mjs`, `dispatch` for what a cell may take, and [epics](.claude/skills/triage-issues/references/epics.md) (type `Epic`, real sub-issues, the `Epic:` line in `STATUS.md`) |
+| Free disk space, or remove a worktree, cache or build folder | `free-disk-space`: botcore's `disk-*` commands. Never `rm -rf` a worktree or run `git worktree prune` by hand |
 | End a session | `end-session`: what landed, what to file, what to record |
 | Cut a release | `cut-release` |
 

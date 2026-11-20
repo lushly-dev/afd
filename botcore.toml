@@ -21,7 +21,7 @@ check_agents = true
 # Must equal listingBudget in skills/exports.json; pnpm check:skills compares them.
 # Standing rule (owner, 2026-11-12): a PR that still needs more raises both to the
 # listing total rounded up to the next 100, up to 8,000; above that, ask the owner.
-listing_budget = 6800
+listing_budget = 7000
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
@@ -29,6 +29,7 @@ skip = [
     "botcore-config",
     "browser-automation",
     "code-reviewer",
+    "disk-hygiene",
     "docs-manager",
     "gate-discipline",
     "mcp-builder",
@@ -190,3 +191,23 @@ paths = [
     "endpoints/botcore/src/botcore/provenance/*.json",
 ]
 run = ["node", "scripts/provenance-merge.mjs"]
+
+# What a build or install recreates inside a worktree, for botcore's disk-* commands (the
+# free-disk-space skill). Read from origin's default branch, so a change applies once merged.
+# Rust output goes after a day idle; node_modules and .venv share blocks with their stores and
+# only go when a volume is low. Folders holding a checkout (.claude/worktrees) are never touched.
+[disk]
+landing_ref = "origin/main"
+regenerable = [
+    { path = "**/target", after_days = 1 },
+    "**/dist",
+    "**/coverage",
+    "test-results",
+    "playwright-report",
+    "packages/cpp/build",
+    "endpoints/health/build",
+    { path = "node_modules", when = "pressure" },
+    { path = "**/node_modules", when = "pressure" },
+    { path = "**/.venv", when = "pressure" },
+]
+copies = [".env", ".env.local"]

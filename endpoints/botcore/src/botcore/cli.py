@@ -433,6 +433,92 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("disk-report")
+@click.option("--repo", default=None, help="Report one repository instead of the registered ones")
+@click.option(
+    "--unclassified", is_flag=True, default=False,
+    help="List ignored paths no [disk] pattern covers",
+)
+@click.option(
+    "--budget", "budget_seconds", type=float, default=180.0, show_default=True,
+    help="Seconds to spend measuring before reporting what is left unmeasured",
+)
+@_json_option
+@click.pass_context
+def disk_report_cmd(
+    ctx: click.Context, repo: str | None, unclassified: bool, budget_seconds: float,
+    **_kwargs: Any,
+) -> None:
+    """Report worktrees, caches and volumes, and what a reclaim would free. Read-only."""
+    from botcore.commands.disk import disk_report
+
+    result = _run_async(
+        disk_report(repo=repo, unclassified=unclassified, budget_seconds=budget_seconds)
+    )
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-reclaim")
+@click.option("--tier", type=click.IntRange(0, 1), default=1, show_default=True,
+              help="0: caches and aged folders only; 1: also idle build output")
+@click.option("--apply", is_flag=True, default=False, help="Carry out the plan (default: dry run)")
+@click.option("--repo", default=None, help="Reclaim one repository instead of the registered ones")
+@click.option("--pressure", is_flag=True, default=False,
+              help="Act as if a watched volume were low on space")
+@_json_option
+@click.pass_context
+def disk_reclaim_cmd(
+    ctx: click.Context, tier: int, apply: bool, repo: str | None, pressure: bool, **_kwargs: Any,
+) -> None:
+    """Prune caches and strip idle build output. A dry run unless --apply."""
+    from botcore.commands.disk import disk_reclaim
+
+    result = _run_async(disk_reclaim(tier=tier, apply=apply, repo=repo, pressure=pressure))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-setup")
+@click.option("--uninstall", is_flag=True, default=False,
+              help="Remove the scheduled job (settings and receipts stay)")
+@click.option("--repo", "repos", multiple=True, help="Also register this repository")
+@click.option("--no-schedule", is_flag=True, default=False,
+              help="Write the settings without installing the job")
+@_json_option
+@click.pass_context
+def disk_setup_cmd(
+    ctx: click.Context, uninstall: bool, repos: tuple[str, ...], no_schedule: bool, **_kw: Any,
+) -> None:
+    """Register repositories and volumes, and install the hourly disk job."""
+    from botcore.commands.disk import disk_setup
+
+    result = _run_async(disk_setup(uninstall=uninstall, repos=list(repos),
+                                   install_schedule=not no_schedule))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-status")
+@_json_option
+@click.pass_context
+def disk_status_cmd(ctx: click.Context, **_kwargs: Any) -> None:
+    """Show the disk job's state, its last run and watched volumes' free space."""
+    from botcore.commands.disk import disk_status
+
+    result = _run_async(disk_status())
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-run")
+@click.option("--force", is_flag=True, default=False, help="Reclaim now even if not due")
+@_json_option
+@click.pass_context
+def disk_run_cmd(ctx: click.Context, force: bool, **_kwargs: Any) -> None:
+    """The scheduled job: check free space, and reclaim when due or low."""
+    from botcore.commands.disk import disk_run
+
+    result = _run_async(disk_run(force=force))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command()
 @_json_option
 @click.pass_context

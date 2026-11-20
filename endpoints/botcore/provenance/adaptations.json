@@ -2038,11 +2038,11 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "41ecb5a78b8c4c5a02af02279c14a517781e171bbfec87c63b428858d9c469df",
+      "current_import_sha256": "a3c4c3848719585d5b1ad468801e05a06f9749f32b02a2b945da979be899ab38",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688)"
     },
     {
       "path": "scripts/package_tests.py",
@@ -2120,21 +2120,21 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "13426531c236d6cf57d059fb3810a80571b80a48128f589ee2455de7c196de85",
+      "current_import_sha256": "104cbc53592cdfd14a6469cf0351e479f13e5cf73787d7258378649a8b6809a9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691)"
     },
     {
       "path": "src/botcore/commands/__init__.py",
       "upstream_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
       "staged_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
-      "current_import_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
+      "current_import_sha256": "9032142d14aaa685b6ed69f1b75811151a159cbfcc65abf667e4bcc6add108b4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691)"
     },
     {
       "path": "src/botcore/commands/cdp/__init__.py",
@@ -2342,6 +2342,138 @@
       "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
+      "path": "src/botcore/commands/disk/__init__.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "9779d527b584518855c52afafce612808b1b2ec8e9c8e1ada241eb53ba5040d1",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691)"
+    },
+    {
+      "path": "src/botcore/commands/disk/caches.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "78f91aab4aac4074eaade07949fca1feb8394daeb9fb086eaa0d869533913094",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/git.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "4dc5a70275f348e981ef0ff19e80f710e7d945a7e6e5fd8d03d2a1534b481051",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/lock.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8a67ce57148990d0ada1ba9df029936ae7ec444eaba33f77dc178d9953f35822",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/reclaim.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f96119ec96d6daf9baa5d6d11f69c34a892567f10f937b7d477eb8f1222bfabf",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/remove.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "56587f839e57721c220b314d3e675caa0ad66425ead10712722f158e5827c2f1",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "51b5e9ef0dcfab0a7deafed277bb740870e2c431d7829f36d6a5c70d191e29b4",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "src/botcore/commands/disk/scan.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "467bb3842c6924f80c6d09def6c86c639bbb6417a3a77aab8d036af7f4072d2b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/schedule.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "81f369a85bc95395510f5351361b0f969ba51ba4eda23e213abc10d7ed03a531",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690)"
+    },
+    {
+      "path": "src/botcore/commands/disk/settings.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "e8ce19950261ddd63993953c8541c6b6c4a534bba74eb221baebe96827a0ccc5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690)"
+    },
+    {
+      "path": "src/botcore/commands/disk/setup.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ae25787d1d10b2ee82a2fe1ca55c290ebc84a9505194b1e79af89c28ead8d981",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "src/botcore/commands/disk/unclassified.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f8e25c575f2b575a547a8649f68c2bc8aabf96c331e47edabf65515198805fb6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+    },
+    {
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
@@ -2505,11 +2637,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "0e16a5891c3675c836cd0a535ddbe5f9859d6fb90ec07dd736b6d062f1c98598",
+      "current_import_sha256": "0fcc50fc71187f9ac40fb99373b0ba7d92bee99a4c5061cc0e19c39533b2be65",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124)"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out; Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/context.py",
@@ -2525,11 +2657,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "34c0e632e0957f46b9c6b1d4ae918b9983a5ade3028024c46f9abe53fef06b19",
+      "current_import_sha256": "4d1155ce5fd318a1996f31f16d4edf61e0523ee443f013493bf5a4f3ae754d5c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688)"
     },
     {
       "path": "src/botcore/host.py",
@@ -4123,6 +4255,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "deleted-after-staging",
       "import_reason": "Explicitly excluded during reviewed import"
+    },
+    {
+      "path": "src/botcore/skills/disk-hygiene/SKILL.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "70bb2e3cf3504529c7bc1d3de6f3c6ffd08a7c8d724f64d76696b9d819c17d6e",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690)"
     },
     {
       "path": "src/botcore/skills/docs-manager/SKILL.md",
@@ -5937,6 +6080,61 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "tests/test_disk_reclaim.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "5f6dd6ea637b963afa3c22d711d8ecf166d905d6ff605e45262bea99429758a6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "tests/test_disk_reclaim_safety.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "fa5389c0b57c69d91cfd303ea497196e0f05a988ee06f730979e01505c8458a5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "tests/test_disk_report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "77d598c96af67bb55df484cf716fdea5024536fb940007fcd942fd9d31bda99f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688)"
+    },
+    {
+      "path": "tests/test_disk_safety.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7cb8ef7de78736be84d3a80a86e8539d6bcb3b83f051aef2fc72cbb17c56d13e",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+    },
+    {
+      "path": "tests/test_disk_setup.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "b8ab5f674e85043dff9e1dfb1c7768e6f48b7be5e8dd513845afb61218d24eae",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690)"
     },
     {
       "path": "tests/test_docs.py",

@@ -101,8 +101,9 @@ def audit(artifacts: Path) -> list[dict]:
                         path.startswith("botcore/skills/") and path.endswith("/SKILL.md")
                         for path in names
                     )
-                    == 11
+                    == 12
                 )
+                assert "botcore/skills/disk-hygiene/SKILL.md" in names
                 # A skill's helper ships with it: seeding copies the whole directory.
                 assert "botcore/skills/bloat-sweeper/scripts/sweep.mjs" in names
                 for script in (
@@ -179,7 +180,7 @@ async def main():
     assert {tool.name for tool in await server.list_tools()} == {
         "consumer-start", "consumer-docs", "consumer-call"
     }
-    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 11
+    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 12
     print(json.dumps({"installed_wheel": True, "application_platform_dependencies": [],
                       "directclient": True, "managed_mcp": True, "effects_denied": True}))
 asyncio.run(main())

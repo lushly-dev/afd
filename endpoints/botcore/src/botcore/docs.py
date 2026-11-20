@@ -172,4 +172,54 @@ View undo/history status.
 ## undo_clear()
 Clear undo history.
 """,
+    "disk": """\
+# Disk Commands
+
+Keep development machines from filling up with worktree build output and caches. Use these
+commands instead of freeing space by hand: never `rm -rf` a worktree or run
+`git worktree prune` yourself.
+
+## disk_report(repo=None, unclassified=False, budget_seconds=180)
+Read-only. Every worktree of every registered repository (machine settings `repos`, or the
+repository holding the working directory) with its tier, idle days, whether a process uses it,
+and the build output its `[disk].regenerable` patterns name. Also watched volumes, tool caches
+and aged cache folders. `unclassified=True` lists ignored paths no pattern covers.
+
+Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 report only
+(missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
+`managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
+
+## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, budget_seconds=300)
+A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
+prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
+store) and clears aged cache folders from the machine settings. Tier 1 also strips the build
+output disk_report marks ready in idle worktrees. Before each deletion it checks again that the
+worktree is idle and unused and the path is still ignored and untracked. When a watched volume
+is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and
+lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctions. One run per
+machine; every run writes a receipt (the response's `receipt`) and updates status.json in the
+state folder (`BOTCORE_DISK_STATE` overrides it). It never removes a worktree.
+
+## disk_setup(uninstall=False, repos=None, install_schedule=True)
+Registers the repository holding the working directory (and `repos`) in the machine settings,
+records each volume holding their worktrees or T3 Code's worktree folders with its identifier
+and a low-space threshold, and installs the hourly job: a LaunchAgent on macOS, a Task
+Scheduler task on Windows, a systemd user timer (or crontab) on Linux. Needs botcore installed
+as a tool (`uv tool install lushly-botcore==<version>`), not run through uvx. Safe to run
+again. `uninstall=True` removes the job and keeps settings and receipts.
+
+## disk_status()
+The job's state, the last applied run and its age, free space on watched volumes, and
+`problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
+when there are none. Session preflights read this.
+
+## disk_run(force=False)
+What the job runs: checks free space and exits, unless a watched volume is low or the last
+applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
+low.
+
+Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
+origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the
+machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
+""",
 }
