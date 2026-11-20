@@ -184,6 +184,13 @@ impl Store {
             "DELETE FROM message WHERE id IN (SELECT id FROM removing_message);
              DELETE FROM removing_message;",
         )?;
+        // SQLite gives a removed message's id again to the next message, so
+        // a snooze's mark (the highest id when it was set) comes down to the
+        // highest id left: every message after is above it again.
+        transaction.execute(
+            "UPDATE snooze SET mark = min(mark, (SELECT coalesce(max(id), 0) FROM message))",
+            [],
+        )?;
         transaction.execute("DELETE FROM account WHERE id = ?1", [account.0])?;
         note_change(&transaction, now, "account-removed", account.0)?;
         transaction.commit()?;

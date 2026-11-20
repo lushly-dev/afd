@@ -1839,11 +1839,12 @@ local and open to every caller. Sending and unsubscribing are its second and thi
   and Bcc, its subject and its body as plain text, who wrote each of the recipients, the subject
   and the body (the caller who last set it, with its token's id), and who made it. Its
   recipients are bare ASCII addresses: a local part of RFC 5322's dot-atom characters with no dot
-  at either end or two together, and a domain of two or more labels of letters, digits and inner
+  at either end or two together and no `=?`, which begins an encoded word, and a domain of two or more labels of letters, digits and inner
   hyphens, kept in lower case. No names, no brackets, nothing a header would read as a second
   address; addresses outside ASCII wait for SMTPUTF8. At most 100 recipients; a subject of at
-  most 998 characters with no control character but a tab, no line or paragraph separator and no
-  character that changes the direction or joins of text around it; and a body of at most 48 KiB.
+  most 998 characters with no control character but a tab, no line or paragraph separator and
+  none of the characters a person cannot see that evidence counts as hidden (6.2's list: zero-width,
+  direction and tag characters among them); and a body of at most 48 KiB.
   Input outside those is refused without repeating it. `mail-draft-show` gives the whole of the
   largest such draft by default, at its largest budget, since it is the preview of a send and is
   never cut.
@@ -1872,7 +1873,8 @@ local and open to every caller. Sending and unsubscribing are its second and thi
   `mail-thread-list` until its time, or until mail arrives in the thread after it was snoozed: a
   message whose id is above the highest the store held when it was snoozed, which tells two events
   in one millisecond apart. A pass of sync removes a snooze so ended, so that it stays ended when
-  that mail goes. `mail-thread-list` with `snoozed` lists only the snoozed threads, with when each
+  that mail goes. Removing an account brings each mark down to the highest id left, since the
+  store gives a removed message's id to the next one. `mail-thread-list` with `snoozed` lists only the snoozed threads, with when each
   comes back, found from the snoozes rather than the mailbox's threads; the 4.4 measurement times
   both lists.
   Without a time it ends the snooze. Its result gives the time before, which undoes it. Removing

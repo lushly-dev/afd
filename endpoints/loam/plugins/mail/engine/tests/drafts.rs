@@ -385,12 +385,21 @@ fn malformed_addresses_and_unsafe_subjects_are_refused() {
         "ceo@example.com\u{202e}gro.elpmaxe",
         "\u{200b}a@example.org",
         "ü@example.org",
+        "=?utf-8?q?a?=@example.org",
     ] {
         let refused = fixture.agent("tok_a", "mail-draft-create", json!({ "to": [to] }));
         assert_eq!(code(&refused), "INVALID_INPUT", "{to:?}");
         assert!(!refused.to_string().contains("example"), "{to:?} repeated");
     }
-    for subject in ["a\u{0}b", "a\u{2028}b", "a\u{202e}b", "a\u{85}b"] {
+    for subject in [
+        "a\u{0}b",
+        "a\u{2028}b",
+        "a\u{202e}b",
+        "a\u{85}b",
+        "a\u{61c}b",
+        "a\u{2060}b",
+        "a\u{e0041}b",
+    ] {
         let refused = fixture.agent("tok_a", "mail-draft-create", json!({ "subject": subject }));
         assert_eq!(code(&refused), "INVALID_INPUT", "{subject:?}");
     }
@@ -423,7 +432,7 @@ fn removing_the_account_says_its_drafts_go_and_takes_them() {
     assert_eq!(status, loam_mail::cli::EXIT_OK, "{err}");
     let said = format!("{out}{err}");
     assert!(
-        said.contains("its 2 drafts, which are kept nowhere else and go for good"),
+        said.contains("its 2 drafts, which are kept nowhere else and go for good (their text stays in the journal)"),
         "{said}"
     );
     let left = fixture.agent("tok_a", "mail-draft-list", json!({}));
@@ -446,8 +455,9 @@ fn a_snooze_ended_by_new_mail_stays_ended() {
         let found = fixture.person("mail-search", json!({ "query": "s0" }));
         found["data"]["hits"][0]["thread"].clone()
     };
-    // A fixed clock: the snooze and the reply's arrival share a time.
-    let now = afd::Clock::now(&afd::SystemClock);
+    // Snoozed at a time after the reply will arrive by the sync's clock:
+    // only the order of the ids tells that the reply came after.
+    let now = afd::Clock::now(&afd::SystemClock) + 10 * 60 * 1000;
     ok(&fixture.at(
         now,
         "mail-thread-snooze",

@@ -595,7 +595,7 @@ pub fn approval_summary(
                 String::new()
             } else {
                 format!(
-                    ", and its {}, which are kept nowhere else and go for good",
+                    ", and its {}, which are kept nowhere else and go for good (their text stays in the journal)",
                     counted(preview.drafts, "draft", "drafts")
                 )
             };

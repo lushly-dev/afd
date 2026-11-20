@@ -1229,6 +1229,8 @@ mod classes_tests;
 #[cfg(test)]
 mod derived_tests;
 #[cfg(test)]
+mod drafts_tests;
+#[cfg(test)]
 mod operations_tests;
 #[cfg(test)]
 mod selections_tests;

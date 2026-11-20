@@ -103,8 +103,11 @@ fn address(text: &str) -> Option<String> {
         return None;
     }
     let (local, domain) = text.split_once('@')?;
+    // `=?` begins an encoded word, which some programs decode even where
+    // the standard says not to.
     let local_ok = !local.is_empty()
         && local.len() <= 64
+        && !local.contains("=?")
         && local.split('.').all(|atom| {
             !atom.is_empty()
                 && atom
@@ -129,7 +132,8 @@ fn address(text: &str) -> Option<String> {
 /// character that changes the direction or joins of text around it.
 fn unsafe_in_subject(c: char) -> bool {
     (c.is_control() && c != '\t')
-        || matches!(c, '\u{2028}' | '\u{2029}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}')
+        || matches!(c, '\u{2028}' | '\u{2029}')
+        || crate::html::invisible(c)
 }
 
 /// The list of addresses `input` holds under `name`, if it holds one.
