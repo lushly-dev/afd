@@ -242,8 +242,84 @@ def test_the_repository_does_not_commit_the_adaptations_digest():
         payloads["adaptations.json"]
     ).hexdigest()
     payloads["provenance.json"] = json.dumps(envelope).encode()
-    with pytest.raises(AssertionError, match="stamped when packaged; do not commit it"):
+    with pytest.raises(AssertionError, match="stamped when packaged; do not commit it") as refused:
         verifier().verify_records(payloads.__getitem__)
+    # The refusal names the one command that repairs it, and why it happens.
+    assert "older pnpm base:sync" in str(refused.value)
+    assert "record_provenance.py --refresh" in str(refused.value)
+
+
+def recorder_over_a_copy(tmp_path, monkeypatch, envelope=None):
+    """record_provenance.py over a copy of the endpoint's recorded files and both record copies."""
+    import shutil
+
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "botcore_record_copy", ROOT / "scripts/record_provenance.py"
+    )
+    recorder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(recorder)
+    payloads = records()
+    if envelope is not None:
+        payloads["provenance.json"] = envelope
+    for row in json.loads(payloads["adaptations.json"])["files"]:
+        source = ROOT / row["path"]
+        if source.is_file():
+            target = tmp_path / row["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+    for directory in (tmp_path / "provenance", tmp_path / "src/botcore/provenance"):
+        directory.mkdir(parents=True, exist_ok=True)
+        for name, raw in payloads.items():
+            (directory / name).write_bytes(raw)
+    monkeypatch.setattr(recorder, "ROOT", tmp_path)
+    return recorder
+
+
+def test_refresh_removes_a_digest_an_older_base_sync_merged_back(tmp_path, monkeypatch):
+    # The old resolver recomputed every record's sha256, adaptations.json's included, and wrote
+    # the envelope in the records' serialization to both copies. That is this envelope.
+    payloads = records()
+    envelope = json.loads(payloads["provenance.json"])
+    envelope["records"]["adaptations"]["sha256"] = hashlib.sha256(
+        payloads["adaptations.json"]
+    ).hexdigest()
+    old_shape = (json.dumps(envelope, indent=2) + "\n").encode()
+    recorder = recorder_over_a_copy(tmp_path, monkeypatch, old_shape)
+    copies = (tmp_path / "provenance", tmp_path / "src/botcore/provenance")
+    merged = {path.name: path.read_bytes() for path in copies[0].glob("*.json")}
+    with pytest.raises(AssertionError, match="do not commit it"):
+        verifier().verify_records(merged.__getitem__)
+    assert recorder.refresh([], None) is True
+    for directory in copies:
+        assert (directory / "provenance.json").read_bytes() == payloads["provenance.json"]
+        assert (directory / "adaptations.json").read_bytes() == payloads["adaptations.json"]
+    repaired = {path.name: path.read_bytes() for path in copies[0].glob("*.json")}
+    verifier().verify_records(repaired.__getitem__, current=tmp_path)
+    assert recorder.refresh([], None) is False
+
+
+@pytest.mark.parametrize(
+    "script,arguments",
+    [
+        ("verify_provenance.py", ["--artifacts", "."]),
+        ("record_provenance.py", ["--refresh"]),
+        ("package_smoke.py", []),
+    ],
+)
+def test_the_checks_refuse_to_run_optimized(tmp_path, script, arguments):
+    # python -O strips assert statements, which these checks are made of.
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-O", str(ROOT / "scripts" / script), *arguments],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "python -O removes" in result.stderr
 
 
 def test_packaged_records_need_the_stamped_digest_of_the_adaptations_they_ship():
@@ -310,6 +386,16 @@ def test_built_artifacts_are_checked_for_their_stamped_records(tmp_path):
     write_artifacts(tmp_path / "stale", dict(shipped, **{"adaptations.json": b"{}"}))
     with pytest.raises(AssertionError, match="Invalid advertised adaptations digest"):
         verifier().verify_artifacts(tmp_path / "stale")
+    # The envelope pointed at a kept copy of the old bytes, the shipped adaptations.json changed.
+    renamed = dict(shipped)
+    renamed["adaptations-old.json"] = shipped["adaptations.json"]
+    renamed["adaptations.json"] = b'{"files": []}\n'
+    envelope = json.loads(shipped["provenance.json"])
+    envelope["records"]["adaptations"]["manifest"] = "adaptations-old.json"
+    renamed["provenance.json"] = (json.dumps(envelope, indent=2) + "\n").encode()
+    write_artifacts(tmp_path / "renamed", renamed)
+    with pytest.raises(AssertionError, match="The adaptations record must name adaptations.json"):
+        verifier().verify_artifacts(tmp_path / "renamed")
     partial = {name: raw for name, raw in shipped.items() if name != "adaptations.json"}
     write_artifacts(tmp_path / "partial", partial)
     with pytest.raises(AssertionError, match="lacks provenance records"):

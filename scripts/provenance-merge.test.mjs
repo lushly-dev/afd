@@ -6,7 +6,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { encode, merge3, RecordConflict, resolve, UNITS, unitOf } from './provenance-merge.mjs';
+import {
+	encode,
+	merge3,
+	mergeUnit,
+	RecordConflict,
+	resolve,
+	UNITS,
+	unitOf,
+} from './provenance-merge.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (text) => createHash('sha256').update(text).digest('hex');
@@ -30,6 +38,46 @@ describe('the records it writes', () => {
 		assert.equal(unitOf(`${FAST_AF}/adaptations.json`).name, 'adaptations.json');
 		assert.equal(unitOf('endpoints/botcore/src/botcore/server.py'), null);
 		assert.equal(unitOf('packages/core/provenance/provenance.json'), null);
+	});
+});
+
+describe('whether the envelope commits the adaptations digest merges as a value (#1610)', () => {
+	/** One unit's records three ways: `[rows, digest?]` per side, as base, ours, theirs. */
+	const unit = (...sides) => {
+		const versions = sides.map(([paths, digest]) => {
+			const adaptations = encode({ files: paths.map((path) => ({ path, import_reason: '' })) });
+			const record = { manifest: 'adaptations.json' };
+			if (digest) record.sha256 = sha(adaptations);
+			return {
+				'adaptations.json': JSON.parse(adaptations),
+				'provenance.json': { records: { adaptations: record } },
+			};
+		});
+		return mergeUnit({
+			names: () => new Set(['adaptations.json']),
+			versions: (name) => versions.map((side) => side[name]),
+			current: () => undefined,
+			fileSha: () => null,
+		});
+	};
+	const envelope = (out) => JSON.parse(out['provenance.json']).records.adaptations;
+
+	it('drops it when ours dropped it, even where theirs changed it', () => {
+		// The base committed it; this branch dropped it; main recorded a file, so its digest changed.
+		const out = unit([['a'], true], [['a'], false], [['a', 'b'], true]);
+		assert.deepEqual(envelope(out), { manifest: 'adaptations.json' });
+		assert.deepEqual(
+			JSON.parse(out['adaptations.json']).files.map((row) => row.path),
+			['a', 'b']
+		);
+	});
+
+	it('keeps one a side added to a base without it, recomputed; the unit test then refuses it', () => {
+		// Neither the base nor this branch commits it; main gained one (for Botcore or FAST-AF, a
+		// regression). The merge carries it, recomputed from the merged adaptations.json, and the
+		// unit's own provenance test refuses a committed digest until its recorder removes it.
+		const out = unit([['a'], false], [['a', 'c'], false], [['a'], true]);
+		assert.equal(envelope(out).sha256, sha(out['adaptations.json']));
 	});
 });
 

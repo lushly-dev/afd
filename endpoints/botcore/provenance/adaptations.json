@@ -57,11 +57,11 @@
       "path": "VALIDATION.md",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "d81a080a1df7bf37304ce00b46988dabd7f72e80853caee2eb54695a07e8cbcf",
+      "current_import_sha256": "405babe93c29176fccc59f618322d0fdd0dd289c8111639bc7a33c584b1a7540",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Record actual import checks, scope and provenance corrections, as history"
+      "import_reason": "Record actual import checks, scope and provenance corrections, as history; Say the envelope holds the frozen manifests' hashes; the build stamps adaptations.json's (lushly-dev/afd#1610)"
     },
     {
       "path": "botcore-connectors/LICENSE",
@@ -2048,21 +2048,21 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "a6381b867585f4b4fc31ae0c5572da0192377da7146ee1474424205f447288da",
+      "current_import_sha256": "7a5cfbee0a369e1b25e0d54e73a91553d91cc8d1b43cf6afb05582f61b904b86",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
+      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
     },
     {
       "path": "scripts/verify_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "1a138b47e762df4602cef98be0d0084b175cc47a7d1aa302de41d6c899efa479",
+      "current_import_sha256": "7ed3a19e5f70c237b7586fb1e845689109a83f6f545e99204313646fc61bbce3",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
+      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
     },
     {
       "path": "src/botcore/__init__.py",
@@ -6052,11 +6052,11 @@
       "path": "tests/test_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "339494b3eb50c7a6ecc4825d6af07a4176ecda305bbcadeb83b3bdf110431488",
+      "current_import_sha256": "ac0f74472cdb95d877f1e770fd9d31c1bc783264766bfa6649419cd311e99a1d",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610)"
+      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
     },
     {
       "path": "tests/test_registry.py",

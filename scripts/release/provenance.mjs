@@ -31,9 +31,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The families whose imported files carry per-file provenance, and the paths each covers. */
+/**
+ * The families whose imported files carry per-file provenance, the paths each covers, and whether
+ * its `provenance.json` commits the digest of `adaptations.json`. FAST-AF's does not: its one line
+ * made any two branches that recorded different files conflict (#1610).
+ */
 export const PROVENANCE_FAMILIES = {
 	specimen: {
+		commitsAdaptationsDigest: true,
 		directory: 'foundations/specimen/provenance',
 		paths: [
 			'foundations/specimen',
@@ -45,6 +50,7 @@ export const PROVENANCE_FAMILIES = {
 		],
 	},
 	'fast-af': {
+		commitsAdaptationsDigest: false,
 		directory: 'foundations/fast-af/provenance',
 		paths: ['foundations/fast-af', 'tests/consumers/fast-af'],
 	},
@@ -119,9 +125,11 @@ export function recordReleaseProvenance(root, reason) {
 
 /**
  * Records every changed or new file with `reason`, and with `removals` every recorded file that is
- * gone; returns the paths it recorded. `today` dates a removal (YYYY-MM-DD), for tests.
+ * gone; returns the paths it recorded. `today` dates a removal (YYYY-MM-DD), for tests. Then the
+ * envelope's adaptations digest follows the family's rule (`alignAdaptationsDigest`), and
+ * `onDigest` hears what changed there.
  */
-export function recordProvenance(root, family, reason, { today, removals = false } = {}) {
+export function recordProvenance(root, family, reason, { today, removals = false, onDigest } = {}) {
 	if (!PROVENANCE_FAMILIES[family]) throw new Error(`No provenance for family: ${family}`);
 	if (typeof reason !== 'string' || !reason.trim())
 		throw new Error('A provenance reason is required');
@@ -188,23 +196,43 @@ export function recordProvenance(root, family, reason, { today, removals = false
 		file.import_classification = REMOVED;
 		changed.push(file.path);
 	}
-	if (!changed.length) return changed;
-	writeFileSync(adaptationsPath, `${JSON.stringify(adaptations, null, 2)}\n`);
-	const provenancePath = join(directory, 'provenance.json');
-	const provenance = JSON.parse(readFileSync(provenancePath, 'utf8'));
-	// A family whose envelope leaves out the digest (FAST-AF, #1610) keeps it out.
-	if ('sha256' in provenance.records.adaptations) {
-		provenance.records.adaptations.sha256 = sha(readFileSync(adaptationsPath));
-		writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
-	}
+	if (changed.length) writeFileSync(adaptationsPath, `${JSON.stringify(adaptations, null, 2)}\n`);
+	const digest = alignAdaptationsDigest(root, family);
+	if (digest) onDigest?.(digest);
 	return changed;
+}
+
+/**
+ * Brings the envelope's adaptations digest in line with the family's rule, whatever the recording
+ * found: written where the family commits it, removed where it does not. A merge made by an older
+ * `pnpm base:sync` writes the digest back into FAST-AF's records (#1610), and running the recorder
+ * removes it. Returns `'written'`, `'removed'` or `undefined` when the envelope was already right.
+ */
+export function alignAdaptationsDigest(root, family) {
+	const { directory, commitsAdaptationsDigest } = PROVENANCE_FAMILIES[family];
+	const provenancePath = join(root, directory, 'provenance.json');
+	const provenance = JSON.parse(readFileSync(provenancePath, 'utf8'));
+	const record = provenance.records.adaptations;
+	const digest = sha(readFileSync(join(root, directory, record.manifest)));
+	let outcome;
+	if (commitsAdaptationsDigest && record.sha256 !== digest) {
+		record.sha256 = digest;
+		outcome = 'written';
+	} else if (!commitsAdaptationsDigest && 'sha256' in record) {
+		delete record.sha256;
+		outcome = 'removed';
+	}
+	if (outcome) writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
+	return outcome;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	try {
 		const [family, reason] = process.argv.slice(2);
 		const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-		for (const path of recordProvenance(root, family, reason, { removals: true }))
+		const onDigest = (outcome) =>
+			console.log(`provenance.json: the adaptations digest ${outcome} (#1610)`);
+		for (const path of recordProvenance(root, family, reason, { removals: true, onDigest }))
 			console.log(`recorded ${path}`);
 	} catch (error) {
 		console.error(error.message);

@@ -18,6 +18,26 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
+# The checks are assert statements, which `python -O` (or PYTHONOPTIMIZE) removes: refuse to run,
+# here, so record_provenance.py and package_smoke.py, which import this module, refuse too.
+if not __debug__:
+    raise SystemExit(
+        "provenance: these checks are assert statements, which python -O removes; "
+        "run without -O and with PYTHONOPTIMIZE unset"
+    )
+
+# Each record's manifest has one name; a digest is checked against that file and no other.
+MANIFESTS = {
+    "upstream": "upstream-selected.json",
+    "staged_input": "staged-input-allowlist.json",
+    "adaptations": "adaptations.json",
+}
+REPAIR = (
+    "adaptations.json's digest is stamped when packaged; do not commit it. A merge made by an "
+    "older pnpm base:sync puts it back: run `python scripts/record_provenance.py --refresh` "
+    "from endpoints/botcore, which removes it from both copies"
+)
+
 REVISION = "7d5c54cae8aae90e145374467456af619cf54e41"
 UPSTREAM_MANIFEST_SHA256 = "860ae21493bc9092558c5da3be50be62b218783b4ca04ae82d453af317226514"
 STAGED_MANIFEST_SHA256 = "343a1ef0f35d0e069f70e85c73acbac70a30c778ec72a30620207a0aa6dabc45"
@@ -64,14 +84,14 @@ def verify_records(
     assert envelope["publisher_authority"] == PUBLISHER_AUTHORITY
     assert envelope["publication_state"] == PUBLICATION_STATE
     records = {}
-    for key in ("upstream", "staged_input", "adaptations"):
+    assert set(envelope["records"]) == set(MANIFESTS), "Unexpected provenance records"
+    for key, name in MANIFESTS.items():
         reference = envelope["records"][key]
-        raw = read(reference["manifest"])
+        assert reference["manifest"] == name, f"The {key} record must name {name}"
+        raw = read(name)
         digest = hashlib.sha256(raw).hexdigest()
         if key == "adaptations" and not packaged:
-            assert "sha256" not in reference, (
-                "adaptations.json's digest is stamped when packaged; do not commit it"
-            )
+            assert "sha256" not in reference, REPAIR
         else:
             assert "sha256" in reference, f"Missing advertised {key} digest"
             assert digest == reference["sha256"], f"Invalid advertised {key} digest"
