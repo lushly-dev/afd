@@ -33,6 +33,12 @@ from botcore.commands.disk.git import (
     tracked_under,
 )
 from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.removal import (
+    plan_removals,
+    recheck_removal,
+    record_removal,
+    remove_worktree,
+)
 from botcore.commands.disk.remove import UnsafePath, remove_inside
 from botcore.commands.disk.report import Context, build_report, settings_error, volume_for
 from botcore.commands.disk.scan import (
@@ -45,7 +51,13 @@ from botcore.commands.disk.scan import (
     running_processes,
     volume_state,
 )
-from botcore.commands.disk.settings import SettingsError, load_machine_settings, state_path
+from botcore.commands.disk.settings import (
+    SettingsError,
+    expand,
+    load_machine_settings,
+    state_path,
+)
+from botcore.config import DiskConfig
 
 STRIP_RECORD = "botcore-disk-strip.json"
 MAX_RECEIPTS = 30
@@ -60,7 +72,7 @@ RUST_BUILDERS = ("cargo", "rustc", "clippy-driver")
 class Action:
     """One thing a reclaim does or would do."""
 
-    kind: str  # "strip", "cache" or "aged"
+    kind: str  # "strip", "cache", "aged" or "remove"
     target: str
     root: str | None = None
     worktree: str | None = None
@@ -69,6 +81,10 @@ class Action:
     due_days: float | None = None
     planned_mtime: float | None = None
     identity: tuple[int, int] | None = None
+    head: str | None = None
+    branch: str | None = None
+    landed: str | None = None
+    outputs: list[str] = field(default_factory=list)
     step: str = "normal"
     outcome: str = "planned"
     detail: str | None = None
@@ -81,6 +97,7 @@ class Run:
     tier: int
     ctx: Context
     protected: list[Path] = field(default_factory=list)
+    configs: dict[str, DiskConfig] = field(default_factory=dict)  # by main checkout's key
     actions: list[Action] = field(default_factory=list)
     seen: set[str] = field(default_factory=set)
     _per_worktree: dict[str, Processes] = field(default_factory=dict)
@@ -348,8 +365,54 @@ def carry_out(action: Action, run: Run) -> None:
             _do_remove(action)
         elif action.kind == "cache":
             _run_cache(action)
+        elif action.kind == "remove":
+            _carry_out_removal(action, run)
     except (GitError, OSError, ValueError, subprocess.SubprocessError) as exc:
         action.outcome, action.detail = "skipped", f"could not be checked: {exc}"
+
+
+def _carry_out_removal(action: Action, run: Run) -> None:
+    target, main = Path(action.target), Path(action.root or "")
+    config = run.configs.get(path_key(main))
+    if config is None:
+        action.outcome, action.detail = "skipped", "the repository's [disk] settings are gone"
+        return
+    busy = busy_reason(target, run.processes_for(action.target))
+    reason = recheck_removal(target, main, action.head, bool(action.landed),
+                             action.due_days or 0, config, busy, action.outputs)
+    if reason:
+        action.outcome, action.detail = "skipped", reason
+        return
+    done, problem = remove_worktree(target, main)
+    if not done:
+        action.outcome, action.detail = "failed", problem
+        return
+    record_removal(target, main, action.branch, action.head)
+    action.outcome = "done"
+    action.detail = f"removed; disk-restore {target} brings it back"
+
+
+def plan_tier2(data: dict, run: Run, include_restorable: bool) -> list[Action]:
+    due = run.ctx.settings.remove_landed_after_days
+    return [
+        Action(kind="remove", target=p["target"], root=p["main"], worktree=p["target"],
+               pattern=None, bytes_estimate=p["bytes"], due_days=p["due_days"], head=p["head"],
+               branch=p["branch"], landed=p["landed"], outputs=p["outputs"],
+               detail=p["landed"] or "restorable: nothing unique, not landed")
+        for p in plan_removals(data, include_restorable, due)
+    ]
+
+
+def _fetch_landing(repos: list[Path]) -> None:
+    """Bring each repository's remote-tracking refs up to date, so "landed" is current.
+
+    Best effort: a stale ref only makes fewer worktrees look landed.
+    """
+    for repo in repos:
+        try:
+            git_out(repo, "fetch", "--quiet", "--prune", "origin", timeout=120)
+        except GitError:
+            continue
 
 
 # ── Receipts and status ─────────────────────────────────────────────────────
@@ -451,24 +514,33 @@ async def disk_reclaim(
     repo: str | None = None,
     pressure: bool = False,
     budget_seconds: float = 300,
+    include_restorable: bool = False,
 ) -> CommandResult[dict]:
-    """Prune caches and aged folders (tier 0) and strip idle build output (tier 1).
+    """Prune caches and aged folders (tier 0), strip idle build output (tier 1), and remove
+    finished worktrees (tier 2).
 
     A dry run unless apply=True (a dry run still writes a receipt). When a watched volume is
     below its threshold, or pressure=True, tier 1 also strips `when = "pressure"` patterns and
     lowers its idle thresholds in steps (1 day, then 6 hours) until the volume recovers; with
-    pressure=True every step runs. Removing worktrees is not done here.
+    pressure=True every step runs. Tier 2 removes worktrees T3 Code does not manage that hold
+    nothing unique and whose work has landed; include_restorable also removes those that hold
+    nothing unique but have not landed. Branches are kept; disk_restore brings one back.
     """
-    if tier not in (0, 1):
-        return error("DISK_TIER_INVALID", f"tier {tier} is not 0 or 1",
-                     suggestion="Pass tier=0 for caches only or tier=1 to also strip build output")
+    if tier not in (0, 1, 2):
+        return error("DISK_TIER_INVALID", f"tier {tier} is not 0, 1 or 2",
+                     suggestion="Pass tier=0 for caches, 1 to also strip build output, "
+                                "2 to also remove finished worktrees")
+    if include_restorable and tier < 2:
+        return error("DISK_TIER_INVALID", "include_restorable needs tier=2",
+                     suggestion="Pass tier=2 with include_restorable")
     try:
         settings, _path, _found = load_machine_settings()
     except SettingsError as exc:
         return settings_error(exc)
     try:
         with RunLock(state_path() / "run.lock"):
-            payload = _reclaim(settings, tier, apply, repo, pressure, budget_seconds)
+            payload = _reclaim(settings, tier, apply, repo, pressure, budget_seconds,
+                               include_restorable)
     except LockHeld as exc:
         return error("DISK_RUN_IN_PROGRESS", str(exc),
                      suggestion="Wait for the other run to finish, then run again")
@@ -485,12 +557,18 @@ def _protected(data: dict, ctx: Context) -> list[Path]:
     return paths + list(ctx.t3_roots)
 
 
-def _plan_and_run(run: Run, data: dict, pressure: bool) -> None:
+def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool) -> None:
     _execute(run, plan_tier0(data))
     if run.tier < 1:
         return
     ctx = run.ctx
-    _execute(run, plan_strips(data, None, False, ctx, only_low=False))
+    removed: set[str] = set()
+    if run.tier >= 2:
+        removals = plan_tier2(data, run, include_restorable)
+        _execute(run, removals)
+        removed = {a.target for a in removals if a.outcome in ("done", "planned")}
+    _execute(run, [a for a in plan_strips(data, None, False, ctx, only_low=False)
+                   if a.worktree not in removed])
     if not (pressure or _low(ctx)):
         return
     for step in PRESSURE_STEPS[1:]:
@@ -499,13 +577,19 @@ def _plan_and_run(run: Run, data: dict, pressure: bool) -> None:
             break
 
 
-def _reclaim(settings, tier, apply, repo, pressure, budget_seconds) -> dict:
-    data, _pairs, ctx = build_report(settings, repo, budget_seconds=budget_seconds)
-    run = Run(apply=apply, tier=tier, ctx=ctx, protected=_protected(data, ctx))
+def _reclaim(  # noqa: PLR0913 - the command's own arguments
+    settings, tier, apply, repo, pressure, budget_seconds, include_restorable=False,
+) -> dict:
+    if apply and tier >= 2:
+        _fetch_landing([expand(repo)] if repo else [expand(r) for r in settings.repos])
+    data, pairs, ctx = build_report(settings, repo, budget_seconds=budget_seconds)
+    configs = {path_key(row["main"]): config for row, config in pairs
+               if config is not None and row.get("main")}
+    run = Run(apply=apply, tier=tier, ctx=ctx, protected=_protected(data, ctx), configs=configs)
     before = _free(ctx)
     failure = None
     try:
-        _plan_and_run(run, data, pressure)
+        _plan_and_run(run, data, pressure, include_restorable)
     except Exception as exc:  # noqa: BLE001 - the receipt must be written whatever happened
         failure = f"{type(exc).__name__}: {exc}"
     after = _free(ctx)

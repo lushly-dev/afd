@@ -23,6 +23,7 @@ from pathlib import Path
 from afd import CommandResult, error, success
 
 from botcore.commands.disk import caches as cache_mod
+from botcore.commands.disk.finished import judge, keep_until
 from botcore.commands.disk.git import (
     GitError,
     Worktree,
@@ -262,6 +263,10 @@ def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
         row["reasons"].append("main checkout")
     if wt.locked is not None:
         row["reasons"].append(f"kept: {wt.locked}" if wt.locked else "kept (git worktree lock)")
+        until = keep_until(wt.locked)
+        if until and until < time.strftime("%Y-%m-%d", time.localtime(ctx.now)):
+            row["keep_expired"] = until
+            row["reasons"].append(f"its keep expired on {until}: disk-unkeep it, or keep it again")
     busy = busy_reason(wt.path, ctx.processes)
     row["busy"] = busy
     if busy:
@@ -274,7 +279,9 @@ def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
     return protected
 
 
-def _inspect(row: dict, wt: Worktree, common: Path, config: DiskConfig, ctx: Context) -> None:
+def _inspect(
+    row: dict, wt: Worktree, common: Path, main: Path, config: DiskConfig, ctx: Context,
+) -> None:
     """Fill a present worktree's row: verification, status, candidates, activity, readiness."""
     mismatch = None if wt.is_main else verify_checkout(wt, common, ctx.git_timeout())
     if mismatch:
@@ -308,6 +315,31 @@ def _inspect(row: dict, wt: Worktree, common: Path, config: DiskConfig, ctx: Con
         row["reasons"].append("its folders could not all be searched: nothing is marked ready")
     row["can_strip"] = not protected and walked and idle is not None and ctx.processes.ok
     _plan(row, cands, idle, ctx)
+    if row["can_strip"] and not row["managed_by"]:
+        _judge_finished(row, wt, main, st.changed, st.operation, config, idle, ctx)
+
+
+def _judge_finished(
+    row: dict, wt: Worktree, main: Path, changed: list[str], operation: str | None,
+    config: DiskConfig, idle: float | None, ctx: Context,
+) -> None:
+    """Tier 2: a worktree T3 Code does not manage, idle long enough, nothing unique, landed."""
+    due = ctx.settings.remove_landed_after_days
+    if idle is None or idle < due * DAY:
+        return
+    verdict = judge(wt.path, main, wt.head, changed, operation, config, ctx.git_timeout())
+    row["finished"] = {
+        "unique": verdict.unique,
+        "landed": verdict.landed,
+        "restorable": verdict.restorable,
+    }
+    if verdict.unique:
+        row["reasons"].append(f"not removable: {verdict.unique[0]}")
+    elif verdict.landed:
+        row["tier"] = 2
+        row["reasons"].append(f"finished: {verdict.landed}")
+    else:
+        row["reasons"].append("restorable but not landed: removed only with include_restorable")
 
 
 def _plan(row: dict, cands: list[Candidate], idle: float | None, ctx: Context) -> None:
@@ -351,9 +383,9 @@ def _measure(rows: list[dict], ctx: Context) -> None:
                 row["strip_ready_bytes"] += item["bytes"]
 
 
-def _worktree_row(
-    wt: Worktree, common: Path, config: DiskConfig, ctx: Context, block: str | None,
-    presence: tuple[str, str | None],
+def _worktree_row(  # noqa: PLR0913 - one row needs each of these
+    wt: Worktree, common: Path, main: Path, config: DiskConfig, ctx: Context,
+    block: str | None, presence: tuple[str, str | None],
 ) -> dict:
     row = _base_row(wt, ctx)
     state, _detail = presence
@@ -375,7 +407,7 @@ def _worktree_row(
         row["reasons"].append("not inspected: the time budget was spent")
         return row
     try:
-        _inspect(row, wt, common, config, ctx)
+        _inspect(row, wt, common, main, config, ctx)
     except (GitError, OSError) as exc:
         row["reasons"].append(f"could not be inspected: {exc}")
         row["can_strip"] = False
@@ -414,7 +446,7 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
     if block:
         out["blocked"] = block
     out["worktrees"] = [
-        _worktree_row(wt, common, repo_cfg.config, ctx, block, presence[str(wt.path)])
+        _worktree_row(wt, common, main, repo_cfg.config, ctx, block, presence[str(wt.path)])
         for wt in worktrees
     ]
     return out, repo_cfg.config
@@ -515,6 +547,7 @@ def _totals(repos: list[dict], cache_rows: list[dict]) -> dict:
     strip = sum(w.get("strip_ready_bytes", 0) for w in rows)
     return {
         "tier1_worktrees": sum(1 for w in rows if w.get("tier") == 1),
+        "tier2_worktrees": sum(1 for w in rows if w.get("tier") == 2),
         "tier1_gb": round(strip / 1024**3, 2),
         "tier3_worktrees": sum(1 for w in rows if w.get("tier") == 3),
         "tier0_gb": round(sum(c.get("reclaimable_bytes") or 0 for c in cache_rows) / 1024**3, 2),

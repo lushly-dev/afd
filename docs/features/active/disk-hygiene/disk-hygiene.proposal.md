@@ -155,8 +155,8 @@ All of it is botcore code in `endpoints/botcore`, published to PyPI as `lushly-b
 | --- | --- |
 | `botcore disk-report` | Read-only. Lists every worktree of every registered repository with its tier (below), what it would reclaim, and free space per volume. `--unclassified` lists ignored files no rule covers |
 | `botcore disk-reclaim [--tier N] [--apply]` | A dry run unless `--apply` is passed. Carries out actions up to the given tier and writes a JSON receipt |
-| `botcore disk-keep <path> [--until DATE] [--reason]` | Protects a worktree from every action with `git worktree lock`, which git itself also honors. A keep expires after 14 days unless `--until` says otherwise; expired keeps are listed in the report. `disk-unkeep` removes one |
-| `botcore disk-restore <path>` | Puts back a worktree the tool removed, at the same path and commit, from the removal receipt |
+| `botcore disk-keep <path> [--until DATE] [--reason]` | Protects a worktree from every action with `git worktree lock`, which git itself also honors. A keep lasts 14 days unless `--until` says otherwise; past its date it still protects, and the report lists it so it is renewed or released. `disk-unkeep` releases only a keep it made, never another tool's lock |
+| `botcore disk-restore <path>` | Puts back a worktree the tool removed, at the same path and commit, from the removal record: on its branch if the branch still points there, on a recreated branch if it was deleted, else detached at the commit |
 | `botcore disk-setup [--uninstall]` | Safe to run again. Writes the machine settings, registers the current repository and installs or removes the schedule |
 | `botcore disk-status` | The schedule, the last run and whether it succeeded, free space per volume, and anything waiting for a decision |
 

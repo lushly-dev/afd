@@ -53,6 +53,8 @@ class MachineSettings(BaseModel):
     repos: list[str] = []
     strip_after_days: float = Field(default=3, ge=0)
     remove_landed_after_days: float = Field(default=7, ge=0)
+    # Whether the scheduled job removes finished worktrees (tier 2): `disk-setup --remove-landed`
+    remove_landed: bool = False
     caches: list[str] = ["pnpm", "uv"]
     # Extra folders searched for worktrees no registered repository knows (orphans)
     worktree_roots: list[str] = []

@@ -189,7 +189,7 @@ Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 rep
 (missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
 `managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
 
-## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, budget_seconds=300)
+## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, include_restorable=False)
 A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
 prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
 store) and clears aged cache folders from the machine settings. Tier 1 also strips the build
@@ -198,7 +198,10 @@ worktree is idle and unused and the path is still ignored and untracked. When a 
 is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and
 lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctions. One run per
 machine; every run writes a receipt (the response's `receipt`) and updates status.json in the
-state folder (`BOTCORE_DISK_STATE` overrides it). It never removes a worktree.
+state folder (`BOTCORE_DISK_STATE` overrides it). Tier 2 also removes worktrees T3 Code does not
+manage that hold nothing unique and whose work has landed (`git worktree remove`, branch kept,
+after the same just-before rechecks); include_restorable also removes those that hold nothing
+unique but have not landed. The hourly job uses tier 2 only after `disk_setup(remove_landed=True)`.
 
 ## disk_setup(uninstall=False, repos=None, install_schedule=True)
 Registers the repository holding the working directory (and `repos`) in the machine settings,
@@ -212,6 +215,15 @@ again. `uninstall=True` removes the job and keeps settings and receipts.
 The job's state, the last applied run and its age, free space on watched volumes, and
 `problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
 when there are none. Session preflights read this.
+
+## disk_keep(path, until=None, reason="") / disk_unkeep(path)
+Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
+`botcore-keep until=<date>` (14 days by default). Past its date a keep still protects and the
+report lists it. disk_unkeep releases only a botcore keep, never another tool's lock.
+
+## disk_restore(path)
+Recreate a worktree a tier 2 reclaim removed, at the same path and commit: on its branch if the
+branch still points there, on a recreated branch if it was deleted, else detached.
 
 ## disk_run(force=False)
 What the job runs: checks free space and exits, unless a watched volume is low or the last
