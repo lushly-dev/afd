@@ -5,7 +5,7 @@
  * dialog it opens with `show()`, non-modal. Focus starts on the default answer, on cancel when it is `danger`, or on a
  * prompt's first field, and returns to the invoker; a dialog takes no focus when it opens. Escape cancels. It closes
  * when the kernel's state says so. Only a person's press on a button it drew, or their Escape, answers it, through the
- * private `onAnswer` its renderer set, with its own id: no event carries an answer, so nothing else on the page, an
+ * private callback its renderer bound (`bindAnswer`), with its own id: no event carries an answer, so nothing else on the page, an
  * app's element inside it included, answers as the person (step 4's review). What the kernel accepted is told to
  * `hearAnswers`' listeners, and what it refused shows in place.
  */
@@ -34,6 +34,13 @@ export interface QuestionOptions {
 	element?: HTMLElement | null;
 	/** A prompt's fields, built by the `overlays` chunk. */
 	fields?: PromptFields | null;
+	/**
+	 * Which of the kernel's own prompts it is (phase 4 specification, 7.1 to 7.3). A confirmation takes no field and
+	 * focuses Decline, never Confirm, so a person typing elsewhere cannot confirm with Enter (step 4's record).
+	 */
+	asks?: 'input' | 'confirmation' | 'close';
+	/** A confirmation's input as it will run, as text (7.2, R15). */
+	details?: string;
 }
 
 const template = html<LoamModal>`
@@ -140,6 +147,15 @@ const styles = [
 		.content {
 			margin-block-end: var(--space-stack-md);
 		}
+		.details {
+			margin: 0;
+			padding: var(--size-space-sm);
+			border-radius: var(--radius-md);
+			background: var(--color-surface-subtle);
+			color: var(--color-text-primary);
+			font-family: var(--font-family-mono);
+			white-space: pre-wrap;
+		}
 		.field {
 			display: flex;
 			flex-direction: column;
@@ -230,6 +246,28 @@ function answersOf(input: QuestionInput): OverlayActionV1[] {
 	];
 }
 
+/**
+ * A person's answer to a question, with the id of the question shown when they gave it; `withdrawn` when the dialog
+ * closed with no gesture of theirs before it (step 6's second round, 6).
+ */
+export type AnswerFn = (
+	overlayId: string,
+	result: string,
+	value?: unknown,
+	reason?: 'withdrawn'
+) => void;
+
+/**
+ * Each question's answer callback, held here and never on the element (the trust review's blocker 1): nothing that
+ * reaches the element, an app's own element inside it among them, can call or replace it.
+ */
+const ANSWERS = new WeakMap<object, AnswerFn>();
+
+/** Bind a question's answer to its renderer's callback; only the renderer, which imports this, does. */
+export function bindAnswer(question: LoamModal, answer: AnswerFn): void {
+	ANSWERS.set(question, answer);
+}
+
 export class LoamModal extends FASTElement {
 	declare input: QuestionInput | null;
 	declare from: string;
@@ -239,8 +277,6 @@ export class LoamModal extends FASTElement {
 	declare buttons: HTMLElement;
 	overlayId = '';
 	kind: QuestionOptions['kind'] = 'modal';
-	/** Set by its renderer alone: a person's answer, with the id of the question shown when they gave it. */
-	onAnswer: (overlayId: string, result: string, value?: unknown) => void = () => {};
 	#fields: PromptFields | null = null;
 	/** A `close` the shell's own `hide()` queued, which reports nothing whenever it arrives (the review's 6). */
 	#closing = false;
@@ -264,6 +300,7 @@ export class LoamModal extends FASTElement {
 		options: QuestionOptions = { kind: 'modal' }
 	): Promise<void> {
 		this.overlayId = overlayId;
+		this.#escaped = false;
 		this.kind = options.kind;
 		this.input = input;
 		this.from = options.from ?? '';
@@ -277,6 +314,12 @@ export class LoamModal extends FASTElement {
 			this.#fields = options.fields;
 			this.content.append(this.#fields.element);
 		} else if (options.element) this.content.append(options.element);
+		else if (options.details !== undefined) {
+			const details = doc.createElement('p');
+			details.className = 'details';
+			details.textContent = options.details;
+			this.content.append(details);
+		}
 		this.buttons.replaceChildren();
 		const answers = answersOf(input);
 		let first: HTMLElement | null = null;
@@ -302,6 +345,8 @@ export class LoamModal extends FASTElement {
 			if (answer.default) first = button;
 		}
 		const danger = (input as { danger?: boolean }).danger === true;
+		if (options.asks === 'confirmation')
+			first = this.buttons.querySelector<HTMLElement>('[data-answer="cancel"]');
 		first ??= this.buttons.querySelector<HTMLElement>(
 			`[data-answer="${danger ? 'cancel' : answers.some((each) => each.id === 'confirm') ? 'confirm' : 'cancel'}"]`
 		);
@@ -350,15 +395,22 @@ export class LoamModal extends FASTElement {
 		this.#fields?.first?.setAttribute('aria-invalid', 'true');
 	}
 
-	#answer(result: string): void {
+	#answer(result: string, reason?: 'withdrawn'): void {
 		if (this.overlayId === '') return;
 		const value = result !== 'cancel' && this.#fields ? this.#fields.read() : undefined;
-		this.onAnswer(this.overlayId, result, value);
+		ANSWERS.get(this)?.(this.overlayId, result, value, reason);
 	}
+
+	/** A person's own Escape since it opened: the browser's close that follows is theirs (second round, 6). */
+	#escaped = false;
 
 	handleCancel(event: Event): void {
 		event.preventDefault();
-		if (event.isTrusted) this.#answer('cancel');
+		if (!event.isTrusted) return;
+		// Its Escape is handled here, the dialog kept open: a later close with no gesture is not theirs (third round, F;
+		// Opus 5). One the browser will not let be kept (Chromium's second Escape) is handled by the close that follows.
+		if (event.cancelable) this.#escaped = false;
+		this.#answer('cancel');
 	}
 
 	/**
@@ -371,14 +423,22 @@ export class LoamModal extends FASTElement {
 			this.#closing = false;
 			return;
 		}
-		if (this.overlayId !== '' && !this.dialog.open) this.#answer('cancel');
+		// The browser closed it on a person's Escape: their cancel. Closed with no gesture of theirs, as a script's
+		// `close()` does: the question ends `withdrawn`, which never counts as the person's decline (second round, 6).
+		if (this.overlayId !== '' && !this.dialog.open) {
+			const escaped = this.#escaped;
+			this.#escaped = false;
+			this.#answer('cancel', escaped ? undefined : 'withdrawn');
+		}
 	}
 
 	handleKeydown(event: KeyboardEvent): boolean {
+		if (event.key === 'Escape' && event.isTrusted) this.#escaped = true;
 		if (this.kind === 'dialog') {
 			// A non-modal dialog has no cancel event of its own: a person's Escape cancels it here.
 			if (event.key === 'Escape' && !event.defaultPrevented && event.isTrusted) {
 				event.preventDefault();
+				this.#escaped = false;
 				this.#answer('cancel');
 			}
 			return true;

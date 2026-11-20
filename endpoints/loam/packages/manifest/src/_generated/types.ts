@@ -379,6 +379,7 @@ export interface ManifestV2 {
 		version?: string;
 		requires?: string[];
 		contexts?: string[];
+		confirm_prompt?: string;
 		destructive?: boolean;
 		undoable?: boolean;
 		approval?: 'none';

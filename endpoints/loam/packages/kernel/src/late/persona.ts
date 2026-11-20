@@ -620,7 +620,8 @@ export function createPersona(deps: PersonaDeps) {
 		paletteSearch(
 			command: ZodCommandDefinition,
 			rows: () => readonly CommandSummaryV1[],
-			categoryOf: (name: string) => string | undefined
+			categoryOf: (name: string) => string | undefined,
+			groupOf: (item: PaletteItem) => number = () => 0
 		): ZodCommandDefinition {
 			return {
 				...command,
@@ -642,11 +643,14 @@ export function createPersona(deps: PersonaDeps) {
 								? sections.has('settings')
 								: apps.has(instances.get(item.name) as string) ||
 									sections.has(SECTION_OF[categoryOf(item.name) as string] as string);
+					// After the active app's rank (phase 4's 7.1, A-P0-1): emphasis orders within each rank group, hiding none.
 					return {
 						...result,
 						data: {
 							...result.data,
-							items: [...items.filter(first), ...items.filter((item) => !first(item))],
+							items: [...items].sort(
+								(a, b) => groupOf(a) - groupOf(b) || Number(first(b)) - Number(first(a))
+							),
 						},
 					};
 				},

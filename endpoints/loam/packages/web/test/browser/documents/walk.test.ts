@@ -327,7 +327,7 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 					}
 				} else if (kind === 'modal') {
 					const choice = page.locator('loam-modal button', {
-						hasText: random() < 0.5 ? 'Discard' : 'Keep editing',
+						hasText: random() < 0.5 ? 'Discard' : 'Cancel',
 					});
 					if ((await choice.count()) > 0)
 						await choice

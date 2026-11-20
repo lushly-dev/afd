@@ -6099,15 +6099,59 @@
 			"key": "ui.surfaces.sidebar.shape"
 		},
 		{
-			"id": "refused-confirm-prompt",
+			"id": "version-keys-confirm-prompt",
 			"base": "native",
 			"set": {
-				"/commands/0/confirm_prompt": "Sure?"
+				"/commands/1/confirm_prompt": "Sure?"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "commands[1].confirm_prompt",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "accepted-confirm-prompt",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/confirm_prompt": "Greet them and remember the name?"
+			},
+			"accepted": true
+		},
+		{
+			"id": "refused-confirm-prompt-long",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/confirm_prompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "commands[0].confirm_prompt"
+		},
+		{
+			"id": "refused-confirm-prompt-confirm-input",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/confirm_prompt": "Greet them?",
+				"/commands/0/input_schema/properties/confirm": { "type": "boolean" }
 			},
 			"accepted": false,
 			"code": "MANIFEST_CONFIRM_UNAVAILABLE",
-			"key": "commands[0].confirm_prompt",
-			"suggestion": "phase 4"
+			"key": "commands[0].input_schema.properties.confirm",
+			"suggestion": "Name the input"
+		},
+		{
+			"id": "refused-confirm-prompt-control",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/0/confirm_prompt": "Sure?\u0007"
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "commands[0].confirm_prompt"
 		},
 		{
 			"id": "refused-output-budget",
@@ -6196,9 +6240,9 @@
 				"/mount/tools/0/confirm_prompt": "Sure?"
 			},
 			"accepted": false,
-			"code": "MANIFEST_KEY_REFUSED",
+			"code": "MANIFEST_CONFIRM_UNAVAILABLE",
 			"key": "mount.tools[0].confirm_prompt",
-			"suggestion": "confirm_prompt"
+			"suggestion": "native or view"
 		},
 		{
 			"id": "refused-mount-tool-approval",

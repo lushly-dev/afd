@@ -166,6 +166,8 @@ export interface SessionSettleDeps {
 	drafts: EditorDraftsV1;
 	/** The editor record of a scope, registered and read: the next person's active scope's (4.5). */
 	ensureEditor(project: string | undefined): Promise<unknown>;
+	/** A change of person away from `person`: their pending confirmations end `withdrawn` (phase 4 specification, 7.2). */
+	personLeft?(person: string, context: CommandContext): Promise<unknown>;
 	/**
 	 * A `provider` deployment's view-state store, keyed by {@link SessionSettle.person}, and `quiet`, which drops
 	 * the writes `fn` queues (4.5).
@@ -673,6 +675,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		const before = scope.active();
 		// Every overlay is the leaving person's, sticky toasts too: closed as a change of person (6.2).
 		overlays.closeAll('person');
+		// And their pending confirmations end `withdrawn` (phase 4's 7.2), inside this call, so a replay ends them too.
+		if (left !== null || !provider) await deps.personLeft?.(left ?? 'local', context);
 		// In `provider` mode nothing written while leaving is the next person's: it is dropped (4.5).
 		const leave = () => {
 			if (state.activeApp() !== null && deps.apps().close().success) {
@@ -874,6 +878,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 							decided = person;
 							// Every overlay was the leaving person's (6.2), as in `provider` mode.
 							deps.overlays.closeAll('person');
+							// And their pending confirmations end `withdrawn` (phase 4's 7.2), inside the call.
+							await deps.personLeft?.(from ?? 'local', call);
 							switchDrafts(from, person);
 							// Signed out, a `local` call's person is `local` (`personOf`).
 							await personaOf(person ?? 'local');

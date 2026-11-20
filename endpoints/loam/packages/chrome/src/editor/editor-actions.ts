@@ -4,7 +4,7 @@
  * the controller passes. In the `editor` chunk.
  */
 
-import { hearAnswers } from '../elements/events.js';
+import { type AskedClose, hearAnswers } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
@@ -73,16 +73,21 @@ export function settleFocus(
 }
 
 /**
- * The phase 1 modal's answer, to the close that waits for it (5.5): only what the kernel accepted, told by the shell's
- * renderer, never an event a page's element could send (phase 4's step 4 review).
+ * The close prompt's answer, to the close that waits for it (phase 4 specification, 7.3): only what the kernel accepted,
+ * told by the shell's renderer, never an event a page's element could send (phase 4's step 4 review).
  */
 export function hearModals(
 	shell: LoamShell,
-	modals: Map<string, (result: 'confirm' | 'cancel') => void>
+	modals: Map<string, (result: string, asked?: AskedClose) => void>,
+	orphan: (asked: AskedClose, result: string) => void
 ): void {
-	hearAnswers(shell, (overlayId, result) => {
-		modals.get(overlayId)?.(result === 'confirm' ? 'confirm' : 'cancel');
+	hearAnswers(shell, (overlayId, result, asked) => {
+		const waiting = modals.get(overlayId);
 		modals.delete(overlayId);
+		// With what it asked about, which the waiting close checks against its own tab (step 6's third round, H).
+		if (waiting) waiting(result, asked);
+		// A close prompt no close of this page waits for: the person's own `editor-close`, from the palette (7.3).
+		else if (asked !== undefined) orphan(asked, result);
 	});
 }
 

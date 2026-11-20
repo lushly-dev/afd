@@ -29,7 +29,13 @@ import type {
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 import { deepActiveElement, tellAnswered } from '../elements/events.js';
-import type { LoamModal, QuestionInput, QuestionOptions } from '../elements/modal.js';
+import {
+	type AnswerFn,
+	bindAnswer,
+	type LoamModal,
+	type QuestionInput,
+	type QuestionOptions,
+} from '../elements/modal.js';
 import type { LoamShell } from '../elements/shell.js';
 import {
 	type LoamToast,
@@ -62,7 +68,18 @@ export interface LayerHelpers {
 	anchorOwnerOf: typeof anchorOwnerOf;
 	/** How a question shows, and its private answer callback (step 4). */
 	optionsOf(overlay: OverlayV1): QuestionOptions;
-	answerFor(question: LoamModal): LoamModal['onAnswer'];
+	/** Bind a question's private answer callback (step 4; the trust review's blocker 1). */
+	bindAnswer(question: LoamModal): void;
+}
+
+/** A confirmation's input as it will run, one line per field, as text (phase 4 specification, 7.2, R15). */
+export function inputWords(input: unknown): string {
+	if (input === null || typeof input !== 'object' || Array.isArray(input))
+		return JSON.stringify(input) ?? 'No input';
+	const entries = Object.entries(input as Record<string, unknown>);
+	return entries.length === 0
+		? 'No input'
+		: entries.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join('\n');
 }
 
 /** The owner line the shell shows (6.6): none for the shell's own. */
@@ -107,17 +124,58 @@ export class OverlaySurfaces {
 	 * A person's answer to `question`, as its private callback (the review's 2): its own id, then the kernel's word.
 	 * What the kernel accepted is told to `hearAnswers`; what it refused shows in that question, which stays open.
 	 */
-	#answerFor(question: LoamModal): LoamModal['onAnswer'] {
-		return (overlayId, result, value) =>
+	#answerFor(question: LoamModal): AnswerFn {
+		return (overlayId, result, value, reason) =>
 			void (async () => {
+				const asked = this.#asks.get(overlayId);
+				// The palette's input prompt runs its command with what it collected (phase 4 specification, 7.1); a confirm_prompt
+				// command's confirmation replaces it in the slot, and this call waits for that answer too (R15).
+				if (asked?.kind === 'input' && result !== 'cancel') {
+					const ran = await this.#kernel.call('palette-run', {
+						command: asked.command,
+						prompt: overlayId,
+						input: value ?? {},
+					});
+					if (ran.success) {
+						tellAnswered(this.#shell, overlayId, 'confirm');
+						return;
+					}
+					if (!ran.error) return;
+					const { message, suggestion, code } = ran.error;
+					const words = suggestion ? `${message}. ${suggestion}` : message;
+					if (question.overlayId === overlayId) question.refuse(words);
+					// The prompt has gone, so the run itself failed: said as long as a toast may last. A person's own
+					// decline needs no word.
+					else if (code !== 'CONFIRMATION_DECLINED')
+						void this.#kernel.call('toast-show', {
+							message: words.slice(0, 200),
+							tone: 'danger',
+							durationMs: 30_000,
+						});
+					return;
+				}
 				const answered = await this.#kernel.call<OverlayResultV1>('overlay-dismiss', {
 					overlayId,
 					result,
-					reason: 'user',
+					// `withdrawn` for the shell's own questions alone (third round, F): an app's modal a script closed is an
+					// ordinary cancel, as before, which the kernel takes, so the page and the kernel never disagree.
+					reason: reason === 'withdrawn' && asked !== undefined ? 'withdrawn' : 'user',
 					...(value !== undefined ? { value } : {}),
 				});
 				if (answered.success && answered.data) {
-					tellAnswered(this.#shell, overlayId, answered.data.result);
+					// The close prompt names its tab, so its answer acts whichever close opened it (7.3).
+					tellAnswered(
+						this.#shell,
+						overlayId,
+						answered.data.result,
+						asked?.kind === 'close' && asked.tab !== undefined
+							? {
+									tab: asked.tab,
+									...(asked.scope ? { scope: asked.scope } : {}),
+									...(asked.document ? { document: asked.document } : {}),
+								}
+							: undefined
+					);
 					return;
 				}
 				if (!answered.error || question.overlayId !== overlayId) return;
@@ -125,6 +183,9 @@ export class OverlaySurfaces {
 				question.refuse(suggestion ? `${message}. ${suggestion}` : message);
 			})();
 	}
+
+	/** The kernel's own prompts shown, by id: what each asks (7.1 to 7.3), for its answer's path. */
+	readonly #asks = new Map<string, NonNullable<OverlayV1['for']>>();
 
 	constructor(
 		shell: LoamShell,
@@ -168,7 +229,7 @@ export class OverlaySurfaces {
 		const { ownerDocument: doc, shadowRoot } = this.#shell;
 		this.#region = doc.createElement('loam-toast-region') as LoamToastRegion;
 		this.#modal = doc.createElement('loam-modal') as LoamModal;
-		this.#modal.onAnswer = this.#answerFor(this.#modal);
+		bindAnswer(this.#modal, this.#answerFor(this.#modal));
 		shadowRoot?.append(this.#region, this.#modal);
 		this.#shell.addEventListener(TOAST_DISMISS_EVENT, this.#onDismiss);
 		this.#shell.addEventListener(TOAST_INBOX_EVENT, this.#onInbox);
@@ -202,7 +263,7 @@ export class OverlaySurfaces {
 					focusFallback,
 					anchorOwnerOf,
 					optionsOf: (overlay) => this.#optionsOf(overlay),
-					answerFor: (question) => this.#answerFor(question),
+					bindAnswer: (question) => bindAnswer(question, this.#answerFor(question)),
 				}),
 			(cause) => {
 				this.#layer = undefined;
@@ -371,7 +432,13 @@ export class OverlaySurfaces {
 			await Updates.next();
 		}
 		const options = this.#optionsOf(overlay);
-		if (overlay.kind === 'prompt' && layer) {
+		const asks = overlay.for?.kind;
+		this.#asks.clear();
+		if (overlay.for) this.#asks.set(overlay.overlayId, overlay.for);
+		if (asks) options.asks = asks;
+		// A confirmation and the close prompt ask for no value (7.2, 7.3): a confirmation shows its input as it will run.
+		if (asks === 'confirmation') options.details = inputWords(overlay.for?.input);
+		else if (overlay.kind === 'prompt' && asks !== 'close' && layer) {
 			const prompt = overlay.input as PromptInputV1;
 			options.fields = layer.promptFields(this.#shell.ownerDocument, prompt.schema, prompt.value);
 		}

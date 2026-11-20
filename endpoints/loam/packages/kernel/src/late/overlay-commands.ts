@@ -95,7 +95,7 @@ const dismissInput = z.strictObject({
 	overlayId: text(64),
 	/** `confirm`, `cancel`, or the id of one of the overlay's actions (6.4). */
 	result: z.optional(z.string().check(z.regex(ACTION_ID))),
-	reason: z.optional(z.enum(['timeout', 'user', 'anchor'])),
+	reason: z.optional(z.enum(['timeout', 'user', 'anchor', 'withdrawn'])),
 	/** A menu popover's picked item (6.4), with `result: 'confirm'`. */
 	item: z.optional(z.number().check(z.int(), z.minimum(0), z.maximum(POPOVER_MENU_ITEMS - 1))),
 	/** A prompt's answer (6.4), with `result: 'confirm'`. */
@@ -509,7 +509,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			properties: {
 				overlayId: textJson(64),
 				result: { type: 'string', pattern: ACTION_ID.source },
-				reason: { type: 'string', enum: ['timeout', 'user', 'anchor'] },
+				reason: { type: 'string', enum: ['timeout', 'user', 'anchor', 'withdrawn'] },
 				item: { type: 'integer', minimum: 0, maximum: POPOVER_MENU_ITEMS - 1 },
 				value: {} as JsonSchema,
 			},
@@ -574,6 +574,24 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}
+			// `withdrawn` is the shell's word for its own question closed with no person's gesture (step 6's second round, 6):
+			// a cancel that is never the person's decline, so it opens no window. The renderer's alone: never through the
+			// palette (a call `palette-run` made carries its `origin`; third round, F). The kernel cannot tell the renderer
+			// from the person's own console, so the most it spares is the person's own decline window, on their own question.
+			if (
+				input.reason === 'withdrawn' &&
+				(opener.kind !== 'shell' ||
+					owner.kind !== 'shell' ||
+					overlays.forOf(input.overlayId) === undefined ||
+					(context as { origin?: unknown }).origin !== undefined ||
+					answers)
+			) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"reason 'withdrawn' is the shell's own, for its question closed with no answer",
+					"Dismiss it with reason 'user', or leave reason out"
+				);
+			}
 			// `timeout` is the shell's timer on a toast, never a caller's way past a view's cooldown (the review's 3).
 			if (input.reason === 'timeout' && (overlay.kind !== 'toast' || opener.kind !== 'shell')) {
 				return kernelFailure(
@@ -602,8 +620,19 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					);
 				}
 			}
+			// The kernel's own prompts (step 6): the palette's input prompt is filled by `palette-run` alone (7.1); a
+			// confirmation and the close prompt are answered with no value (7.2, 7.3).
+			const asked = overlays.forOf(input.overlayId)?.kind;
+			if (asked === 'input' && answers) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"The palette's input prompt runs its command with palette-run",
+					'Run it with palette-run { command, prompt, input }, or cancel it'
+				);
+			}
+			const valued = overlay.kind === 'prompt' && asked !== 'confirmation' && asked !== 'close';
 			// A prompt's answer carries its value, checked against its schema; the prompt stays open when it fails.
-			if (input.value !== undefined && (overlay.kind !== 'prompt' || !answers)) {
+			if (input.value !== undefined && (!valued || !answers)) {
 				return kernelFailure(
 					'VALIDATION_ERROR',
 					"value is a prompt's answer, with result confirm",
@@ -611,7 +640,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				);
 			}
 			let value: unknown = input.item;
-			if (overlay.kind === 'prompt' && answers) {
+			if (valued && answers) {
 				const prompt = overlay.input as PromptInputV1;
 				// Exactly what was submitted, never the prompt's starting value (the review's 8).
 				value = input.value;
@@ -627,7 +656,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				result,
 				rule === 'withdrawn' ? 'withdrawn' : (input.reason ?? 'user'),
 				value,
-				opener.kind === 'shell'
+				opener.kind === 'shell' && input.reason !== 'withdrawn'
 			);
 			return success(outcome as OverlayResultV1);
 		},

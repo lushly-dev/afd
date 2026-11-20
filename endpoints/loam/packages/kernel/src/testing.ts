@@ -390,7 +390,8 @@ function withNestedProblems(
  *
  * @throws LoamKernelError `REPLAY_START_INVALID` when the journal does not start at `seq` 1, since
  *   the state it starts from is not in it; `REPLAY_DIVERGED`, with the report and the first
- *   difference in `details`, when any entry differs; `REPLAY_ENTRY_TRUNCATED`, naming the entry, once the entries
+ *   difference in `details`, when any entry differs; `REPLAY_JOURNAL_GAP`, before anything runs, when an entry is
+ *   missing between two the journal kept (phase 4's step 6); `REPLAY_ENTRY_TRUNCATED`, naming the entry, once the entries
  *   before the first one the journal kept truncated and `unreplayable` have replayed (phase 4 specification, 11)
  */
 export async function replayKernel(
@@ -413,8 +414,33 @@ export async function replayKernel(
 			details: { firstSeq: first.seq },
 		});
 	}
+	// Every entry up to where the replay stops, in order with none missing (step 6's fourth round, 6): a journal with a
+	// hole holds a state change the replay would never make, so it diverges later or, worse, never.
+	const through = truncated ? [...ordered, truncated] : ordered;
+	for (let index = 1; index < through.length; index++) {
+		const after = (through[index - 1] as JournalEntry).seq;
+		const next = (through[index] as JournalEntry).seq;
+		if (next !== after + 1) {
+			throw new LoamKernelError({
+				code: 'REPLAY_JOURNAL_GAP',
+				message: `The journal has no entry between seq ${after} and seq ${next}, so what it held is not in it`,
+				suggestion: `Replay up to seq ${after} only, or replay the whole journal again from its source`,
+				details: { after, next },
+			});
+		}
+	}
 	const nested = nestedReplay(ordered);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
+	/**
+	 * The calls whose run, journaled as its own entry with `origin` (phase 4's 7.1, 7.2), the replay answers from its
+	 * record: that call answers from its own record too, as it could not run its child again (step 6's second round, 7).
+	 */
+	const recordedOrigins = new Set(
+		ordered.flatMap((entry) => {
+			const origin = entry.context?.origin;
+			return typeof origin === 'string' && answeredFromRecord(entry) ? [origin] : [];
+		})
+	);
 	const auth = new MockAuthAdapter();
 	// The users the journal's `auth-*` results name, so a settled person reads back as they were recorded.
 	const users = new Map<string, User>();
@@ -518,8 +544,16 @@ export async function replayKernel(
 					await parts.resetSession();
 				}
 				const entry = byTrace.get(context.traceId);
-				if (entry && answeredFromRecord(entry)) {
+				if (
+					entry &&
+					(answeredFromRecord(entry) ||
+						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)))
+				) {
 					recorded.push(entry.seq);
+					// A confirmed run answered from its record: the act that ran it may settle its row (step 6's fifth round, 3).
+					const confirmation = entry.context?.confirmation;
+					if (typeof confirmation === 'string' && confirmation.startsWith('ntf_'))
+						internals.recordedRun?.(confirmation, entry.result);
 					if (entry.command === 'app-instance-refresh' && entry.result.success) {
 						const { instance, catalog } = entry.result.data as {
 							instance?: unknown;
@@ -566,7 +600,11 @@ export async function replayKernel(
 		if (truncated) {
 			throw new LoamKernelError({
 				code: 'REPLAY_ENTRY_TRUNCATED',
-				message: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
+				message: (truncated as { unredacted?: unknown }).unredacted
+					? `The journal kept seq ${truncated.seq} (${truncated.command}) without its input, since its redaction failed, so the replay stops there`
+					: (truncated as { lossy?: unknown }).lossy
+						? `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
+						: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
 				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
 				details: { seq: truncated.seq, command: truncated.command },
 			});

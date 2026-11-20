@@ -176,9 +176,11 @@ export interface DocumentCheck {
 	/**
 	 * Run `run` after every earlier change to `document`'s record has finished, so each reads the record the
 	 * last one wrote: rename, update, move, trash, restore and an instance command's stamp. Nothing run under
-	 * it waits on another change to the same record, so it cannot wait on itself.
+	 * it waits on another change to the same record, so it cannot wait on itself. `hold.release`, once set, lets the
+	 * changes behind it go on before `run` ends: a call that waits on a person's answer (phase 4's 7.2) gives the chain up,
+	 * and takes it again with `serial` before it writes (step 6's third round, A).
 	 */
-	serial<T>(document: string, run: () => Promise<T>): Promise<T>;
+	serial<T>(document: string, run: () => Promise<T>, hold?: { release?: () => void }): Promise<T>;
 	/**
 	 * The document a type's instance mutation names, whose chain its check, its handler's write and its stamp
 	 * run in together, so a move or a trash never lands between them; undefined for anything else, an instance
@@ -214,9 +216,21 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	const checked = new WeakMap<CommandContext, string>();
 	/** By document, the last change to its record, which the next one waits for. */
 	const chains = new Map<string, Promise<unknown>>();
-	const serial = <T>(document: string, run: () => Promise<T>): Promise<T> => {
+	const serial = <T>(
+		document: string,
+		run: () => Promise<T>,
+		hold?: { release?: () => void }
+	): Promise<T> => {
 		const next = (chains.get(document) ?? Promise.resolve()).then(run, run);
-		const tail = next.then(
+		const ended = hold
+			? Promise.race([
+					next,
+					new Promise<void>((resolve) => {
+						hold.release = resolve;
+					}),
+				])
+			: next;
+		const tail = ended.then(
 			() => undefined,
 			() => undefined
 		);

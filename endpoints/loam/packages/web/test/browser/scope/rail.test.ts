@@ -6,8 +6,11 @@
  * expectation that reads it is marked `D29`, here and in `first-paint.test.ts` and `chrome/src/rail/bands.test.ts`.
  */
 
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -754,23 +757,49 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	// Hello's manifest is version 2 since phase 4's step 2, for its settings (`ui.settings` is a key of version 2).
-	it('P2-E11: loads tally as version 1, and hello and tasks as version 2, side by side', async () => {
-		const opened = await openShell(browser, site.root);
-		const versions = await opened.page.evaluate(async () => {
-			const shell = document.querySelector('loam-shell') as unknown as {
-				kernel: {
-					appsReady: Promise<void>;
-					appPort(instance: string): { manifest: { manifest_version: number } };
-				};
+	// Hello's manifest is version 2 since phase 4's step 2, for its settings (`ui.settings` is a key of version 2), and
+	// tally's since step 6, for `tally-reset`'s `confirm_prompt`. The premise stands, a version 1 manifest beside version
+	// 2 ones: tally's package as it was, version 1 without that command, made here (the command is never called).
+	it('P2-E11: loads a version 1 tally, and hello and tasks as version 2, side by side', async () => {
+		const copy = await mkdtemp(join(tmpdir(), 'loam-tally-v1-'));
+		let mixed: Awaited<ReturnType<typeof serveDeployment>> | undefined;
+		// The copy goes whatever fails, its setup included (the sixth round's nit).
+		try {
+			await cp(await packApp('tally'), copy, { recursive: true });
+			const file = join(copy, 'app-manifest.json');
+			const manifest = JSON.parse(await readFile(file, 'utf8')) as {
+				manifest_version: number;
+				commands: Array<{ name: string }>;
 			};
-			await shell.kernel.appsReady;
-			return ['hello', 'tally', 'tasks'].map(
-				(instance) => shell.kernel.appPort(instance).manifest.manifest_version
-			);
-		});
-		expect(versions).toEqual([2, 1, 2]);
-		await opened.context.close();
+			manifest.manifest_version = 1;
+			manifest.commands = manifest.commands.filter((command) => command.name !== 'tally-reset');
+			await writeFile(file, JSON.stringify(manifest));
+			mixed = await serveDeployment({
+				config: deploymentFile(
+					deploymentEntry('hello', await packApp('hello')),
+					deploymentEntry('tally', copy),
+					deploymentEntry('tasks', await packApp('tasks'))
+				),
+			});
+			const opened = await openShell(browser, mixed.root);
+			const versions = await opened.page.evaluate(async () => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: {
+						appsReady: Promise<void>;
+						appPort(instance: string): { manifest: { manifest_version: number } };
+					};
+				};
+				await shell.kernel.appsReady;
+				return ['hello', 'tally', 'tasks'].map(
+					(instance) => shell.kernel.appPort(instance).manifest.manifest_version
+				);
+			});
+			expect(versions).toEqual([2, 1, 2]);
+			await opened.context.close();
+		} finally {
+			await mixed?.close();
+			await rm(copy, { recursive: true, force: true });
+		}
 	});
 });
 

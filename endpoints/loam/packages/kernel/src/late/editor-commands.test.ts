@@ -6,6 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import type { OverlayRefV1, OverlayV1 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LOCAL_MEMBERSHIP } from '../scope/access.js';
@@ -328,6 +329,64 @@ describe('P2-D5: the editor commands', () => {
 		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: true })).error?.code).toBe(
 			'EDITOR_TAB_UNKNOWN'
 		);
+	});
+
+	it("phase 4's 7.3: only the person's own close opens the close prompt, Save, Discard and Cancel, theirs to answer", async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		await kernel.call('document-open', { document: a });
+		await kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+		const prompts = async () =>
+			((await kernel.call<{ overlays: OverlayV1[] }>('overlay-list')).data?.overlays ?? []).filter(
+				(each) => each.kind === 'prompt'
+			);
+		// An agent's close: EDITOR_TAB_DIRTY as phase 2 has it, and no modal (R8).
+		const agents = await kernel.agent.call('editor-close', { tab: 't1' });
+		expect(agents.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect(agents.error?.details).toBeUndefined();
+		expect(await prompts()).toEqual([]);
+		// The person's own: the shell's close prompt, its three answers, Save the default.
+		const theirs = await kernel.call('editor-close', { tab: 't1' });
+		expect(theirs.error?.code).toBe('EDITOR_TAB_DIRTY');
+		const prompt = (theirs.error?.details as { prompt: OverlayRefV1 } | undefined)
+			?.prompt as OverlayRefV1;
+		expect(prompt).toMatchObject({ kind: 'prompt', owner: 'shell' });
+		const [shown] = await prompts();
+		expect(shown?.for).toEqual({
+			command: 'editor-close',
+			kind: 'close',
+			tab: 't1',
+			scope: { workspace: 'personal' },
+			document: a,
+		});
+		expect(
+			(
+				shown?.input as
+					| { actions?: Array<{ id: string; default?: boolean; tone?: string }> }
+					| undefined
+			)?.actions
+		).toEqual([
+			{ id: 'save', label: 'Save', tone: 'primary', default: true },
+			{ id: 'discard', label: 'Discard', tone: 'danger' },
+			{ id: 'cancel', label: 'Cancel' },
+		]);
+		// F6: the agent may not answer or even cancel it.
+		expect(
+			(
+				await kernel.agent.call('overlay-dismiss', {
+					overlayId: prompt.overlayId,
+					result: 'cancel',
+				})
+			).error?.code
+		).toBe('HUMAN_REQUIRED');
+		// The person's Discard is the answer the chrome hears, then closes with discard: true.
+		const answered = await kernel.call<{ result: string }>('overlay-dismiss', {
+			overlayId: prompt.overlayId,
+			result: 'discard',
+		});
+		expect(answered.data?.result).toBe('discard');
+		expect((await kernel.call('editor-close', { tab: 't1', discard: true })).success).toBe(true);
 	});
 
 	it("P2-D5: keeps a record per scope, so Atlas's tabs are not Beacon's and come back on return", async () => {

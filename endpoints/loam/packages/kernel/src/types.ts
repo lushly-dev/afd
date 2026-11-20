@@ -662,6 +662,9 @@ export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	'prompt-open',
 	// Step 5's inbox (10.2): an app pushes a notice to the person, at its own rate.
 	'notification-push',
+	// Step 6's confirmations (7.2): an app reads and withdraws the ones it raised.
+	'confirmation-get',
+	'confirmation-withdraw',
 ] as const;
 
 /**
@@ -684,6 +687,11 @@ export interface LoamKernelV4
 export interface KernelEventV4 extends KernelEventV3 {
 	/** The settings sections whose values this call changed, by full id (3.8). */
 	settings?: string[];
+	/**
+	 * A confirmation in the inbox was raised, answered or ended by this call, which may itself have failed, as a call
+	 * answered `CONFIRMATION_PENDING` has (7.2): the Inbox count reads again.
+	 */
+	inbox?: true;
 }
 
 /** What `shell-info-get` returns from version 4. */

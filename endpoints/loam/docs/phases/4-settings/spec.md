@@ -51,10 +51,11 @@ Epic: [#1543](https://github.com/lushly-dev/afd/issues/1543). File new work for 
 - **Done, step 3, overlays I** ([#1616](https://github.com/lushly-dev/afd/pull/1616), 2026-11-18): toasts' `sticky` and `link`, owner lines, agent toasts with their rate of 5 a minute (F7), `popover-open` on every path of 6.1's table, the toast region's F6 stop and the `overlays` chunk; what it decided, measured and left is in [its record](#step-3-2026-11-18).
 - **Done, step 4, overlays II** ([#1629](https://github.com/lushly-dev/afd/pull/1629), 2026-11-19): dialogs, modals' actions and elements, prompts, the slot, 6.1's path table for every kind, 6.5's answer rule with F6's cancels, `parked` and `overlay-global-set`; what it decided, measured and left, and what its trust review changed, is in [its record](#step-4-2026-11-19).
 - **Done, step 5, the inbox** ([#1630](https://github.com/lushly-dev/afd/pull/1630), 2026-11-19): section 10 without confirmations, the `notification` table and `notification-push`, `-list`, `-read`, `-archive` and `-act`, sticky toasts landing (6.1), `muted`, the `inbox` chunk, the title bar's Inbox button and the announcement, a sticky toast's **Open inbox**, the palette's row, hello's guest book, and P4-E6; what it decided, measured and left is in [its record](#step-5-2026-11-19).
+- **Done, step 6, prompts and confirmations** ([#1654](https://github.com/lushly-dev/afd/pull/1654), its trust review answered, 2026-11-19): section 7, `confirm_prompt` enforced in process with R9's pending path, `confirmation-get` and `-withdraw`, `palette-run` and its input prompt (R15), the close prompt (7.3), tally's `tally-reset` with its `confirm_prompt` in place of `p4-base`'s fixture, the jobs `decline-confirmation` and `palette-prompts-for-input`, P4-E8 in units and Chromium, and the amendments A-P0-1, A-P1-1 and A-P2-1; what it decided, measured and left is in [its record](#step-6-2026-11-19).
 - **Done, step 7, keybindings** ([#1657](https://github.com/lushly-dev/afd/pull/1657), 2026-11-19): section 8 with the coordinator's rulings R1 to R5, `keybinding-list`, `Mod+Alt+P`, the manifest's sequences and `when`, the keybinding editor's sequences and warnings, the job `rebind-a-chord`, and P4-E9; what it decided, measured and left is in [its record](#step-7-2026-11-19), with amendments to 3.4, 8.1, 8.3, 8.5, 12.1, 16 and P4-E14 (step 7).
 - **Done, step 8, autonomy** ([#1623](https://github.com/lushly-dev/afd/pull/1623), 2026-11-19): section 4 with its commands, the autonomy section in the settings tree, E4's units and Chromium, E13's notice, P4-E2's sweep over autonomy, and the jobs `autonomy-per-command`, `know-my-mode` and `owner-ceiling`; what it decided, measured and left is in [its record](#step-8-2026-11-19), with amendments to 3.2, 4.1, 4.2, 4.4 and 12 (step 8).
 - **Done, step 10, limits** ([#1631](https://github.com/lushly-dev/afd/pull/1631), 2026-11-19, its trust review answered): section 11, `limit-usage-get` and boot's `store-usage-settle`, the Limits section with usage beside each key, A-P2-3, P4-E10's units and Chromium, and, merged with steps 4 and 5 (`main` at `cb4d5dff`), the owners' notice through the inbox and the job `limit-refuses-call`; what it decided, measured and left is in [its record](#step-10-2026-11-19).
-- **Not done:** every step of the [plan](#20-implementation-plan) after step 5, steps 7, 8 and 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
+- **Not done:** every step of the [plan](#20-implementation-plan) after step 8, step 10 apart. The [amendments to the architecture](#amendments-to-the-architecture-and-the-decision-log) were not applied at approval and name no step: each lands with the step that builds what it describes, and step 11 checks that all have.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -1030,7 +1031,7 @@ These are estimates, under D115.
 | `late` | +5,000 |
 | `late-settings` (new) | 26,000. **Measured (step 8):** 44,544 with the settings and autonomy, the row raised under D115. **Measured (step 10):** 50,583 with the limits (+5,795), raised to 51,000 |
 | `settings` (new), with three custom editors | 36,000 |
-| `inbox` (new) | 10,000 |
+| `inbox` (new) | 10,000. **Measured (step 6):** 11,340 with confirmations, 11,941 after its trust review, the row raised under D115 and accepted by the coordinator |
 | `overlays` (new) | 11,000 |
 | `apps` | Measured by step 2 |
 
@@ -1239,10 +1240,10 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) were proposed in 
 
 Each lands with the step named beside it; none landed with the approval or with the owner's answers of 2026-11-18.
 
-- **A-P0-1 (step 6):** the palette's active-app filter is removed (step 6), and `createKeybindings` takes overrides and sequences (step 7).
-- **A-P1-1 (step 6):** the `palette` catalog row becomes "Filtered by scope, ranked by active app".
+- **A-P0-1 (step 6):** the palette's active-app filter is removed (step 6), and `createKeybindings` takes overrides and sequences (step 7). *The first half landed with step 6*, in phase 0's and phase 1's specifications.
+- **A-P1-1 (step 6):** the `palette` catalog row becomes "Filtered by scope, ranked by active app". *Landed with step 6*, in the architecture's catalog, the manifest's surface catalog and phase 1's specification.
 - **A-P1-2 (step 9):** `app-get` gains `gates`; the `menus` catalog row is served by "a later specification", not phase 4.
-- **A-P2-1 (step 6):** 5.5's close prompt becomes 7.3, opened only for the person's own close.
+- **A-P2-1 (step 6):** 5.5's close prompt becomes 7.3, opened only for the person's own close. *Landed with step 6*, in the documents specification's 5.5.
 - **A-P2-2 (step 1):** `WorkspaceV1.trashDays` is written through from `loam.documents.trashDays`.
 - **A-P2-3 (step 10):** the 256 KiB instance-command input bound becomes `loam.limits.inputBytes`.
 - **A-P3-1 (step 1):**
@@ -2021,6 +2022,310 @@ Autonomy, on `lush/loam-p4-step8-autonomy` from `main` at `9f4bb6d2` (after step
 
 **Verified after the trust review,** 2026-11-19, same machine: `test --coverage` for the kernel (51 files, 1,059 tests), chrome (17 files, 241), `web`'s units (11 files, 53) and tally (2); the Loam typecheck; `lint:tokens` (chrome); `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check`; and five Chromium files, 32 tests (`autonomy` 5, `settings`, `apps/second-app`, `budget`, `accessibility`). Not run: the rest of `test:browser`, `test:walk`, `test:mounted`, `test:hosted`, the desktop suite and Cargo.
 
+## Step 6, 2026-11-19
+
+Prompts and confirmations, on `lush/loam-p4-step6-confirmations` from step 5's head `3a35be2f` (steps 1 to 5 and 8), before its trust review (section 20).
+
+**Built.**
+
+- **The manifest** (12.1): `commands[].confirm_prompt`, plain text of 1 to 200 characters, a key of version 2 (`MANIFEST_SURFACE_UNAVAILABLE` under version 1, as step 1 made `ui.settings`), a control character `MANIFEST_TEXT_INVALID`; a mounted tool's `MANIFEST_CONFIRM_UNAVAILABLE`, as 12.1 says, where phase 1 gave `MANIFEST_KEY_REFUSED`. `confirmation` joins the shell's domains and the reserved plugin ids.
+- **The gate** (`kernel/src/late/confirmations.ts`, in `late-settings`): the kernel chain's last middleware, after the copilot's, so F9's order holds: strict validation, line 0, access and grants, the decline window, then the slot or the inbox, then the handler. **A person's gesture** asks in the slot and waits; **the active app's port, or the active tab owner's,** the same, under the shell's header, held by the window; **an agent, the copilot among them, or an app that is not active** gets `CONFIRMATION_PENDING` at once with `details: { notification, expiresAt }`, the confirmation a row of the inbox's table; any other path is `HUMAN_REQUIRED`. The key (F4) is the caller, the command, the input's SHA-256 digest and the scope, of one person in one workspace. A re-call on the key before `expiresAt` answers its stored state (F5); at most 5 pending per caller (`RATE_LIMITED`, `details: { limit: 5, retryAfterMs }`, counted with the insert on the person's chain); 10 minutes to `expired`; the 60-second window after a decline, which only a person's gesture is exempt from.
+- **Answering** (`notification-act { answer }`, the inbox's Confirm and Decline): a decline ends it `declined`; a confirm re-checks the asking actor's access in the confirmation's scope and whether the command's app is still registered, loaded, enabled and opening there and a calling app still the command's own, else `declined` with `reason: 'access'`, nothing run; then the shell runs the call itself once, as the same actor, interface, caller, input and scope, journaled with `confirmation`, the confirmation's id, and stores the outcome. The act's read, decision and claim run on the person's chain, so a withdrawal never lands between them.
+- **`confirmation-get` and `confirmation-withdraw`** (10.2), the raising caller's alone, on the agent interface and every app's port (`APP_CALLABLE_SHELL_COMMANDS_V2`, `ConfirmationsV1` on a native surface's context). A change of person withdraws the leaving person's pending confirmations, and `Confirmations.withdraw` is step 9's unload seam (R14); `withdrawn` never opens the window.
+- **`palette-run`** (7.1): human only (the chain's `HUMAN_COMMANDS` for the agent interface, `CALL_NOT_GRANTED` from a port). `{ command }` opens a shell prompt of the command's plain input fields, `for: { command, kind: 'input' }`; `{ command, prompt, input }` checks the prompt (`OVERLAY_NOT_FOUND` for a stale one or another command's), then the input against the command's own schema, the prompt kept open with the reason on a failure; a `confirm_prompt` command's confirmation replaces the prompt in the slot (`reason: 'replaced'`, R15), showing the input; any other runs as the person.
+- **The close prompt** (7.3): a person's own `editor-close` of a dirty tab opens it, `for: { command: 'editor-close', kind: 'close' }`, with Save (the default), Discard (`danger`) and Cancel, and answers `EDITOR_TAB_DIRTY` with `details.prompt`; an agent's or a port's gets `EDITOR_TAB_DIRTY` alone, as phase 2 has it. The chrome's close runs the editor's `save()` on Save.
+- **The palette** (7.1, A-P0-1, A-P1-1): every enabled, loaded app's `expose.palette` commands, ranked by the active app, then the active tab's owner, then the rest, then the persona, each command row naming its app; a command that needs input is a row that opens its prompt.
+- **Tally** at manifest version 2 with `tally-reset`, destructive, with its `confirm_prompt`; `p4-base`'s fixture command and the runner's fixture mechanism are gone. The jobs `decline-confirmation` and `palette-prompts-for-input` run and pass.
+- **The chrome:** the slot shows a confirmation's header as its name, the app's text and the input as it will run, Decline focused, never Confirm; the close prompt's three buttons; the input prompt answered through `palette-run`; the inbox's confirmation with its header, text, input and state, and Confirm and Decline naming the command; the Inbox count and an announcement of a confirmation raised by a call that failed (`KernelEventV4.inbox`).
+
+**Decided while building it,** each a judgement a reviewer should check, amending the section named:
+
+- **Replay** (7.2's last line): a call that waits is journaled after the answer that ended its wait, so the slot's confirmation opens through the internal `prompt-settle` (in `BOOT_ONLY`), journaled before the answer, and the waiting call's own entry carries its id, by which a replay finds the answer. The shell's run, for a confirmation or for `palette-run`, is a top-level call of its own with `origin`, the trace of the call that made it, journaled before that call, so a replay runs it once at its own entry and the call that made it answers from it. A nested run, as `notification-act`'s action is, would be answered from the record and its effects would not replay.
+- **`notification-act`'s answer** (10.2) is `{ state: 'confirmed' }`, or `{ state: 'declined', reason: 'access' }`, never the run's result, which `confirmation-get` reads; the answer marks it read.
+- **"Declined automatically"** (R16): counted on the declined row as `declinedAgain`, never a row per refused call, since confirmations count against no quota and an agent's loop would fill the inbox.
+- **The re-call and the window** answer a declined key `CONFIRMATION_DECLINED` until its `expiresAt` (F5) or 60 seconds after the answer (R16), whichever is later; a withdrawn or expired key raises a new one.
+- **The key** adds the person and the workspace to 7.2's four parts.
+- **A slot confirmation** is never a row: its window is the page's memory, which a reload forgets (a follow-up). Its caller hears `CONFIRMATION_DECLINED` on a decline, the same with `details.reason: 'withdrawn'` on the raising app's own cancel (F6), and `SESSION_CHANGED` on a change of person.
+- **The headers:** "Requested by <agent> for <person>, in <project>"; "<app> asks to run <command> in <project>"; for a person's own call, "Run <command> in <project>?". The app's text sits beneath; the shell's words come from titles, never an app's name in shell source.
+- **Expiry is read, not written:** a pending row past its time reads `expired` everywhere, so the unjournaled `notification-list` writes nothing. Ended rows past their key's life are pruned at the next raise, keeping the person's newest 50.
+- **The re-check** covers what can change at run time: access, and the app disabled, unloaded or refused. A grant comes with a manifest, so "loses a grant" is a new manifest, which reloads the app.
+- **`palette-run`'s fields** are a command's plain input fields only (6.4's kinds, no `pattern` or `format`, which the command's own schema still checks); any other input is `VALIDATION_ERROR` saying to run it from its app; a command the palette does not list here is AFD's `COMMAND_NOT_FOUND`. The input prompt is answered by `palette-run` alone (`overlay-dismiss { result: 'confirm' }` on it is `VALIDATION_ERROR`); a confirmation and the close prompt take no value. The run is in the scope of the call that fills the prompt (a follow-up).
+- **A-P0-1's ranking** puts the rank group before the score, as the persona's emphasis already did before this step, and an app's setting row in its app's group, so the active app's own setting ranks with its commands; the persona then orders within each group.
+- **`confirm: true`** is refused by an app command's strict schema with a message naming `confirmation-get`, a check before the declared schema, unless the command's own schema declares `confirm`.
+- **The close prompt's fallback:** a draft whose tab the kernel no longer holds, as when an agent closed it while its save ran, is asked the same three answers in the shell's own modal, a person's gesture's (6.5).
+- **The scenarios,** each against what the code answers: `decline-confirmation`'s `count` is `total`, `tally-get`'s field; `palette-prompts-for-input`'s prompt steps run in `prj_atlas`, where its document is.
+- **`stores.test.ts`'s scan** gains a sixth named exemption, `palette-run`'s `command`, a palette command's name, for this step's review; `mounted.test.ts`'s command-line scan leaves `palette-run` out on the same ground.
+
+**Left for later steps:**
+
+- **Step 9:** an app's unload withdrawing its pending confirmations (R14), through `Confirmations.withdraw`, tested here as a seam.
+- **Phase 5's step 3:** `Confirmations.ask(name, input, context, next, { group })` raises one for any call, whatever its command declares, as 6.1's `ask`; the key's extra part is where the copilot's session goes.
+- **Hello's own sticky toast and notice with an action** (section 1's `apps/hello` row), which step 5 left here: no job needs them; a follow-up.
+
+**Measured.** D115, on Windows with Node 26.13.1, against `budget.mjs`'s figures for steps 4, 5 and 8 merged: first paint 310,406 (+275) and 96,862 gzip (+98), within 310,500 and 97,000; the kernel alone 119,623, its row 120,000; `lateSettingsMinified` 61,500 to 78,500 (78,180, +17,711); `lateMinified` 107,500 to 110,000 (109,463, +2,627); `lateEditorMinified` 15,400 to 16,000 (15,813, +477); `appsMinified` 418,500 to 420,500 (420,134, +2,079); `surfacesMinified` 95,500 to 96,500 (96,179, +1,311); `editorMinified` 35,600 to 36,000 (35,762, +283); `inboxMinified` 10,000 to 11,500 (11,340, +1,703, over section 14's 10,000). `budget.mjs` records each.
+
+**Verified.** 2026-11-19, on Windows 11 with Node 26.13.1: `test --coverage` for the kernel (55 files, 1,192 tests; 24 in `late/confirmations.test.ts`, and both jobs in `scenarios.test.ts`), chrome (247), the SDK (34), the manifest (1,106), web (53), tally (3) and hello (8); the typecheck of every Loam package and app; chrome's `lint:tokens`; `budget`; sixteen Chromium files, 216 tests: `confirmations` (6, new), `inbox`, `settings`, `documents/editor` (the close prompt's three answers), `apps/overlays`, `apps/dialogs`, `shell`, `accessibility`, `apps/popovers`, `apps/accessibility`, `apps/second-app`, `scope/first-paint`, `budget`, `autonomy`, `documents/new` and `apps/view`; `check-doc-lines`; and `pnpm check`. **Not run:** the rest of `test:browser`, `test:walk` (whose choice now reads Cancel), `test:mounted`, `test:hosted`, the desktop suite, Cargo, `loam.yml` and `pnpm verify`.
+
+**After the trust review,** 2026-11-19: two independent reviews of `aab0bbda` (both "revise": 2 and 12 blockers) and the coordinator's rulings R1 to R4. Each amends the section named, and supersedes what the record above says otherwise:
+
+- **R1, an agent's identity** (7.2's key and limit): an ordinary agent's name is the caller's own choice, so it keys nothing. A confirmation's caller is the opener's bucket (`cbucket`): an app's instance, or the agent interface's per person, the copilot apart, as step 3's push rate has it. The key, the limit of 5, and who may `confirmation-get` or `-withdraw` it go by the bucket, so **one person's agents share their confirmations, whatever names they give**. `source` and `confirmation.caller` still say who asked. In `notification-list`, a confirmation's stored `result` is shown only to its bucket.
+- **R2, two tabs:** the browser host takes the journal's Web Lock, `<journal>:writer`, with `ifAvailable`, before it creates a kernel (`web/src/host.ts`'s `createHostKernel`, over `IndexedDbJournalSink.lock`). A second tab gets no kernel and shows "Loam is open in another tab", so a store has one kernel per origin, and the claim needs no compare-and-set. The run still requires the claim this page wrote, held in `approved`, so a row claimed by another writer never runs here.
+- **R3, filling the inbox:** every confirmation a bucket raised within its 10-minute life counts against its 5, answered, withdrawn or not. A person holds at most 50 from every caller together (`RATE_LIMITED`, `details: { limit: 50, retryAfterMs }`). A confirmation withdrawn before the person acted on it is marked read.
+- **R4, journaling:** `palette-run`'s entry has its target's input redacted as the target's own entry would be. The journal applies the target command's redaction to the wrapper (`redactWrapped`), so a password never reaches it.
+
+**Fixed,** by the reviews' blockers:
+
+1. **Trusted answers:** the inbox's Confirm and Decline act only on a press with `isTrusted`. The question's answer callback is held in `modal.ts`'s module, bound by the renderer (`bindAnswer`), and is no longer a property of `loam-modal`. Chromium: a script's `click()` and a dispatched event answer nothing, in the slot and the inbox, and the element has no `onAnswer`. Code imported from the page's own chunk could still bind one, as any native app could reach the kernel (D54).
+2. **R2,** above.
+3. **R1,** above.
+4. **R4,** above. A schema with `oneOf`, `anyOf`, `allOf`, `not`, `if`, `$ref` or `patternProperties`, at the top or on a field, is no prompt: `palette-run { command: 'auth-sign-in' }` is `VALIDATION_ERROR`, and its forged fill journals no password (units).
+5. **The slot's re-check:** after the person confirms in the slot, the run waits on the same re-check as the inbox's path: access, then the command's app enabled, loaded and opening there, and a calling app still the command's own. A failure is `CONFIRMATION_DECLINED` with `details.reason: 'access'`, and nothing runs (unit: the app disabled while the slot waits).
+6. **One key, both paths:** an active app's call first reads the key's rows on the person's chain, as the inbox's path does. A pending row answers `CONFIRMATION_PENDING`, a decline within its window `CONFIRMATION_DECLINED`, and a row confirmed before its expiry its stored outcome. A decline in an active app's slot is a stored row (`cslot`, read, expiring with its window), so a reload forgets nothing. Only a person's own decline opens the window; a prompt the shell closed otherwise does not (units: raised inactive, then active, in each state, and across `resetSession`).
+7. **Races on the slot:** `prompt-settle` checks and reserves the slot in one step, refusing `OVERLAY_MODAL_BUSY` over a prompt it does not replace. A fill takes its prompt with no await after the check, so a second fill at once is `OVERLAY_NOT_FOUND` (units).
+8. **Stage B:** once stage B has ended, `overlay-list` and `overlay-dismiss` skip the queue, which a call waiting on its prompt holds (`kernel.ts`'s `run`). The chrome reads the slot on `prompt-settle`'s event, which comes after stage B (unit: the first call during stage B asks and is answered).
+9. **A large confirmation:** a list shows a confirmation's input whole up to 2,048 bytes, and past that `{ truncated, bytes }`. A read by id shows it whole, outside the list's budget. The inbox offers "Show the full input" in place of Confirm until it has read it (a unit; no shipped app has a confirmed command with a long input to drive it in Chromium).
+10. **The palette:** its index is built again whenever the rows it would list change, as on a change of scope or of an app's availability. A fill runs in the scope its prompt opened in, `for.scope` (units).
+11. **Replay of a fill:** a fill whose target the journal leaves out, such as `notification-list`, marks its own entry `replay: 'recorded'`, so a replay answers it from its record (unit).
+12. **The close prompt acts:** the prompt names its tab (`for.tab`). The answer registry tells the editor, which runs Save (the editor's `save()`, then the close) or Discard (the close) for a person's `editor-close` from the palette as for the tab's button. The chrome's fallback modal opens only for `EDITOR_TAB_UNKNOWN`. Chromium: Save persists the text and closes; Discard closes with no second close. That case is Chromium's, not a unit's, since the draft's disposal is the chrome's.
+
+**Improvements:**
+
+- **13:** the agent's and a port's calls carrying `confirmation` and `origin` in their options still raise; a unit over the real store shows that a row never approved or claimed runs nothing.
+- **14:** a manifest with a `confirm_prompt` and an input named `confirm` is refused at load (`MANIFEST_CONFIRM_UNAVAILABLE`), so the guard always applies. Read and archive protection follows the effective expiry.
+- **15:** a re-call on a row declined for access says so (`details.reason: 'access'`). `ran`'s entries for an act are dropped. `confirmation-withdraw` on one that ended or is running answers its state (`{ state, running? }`), not `VALIDATION_ERROR`.
+- **16, for phase 5's step 3:** a confirmed run carries no copilot `trace`, so how it is attributed to the turn that asked is step 3's decision (D145, D146).
+- **17:** `new-list.test.ts` asserts the editor owner's command is listed and after the active app's; `mounted.test.ts` exempts only `palette-run`'s `command`. A grant changes only with a new manifest, which reloads the app, so P4-E8's changed-grant case is the app refused or unloaded, as above.
+- **18:** `inboxMinified` over section 14's 10,000 is accepted under D115 by the coordinator.
+
+**Measured after the review,** D115: first paint 310,720 (+314) and 96,945 gzip, its row raised from 310,500 to 311,000 with `first-paint.test.ts`'s literal; the kernel alone 120,034, its row 120,500; `lateSettingsMinified` 80,506, its row 81,000; `appsMinified` 420,544, its row 421,000; `inboxMinified` 11,941, its row 12,000. `budget.mjs` records each.
+
+**Verified after the review,** 2026-11-19, the same machine: `test --coverage` for the kernel, chrome, the SDK, the manifest and web; the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; Chromium: `confirmations` (7), `inbox`, `documents/editor`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `apps/second-app`, `scope/first-paint`, `budget`, `autonomy` and `documents/new`. Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
+
+**Second round,** 2026-11-19: two re-checks of `a4fe0ab4` (one approved, one "revise"), each finding verified before its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **Redaction through wrappers** (R4). By trace, `redactWrapped` redacted one level only, so a refused `palette-run` wrapping another of `auth-sign-in` kept the password. It now recurses, each level by its own target's rule, drops an input no command names, and redacts `prompt-settle`'s `open.input` as its command's own (units). The cost: a confirmation of a command whose input the journal redacts replays its prompt's `for.input` redacted, which only a command with such a field would show.
+2. **The close prompt's scope** (7.3): `for` now carries the tab, the scope and the document. The chrome acts on Save or Discard only where the shown scope and the tab's document are the ones asked about; otherwise a toast says nothing was closed (Chromium: a person's `editor-close` of Atlas's `t1` with Beacon's `t1` shown closes neither).
+3. **Startup with a prompt to answer** (7.2): **confirmed in Chromium.** With stage B held, a person's first call that asks in the slot was never drawn, since the shell's own stage-B reads (`persona-list`, the rail) queued behind it. A queued call now releases the queue once it starts waiting on the person (`QueuedTicket.release`), so what follows goes on in order. Round one's bypass of `overlay-list` and `overlay-dismiss` is removed, so agents' and ports' dismissals keep queue order. The Chromium case answers the prompt through the shell.
+4. **The archive gate:** the slot's re-check (and the inbox's) includes line 6, a mutation under an archived project. A unit failed without it and passes with it.
+5. **Bucket namespaces** (R1): `app:<instance>`, `agents:<person>`, `copilot:<person>` and `person`, since an instance may be named `person`. One rule, `ownedBy`, decides `confirmation-get`, `-withdraw` and a list's `result` (unit).
+6. **Trusted declines:** a `close` of the slot's dialog with no Escape of the person's before it, such as a script's `close()`, answers `overlay-dismiss { reason: 'withdrawn' }`. That reason is the shell's alone, on its own question. The confirmation ends withdrawn, saying "its question closed without the person's answer", and opens no window (unit and Chromium). The inbox's Chromium case selected `button.primary`, but tally's reset is destructive, so its Confirm is `danger`: the forged click hit nothing and the case passed vacuously. It now selects both buttons by name, with no optional chaining.
+7. **Replay of a fill whose child the replay answers from its record** (a recorded query such as `app-list`): confirmed (`REPLAY_DIVERGED`). `replayKernel` now answers a call from its own record when its run, by `origin`, is answered from the record (unit).
+8. **A large result:** a list bounds a stored result as it bounds input, and a read by id shows it whole. A unit failed before (the raiser's page broke) and passes now.
+9. **Slot declines bounded:** a slot decline's write removes ended windows and keeps at most 20 live per person, in one batch (unit).
+
+**Improvements:**
+
+- **10:** Chromium: a tally package with a long-input `confirm_prompt` command; the inbox shows "too long to list", withholds Confirm, and offers it once "Show the full input" has read the whole.
+- **11:** a switch is held while the shell's question is open, so no `app-switch` closes it. A close the person did not make ends withdrawn and opens no window (unit).
+- **12:** the scope test gives its fill an explicit Beacon scope and asserts Atlas, not Beacon, received the write.
+- **13:** the two-kernel concern is test-only: the browser host takes the journal's lock, so a store has one kernel per origin (R2); the test host's shared store is a fixture. A unit shows a run whose stored claim is another writer's runs nothing.
+- **14:** rows without `cbucket` came only from `aab0bbda`, which never shipped, so no migration is needed.
+- **15:** `loamRules`' JSDoc is restored.
+
+**Measured after the second round,** D115: first paint 310,909 and 97,013 gzip, `jsGzip` raised from 97,000 to 97,500; `lateMinified` 110,023, its row 110,500; `lateSettingsMinified` 81,152, its row 81,500; `editorMinified` 36,153, its row 36,500. `budget.mjs` records each.
+
+**Verified after the second round,** the same machine: `test --coverage` for the kernel (1,212), chrome (247), the SDK (34), the manifest (1,107) and web (53); the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; fourteen Chromium files, 191 tests (`confirmations` with the stage-B, withdrawn-close and long-input cases, `documents/editor` with the cross-project close, `inbox`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `scope/first-paint`, `budget` and `boot`). Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
+
+**Third round,** 2026-11-19: two re-checks of `17bf45ee` (one approved, one "revise", eight findings), each verified before its fix, and each fix shown by a test that fails without it. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **A, a waiting call and its document's chain** (7.2): **confirmed** (two units time out without the fix). A confirmed instance mutation waited for the person inside its document's chain, so once it released the queue, a second change to the same document held the queue while waiting on it, and the answer queued behind both. The scope middleware now hands the gate its chain (`documentChainOf`): the call gives the chain up while it waits, takes it back once confirmed, and repeats lines 5 and 6 (`resources`) there before it runs, its stamp with it. Units: during stage B, a confirmed `probe-content-set` and a queued `probe-import` of the same document, answered through `overlay-dismiss`; and a document trashed while the write waits takes no write.
+2. **B, every command-bearing input** (R4): `redactWrapped` redacts, by the target's own rule, `palette-run`'s target, `prompt-settle`'s `open`, `decline` and `settle`, a notice's `action` (`notification-push`'s input and result), a menu's `items` (`popover-open`), and `overlay-list`'s journaled projection of each overlay's `for` and items. An input whose command no registry holds is dropped. A replay answers the same, since the overlays it opens hold what the redacted entries gave them. Units for each shape, and a session with a refused notice and menu of an unknown command and a confirmation listed by `overlay-list`, replayed the same.
+3. **C, a waiting call's replay** (7.2, P4-E15): **confirmed** (`REPLAY_DIVERGED` at the waiting call). The preferred fix is applied, so no issue was filed. A call that waited and ended without running its handler (refused for access, withdrawn, a change of person, the person's decline, or a resource check on retaking its chain) is marked `replay: 'recorded'`, since it is journaled after the calls made while it waited. A slot decline's row is written by `prompt-settle { decline }`, its own journaled entry, so the replay writes it all the same. A call that ran replays as it ran: the re-check before the run is the same as the gates before it, and what remains is the race any concurrent call has between that re-check and its run. Item 4's unit now replays, with a new unit for an app's decline after its app was disabled, the window holding the same call live and in the replay.
+4. **D, one key on both paths** (7.2): **confirmed** (a unit fails without it). A key the slot asks is held from the moment the call asks until it settles. A repeat from any path, including the inbox's after the app stopped being active, gets `CONFIRMATION_PENDING` with `details.overlay`, the question already asked. That refusal is answered from its record in a replay. The fill's interval is closed where the confirmation opens: a replaced input prompt the person closed first ends the fill `OVERLAY_NOT_FOUND`, in the gate and in `prompt-settle`, with no await between the check and the open. Units: the owner changes while the slot waits and the port repeats; and a closed input prompt asks nothing.
+5. **E, the decline bound** (second round, 9): a live window is never evicted. At `SLOT_KEPT` live declines for one person and one app, a new question from that app is refused `RATE_LIMITED` with `retryAfterMs` until the earliest window ends. Another app's declines never count. A decline's write removes only ended windows. The unit fills the bound past another app's twenty, retries the oldest key (refused again, its window kept), and then sees the ended windows go.
+6. **F, `withdrawn`'s provenance:**
+   - The chrome sends `withdrawn` for the shell's own questions alone (`#asks`). An app's modal a script closed is an ordinary cancel the kernel takes, so the page and the kernel agree. Chromium: an app's modal closed by script is closed in the kernel.
+   - `#escaped` clears once a kept Escape is handled.
+   - The kernel refuses `withdrawn` on an overlay with no `for`, with an answer, and from a call `palette-run` made (its `origin`). The palette cannot fill `overlay-dismiss` at all, since its `value` is no plain field. The kernel cannot tell the renderer from the person's own console, so the most `withdrawn` spares is the person's own decline window, on their own question.
+   - A unit fails if the guard is removed.
+7. **G, a recorded run's act** (10.2): **confirmed** (`confirmation-get` diverged after the replay). An app whose module fails to import gives `APP_ACTIVATION_FAILED`, which the page decides, so the run and its act were both answered from their records, and the row stayed pending. The act's end now goes through `prompt-settle { settle }`, journaled as its own entry, so the replay writes the row as the act left it. The unit replays and reads the same `confirmation-get`.
+8. **H, the close prompt's document** (7.3): **confirmed** (a unit fails without it). A person's `editor-close` opens the prompt only for a tab shown, naming its document; a dirty mark a closed tab kept answers `EDITOR_TAB_UNKNOWN`, asking nothing. In the chrome, both answer paths (the palette's orphan and the tab button's waiting close) act only where tab, scope and document are all present and the same (`sameClose`, with its own unit).
+
+**Measured after the third round,** D115, `redactWrapped` cut first:
+- First paint: 311,462 and 97,256 gzip; `jsMinified` raised to 312,000.
+- `kernelMinified`: 121,058; its row 121,500.
+- `lateSettingsMinified`: 83,764; its row 84,500.
+- `surfacesMinified`: 96,544; its row 97,000.
+
+`budget.mjs` records each.
+
+**Verified after the third round,** the same machine: `test --coverage` for the kernel (1,222), chrome (248) and web (53), the packages it touched; the Loam typecheck; `lint:tokens`; `budget`; `check-doc-lines`; `pnpm check`; fourteen Chromium files, 192 tests (`confirmations` with the app's modal closed by script, `documents/editor`, `inbox`, `apps/dialogs`, `apps/overlays`, `shell`, `accessibility`, `settings`, `apps/popovers`, `apps/accessibility`, `apps/view`, `scope/first-paint`, `budget` and `boot`). Not run here: `pnpm verify`, `loam.yml`, `test:walk`, `test:mounted`, `test:hosted`, the rest of `test:browser` and Cargo.
+
+**Merged with step 10,** 2026-11-19: `main` at `ca1b11f3` (step 10, [#1631](https://github.com/lushly-dev/afd/pull/1631)) merged in `1c2cabf3`, both steps kept. Each interaction is checked by a unit in `confirmations.test.ts`:
+- **Journal bound:** step 10's bound on a whole entry sits at the journal sink, after step 6's wrapped redaction, so every entry step 6 adds (the confirmed run, `palette-run`, `prompt-settle`'s `open`, `decline` and `settle`) is redacted, then bounded. The unit: a 1.2 MB input wrapped for an unknown command is dropped first, and the entry is kept whole. An entry over the bound, as one with a large stored result, is kept truncated and replays as `REPLAY_ENTRY_TRUNCATED`, as any call's does.
+- **Call rate:** an app's rate is taken at its port, on arrival, before the kernel's queue, so a waiting call's release of the queue lets no call past it. The unit has its calls refused `RATE_LIMITED` while a question waits.
+- **Input size (fixed):** an app's raised call, measured by its port when raised, is measured again against the `inputBytes` in force before its confirmed run, and one over it ends declined for access, running nothing. The unit fails without it. An agent's input is not under `inputBytes` in step 10, so its confirmed run is not measured either.
+- **Workspace:** a confirmation's row and a slot decline carry their workspace, every read filters by it, its key's digest names it, and `prompt-settle`'s `settle` refuses another workspace's row. Their ids are random per call, as step 5's notices are, never shared keys like the `setting` rows #1614 changed. The unit: another workspace in the same store lists, reads and answers none of them, and is not held by the first's decline window.
+
+**Measured on the combined build,** D115:
+- First paint: 313,878 and 98,362 gzip; `jsMinified` set to 314,500 and `jsGzip` to 98,700, with `first-paint.test.ts`'s literal.
+- `kernelMinified`: 124,312; its row 125,000.
+- `lateMinified`: 113,255; its row 113,800.
+- `lateSettingsMinified`: 90,579; its row 91,200.
+- `appsMinified`: 425,879; its row 426,500.
+
+`budget.mjs` records each.
+
+**Fourth round,** 2026-11-19: two re-checks of `918163bd` (one approved, one "revise", seven findings) and three Chromium failures in the coordinator's `pnpm verify`. Each finding was shown first by a unit that fails on `918163bd` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **1, forwarded results** (R4): **confirmed**, which settles the reviewers' disagreement. A notice whose action holds `auth-sign-in`'s password, read through `palette-run { command: 'notification-list' }`, kept the password in `palette-run`'s entry. `notification-list` itself is unjournaled; `palette-run` forwards its result. `redactWrapped` now redacts a result by the command whose result it is: `notification-list`'s actions and confirmations, a notice's push and `overlay-list` as before, and `palette-run`'s forwarded result by its target's rule, which is dropped for a target no registry holds. `prompt-settle`'s `settle.result` is redacted by the act's command.
+2. **2, self-reference:** **confirmed.** A notice whose action is itself a `notification-push` led each child's redaction back through the outer result without end, and the journal dropped the stored notice's entry. Each child is now redacted on its own input alone, to a depth of 8. `redactSafely` keeps a record it cannot redact with no input and no result data, rather than lose the entry.
+3. **3 and Opus 1, one re-check before every run:** **confirmed** (three units). `stale` (access, the app's enablement and load, the archive, and an app's input against `inputBytes`) runs immediately before the handler:
+   - on the slot's answer, and again inside `again` once the call retakes its chain;
+   - in `confirmedRun`, the inbox's run, where a refusal is answered from its record in a replay.
+
+   The scope middleware's `again` now covers every app command, chained or not, so a confirmed instance query or a command with a resource key repeats lines 5 and 6 too. The units cover:
+   - the active app's slot call after `inputBytes` falls;
+   - an app disabled while the confirmed call waits for its chain;
+   - an instance query whose document moved project while it waited, now `SCOPE_MISMATCH`. A query may read a trashed document, so moving it is the change that query refuses.
+4. **4, a notice's action in the slot:** **confirmed** (the unit timed out). The act's queue ticket now goes to the action it runs (`queueOf`), so an action that asks in the slot releases the act's queue during stage B. The unit uses keeper's own notice, since an app's action is its own command.
+5. **5, the replay's route:** **confirmed** (`REPLAY_DIVERGED`). A replay entry that carries a slot confirmation's id (`cnf_`) takes the slot, whatever is active when the replay reaches it. The slot's record must match the call's command and key. The unit: probe's slot call whose tab closes while it waits, then confirmed, replays the same.
+6. **6, an incomplete journal, and Opus 2:**
+   - **Seq gaps:** `replayKernel` refuses a gap in `seq` before anything runs, with `REPLAY_JOURNAL_GAP` and `{ after, next }`. Both sinks number entries one after the last, so a gap means a lost entry. `mounted.test.ts`'s B1, standing in for a journal from before step 8, now renumbers its entries.
+   - **`prompt-settle`'s `settle`:** it now carries `{ id, person, command, state, result }`. It must name an existing row of the workspace, of that command, in an allowed change: pending to confirmed or declined, or confirmed again. Only the state, its reason, `answeredAt` if unset and the result if unset are merged onto the row as it stands, in the person's chain, and the claim goes.
+7. **7, the reservation:** **confirmed.** A slot decline keeps its key until its row is written, so a repeat gets `CONFIRMATION_PENDING`. Declines still being written count toward the per-app bound, so another key is refused `RATE_LIMITED`.
+
+**Small items:**
+- **F's record:** its unit covers the no-`for` and with-an-answer branches. The `origin` clause cannot be reached, because the palette cannot fill `overlay-dismiss`, so it stays as defence in depth with no test.
+- **D's message:** a replaced prompt still open under another modal, or another command's, is `OVERLAY_MODAL_BUSY`, not "closed".
+- **Call-rate unit:** it asserts exactly 21 refused under the frozen clock (a burst of 200, one taken by the waiting call).
+- **H:** `askClose` moved to `same-close.ts`, with a unit that fails if its `sameClose` check is removed.
+
+**The coordinator's verify:**
+- **`scope/rail.test.ts` P2-E11** (step 6): tally became version 2 for `tally-reset`'s `confirm_prompt`, which version 1 does not admit. The premise, a version 1 manifest beside version 2 ones, is kept: the case serves tally's package rewritten to version 1 without that command, which it never calls.
+- **`documents/checklist.test.ts` P2-D2** (step 6, A-P0-1): the palette lists an enabled, loaded app's commands with its view closed, after the active app and the tab's owner. A command that needs input now opens the palette's prompt rather than showing "(needs input)", and the case asserts that.
+- **`identity/persona.test.ts` P3-E2** (step 6, A-P1-1): the active app's commands rank before the persona, so the case searches with no app active and the persona's order alone decides.
+- None of the three came from the merge with step 10.
+
+**Measured after the fourth round,** D115: `lateSettingsMinified` 91,964, its row raised from 91,200 to 92,500. First paint 314,281 and 98,524 gzip, and the kernel alone 124,857, are within their rows. `budget.mjs` records each.
+
+**Fifth round,** 2026-11-19: two re-checks of `d727f707` (one approved, one "revise", six blockers, all inside step 6). Each finding was shown first by a unit that fails on `d727f707` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise:
+
+1. **1, an act's forwarded result** (R4, 10.2): **confirmed.** `notification-act` puts its action's result under `data.result`. An action of `notification-list` returned the stored notices, an `auth-sign-in` action's password among them, in the act's own entry and in `palette-run`'s forwarding one. The act's result now names its action's `command`, and the journal redacts `data.result` by that command's rule. A forwarded result also passes through the target's own `redact` rule before its shapes (Opus 3). **This closes step 5's direct-act gap too:** the act's own entry is redacted the same way.
+2. **2, the last check** (7.2): **confirmed** (two units).
+   - **The person:** `stale` now also refuses `SESSION_CHANGED` when the person signed in now (`personNow`, the settled person, `local` outside `provider` mode) is not the one the call was asked of. It runs on the slot's answer and again once the chain is retaken, so a sign-in after Confirm runs nothing.
+   - **The inbox's run:** its resource checks (lines 5 and 6, the scope middleware's new `check`) run after the run's own row lookup and key digest, together with `stale`, immediately before the handler (Opus 2).
+3. **3, impossible states in a replay** (7.2, P4-E15): **confirmed.**
+   - **A replayed run:** `confirmedRun` in a replay needs a pending row, as live does, so a declined or withdrawn one never runs.
+   - **Pending to confirmed:** the act's `settle` may still take a row from pending to confirmed, which a replay needs when it answered the run from its record. It is bound: accepted only for a run the replay recorded for that confirmation (`recordedRun`, from `replayKernel`), with the same outcome. Live, the run writes confirmed itself before the act settles.
+   - **Units:** a standalone pending-to-confirmed settle is refused, and a replayed run against a declined row runs nothing.
+4. **4, the slot's replay:** **confirmed.**
+   - In a replay, the slot needs the person's answer already recorded. With none, it fails at once with `REPLAY_NOT_RECORDED` and never waits on the page.
+   - A confirm runs only from the person's own gesture (`closedByPerson`), live and in a replay.
+   - `prompt-settle`'s `close` closes the palette's input prompt alone, so it can never answer a confirmation.
+   - The recorded slot route is not an agent's (Opus 4).
+   - **Units:** an unanswered slot replays promptly refused; another command's call with a confirmation's id is refused; a confirm with no person's gesture runs nothing; boot's close of a confirmation is refused.
+5. **5, a settle against a read or an archive** (10.2): **confirmed** (the archive was lost). `notification-read` and `-archive` write a confirmation row on the confirmations' per-person chain, the one the act's settle and the run's write take. Unit: an archive made while the settle's write is held is kept.
+6. **6, a decline counted twice** (second round, 9): **confirmed** (a 20th question was refused at 19 distinct). The declines being written are counted by id, per person and app, and an id leaves the count in the same chain step that writes its row. Unit: with 18 rows and the 19th written but still journaling, the 20th question asks; at 20 distinct, the 21st is refused.
+
+**The improvement:** an entry whose redaction throws is kept `unreplayable` and `unredacted`, holding only its name, timing, digest, success, and an error's code and message. A replay stops there with `REPLAY_ENTRY_TRUNCATED`, saying its redaction failed. Units: a throwing redactor; a nine-deep `notification-push` chain, whose innermost input is past the depth of 8 and dropped.
+
+**The nit:** rail P2-E11 removes its copy of tally's package after it runs.
+
+**Measured after the fifth round,** D115, `palette-run` moved to `palette-run.ts` first to keep `confirmations.ts` within the size gate: first paint 314,747 and 98,653 gzip, `jsMinified` raised to 315,500 with `first-paint.test.ts`'s literal; `kernelMinified` 125,473, its row 126,000; `lateSettingsMinified` 93,273, its row 94,000. `budget.mjs` records each.
+
+**Sixth round,** 2026-11-19: two re-checks of `9f6b1286` (one approved, one "revise", eight blockers). Each fixed finding was shown first by a unit that fails on `9f6b1286` and passes after its fix. Each amends the section named, and supersedes what the record above says otherwise.
+
+**The coordinator's ruling R5, replay's scope:** `replayKernel` is a verification harness for tests, specimens and test pages. It never runs in the product and never reads a journal from outside, so robustness against a crafted or inconsistent journal is not a trust boundary. B2 (a recorded run's credit not bound to its act and run) and B3 (an entry whose `caller` and interface or actor disagree reaching the slot route) are filed as [#1656](https://github.com/lushly-dev/afd/issues/1656) and not fixed here. Replay of an honest journal must still match live exactly, so B4 and B7 are fixed.
+
+1. **B1, the person at the last check** (7.2): **confirmed** with the production wiring, not a hand-set `personNow`. In `provider` mode, while the shell waits on the new person's membership read, the adapter already reports them, and a held run went on as the old person. `personNow` now gives the settled person only while the adapter reports the same one, so a sign-in still settling is no one's yet and the run fails closed. The unit holds the run past its gates, signs Bea in with her read never answered, and the act ends declined, running nothing.
+2. **B4, the gesture's provenance** (7.2): **confirmed.**
+   - The overlays' `whenClosed` now also gives `byPerson`, as the close recorded it. The slot's answer keeps it until the run reads it, never reading it again from the overlays' history of 64 closes.
+   - Unit: a replayed slot answer read after 65 other closes still runs.
+3. **B5, a child's journal-safe outcome** (R4): **confirmed.** A palette fill of a mounted command journaled the whole result the command's own entry kept bounded to 256 KiB. The journal now keeps, privately and taken once, what each child's own entry kept, by the trace of the call that made it, and a confirmed run's by its confirmation. Each wrapper journals that outcome, failures included:
+   - `palette-run`'s result;
+   - `notification-act`'s action result or failure;
+   - `prompt-settle`'s `settle.result`.
+
+   With no child entry (an unjournaled action such as `notification-list`), the action's own rule applies as before. With neither, the act's result is dropped (Opus 4: a non-object result too). Unit in `mounted.test.ts`.
+4. **B6, the redaction fallback:** **confirmed.** It kept the handler's own code and message. It now keeps a fixed kernel diagnostic, `JOURNAL_REDACTION_FAILED`. The depth unit now asserts exactly where the bound falls: eight wrappers deep the innermost input is kept, nine deep it is dropped (Opus 5).
+5. **B7, the act's public result:** **confirmed** (a journal in step 5's shape diverged). `notification-act`'s result is step 5's again, `{ state, result }`. The action's command is the journal's private provenance (`noteAction`), never in the result.
+6. **B8, marks counted twice:** **confirmed.** `notification-read` and `-archive` now decide "already marked", and count, inside the person's chain, on the row as it stands there. Unit: two reads of one notice at once count once.
+7. **Opus 1 and 2, and Astra's improvement:** the slot's command check and key check each have a unit of their own: a key for another command, and the same command with another input. A replayed agent call carrying a slot's id takes the inbox's route.
+
+**The nits:**
+- `prompt-settle` checks its whole input before it writes: a `decline` and a `settle` each stand alone, and a `close` of anything but the palette's input prompt is refused first.
+- The declines' empty sets go.
+- Rail P2-E11's cleanup covers a failure during its setup.
+
+**Measured after the sixth round,** D115: first paint 315,994 and 99,048 gzip, `jsMinified` raised to 316,500 and `jsGzip` to 99,300, with `first-paint.test.ts`'s literal; `kernelMinified` 127,272, its row 127,800. `late` 113,670 and `late-settings` 93,887 are within their rows. `budget.mjs` records each.
+
+**Seventh round,** 2026-11-19: both re-checks of `8f7435ac` asked for revisions. Opus asked for a test per wrapper, since B5 was tested for one of three. Astra raised C1 to C4. Each was shown first by a unit that fails on `8f7435ac` and passes after its fix. The wrappers' provenance has one design, `journal-provenance.ts`, which closes C1 to C3 and Opus's I1 and I2 together:
+
+1. **Capture what the sink appends (C2):** confirmed. A confirmed run, or a palette fill's run, whose result was over `journalEntryBytes` was cut by the final bound in its own entry. The wrapper's entry held the whole result and was itself cut whole, losing its input. The provenance now takes each child's result from the journal sink, after the redaction and the final bound. Units (2) and (5): `keeper-big`, through the inbox and through a fill. The settle and the wrapper each hold the run's own entry, and neither is cut.
+2. **Scoped to a running wrapper (C3, Opus I1):**
+   - `execute` tracks a running `palette-run` or `notification-act` by its trace and releases it once its own entry is written. A child's outcome is kept only under its running wrapper: by `origin` (a fill's run, or a confirmation's run, by its id), or by `parent` (an act's action). The act's action command goes with it.
+   - Nothing is evicted by insertion order. Up to 64 wrappers are tracked at once. Another runs untracked and journals no result data (whether it succeeded, and an error's code), never the live result.
+   - Unit (4): a running wrapper's child survives a thousand other entries, and the bound refuses a 65th wrapper without evicting one.
+3. **Wholly from the child (C1):** confirmed. A palette fill's failure kept the server's metadata from the live result, and so did a notice's failed action in the act's entry. `palette-run`'s outcome, and a failed act's, is now the child's entry as appended. The only addition is the wrapper's own registry metadata (`commandVersion`, `executionTimeMs`, `traceId`), set or absent as the wrapper's registry left them, so a replay matches. Units (1) and (3), in `mounted.test.ts`, use mounted commands failing over the 256 KiB bound with large metadata.
+4. **The right error (Opus I2):** an act's failure is replaced by its child's only on the action's path, with matching codes. A failed settle write after a failed confirmed run keeps its own error.
+5. **Missing provenance fails closed:**
+   - An act whose action has an entry of its own but none is held journals no `result`. A non-object result is dropped too (Opus 3, unit).
+   - An action the journal never records (an unjournaled query such as `notification-list`) is still redacted by its own rule, so a replay matches.
+   - A settle whose run's entry is missing keeps no `result`.
+6. **C4, the decline cleanup:** confirmed (a 20th question asked at 19 rows with one outstanding). The decline's `finally` deletes the key only while it still points to that call's own set. Unit: the first decline's journaling ends while the second is outstanding, and the bound still counts the second.
+
+**Also:**
+- **Opus 3:** a unit for `prompt-settle` refusing a mixed input before it writes.
+- **Opus 4:** the stale comment in the redaction fallback is fixed.
+- **First paint (Opus 5, Astra's improvement):** left in place; a follow-up below moves the wrappers' provenance and redaction into `late`.
+
+**Measured after the seventh round,** D115: first paint 316,903 and 99,332 gzip, `jsMinified` raised to 317,500 and `jsGzip` to 99,600, with `first-paint.test.ts`'s literal; `kernelMinified` 128,497, its row 129,000. `late-settings` 93,909 is within its row. `budget.mjs` records each.
+
+**Eighth round,** 2026-11-19: two re-checks of `cc78292c`. Opus approved, with improvements; Astra asked for revisions with four findings, D1 to D4. Each was shown first by a unit that fails on `cc78292c` and passes after its fix.
+
+**The coordinator's ruling R6, to converge:** after this round, a finding about the wrappers' provenance that exposes no secret and is capped by step 10's journal-entry bound (sizes, metadata, fail-closed consistency) is filed as a follow-up issue, not fixed in #1654. This round fixes D1 to D4 and Opus's I1 to I3, which are small; D3 is a real replay bug.
+
+1. **D3, the whole outcome:** confirmed. A wrapper rebuilt its child's outcome from four fields and dropped `undoCommand`, `undoArgs` and `warnings`, so an honest journal's fill diverged on replay. The wrapper now keeps the whole recorded outcome and replaces only its own registry metadata (`commandVersion`, `executionTimeMs`, `traceId`). Unit: a fill and an act of `keeper-undo`, replayed, are the same.
+2. **D1 and Opus I1, the act's failure:** confirmed (the act kept the live error, its code longer than the one the recorder kept). There is no comparison of codes now. The tracker marks when a wrapper starts a child (`started`): a run by `origin`, an action nested by `parent`. When the act started its action, its outcome is the action's entry: a failure whole, a success's `result`. With no entry held for a journaled action, the act keeps the least of its outcome. When no action started, as for a confirmation's answer or a settle's failure, the act's outcome is its own. Unit in `mounted.test.ts`: an action failing with a 300-character code in a result over 256 KiB, its act's error the action's own entry's.
+3. **D2, a rejected append:** confirmed. The provenance now records a child's outcome from the entry the sink accepted and returned, so an append the sink refused records nothing. Unit: a sink that refuses the run's entry; the fill's entry keeps no data. A palette fill whose journaled target started but whose entry is missing fails closed the same way (Opus I3). An unjournaled target's result is still redacted by its own rule.
+4. **D4 and Opus I2, untracked wrappers:** every untracked fill or act now keeps the least of its outcome, whether it succeeded and an error's code, whatever its data holds. The entry is marked `lossy` and `unreplayable`, and a replay stops there with `REPLAY_ENTRY_TRUNCATED`, saying why. Units: `palette-run`, a successful act with and without `result`, and a failed act, all untracked; and a tracked act whose own failure, a settle's write, stays its own.
+
+**Measured after the eighth round,** D115: `kernelMinified` 129,028, its row raised from 129,000 to 129,500. First paint 317,299 and 99,456 gzip are within their rows. `budget.mjs` records each.
+
+**Ninth round,** 2026-11-19: two re-checks of `21ec1c7b`. Opus approved, and Astra asked for one fix.
+
+1. **The act's own failure:** confirmed by a unit that fails on `21ec1c7b`. When a notice's action failed and the store then threw while the act released its claim, the person got `COMMAND_EXECUTION_ERROR`. The journal held the action's error, because the action had started and had an entry, so a replay with a healthy store reported `same`.
+   - Now the act notes that it returned its action's failure (`noteReturned`) on that one path, once the release is written. Only then is its failure the action's entry.
+   - Any other failure after the action started is the act's own, and is kept as it was. Its entry is marked `lossy` and `unreplayable`, and a replay stops there with `REPLAY_ENTRY_TRUNCATED`.
+   - Unit: a store that refuses the release after `keeper-refuse` fails; the act's entry holds its own error, and its replay stops.
+2. **Astra's improvement:** the untracked-wrapper unit asserts the exact least outcome (success, and a failure's code alone) and `lossy`.
+3. **Opus I3:** a unit shows a palette fill whose journaled target started but left no entry keeps the least of its outcome, `lossy`.
+4. **Opus's nit:** the unreachable `depth > 0` branch for an act in `redactWrapped`'s result shapes is removed, with its comment.
+
+**To the follow-up under R6** (the coordinator files it):
+- An action the auth gate refuses now stops a replay, since the act's failure is not its returned action's.
+- The Opus I2 unit is synthetic; it has no kernel-level test of a failed settle write.
+
+**Merged with step 7,** 2026-11-19: `main` at `c5a97c9d` (step 7, keybindings, [#1657](https://github.com/lushly-dev/afd/pull/1657)) merged in `005249c2`, both steps kept.
+
+**Conflicts that were more than text:**
+- **The chrome's editor:** the close prompt's orphan handler for `hearModals` (step 6) and step 7's `answerSave` callback both stay. Step 6 had removed `discardModal`, which the close prompt replaced, and step 7 had removed `isSave`, since the shell now resolves the key; neither is used, so both go.
+- **The manifest:** the version-1 refusal reads every place a key of version 2 is held, each command's `confirm_prompt` by its own pointer (step 6), together with step 7's keybinding sequences and `when`.
+- **`mounted.test.ts`:** the name-key check exempts `palette-run`'s `command` and `keybinding-list`'s `command` together.
+
+**Interactions checked:**
+- **Confirm and Decline:** no key confirms a question. While a modal is open, the confirmation slot among them, no binding runs a command or answers it; F6 moves focus and the save chord may save the active editor. A binding runs its command with empty input, so it reaches neither `overlay-dismiss` nor `notification-act`. Decline is still the focused default.
+- **The close prompt's Save:** it calls the frame's save, a callback, never an event, as step 7's rule asks.
+- **The palette:** step 7's `hearOnlyPeople` and its trusted-Enter guard cover the palette's input rows as they cover every row.
+- **The late load:** step 6 builds the confirmations synchronously after one of step 7's guarded awaits, so a disposal stops the load before they are made.
+- **`settings.ts`:** step 6's exports sit beside step 7's resolver and overrides reader.
+
+**Measured on the combined build,** D115:
+- First paint 322,160 and 101,328 gzip; `jsMinified` set to 322,800 and `jsGzip` to 101,700, with `first-paint.test.ts`'s literal.
+- `kernelMinified`: 131,578; its row 132,200.
+- `lateMinified`: 116,561; its row 117,200.
+- `lateEditorMinified`: 16,074; its row 16,400.
+- `lateSettingsMinified`: 100,819; its row 101,500.
+- `appsMinified`: 428,162; its row 428,800.
+
+**Step 6's own, for the reconciliation:** measured at `caba4525`, before the merge, in a separate worktree on the same machine:
+- `late`: 113,706, so step 7 adds 2,855 to reach 116,561.
+- `late-settings`: 93,957, so step 7 adds 6,862 (its keybinding resolver and overrides reader) to reach 100,819.
+- `late-editor`: 15,913, so step 7 adds 161 to reach 16,074.
+
+`budget.mjs` records each.
+
 ## Step 10, 2026-11-19
 
 Limits, on `lush/loam-p4-step10-limits` from `main` at `254249c3` (after steps 1, 2, 3 and 8), not merged. It gets a trust review (section 20).
@@ -2139,6 +2444,10 @@ Also: the handler frame's gate refusal of a nested `tools/call` is journaled top
 | 2026-11-19 | Step 5's reviews (R3) | The revoked session's notice: the provider gives a reason on a refused session, so the kernel tells a revocation from a sign-out in another tab and notices it in the person's inbox | Open; with the provider |
 | 2026-11-19 | Step 5's verification (R2 amended) | A shared, age-ordered cap with virtual capping, and a hidden toast's timer and `user` close simulated as a shown one's are, if mute privacy needs to hold against others' activity and the person's own handling of toasts | Open |
 | 2026-11-19 | Step 5's verification of `0e2fba70` | Journal an agent's or an app's `notification-list` (a per-caller filter leaving out only the shell's own read), since `body: true` returns notice bodies and a pending confirmation's input | Open |
+| 2026-11-19 | Step 6 | Hello's own sticky toast and notice with an action (section 1's `apps/hello` row), which no job needs | Open |
+| 2026-11-19 | Step 6 | A slot confirmation's decline window is held in the page's memory, so a reload forgets it; a pending one's is in its row | Done 2026-11-19 by step 6's trust review: a slot decline is a stored row |
+| 2026-11-19 | Step 6 | `palette-run` runs in the scope of the call that fills its prompt; bind the prompt to the scope it opened in | Done 2026-11-19 by step 6's trust review: `for.scope` |
+| 2026-11-19 | Step 6's seventh round (Opus 5, Astra) | Inject the wrappers' provenance and redaction (`journal-provenance.ts`, `redactWrapped`'s wrapper rules) from `late`, so first paint does not carry them (+1,247 minified, +395 gzip in the sixth round) | Open |
 | 2026-11-19 | Step 10 | Wire the owners' notice of an instance's first refusal in an hour through `KernelLimits.notify` | Done 2026-11-19, after merging step 5: `limit-notice-push` |
 | 2026-11-19 | Step 10 | Read `loam.limits` again when another tab writes it: today a page reads it at its late load and after its own writes | Open |
 | 2026-11-19 | Step 7 (the coordinator's R1) | Make the reserved chords' actions commands (`shell-focus-next`, `shell-focus-previous`, `shell-save`, `shell-project-switcher`), which are listed and rebindable but refused when called (`KEYBINDING_ACTION_ONLY`) | Open |

@@ -730,10 +730,13 @@ describe('P2-D5: the editor area, native half', () => {
 			tone: 'danger',
 		});
 		expect((await editorView(page))?.[0]?.tabs[0]?.name).toBe('One, unsaved');
-		// Its close asks, and Keep editing keeps it; Discard closes it.
+		// Its close asks (phase 4's 7.3): Save, the default, Discard and Cancel. Cancel keeps it; Discard closes it.
 		await tabOf(page, 'One').focus();
 		await page.keyboard.press('Delete');
-		await page.locator('loam-modal button', { hasText: 'Keep editing' }).click();
+		await expect
+			.poll(() => page.locator('loam-modal dialog[open] .buttons button').allTextContents())
+			.toEqual(['Save', 'Discard', 'Cancel']);
+		await page.locator('loam-modal button', { hasText: 'Cancel' }).click();
 		await editorIdle(page);
 		expect((await editorView(page))?.[0]?.tabs.map((tab) => tab.title)).toEqual(['One']);
 		await tabOf(page, 'One').focus();
@@ -742,6 +745,97 @@ describe('P2-D5: the editor area, native half', () => {
 		await editorIdle(page);
 		expect((await editorView(page))?.[0]?.tabs).toEqual([]);
 		expect(await stored(page, one)).toBe('Saved by the timer, then closed');
+		await opened.context.close();
+	});
+
+	it("phase 4's 7.3: a person's own editor-close asks; Save saves then closes, Discard closes with no second close", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const tabName = () => editorView(page).then((view) => view?.[0]?.tabs[0]?.name);
+		const one = await createNote(page, 'One');
+		await open(page, one);
+		await textOf(page, 't1').click();
+		await page.keyboard.type('Kept by Save');
+		await expect.poll(tabName).toBe('One, unsaved');
+		// From the palette, not the tab's button: the kernel opens the prompt, and its answer acts here (the review's 12).
+		await kernelCall(page, 'editor-close', { tab: 't1' });
+		await page.locator('loam-modal dialog[open] button', { hasText: 'Save' }).click();
+		await expect.poll(() => stored(page, one)).toBe('Kept by Save');
+		await editorIdle(page);
+		expect((await editorView(page))?.[0]?.tabs).toEqual([]);
+		const two = await createNote(page, 'Two');
+		await open(page, two);
+		await textOf(page, 't2').click();
+		await page.keyboard.type('Thrown away');
+		await expect.poll(tabName).toBe('Two, unsaved');
+		await kernelCall(page, 'editor-close', { tab: 't2' });
+		await page.locator('loam-modal dialog[open] button', { hasText: 'Discard' }).click();
+		await editorIdle(page);
+		await expect.poll(() => editorView(page).then((view) => view?.[0]?.tabs ?? [])).toEqual([]);
+		await opened.context.close();
+	});
+
+	it("phase 4's 7.3, second round 2: a close prompt for another project's t1 closes nothing here, and says so", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		/** A person's call in a scope of their choosing, as the palette makes one. */
+		const inScope = (name: string, input: unknown, project: string) =>
+			page.evaluate(
+				({ name, input, project }) => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						kernel: {
+							call(name: string, input: unknown, options: unknown): Promise<unknown>;
+						};
+					};
+					return shell.kernel.call(name, input, {
+						scope: { workspace: 'personal', project },
+					});
+				},
+				{ name, input, project }
+			) as Promise<{ success: boolean; data?: { id?: string }; error?: { code: string } }>;
+		const atlas = (await kernelCall(page, 'project-create', { name: 'Atlas' })) as {
+			data: { id: string };
+		};
+		const beacon = (await kernelCall(page, 'project-create', { name: 'Beacon' })) as {
+			data: { id: string };
+		};
+		// Atlas's t1, marked unsaved, while Beacon is shown with a t1 of its own.
+		const there = await createNote(page, 'In Atlas', atlas.data.id);
+		await inScope('document-open', { document: there }, atlas.data.id);
+		await kernelCall(page, 'scope-set', { project: 'beacon' });
+		const here = await createNote(page, 'In Beacon', beacon.data.id);
+		await open(page, here);
+		await expect
+			.poll(() => editorView(page).then((view) => view?.[0]?.tabs.map((tab) => tab.title)))
+			.toEqual(['In Beacon']);
+		// The person marks Atlas's t1 unsaved and closes it by name, in one task, before the chrome's reconciler clears a
+		// mark no editor here holds: the prompt asks, and its Discard must not touch Beacon's t1.
+		const refused = (await page.evaluate((project) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input: unknown, options: unknown): Promise<unknown> };
+			};
+			const options = { scope: { workspace: 'personal', project } };
+			return shell.kernel
+				.call('editor-dirty-set', { tab: 't1', dirty: true }, options)
+				.then(() => shell.kernel.call('editor-close', { tab: 't1' }, options));
+		}, atlas.data.id)) as { error?: { code: string } };
+		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
+		await page.locator('loam-modal dialog[open] button', { hasText: 'Discard' }).click();
+		await expect
+			.poll(async () =>
+				JSON.stringify((await kernelCall(page, 'overlay-list')) as unknown).includes(
+					'nothing was closed'
+				)
+			)
+			.toBe(true);
+		await editorIdle(page);
+		expect((await editorView(page))?.[0]?.tabs.map((tab) => tab.title)).toEqual(['In Beacon']);
+		const atlasTabs = (await inScope('editor-get', {}, atlas.data.id)) as unknown as {
+			data: { groups: Array<{ tabs: Array<{ id: string }> }> };
+		};
+		expect(atlasTabs.data.groups.flatMap((group) => group.tabs.map((tab) => tab.id))).toEqual([
+			't1',
+		]);
 		await opened.context.close();
 	});
 
@@ -1830,7 +1924,7 @@ describe('P2-D5: the editor area, native half', () => {
 
 	it.each<[string, string]>([
 		['Discard', 'nothing reopens'],
-		['Keep editing', 'the draft comes back'],
+		['Cancel', 'the draft comes back'],
 	])(
 		'P2-D5: the person’s %s during a reopen’s open: %s',
 		async (choice) => {

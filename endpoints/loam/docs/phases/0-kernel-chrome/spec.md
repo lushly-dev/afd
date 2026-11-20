@@ -976,6 +976,10 @@ Mutations declare `mutation: true` and return an `undoCommand` with
   - `field` and `matches` name the best-scoring field and the matched
     ranges in it.
   - Ties break by name.
+  - **Amended by phase 4's step 6 (A-P0-1):** with apps, it lists every enabled, loaded app's `expose.palette`
+    commands, not only the active app's, ranked by the active app, then the active tab's owner, then the rest, and
+    then the persona; each command row names its app ([phase 4's 7.1](../4-settings/spec.md#71-the-palettes-input-prompt-869)).
+    `createKeybindings`' overrides and sequences are phase 4's step 7's.
 - **Domains.** `layout`, `view-state`, `auth-*` and `shell` are in the
   architecture's list. `appearance` and `palette` are added (D51).
 

@@ -100,8 +100,14 @@ describe('P3-E2: persona changes emphasis, never what anyone may do', () => {
 			.map((entry) => entry.instance)
 			.filter((id) => id === 'hello' || id === 'tasks')
 			.reverse();
+		// The palette ranks the active app's commands first, before the persona (phase 4's A-P1-1): the searches are made
+		// with no app active, so the persona's order alone decides between hello's and tasks'.
+		await kernelCall(page, 'section-open', { section: 'projects' });
+		await settle(page);
 		const plain = await search(page, 'list');
-		expect(plain[0]?.startsWith('tasks-')).toBe(false);
+		const emphasized = (name: string | undefined) =>
+			emphasis.some((instance) => name?.startsWith(`${instance}-`));
+		expect(emphasized(plain[0])).toBe(false);
 		const scope = await scopeOf(page);
 		const made = (await kernelCall(page, 'persona-create', {
 			title: 'Reviewer',
@@ -131,7 +137,10 @@ describe('P3-E2: persona changes emphasis, never what anyone may do', () => {
 		// Their commands first; the same commands.
 		const ranked = await search(page, 'list');
 		expect([...ranked].sort()).toEqual([...plain].sort());
-		expect(ranked[0]?.startsWith('tasks-')).toBe(true);
+		// Both apps' commands are listed (A-P0-1): theirs come first, hello's `hello-list` and tasks' `tasks-list`, which
+		// score the same, in either order.
+		expect(emphasized(ranked[0])).toBe(true);
+		expect(emphasized(ranked[1])).toBe(true);
 		// The persona's density, through appearance-set's code.
 		expect(
 			await page.evaluate(() => document.documentElement.getAttribute('data-loam-density'))
