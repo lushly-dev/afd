@@ -842,6 +842,46 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX operation_item_open ON operation_item (operation_id, mailbox_id, to_mailbox_id)
         WHERE step IN ('waiting', 'copying', 'copied', 'flagged');
     ",
+    // 15: drafts and snoozed threads (step D3, the specification's 9.5). Neither is derived:
+    // both survive a rebuild.
+    "
+    -- A draft is the engine's own record, not synced to the provider's drafts mailbox. Its
+    -- revision rises with every change, so a send names the draft as it was previewed.
+    CREATE TABLE draft (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL REFERENCES account (id),
+        -- The message it answers, if it answers one.
+        answers_message_id INTEGER REFERENCES message (id),
+        -- JSON arrays of addresses.
+        to_addresses TEXT NOT NULL,
+        cc_addresses TEXT NOT NULL,
+        bcc_addresses TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        -- Who wrote each part: JSON {recipients, subject, body}, each {kind, id}.
+        authors TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK (revision > 0),
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        -- A discarded draft is held for 30 days, then goes (M29).
+        discarded_at INTEGER
+    ) STRICT;
+    CREATE INDEX draft_updated ON draft (discarded_at IS NOT NULL, updated_at DESC, id DESC);
+
+    -- A thread snoozed until a time, by its lowest message, which a rebuild keeps as its id.
+    -- A message that arrives in the thread after it was snoozed, one whose id is above `mark`,
+    -- the highest message id when it was set, ends the snooze; a pass of sync removes it then.
+    CREATE TABLE snooze (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        until INTEGER NOT NULL,
+        set_at INTEGER NOT NULL,
+        mark INTEGER NOT NULL,
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT
+    ) STRICT;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

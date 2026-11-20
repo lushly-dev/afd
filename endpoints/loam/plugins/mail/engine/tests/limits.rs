@@ -608,12 +608,44 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
         }
         let started = Instant::now();
         let mailbox = mailboxes[usize::from(i % 3 == 2)];
-        let page = store.list_threads(mailbox, cursor, 50).unwrap();
+        // As `mail-thread-list` lists by default: without snoozed threads.
+        let page = store
+            .list_threads_snoozed(mailbox, cursor, 50, Some(false), now)
+            .unwrap();
         list_ms.push(started.elapsed().as_secs_f64() * 1000.0);
         listed += page.len() as u64;
         cursor = page.last().map(|thread| (thread.last_date, thread.thread));
     }
     let list_ms = sorted_ms(list_ms);
+
+    // Snooze 20 threads of the large mailbox, spread through it, and list
+    // the snoozed ones, as `mail-thread-list` with `snoozed` does.
+    let snoozer = loam_mail::store::Proposer {
+        kind: "human".to_string(),
+        id: None,
+    };
+    let mut spread = None;
+    for _ in 0..20 {
+        let page = store
+            .list_threads_snoozed(mailboxes[0], spread, 50, Some(false), now)
+            .unwrap();
+        let Some(last) = page.last() else { break };
+        store
+            .snooze_thread(last.thread.0, Some(now + 86_400_000), &snoozer, now)
+            .unwrap();
+        spread = Some((last.last_date - 30 * 86_400_000, ThreadId(i64::MAX)));
+    }
+    let mut snoozed_ms = Vec::new();
+    let mut snoozed_listed = 0u64;
+    for _ in 0..100 {
+        let started = Instant::now();
+        let page = store
+            .list_threads_snoozed(mailboxes[0], None, 50, Some(true), now)
+            .unwrap();
+        snoozed_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+        snoozed_listed = page.len() as u64;
+    }
+    let snoozed_ms = sorted_ms(snoozed_ms);
 
     // Search, and read the 50 best back with their threads.
     let mut search_ms = Vec::new();
@@ -779,6 +811,7 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
                     "seconds_bodies": round(parts_time.as_secs_f64()),
                     "bodies_to_a_batch": parts_batch },
         "list_50_threads_ms": times(&list_ms),
+        "list_snoozed_threads_ms": times(&snoozed_ms),
         "search_ms": times(&search_ms),
         "open_message_ms": times(&open_ms),
         "bursts": { "found": bursts, "found_on_listing_ms": round(listing_ms),
@@ -792,13 +825,15 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
             "page_of_a_kind_ms": times(&story_kind_ms),
         },
         "selections": selections,
-        "checks": { "threads_listed": listed, "queries": 300, "queries_with_hits": queries_with_hits,
+        "checks": { "threads_listed": listed, "snoozed_listed": snoozed_listed, "queries": 300, "queries_with_hits": queries_with_hits,
                     "hits": hits, "opened_with_text": opened_with_text },
         "derived_ratio": round(derived_ratio),
         "directory_ratio": round(directory_ratio),
         "directory_ratio_by_file_length": round(directory_length_ratio),
         "limits": {
             "list_p95_ms": { "limit": LIST_P95_MS, "met": list_p95 <= LIST_P95_MS },
+            "list_snoozed_p95_ms": { "limit": LIST_P95_MS,
+                                     "met": percentile(&snoozed_ms, 0.95) <= LIST_P95_MS },
             "search_p95_ms": { "limit": SEARCH_P95_MS, "met": search_p95 <= SEARCH_P95_MS },
             "open_p95_ms": { "limit": OPEN_P95_MS, "met": open_p95 <= OPEN_P95_MS },
             "import_per_second": { "limit": IMPORT_PER_SECOND, "met": import_rate >= IMPORT_PER_SECOND },

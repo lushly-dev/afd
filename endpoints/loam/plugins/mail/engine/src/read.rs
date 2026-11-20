@@ -253,13 +253,39 @@ impl CommandHandler for ThreadList {
             let mailbox = MailboxId(required(&input, "mailbox")?);
             let limit = limit(&input, 50, 200)?;
             let before = cursor(&input)?.map(|(date, thread)| (date, ThreadId(thread)));
+            let snoozed = match input.get("snoozed") {
+                None | Some(Value::Null) => false,
+                Some(Value::Bool(value)) => *value,
+                Some(_) => {
+                    return Err(Box::new(
+                        CommandError::new("INVALID_INPUT", "`snoozed` is true or false")
+                            .with_suggestion("Pass `snoozed: true` to list the snoozed threads."),
+                    ));
+                }
+            };
+            let now = context.clock().now();
             let engine = &self.engine;
             let threads = engine
                 .with_store(|store| {
                     if !store.mailbox_exists(mailbox)? {
                         return Ok(None);
                     }
-                    store.list_threads(mailbox, before, limit + 1).map(Some)
+                    let threads = store.list_threads_snoozed(
+                        mailbox,
+                        before,
+                        limit + 1,
+                        Some(snoozed),
+                        now,
+                    )?;
+                    let mut until = Vec::with_capacity(threads.len());
+                    for thread in &threads {
+                        until.push(if snoozed {
+                            store.snoozed_until(thread.thread.0, now)?
+                        } else {
+                            None
+                        });
+                    }
+                    Ok(Some((threads, until)))
                 })
                 .map_err(|error| Box::new(store_failure(&error)))?
                 .ok_or_else(|| {
@@ -268,13 +294,16 @@ impl CommandHandler for ThreadList {
                             .with_suggestion("Run `loam-mail mail-status` to see the mailboxes."),
                     )
                 })?;
+            let (threads, until) = threads;
             let more = threads.len() > limit as usize;
             let items: Vec<Value> = threads
                 .iter()
+                .zip(until)
                 .take(limit as usize)
-                .map(|thread| {
+                .map(|(thread, until)| {
                     json!({
                         "thread": thread.thread.0,
+                        "snoozedUntil": until,
                         "lastDate": thread.last_date,
                         "shown": thread.shown,
                         "unread": thread.unread,
@@ -375,6 +404,12 @@ pub fn thread_list(engine: Arc<Engine>) -> CommandDefinition {
                 "limit",
                 JsonSchemaType::Integer,
                 "At most this many threads (1 to 200)",
+                false,
+            ),
+            parameter(
+                "snoozed",
+                JsonSchemaType::Boolean,
+                "List only the snoozed threads, with when each comes back; left out, they are not listed",
                 false,
             ),
         ],
