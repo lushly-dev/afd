@@ -458,6 +458,25 @@ def disk_report_cmd(
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("disk-reclaim")
+@click.option("--tier", type=click.IntRange(0, 1), default=1, show_default=True,
+              help="0: caches and aged folders only; 1: also idle build output")
+@click.option("--apply", is_flag=True, default=False, help="Carry out the plan (default: dry run)")
+@click.option("--repo", default=None, help="Reclaim one repository instead of the registered ones")
+@click.option("--pressure", is_flag=True, default=False,
+              help="Act as if a watched volume were low on space")
+@_json_option
+@click.pass_context
+def disk_reclaim_cmd(
+    ctx: click.Context, tier: int, apply: bool, repo: str | None, pressure: bool, **_kwargs: Any,
+) -> None:
+    """Prune caches and strip idle build output. A dry run unless --apply."""
+    from botcore.commands.disk import disk_reclaim
+
+    result = _run_async(disk_reclaim(tier=tier, apply=apply, repo=repo, pressure=pressure))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command()
 @_json_option
 @click.pass_context

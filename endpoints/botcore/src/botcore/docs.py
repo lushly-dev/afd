@@ -189,6 +189,17 @@ Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 rep
 (missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
 `managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
 
+## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, budget_seconds=300)
+A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
+prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
+store) and clears aged cache folders from the machine settings. Tier 1 also strips the build
+output disk_report marks ready in idle worktrees. Before each deletion it checks again that the
+worktree is idle and unused and the path is still ignored and untracked. When a watched volume
+is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and
+lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctions. One run per
+machine; every run writes a receipt (the response's `receipt`) and updates status.json in the
+state folder (`BOTCORE_DISK_STATE` overrides it). It never removes a worktree.
+
 Settings: the repository's `[disk]` in botcore.toml, read from origin's HEAD (never from a
 worktree's branch), and the machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
 """,

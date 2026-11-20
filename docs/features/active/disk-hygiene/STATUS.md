@@ -49,7 +49,7 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - `disk-report`, discovery, idle signals and config (#1688): built on branch `lush/disk-hygiene-plan`, with this status file and the proposal. Tested on macOS; Linux in CI; Windows on Hero.
 
-- `disk-reclaim` tiers 0 and 1 (#1689): not started.
+- `disk-reclaim` tiers 0 and 1 (#1689): built on branch `lush/disk-reclaim`, stacked on #1688's branch. Tested on macOS; Linux in CI; Windows on Hero.
 
 ## Phase 2. Schedule, skill and rollout
 

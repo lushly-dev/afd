@@ -68,7 +68,7 @@ def _inside(root: Path, path: Path) -> bool:
     return rel != "." and not rel.startswith("..") and not os.path.isabs(rel)
 
 
-def _volume_for(path: Path, ctx: Context) -> VolumeState | None:
+def volume_for(path: Path, ctx: Context) -> VolumeState | None:
     """The configured volume holding path, if any (longest mount first)."""
     best = None
     for mount, state in ctx.volumes.items():
@@ -232,7 +232,7 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
         out["note"] = "no [disk].regenerable patterns: nothing in its worktrees is strippable"
     blocked = None
     for wt in worktrees:
-        vol = _volume_for(wt.path, ctx)
+        vol = volume_for(wt.path, ctx)
         if vol is not None and not vol.verified:
             blocked = f"volume {vol.mount} is not mounted or is not the recorded volume"
     rows = []
@@ -330,11 +330,35 @@ async def disk_report(
     try:
         settings, settings_file, settings_found = load_machine_settings()
     except SettingsError as exc:
-        return error(
-            "DISK_SETTINGS_INVALID",
-            str(exc),
-            suggestion="Fix the machine settings file, or move it aside and run disk-setup",
-        )
+        return settings_error(exc)
+    data, _pairs, _ctx = build_report(
+        settings, repo, unclassified=unclassified, budget_seconds=budget_seconds,
+    )
+    data["settings"] = {"path": str(settings_file), "found": settings_found}
+    suggestions = ["Run disk-reclaim to preview what a reclaim would do (a dry run by default)"]
+    if not settings_found:
+        suggestions.append(f"Create {settings_file} to register repositories and volumes")
+    if not data["complete"]:
+        suggestions.append("Some sizes were not measured in time; raise budget_seconds")
+    return success(data=data, suggestions=suggestions)
+
+
+def settings_error(exc: SettingsError) -> CommandResult[dict]:
+    return error(
+        "DISK_SETTINGS_INVALID",
+        str(exc),
+        suggestion="Fix the machine settings file, or move it aside to use the defaults",
+    )
+
+
+def build_report(
+    settings: MachineSettings,
+    repo: str | None,
+    *,
+    unclassified: bool = False,
+    budget_seconds: float = 180,
+) -> tuple[dict, list[tuple[dict, DiskConfig | None]], Context]:
+    """The report's data, each repository's row with its [disk] config, and the run context."""
     repos = _repos(settings, repo)
     ctx = Context(
         settings=settings,
@@ -355,7 +379,6 @@ async def disk_report(
     cache_rows = cache_mod.report_caches(settings, repos, ctx.deadline)
     aged_rows = cache_mod.report_aged(settings, ctx.now, ctx.deadline)
     data = {
-        "settings": {"path": str(settings_file), "found": settings_found},
         "processes": {"method": ctx.processes.method, "sees_working_dirs": ctx.processes.sees_cwds},
         "volumes": [v.as_dict() for v in ctx.volumes.values()],
         "t3_code_roots": [str(r) for r in ctx.t3_roots],
@@ -366,9 +389,4 @@ async def disk_report(
         "complete": ctx.complete and time.monotonic() <= ctx.deadline,
     }
     data["totals"] = _totals(repo_rows, cache_rows + aged_rows)
-    suggestions = ["Run disk-reclaim to preview what a reclaim would do (a dry run by default)"]
-    if not settings_found:
-        suggestions.append("Run disk-setup to register repositories and volumes on this machine")
-    if not data["complete"]:
-        suggestions.append("Some sizes were not measured in time; raise budget_seconds")
-    return success(data=data, suggestions=suggestions)
+    return data, pairs, ctx
