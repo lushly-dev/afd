@@ -1,8 +1,10 @@
 """Claims live on GitHub: ``status:in-progress`` plus one claim comment per claim.
 
 The comment names the branch, the machine and the lease expiry in a marker a person can read
-past and the plugin parses back. The latest claim comment on an issue is its claim, unless a
-release comment follows it. Nothing about claims is kept in local state.
+past and the plugin parses back. The latest standing claim comment on an issue is its claim: a
+release comment ends the claims of its branch (or every claim, naming none) and leaves an earlier
+claim standing. scripts/issue-claim.mjs writes and reads the same comments for agent sessions;
+change both. Nothing about claims is kept in local state.
 """
 
 from __future__ import annotations
@@ -69,16 +71,20 @@ def _parse(body: str) -> tuple[str, dict] | None:
 
 
 def current_claim(comments: list[Comment]) -> Claim | None:
-    """The claim the latest claim comment records, unless a later release ended it."""
-    claim: Claim | None = None
+    """The latest claim no later release ended.
+
+    A session that loses a claim race releases its own claim; the earlier claim it lost to must
+    still stand, so a release ends only its branch's claims.
+    """
+    standing: list[Claim] = []
     for comment in comments:
         parsed = _parse(comment.body)
         if parsed is None:
             continue
         kind, data = parsed
         if kind == "release":
-            if claim is not None and data.get("branch") in (None, claim.branch):
-                claim = None
+            branch = data.get("branch")
+            standing = [c for c in standing if branch is not None and c.branch != branch]
             continue
         branch, machine, lease = data.get("branch"), data.get("machine"), data.get("leaseUntil")
         if all(isinstance(value, str) and value for value in (branch, machine, lease)):
@@ -86,5 +92,5 @@ def current_claim(comments: list[Comment]) -> Claim | None:
                 parse_time(lease)
             except ValueError:
                 continue  # A marker with an unreadable lease is not a claim this plugin wrote.
-            claim = Claim(branch, machine, lease)
-    return claim
+            standing.append(Claim(branch, machine, lease))
+    return standing[-1] if standing else None

@@ -600,21 +600,28 @@ impl Provider for Imap {
                     self.open = None;
                     return Ok(Since::NewGeneration);
                 }
+                // Up to the mailbox's next id now, not the cursor's: a change
+                // of the engine's own records a message at or past the
+                // cursor before a pass covers it (9.2), and that message can
+                // leave, or change flags, before the pass.
+                let bound = again.uid_next.unwrap_or(next).max(next);
                 let mut vanished = Vec::new();
-                spell_out(&reply.vanished, next, &mut vanished)?;
-                let flags = reply.flags_below(next);
+                spell_out(&reply.vanished, bound, &mut vanished)?;
+                let flags = reply.flags_below(bound);
                 self.open = Some(again.clone());
                 examined = again;
                 (Gone::Named(vanished), flags)
             }
             (Some(modseq), Some(_)) if covered => {
+                // Up to the mailbox's next id now, as with QRESYNC.
+                let bound = examined.uid_next.unwrap_or(next).max(next);
                 let flags = self
                     .changed_flags(
                         &format!(
                             "UID FETCH 1:{} (UID FLAGS) (CHANGEDSINCE {modseq})",
-                            next - 1
+                            bound - 1
                         ),
-                        next,
+                        bound,
                     )
                     .await?;
                 // What remains is every UID the mailbox holds.
@@ -628,10 +635,11 @@ impl Provider for Imap {
                 // No mod-sequences: read every message's flags. What remains
                 // is what a search lists: a message the server lists and
                 // never returns is missing from a FETCH, and has not left.
+                let bound = examined.uid_next.unwrap_or(next).max(next);
                 let flags = self.flags().await?;
                 let flags = flags
                     .into_iter()
-                    .filter(|seen| seen.provider_id.parse::<u32>().is_ok_and(|uid| uid < next))
+                    .filter(|seen| seen.provider_id.parse::<u32>().is_ok_and(|uid| uid < bound))
                     .collect();
                 let remaining = self.search("ALL").await?;
                 (
@@ -682,9 +690,11 @@ impl Provider for Imap {
             let since = self.changes(cursor).await?;
             return Ok((opened, Some(since)));
         }
+        // Up to the mailbox's next id now, as in `changes`.
+        let bound = examined.uid_next.unwrap_or(next).max(next);
         let mut vanished = Vec::new();
-        spell_out(&reply.vanished, next, &mut vanished)?;
-        let flags = reply.flags_below(next);
+        spell_out(&reply.vanished, bound, &mut vanished)?;
+        let flags = reply.flags_below(bound);
         let since = self
             .since(&examined, next, Gone::Named(vanished), flags)
             .await?;

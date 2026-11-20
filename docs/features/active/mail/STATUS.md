@@ -119,7 +119,9 @@ waits for Gmail has a line of its own.
 
 - D1, the scripted Gmail API's half. Not started. It waits for step B6 (the specification's section 15).
 
-- D2: The four remote commands on iCloud and Gmail. Not started.
+- D2, the iCloud half: the run of the four change commands and their undos against the owner's iCloud account (`tests/live_changes.rs`), tested first on the scripted server, which puts back what it changed when a step fails; undo after a later change moved the mail away and back; and sync seeing a copy the engine made leave or change before the next pass. Merged as [#1646](https://github.com/lushly-dev/afd/pull/1646); the run itself waits for the owner.
+
+- D2, the Gmail half. Not started. It waits for step B6 (the owner deferred the Gmail steps on 2026-11-14).
 
 - D3: Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze`. Not started.
 
@@ -129,7 +131,7 @@ waits for Gmail has a line of its own.
 
 - E3: Reply sets. Not started.
 
-- F: The Loam plugin: the mount and the native app. Not started; needs Loam's phase 5 and phase 6's desktop lane, M3, where it runs (Loam's D132, 2026-11-16).
+- F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is reviewed and merged as [#1652](https://github.com/lushly-dev/afd/pull/1652), not approved: the owner's answers to its Q1 to Q5 are open. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
 - G: Composition with a connected Umbel. Not started.
 
@@ -138,8 +140,13 @@ waits for Gmail has a line of its own.
 How each step was verified: one line each, newest first within its phase. A step adds its line at
 the top of its phase's list, and a phase that starts adds its heading above the others.
 
+### Verified: phase F
+
+- 2026-11-19 UTC for step F's specification, on `lush/mail-f-spec` with `main` at `5a631f89` merged in: its five scenario files parsed and validated by `afd scenario validate`, the dry-run validation and the coverage report (29 steps, and 35 after the second revision); nothing built or run.
+
 ### Verified: phase D
 
+- 2026-11-19 UTC for step D2's iCloud half, on its branch from `main` at `ca1b11f3`: the crate built and its `operations` and `live_changes` tests passed on Windows with Rust 1.98.0; the round trip the owner runs (mark, copy, move to the inbox, archive, trash, each undone in reverse order) passed on the scripted server without `MOVE`, ending as it started; the whole crate's tests and clippy passed; the tests of undo in reverse order and of a copy removed or marked before the next pass each failed without its fix, and a run that fails part-way put back what it changed. Nothing live was run.
 - 2026-11-17 UTC for step D1's third part, proposals, on its branch from `main` at `dbb9f027`: the crate was built, linted and tested on macOS with Rust 1.98.0, 377 tests passing and the five measurement and live-account tests ignored as before; migration 14 tested on a store at version 13 (every operation, item, id, reference and the next id kept); proposals tested over the scripted IMAP server (an agent's change, resume and undo over the policy proposed and nothing asked of the provider, a wrong count refused, the person's no and yes at a scripted terminal, the preview's query, counts and known senders, a summary with no text from mail, the five a caller, dismissal by the person and by the proposer only, expiry after seven days, mail that moved before the approval left alone, and an approval on a server run as its work). After the independent review, approvals taken while a proposal was open were tested against its approval, dismissal, expiry and screening that is not ready, with the middleware's real token; and the review's blocker, an account that could not be removed after an undo proposal was dismissed, was tested against the code before the fix and failed there. Nothing live was run; no build reached the owner's server.
 - 2026-11-17 UTC for step D1's second part, the change commands and operations, on its branch from `main` at `b7468e7d`: the crate was built, linted and tested on macOS with Rust 1.98.0, 363 tests passing and the five measurement and live-account tests ignored as before; the change commands tested over the scripted IMAP server with and without `MOVE` (archive, trash, label as a move and a copy, mark, each undone; a wrong count, an expired selection, the frozen set, the policy for agents and scripts, the person asked above the count at a terminal, the server's work and a cancel), the connection dropped before each command of a run and after each change with its answer lost, each message found moved once. The four tests added for the review's blockers were run against the reviewed code and failed there. Nothing live was run; no build reached the owner's server.
 - 2026-11-17 UTC for step D1's first part, selections and the policy, on its branch from `main` at `feca7208`: the crate was built, linted and tested on macOS with Rust 1.98.0, 339 tests passing and the five measurement and live-account tests ignored as before; selections tested in the store (what each field selects, two copies of a message in a mailbox, unreturned messages, a burst's story, the cap a caller, a rebuild and an account's removal) and through the commands over the scripted IMAP server (the journal keeping no mail, the policy set only by the person at the terminal); and the 4.4 limits measured at 500 000 messages while other sessions loaded the machine (load 7.6 at the start): every selection made within a second, the whole account's 500 250 messages in 0.62 seconds, against a call's 60; every limit met but import, 474 a second, whose code this change does not touch (the plugin's `docs/limits-500000-d1.results.json`). Nothing live was run.
@@ -197,6 +204,7 @@ A new row goes at the end of its area's table. The last table holds every area's
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-19 | Step D2's iCloud half | The owner runs `tests/live_changes.rs` on his iCloud account, on a mailbox he makes and fills with 1 to 20 messages, and its counts are recorded as `docs/live-icloud-d2.results.json`: it measures how fast a change runs at iCloud (the follow-up of 2026-11-17) and is phase D's acceptance run for iCloud | Open, for the owner |
 
 ### Follow-ups: phase E, records and reply sets
 
@@ -269,6 +277,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-19 | Step D2, the iCloud half | The run against the owner's iCloud account, written as an ignored test that changes only a mailbox of 1 to 20 messages the owner names and ends as it started; run first on the scripted server, where it found that undoing changes in reverse order lost track of mail a later change had moved away and back. Undo now finds such a message by its identity in the same mailbox |
 
 ### Sessions: phase E, records and reply sets
 
@@ -279,6 +288,11 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-19 | Step F's specification drafted | [`plugin.spec.md`](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) written against `main` at `d890d02d`, with five scenario files checked by AFD's parser and coverage report: an approver role on tokens, the four commands released over MCP with previews, revisions and digests (`PREVIEW_CHANGED`), units from reply sets, taint per account, the hand mount and the native app's shape. Three questions for the owner. Not reviewed; nothing built. |
+| 2026-11-19 | Step F's specification revised | Two independent reviews (both "revise") checked against the code: discovery through `afd-help`, the desktop transport's MCP version, a proposal's generation, claims on units, the approver token's real power, whole previews with caps, the revision checked before the hold, the app's send slice before Loam's step 7, and the reply scenario fixed. Q4 and Q5 added. Not built. |
+| 2026-11-19 | Step F's specification revised again | A focused re-review of `8c44d05c` found three new blockers, each checked against the code: previews now take the revision or digest the held call names, so what Loam shows is what the token binds; a test-only credential source lets Loam's Linux desktop suite send through the real engine; previews declare their largest budget and targets are sized by their rendered preview. M39, M40 added. Not built. |
+| 2026-11-19 | Step F's specification, a third revision | A pass on `a2620b94` found three blockers, each checked against the code: the operation's preview form now shows the verb, its arguments, the query and the proposer it digests; a contract point asks phase 5 to show nothing when a preview fails; a `test-doubles` build runs the scripted servers as `loam-mail test-world` with endpoint and sign-in files, as a new pull request F0. Not built. |
+| 2026-11-19 | Step F's specification, a fourth revision | A confirming pass on `56172fb6` found one blocker, checked against the code: `loam-mail test-world` now makes an agent's token and an approver token as the person into `--out`, since the command line without a terminal cannot approve. Its improvements taken. Not built. |
 
 ### Sessions: phase G, composition with a connected Umbel
 

@@ -6,7 +6,7 @@ description: >
   Use when running the backlog, or starting, resuming or closing out a fleet.
 metadata:
   source: afd
-  version: 0.1.0
+  version: 0.1.1
   portable: true
 ---
 
@@ -18,7 +18,7 @@ Three parts, and you are the third ([software factory](../../../docs/features/ac
 - **A cell** is one agent, one package of issues, one worktree. It implements, gets its review, runs `prepare-pr lane` (which records the review and enqueues) and ends its turn.
 - **The foreman** (you) starts cells, resumes an ejected one and asks the owner for decisions. You keep no state and write no status updates: state is `lane-status`, so any fresh session can pick a run up.
 
-One foreman per lane. Pass your thread id as `session` to `cell-register`, `lane-wait`, `dial-set` and `ejection-excuse`; it holds the lane while you work and wait. `FOREMAN_BUSY` means another session holds it (`lane-status` shows `foreman`): stop and tell the owner, never work around it, and never hand the lane over yourself. A session that has ended frees the lane once its last `lane-wait` times out and its lease runs out; the owner can free it at once with `foreman-handoff {"session": "<its id>"}`.
+One foreman per lane. Pass your thread id as `session` to `cell-register`, `lane-wait`, `dial-set` and `ejection-excuse`; it holds the lane while you work and wait. `FOREMAN_BUSY` means another session holds it (`lane-status` shows `foreman`): stop and tell the owner, never work around it, and never hand the lane over yourself. A session that has ended frees the lane once its last `lane-wait` times out and its lease runs out; the owner can free it at once with `foreman-handoff {"session": "<its id>"}`. `FOREMAN_STALE` means a newer session has taken the lane from yours since your brief: your brief is out of date, so act on nothing and report.
 
 `factory` below is `uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory call <command> '<json>'` from the repository root; on Windows PowerShell put the JSON in a file and pass `--args-file <path>`.
 
@@ -48,7 +48,7 @@ After acting, leave one background `factory call lane-wait '{"consumer": "forema
 
 ## Finish
 
-`lane-drop` any cell that will not come back, then wait for `queue-empty`: the lane may still be running `main`'s coverage. Then `event-resolve` it, `lane-report` and `lane-stop`. Relay the merged PRs, what was ejected and why, the report's numbers, and what remains. Never delete a worktree or lock you did not make, or report dropped work as shipped.
+`lane-drop` any cell that will not come back, then wait for `queue-empty`: the lane may still be running `main`'s coverage. Then record the decision with `event-resolve {"id": "<event id>", "note": "Fleet finished"}`, `lane-report` and `lane-stop`. Relay the merged PRs, what was ejected and why, the report's numbers, and what remains. Never delete a worktree or lock you did not make, or report dropped work as shipped.
 
 Then tidy T3 Code, so that nothing from the run wakes later on an outdated brief:
 

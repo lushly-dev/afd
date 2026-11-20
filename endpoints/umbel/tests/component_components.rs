@@ -126,6 +126,22 @@ async fn the_component_answers_every_call_as_the_compiled_build() {
             json!({ "library": "missing", "tags": ["example-field"] }),
             false,
         ),
+        // `components-check` (amendment A30): findings, a clean page, and a refusal.
+        (
+            "components-check",
+            json!({ "source": "<example-field label=\"Name\" error-text=\"x\" lable>\n<example-feild ${spread}>" }),
+            true,
+        ),
+        (
+            "components-check",
+            json!({ "source": "html`<example-select label=\"Don't\" ?disabled=${x => x.off} :value=${x => x.v}></example-select>`" }),
+            true,
+        ),
+        (
+            "components-check",
+            json!({ "source": "<example-field>", "library": "missing" }),
+            false,
+        ),
     ];
     for (command, input, succeeds) in cases {
         let ours = wasm.call(command, input.clone()).await;

@@ -61,6 +61,18 @@ output_budget = { default_bytes = 32000, max_bytes = 96000 }
 journal = { mode = "digest", keep = ["space", "library", "tag"] }
 examples = [{ title = "Examples only", input = { tag = "example-select", sections = ["examples"] } }]
 
+[[commands]]
+name = "components-check"
+description = "Check a page's markup or code, read as text, for tags of a served library's prefix that no catalog has and for attributes a known component does not declare, each with its line and the nearest declared names. It renders nothing and runs nothing: a clean answer does not mean the page works, and Specimen's story checks are the real check."
+effects = ["inspect"]
+input_schema = "schemas/components-check.input.json"
+category = "components"
+tags = ["components", "check"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+journal = { mode = "digest", keep = ["space", "library"] }
+examples = [{ title = "Check a field's markup", input = { source = "<example-field label=\"Name\" error-text=\"Required\"></example-field>" } }]
+
 [[packs]]
 id = "library"
 path = "packs/library"
