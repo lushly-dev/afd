@@ -163,7 +163,7 @@ def plan_tier0(data: dict) -> list[Action]:
                     target=entry["path"],
                     root=str(Path(entry["path"]).parent),
                     bytes_estimate=entry.get("bytes"),
-                    planned_mtime=newest_mtime(Path(entry["path"])),
+                    planned_mtime=entry.get("mtime"),
                     identity=_identity(entry["path"]),
                     detail=f"age {entry['age_days']} days",
                 ))
@@ -216,13 +216,17 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
         return "the worktree was locked (kept) since planning"
     if busy_reason(worktree, run.processes_for(str(worktree))):
         return "a process is using the worktree"
-    st = status(worktree, admin)
+    st = status(worktree, admin, timeout=60)
     if st.operation:
         return f"a {st.operation} started"
     activity = last_activity(worktree, admin, st.changed, [])
-    built = newest_mtime(target)
-    if built is not None and (activity is None or built > activity):
-        activity = built
+    outputs = [
+        Path(a.target) for a in run.actions if a.kind == "strip" and a.worktree == action.worktree
+    ]
+    for folder in outputs or [target]:
+        built = newest_mtime(folder)
+        if built is not None and (activity is None or built > activity):
+            activity = built
     if activity is not None and action.due_days is not None:
         idle = time.time() - activity
         if idle < action.due_days * DAY:

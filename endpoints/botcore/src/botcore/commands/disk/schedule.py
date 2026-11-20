@@ -240,7 +240,10 @@ def _linux_state() -> ScheduleState:
     if timer.exists():
         enabled = _run(["systemctl", "--user", "is-enabled", "botcore-disk.timer"]).returncode == 0
         return ScheduleState("linux", enabled, str(timer))
-    if CRON_MARK in (read_crontab() or ""):
+    table = read_crontab()
+    if table is None and shutil.which("crontab"):
+        return ScheduleState("linux", True, "crontab", "the crontab could not be read")
+    if CRON_MARK in (table or ""):
         return ScheduleState("linux", True, "crontab")
     return ScheduleState("linux", False, None)
 

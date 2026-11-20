@@ -228,21 +228,40 @@ def test_setup_refuses_a_botcore_inside_a_checkout(
     assert found is None and "inside" in why
 
 
-def test_tools_are_recorded_by_their_real_paths(
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
+def test_tools_are_recorded_by_paths_that_last(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real = tmp_path / "versions" / "v24" / "bin" / "node"
-    real.parent.mkdir(parents=True)
-    real.write_text("")
-    shim = tmp_path / "session" / "node"
-    shim.parent.mkdir()
-    if sys.platform == "win32":
-        pytest.skip("symlinks need privileges on Windows")
-    shim.symlink_to(real)
-    monkeypatch.setattr(setup.shutil, "which", lambda name: str(shim) if name == "node" else None)
-    settings = setup.MachineSettings()
-    assert setup.record_tools(settings) == {"node": os.path.realpath(real)}
-    assert setup.job_path(settings).split(os.pathsep)[0] == os.path.dirname(os.path.realpath(real))
+    monkeypatch.setattr(setup, "_session_path", lambda path: "/session" in path)
+    # fnm: the session folder links to the Node version's folder, and pnpm there links to
+    # corepack's pnpm.js
+    version_bin = tmp_path / "versions" / "v24" / "bin"
+    (tmp_path / "versions" / "v24" / "lib").mkdir(parents=True)
+    version_bin.mkdir()
+    (tmp_path / "versions" / "v24" / "lib" / "pnpm.js").write_text("")
+    (version_bin / "pnpm").symlink_to("../lib/pnpm.js")
+    (tmp_path / "session").symlink_to(tmp_path / "versions" / "v24", target_is_directory=True)
+    found = str(tmp_path / "session" / "bin" / "pnpm")
+    assert setup.stable_tool_path("pnpm", found) == os.path.join(
+        os.path.realpath(version_bin), "pnpm")
+    # Homebrew: a link into a versioned Cellar folder is kept as the link
+    brew = tmp_path / "brew" / "bin"
+    (tmp_path / "brew" / "Cellar" / "uv" / "0.12" / "bin").mkdir(parents=True)
+    brew.mkdir()
+    real_uv = tmp_path / "brew" / "Cellar" / "uv" / "0.12" / "bin" / "uv"
+    real_uv.write_text("")
+    (brew / "uv").symlink_to(real_uv)
+    assert setup.stable_tool_path("uv", str(brew / "uv")) == str(brew / "uv")
+    # A tool that only exists in the session is left out
+    (tmp_path / "session-only").mkdir()
+    (tmp_path / "session-only" / "gh").write_text("")
+    assert setup.stable_tool_path("gh", str(tmp_path / "session-only" / "gh")) is None
+    monkeypatch.setattr(setup.shutil, "which",
+                        lambda name: {"pnpm": found, "uv": str(brew / "uv")}.get(name))
+    settings = setup.MachineSettings(tools={"gh": "/old/gh"})
+    assert set(setup.record_tools(settings)) == {"pnpm", "uv"}
+    assert setup.job_path(settings).split(os.pathsep)[:2] == [
+        os.path.realpath(version_bin), str(brew)]
 
 
 def test_an_unreadable_crontab_is_never_overwritten(monkeypatch: pytest.MonkeyPatch) -> None:

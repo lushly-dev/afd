@@ -39,9 +39,11 @@ NOTIFY_SECONDS = 24 * 3600
 NEW_LOSS_BYTES = 1024**3
 TOOLS = ("git", "pnpm", "uv", "gh", "node")
 SYSTEM_PATH = {
-    "darwin": ["/usr/bin", "/bin", "/usr/sbin", "/sbin"],
+    "darwin": ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"],
     "linux": ["/usr/local/bin", "/usr/bin", "/bin"],
 }
+# Folders that hold a shell session's links and vanish with it
+SESSION_MARKERS = ("fnm_multishells", "/tmp/", "/private/var/folders/", "\\temp\\")
 
 
 # ── The settings file ───────────────────────────────────────────────────────
@@ -151,15 +153,60 @@ def _persistent_exe(checkouts: list[Path]) -> tuple[str | None, str | None]:
     return found, None
 
 
-def record_tools(settings: MachineSettings) -> dict[str, str]:
-    """Resolve each tool the job runs to a real file, so a scheduler's PATH need not have it.
+def _session_path(path: str) -> bool:
+    text = path.replace("\\", "/").lower() + ("/" if os.name != "nt" else "")
+    marks = [m.replace("\\", "/").lower() for m in SESSION_MARKERS]
+    temp = os.environ.get("TMPDIR") or os.environ.get("TEMP")
+    if temp:
+        marks.append(os.path.realpath(temp).replace("\\", "/").lower().rstrip("/") + "/")
+    return any(mark in text for mark in marks)
 
-    Resolved through links, since a shell-session folder (such as fnm's) disappears.
+
+def _tool_name(path: str) -> str:
+    name = os.path.basename(path).lower()
+    for suffix in (".exe", ".cmd", ".bat", ".ps1"):
+        name = name.removesuffix(suffix)
+    return name
+
+
+def stable_tool_path(name: str, found: str) -> str | None:
+    """A lasting path that still runs `name`, starting from what `which` found.
+
+    Links are followed one hop at a time, only while the path is in a shell-session folder
+    (fnm's multishells, a temp folder): `/opt/homebrew/bin/uv` is kept as it is, not resolved
+    to a versioned Cellar folder that an upgrade deletes, and a hop to a file with another
+    name (corepack's `pnpm.js`) is not taken.
     """
+    if not _session_path(found):
+        return found if _tool_name(found) == name else None
+    # fnm's session folder is a link to the Node version's folder: resolve the folder, keep the
+    # file's own name (its target may be corepack's pnpm.js, which is not "pnpm")
+    kept = os.path.join(os.path.realpath(os.path.dirname(found)), os.path.basename(found))
+    if not _session_path(kept) and os.path.exists(kept):
+        return kept
+    path = found
+    for _hop in range(10):
+        if not _session_path(path):
+            return path if _tool_name(path) == name else None
+        if not os.path.islink(path):
+            return None
+        target = os.readlink(path)
+        path = os.path.normpath(os.path.join(os.path.dirname(path), target))
+        if _tool_name(path) != name:
+            return None
+    return None
+
+
+def record_tools(settings: MachineSettings) -> dict[str, str]:
+    """Record a lasting path for each tool the job runs; a scheduler starts it without the
+    user's shell PATH. A tool whose path only lives in a shell session is left out."""
     for name in TOOLS:
         found = shutil.which(name)
-        if found:
-            settings.tools[name] = os.path.realpath(found)
+        stable = stable_tool_path(name, found) if found else None
+        if stable:
+            settings.tools[name] = stable
+        else:
+            settings.tools.pop(name, None)
     return settings.tools
 
 

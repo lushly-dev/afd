@@ -229,6 +229,7 @@ def report_aged(
             modified = newest_mtime(item)
             entries.append({
                 "path": str(item),
+                "mtime": modified,
                 "age_days": None if modified is None else round((now - modified) / DAY, 2),
                 "bytes": None if refused else allocated(item, deadline),
                 "eligible": False,

@@ -208,6 +208,8 @@ def test_a_folder_that_may_hold_a_declared_copy_is_refused() -> None:
     assert may_contain("a/b", "**/x")
     assert not may_contain("dist", ".env")
     assert not may_contain("dist", "dist")
+    assert may_contain("Dist", "dist/.env", fold=True)
+    assert not may_contain("Dist", "dist/.env", fold=False)
 
 
 def test_package_folders_links_and_checkouts_are_never_entered(tmp_path: Path) -> None:

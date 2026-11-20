@@ -138,17 +138,19 @@ def _admin_map(common: Path) -> dict[str, Path]:
     return found
 
 
-def list_worktrees(checkout: Path) -> tuple[Path, list[Worktree]]:
+def list_worktrees(checkout: Path, timeout: float = GIT_TIMEOUT) -> tuple[Path, list[Worktree]]:
     """(common git folder, worktrees) for the repository holding checkout."""
     common = common_dir(checkout)
-    entries = parse_worktree_list(git_out(checkout, "worktree", "list", "--porcelain", "-z"))
+    entries = parse_worktree_list(
+        git_out(checkout, "worktree", "list", "--porcelain", "-z", timeout=timeout)
+    )
     admins = _admin_map(common)
     for entry in entries:
         entry.admin = common if entry.is_main else admins.get(path_key(entry.path))
     return common, entries
 
 
-def verify_checkout(worktree: Worktree, common: Path) -> str | None:
+def verify_checkout(worktree: Worktree, common: Path, timeout: float = GIT_TIMEOUT) -> str | None:
     """Why the folder at worktree.path is not the checkout git records there, or None.
 
     A registered path replaced by a link or by another repository's checkout would otherwise be
@@ -157,10 +159,9 @@ def verify_checkout(worktree: Worktree, common: Path) -> str | None:
     if os.path.islink(worktree.path):
         return "the registered folder is now a symbolic link"
     try:
-        top = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--show-toplevel")
-        own = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--git-dir")
-        shared = git_out(worktree.path, "rev-parse", "--path-format=absolute",
-                         "--git-common-dir")
+        out = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--show-toplevel",
+                      "--git-dir", "--git-common-dir", timeout=timeout)
+        top, own, shared = (out.splitlines() + ["", "", ""])[:3]
     except GitError as exc:
         return f"git cannot read it: {exc}"
     if path_key(top.strip()) != path_key(worktree.path):
@@ -227,7 +228,8 @@ def ignored(worktree: Path, paths: list[str], timeout: float = GIT_TIMEOUT) -> s
 
 def case_insensitive(folder: Path) -> bool:
     """Whether the filesystem holding folder treats names case-insensitively."""
-    probe = Path(str(folder).swapcase()) if str(folder) != str(folder).swapcase() else None
+    name = folder.name
+    probe = folder.with_name(name.swapcase()) if name and name != name.swapcase() else None
     if probe is None:
         return os.name == "nt"
     try:

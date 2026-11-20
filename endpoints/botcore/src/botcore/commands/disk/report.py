@@ -72,6 +72,7 @@ class Context:
     t3_roots: list[Path]
     deadline: float
     checkouts: list[str] = field(default_factory=list)  # every registered checkout's key
+    listed: dict[str, tuple[Path, list[Worktree]]] = field(default_factory=dict)
     t3_read: bool = True
     now: float = field(default_factory=time.time)
     complete: bool = True
@@ -144,15 +145,24 @@ def _repo_block(worktrees: list[Worktree], ctx: Context) -> tuple[str | None, di
         if state == "unreadable":
             return f"{wt.path} cannot be read ({detail})", presence
         if state == "missing" and detail:
-            return f"{wt.path}: {detail}", presence
+            hint = ""
+            if wt.prunable:
+                main = worktrees[0].path
+                hint = f"; if it was deleted on purpose, run `git worktree prune` in {main}"
+            return f"{wt.path}: {detail}{hint}", presence
     return None, presence
 
 
 # ── Candidates ──────────────────────────────────────────────────────────────
 
 
-def may_contain(folder: str, pattern: str) -> bool:
-    """Whether a path matching pattern could lie inside folder (both relative, `/`)."""
+def may_contain(folder: str, pattern: str, fold: bool | None = None) -> bool:
+    """Whether a path matching pattern could lie inside folder (both relative, `/`).
+
+    Case-folded where patterns match case-insensitively (Windows), as compile_pattern does.
+    """
+    if fold if fold is not None else os.name == "nt":
+        folder, pattern = folder.casefold(), pattern.casefold()
     outer = folder.split("/")
     parts = pattern.split("/")
     for index, piece in enumerate(outer):
@@ -259,7 +269,7 @@ def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
 
 def _inspect(row: dict, wt: Worktree, common: Path, config: DiskConfig, ctx: Context) -> None:
     """Fill a present worktree's row: verification, status, candidates, activity, readiness."""
-    mismatch = None if wt.is_main else verify_checkout(wt, common)
+    mismatch = None if wt.is_main else verify_checkout(wt, common, ctx.git_timeout())
     if mismatch:
         row["reasons"].append(mismatch)
         return
@@ -371,7 +381,9 @@ def _worktree_row(
 def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
     out: dict = {"checkout": str(checkout)}
     try:
-        common, worktrees = list_worktrees(checkout)
+        common, worktrees = ctx.listed.get(path_key(checkout)) or list_worktrees(
+            checkout, ctx.git_timeout()
+        )
     except GitError as exc:
         out["error"] = str(exc)
         out["worktrees"] = []
@@ -422,14 +434,19 @@ def _unique(paths: list[Path]) -> list[Path]:
     return out
 
 
-def _all_checkouts(repos: list[Path]) -> list[Path]:
+def _all_checkouts(
+    repos: list[Path], deadline: float,
+) -> tuple[list[Path], dict[str, tuple[Path, list[Worktree]]]]:
     paths: list[Path] = []
+    listed: dict[str, tuple[Path, list[Worktree]]] = {}
     for repo in repos:
+        timeout = max(MIN_GIT_SECONDS, min(120.0, deadline - time.monotonic()))
         try:
-            paths += [w.path for w in list_worktrees(repo)[1]]
+            listed[path_key(repo)] = list_worktrees(repo, timeout)
         except GitError:
             continue
-    return paths
+        paths += [w.path for w in listed[path_key(repo)][1]]
+    return paths, listed
 
 
 def _volumes(
@@ -543,7 +560,7 @@ def build_report(
     deadline = time.monotonic() + budget_seconds
     repos = _repos(settings, repo)
     t3_roots, t3_read = t3_worktree_roots(settings)
-    checkouts = _all_checkouts(repos)
+    checkouts, listed = _all_checkouts(repos, deadline)
     ctx = Context(
         settings=settings,
         processes=running_processes(),
@@ -552,6 +569,7 @@ def build_report(
         t3_read=t3_read,
         deadline=deadline,
         checkouts=[path_key(p) for p in checkouts],
+        listed=listed,
     )
     pairs = [_repo_rows(r, ctx) for r in repos]
     repo_rows = [row for row, _config in pairs]
