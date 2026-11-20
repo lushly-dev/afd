@@ -8,7 +8,8 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { JournalEntry } from '@lushly-dev/afd-core';
+import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
+import type { ProjectSummaryResultV1, ProjectV1 } from '@lushly-dev/loam-kernel';
 import {
 	createFixedEnvironment,
 	createFixturePorts,
@@ -582,56 +583,57 @@ describe('P2-E12: the projects section under axe, in every theme and density, an
 	it('A2, A10: at 320 CSS px, text at its bounds, an empty summary and right-to-left text wrap in their cards, with no violation', async () => {
 		const opened = await openShell(browser, site.root, { viewport: { width: 320, height: 800 } });
 		const { page } = opened;
-		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const created = (await kernelCall(page, 'project-create', {
+			name: 'Atlas',
+		})) as CommandResult<ProjectV1>;
+		expect(created.success).toBe(true);
+		if (!created.data) throw new Error('Atlas project is missing');
+		// Seed every home read before navigation. A later read can supersede an earlier one,
+		// and the neighboring tests already cover the real apps and their deadlines.
+		await page.evaluate((project) => {
+			const { kernel } = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
+			};
+			const call = kernel.call.bind(kernel);
+			const scope = { workspace: project.workspace, project: project.id };
+			const data: ProjectSummaryResultV1 = {
+				project,
+				summaries: [
+					{
+						instance: 'tasks',
+						title: 'Tasks',
+						icon: 'system/checkmark',
+						summary: {
+							counts: [{ label: 'L'.repeat(40), value: 1234567 }],
+							recent: [{ title: 'T'.repeat(120), updatedAt: 1793700000000 }],
+							links: [{ label: 'K'.repeat(40), link: { kind: 'app', instance: 'tasks', scope } }],
+						},
+					},
+					{ instance: 'boom', title: 'Boom', icon: 'system/document', summary: {} },
+					{
+						instance: 'wide',
+						title: 'دفتر',
+						icon: 'system/document',
+						summary: {
+							counts: [{ label: 'مفتوح', value: 3 }],
+							recent: [{ title: 'مراجعة الخطة' }],
+						},
+					},
+				],
+			};
+			kernel.call = async (name, input, ...rest) => {
+				if (
+					name === 'project-summary-get' &&
+					(input as { project?: string })?.project === project.id
+				) {
+					return { success: true, data };
+				}
+				return call(name, input, ...rest);
+			};
+		}, created.data);
 		await kernelCall(page, 'scope-set', { project: 'atlas' });
 		await kernelCall(page, 'section-open', { section: 'projects' });
 		await expect.poll(() => heading(page).textContent()).toBe('Atlas');
-		await page.evaluate(async () => {
-			const element = document
-				.querySelector('loam-shell')
-				?.shadowRoot?.querySelector('loam-main loam-projects-section') as unknown as {
-				kernel: { call(name: string, input?: unknown): Promise<unknown> };
-				read(): Promise<void>;
-			};
-			const real = element.kernel;
-			element.kernel = {
-				...real,
-				call: async (name: string, input?: unknown) => {
-					const result = (await real.call(name, input)) as {
-						data?: { summaries?: unknown[]; project?: { id: string } };
-					};
-					if (name === 'project-summary-get' && result.data) {
-						const scope = { workspace: 'personal', project: result.data.project?.id };
-						result.data.summaries = [
-							{
-								instance: 'tasks',
-								title: 'Tasks',
-								icon: 'system/checkmark',
-								summary: {
-									counts: [{ label: 'L'.repeat(40), value: 1234567 }],
-									recent: [{ title: 'T'.repeat(120), updatedAt: 1793700000000 }],
-									links: [
-										{ label: 'K'.repeat(40), link: { kind: 'app', instance: 'tasks', scope } },
-									],
-								},
-							},
-							{ instance: 'boom', title: 'Boom', icon: 'system/document', summary: {} },
-							{
-								instance: 'wide',
-								title: 'دفتر',
-								icon: 'system/document',
-								summary: {
-									counts: [{ label: 'مفتوح', value: 3 }],
-									recent: [{ title: 'مراجعة الخطة' }],
-								},
-							},
-						];
-					}
-					return result;
-				},
-			};
-			await element.read();
-		});
 		await expect.poll(() => section(page).locator('.card').count()).toBe(3);
 		const overflowing = await section(page)
 			.locator('.card')
