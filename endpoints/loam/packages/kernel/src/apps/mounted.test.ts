@@ -417,6 +417,15 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 					},
 					'a-free': { mutation: false, inputSchema: { type: 'object', properties: {} } },
 					// `{}` meets both branches, so a `oneOf` refuses it, which the shape alone cannot see (the third round's F).
+					// `{}` meets one branch, the object's, so it needs no input: a shortcut keeps it (the fourth round's 3).
+					'a-one': {
+						mutation: false,
+						inputSchema: {
+							type: 'object',
+							properties: {},
+							oneOf: [{ type: 'object' }, { type: 'string' }],
+						},
+					},
 					'a-either': {
 						mutation: false,
 						inputSchema: {
@@ -435,6 +444,7 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		const needs = names.find((name) => name.endsWith('needs')) as string;
 		const free = names.find((name) => name.endsWith('free')) as string;
 		const either = names.find((name) => name.endsWith('either')) as string;
+		const one = names.find((name) => name.endsWith('one')) as string;
 
 		const written = await kernel.call('setting-set', {
 			section: 'loam.keybindings',
@@ -443,6 +453,7 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 				{ command: needs, keys: 'Mod+Shift+N' },
 				{ command: free, keys: 'Mod+Shift+F' },
 				{ command: either, keys: 'Mod+Shift+E' },
+				{ command: one, keys: 'Mod+Shift+O' },
 			],
 			level: 'person',
 		});
@@ -456,6 +467,9 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		});
 		expect(listed.data?.bindings.find(({ command }) => command === either)).toMatchObject({
 			active: false,
+		});
+		expect(listed.data?.bindings.find(({ command }) => command === one)).toMatchObject({
+			active: true,
 		});
 		expect(listed.data?.bindings.find(({ command }) => command === free)).toMatchObject({
 			active: true,

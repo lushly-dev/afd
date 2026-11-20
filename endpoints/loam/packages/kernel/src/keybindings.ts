@@ -214,6 +214,17 @@ export interface KeybindingRegistryOptions {
 	project?: () => boolean;
 }
 
+/**
+ * Whether the adapter's person lets the overrides read for `readFor` apply (the third round's A, the fourth round's
+ * 5): the same person, or no one, as while a session of that person expires and the settle has not yet ended it; never
+ * another person, so no one else's overrides dispatch.
+ */
+function adapterAgrees(source: KeybindingSourceV1, readFor: string | undefined): boolean {
+	if (source.adapter === undefined) return true;
+	const named = source.adapter();
+	return named === undefined || named === readFor;
+}
+
 /** No overrides read yet for anyone. */
 const UNREAD: unique symbol = Symbol();
 
@@ -250,7 +261,7 @@ export function createKeybindings(
 		source &&
 		readFor !== UNREAD &&
 		readFor === source.person() &&
-		(source.adapter === undefined || source.adapter() === readFor)
+		adapterAgrees(source, readFor)
 			? overrides
 			: undefined;
 	/** Phase 1's chords: the reserved band, then the active app's with no `when`. */
@@ -262,22 +273,23 @@ export function createKeybindings(
 	];
 	return {
 		list(active) {
+			// A failed load or stage B decides first: no person's override, however readable (the fourth round's 2).
+			if (defaults) return phaseOne(active);
 			const known = mine();
 			if (known && resolver && source)
 				return resolver.resolve(shell, held, known, context(active), source.info).force;
-			if (defaults) return phaseOne(active);
 			return shell
 				.filter((binding) => binding.focus || binding.save)
 				.map((binding) => (binding.save ? { ...binding, unready: true as const } : { ...binding }));
 		},
 		keybindingFor(command) {
+			if (defaults)
+				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
 			const known = mine();
 			if (known && resolver && source) {
 				shown ??= resolver.shortcuts(shell, held, known, source.info);
 				return shown.get(command);
 			}
-			if (defaults)
-				return keybindingFor(command) ?? held.find((binding) => binding.command === command)?.chord;
 			return undefined;
 		},
 		resolve(at) {

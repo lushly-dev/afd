@@ -136,25 +136,34 @@ export type LateCommandDeps = ShellCommandDeps &
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
 
 /**
- * Whether `{}` meets two branches of a `oneOf` somewhere in `schema`, which a `oneOf` then refuses, though the shape
- * alone says no input is needed (manifest `needs-input.test.ts`): a mounted command's schema meets no rule against it,
- * so a chord leaves such a command alone (phase 4 specification, 8.3; the third round's F).
+ * Whether `{}` meets `schema`, as far as its keywords about an empty object decide: a `type` that admits an object, no
+ * `required` or `minProperties` above 0, every `allOf` branch, some `anyOf` branch and exactly one `oneOf` branch
+ * (phase 4 specification, 8.3; the third round's F, the fourth round's 3). A mounted command's schema meets no rule
+ * against a `oneOf` that `{}` meets twice, which the shape alone (`needsInput`) misses (manifest `needs-input.test.ts`).
  */
-function oneOfMetTwice(schema: unknown): boolean {
-	if (typeof schema !== 'object' || schema === null) return false;
-	const { oneOf, anyOf, allOf } = schema as {
+function emptyMeets(schema: unknown): boolean {
+	if (typeof schema !== 'object' || schema === null) return schema !== false;
+	const shape = schema as {
+		type?: unknown;
+		required?: unknown[];
+		minProperties?: number;
 		oneOf?: unknown[];
 		anyOf?: unknown[];
 		allOf?: unknown[];
 	};
-	const empty = (branch: unknown) => {
-		const shape = branch as { required?: unknown[]; minProperties?: number } | null;
-		return !(Number(shape?.required?.length) > 0 || Number(shape?.minProperties) > 0);
-	};
-	if (Array.isArray(oneOf) && oneOf.filter(empty).length > 1) return true;
-	return [oneOf, anyOf, allOf].some(
-		(branches) => Array.isArray(branches) && branches.some(oneOfMetTwice)
-	);
+	const types = shape.type === undefined ? ['object'] : [shape.type].flat();
+	if (!types.includes('object')) return false;
+	if (Number(shape.required?.length) > 0 || Number(shape.minProperties) > 0) return false;
+	if (Array.isArray(shape.allOf) && !shape.allOf.every(emptyMeets)) return false;
+	if (Array.isArray(shape.anyOf) && shape.anyOf.length > 0 && !shape.anyOf.some(emptyMeets))
+		return false;
+	if (
+		Array.isArray(shape.oneOf) &&
+		shape.oneOf.length > 0 &&
+		shape.oneOf.filter(emptyMeets).length !== 1
+	)
+		return false;
+	return true;
 }
 
 /**
@@ -554,7 +563,10 @@ export async function createLateParts(
 	});
 	// The kernel's `dispose` destroys the view state last: the listener and the timer stop with it.
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
+	/** Disposed, perhaps while the load below still runs: a reader made after it starts stopped (the fourth round's 1). */
+	let disposed = false;
 	deps.viewState.destroy = () => {
+		disposed = true;
 		sessions?.stop();
 		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
 		settings?.stop();
@@ -913,11 +925,12 @@ export async function createLateParts(
 				(mounted
 					? deps.needsInput !== undefined &&
 						!deps.needsInput(definition.jsonSchema) &&
-						!oneOfMetTwice(definition.jsonSchema)
+						emptyMeets(definition.jsonSchema)
 					: z.safeParse(definition.inputSchema as z.ZodMiniType, input).success);
 			return { runnable, ...(app !== undefined ? { app } : {}) };
 		},
 	});
+	if (disposed) settings.stop();
 	await settings.readOverrides();
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
 	const appList = byName.get('app-list') as ZodCommandDefinition;

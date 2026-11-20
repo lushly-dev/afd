@@ -56,4 +56,38 @@ describe('the keybindings with stage B failed (R9)', () => {
 		expect(kernel.listKeybindings().map(({ chord }) => chord)).toContain('Mod+K');
 		await kernel.dispose();
 	});
+
+	it("applies the defaults, never the person's readable override (the fourth round's 2)", async () => {
+		const store = new MemoryAdapter();
+		await store.create('settings', {
+			id: 'loam.settings',
+			category: 'settings',
+			value: {
+				'personal/loam.keybindings': {
+					overrides: {
+						value: [{ command: 'palette-open', keys: 'Mod+Shift+K' }],
+						updatedAt: 1,
+						updatedBy: 'local',
+					},
+				},
+			},
+		});
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		await kernel.startApps().catch(() => undefined);
+		await expect
+			.poll(() => kernel.lateFailure?.code, { timeout: 5_000 })
+			.toBe('LATE_COMMANDS_UNAVAILABLE');
+		const chords = kernel.listKeybindings().map(({ chord }) => chord);
+		expect(chords).toContain('Mod+K');
+		expect(chords).not.toContain('Mod+Shift+K');
+		await kernel.dispose();
+	});
 });

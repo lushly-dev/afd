@@ -56,6 +56,13 @@ const KEYS: ManifestV2 = {
 			input_schema: NO_INPUT,
 		},
 		{
+			name: 'keys-toast',
+			title: 'Show a toast from a port',
+			description: "Show a toast through the app's own port.",
+			effects: ['inspect'],
+			input_schema: NO_INPUT,
+		},
+		{
 			name: 'keys-peek',
 			title: 'Read the keybindings from a port',
 			description: "Read keybinding-list through the app's own port.",
@@ -79,6 +86,10 @@ const KEYS_DEFINITION = defineApp({
 	handlers: {
 		'keys-hello': (async () => success({ hello: true })) as never,
 		'keys-board': (async () => success({ board: true })) as never,
+		'keys-toast': (async (_input: unknown, context: AppCallContextV1) => {
+			const shown = await context.client.call('toast-show', { message: 'From the app' });
+			return success({ ok: shown.success });
+		}) as never,
 		'keys-peek': (async (_input: unknown, context: AppCallContextV1) => {
 			const read = await context.client.call('keybinding-list', {});
 			return success({ ok: read.success, code: read.error?.code ?? null });
@@ -709,5 +720,64 @@ describe("step 7's third round", () => {
 		} finally {
 			globalThis.setTimeout = real;
 		}
+	});
+});
+
+describe("step 7's fourth round", () => {
+	it('1: a kernel disposed while stage B reads the editor record reads no overrides after', async () => {
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		/** Holds stage B's read of the editor record, and fails and counts reads of the person's settings. */
+		class HeldStore extends MemoryAdapter {
+			holding = false;
+			reads = 0;
+			override async get<T>(table: string, id: string): Promise<T | null> {
+				if (this.holding && table === 'settings' && id === 'loam.editor') await held;
+				if (table === 'settings' && id === 'loam.settings') {
+					this.reads++;
+					throw new Error('the store failed');
+				}
+				return super.get<T>(table, id);
+			}
+		}
+		const store = new HeldStore();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		store.holding = true;
+		const stageB = kernel.startApps().catch(() => undefined);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await kernel.dispose();
+		const before = store.reads;
+		release();
+		await stageB;
+		await new Promise((resolve) => setTimeout(resolve, 1_200));
+		expect(store.reads).toBe(before);
+	});
+
+	it("7: an app's toast still fails while the person's settings record cannot be read: the fallback is the shell's", async () => {
+		class FailingStore extends MemoryAdapter {
+			failing: string | undefined;
+			override async get<T>(table: string, id: string): Promise<T | null> {
+				if (table === 'settings' && id === this.failing) throw new Error('the store failed');
+				return super.get<T>(table, id);
+			}
+		}
+		const store = new FailingStore();
+		const { kernel } = await workspace(store);
+		await kernel.call('app-open', { instance: 'keys' });
+		store.failing = 'loam.settings';
+		const shown = await kernel.call<{ ok: boolean }>('keys-toast', {});
+		expect(shown.data?.ok).not.toBe(true);
+		const listed = await kernel.call<{ overlays: Array<{ kind: string }> }>('overlay-list');
+		expect(listed.data?.overlays.some(({ kind }) => kind === 'toast')).toBe(false);
 	});
 });

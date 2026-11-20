@@ -816,7 +816,8 @@ export interface KeybindingV1 {
   - **The first-paint gap (R9):** until stage B reads the person's overrides, no rebindable chord runs, so Mod+K reaches the browser in that moment, as it did before any override existed in phase 0's first frame; only Mod+S is held.
   - **Stored entries a newer rule refuses** (the re-check's 8): read, they are dropped one by one and the rest kept, and `keybinding-list` gives `refused`, how many; the settings section still shows the stored value as no longer valid (3.3) until the person writes the list again.
   - **R10 (step 7's third round), what R6 covers:** R6 is about keys; same-page scripts are D54's. A script of the shell's own page can reach `shell.kernel` and call any command as the person, so its faked palette or switcher `change`, or a `MessageEvent` it makes for a view's channel, is trusted as that page is; a view's sandboxed frame cannot make events in the shell's page. Those paths are unchanged. `answerSave` and `onSaveRequest` are callbacks, never events a frame could send.
-  - **A person changing under the keys (the third round's A):** the keys are not ready while the adapter names a person the settle has not reached, as while it reads the new person's membership: only F6 and Shift+F6, Mod+S held.
+  - **A person changing under the keys (the third round's A):** the keys are not ready while the adapter names another person than the settle has reached, as while it reads the new person's membership: only F6 and Shift+F6, Mod+S held. While it names no one, as a session of the same person expires before its settle ends it, the settled person's own overrides stay in force (the fourth round's 5): no other person's ever dispatch.
+  - **A failure decides first (the fourth round's 2):** once the late load or stage B has failed, the reserved chords and the active app's apply with no overrides, even when the person's record could be read.
   - **Before the late load (the third round's B):** Mod+S is held, and its "keys not ready" toast is shown once the late load answers, since `toast-show` is a late command; the shell's own toast shows even when the person's settings record cannot be read, with the default preferences.
   - **AltGr (the re-check's 9):** a printable character a key makes with AltGr is typing, never a chord, though Windows reports AltGr as Ctrl and Alt both; before this step, `Mod+Alt+<key>` matched such a key on those layouts.
 
@@ -1892,6 +1893,20 @@ Measured: first paint 317,050 and 99,602 gzip, within its rows; `late-settings` 
 Declined: none. D is unchanged by R10's ruling.
 
 **Verified after the third round,** 2026-11-19, same machine, at `ec313226`: `test --coverage` for the kernel (62 files, 1,263 tests), chrome (21 files, 273) and `web`'s units (11 files, 54); the typecheck of every Loam package and app; `lint:tokens`; `budget`; `node scripts/check-doc-lines.mjs`; `pnpm check` (every gate); and, step 6's `pnpm verify` having finished, the whole `test:browser` once: 42 files, 496 tests, and its conformance suite, 24, all passing (`boot`, `keybindings`, `shell`, `documents/editor` and `documents/references` among them). **Not run:** `test:hosted`, `test:walk`, `test:mounted`, `pnpm verify` and the Cargo gates (no Rust changed since the second round's run).
+
+**Fourth round,** 2026-11-19: re-checks of `ff403cfe`, the branch pushed as [#1657](https://github.com/lushly-dev/afd/pull/1657) (Opus 5.5, high: approve, with points; GPT-6.2 Astra, high: revise, 4 blockers). Each was shown first by a test that failed, but where noted:
+
+1. **Disposed during stage B:** the late chunk's dispose hook marks it disposed, and the overrides reader, made later in the same load, starts stopped. Unit: a kernel disposed while stage B's read of the editor record is held reads the person's overrides no more after (failed before: three reads).
+2. **A failure keeps no override:** the registry's failure state decides before readable overrides (`list` and `keybindingFor`). Unit: stage B failing with a readable record whose override moves `palette-open`: Mod+K in force, the personal chord absent (failed before).
+3. **F, a valid `oneOf`:** `emptyMeets` asks whether `{}` meets the schema, `type` included, `oneOf` exactly once, in place of `oneOfMetTwice`. Units: `oneOf: [{ type: 'object' }, { type: 'string' }]` keeps its shortcut (failed before), two object branches still lose it.
+4. **G, three entries:** the editor walks every one of the person's own on colliding keys in the list's order, and names the resolver's winner, the first in force, the edited binding's own state counted. Units: [X not in force, `palette-open` in force, edited Z] names `palette-open` (failed before); an edited override not in force with a later runnable one says the later one runs. The second round's case whose edited binding is listed not in force now says so.
+5. **Session expiry (Opus 2):** the adapter naming no one keeps the settled person's own overrides, so an expiring session no longer leaves the keys not ready for a refresh; another person named still does (unit, failed before).
+6. **C's check (Opus 4):** the boot gate waits 150 ms before saying the palette stayed closed.
+7. **An app's toast (Astra):** with the person's record unreadable, an app's `toast-show` still fails: the fallback is the shell's alone (unit, passed at once: the code was right; the case was missing).
+
+Measured: first paint 317,125 and 99,614 gzip, within its rows; `late` 111,103, its row raised to 111,500 under D115 (`emptyMeets` and the disposal flag); `budget.mjs` records it.
+
+Declined: none.
 
 ## Step 8, 2026-11-19
 

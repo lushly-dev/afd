@@ -110,6 +110,8 @@ describe('the built shell', () => {
 			};
 			return (shell.kernel?.listKeybindings() ?? []).some(({ chord }) => chord === 'Mod+K');
 		});
+		// A moment for a late run of the early press, which must not come (the fourth round's 6).
+		await page.waitForTimeout(150);
 		expect(await page.evaluate(paletteOpen)).toBe(false);
 		await page.keyboard.press('ControlOrMeta+K');
 		await page.waitForFunction(paletteOpen);

@@ -441,6 +441,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * retry stopped on dispose, `oneOf` eligibility): first paint 317,050 and 99,602 gzip, within its rows; `late` 110,968
  * of 111,000; `lateSettingsMinified` 74,200 to 74,800 (74,598: the toast's default preferences, the retry's stop and
  * the overrides reader moved into `setting-overrides.ts`).
+ * After step 7's fourth round (the failure state first, disposal across the late load, `emptyMeets`, the editor's
+ * winner): first paint 317,125 and 99,614 gzip, within its rows; `lateMinified` 111,000 to 111,500 (111,103: `emptyMeets`
+ * and the disposal flag); `settings` 46,865 of 46,900.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -490,7 +493,7 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 111_000,
+	lateMinified: 111_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_600,
 	lateIdentityMinified: 63_000,

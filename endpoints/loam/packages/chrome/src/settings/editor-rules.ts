@@ -173,28 +173,45 @@ export function overrideWarning(
 				}));
 		const proposed = withOverride(mine, override);
 		const at = proposed.findIndex(same);
-		const yours = proposed.findIndex(
-			(each, index) => index !== at && each.keys !== null && keysCollide(each.keys, keys)
-		);
-		if (yours >= 0) {
-			const other = proposed[yours] as OverrideV1;
-			// The other is not in force now: its command cannot run from a chord, as `keybinding-list` says.
-			const idle = bindings.some(
+		// Whether one of the person's own is in force: an override no chord runs is not (`keybinding-list`'s `active`).
+		const inForce = (each: OverrideV1) =>
+			!bindings.some(
 				(binding) =>
 					binding.source === 'you' &&
-					binding.command === other.command &&
-					(binding.target ?? null) === (other.target ?? null) &&
+					binding.command === each.command &&
+					(binding.target ?? null) === (each.target ?? null) &&
 					!binding.active
 			);
-			const note = idle ? ', not in force now' : '';
-			// The resolver passes over an override no chord runs, so an earlier one that is not in force never wins.
-			said.push(
-				yours < at && !idle
-					? `${other.keys} is already yours, for ${nameOf(other)}, which would win: this binding would be shadowed.`
-					: yours < at
-						? `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding would be the one in force.`
-						: `${other.keys} is yours too, for ${nameOf(other)}${note}; this binding comes first and would shadow it.`
-			);
+		// Every one of the person's own on colliding keys, in the list's order; the resolver runs the first in force.
+		const colliding = proposed
+			.map((each, index) => ({ each, index }))
+			.filter(({ each }) => each.keys !== null && keysCollide(each.keys, keys));
+		const others = colliding.filter(({ index }) => index !== at);
+		const winner = colliding.find(({ each }) => inForce(each));
+		const first = others[0];
+		if (first) {
+			const nameAndNote = ({ each }: { each: OverrideV1 }) =>
+				`${nameOf(each)}${inForce(each) ? '' : ', not in force now'}`;
+			if (winner && winner.index !== at && inForce(override))
+				said.push(
+					`${winner.each.keys} is already yours, for ${nameOf(winner.each)}, which would win: this binding would be shadowed.`
+				);
+			else if (winner && winner.index !== at)
+				said.push(
+					`${winner.each.keys} is yours too, for ${nameOf(winner.each)}, which runs: this binding is not in force now.`
+				);
+			else if (winner && first.index < at)
+				said.push(
+					`${first.each.keys} is yours too, for ${nameAndNote(first)}; this binding would be the one in force.`
+				);
+			else if (winner)
+				said.push(
+					`${first.each.keys} is yours too, for ${nameAndNote(first)}; this binding comes first and would shadow it.`
+				);
+			else
+				said.push(
+					`${first.each.keys} is yours too, for ${nameOf(first.each)}; neither is in force now.`
+				);
 		} else if (!kept) {
 			const hit = bindings.find(
 				(binding) => binding.source !== 'you' && !same(binding) && keysCollide(binding.keys, keys)

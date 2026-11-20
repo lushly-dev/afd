@@ -117,7 +117,8 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 				active: false,
 			},
 		];
-		// Editing the second in place onto the first's keys: the first, earlier, wins.
+		// Editing the second in place onto the first's keys: the first, earlier, wins; and the second, whose command no chord
+		// runs now, is not in force anyway (the fourth round's 4: the edited binding's own state counts).
 		expect(
 			overrideWarning(
 				{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
@@ -125,7 +126,7 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 				stored
 			)
 		).toBe(
-			'Mod+Shift+L is already yours, for palette-open, which would win: this binding would be shadowed.'
+			'Mod+Shift+L is yours too, for palette-open, which runs: this binding is not in force now.'
 		);
 		// Editing the first onto the second's keys: the first keeps its place, so it wins; the other is not in force.
 		expect(overrideWarning({ command: 'palette-open', keys: 'Mod+Shift+M' }, listed, stored)).toBe(
@@ -166,6 +167,50 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 			)
 		).toBe(
 			'Mod+Shift+L is yours too, for ghost-gone, not in force now; this binding would be the one in force.'
+		);
+	});
+
+	it("names the resolver's winner among three: the first of the person's own in force (the fourth round's 4)", () => {
+		const you = (command: string, keys: string, active: boolean, target?: string) => ({
+			keys,
+			command,
+			...(target ? { target } : {}),
+			source: 'you' as const,
+			active,
+		});
+		// X, not in force, then palette-open, in force, then the edited Z: palette-open runs.
+		const stored = [
+			{ command: 'ghost-gone', keys: 'Mod+Shift+L' },
+			{ command: 'palette-open', keys: 'Mod+Shift+L' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+M' },
+		];
+		const listed = [
+			you('ghost-gone', 'Mod+Shift+L', false),
+			you('palette-open', 'Mod+Shift+L', true),
+			you('section-open', 'Mod+Shift+M', true, 'projects'),
+		];
+		expect(
+			overrideWarning(
+				{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
+				listed,
+				stored
+			)
+		).toBe(
+			'Mod+Shift+L is already yours, for palette-open, which would win: this binding would be shadowed.'
+		);
+		// The edited one first but not in force, a later one in force: the later one runs.
+		const first = [
+			{ command: 'ghost-gone', keys: 'Mod+Shift+P' },
+			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
+		];
+		const firstListed = [
+			you('ghost-gone', 'Mod+Shift+P', false),
+			you('section-open', 'Mod+Shift+L', true, 'projects'),
+		];
+		expect(
+			overrideWarning({ command: 'ghost-gone', keys: 'Mod+Shift+L' }, firstListed, first)
+		).toBe(
+			'Mod+Shift+L is yours too, for section-open (projects), which runs: this binding is not in force now.'
 		);
 	});
 
