@@ -46,7 +46,7 @@ function world({ issues = {}, prs = [], onComment, failOn } = {}) {
 			const remove = flag('--remove-label')?.split(',') ?? [];
 			writes.push({ n: Number(n), add: flag('--add-label'), remove });
 			issue.labels = issue.labels.filter((l) => !remove.includes(l.name));
-			if (!issue.labels.some((l) => l.name === flag('--add-label')))
+			if (flag('--add-label') && !issue.labels.some((l) => l.name === flag('--add-label')))
 				issue.labels.push({ name: flag('--add-label') });
 			return '';
 		}
@@ -155,6 +155,52 @@ test('release restores the status the claim replaced', () => {
 	assert.deepEqual(w.labels(24), ['execution:bounded', IN_PROGRESS]);
 	run(['release', '24'], w.deps);
 	assert.deepEqual(w.labels(24), ['execution:bounded', 'status:deferred']);
+});
+
+test('release clears only the claim label on a closed issue, once', () => {
+	const w = world({
+		issues: {
+			28: {
+				state: 'CLOSED',
+				labels: ['execution:bounded', IN_PROGRESS, 'status:deferred'],
+			},
+		},
+	});
+	assert.equal(run(['release', '28'], w.deps), 0);
+	assert.deepEqual(w.labels(28), ['execution:bounded', 'status:deferred']);
+	assert.equal(run(['release', '28'], w.deps), 0);
+	assert.deepEqual(w.writes, [{ n: 28, add: undefined, remove: [IN_PROGRESS] }]);
+});
+
+test('retrying a closed release ends old leases once so another branch can claim after reopen', () => {
+	let failEdit = true;
+	const w = world({
+		issues: {
+			29: {
+				state: 'CLOSED',
+				labels: [IN_PROGRESS],
+				comments: [factoryClaim('fleet/29', iso(NOW + HOUR))],
+			},
+		},
+		failOn: (args) => failEdit && args[1] === 'edit',
+	});
+	assert.equal(run(['release', '29', '--closed-only'], w.deps), 1);
+	failEdit = false;
+	assert.equal(run(['release', '29', '--closed-only'], w.deps), 0);
+	assert.equal(w.writes.filter((write) => write.comment).length, 1);
+	assert.deepEqual(standingClaims(w.store[29].comments), []);
+	w.store[29].state = 'OPEN';
+	assert.equal(run(['claim', '29'], w.deps), 0);
+	assert.equal(run(['check', '29'], w.deps), 0);
+	assert.match(w.lines.at(-1), /#29: yours/);
+});
+
+test('closed-only release skips a reopened issue even if the caller owns its current claim', () => {
+	const w = world({ issues: { 30: {} } });
+	assert.equal(run(['claim', '30'], w.deps), 0);
+	const before = [...w.writes];
+	assert.equal(run(['release', '30', '--closed-only'], w.deps), 0);
+	assert.deepEqual(w.writes, before);
 });
 
 test('losing a race undoes new claims in the set but not a renewal', () => {
