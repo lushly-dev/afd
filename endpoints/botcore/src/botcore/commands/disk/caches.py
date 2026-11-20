@@ -8,7 +8,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from botcore.commands.disk.scan import DAY, Processes, allocated, busy_reason, newest_mtime
+from botcore.commands.disk.scan import (
+    DAY,
+    Processes,
+    allocated,
+    busy_reason,
+    exists,
+    is_dir,
+    newest_mtime,
+)
 from botcore.commands.disk.settings import MachineSettings, expand
 
 
@@ -33,7 +41,7 @@ def _sample_mode(checkout: Path) -> str:
     uses it. Clones and copies always have one link, so prune is only safe with hard links.
     """
     store = checkout / "node_modules" / ".pnpm"
-    if not store.is_dir():
+    if not is_dir(store):
         return "unknown"
     seen = 0
     for package_json in store.glob("*/node_modules/*/package.json"):
@@ -137,7 +145,7 @@ def _playwright_dir() -> Path:
 
 def _playwright(deadline: float) -> dict | None:
     path = _playwright_dir()
-    if not path.is_dir():
+    if not is_dir(path):
         return None
     return {
         "name": "playwright",
@@ -205,7 +213,7 @@ def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | 
     if refused:
         return [], refused
     if not wildcard:
-        return ([base] if base.exists() else []), None
+        return ([base] if exists(base) else []), None
     try:
         return sorted(Path(e.path) for e in os.scandir(base) if not e.is_symlink()), None
     except OSError:

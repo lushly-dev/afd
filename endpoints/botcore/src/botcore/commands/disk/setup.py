@@ -20,7 +20,7 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk import schedule
 from botcore.commands.disk.git import GitError, list_worktrees
-from botcore.commands.disk.scan import mount_point, volume_id, volume_state
+from botcore.commands.disk.scan import exists, mount_point, volume_id, volume_state
 from botcore.commands.disk.settings import (
     MachineSettings,
     SettingsError,
@@ -106,7 +106,7 @@ def _watch_volumes(settings: MachineSettings) -> list[str]:
             continue
         paths += [w.path for w in worktrees]
     for path in paths:
-        if not path.exists():
+        if not exists(path):
             continue
         mount = mount_point(path)
         if str(mount) in known:

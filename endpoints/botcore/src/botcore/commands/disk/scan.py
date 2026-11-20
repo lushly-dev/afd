@@ -29,10 +29,33 @@ MAX_DEPTH = 12
 # ── Volumes ─────────────────────────────────────────────────────────────────
 
 
+def exists(path: Path) -> bool:
+    """Path.exists() that answers False on a permission error, as Python 3.12+ does."""
+    try:
+        os.stat(path)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def is_dir(path: Path) -> bool:
+    try:
+        return stat.S_ISDIR(os.stat(path).st_mode)
+    except (OSError, ValueError):
+        return False
+
+
+def is_file(path: Path) -> bool:
+    try:
+        return stat.S_ISREG(os.stat(path).st_mode)
+    except (OSError, ValueError):
+        return False
+
+
 def mount_point(path: Path) -> Path:
     """The mount point holding path, or path's nearest existing ancestor's."""
     current = Path(os.path.abspath(path))
-    while not current.exists() and current.parent != current:
+    while not exists(current) and current.parent != current:
         current = current.parent
     while not os.path.ismount(current) and current.parent != current:
         current = current.parent

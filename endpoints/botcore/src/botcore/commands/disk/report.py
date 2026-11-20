@@ -43,7 +43,10 @@ from botcore.commands.disk.scan import (
     allocated,
     busy_reason,
     compile_pattern,
+    exists,
     find_candidates,
+    is_dir,
+    is_file,
     last_activity,
     mount_point,
     newest_mtime,
@@ -373,8 +376,8 @@ def _worktree_row(
         return row
     try:
         _inspect(row, wt, common, config, ctx)
-    except GitError as exc:
-        row["reasons"].append(f"git failed: {exc}")
+    except (GitError, OSError) as exc:
+        row["reasons"].append(f"could not be inspected: {exc}")
         row["can_strip"] = False
         for item in row["strip"]:
             item["ready"] = False
@@ -462,7 +465,7 @@ def _volumes(
         mount = expand(vol.mount)
         states[str(mount)] = volume_state(mount, vol.id, vol.low_space_gb)
     for path in paths:
-        if not path.exists():
+        if not exists(path):
             continue
         mount = mount_point(path)
         if not any(path_key(mount) == path_key(m) for m in states):
@@ -476,13 +479,13 @@ def _orphans(ctx: Context, known: set[str]) -> list[dict]:
     roots = [expand(r) for r in ctx.settings.worktree_roots] + ctx.t3_roots
     seen: set[str] = set()
     for root in roots:
-        if not root.is_dir():
+        if not is_dir(root):
             continue
         for first in _children(root):
             for folder in [first, *_children(first)]:
                 key = path_key(folder)
                 git_file = folder / ".git"
-                if key in seen or key in known or not git_file.is_file():
+                if key in seen or key in known or not is_file(git_file):
                     continue
                 seen.add(key)
                 rows.append({"path": str(folder), "tier": 3, "reason": _orphan_reason(git_file)})
@@ -502,7 +505,7 @@ def _orphan_reason(git_file: Path) -> str:
     except OSError:
         return "a worktree no registered repository lists"
     resolved = Path(target) if os.path.isabs(target) else git_file.parent / target
-    if not resolved.exists():
+    if not exists(resolved):
         return "its repository's record of it is gone"
     return "a worktree of a repository the machine settings do not register"
 

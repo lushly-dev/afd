@@ -126,9 +126,11 @@ def _admin_map(common: Path) -> dict[str, Path]:
     """
     found: dict[str, Path] = {}
     base = common / "worktrees"
-    if not base.is_dir():
+    try:
+        admins = list(base.iterdir())
+    except OSError:
         return found
-    for admin in base.iterdir():
+    for admin in admins:
         try:
             target = (admin / "gitdir").read_text(encoding="utf-8").strip()
         except OSError:
@@ -211,7 +213,7 @@ def status(worktree: Path, admin: Path | None, timeout: float = GIT_TIMEOUT) -> 
     operation = None
     if admin is not None:
         for marker, name in _OPERATIONS.items():
-            if (admin / marker).exists():
+            if os.path.lexists(admin / marker):
                 operation = name
                 break
     return Status(changed, operation)
