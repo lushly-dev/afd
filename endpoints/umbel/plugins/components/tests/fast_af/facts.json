@@ -442,7 +442,7 @@
 				"from": "components-text-field--overview"
 			},
 			"field": "html",
-			"answer": "<violet-text-field label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
+			"answer": "<violet-text-field error-text label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
 		},
 		{
 			"id": "rule-type",
