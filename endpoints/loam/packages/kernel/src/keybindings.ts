@@ -82,6 +82,11 @@ export interface KeybindingEntryV1 extends KeybindingV1 {
 	shadowed?: Array<{ source: 'shell' | 'app' | 'you'; command: string }>;
 	/** In force now, with the `when` terms the kernel decides holding; focus terms count as holding (R4). */
 	active: boolean;
+	/**
+	 * One of the person's own that no chord can run, whatever its keys: its command and target name no binding, and the
+	 * command cannot run from a chord now. Absent, an override not in force is shadowed (step 7's R12).
+	 */
+	idle?: true;
 }
 
 /** A person's override (8.3): `keys` null unbinds every binding of the command and target. */
@@ -215,14 +220,12 @@ export interface KeybindingRegistryOptions {
 }
 
 /**
- * Whether the adapter's person lets the overrides read for `readFor` apply (the third round's A, the fourth round's
- * 5): the same person, or no one, as while a session of that person expires and the settle has not yet ended it; never
- * another person, so no one else's overrides dispatch.
+ * Whether the adapter's person lets the overrides read for `readFor` apply (the third round's A): the same person.
+ * An expired session still names its user until the settle ends it; a sign-out names no one, so another person's
+ * overrides never dispatch while a sign-out settles (the fifth round's 5, `late/index.ts`).
  */
 function adapterAgrees(source: KeybindingSourceV1, readFor: string | undefined): boolean {
-	if (source.adapter === undefined) return true;
-	const named = source.adapter();
-	return named === undefined || named === readFor;
+	return source.adapter === undefined || source.adapter() === readFor;
 }
 
 /** No overrides read yet for anyone. */
@@ -294,6 +297,19 @@ export function createKeybindings(
 		},
 		resolve(at) {
 			if (!resolver || !source) return { force: [], entries: [] };
+			if (defaults) {
+				// The failure's defaults, as `list` has them: no override, the reserved chords and the active app's with no
+				// `when` (the fifth round's 2).
+				const resolved = resolver.resolve(shell, held, [], at, source.info);
+				const holds = (entry: KeybindingEntryV1) =>
+					entry.source === 'shell' || (entry.app === at.active && entry.when === undefined);
+				return {
+					force: phaseOne(at.active),
+					entries: resolved.entries.map((entry) =>
+						holds(entry) ? entry : { ...entry, active: false, inForce: false }
+					),
+				};
+			}
 			const known = mine();
 			const resolved = resolver.resolve(shell, held, known ?? [], at, source.info);
 			if (known) return resolved;
@@ -308,7 +324,7 @@ export function createKeybindings(
 				),
 			};
 		},
-		refused: () => (mine() ? refused : 0),
+		refused: () => (!defaults && mine() ? refused : 0),
 		context,
 		collide: (a, b) => resolver?.collide(a, b) ?? a === b,
 		setResolver(next, from) {

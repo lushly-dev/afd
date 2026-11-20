@@ -103,6 +103,8 @@ export interface ListedBindingV1 {
 	target?: string;
 	source: 'shell' | 'app' | 'you';
 	active: boolean;
+	/** One of the person's own no chord can run, whatever its keys: the resolver's (step 7's R12). */
+	idle?: boolean;
 }
 
 /** The reserved chords' actions an override never names (8.3): F6's and Shift+F6's. */
@@ -173,44 +175,61 @@ export function overrideWarning(
 				}));
 		const proposed = withOverride(mine, override);
 		const at = proposed.findIndex(same);
-		// Whether one of the person's own is in force: an override no chord runs is not (`keybinding-list`'s `active`).
-		const inForce = (each: OverrideV1) =>
+		// Whether a chord can run one of the person's own, whatever its keys: the resolver's `idle` (R12). One the list
+		// does not name yet, an addition or an edit of its command, is presumed runnable until it is saved.
+		const runnable = (each: OverrideV1) =>
 			!bindings.some(
 				(binding) =>
 					binding.source === 'you' &&
+					binding.idle === true &&
 					binding.command === each.command &&
-					(binding.target ?? null) === (each.target ?? null) &&
-					!binding.active
+					(binding.target ?? null) === (each.target ?? null)
 			);
-		// Every one of the person's own on colliding keys, in the list's order; the resolver runs the first in force.
-		const colliding = proposed
+		// The resolver's rule over the proposed list (`keybinding-resolve.ts`): the person's own first to last, one no chord
+		// runs passed over, each kept unless its keys collide with one kept before it, which shadows it (R12).
+		const standing: number[] = [];
+		const shadowedBy = new Map<number, number>();
+		proposed.forEach((each, index) => {
+			if (each.keys === null || !runnable(each)) return;
+			const over = standing.find((one) =>
+				keysCollide(proposed[one]?.keys as string, each.keys as string)
+			);
+			if (over === undefined) standing.push(index);
+			else shadowedBy.set(index, over);
+		});
+		const collides = (index: number) => {
+			const bound = proposed[index]?.keys;
+			return bound !== null && bound !== undefined && keysCollide(bound, keys);
+		};
+		const others = proposed
 			.map((each, index) => ({ each, index }))
-			.filter(({ each }) => each.keys !== null && keysCollide(each.keys, keys));
-		const others = colliding.filter(({ index }) => index !== at);
-		const winner = colliding.find(({ each }) => inForce(each));
+			.filter(({ index }) => index !== at && collides(index));
 		const first = others[0];
 		if (first) {
-			const nameAndNote = ({ each }: { each: OverrideV1 }) =>
-				`${nameOf(each)}${inForce(each) ? '' : ', not in force now'}`;
-			if (winner && winner.index !== at && inForce(override))
+			const named = (index: number) => proposed[index] as OverrideV1;
+			const note = (each: OverrideV1) =>
+				`${nameOf(each)}${runnable(each) ? '' : ', not in force now'}`;
+			const over = shadowedBy.get(at);
+			const runs = standing.find((index) => index !== at && collides(index));
+			if (over !== undefined)
 				said.push(
-					`${winner.each.keys} is already yours, for ${nameOf(winner.each)}, which would win: this binding would be shadowed.`
+					`${named(over).keys} is already yours, for ${nameOf(named(over))}, which would win: this binding would be shadowed.`
 				);
-			else if (winner && winner.index !== at)
+			else if (!standing.includes(at) && runs !== undefined)
 				said.push(
-					`${winner.each.keys} is yours too, for ${nameOf(winner.each)}, which runs: this binding is not in force now.`
+					`${named(runs).keys} is yours too, for ${nameOf(named(runs))}, which runs: this binding is not in force now.`
 				);
-			else if (winner && first.index < at)
+			else if (!standing.includes(at))
 				said.push(
-					`${first.each.keys} is yours too, for ${nameAndNote(first)}; this binding would be the one in force.`
+					`${first.each.keys} is yours too, for ${nameOf(first.each)}; neither is in force now.`
 				);
-			else if (winner)
+			else if (first.index < at)
 				said.push(
-					`${first.each.keys} is yours too, for ${nameAndNote(first)}; this binding comes first and would shadow it.`
+					`${first.each.keys} is yours too, for ${note(first.each)}; this binding would be the one in force.`
 				);
 			else
 				said.push(
-					`${first.each.keys} is yours too, for ${nameOf(first.each)}; neither is in force now.`
+					`${first.each.keys} is yours too, for ${note(first.each)}; this binding comes first and would shadow it.`
 				);
 		} else if (!kept) {
 			const hit = bindings.find(

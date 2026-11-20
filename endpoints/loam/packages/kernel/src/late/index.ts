@@ -46,6 +46,7 @@ import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
+import { emptyMeets } from './empty-meets.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
@@ -131,40 +132,14 @@ export type LateCommandDeps = ShellCommandDeps &
 		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 		/** Every registered command's name, the live registry's (phase 4's step 8, R4). */
 		commandNames?(): readonly string[];
+		/**
+		 * Whether the kernel is disposed, perhaps before the late load installed its hook: what it makes after stops at
+		 * once (step 7's fifth round, 1).
+		 */
+		disposed?(): boolean;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
-
-/**
- * Whether `{}` meets `schema`, as far as its keywords about an empty object decide: a `type` that admits an object, no
- * `required` or `minProperties` above 0, every `allOf` branch, some `anyOf` branch and exactly one `oneOf` branch
- * (phase 4 specification, 8.3; the third round's F, the fourth round's 3). A mounted command's schema meets no rule
- * against a `oneOf` that `{}` meets twice, which the shape alone (`needsInput`) misses (manifest `needs-input.test.ts`).
- */
-function emptyMeets(schema: unknown): boolean {
-	if (typeof schema !== 'object' || schema === null) return schema !== false;
-	const shape = schema as {
-		type?: unknown;
-		required?: unknown[];
-		minProperties?: number;
-		oneOf?: unknown[];
-		anyOf?: unknown[];
-		allOf?: unknown[];
-	};
-	const types = shape.type === undefined ? ['object'] : [shape.type].flat();
-	if (!types.includes('object')) return false;
-	if (Number(shape.required?.length) > 0 || Number(shape.minProperties) > 0) return false;
-	if (Array.isArray(shape.allOf) && !shape.allOf.every(emptyMeets)) return false;
-	if (Array.isArray(shape.anyOf) && shape.anyOf.length > 0 && !shape.anyOf.some(emptyMeets))
-		return false;
-	if (
-		Array.isArray(shape.oneOf) &&
-		shape.oneOf.length > 0 &&
-		shape.oneOf.filter(emptyMeets).length !== 1
-	)
-		return false;
-	return true;
-}
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -561,12 +536,10 @@ export async function createLateParts(
 		},
 		...(quiet ? { quiet } : {}),
 	});
+	if (deps.disposed?.()) sessions.stop();
 	// The kernel's `dispose` destroys the view state last: the listener and the timer stop with it.
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
-	/** Disposed, perhaps while the load below still runs: a reader made after it starts stopped (the fourth round's 1). */
-	let disposed = false;
 	deps.viewState.destroy = () => {
-		disposed = true;
 		sessions?.stop();
 		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
 		settings?.stop();
@@ -642,6 +615,8 @@ export async function createLateParts(
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// Made after a disposal, it reads nothing (the fifth round's 1).
+	if (deps.disposed?.()) settings.stop();
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
 	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
@@ -904,7 +879,15 @@ export async function createLateParts(
 	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
 	deps.keybindings?.setResolver(KEYBINDING_RESOLVER, {
 		person: shellPerson,
-		adapter: () => personKey(sessionActor(deps.auth, deps.clock)),
+		// An expired session still names its user, whose keys stay until the settle ends it; a sign-out names no one (the
+		// fifth round's 5, as `expiredOnly` decides an expiry).
+		adapter: () => {
+			const state = deps.auth.getSession();
+			return (
+				personKey(sessionActor(deps.auth, deps.clock)) ??
+				(state.status === 'authenticated' ? state.user.id : undefined)
+			);
+		},
 		info(command, target) {
 			const app = deps.apps().owners.get(command)?.instance;
 			const definition =
@@ -930,7 +913,6 @@ export async function createLateParts(
 			return { runnable, ...(app !== undefined ? { app } : {}) };
 		},
 	});
-	if (disposed) settings.stop();
 	await settings.readOverrides();
 	// The person's own rail order on each row `app-list` gives, which the rail honours (phase 4 specification, 3.7; R8).
 	const appList = byName.get('app-list') as ZodCommandDefinition;

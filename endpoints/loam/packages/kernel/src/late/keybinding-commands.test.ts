@@ -56,13 +56,6 @@ const KEYS: ManifestV2 = {
 			input_schema: NO_INPUT,
 		},
 		{
-			name: 'keys-toast',
-			title: 'Show a toast from a port',
-			description: "Show a toast through the app's own port.",
-			effects: ['inspect'],
-			input_schema: NO_INPUT,
-		},
-		{
 			name: 'keys-peek',
 			title: 'Read the keybindings from a port',
 			description: "Read keybinding-list through the app's own port.",
@@ -86,10 +79,6 @@ const KEYS_DEFINITION = defineApp({
 	handlers: {
 		'keys-hello': (async () => success({ hello: true })) as never,
 		'keys-board': (async () => success({ board: true })) as never,
-		'keys-toast': (async (_input: unknown, context: AppCallContextV1) => {
-			const shown = await context.client.call('toast-show', { message: 'From the app' });
-			return success({ ok: shown.success });
-		}) as never,
 		'keys-peek': (async (_input: unknown, context: AppCallContextV1) => {
 			const read = await context.client.call('keybinding-list', {});
 			return success({ ok: read.success, code: read.error?.code ?? null });
@@ -763,7 +752,7 @@ describe("step 7's fourth round", () => {
 		expect(store.reads).toBe(before);
 	});
 
-	it("7: an app's toast still fails while the person's settings record cannot be read: the fallback is the shell's", async () => {
+	it("7: an app surface's toast shows with the person's settings readable, and is refused, with no toast, while they are not", async () => {
 		class FailingStore extends MemoryAdapter {
 			failing: string | undefined;
 			override async get<T>(table: string, id: string): Promise<T | null> {
@@ -774,10 +763,162 @@ describe("step 7's fourth round", () => {
 		const store = new FailingStore();
 		const { kernel } = await workspace(store);
 		await kernel.call('app-open', { instance: 'keys' });
+		// The fifth round's 6: a surface's own port, which a nested call's refusal cannot stand in for.
+		const surface = kernel.appPort('keys').surface({ scope: { workspace: 'personal' } });
+		const toasts = async () =>
+			(
+				await kernel.call<{ overlays: Array<{ kind: string }> }>('overlay-list')
+			).data?.overlays.filter(({ kind }) => kind === 'toast').length;
+		const shown = await surface.call('toast-show', { message: 'Readable' });
+		expect(shown.error).toBeUndefined();
+		expect(await toasts()).toBe(1);
 		store.failing = 'loam.settings';
-		const shown = await kernel.call<{ ok: boolean }>('keys-toast', {});
-		expect(shown.data?.ok).not.toBe(true);
-		const listed = await kernel.call<{ overlays: Array<{ kind: string }> }>('overlay-list');
-		expect(listed.data?.overlays.some(({ kind }) => kind === 'toast')).toBe(false);
+		const refused = await surface.call('toast-show', { message: 'Unreadable' });
+		expect(refused.success).toBe(false);
+		expect(await toasts()).toBe(1);
+	});
+});
+
+describe("step 7's fifth round", () => {
+	const ADA = 'mock-user-ada@example.com';
+	const OLU = 'mock-user-olu@example.com';
+	const PROVIDER: IdentityV1 = {
+		mode: 'provider',
+		organization: 'acme',
+		path: 'api/auth',
+		methods: ['passkey', 'password'],
+	};
+	const membership: MembershipV1 = {
+		mode: 'provider',
+		members: new Map([
+			[ADA, 'member'],
+			[OLU, 'owner'],
+		]),
+		digest: 'd1',
+	};
+	/** Holds stage B's list of one table, and fails and counts reads of the person's settings. */
+	class HeldStore extends MemoryAdapter {
+		hold: { table: string; until: Promise<void> } | undefined;
+		held = 0;
+		reads = 0;
+		override async list<T>(table: string, ...rest: unknown[]) {
+			if (this.hold && table === this.hold.table) {
+				this.held++;
+				await this.hold.until;
+			}
+			return (super.list as (table: string, ...rest: unknown[]) => Promise<{ data: T[] }>)(
+				table,
+				...rest
+			) as never;
+		}
+		override async get<T>(table: string, id: string): Promise<T | null> {
+			if (table === 'settings' && id.startsWith('loam.settings')) {
+				this.reads++;
+				throw new Error('the store failed');
+			}
+			return super.get<T>(table, id);
+		}
+	}
+	/**
+	 * Counts the kernel's subscriptions to the adapter. The Mock's own directory (`withMockCapabilities`, which the late
+	 * load's identity commands make) hears it too: the Mock's, not counted.
+	 */
+	const counted = (auth: MockAuthAdapter) => {
+		const seen = { subscribed: 0 };
+		const subscribe = auth.onAuthStateChange.bind(auth);
+		auth.onAuthStateChange = (listener) => {
+			if (!new Error().stack?.includes('MockDirectory')) seen.subscribed++;
+			return subscribe(listener);
+		};
+		return seen;
+	};
+
+	// `begin()`'s one early return guards the adapter's subscription and `provider` mode's membership watch alike; there,
+	// `createKernel` runs the late load itself, so no disposal can come during it.
+	it('1: a kernel disposed while stage B reads the agent members reads no overrides after, and subscribes to nothing', async () => {
+		let release: () => void = () => {};
+		const store = new HeldStore();
+		store.hold = {
+			table: 'agent-member',
+			until: new Promise<void>((resolve) => {
+				release = resolve;
+			}),
+		};
+		const auth = new MockAuthAdapter();
+		const seen = counted(auth);
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		const stageB = kernel.startApps().catch(() => undefined);
+		await expect.poll(() => store.held, { timeout: 5_000 }).toBe(1);
+		await kernel.dispose();
+		const before = { reads: store.reads, subscribed: seen.subscribed };
+		release();
+		await stageB;
+		await new Promise((resolve) => setTimeout(resolve, 1_200));
+		expect({ reads: store.reads, subscribed: seen.subscribed }).toEqual(before);
+	});
+
+	const providerKernel = async (readMembership: () => Promise<unknown>) => {
+		const auth = new MockAuthAdapter();
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(),
+			identity: PROVIDER,
+			membership,
+			identityPorts: { readMembership } as never,
+		});
+		kernels.push(kernel);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'x',
+		});
+		await override(kernel, [{ command: 'palette-open', keys: 'Mod+Shift+K' }]);
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
+		return { kernel, auth };
+	};
+
+	it("5: Olu named, then signed out before Olu's settle: Ada's keys neither dispatch nor show", async () => {
+		let release: () => void = () => {};
+		let held: Promise<void> | null = null;
+		const { kernel, auth } = await providerKernel(async () => {
+			if (held) await held;
+			return { role: 'owner', digest: 'd1' };
+		});
+		held = new Promise((resolve) => {
+			release = resolve;
+		});
+		auth._setUser({ id: OLU, email: 'olu@example.com', name: 'olu' });
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		auth._reset();
+		expect(kernel.listKeybindings().map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
+		expect(
+			kernel.listCommands().find(({ name }) => name === 'palette-open')?.keybinding
+		).toBeUndefined();
+		held = null;
+		release();
+		// Settled signed out: the defaults, no one's overrides.
+		await expect
+			.poll(() => kernel.listKeybindings().map(({ chord }) => chord), { timeout: 5_000 })
+			.toContain('Mod+K');
+		expect(kernel.listKeybindings().map(({ chord }) => chord)).not.toContain('Mod+Shift+K');
+	});
+
+	it("5: Ada's session expiring keeps Ada's own until the settle ends it: the adapter still names Ada", async () => {
+		const { kernel, auth } = await providerKernel(async () => ({ role: 'member', digest: 'd1' }));
+		auth._setUser({ id: ADA, email: 'ada@example.com', name: 'ada' }, { expiresAt: new Date(0) });
+		expect(kernel.listKeybindings()[0]?.chord).toBe('Mod+Shift+K');
 	});
 });

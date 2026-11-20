@@ -153,6 +153,7 @@ export function resolveKeybindings(
 		const shadowed = matched.map(({ entry }) => ({ source: entry.source, command: entry.command }));
 		// The person's binding holds everywhere: no app's `when` comes with it.
 		const { when: _when, ...action } = base?.binding ?? { command };
+		const idle = !base && !known.runnable;
 		yours.push({
 			entry: {
 				keys,
@@ -162,10 +163,12 @@ export function resolveKeybindings(
 				...(app !== undefined ? { app } : {}),
 				...(shadowed.length > 0 ? { shadowed } : {}),
 				active: false,
+				// What the editor's warning reads, so it runs this rule over a proposed list (the fifth round's R12).
+				...(idle ? { idle: true as const } : {}),
 			},
 			binding: { ...action, chord: keys, ...(target !== undefined ? { target } : {}) },
 			band: true,
-			...(base || known.runnable ? {} : { idle: true as const }),
+			...(idle ? { idle: true as const } : {}),
 		});
 	}
 	const ordered = [...yours, ...bases];

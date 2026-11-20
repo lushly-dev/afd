@@ -261,7 +261,7 @@ describe('the registry', () => {
 		expect(known).not.toContain('Mod+B');
 	});
 
-	it("keeps the settled person's own while the adapter names no one, as an expiring session does (the fourth round's 5)", () => {
+	it("applies a person's own only while the adapter names that person: a sign-out names no one (the fifth round's 5)", () => {
 		let adapter: string | undefined = 'ada';
 		const registry = createKeybindings(SHELL_KEYBINDINGS_V0, APPS);
 		registry.setResolver(KEYBINDING_RESOLVER, {
@@ -270,11 +270,13 @@ describe('the registry', () => {
 		});
 		registry.setOverrides([{ command: 'palette-open', keys: 'Mod+Shift+K' }], 'ada');
 		expect(registry.list(null)[0]?.chord).toBe('Mod+Shift+K');
-		adapter = undefined;
-		expect(registry.list(null)[0]?.chord).toBe('Mod+Shift+K');
-		// Another person named: not ready, as the third round's A has it.
-		adapter = 'olu';
-		expect(registry.list(null).map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
+		// Another person named, then signed out before their settle: not ready either way. An expired session still names
+		// its user (`late/index.ts`), so only a sign-out names no one.
+		for (const named of ['olu', undefined]) {
+			adapter = named;
+			expect(registry.list(null).map(({ chord }) => chord)).toEqual(['F6', 'Shift+F6', 'Mod+S']);
+			expect(registry.keybindingFor('palette-open')).toBeUndefined();
+		}
 	});
 
 	it("drops a person's overrides the moment the person changes, before the next read (step 7's reviews, 2)", () => {

@@ -444,6 +444,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * After step 7's fourth round (the failure state first, disposal across the late load, `emptyMeets`, the editor's
  * winner): first paint 317,125 and 99,614 gzip, within its rows; `lateMinified` 111,000 to 111,500 (111,103: `emptyMeets`
  * and the disposal flag); `settings` 46,865 of 46,900.
+ * After step 7's fifth round (the kernel's disposal carried into the late load, `emptyMeets` failing safe in its own
+ * module, the failure's defaults in `keybinding-list`, an expiring session still naming its user): first paint 317,298
+ * and 99,660 gzip, within its rows; `lateMinified` 111,500 to 112,800 (112,243); the `settings` chunk 46,900 to 47,400
+ * (47,028: the editor's warning runs the resolver's rule over the proposed list, R12).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -493,7 +497,7 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 111_500,
+	lateMinified: 112_800,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_600,
 	lateIdentityMinified: 63_000,
@@ -541,7 +545,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	settingsMinified: 46_900,
+	settingsMinified: 47_400,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 	inboxMinified: 10_000,

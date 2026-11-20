@@ -40,7 +40,7 @@ export function createKeybindingCommands(deps: KeybindingCommandDeps): ZodComman
 		name: 'keybinding-list',
 		title: 'List keybindings',
 		description:
-			"The bindings in force, ordered by keys, each with its source (shell, app or you), what it shadows and whether it is active; with `all`, also the shadowed, unbound and inactive apps' ones. `active` decides `project` and `documentType`; focus terms (`editor`, `sidebar`, `main`) count as holding",
+			"The bindings in force, ordered by keys, each with its source (shell, app or you), what it shadows and whether it is active; with `all`, also the shadowed, unbound and inactive apps' ones, and `idle` on an override no chord can run. `active` decides `project` and `documentType`; focus terms (`editor`, `sidebar`, `main`) count as holding",
 		category: 'setting',
 		mutation: false,
 		executionTime: 'instant',

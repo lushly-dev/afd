@@ -107,6 +107,7 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 			{ command: 'palette-open', keys: 'Mod+Shift+L' },
 			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+M' },
 		];
+		// Both valid and in force: `projects` is a section (the fifth round's R12 fixed this fixture, which had it idle).
 		const listed = [
 			{ keys: 'Mod+Shift+L', command: 'palette-open', source: 'you' as const, active: true },
 			{
@@ -114,11 +115,10 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 				command: 'section-open',
 				target: 'projects',
 				source: 'you' as const,
-				active: false,
+				active: true,
 			},
 		];
-		// Editing the second in place onto the first's keys: the first, earlier, wins; and the second, whose command no chord
-		// runs now, is not in force anyway (the fourth round's 4: the edited binding's own state counts).
+		// Editing the second in place onto the first's keys: the first, earlier, wins.
 		expect(
 			overrideWarning(
 				{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+L' },
@@ -126,11 +126,11 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 				stored
 			)
 		).toBe(
-			'Mod+Shift+L is yours too, for palette-open, which runs: this binding is not in force now.'
+			'Mod+Shift+L is already yours, for palette-open, which would win: this binding would be shadowed.'
 		);
-		// Editing the first onto the second's keys: the first keeps its place, so it wins; the other is not in force.
+		// Editing the first onto the second's keys: the first keeps its place, so it wins.
 		expect(overrideWarning({ command: 'palette-open', keys: 'Mod+Shift+M' }, listed, stored)).toBe(
-			'Mod+K would no longer open the command palette. Mod+Shift+M is yours too, for section-open (projects), not in force now; this binding comes first and would shadow it.'
+			'Mod+K would no longer open the command palette. Mod+Shift+M is yours too, for section-open (projects); this binding comes first and would shadow it.'
 		);
 		// A shell chord's warning hides no collision with one of the person's own.
 		expect(
@@ -149,7 +149,13 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 			{ command: 'section-open', target: 'projects', keys: 'Mod+Shift+M' },
 		];
 		const listed = [
-			{ keys: 'Mod+Shift+L', command: 'ghost-gone', source: 'you' as const, active: false },
+			{
+				keys: 'Mod+Shift+L',
+				command: 'ghost-gone',
+				source: 'you' as const,
+				active: false,
+				idle: true,
+			},
 			{
 				keys: 'Mod+Shift+M',
 				command: 'section-open',
@@ -171,12 +177,14 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 	});
 
 	it("names the resolver's winner among three: the first of the person's own in force (the fourth round's 4)", () => {
+		// `active: false` with `idle`: no chord runs it, as the resolver says (the fifth round's R12).
 		const you = (command: string, keys: string, active: boolean, target?: string) => ({
 			keys,
 			command,
 			...(target ? { target } : {}),
 			source: 'you' as const,
 			active,
+			...(active ? {} : { idle: true }),
 		});
 		// X, not in force, then palette-open, in force, then the edited Z: palette-open runs.
 		const stored = [
@@ -211,6 +219,54 @@ describe('the keybinding editor (8.2, 8.3)', () => {
 			overrideWarning({ command: 'ghost-gone', keys: 'Mod+Shift+L' }, firstListed, first)
 		).toBe(
 			'Mod+Shift+L is yours too, for section-open (projects), which runs: this binding is not in force now.'
+		);
+	});
+
+	it("runs the resolver's rule over the proposed list: a shadowed binding freed by the edit wins (the fifth round's R12)", () => {
+		const you = (command: string, keys: string, active: boolean) => ({
+			keys,
+			command,
+			source: 'you' as const,
+			active,
+		});
+		// Opus: [B: Mod+L, A: Mod+L, C: Mod+P]; A is shadowed by B, not idle. Moving A onto Mod+P frees it, and A,
+		// before C in the list, is the one in force.
+		const stored = [
+			{ command: 'jot-b', keys: 'Mod+L' },
+			{ command: 'jot-a', keys: 'Mod+L' },
+			{ command: 'jot-c', keys: 'Mod+P' },
+		];
+		const listed = [
+			you('jot-b', 'Mod+L', true),
+			you('jot-a', 'Mod+L', false),
+			you('jot-c', 'Mod+P', true),
+		];
+		expect(overrideWarning({ command: 'jot-a', keys: 'Mod+P' }, listed, stored)).toBe(
+			'Mod+P is yours too, for jot-c; this binding comes first and would shadow it.'
+		);
+		// Astra: A and B share a chord, C another; B, shadowed by A, moves onto C's: B comes first there.
+		const astra = [
+			{ command: 'jot-a', keys: 'Mod+Shift+A' },
+			{ command: 'jot-b', keys: 'Mod+Shift+A' },
+			{ command: 'jot-c', keys: 'Mod+Shift+C' },
+		];
+		const astraListed = [
+			you('jot-a', 'Mod+Shift+A', true),
+			you('jot-b', 'Mod+Shift+A', false),
+			you('jot-c', 'Mod+Shift+C', true),
+		];
+		expect(overrideWarning({ command: 'jot-b', keys: 'Mod+Shift+C' }, astraListed, astra)).toBe(
+			'Mod+Shift+C is yours too, for jot-c; this binding comes first and would shadow it.'
+		);
+		// A sequence: Mod+G is shadowed by the earlier Mod+G Q, so an added Mod+G P, which collides with Mod+G alone, is
+		// in force; a first-colliding rule would name Mod+G.
+		const sequence = [
+			{ command: 'jot-q', keys: 'Mod+G Q' },
+			{ command: 'jot-g', keys: 'Mod+G' },
+		];
+		const sequenceListed = [you('jot-q', 'Mod+G Q', true), you('jot-g', 'Mod+G', false)];
+		expect(overrideWarning({ command: 'jot-p', keys: 'Mod+G P' }, sequenceListed, sequence)).toBe(
+			'Mod+G is yours too, for jot-g; this binding would be the one in force.'
 		);
 	});
 

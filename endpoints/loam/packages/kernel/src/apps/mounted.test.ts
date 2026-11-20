@@ -426,6 +426,22 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 							oneOf: [{ type: 'object' }, { type: 'string' }],
 						},
 					},
+					// R11: a keyword it does not decide makes the command ineligible: Astra's `not`, and zod-to-json-schema's `$ref`
+					// to an object requiring a field (the fifth round's 3).
+					'a-not': {
+						mutation: false,
+						inputSchema: { type: 'object', properties: {}, not: { const: {} } },
+					},
+					'a-ref': {
+						mutation: false,
+						inputSchema: {
+							$ref: '#/definitions/Input',
+							definitions: {
+								Input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+							},
+							$schema: 'http://json-schema.org/draft-07/schema#',
+						},
+					},
 					'a-either': {
 						mutation: false,
 						inputSchema: {
@@ -445,6 +461,8 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		const free = names.find((name) => name.endsWith('free')) as string;
 		const either = names.find((name) => name.endsWith('either')) as string;
 		const one = names.find((name) => name.endsWith('one')) as string;
+		const not = names.find((name) => name.endsWith('not')) as string;
+		const ref = names.find((name) => name.endsWith('ref')) as string;
 
 		const written = await kernel.call('setting-set', {
 			section: 'loam.keybindings',
@@ -454,6 +472,8 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 				{ command: free, keys: 'Mod+Shift+F' },
 				{ command: either, keys: 'Mod+Shift+E' },
 				{ command: one, keys: 'Mod+Shift+O' },
+				{ command: not, keys: 'Mod+Shift+T' },
+				{ command: ref, keys: 'Mod+Shift+R' },
 			],
 			level: 'person',
 		});
@@ -471,6 +491,10 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 		expect(listed.data?.bindings.find(({ command }) => command === one)).toMatchObject({
 			active: true,
 		});
+		for (const undecided of [not, ref])
+			expect(listed.data?.bindings.find(({ command }) => command === undecided)).toMatchObject({
+				active: false,
+			});
 		expect(listed.data?.bindings.find(({ command }) => command === free)).toMatchObject({
 			active: true,
 			app: 'work',
