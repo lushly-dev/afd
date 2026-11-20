@@ -64,9 +64,10 @@ def test_setup_refuses_a_botcore_from_uvs_cache(
     exe = cache / "archive-v0" / "bin" / "botcore"
     exe.parent.mkdir(parents=True)
     exe.write_text("#!/bin/sh\n")
-    monkeypatch.setattr(setup.shutil, "which", lambda name: str(exe) if name == "botcore" else name)
-    monkeypatch.setattr(setup.subprocess, "run",
-                        lambda *a, **k: SimpleNamespace(stdout=str(cache), returncode=0))
+    real_which = setup.shutil.which
+    monkeypatch.setattr(setup.shutil, "which",
+                        lambda name: str(exe) if name == "botcore" else real_which(name))
+    monkeypatch.setattr(setup, "uv_cache_dir", lambda: str(cache))
     monkeypatch.chdir(repo["main"])
     result = asyncio.run(setup.disk_setup())
     assert not result.success and result.error.code == "DISK_TOOL_NOT_INSTALLED"

@@ -1,7 +1,8 @@
 """The only code in the disk-* commands that deletes files.
 
 `remove_inside(path, root)` deletes path only if it resolves inside root, never follows a
-symbolic link or a Windows junction (a link is removed as a link, its target untouched), clears
+symbolic link or a Windows junction (a link is removed as a link, its target untouched), never
+deletes through a folder holding `.git` (a nested checkout is left whole and reported), clears
 the read-only flag git puts on pack files, uses long-path syntax on Windows, and keeps going past
 a file it cannot delete, reporting it, so a partial strip is visible rather than fatal.
 """
@@ -136,6 +137,9 @@ def _remove_tree(top: str, removal: Removal) -> None:
         if _is_link(info):
             _remove_link(current, info, removal)
         elif stat.S_ISDIR(info.st_mode):
+            if os.path.lexists(os.path.join(current, ".git")):
+                removal.errors.append(f"{current}: holds a git checkout; left in place")
+                continue
             stack.append((current, True))
             try:
                 names = os.listdir(current)

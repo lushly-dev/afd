@@ -57,8 +57,9 @@ use the same commands it uses. Every one of them except `disk-reclaim --apply` a
 - **Repository**: a `[disk]` section in `botcore.toml`. `regenerable` lists paths inside a
   worktree that a build or install recreates; `{ path = "node_modules", when = "pressure" }`
   only goes under low space; `after_days` overrides the idle threshold; `copies` names
-  ignored files copied in at setup, such as `.env`. Patterns are read from origin's HEAD, so a
-  change takes effect once it merges, never from a branch under review.
+  ignored files copied in at setup, such as `.env`: a folder that is or may hold one is never
+  stripped. Patterns are read from origin's default branch (or `main`), so a change takes
+  effect once it merges, never from a branch under review.
 - **Machine**: `disk.toml` in the user config folder (`disk-status` prints its path), written
   by `disk-setup`: the repositories, watched volumes with their identifier and low-space
   threshold, and aged cache folders outside worktrees (`[[aged]] path = ".../*"`).

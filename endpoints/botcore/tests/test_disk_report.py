@@ -54,8 +54,12 @@ def age_worktree(main: Path, worktree: Path) -> None:
     admin = Path(git(worktree, "rev-parse", "--absolute-git-dir").strip())
     for name in ("HEAD", "index", "logs/HEAD", "ORIG_HEAD", "FETCH_HEAD"):
         age(admin / name)
-    for child in worktree.iterdir():
-        age(child)
+    for folder, dirs, files in os.walk(worktree):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in files + dirs:
+            path = Path(folder) / name
+            if not path.is_symlink():
+                age(path)
 
 
 @pytest.fixture
@@ -144,9 +148,10 @@ def test_idle_worktree_is_tier_1_and_fresh_one_waits(repo: dict[str, Path]) -> N
     assert by["old"]["idle_days"] >= 9
     strip = {s["path"]: s for s in by["old"]["strip"]}
     assert strip["dist"]["ready"] and strip["dist"]["bytes"] >= 20000
-    assert by["fresh"]["tier"] is None
+    assert by["fresh"]["tier"] == 3
     assert any(r.startswith("idle 0") for r in by["fresh"]["reasons"])
-    assert by["main"]["tier"] is None and "main checkout" in by["main"]["reasons"]
+    assert by["main"]["tier"] == 3 and "main checkout" in by["main"]["reasons"]
+    assert not any(s["ready"] for s in by["main"]["strip"])
     assert data["totals"]["tier1_worktrees"] == 1
 
 
@@ -198,10 +203,15 @@ def test_busy_and_kept_worktrees_are_not_stripped(
     age_worktree(repo["main"], fresh)
     busy = Processes(cwds=[str(old / "dist")], method="test", sees_cwds=True)
     monkeypatch.setattr(report, "running_processes", lambda: busy)
-    by = rows(run_report())
-    assert by["old"]["tier"] is None and by["old"]["busy"]
-    assert by["fresh"]["tier"] is None
+    data = run_report()
+    by = rows(data)
+    assert by["old"]["tier"] == 3 and by["old"]["busy"]
+    assert by["fresh"]["tier"] == 3
     assert "kept: parked for review" in by["fresh"]["reasons"]
+    # protected rows advertise nothing: no ready path, no reclaimable bytes
+    for row in (by["old"], by["fresh"]):
+        assert not any(s["ready"] for s in row["strip"]) and row["strip_ready_bytes"] == 0
+    assert data["totals"]["tier1_gb"] == 0
 
 
 def test_missing_worktree_is_report_only(repo: dict[str, Path]) -> None:
@@ -219,7 +229,8 @@ def test_unverified_volume_blocks_the_repository(repo: dict[str, Path]) -> None:
     age_worktree(repo["main"], repo["old"])
     data = run_report()
     assert "not mounted" in data["repos"][0]["blocked"]
-    assert rows(data)["old"]["tier"] is None
+    old = rows(data)["old"]
+    assert old["tier"] == 3 and old["strip"] == [] and old["reasons"][0].startswith("not inspected")
 
 
 # ── Settings ────────────────────────────────────────────────────────────────
@@ -231,7 +242,7 @@ def test_disk_settings_come_from_a_commit_not_the_working_tree(repo: dict[str, P
     (repo["old"] / "src").mkdir()
     age_worktree(main, repo["old"])
     data = run_report()
-    assert data["repos"][0]["config_ref"] == "HEAD"
+    assert data["repos"][0]["config_ref"] == "refs/heads/main"
     assert "src" not in {s["path"] for s in rows(data)["old"]["strip"]}
 
 

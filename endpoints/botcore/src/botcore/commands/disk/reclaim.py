@@ -84,13 +84,8 @@ class Run:
 
 
 def _strippable(row: dict, repo: dict) -> bool:
-    return bool(
-        row.get("exists")
-        and not row.get("main")
-        and row.get("locked") is None
-        and not row.get("busy")
-        and not repo.get("blocked")
-    )
+    """The report's own verdict: verified, unprotected, fully searched, with known activity."""
+    return bool(row.get("can_strip") and row.get("exists") and not repo.get("blocked"))
 
 
 def _volume_low(path: str, ctx: Context) -> bool:
@@ -104,7 +99,8 @@ def plan_strips(
     actions = []
     for repo in data["repos"]:
         for row in repo.get("worktrees", []):
-            if not _strippable(row, repo) or row.get("idle_days") is None:
+            idle = row.get("idle_seconds")
+            if not _strippable(row, repo) or idle is None:
                 continue
             if only_low and not _volume_low(row["path"], ctx):
                 continue
@@ -112,7 +108,7 @@ def plan_strips(
                 if item["when"] == "pressure" and not include_pressure:
                     continue
                 due = item["after_days"] if step is None else min(item["after_days"], step)
-                if row["idle_days"] < due:
+                if idle < due * DAY:
                     continue
                 actions.append(Action(
                     kind="strip",

@@ -218,7 +218,8 @@ What the job runs: checks free space and exits, unless a watched volume is low o
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
 low.
 
-Settings: the repository's `[disk]` in botcore.toml, read from origin's HEAD (never from a
-worktree's branch), and the machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
+Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
+origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the
+machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
 """,
 }

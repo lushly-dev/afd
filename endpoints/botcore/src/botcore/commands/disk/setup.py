@@ -83,7 +83,7 @@ def _watch_volumes(settings: MachineSettings) -> list[str]:
     """Record every volume holding a registered repository's worktrees or T3 Code's folders."""
     added = []
     known = {str(expand(v.mount)) for v in settings.volume}
-    paths: list[Path] = list(t3_worktree_roots(settings))
+    paths: list[Path] = list(t3_worktree_roots(settings)[0])
     for repo in settings.repos:
         try:
             _common, worktrees = list_worktrees(expand(repo))
@@ -104,18 +104,25 @@ def _watch_volumes(settings: MachineSettings) -> list[str]:
     return added
 
 
+def uv_cache_dir() -> str | None:
+    uv = shutil.which("uv")
+    if uv is None:
+        return None
+    try:
+        done = subprocess.run([uv, "cache", "dir"], capture_output=True, text=True, timeout=30,
+                              check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return done.stdout.strip() or None
+
+
 def _persistent_exe() -> tuple[str | None, str | None]:
     """The installed `botcore` the scheduler should run, or why there is none."""
     found = shutil.which("botcore")
     if found is None:
         return None, "no botcore on PATH"
     real = os.path.realpath(found)
-    cache = None
-    uv = shutil.which("uv")
-    if uv:
-        done = subprocess.run([uv, "cache", "dir"], capture_output=True, text=True, timeout=30,
-                              check=False)
-        cache = done.stdout.strip() or None
+    cache = uv_cache_dir()
     if cache and os.path.normcase(real).startswith(os.path.normcase(os.path.realpath(cache))):
         return None, "the botcore on PATH lives in uv's cache, which the job prunes"
     return found, None

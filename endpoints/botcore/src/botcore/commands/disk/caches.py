@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from botcore.commands.disk.scan import DAY, allocated, newest_mtime
+from botcore.commands.disk.scan import DAY, Processes, allocated, busy_reason, newest_mtime
 from botcore.commands.disk.settings import MachineSettings, expand
 
 
@@ -52,9 +52,26 @@ def pnpm_link_mode(checkouts: list[Path]) -> str:
     return "unknown"
 
 
+def pnpm_store_dir(checkouts: list[Path]) -> str | None:
+    """The store an install used, from its node_modules/.modules.yaml.
+
+    Read from the install's own record rather than `pnpm store path`, which writes probe files.
+    """
+    for checkout in checkouts:
+        manifest = checkout / "node_modules" / ".modules.yaml"
+        try:
+            text = manifest.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            key, _, value = line.partition(":")
+            if key.strip() == "storeDir" and value.strip():
+                return value.strip().strip("'\"")
+    return None
+
+
 def _pnpm(repos: list[Path], deadline: float) -> dict | None:
-    cwd = repos[0] if repos else None
-    store = _tool_out(["pnpm", "store", "path"], cwd)
+    store = pnpm_store_dir(repos)
     if store is None:
         return None
     mode = pnpm_link_mode(repos)
@@ -132,35 +149,66 @@ def report_caches(settings: MachineSettings, repos: list[Path], deadline: float)
     return rows
 
 
-def unsafe_aged_root(path: Path) -> str | None:
-    """Why an [[aged]] path may never be cleared, or None."""
-    resolved = Path(os.path.realpath(path))
-    home = Path(os.path.realpath(Path.home()))
-    if resolved.parent == resolved:
+def _key(path: Path | str) -> str:
+    return os.path.normcase(os.path.realpath(os.path.abspath(str(path))))
+
+
+def _within(inner: str, outer: str) -> bool:
+    return inner == outer or inner.startswith(outer.rstrip(os.sep) + os.sep)
+
+
+def unsafe_aged_root(path: Path, protected: list[Path] | None = None) -> str | None:
+    """Why an [[aged]] path may never be cleared, or None.
+
+    Never a filesystem root, the home folder or its ancestors, and never a folder that is,
+    holds or sits inside a checkout, a repository's git folder or T3 Code's worktree folder:
+    those have their own rules.
+    """
+    resolved = _key(path)
+    if os.path.dirname(resolved) == resolved:
         return "a filesystem root"
-    if resolved == home or str(home).startswith(str(resolved) + os.sep):
+    home = _key(Path.home())
+    if _within(home, resolved):
         return "the home folder or one of its ancestors"
+    for item in protected or []:
+        other = _key(item)
+        if _within(other, resolved) or _within(resolved, other):
+            return f"it is, holds or sits inside {item}"
     return None
 
 
-def _aged_items(pattern: str) -> list[Path]:
-    if pattern.endswith("/*") or pattern.endswith("\\*"):
-        parent = expand(pattern[:-2])
-        try:
-            return sorted(Path(e.path) for e in os.scandir(parent) if not e.is_symlink())
-        except OSError:
-            return []
-    path = expand(pattern)
-    return [path] if path.exists() else []
+def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | None]:
+    """The entries an [[aged]] pattern names, or why the pattern itself is refused."""
+    text = pattern.rstrip()
+    wildcard = text.endswith("/*") or text.endswith("\\*")
+    base = expand(text[:-2] if wildcard else text)
+    if not text[:-2 if wildcard else None].strip() or not base.is_absolute():
+        return [], "an [[aged]] path must be absolute"
+    refused = unsafe_aged_root(base, protected)
+    if refused:
+        return [], refused
+    if not wildcard:
+        return ([base] if base.exists() else []), None
+    try:
+        return sorted(Path(e.path) for e in os.scandir(base) if not e.is_symlink()), None
+    except OSError:
+        return [], None
 
 
-def report_aged(settings: MachineSettings, now: float, deadline: float) -> list[dict]:
+def report_aged(
+    settings: MachineSettings, now: float, deadline: float, protected: list[Path] | None = None,
+    processes: Processes | None = None,
+) -> list[dict]:
     """Each [[aged]] folder's entries, their ages and sizes, and which are past a limit."""
     rows = []
+    protected = protected or []
     for aged in settings.aged:
         entries = []
-        for item in _aged_items(aged.path):
-            refused = unsafe_aged_root(item)
+        items, refused_pattern = _aged_items(aged.path, protected)
+        for item in items:
+            refused = unsafe_aged_root(item, protected)
+            if refused is None and processes is not None:
+                refused = busy_reason(item, processes)
             modified = newest_mtime(item)
             entries.append({
                 "path": str(item),
@@ -174,6 +222,7 @@ def report_aged(settings: MachineSettings, now: float, deadline: float) -> list[
         rows.append({
             "name": f"aged:{aged.path}",
             "path": aged.path,
+            "refused": refused_pattern,
             "max_age_days": aged.max_age_days,
             "max_gb": aged.max_gb,
             "entries": entries,

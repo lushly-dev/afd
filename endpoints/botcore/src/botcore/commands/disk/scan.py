@@ -101,6 +101,7 @@ class VolumeState:
     free_bytes: int | None
     total_bytes: int | None
     low_space_gb: float | None
+    error: str | None = None
 
     @property
     def verified(self) -> bool:
@@ -126,18 +127,30 @@ class VolumeState:
             "total_gb": _gb(self.total_bytes),
             "low_space_gb": self.low_space_gb,
             "below_threshold": self.low,
+            "error": self.error,
         }
 
 
 def volume_state(mount: Path, expected_id: str | None, low_space_gb: float | None) -> VolumeState:
+    """Free space and identity. A drive letter on Windows counts as mounted only if readable."""
     mounted = os.path.ismount(mount)
     free = total = None
     found = None
+    problem = None
     if mounted:
-        usage = shutil.disk_usage(mount)
-        free, total = usage.free, usage.total
-        found = volume_id(mount) if expected_id is not None else None
-    return VolumeState(str(mount), mounted, expected_id, found, free, total, low_space_gb)
+        try:
+            usage = shutil.disk_usage(mount)
+            free, total = usage.free, usage.total
+        except PermissionError:
+            problem = "no permission to read the volume"
+            mounted = False
+        except OSError as exc:
+            problem = f"not readable: {exc.strerror or exc}"
+            mounted = False
+    if mounted and expected_id is not None:
+        found = volume_id(mount)
+    state = VolumeState(str(mount), mounted, expected_id, found, free, total, low_space_gb, problem)
+    return state
 
 
 def _gb(value: int | None) -> float | None:
@@ -149,15 +162,20 @@ def _gb(value: int | None) -> float | None:
 
 @dataclass
 class Processes:
-    """Working directories and command lines of running processes."""
+    """Working directories and command lines of running processes.
+
+    `ok` is False when listing them failed: nothing may then be called unused.
+    """
 
     cwds: list[str] = field(default_factory=list)
     cmdlines: list[str] = field(default_factory=list)
     method: str = "none"
     sees_cwds: bool = False
+    ok: bool = True
 
 
-def _run_lines(args: list[str], timeout: float = 60) -> list[str] | None:
+def _run_lines(args: list[str], timeout: float = 60, ok_codes: tuple[int, ...] = (0,)):
+    """A command's output lines, or None when it could not run or failed."""
     try:
         done = subprocess.run(
             args, capture_output=True, text=True, encoding="utf-8",
@@ -165,14 +183,17 @@ def _run_lines(args: list[str], timeout: float = 60) -> list[str] | None:
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
+    if done.returncode not in ok_codes:
+        return None
     return done.stdout.splitlines()
 
 
 def _darwin_processes() -> Processes:
-    lines = _run_lines(["lsof", "-a", "-d", "cwd", "-Fn", "-w"])
-    cmds = _run_lines(["ps", "-axww", "-o", "command="]) or []
-    if lines is None:
-        return Processes(cmdlines=cmds, method="ps")
+    # lsof exits 1 when some processes cannot be inspected; its output is still complete for ours
+    lines = _run_lines(["lsof", "-a", "-d", "cwd", "-Fn", "-w"], ok_codes=(0, 1))
+    cmds = _run_lines(["ps", "-axww", "-o", "command="])
+    if cmds is None or lines is None or not lines:
+        return Processes(cmdlines=cmds or [], method="lsof+ps", ok=False)
     cwds = [line[1:] for line in lines if line.startswith("n")]
     return Processes(cwds, cmds, "lsof+ps", True)
 
@@ -180,6 +201,8 @@ def _darwin_processes() -> Processes:
 def _linux_processes() -> Processes:
     cwds: list[str] = []
     cmds: list[str] = []
+    if not Path("/proc/self/cwd").exists():
+        return Processes(method="proc", ok=False)
     for entry in Path("/proc").glob("[0-9]*"):
         try:
             cwds.append(os.readlink(entry / "cwd"))
@@ -194,10 +217,15 @@ def _linux_processes() -> Processes:
 
 
 def _windows_processes() -> Processes:
-    script = "Get-CimInstance Win32_Process | ForEach-Object { $_.CommandLine }"
-    cmds = _run_lines(["powershell", "-NoProfile", "-NonInteractive", "-Command", script]) or []
+    script = (
+        "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+        "Get-CimInstance Win32_Process | ForEach-Object { $_.CommandLine }"
+    )
+    cmds = _run_lines(["powershell", "-NoProfile", "-NonInteractive", "-Command", script])
     # Windows does not expose another process's working directory without native calls;
     # a folder in use as one cannot be deleted there, which a strip reports as partial.
+    if not cmds:
+        return Processes(method="command-lines", ok=False)
     return Processes(cmdlines=[c for c in cmds if c.strip()], method="command-lines")
 
 
@@ -209,22 +237,28 @@ def running_processes() -> Processes:
     return _linux_processes()
 
 
-def _norm(path: str) -> str:
-    text = os.path.normpath(path)
-    return text.lower() if os.name == "nt" else text
+def busy_reason(worktree: Path, processes: Processes, windows: bool | None = None) -> str | None:
+    """Why a process is or may be using worktree, or None.
 
+    On Windows, paths compare case-insensitively and with either slash, since tools write
+    both `D:\\work\\repo` and `D:/work/repo`.
+    """
+    if not processes.ok:
+        return "running processes could not be listed"
+    win = os.name == "nt" if windows is None else windows
 
-def busy_reason(worktree: Path, processes: Processes) -> str | None:
-    """Why a process is using worktree, or None."""
-    root = _norm(str(worktree))
+    def norm(text: str) -> str:
+        return text.replace("/", "\\").lower() if win else text
+
+    sep = "\\" if win else "/"
+    root = norm(os.path.normpath(str(worktree)) if not win else str(worktree)).rstrip(sep)
     for cwd in processes.cwds:
-        candidate = _norm(cwd)
-        if candidate == root or candidate.startswith(root + os.sep):
+        candidate = norm(cwd).rstrip(sep)
+        if candidate == root or candidate.startswith(root + sep):
             return "a process's working directory is inside it"
-    flags = re.IGNORECASE if os.name == "nt" else 0
-    pattern = re.compile(re.escape(str(worktree)) + r"(?=$|[/\\\s\"'])", flags)
+    pattern = re.compile(re.escape(root) + r"(?=$|[/\\\s\"'])")
     for line in processes.cmdlines:
-        if pattern.search(line):
+        if pattern.search(norm(line)):
             return "a running process names it on its command line"
     return None
 
@@ -313,12 +347,23 @@ def _match(rel: str, compiled: list[tuple[re.Pattern[str], DiskRegenerable]]):
     return None
 
 
+def _holds_checkout(folder: str) -> bool:
+    return os.path.lexists(os.path.join(folder, ".git"))
+
+
 def find_candidates(
     worktree: Path, entries: list[DiskRegenerable], deadline: float,
 ) -> tuple[list[Candidate], bool]:
-    """Paths under worktree that entries name: (candidates, whether the walk finished)."""
+    """Paths under worktree that entries name: (candidates, whether the walk saw everything).
+
+    Never enters package folders, links or a folder holding another checkout (a nested
+    worktree such as `.claude/worktrees/x` is its own worktree, with its own age and lock). A
+    folder that could not be read, or a depth cutoff, makes the walk incomplete, and an
+    incomplete walk must not make anything ready: a recent build may be in what was missed.
+    """
     compiled = [(compile_pattern(e.path), e) for e in entries]
     found: list[Candidate] = []
+    complete = True
     stack: list[tuple[Path, str, int]] = [(worktree, "", 0)]
     while stack:
         if time.monotonic() > deadline:
@@ -327,19 +372,30 @@ def find_candidates(
         try:
             children = list(os.scandir(folder))
         except OSError:
+            complete = False
             continue
         for child in children:
             rel = f"{prefix}{child.name}"
             link = is_link(child)
             folder_like = not link and child.is_dir(follow_symlinks=False)
+            nested = folder_like and _holds_checkout(child.path)
             entry = _match(rel, compiled)
             if entry is not None:
-                kind = "link" if link else ("dir" if folder_like else "file")
+                if link:
+                    kind = "link"
+                elif nested:
+                    kind = "checkout"
+                else:
+                    kind = "dir" if folder_like else "file"
                 found.append(Candidate(rel, entry, kind))
                 continue
-            if folder_like and child.name not in NEVER_ENTER and depth < MAX_DEPTH:
-                stack.append((Path(child.path), rel + "/", depth + 1))
-    return found, True
+            if not folder_like or nested or child.name in NEVER_ENTER:
+                continue
+            if depth >= MAX_DEPTH:
+                complete = False
+                continue
+            stack.append((Path(child.path), rel + "/", depth + 1))
+    return found, complete
 
 
 # ── Sizes ───────────────────────────────────────────────────────────────────

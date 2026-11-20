@@ -1,4 +1,8 @@
-"""The git reads the disk-* commands need: worktree lists, admin folders and status."""
+"""The git reads the disk-* commands need: worktree lists, admin folders, status and tracked files.
+
+Output is read as bytes and decoded with surrogateescape, so a NUL-delimited path is never
+altered by newline translation.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-GIT_TIMEOUT = 120
+GIT_TIMEOUT = 120.0
 
 
 class GitError(Exception):
@@ -21,24 +25,30 @@ def _env() -> dict[str, str]:
     return env
 
 
-def git_out(cwd: Path, *args: str, timeout: float = GIT_TIMEOUT) -> str:
-    """Run git in cwd and return stdout; raise GitError on failure."""
+def _decode(raw: bytes) -> str:
+    return raw.decode("utf-8", errors="surrogateescape")
+
+
+def git_out(
+    cwd: Path, *args: str, timeout: float = GIT_TIMEOUT, stdin: str | None = None,
+    ok_codes: tuple[int, ...] = (0,),
+) -> str:
+    """Run git in cwd and return stdout; raise GitError on failure or timeout."""
     try:
         done = subprocess.run(
             ["git", "-C", str(cwd), *args],
+            input=None if stdin is None else stdin.encode("utf-8", errors="surrogateescape"),
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="surrogateescape",
             env=_env(),
-            timeout=timeout,
+            timeout=max(1.0, timeout),
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise GitError(f"git {' '.join(args)}: {exc}") from exc
-    if done.returncode != 0:
-        raise GitError(f"git {' '.join(args)}: {done.stderr.strip().splitlines()[:1]}")
-    return done.stdout
+        raise GitError(f"git {' '.join(args[:3])}: {exc}") from exc
+    if done.returncode not in ok_codes:
+        first = _decode(done.stderr).strip().splitlines()
+        raise GitError(f"git {' '.join(args[:3])}: {first[0] if first else 'failed'}")
+    return _decode(done.stdout)
 
 
 @dataclass
@@ -102,25 +112,30 @@ def common_dir(path: Path) -> Path:
     return Path(out)
 
 
+def path_key(path: Path | str) -> str:
+    """A comparison key: absolute, resolved where it exists, case-folded where paths are."""
+    text = os.path.realpath(os.path.abspath(str(path)))
+    return os.path.normcase(text)
+
+
 def _admin_map(common: Path) -> dict[str, Path]:
-    """Map each linked worktree's path (as its gitdir file names it) to its admin folder."""
+    """Map each linked worktree's folder (as its gitdir file names it) to its admin folder.
+
+    The gitdir file may hold a relative path (`worktree.useRelativePaths`): it is resolved
+    against the admin folder, as git does.
+    """
     found: dict[str, Path] = {}
     base = common / "worktrees"
     if not base.is_dir():
         return found
     for admin in base.iterdir():
-        gitdir = admin / "gitdir"
         try:
-            target = gitdir.read_text(encoding="utf-8").strip()
+            target = (admin / "gitdir").read_text(encoding="utf-8").strip()
         except OSError:
             continue
-        found[_key(Path(target).parent)] = admin
+        gitfile = Path(target) if os.path.isabs(target) else admin / target
+        found[path_key(os.path.normpath(gitfile.parent))] = admin
     return found
-
-
-def _key(path: Path) -> str:
-    text = os.path.normpath(str(path))
-    return text.lower() if os.name == "nt" else text
 
 
 def list_worktrees(checkout: Path) -> tuple[Path, list[Worktree]]:
@@ -129,8 +144,32 @@ def list_worktrees(checkout: Path) -> tuple[Path, list[Worktree]]:
     entries = parse_worktree_list(git_out(checkout, "worktree", "list", "--porcelain", "-z"))
     admins = _admin_map(common)
     for entry in entries:
-        entry.admin = common if entry.is_main else admins.get(_key(entry.path))
+        entry.admin = common if entry.is_main else admins.get(path_key(entry.path))
     return common, entries
+
+
+def verify_checkout(worktree: Worktree, common: Path) -> str | None:
+    """Why the folder at worktree.path is not the checkout git records there, or None.
+
+    A registered path replaced by a link or by another repository's checkout would otherwise be
+    inspected with this worktree's age and lock.
+    """
+    if os.path.islink(worktree.path):
+        return "the registered folder is now a symbolic link"
+    try:
+        top = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--show-toplevel")
+        own = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--git-dir")
+        shared = git_out(worktree.path, "rev-parse", "--path-format=absolute",
+                         "--git-common-dir")
+    except GitError as exc:
+        return f"git cannot read it: {exc}"
+    if path_key(top.strip()) != path_key(worktree.path):
+        return "git says the folder belongs to another checkout"
+    if path_key(shared.strip()) != path_key(common):
+        return "the folder belongs to another repository"
+    if worktree.admin is None or path_key(own.strip()) != path_key(worktree.admin):
+        return "git's record of this worktree does not match the folder"
+    return None
 
 
 @dataclass
@@ -151,11 +190,11 @@ _OPERATIONS = {
 }
 
 
-def status(worktree: Path, admin: Path | None) -> Status:
+def status(worktree: Path, admin: Path | None, timeout: float = GIT_TIMEOUT) -> Status:
     """Changed and untracked paths, and any git operation in progress."""
     out = git_out(
         worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all",
-        "--ignore-submodules=none",
+        "--ignore-submodules=none", timeout=timeout,
     )
     changed: list[str] = []
     records = out.split("\0")
@@ -177,40 +216,55 @@ def status(worktree: Path, admin: Path | None) -> Status:
     return Status(changed, operation)
 
 
-def ignored(worktree: Path, paths: list[str]) -> set[str]:
+def ignored(worktree: Path, paths: list[str], timeout: float = GIT_TIMEOUT) -> set[str]:
     """The subset of paths (relative, forward slashes) that git ignores."""
     if not paths:
         return set()
+    out = git_out(worktree, "check-ignore", "-z", "--stdin", stdin="\0".join(paths) + "\0",
+                  timeout=timeout, ok_codes=(0, 1))
+    return {p for p in out.split("\0") if p}
+
+
+def case_insensitive(folder: Path) -> bool:
+    """Whether the filesystem holding folder treats names case-insensitively."""
+    probe = Path(str(folder).swapcase()) if str(folder) != str(folder).swapcase() else None
+    if probe is None:
+        return os.name == "nt"
     try:
-        done = subprocess.run(
-            ["git", "-C", str(worktree), "check-ignore", "-z", "--stdin"],
-            input="\0".join(paths) + "\0",
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="surrogateescape",
-            env=_env(),
-            timeout=GIT_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise GitError(f"git check-ignore: {exc}") from exc
-    if done.returncode not in (0, 1):
-        raise GitError(f"git check-ignore: {done.stderr.strip()[:200]}")
-    return {p for p in done.stdout.split("\0") if p}
+        return os.path.samefile(folder, probe)
+    except OSError:
+        return False
 
 
-def tracked_under(worktree: Path, paths: list[str]) -> set[str]:
-    """The subset of paths that hold at least one tracked file."""
+def tracked_files(worktree: Path, timeout: float = GIT_TIMEOUT) -> list[str]:
+    """Every path in the worktree's index (files and submodule entries)."""
+    out = git_out(worktree, "ls-files", "-z", "--cached", timeout=timeout)
+    return [f for f in out.split("\0") if f]
+
+
+def tracked_under(worktree: Path, paths: list[str], files: list[str] | None = None,
+                  fold: bool | None = None) -> set[str]:
+    """The subset of paths that are, or hold, a tracked path.
+
+    Compared case-insensitively where the filesystem is, so `BUILD` counts as holding the
+    tracked `build/keep.txt` on a default macOS or Windows volume.
+    """
     if not paths:
         return set()
-    files: list[str] = []
-    for start in range(0, len(paths), 100):  # stay well inside Windows' command-line limit
-        out = git_out(worktree, "ls-files", "-z", "--", *paths[start : start + 100])
-        files += [f for f in out.split("\0") if f]
+    if files is None:
+        files = tracked_files(worktree)
+    if fold is None:
+        fold = case_insensitive(worktree)
+    known: set[str] = set()
+    for name in files:
+        key = name.casefold() if fold else name
+        known.add(key)
+        parts = key.split("/")
+        for depth in range(1, len(parts)):
+            known.add("/".join(parts[:depth]))
     hits: set[str] = set()
     for path in paths:
-        prefix = path.rstrip("/") + "/"
-        if any(f == path or f.startswith(prefix) for f in files):
+        key = path.rstrip("/")
+        if (key.casefold() if fold else key) in known:
             hits.add(path)
     return hits

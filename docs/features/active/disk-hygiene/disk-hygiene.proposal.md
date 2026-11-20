@@ -230,6 +230,13 @@ removal is recorded, and `disk-restore` recreates the worktree at the same path.
   including a home folder or a drive root.
 - **Delete links, never what they point to.** Symlinks and Windows junctions are removed as
   links. pnpm's `node_modules` on Windows is made of junctions.
+- **Never delete through a checkout.** A folder holding `.git`, such as a Claude Code worktree
+  under `.claude/worktrees/`, is its own worktree with its own age and lock: a pattern walk
+  never enters it, a folder holding a registered checkout at any depth is refused, and the
+  deletion code itself stops at any folder holding `.git`.
+- **Verify what a folder is.** A registered worktree folder replaced by a link or by another
+  repository's checkout is not inspected; a folder that cannot be read is not "missing"; a
+  missing folder whose parent is gone too blocks its repository (an unplugged drive).
 - **No copies of rebuildable output.** There are no backups or payloads. A worktree holding unique
   work is never touched, so there is nothing to back up.
 - **One run at a time per machine**, enforced with a lock file.

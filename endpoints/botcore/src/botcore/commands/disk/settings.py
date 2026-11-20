@@ -129,7 +129,14 @@ class RepoDiskConfig:
     error: str | None = None
 
 
-_CONFIG_REFS = ("refs/remotes/origin/HEAD", "refs/remotes/origin/main", "HEAD")
+# A landing branch, never the main checkout's HEAD, which may be a feature branch
+_CONFIG_REFS = (
+    "refs/remotes/origin/HEAD",
+    "refs/remotes/origin/main",
+    "refs/remotes/origin/master",
+    "refs/heads/main",
+    "refs/heads/master",
+)
 
 
 def _show(main: Path, ref: str, name: str) -> str | None:
@@ -159,7 +166,7 @@ def _section(main: Path, ref: str) -> tuple[dict | None, str | None]:
 
 
 def read_repo_disk_config(main: Path) -> RepoDiskConfig:
-    """Read [disk] from the first ref that exists: origin's HEAD, origin/main, then HEAD."""
+    """Read [disk] from the first landing ref that exists: origin's HEAD, origin/main, main."""
     for ref in _CONFIG_REFS:
         try:
             git_out(main, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
@@ -172,12 +179,15 @@ def read_repo_disk_config(main: Path) -> RepoDiskConfig:
         if table is None:
             return RepoDiskConfig(DiskConfig(), ref, None)
         try:
-            config = DiskConfig(**table.get("disk", {}))
+            config = DiskConfig.model_validate(table.get("disk", {}))
         except ValidationError as exc:
-            message = f"[disk] at {ref} is not valid for this botcore: {exc.errors()[0]['msg']}"
+            first = exc.errors()[0]
+            where = ".".join(str(part) for part in first.get("loc", ())) or "[disk]"
+            message = f"[disk] at {ref} is not valid for this botcore: {where}: {first['msg']}"
             return RepoDiskConfig(None, ref, source, message)
         return RepoDiskConfig(config, ref, source)
-    return RepoDiskConfig(None, None, None, "no commit to read [disk] from")
+    return RepoDiskConfig(None, None, None, "no landing branch (origin's HEAD, origin/main or "
+                          "main) to read [disk] from")
 
 
 def t3_settings_file(settings: MachineSettings) -> Path | None:
@@ -192,21 +202,26 @@ def t3_settings_file(settings: MachineSettings) -> Path | None:
     return Path.home() / ".t3" / "userdata" / "settings.json"
 
 
-def t3_worktree_roots(settings: MachineSettings) -> list[Path]:
-    """T3 Code's managed worktree folders: its default, current and previous ones.
+def t3_worktree_roots(settings: MachineSettings) -> tuple[list[Path], bool]:
+    """T3 Code's managed worktree folders, and whether its settings could be read.
 
-    Mirrors T3 Code's own resolution: `~` expands, relative and filesystem-root values are
-    ignored. T3 Code's storage cleanup removes the worktrees under these folders.
+    Mirrors T3 Code's own resolution: its default folder always counts, `~` expands, and
+    relative and filesystem-root values are ignored. T3 Code's storage cleanup removes the
+    worktrees under these folders. Paths are resolved through links.
     """
     path = t3_settings_file(settings)
-    if path is None or not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    if path is None:
+        return [], True
     home = Path.home()
-    values = [str(home / ".t3" / "worktrees"), data.get("worktreesDirectory") or ""]
+    values = [str(home / ".t3" / "worktrees")]
+    read_ok = True
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        data, read_ok = {}, False
+    if not isinstance(data, dict):
+        data, read_ok = {}, False
+    values.append(data.get("worktreesDirectory") or "")
     values += [v for v in data.get("previousWorktreesDirectories") or [] if isinstance(v, str)]
     roots: list[Path] = []
     for value in values:
@@ -215,6 +230,7 @@ def t3_worktree_roots(settings: MachineSettings) -> list[Path]:
         expanded = Path(os.path.expanduser(value))
         if not expanded.is_absolute() or expanded.parent == expanded:
             continue
-        if expanded not in roots:
-            roots.append(expanded)
-    return roots
+        resolved = Path(os.path.realpath(expanded))
+        if resolved.parent != resolved and resolved not in roots:
+            roots.append(resolved)
+    return roots, read_ok
