@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePath
 
 import pytest
 
@@ -1045,12 +1046,13 @@ def job_env(run) -> list[str]:
 
 def test_each_slot_builds_rust_in_its_own_directory_removed_when_it_takes_another_branch(lane):
     """lushly-dev/afd#1641: Rust build output in the slots reached 51 GB on the lane host."""
+    target = str(PurePath("slots/.build/1"))
     lane.change_world(outcomes={"validate": {"fix/retry-backoff": "running"}})
     run_steps(lane, 2)
-    assert job_env(lane) == ["slots/.build/1"]  # The first job finished; this is the second.
-    assert lane.world_data()["removedBuilds"] == ["slots/.build/1", "slots/.build/1"]
+    assert job_env(lane) == [target]  # The first job finished; this is the second.
+    assert lane.world_data()["removedBuilds"] == [target, target]
     assert lane.state()["lane"]["slotBuilds"] == {
-        "1": {"branch": "fix/retry-backoff", "path": "slots/.build/1"}
+        "1": {"branch": "fix/retry-backoff", "path": target}
     }
 
 
@@ -1058,37 +1060,36 @@ def test_host_build_dir_puts_the_build_output_on_another_volume(make_run):
     lane = make_run("running", dials={"host.buildDir": "/Volumes/Dev"})
     lane.change_world(outcomes={"validate": {"feat/export-csv": "running"}})
     run_steps(lane)
-    assert job_env(lane) == ["/Volumes/Dev/slots-build/1"]
+    assert job_env(lane) == [str(PurePath("/Volumes/Dev/slots-build/1"))]
 
 
 def test_a_slot_keeps_its_build_for_the_same_branch_and_drops_it_when_the_dial_moves(make_run):
     from botcore_factory.lane import Step
 
+    target = str(PurePath("slots/.build/1"))
+    on_volume = str(PurePath("/Volumes/Dev/slots-build/1"))
     run = make_run("running")
     factory = run.factory()
     with factory.store.update("test") as state:
         slots = Step(factory, state)
-        assert slots.slot_build("1", "fix/a") == "slots/.build/1"
-        assert slots.slot_build("1", "fix/a") == "slots/.build/1"  # Kept: nothing removed.
+        assert slots.slot_build("1", "fix/a") == target
+        assert slots.slot_build("1", "fix/a") == target  # Kept: nothing removed.
         state["dials"]["host.buildDir"] = "/Volumes/Dev"
-        assert slots.slot_build("1", "fix/a") == "/Volumes/Dev/slots-build/1"
-    assert run.world_data()["removedBuilds"] == [
-        "slots/.build/1",
-        "slots/.build/1",
-        "/Volumes/Dev/slots-build/1",
-    ]
+        assert slots.slot_build("1", "fix/a") == on_volume
+    assert run.world_data()["removedBuilds"] == [target, target, on_volume]
 
 
 def test_a_short_build_volume_pauses_the_lane_and_names_it(make_run):
+    build_root = str(PurePath("/Volumes/Dev/slots-build"))
     lane = make_run(
         "running",
         dials={"host.buildDir": "/Volumes/Dev"},
-        host={"freeDiskGb": 200, "freeDiskGbAt": {"/Volumes/Dev/slots-build": 5}},
+        host={"freeDiskGb": 200, "freeDiskGbAt": {build_root: 5}},
     )
     run_steps(lane)
     assert "validation-started" not in kinds(lane)
     assert "5 GB of disk is free" in lane.state()["lane"]["pauseReason"]
-    assert "/Volumes/Dev/slots-build" in lane.state()["lane"]["pauseReason"]
+    assert build_root in lane.state()["lane"]["pauseReason"]
 
 
 def test_a_build_dir_that_is_not_mounted_pauses_the_lane(make_run):
@@ -1152,4 +1153,5 @@ def test_the_build_dir_is_never_the_slots_own_directory(make_run):
 
     run = make_run("running")
     root = build_dir(run.factory(), {"host.buildDir": "/Volumes/Dev"}, "1")
-    assert root == "/Volumes/Dev/slots-build/1" and not root.startswith("/Volumes/Dev/slots/")
+    assert root == str(PurePath("/Volumes/Dev/slots-build/1"))
+    assert PurePath("/Volumes/Dev/slots") not in PurePath(root).parents

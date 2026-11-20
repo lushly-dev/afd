@@ -29,6 +29,13 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### Native paths in the build-directory tests, 2026-11-20
+
+Five Windows failures in the tests for [#1641](https://github.com/lushly-dev/afd/issues/1641) came
+from comparing native paths with Unix path strings. The low-disk fixture also keyed its 5 GB reading
+with a Unix path, so Windows got the 200 GB fallback. The tests now use native paths in both the
+expectations and fixture data. All five passed on Windows 11 after the change.
+
 #### Slots build Rust off the system disk, and a full disk counts no ejection, 2026-11-19
 
 Branch `fleet/lane-builddir-foreman-1641-1633`, for
