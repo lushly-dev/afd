@@ -777,6 +777,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		command,
 		copied,
 		async begin() {
+			// A kernel disposed before stage B reached here: nothing to hear (step 7's fifth round, 1).
+			if (stopped) return;
 			lastHeard ??= current();
 			lastSession ??= sessionId();
 			subscription ??= deps.auth.onAuthStateChange(heard);

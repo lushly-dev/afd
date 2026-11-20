@@ -580,6 +580,7 @@ export interface ManifestV2 {
 			keybindings?: {
 				chord: string;
 				command: string;
+				when?: string;
 			}[];
 		};
 		layout?: {

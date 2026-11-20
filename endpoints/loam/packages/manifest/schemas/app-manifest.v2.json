@@ -163,6 +163,7 @@
 							"experiment",
 							"notification",
 							"limit",
+							"keybinding",
 							"event",
 							"account",
 							"persona",
@@ -925,10 +926,13 @@
 			"properties": {
 				"chord": {
 					"type": "string",
-					"pattern": "^(?:Mod\\+(?:Shift\\+)?(?:Alt\\+)?[A-Z0-9]|(?:Mod\\+)?(?:Shift\\+)?(?:Alt\\+)?F(?:[1-9]|1[0-9]|2[0-4]))$"
+					"pattern": "^(?:Mod\\+(?:Shift\\+)?(?:Alt\\+)?[A-Z0-9]|(?:Mod\\+)?(?:Shift\\+)?(?:Alt\\+)?F(?:[1-9]|1[0-9]|2[0-4])|(?:Mod\\+)?(?:Shift\\+)?(?:Alt\\+)?(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])) (?:Mod\\+)?(?:Shift\\+)?(?:Alt\\+)?(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])))$"
 				},
 				"command": {
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				},
+				"when": {
+					"type": "string"
 				}
 			},
 			"required": ["chord", "command"],

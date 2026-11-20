@@ -179,14 +179,11 @@ async fn model_cancel<R: Runtime>(
     Ok(())
 }
 
-/// "Command palette" answers as Mod+K does: a key event the shell's keyboard handler turns into
-/// `palette-open`. Fixed text, with nothing formatted into it.
+/// "Command palette" answers as Mod+K does, through the shell's own `openPalette`, which calls `palette-open`. A
+/// script-made key would not do: the shell turns only a person's own key presses into calls (phase 4 specification,
+/// 8.3, step 7's R6). Fixed text, with nothing formatted into it.
 fn palette_script() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',metaKey:true,bubbles:true,cancelable:true}))"
-    } else {
-        "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',ctrlKey:true,bubbles:true,cancelable:true}))"
-    }
+    "document.querySelector('loam-shell')?.openPalette()"
 }
 
 /// "Reload". On WebView2 the address follows the shell's state, so a reload restores it. On a `loam:` document

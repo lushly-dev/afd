@@ -184,7 +184,6 @@ export class LoamEditorFrame extends FASTElement {
 		super.connectedCallback();
 		this.addEventListener(EDITOR_DIRTY_EVENT, this.#onDirty);
 		this.addEventListener(EDITOR_SELECTION_EVENT, this.#onSelection);
-		this.addEventListener('loam-editor-save', this.#onSave);
 	}
 
 	/**
@@ -196,18 +195,12 @@ export class LoamEditorFrame extends FASTElement {
 	override disconnectedCallback(): void {
 		this.removeEventListener(EDITOR_DIRTY_EVENT, this.#onDirty);
 		this.removeEventListener(EDITOR_SELECTION_EVENT, this.#onSelection);
-		this.removeEventListener('loam-editor-save', this.#onSave);
 		super.disconnectedCallback();
 	}
 
 	/** An embedded document's editor events are its own, never this tab's (9.2; T-S1). */
 	#embedded = (event: Event) =>
 		event.composedPath().some((node) => (node as Element).localName === 'loam-embed');
-
-	#onSave = (event: Event) => {
-		event.stopPropagation();
-		if (!this.#embedded(event)) this.listener?.saveAsked(this);
-	};
 
 	#onDirty = (event: Event) => {
 		event.stopPropagation();
@@ -238,6 +231,8 @@ export class LoamEditorFrame extends FASTElement {
 	openView(view: LoamViewFrame): void {
 		this.kind = 'view';
 		this.#mount = view;
+		// Its own Mod+S, inside the frame (5.6, S7): asked of this editor through a callback, never an event.
+		view.onSaveRequest = () => this.listener?.saveAsked(this);
 		this.append(view);
 		this.state = 'ready';
 	}

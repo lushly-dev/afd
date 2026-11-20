@@ -7879,6 +7879,172 @@
 			"accepted": true
 		},
 		{
+			"id": "chord-reserved-Mod+Alt+P",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+Alt+P"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-sequence-v2",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Mod+G H"
+			},
+			"accepted": true
+		},
+		{
+			"id": "chord-sequence-v1",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+G H"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "manifest_version = 2"
+		},
+		{
+			"id": "chord-when-v1",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/when": "main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.keybindings[0].when",
+			"suggestion": "manifest_version = 2"
+		},
+		{
+			"id": "chord-sequence-reserved",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Mod+K H"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "begin the sequence"
+		},
+		{
+			"id": "chord-sequence-without-mod",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Shift+G H"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEYBINDING_KEYS",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "Mod chord"
+		},
+		{
+			"id": "chord-sequence-three",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Mod+G H J"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.keybindings[0].chord"
+		},
+		{
+			"id": "chord-when-v2",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": "main && project"
+			},
+			"accepted": true
+		},
+		{
+			"id": "chord-when-document-type",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": "editor && documentType == hello-note"
+			},
+			"accepted": true
+		},
+		{
+			"id": "chord-when-unknown-term",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": "panel"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEYBINDING_WHEN",
+			"key": "ui.surfaces.keybindings[0].when",
+			"suggestion": "joined by"
+		},
+		{
+			"id": "chord-when-repeated",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": "main && main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEYBINDING_WHEN",
+			"key": "ui.surfaces.keybindings[0].when"
+		},
+		{
+			"id": "chord-when-empty",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": ""
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEYBINDING_WHEN",
+			"key": "ui.surfaces.keybindings[0].when",
+			"suggestion": "joined by"
+		},
+		{
+			"id": "chord-when-too-long",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/when": "main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main && main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEYBINDING_WHEN",
+			"key": "ui.surfaces.keybindings[0].when",
+			"suggestion": "joined by"
+		},
+		{
+			"id": "chord-sequence-focus",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Mod+G F6"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-sequence-focus-back",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/keybindings/0/chord": "Mod+G Shift+F6"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
 			"id": "layout-sidebar-small",
 			"base": "native",
 			"set": {

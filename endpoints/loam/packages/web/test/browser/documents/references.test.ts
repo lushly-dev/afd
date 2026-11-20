@@ -1130,16 +1130,11 @@ describe('P2-D5: what a view and an agent cannot do (the re-check)', () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
 		const { frame } = await draftSheet(page, 'Flooded', 'One save only');
+		// The view's own script asks forty times, as a view may, posting the request the SDK's Mod+S posts. Amended by
+		// phase 4's step 7 (its 8.3, R6): the SDK no longer asks on a script-made key, so the requests are posted.
 		await frame.evaluate(() => {
 			for (let index = 0; index < 40; index++)
-				window.dispatchEvent(
-					new KeyboardEvent('keydown', {
-						code: 'KeyS',
-						key: 's',
-						metaKey: /Mac/.test(navigator.platform),
-						ctrlKey: !/Mac/.test(navigator.platform),
-					})
-				);
+				parent.postMessage({ jsonrpc: '2.0', method: 'dev.loam/editor-save-request' }, '*');
 		});
 		await expect.poll(() => marked(page, 't1')).toBe(false);
 		await editorIdle(page);
@@ -1395,17 +1390,8 @@ describe('P2-D5: a move’s save and a refused move back (the second re-check)',
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
 		const { sheet, frame } = await draftSheet(page, 'Saved twice', 'Before');
-		const chord = () =>
-			frame.evaluate(() =>
-				window.dispatchEvent(
-					new KeyboardEvent('keydown', {
-						code: 'KeyS',
-						key: 's',
-						metaKey: /Mac/.test(navigator.platform),
-						ctrlKey: !/Mac/.test(navigator.platform),
-					})
-				)
-			);
+		// A person's own Mod+S inside the view. Amended by phase 4's step 7 (its 8.3, R6): a script-made key asks nothing.
+		const chord = () => frame.locator('#text').press('ControlOrMeta+s');
 		await frame.evaluate(() => {
 			(window as unknown as { holdNext: boolean }).holdNext = true;
 		});
@@ -1451,17 +1437,8 @@ describe('P2-D5: a move’s save and a refused move back (the second re-check)',
 				},
 			});
 		});
-		const chord = () =>
-			frame.evaluate(() =>
-				window.dispatchEvent(
-					new KeyboardEvent('keydown', {
-						code: 'KeyS',
-						key: 's',
-						metaKey: /Mac/.test(navigator.platform),
-						ctrlKey: !/Mac/.test(navigator.platform),
-					})
-				)
-			);
+		// A person's own Mod+S inside the view. Amended by phase 4's step 7 (its 8.3, R6): a script-made key asks nothing.
+		const chord = () => frame.locator('#text').press('ControlOrMeta+s');
 		await frame.evaluate(() => {
 			(window as unknown as { holdNext: boolean }).holdNext = true;
 		});

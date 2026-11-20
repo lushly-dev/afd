@@ -170,8 +170,16 @@ describe('connectView', () => {
 			if (readOnly) continue;
 			let prevented = 0;
 			const press = (extra: Record<string, unknown>) =>
-				keydowns[0]?.({ code: 'KeyS', metaKey: true, preventDefault: () => prevented++, ...extra });
+				keydowns[0]?.({
+					code: 'KeyS',
+					metaKey: true,
+					isTrusted: true,
+					preventDefault: () => prevented++,
+					...extra,
+				});
 			press({});
+			// A script's Mod+S asks nothing (step 7's re-check, 2).
+			press({ isTrusted: false });
 			press({ repeat: true });
 			press({ altKey: true });
 			press({ code: 'KeyA' });

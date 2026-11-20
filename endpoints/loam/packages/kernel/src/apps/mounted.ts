@@ -361,6 +361,11 @@ export interface CatalogCommandV1 extends CommandFlags {
 	title?: string;
 	description: string;
 	inputSchema: unknown;
+	/**
+	 * Discovery replaced the server's schema, whose root was not an object's, with `{ type: 'object' }`: whether `{}`
+	 * meets the server's own is not known, so no chord runs it (step 7's R11; the sixth round's 1).
+	 */
+	replaced?: true;
 	undoable?: boolean;
 	approval?: 'required';
 }
@@ -408,15 +413,19 @@ const shown = (name: string): string => name.slice(0, WARNING_NAME_MAX);
 /**
  * What a registry advertises, which must say `type: 'object'`, since MCP tool arguments always are. A root
  * with no type keeps its keywords, and the console's form reads them. The server validates either way. A
- * schema too deep or too large is none at all, since the command could not be offered safely (9.9).
+ * schema too deep or too large is none at all, since the command could not be offered safely (9.9). One
+ * omitted, or whose root is not an object's, becomes `{ type: 'object' }`, `replaced`: whether `{}` meets
+ * the server's own is not known, so no chord runs it (step 7's R11; the sixth and seventh rounds' 1).
  */
-function advertisedSchema(reported: unknown): Readonly<Record<string, unknown>> | undefined {
+function advertisedSchema(
+	reported: unknown
+): { schema: Readonly<Record<string, unknown>>; replaced: boolean } | undefined {
 	if (!isRecord(reported) || (reported.type !== undefined && reported.type !== 'object')) {
-		return { type: 'object' };
+		return { schema: { type: 'object' }, replaced: true };
 	}
 	if (deeperThan(reported, DISCOVERY_LIMITS.depth)) return undefined;
 	if (lengthOf(reported) > DISCOVERY_LIMITS.schemaBytes) return undefined;
-	return { ...reported, type: 'object' };
+	return { schema: { ...reported, type: 'object' }, replaced: false };
 }
 
 /** A tool's name for the filter: `AFD-call` and ` afd_help` are `afd-*` too. */
@@ -525,8 +534,8 @@ export async function discoverInstance(
 			});
 			continue;
 		}
-		const inputSchema = advertisedSchema(detail.inputSchema);
-		if (inputSchema === undefined) {
+		const advertised = advertisedSchema(detail.inputSchema);
+		if (advertised === undefined) {
 			warnings.push({
 				code: 'MOUNT_SCHEMA_UNUSABLE',
 				message: `The input schema of \`${shown(named)}\` is too deep or too large, so it is not registered.`,
@@ -557,7 +566,8 @@ export async function discoverInstance(
 				typeof detail.description === 'string'
 					? detail.description.slice(0, DISCOVERY_LIMITS.descriptionChars)
 					: '',
-			inputSchema,
+			inputSchema: advertised.schema,
+			...(advertised.replaced ? { replaced: true as const } : {}),
 			...(detail.undoable === true ? { undoable: true } : {}),
 			...(detail.approval === 'required' ? { approval: 'required' as const } : {}),
 		};
@@ -771,7 +781,12 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			definitions.push(definition);
 			admitted.push(command);
 			if (command.approval) approvals.set(name, command.approval);
-			owners.set(name, { app, instance, recorded: true });
+			owners.set(name, {
+				app,
+				instance,
+				recorded: true,
+				...(command.replaced ? { replaced: true as const } : {}),
+			});
 		}
 		commands.push(...definitions);
 		record.commands = admitted.map((command) => command.name);

@@ -163,6 +163,8 @@ export type LoamKernelErrorCode =
 	// Step 2's: the shell's own sections (3.7).
 	| 'SETTING_MUTE_SHELL'
 	| 'KEYBINDING_RESERVED'
+	// Step 7's: a reserved chord's action called as a command (8.5, R1).
+	| 'KEYBINDING_ACTION_ONLY'
 	| 'SHARED_RECORD_UNAVAILABLE'
 	| 'OUTPUT_BUDGET_EXCEEDED'
 	// Step 8's: autonomy (4.3).
