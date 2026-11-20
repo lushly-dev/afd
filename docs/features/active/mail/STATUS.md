@@ -123,7 +123,11 @@ waits for Gmail has a line of its own.
 
 - D2, the Gmail half. Not started. It waits for step B6 (the owner deferred the Gmail steps on 2026-11-14).
 
-- D3: Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze`. Not started.
+- D3, first of three pull requests: drafts with a revision, `mail-draft-create`, `-update`, `-discard`, `-restore`, `-list` and `-show`, and `mail-thread-snooze`, migration 15. Merged as [#1663](https://github.com/lushly-dev/afd/pull/1663).
+
+- D3, second: `mail-draft-send` at the terminal, its recipient rule, SMTP, the sent copy and `outbound`, on a scripted SMTP server. Not started.
+
+- D3, third: `mail-unsubscribe` at the terminal, and its preview. Not started.
 
 - E1: Records. Not started.
 
@@ -146,6 +150,8 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: phase D
 
+- 2026-11-20 UTC for step D3's first part after its review: the crate's tests and clippy passed on Windows with Rust 1.98.0, and each test added for a review finding was watched failing where it could be; the 4.4 measurement at 500 000 messages on this Windows machine ([the counts](../../../../endpoints/loam/plugins/mail/docs/limits-500000-d3.results.json)) met every limit but import: the snoozed list 0.18 ms at the 95th percentile (385 ms before its join order was fixed), the list 1.4 ms, search and open within theirs; import ran at 120 messages a second, not comparable with the Mac runs the limit was set on (474 to 521), and this change does not touch it.
+- 2026-11-19 UTC for step D3's first part, drafts and snooze, on its branch from `main` at `4c6e0237`: the crate built, and its tests and clippy passed on Windows with Rust 1.98.0; drafts and snoozes tested over the scripted IMAP server (revisions and `DRAFT_CHANGED`, who wrote each part, content labelled, input refused without repeating it, discard, restore, and going after 30 days by a fixed clock, paging, a snooze kept by a rebuild and ended by new mail in the thread), and account removal checked against every table that refers to an account or a message. Nothing live was run.
 - 2026-11-19 UTC for step D2's iCloud half, on its branch from `main` at `ca1b11f3`: the crate built and its `operations` and `live_changes` tests passed on Windows with Rust 1.98.0; the round trip the owner runs (mark, copy, move to the inbox, archive, trash, each undone in reverse order) passed on the scripted server without `MOVE`, ending as it started; the whole crate's tests and clippy passed; the tests of undo in reverse order and of a copy removed or marked before the next pass each failed without its fix, and a run that fails part-way put back what it changed. Nothing live was run.
 - 2026-11-17 UTC for step D1's third part, proposals, on its branch from `main` at `dbb9f027`: the crate was built, linted and tested on macOS with Rust 1.98.0, 377 tests passing and the five measurement and live-account tests ignored as before; migration 14 tested on a store at version 13 (every operation, item, id, reference and the next id kept); proposals tested over the scripted IMAP server (an agent's change, resume and undo over the policy proposed and nothing asked of the provider, a wrong count refused, the person's no and yes at a scripted terminal, the preview's query, counts and known senders, a summary with no text from mail, the five a caller, dismissal by the person and by the proposer only, expiry after seven days, mail that moved before the approval left alone, and an approval on a server run as its work). After the independent review, approvals taken while a proposal was open were tested against its approval, dismissal, expiry and screening that is not ready, with the middleware's real token; and the review's blocker, an account that could not be removed after an undo proposal was dismissed, was tested against the code before the fix and failed there. Nothing live was run; no build reached the owner's server.
 - 2026-11-17 UTC for step D1's second part, the change commands and operations, on its branch from `main` at `b7468e7d`: the crate was built, linted and tested on macOS with Rust 1.98.0, 363 tests passing and the five measurement and live-account tests ignored as before; the change commands tested over the scripted IMAP server with and without `MOVE` (archive, trash, label as a move and a copy, mark, each undone; a wrong count, an expired selection, the frozen set, the policy for agents and scripts, the person asked above the count at a terminal, the server's work and a cancel), the connection dropped before each command of a run and after each change with its answer lost, each message found moved once. The four tests added for the review's blockers were run against the reviewed code and failed there. Nothing live was run; no build reached the owner's server.
@@ -278,6 +284,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-19 | Step D2, the iCloud half | The run against the owner's iCloud account, written as an ignored test that changes only a mailbox of 1 to 20 messages the owner names and ends as it started; run first on the scripted server, where it found that undoing changes in reverse order lost track of mail a later change had moved away and back. Undo now finds such a message by its identity in the same mailbox |
+| 2026-11-19 | Step D3, first part | Drafts and snooze, local to the engine. Drafts carry a revision from the start, so that step F's send can name what the person previewed (Loam's phase 5, 7.2). D3 is split in three: drafts and snooze, then send, then unsubscribe |
 
 ### Sessions: phase E, records and reply sets
 
