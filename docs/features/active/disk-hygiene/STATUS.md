@@ -53,9 +53,9 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 2. Schedule, skill and rollout
 
-- `disk-setup`, `disk-status` and the schedulers (#1690): not started.
+- `disk-setup`, `disk-status` and the schedulers (#1690): built on branch `lush/disk-reclaim`, with `disk-reclaim`. Scheduler definitions tested on macOS; installs checked on each machine at rollout.
 
-- The `disk-hygiene` skill and adoption in afd (#1691): not started.
+- The `disk-hygiene` skill and adoption in afd (#1691): the skill is built on branch `lush/disk-reclaim` and projected here as `free-disk-space`; afd's `[disk]`, SETUP and AGENTS.md wait for a release.
 
 - Publishing a botcore release with the commands (#1692): the owner's step, after the pieces above.
 

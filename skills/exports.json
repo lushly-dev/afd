@@ -9,6 +9,7 @@
 			"botcore-config",
 			"browser-automation",
 			"code-reviewer",
+			"disk-hygiene",
 			"docs-manager",
 			"gate-discipline",
 			"mcp-builder",
@@ -23,7 +24,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".agents/skills",
-			"listingBudget": 6800,
+			"listingBudget": 7000,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -44,6 +45,10 @@
 				{
 					"name": "configure-botcore",
 					"canonical": "botcore-config"
+				},
+				{
+					"name": "free-disk-space",
+					"canonical": "disk-hygiene"
 				},
 				{
 					"name": "maintain-gates",

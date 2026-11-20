@@ -477,6 +477,48 @@ def disk_reclaim_cmd(
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("disk-setup")
+@click.option("--uninstall", is_flag=True, default=False,
+              help="Remove the scheduled job (settings and receipts stay)")
+@click.option("--repo", "repos", multiple=True, help="Also register this repository")
+@click.option("--no-schedule", is_flag=True, default=False,
+              help="Write the settings without installing the job")
+@_json_option
+@click.pass_context
+def disk_setup_cmd(
+    ctx: click.Context, uninstall: bool, repos: tuple[str, ...], no_schedule: bool, **_kw: Any,
+) -> None:
+    """Register repositories and volumes, and install the hourly disk job."""
+    from botcore.commands.disk import disk_setup
+
+    result = _run_async(disk_setup(uninstall=uninstall, repos=list(repos),
+                                   install_schedule=not no_schedule))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-status")
+@_json_option
+@click.pass_context
+def disk_status_cmd(ctx: click.Context, **_kwargs: Any) -> None:
+    """Show the disk job's state, its last run and watched volumes' free space."""
+    from botcore.commands.disk import disk_status
+
+    result = _run_async(disk_status())
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-run")
+@click.option("--force", is_flag=True, default=False, help="Reclaim now even if not due")
+@_json_option
+@click.pass_context
+def disk_run_cmd(ctx: click.Context, force: bool, **_kwargs: Any) -> None:
+    """The scheduled job: check free space, and reclaim when due or low."""
+    from botcore.commands.disk import disk_run
+
+    result = _run_async(disk_run(force=force))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command()
 @_json_option
 @click.pass_context

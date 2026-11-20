@@ -200,6 +200,24 @@ lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctio
 machine; every run writes a receipt (the response's `receipt`) and updates status.json in the
 state folder (`BOTCORE_DISK_STATE` overrides it). It never removes a worktree.
 
+## disk_setup(uninstall=False, repos=None, install_schedule=True)
+Registers the repository holding the working directory (and `repos`) in the machine settings,
+records each volume holding their worktrees or T3 Code's worktree folders with its identifier
+and a low-space threshold, and installs the hourly job: a LaunchAgent on macOS, a Task
+Scheduler task on Windows, a systemd user timer (or crontab) on Linux. Needs botcore installed
+as a tool (`uv tool install lushly-botcore==<version>`), not run through uvx. Safe to run
+again. `uninstall=True` removes the job and keeps settings and receipts.
+
+## disk_status()
+The job's state, the last applied run and its age, free space on watched volumes, and
+`problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
+when there are none. Session preflights read this.
+
+## disk_run(force=False)
+What the job runs: checks free space and exits, unless a watched volume is low or the last
+applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
+low.
+
 Settings: the repository's `[disk]` in botcore.toml, read from origin's HEAD (never from a
 worktree's branch), and the machine's disk.toml (`BOTCORE_DISK_SETTINGS` overrides its path).
 """,

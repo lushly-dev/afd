@@ -21,7 +21,7 @@ from botcore.commands.dev import (
     dev_test,
     dev_unused_deps,
 )
-from botcore.commands.disk import disk_reclaim, disk_report
+from botcore.commands.disk import disk_reclaim, disk_report, disk_run, disk_setup, disk_status
 from botcore.commands.docs import docs_check_agents, docs_check_changelog, docs_lint, docs_preflight
 from botcore.commands.info import info_env, info_scripts, info_workspace
 from botcore.commands.research import research_query, research_stream
@@ -73,6 +73,9 @@ __all__ = [
     # Disk
     "disk_report",
     "disk_reclaim",
+    "disk_setup",
+    "disk_status",
+    "disk_run",
     # Docs
     "docs_lint",
     "docs_check_changelog",
