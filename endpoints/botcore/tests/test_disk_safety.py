@@ -280,7 +280,8 @@ def test_declared_copies_fold_case_where_the_volume_does() -> None:
 
     cand = Candidate("apps/web/.next", DiskRegenerable(path="apps/*/.next"), "dir")
     assert _holds_copy(cand, "Apps/web/.next/cache/**", fold=True)
-    assert not _holds_copy(cand, "Apps/web/.next/cache/**", fold=False)
+    if os.name != "nt":  # patterns always ignore case on Windows
+        assert not _holds_copy(cand, "Apps/web/.next/cache/**", fold=False)
 
 
 def test_session_folders_are_matched_as_prefixes_not_substrings(
@@ -297,3 +298,43 @@ def test_session_folders_are_matched_as_prefixes_not_substrings(
     assert not setup._session_path("/opt/homebrew/bin/uv")
     monkeypatch.setenv("TMPDIR", "/scratch/me")
     assert setup._session_path("/scratch/me/bin/gh")
+    monkeypatch.setenv("TMPDIR", str(Path.home()))
+    assert not setup._session_path(str(Path.home() / ".local" / "bin" / "uv"))
+
+
+def test_case_probe_looks_past_folders_without_letters(tmp_path: Path) -> None:
+    from botcore.commands.disk.git import case_insensitive
+
+    numbered = tmp_path / "Trees" / "2672"
+    numbered.mkdir(parents=True)
+    assert case_insensitive(numbered) == case_insensitive(tmp_path / "Trees")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
+def test_a_session_link_hops_to_the_lasting_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botcore.commands.disk import setup
+
+    monkeypatch.setattr(setup, "_session_path", lambda path: "/session/" in path)
+    lasting = tmp_path / "tools" / "uv"
+    lasting.parent.mkdir()
+    lasting.write_text("")
+    (tmp_path / "session").mkdir()
+    (tmp_path / "session" / "uv").symlink_to(lasting)
+    found = setup.stable_tool_path("uv", str(tmp_path / "session" / "uv"))
+    assert found == os.path.join(os.path.realpath(lasting.parent), "uv")
+    (tmp_path / "session" / "gone").symlink_to(tmp_path / "tools" / "missing")
+    assert setup.stable_tool_path("gone", str(tmp_path / "session" / "gone")) is None
+
+
+def test_an_uninstall_that_cannot_confirm_says_why(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from botcore.commands.disk import schedule, setup
+
+    monkeypatch.setattr(schedule, "uninstall", lambda: None)
+    monkeypatch.setattr(schedule, "current", lambda: schedule.ScheduleState(
+        "linux", True, "crontab", "the crontab could not be read"))
+    result = asyncio.run(setup.disk_setup(uninstall=True))
+    assert not result.success and "could not be read" in result.error.message

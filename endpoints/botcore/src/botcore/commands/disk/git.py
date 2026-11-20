@@ -229,15 +229,25 @@ def ignored(worktree: Path, paths: list[str], timeout: float = GIT_TIMEOUT) -> s
 
 
 def case_insensitive(folder: Path) -> bool:
-    """Whether the filesystem holding folder treats names case-insensitively."""
-    name = folder.name
-    probe = folder.with_name(name.swapcase()) if name and name != name.swapcase() else None
-    if probe is None:
-        return os.name == "nt"
+    """Whether the filesystem holding folder treats names case-insensitively.
+
+    Probed on the nearest folder whose name has letters; True when nothing can be probed,
+    since comparing case-insensitively only ever refuses more.
+    """
+    current = Path(os.path.abspath(folder))
+    while current.name and current.name == current.name.swapcase():
+        if current.parent == current:
+            break
+        current = current.parent
+    name = current.name
+    if not name or name == name.swapcase():
+        return True
     try:
-        return os.path.samefile(folder, probe)
-    except OSError:
+        return os.path.samefile(current, current.with_name(name.swapcase()))
+    except FileNotFoundError:
         return False
+    except OSError:
+        return True
 
 
 def tracked_files(worktree: Path, timeout: float = GIT_TIMEOUT) -> list[str]:

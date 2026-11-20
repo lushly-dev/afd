@@ -162,11 +162,16 @@ def _session_path(path: str) -> bool:
     if SESSION_PART in folded.split("/"):
         return True
     prefixes = list(SESSION_PREFIXES)
+    home = os.path.realpath(Path.home())
     for name in ("TMPDIR", "TEMP", "TMP"):
         value = os.environ.get(name)
-        if value:
-            for form in (value, os.path.realpath(value)):
-                prefixes.append(form.replace("\\", "/").rstrip("/") + "/")
+        if not value:
+            continue
+        resolved = os.path.realpath(value)
+        if os.path.dirname(resolved) == resolved or resolved == home:
+            continue  # a root or the home folder is not a session folder
+        for form in (value, resolved):
+            prefixes.append(form.replace("\\", "/").rstrip("/") + "/")
     candidates = (folded, text) if os.name == "nt" else (text,)
     for prefix in prefixes:
         mark = prefix.lower() if os.name == "nt" else prefix
