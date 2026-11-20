@@ -34,7 +34,7 @@
 		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/loam-identity": "workspace:*",
 		"@lushly-dev/loam-manifest": "workspace:*",
-		"better-auth": "1.7.18",
+		"better-auth": "1.7.25",
 		"hono": "4.13.17",
 		"zod": "^4.6.6"
 	},
