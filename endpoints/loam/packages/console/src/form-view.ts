@@ -30,10 +30,6 @@ export interface FieldView {
 const requiredMark = (field: FormField): string =>
 	field.required ? `${field.label} (required)` : field.label;
 
-/** The message first, so it is what is heard first. Never color alone. */
-const withError = (message: string | null, help: string): string =>
-	message === null ? help : `Error: ${message}${help ? ` ${help}` : ''}`;
-
 function checkboxView(field: FormField): FieldView {
 	const element = document.createElement('violet-checkbox') as VioletCheckbox;
 	element.checked = field.checked === true;
@@ -46,7 +42,7 @@ function checkboxView(field: FormField): FieldView {
 	let touched = field.required;
 	const showError = (message: string | null) => {
 		element.invalid = message !== null;
-		help.textContent = withError(message, field.help);
+		element.errorText = message === null ? '' : `Error: ${message}`;
 	};
 	element.addEventListener('change', () => {
 		touched = true;
@@ -57,11 +53,6 @@ function checkboxView(field: FormField): FieldView {
 		element,
 		read: () => (touched ? element.checked : undefined),
 		showError,
-		// The element's own label wraps its help, but its `aria-label` overrides that: tie the help on.
-		connected() {
-			const input = element.shadowRoot?.querySelector('input');
-			if (input && field.help) input.ariaDescribedByElements = [help];
-		},
 	};
 }
 
@@ -116,7 +107,7 @@ function textView(field: FormField): FieldView {
 	if (!multiline) applyTextRules(element as VioletTextField, field.control, field.rules);
 	const showError = (message: string | null) => {
 		element.invalid = message !== null;
-		element.supportingText = withError(message, field.help);
+		element.errorText = message === null ? '' : `Error: ${message}`;
 	};
 	// An error stays only until the person changes what it is about.
 	element.addEventListener('input', () => {

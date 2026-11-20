@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -220,6 +220,16 @@ const styles = css`
         line-height: var(--_type-caption-line);
     }
 
+    .supporting[hidden] {
+        display: none;
+    }
+
+    .error {
+        color: var(--_danger-text);
+        font-size: var(--_control-caption-size);
+        line-height: var(--_type-caption-line);
+    }
+
     @media (forced-colors: active) {
         /* The slot has no fill to tell it from the page here, so it gets its outline back. */
         :host {
@@ -292,7 +302,7 @@ const template = html<VioletSwitch>`
                 <span class="thumb" part="thumb" aria-hidden="true"></span>
             </span>
         </span>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting}">
+        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
             <label class="label" part="label" for="${x => x.controlId}" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
             </label>
@@ -300,10 +310,21 @@ const template = html<VioletSwitch>`
                 class="supporting"
                 id="${x => x.supportingTextId}"
                 part="supporting-text"
-                ?hidden="${x => !x.hasSupporting}"
+                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
             >
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
+            ${when(
+                x => Boolean(x.displayErrorText),
+                html<VioletSwitch>`
+                    <span
+                        class="error"
+                        id="${x => x.errorTextId}"
+                        part="error-message"
+                        role="alert"
+                    >${x => x.displayErrorText}</span>
+                `,
+            )}
         </span>
     </div>
 `;
@@ -311,7 +332,7 @@ const template = html<VioletSwitch>`
 /**
  * Violet reusable switch primitive.
  *
- * @summary Token-driven binary switch with label, inline mode, and form participation.
+ * @summary Token-driven binary switch with label, inline mode, form participation, and field errors.
  * @fires change - Emitted when the checked state changes.
  * @slot - Switch label content.
  * @slot supporting - Optional supporting copy rendered under the label.
@@ -321,6 +342,7 @@ const template = html<VioletSwitch>`
  * @csspart thumb - Switch thumb inside the track.
  * @csspart label - Primary label text wrapper.
  * @csspart supporting-text - Optional supporting text wrapper.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletSwitch extends FASTElement {
     public static readonly formAssociated = true;
@@ -333,6 +355,19 @@ export class VioletSwitch extends FASTElement {
 
     @observable
     declare public hasLabel: boolean;
+
+    /**
+     * Backing state for `displayErrorText`.
+     */
+    @observable
+    private _displayErrorText = "";
+
+    /**
+     * Active error message rendered while the switch is invalid.
+     */
+    public get displayErrorText(): string {
+        return this._displayErrorText;
+    }
 
     declare public checked: boolean;
     declare public disabled: boolean;
@@ -348,12 +383,18 @@ export class VioletSwitch extends FASTElement {
     declare public readonly effectiveDisabled: boolean;
     declare public inline: boolean;
     declare public invalid: boolean;
+
+    /**
+     * Optional error message shown while the switch is invalid.
+     */
+    declare public errorText: string;
     declare public name: string;
     declare public value: string;
     declare public required: boolean;
 
     public readonly controlId: string;
     public readonly supportingTextId: string;
+    public readonly errorTextId: string;
 
     public constructor() {
         super();
@@ -362,12 +403,14 @@ export class VioletSwitch extends FASTElement {
         violetSwitchId += 1;
         this.controlId = `${this.localName || "violet-switch"}-control-${id}`;
         this.supportingTextId = `${this.localName || "violet-switch"}-supporting-${id}`;
+        this.errorTextId = `${this.localName || "violet-switch"}-error-${id}`;
         this.hasSupporting = false;
         this.hasLabel = false;
         this.checked = false;
         this.disabled = false;
         this.inline = false;
         this.invalid = false;
+        this.errorText = "";
         this.name = "";
         this.value = "on";
         this.required = false;
@@ -457,6 +500,25 @@ export class VioletSwitch extends FASTElement {
         this.#syncFormState();
     }
 
+    public errorTextChanged(): void {
+        this.#syncFormState();
+    }
+
+    #setDisplayErrorText(next: string): void {
+        if (this._displayErrorText === next) {
+            return;
+        }
+        this._displayErrorText = next;
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        Updates.enqueue(() => {
+            Updates.enqueue(() => {
+                this.#syncControlState();
+            });
+        });
+    }
+
     public requiredChanged(): void {
         this.#syncControlState();
         this.#syncFormState();
@@ -525,7 +587,9 @@ export class VioletSwitch extends FASTElement {
             control.removeAttribute("aria-label");
         }
 
-        if (this.hasSupporting) {
+        if (this.displayErrorText) {
+            control.setAttribute("aria-describedby", this.errorTextId);
+        } else if (this.hasSupporting) {
             control.setAttribute("aria-describedby", this.supportingTextId);
         } else {
             control.removeAttribute("aria-describedby");
@@ -543,14 +607,23 @@ export class VioletSwitch extends FASTElement {
         this.#internals.setFormValue(!this.effectiveDisabled && this.checked ? this.value : null, this.checked ? "checked" : "unchecked");
 
         if (this.effectiveDisabled) {
+            this.#setDisplayErrorText("");
             this.#internals.setValidity({});
             return;
         }
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, "Please correct this field.", control ?? undefined);
+            const customError = (this.errorText ?? "").trim();
+            this.#setDisplayErrorText(customError || control?.validationMessage || "");
+            this.#internals.setValidity(
+                { customError: true },
+                customError || "Please correct this field.",
+                control ?? undefined,
+            );
             return;
         }
+
+        this.#setDisplayErrorText("");
 
         if (this.required && !this.checked) {
             this.#internals.setValidity({ valueMissing: true }, "Please turn this setting on.", control ?? undefined);
@@ -566,6 +639,7 @@ attr({ mode: "boolean" })(VioletSwitch.prototype, "disabled");
 installFormDisabled(VioletSwitch.prototype);
 attr({ mode: "boolean" })(VioletSwitch.prototype, "inline");
 attr({ mode: "boolean" })(VioletSwitch.prototype, "invalid");
+attr({ attribute: "error-text" })(VioletSwitch.prototype, "errorText");
 attr(VioletSwitch.prototype, "name");
 attr(VioletSwitch.prototype, "value");
 attr({ mode: "boolean" })(VioletSwitch.prototype, "required");

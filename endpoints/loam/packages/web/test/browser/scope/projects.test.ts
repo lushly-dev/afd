@@ -202,7 +202,7 @@ describe('P2-E9: the projects section', () => {
 		await create(page, 'Another', 'atlas');
 		const slug = section(page).locator('violet-text-field[invalid]');
 		await expect.poll(() => slug.count()).toBe(1);
-		expect(await slug.locator('[part="supporting-text"]').textContent()).toContain(
+		expect(await slug.locator('[part="error-message"]').textContent()).toContain(
 			"Error: That slug can't be used. Choose another"
 		);
 		expect(await slug.locator('[part="label"]').textContent()).toBe('Slug');

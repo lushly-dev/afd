@@ -184,7 +184,8 @@ determinate `violet-progress`, never `violet-spinner` or an indeterminate
   `aria-pressed`; disabled `opacity: 0.55`, `cursor: not-allowed`, no hover,
   native `disabled` or `aria-disabled="true"` when it must keep focus for a
   tooltip; invalid `color.field.border.invalid`, `aria-invalid="true"` and
-  supporting text in `color.state.danger.text`; loading `aria-busy="true"`.
+  `error-text` rendered in `part="error-message"` in `color.state.danger.text`
+  (replacing supporting text while invalid); loading `aria-busy="true"`.
 
 ## Tooltips and popups in the rail
 

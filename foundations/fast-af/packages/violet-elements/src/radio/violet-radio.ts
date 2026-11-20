@@ -1,6 +1,7 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { isDisabledByFieldset } from "../foundations/violet-form-disabled";
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -163,6 +164,16 @@ const styles = css`
         line-height: var(--_type-caption-line);
     }
 
+    .supporting[hidden] {
+        display: none;
+    }
+
+    .error {
+        color: var(--_danger-text);
+        font-size: var(--_control-caption-size);
+        line-height: var(--_type-caption-line);
+    }
+
     @media (forced-colors: active) {
         .control,
         :host(:not([checked]):not([disabled]):not([aria-disabled="true"])) .root:hover .control {
@@ -206,13 +217,23 @@ const template = html<VioletRadio>`
                 <span class="dot" part="mark"></span>
             </span>
         </span>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting}">
+        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
             <span class="label" part="label" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
             </span>
-            <span class="supporting" part="supporting-text" ?hidden="${x => !x.hasSupporting}">
+            <span
+                class="supporting"
+                part="supporting-text"
+                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
+            >
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
+            ${when(
+                x => Boolean(x.displayErrorText),
+                html<VioletRadio>`
+                    <span class="error" part="error-message" role="alert">${x => x.displayErrorText}</span>
+                `,
+            )}
         </span>
     </div>
 `;
@@ -220,7 +241,7 @@ const template = html<VioletRadio>`
 /**
  * Violet reusable radio primitive.
  *
- * @summary Token-driven radio option with label and optional supporting text.
+ * @summary Token-driven radio option with label, optional supporting text, and field errors.
  * @fires change - Emitted when the radio becomes checked through user interaction.
  * @slot - Radio label content.
  * @slot supporting - Optional supporting copy rendered under the label.
@@ -229,17 +250,34 @@ const template = html<VioletRadio>`
  * @csspart mark - Selection dot inside the control.
  * @csspart label - Primary label text wrapper.
  * @csspart supporting-text - Optional supporting text wrapper.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletRadio extends FASTElement {
     readonly #internals: ElementInternals;
+    readonly #fieldsetObserver = new MutationObserver(() => this.#syncFieldsetDisabled());
+    readonly #describedByObserver = new MutationObserver(() => this.#syncAccessibilityState());
     #managedTabIndex: number | null;
     #disabledFromGroup: boolean;
+    #disabledByFieldset: boolean;
 
     @observable
     declare public hasSupporting: boolean;
 
     @observable
     declare public hasLabel: boolean;
+
+    /**
+     * Backing state for `displayErrorText`.
+     */
+    @observable
+    private _displayErrorText = "";
+
+    /**
+     * Active error message rendered while the radio is invalid.
+     */
+    public get displayErrorText(): string {
+        return this._displayErrorText;
+    }
 
     /**
      * Checked state for the radio.
@@ -262,6 +300,11 @@ export class VioletRadio extends FASTElement {
     declare public invalid: boolean;
 
     /**
+     * Optional error message shown while the radio is invalid.
+     */
+    declare public errorText: string;
+
+    /**
      * Native group name forwarded from a parent radio group when available.
      */
     declare public name: string;
@@ -277,12 +320,14 @@ export class VioletRadio extends FASTElement {
         this.#internals.role = "radio";
         this.#managedTabIndex = null;
         this.#disabledFromGroup = false;
+        this.#disabledByFieldset = false;
         this.hasSupporting = false;
         this.hasLabel = false;
         this.checked = false;
         this.disabled = false;
         this.inline = false;
         this.invalid = false;
+        this.errorText = "";
         this.name = "";
         this.value = "on";
     }
@@ -291,19 +336,26 @@ export class VioletRadio extends FASTElement {
         super.connectedCallback();
         this.setAttribute("role", "radio");
         this.addEventListener("keydown", this.handleKeydown as EventListener);
+        this.#observeAncestorFieldsets();
+        this.#disabledByFieldset = isDisabledByFieldset(this);
+        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
         this.#syncLabelState();
         this.#syncSupportingState();
+        this.#syncErrorState();
         this.#syncAccessibilityState();
         this.#syncTabIndex();
     }
 
     public disconnectedCallback(): void {
         this.removeEventListener("keydown", this.handleKeydown as EventListener);
+        this.#fieldsetObserver.disconnect();
+        this.#describedByObserver.disconnect();
+        this.#disabledByFieldset = false;
         super.disconnectedCallback();
     }
 
     public get effectiveDisabled(): boolean {
-        return this.disabled || this.#disabledFromGroup;
+        return this.disabled || this.#disabledFromGroup || this.#disabledByFieldset;
     }
 
     public setCheckedFromGroup(checked: boolean): void {
@@ -312,6 +364,7 @@ export class VioletRadio extends FASTElement {
 
     public setGroupDisabled(disabled: boolean): void {
         this.#disabledFromGroup = disabled;
+        this.#syncErrorState();
         this.#syncAccessibilityState();
         this.#syncTabIndex();
     }
@@ -333,6 +386,13 @@ export class VioletRadio extends FASTElement {
 
     public handleSupportingSlotChange(): void {
         this.#syncSupportingState();
+        if (this.$fastController.isConnected) {
+            Updates.enqueue(() => {
+                Updates.enqueue(() => {
+                    this.#syncAccessibilityState();
+                });
+            });
+        }
     }
 
     public checkedChanged(): void {
@@ -341,12 +401,55 @@ export class VioletRadio extends FASTElement {
     }
 
     public disabledChanged(): void {
+        this.#syncErrorState();
         this.#syncAccessibilityState();
         this.#syncTabIndex();
     }
 
     public invalidChanged(): void {
+        this.#syncErrorState();
         this.#syncAccessibilityState();
+    }
+
+    public errorTextChanged(): void {
+        this.#syncErrorState();
+    }
+
+    #setDisplayErrorText(next: string): void {
+        if (this._displayErrorText === next) {
+            return;
+        }
+        this._displayErrorText = next;
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        Updates.enqueue(() => {
+            Updates.enqueue(() => {
+                this.#syncAccessibilityState();
+            });
+        });
+    }
+
+    #observeAncestorFieldsets(): void {
+        this.#fieldsetObserver.disconnect();
+        let node: Node | null = this.parentNode;
+        while (node) {
+            if (node instanceof HTMLFieldSetElement) {
+                this.#fieldsetObserver.observe(node, { attributes: true, attributeFilter: ["disabled"] });
+            }
+            node = node.parentNode;
+        }
+    }
+
+    #syncFieldsetDisabled(): void {
+        const next = isDisabledByFieldset(this);
+        if (this.#disabledByFieldset === next) {
+            return;
+        }
+        this.#disabledByFieldset = next;
+        this.#syncErrorState();
+        this.#syncAccessibilityState();
+        this.#syncTabIndex();
     }
 
     public valueChanged(): void {
@@ -393,6 +496,10 @@ export class VioletRadio extends FASTElement {
         });
     }
 
+    #syncErrorState(): void {
+        this.#setDisplayErrorText(this.invalid && !this.effectiveDisabled ? (this.errorText ?? "").trim() : "");
+    }
+
     #defaultSlotText(): string {
         return Array.from(this.childNodes)
             .filter(node => {
@@ -413,6 +520,7 @@ export class VioletRadio extends FASTElement {
         this.#internals.ariaInvalid = this.invalid ? "true" : "false";
 
         const labelElement = this.shadowRoot?.querySelector(".label:not([hidden])");
+        const errorElement = this.shadowRoot?.querySelector(".error");
         const supportingElement = this.shadowRoot?.querySelector(".supporting:not([hidden])");
 
         if (labelElement instanceof Element) {
@@ -423,7 +531,18 @@ export class VioletRadio extends FASTElement {
             this.#internals.ariaLabel = this.controlAriaLabel ?? null;
         }
 
-        this.#internals.ariaDescribedByElements = supportingElement instanceof Element ? [supportingElement] : null;
+        if (this.hasAttribute("aria-describedby")) {
+            this.#internals.ariaDescribedByElements = null;
+            if ("ariaErrorMessageElements" in this.#internals) {
+                this.#internals.ariaErrorMessageElements = errorElement instanceof Element ? [errorElement] : null;
+            }
+        } else {
+            const descriptionElement = errorElement ?? supportingElement;
+            this.#internals.ariaDescribedByElements = descriptionElement instanceof Element ? [descriptionElement] : null;
+            if ("ariaErrorMessageElements" in this.#internals) {
+                this.#internals.ariaErrorMessageElements = null;
+            }
+        }
 
         if (this.$fastController.isConnected) {
             this.setAttribute("aria-checked", this.checked ? "true" : "false");
@@ -471,6 +590,7 @@ attr({ mode: "boolean" })(VioletRadio.prototype, "checked");
 attr({ mode: "boolean" })(VioletRadio.prototype, "disabled");
 attr({ mode: "boolean" })(VioletRadio.prototype, "inline");
 attr({ mode: "boolean" })(VioletRadio.prototype, "invalid");
+attr({ attribute: "error-text" })(VioletRadio.prototype, "errorText");
 attr(VioletRadio.prototype, "name");
 attr(VioletRadio.prototype, "value");
 

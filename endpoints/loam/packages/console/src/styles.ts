@@ -176,9 +176,9 @@ export const consoleStyles = css`
 	.afd-bold {
 		font-weight: var(--weight-semibold);
 	}
-	violet-text-field[invalid]::part(supporting-text),
-	violet-text-area[invalid]::part(supporting-text),
-	violet-checkbox[invalid]::part(supporting-text),
+	violet-text-field[invalid]::part(error-message),
+	violet-text-area[invalid]::part(error-message),
+	violet-checkbox[invalid]::part(error-message),
 	violet-select[invalid]::part(error-message) {
 		color: var(--color-state-danger-text);
 	}
@@ -188,6 +188,9 @@ export const consoleStyles = css`
 	violet-text-field::part(supporting-text),
 	violet-text-area::part(supporting-text),
 	violet-select::part(supporting-text),
+	violet-text-field::part(error-message),
+	violet-text-area::part(error-message),
+	violet-checkbox::part(error-message),
 	violet-select::part(error-message) {
 		overflow-wrap: anywhere;
 	}
@@ -252,9 +255,9 @@ export const consoleStyles = css`
 			border-color: CanvasText;
 			background: Canvas;
 		}
-		violet-text-field[invalid]::part(supporting-text),
-		violet-text-area[invalid]::part(supporting-text),
-		violet-checkbox[invalid]::part(supporting-text),
+		violet-text-field[invalid]::part(error-message),
+		violet-text-area[invalid]::part(error-message),
+		violet-checkbox[invalid]::part(error-message),
 		violet-select[invalid]::part(error-message) {
 			color: CanvasText;
 		}

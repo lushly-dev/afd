@@ -408,7 +408,7 @@ item 2):
 | Active (pressed) | The pressed color while the pointer or key is down | `color.action.*.pressed`; `color.action.secondary.pressed` for neutral items |
 | Selected | Background and foreground, plus a mark that is not color: a start-edge bar `size.space.xs` (2px) wide in `color.control.selected.foreground`, and `aria-selected`, `aria-current` or `aria-pressed` | `color.control.selected.background`, `.foreground`, `.border` |
 | Disabled | `opacity: 0.55`, `cursor: not-allowed`, no hover or press change; the native `disabled`, or `aria-disabled="true"` when it must stay focusable to show a tooltip (the phase 0 settings entry); exempt from the contrast floors (1.4.3, 1.4.11); `GrayText` under forced colors | the rest tokens |
-| Invalid | The invalid border, `aria-invalid="true"`, and supporting text that names the problem and how to fix it, in `color.state.danger.text` | `color.field.border.invalid`, `color.state.danger.text` |
+| Invalid | The invalid border, `aria-invalid="true"`, and `error-text` (rendered in `part="error-message"` in `color.state.danger.text`, replacing supporting text while invalid) that names the problem and how to fix it | `color.field.border.invalid`, `color.state.danger.text` |
 | Loading | `aria-busy="true"` on the region, a progress indicator, the control disabled while it waits; see reduced motion above | as Disabled, plus `violet-progress` |
 
 Contract version 1 has no disabled-opacity id; 0.55 is the shared button's

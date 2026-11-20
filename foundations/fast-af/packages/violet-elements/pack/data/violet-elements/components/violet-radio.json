@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "radio.description",
-				"text": "Content in the supporting slot is linked as the radio's description."
+				"text": "The active error message, or content in the supporting slot when no error is shown, is linked as the radio's description."
 			}
 		]
 	},
@@ -37,6 +37,17 @@
 					"taxonomy.disabled"
 				],
 				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional error message shown while the radio is invalid.",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
 			},
 			{
 				"basis": "observed",
@@ -175,17 +186,17 @@
 		{
 			"basis": "observed",
 			"from": "components-radio--checked",
-			"html": "<violet-radio aria-checked=\"true\" checked name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\">Direct seed<span slot=\"supporting\">Use when the crop should stay in its final bed.</span></violet-radio>"
+			"html": "<violet-radio aria-checked=\"true\" checked error-text name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\">Direct seed<span slot=\"supporting\">Use when the crop should stay in its final bed.</span></violet-radio>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-radio--disabled",
-			"html": "<violet-radio aria-checked=\"false\" aria-disabled=\"true\" disabled name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Unavailable while this batch is already committed to field.</span></violet-radio>"
+			"html": "<violet-radio aria-checked=\"false\" aria-disabled=\"true\" disabled error-text name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Unavailable while this batch is already committed to field.</span></violet-radio>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-radio--inline",
-			"html": "<violet-radio aria-checked=\"true\" aria-label=\"Compact direct seed option\" checked inline name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\"></violet-radio>"
+			"html": "<violet-radio aria-checked=\"true\" aria-label=\"Compact direct seed option\" checked error-text inline name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\"></violet-radio>"
 		}
 	],
 	"format": 1,
@@ -200,6 +211,7 @@
 		"import.root",
 		"taxonomy.checked",
 		"taxonomy.disabled",
+		"taxonomy.error-text",
 		"taxonomy.inline",
 		"taxonomy.invalid",
 		"taxonomy.name",
@@ -225,6 +237,11 @@
 			"basis": "authored",
 			"id": "radio.change",
 			"text": "A user check fires a bubbling change event with detail { checked: true, value }. Nothing fires when it is already checked or when the group unchecks it."
+		},
+		{
+			"basis": "authored",
+			"id": "radio.error",
+			"text": "An error message renders only while invalid is set (and not while disabled). It displays error-text, replaces supporting text, links to the radio as its description, and announces with role alert."
 		}
 	]
 }
