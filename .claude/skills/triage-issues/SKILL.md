@@ -42,8 +42,9 @@ like a finished pass. The scripts call `gh`; if it is not signed in, stop and sa
    isn't. Extra or changed labels go in the report; the file and GitHub change
    together, in a PR.
 2. Run `check`. Untriaged means no status label or only `status:triage`.
-   `status:in-progress` is a cell's claim and wins over a leftover
-   `status:triage`; never overwrite it.
+   `status:in-progress` is a claim (a cell's or a session's, through
+   `scripts/issue-claim.mjs`) and wins over a leftover `status:triage`; never
+   overwrite it. `issue-claim.mjs stale` lists the claims whose holder went quiet.
 3. Classify each issue with the questions below. Before writing, run
    `check --labels <final set>` (with `--assigned` if it will be). Write labels and
    assignee in one `gh issue edit`, removing `status:triage` and any legacy or

@@ -1,8 +1,8 @@
 """Lane events: what the foreman is woken for, and what answers each one.
 
 An event lives in the lane state with an id (``ev-<n>``), its type and detail, the consumers it
-was delivered to and whether it is open. ``lane-wait`` returns the events a consumer has not been
-given yet and marks them delivered; reading never resolves one. An event stays open until the
+was delivered to and whether it is open. ``lane-wait`` returns open events the consumer has yet to
+receive and marks them delivered. Reading leaves them open. An event stays open until the
 action that answers it happens (``ANSWERED_BY``) or ``event-resolve`` records a decision, so a
 foreman that dies between reading and acting loses nothing: the next one finds it in
 ``lane-status``.
@@ -78,12 +78,17 @@ def answer(state: dict, action: str, at: str, *, branch: str | None = None) -> l
     return closed
 
 
-def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None) -> dict:
-    """The events ``consumer`` has not been given, each with a compact status, or a timeout.
+def lane_wait(
+    factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None, guard=None
+) -> dict:
+    """The open events ``consumer`` has not been given, each with a compact status, or a timeout.
 
     ``status`` computes the compact status; it is called once, after delivery is recorded, so a
     failed GitHub read never loses an event. ``keep``, when given, runs on each poll while waiting
-    (a foreman's lease is renewed so).
+    (a foreman's lease is renewed so). ``guard``, when given, runs on the state inside the
+    transaction that marks events delivered, before it does: a foreman's session is checked
+    again there, so a wait its session no longer holds the lane for refuses and leaves the
+    events to its successor (lushly-dev/afd#1633).
     """
     if not consumer.strip():
         raise Refusal("VALIDATION_ERROR", "consumer is empty", "Name the consumer, e.g. foreman")
@@ -94,10 +99,16 @@ def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status, k
             "Pass a timeout in milliseconds, or leave it out to wait until an event arrives",
         )
     deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
+
+    def pending_for_consumer(event: dict) -> bool:
+        return is_open(event) and consumer not in event.get("deliveredTo", [])
+
     while True:
-        if any(consumer not in e.get("deliveredTo", []) for e in factory.store.read()["events"]):
+        if any(pending_for_consumer(e) for e in factory.store.read()["events"]):
             with factory.store.update(f"lane-wait {consumer}") as state:
-                pending = [e for e in state["events"] if consumer not in e.get("deliveredTo", [])]
+                if guard is not None:
+                    guard(state)
+                pending = [e for e in state["events"] if pending_for_consumer(e)]
                 for event in pending:
                     event.setdefault("deliveredTo", []).append(consumer)
                 delivered = [view(event) for event in pending]

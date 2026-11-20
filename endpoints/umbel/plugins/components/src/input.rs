@@ -88,21 +88,40 @@ pub(crate) fn check_brief(input: &Value) -> Result<(), Outcome> {
             "each of `known` must be a rule id, bare or as <library>/<id>",
         ));
     }
-    if let Some(versions) = input.get("versions").and_then(Value::as_object) {
-        if versions.len() > MAX_VERSIONS {
-            return Err(fail::invalid("`versions` holds more than 32 packages"));
-        }
-        let bad = versions.iter().any(|(package, version)| {
-            !patterns::PACKAGE.accepts(package)
-                || !version
-                    .as_str()
-                    .is_some_and(|version| patterns::VERSION.accepts(version))
-        });
-        if bad {
-            return Err(fail::invalid(
-                "each of `versions` must map an npm package name to a semantic version",
-            ));
-        }
+    check_versions(input)
+}
+
+/// `versions`: at most 32 entries, each an npm package name to a semantic version.
+fn check_versions(input: &Value) -> Result<(), Outcome> {
+    let Some(versions) = input.get("versions").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    if versions.len() > MAX_VERSIONS {
+        return Err(fail::invalid("`versions` holds more than 32 packages"));
+    }
+    let bad = versions.iter().any(|(package, version)| {
+        !patterns::PACKAGE.accepts(package)
+            || !version
+                .as_str()
+                .is_some_and(|version| patterns::VERSION.accepts(version))
+    });
+    if bad {
+        return Err(fail::invalid(
+            "each of `versions` must map an npm package name to a semantic version",
+        ));
     }
     Ok(())
+}
+
+/// `components-check`'s fields (amendment A30): `source` is required, and bounded as the brief's
+/// is.
+pub(crate) fn check_check(input: &Value) -> Result<(), Outcome> {
+    let Some(source) = input.get("source").and_then(Value::as_str) else {
+        return Err(fail::invalid("pass `source`, the markup or code to check"));
+    };
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err(fail::invalid("`source` is longer than 262 144 UTF-8 bytes"));
+    }
+    check(input, "library", patterns::LIBRARY)?;
+    check_versions(input)
 }

@@ -1,0 +1,89 @@
+# Draft JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
+# `loam-mail serve` on the scripted IMAP server, seeded as `mail-f-base`, with
+# `afd scenario run <dir> --server <url>` and an ordinary agent's token. The data is invented.
+# mail-f-base holds the person's account 1 (me@example.com) and thread 7, in which
+# ada@example.com asks whether Thursday works. The draft commands' keys are step D3's; the first
+# step F pull request aligns this file with D3 as merged.
+# What a scenario cannot show: the send itself. Every step runs as one ordinary agent, whose send
+# is held, so the steps show what the preview gives, that each change raises the revision, and
+# that a send naming any revision but the current one is refused before it is held, so no
+# approval is ever issued for a version the person was not shown. That a draft changed between
+# the hold and an approved retry sends nothing is the engine's test F-T7, with an approver's token
+# on the scripted servers.
+name: Only what I saw is sent
+description: >-
+  When I approve sending a draft, I want exactly the version I saw to go, with the account and
+  recipients I saw, so that a change made after I looked can never go out under my approval.
+job: send-what-i-saw
+tags: [slice, mail-engine]
+steps:
+  - description: A reply to Ada is drafted
+    command: mail-draft-create
+    input: { thread: 7, body: Thursday works for me. }
+    expect:
+      success: true
+      data:
+        draft:
+          revision: 1
+  - description: The preview gives the revision, the sending account and each recipient, with why it is allowed
+    command: mail-draft-show
+    input: { draft: "${{ steps[0].data.draft.id }}" }
+    expect:
+      success: true
+      data:
+        draft:
+          revision: 1
+          account: { id: 1 }
+          recipients:
+            '0':
+              role: to
+              basis: thread
+              content: { trust: content, address: ada@example.com }
+            '1': { notExists: true }
+          content: { trust: content, body: Thursday works for me. }
+  - description: Someone changes the draft
+    command: mail-draft-update
+    input: { draft: "${{ steps[0].data.draft.id }}", body: Thursday works. Bring the invoice. }
+    expect:
+      success: true
+      data:
+        draft:
+          revision: 2
+  - description: The preview now shows the new revision and the new text
+    command: mail-draft-show
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 2 }
+    expect:
+      success: true
+      data:
+        draft:
+          revision: 2
+          content: { body: { contains: invoice } }
+  - description: A preview asked for the revision before the change shows nothing
+    command: mail-draft-show
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: A send naming the revision before the change is refused before it is held
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 1 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+        suggestion: { contains: mail-draft-show }
+  - description: So is a send naming a revision the draft has not reached
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 3 }
+    expect:
+      success: false
+      error:
+        code: PREVIEW_CHANGED
+  - description: A send naming the revision shown is held for the person
+    command: mail-draft-send
+    input: { draft: "${{ steps[0].data.draft.id }}", revision: 2 }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED

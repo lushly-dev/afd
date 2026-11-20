@@ -1313,10 +1313,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d26eb82e5b3b88435a7470f192034ed4fe609003fc85db9210b8c6fab671c147",
+      "current_import_sha256": "7bb7b31787efb7fb63f6ecdfba1855c1d5216dfeead2b39beaeba6ad64916d43",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/claims.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8e30a6f5124b1557cd53eebd9139d566e20e6d41f3371ac7dc3295642c2d550a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Let a release end only its own branch's claim, so a session that loses a claim race leaves the winner's claim standing"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/commands.py",
@@ -1324,10 +1335,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8bdf806b042751f754941adfdf7a30cdf8553b13d271e3f2685e2cd20f5c1981",
+      "current_import_sha256": "c52632be4035689da8d5a83a5b0b73755d4d26c27227773453982a8c5e02d256",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/dials.py",
@@ -1335,10 +1346,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "41b35f72d3bb577685dff2101a5380e4c8cd86747e3decad64b38498ecc19477",
+      "current_import_sha256": "50c50114e40137df7cfb5bacac265396d53a8fb2a7b1184e04221b2eb829f9fe",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/docs.py",
@@ -1346,10 +1357,32 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "626a58d94eed6ee7665ce45d5fd1081b1ba3ca44984e3c3dd2995a7467abdd67",
+      "current_import_sha256": "aeab0170279164f0284673af6a0c7691832c54f1a0602e96e274efb50fcfe179",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/events.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ecdf6fab2a58c984df07ebac85a60f2bc91ffd97c2eb5132f51f9d442c36e799",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/failures.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "59443ea27a91c597e4755d18575b472576799154dbf21296104f2be2a21a569b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/fixture_parts.py",
@@ -1357,10 +1390,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7280463a48de9f7c78a576ff0d222df3aec7dfbd8bd9517237e6b006c54de352",
+      "current_import_sha256": "e11c297b56b1d9de0a7bca451f4df5fa8e0c729019b2a1c360846b9d90ad64ab",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/fixture_world.py",
@@ -1379,10 +1412,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ae1c19f40e26a01a13cb885b465c3c58160b77e0709530d1763ec34f134c8dfe",
+      "current_import_sha256": "d0d7f96b8758ddfb1f425a48d71934bd32294bb956fd85bdf419662ada7c3943",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/commands.py",
@@ -1456,10 +1489,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fd59d3b664bc401b0d0fb1df12648db80f4f170534cc2d15e80a3fc402252660",
+      "current_import_sha256": "f269ed9df3d9b6a06bdc273f35b3b091b774a540dcba0f8959ec411c1ebf897a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane.py",
@@ -1467,10 +1500,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2e03ed3d2b0ccb83156c5612443427dcee1322eb6fcfae87dd32107bbea3250c",
+      "current_import_sha256": "b2799fad9c48c327d78a168668d54532ef85aec5b75fdf14bef0a27529bb5555",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_base.py",
@@ -1478,10 +1511,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "53b305334cdfae151c94564ed9c4f6ae75618cfcbbb6e4970931af42ce0b42be",
+      "current_import_sha256": "27cf3b97956964cbc767e080eb03215c03ba4d458668db6c1d70ed858a8b9902",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/lane_commands.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "2f121df390fabb0f37fc4186851317c2a2296367517a436632d34ae244659d18",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_coverage.py",
@@ -1489,10 +1533,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4fd0a7235711bcc533d70bb43d68709351ae7d9a70e34f9e428f2fc79f1eff64",
+      "current_import_sha256": "3273f7b19c3cf2946f7a21559621fce5a9cb1980e905420d3bdae67b293b6afd",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_merge.py",
@@ -1522,10 +1566,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "79b0164ef8aaae5493ef2c3c830498438f7fd6a93732749714e91084a6394a7a",
+      "current_import_sha256": "63e1c765cbc56165c8f5263864d19e3fb17837c6b2821cc8f4742219c1923900",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_run.py",
@@ -1544,10 +1588,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fd1d33aeee31694881c683db4e141bd4d175be05d1f7f69df46fae88081ffab9",
+      "current_import_sha256": "7243f1867a8b9c60c219c184207d00c07f4d817a40e7baf58ea100a8ce0995f2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_world.py",
@@ -1555,10 +1599,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "01dc7e08986cb4a19961f5ddb7145ae08573e1a0f641292a2a92983bd214f8b6",
+      "current_import_sha256": "d0f835eab4a72c22fb9b2570e79fe7abeb02d606fc7cd4363e9297eeb263ec09",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/records.py",
@@ -1566,10 +1610,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "169153a8c7f9b410f49acf0460df16b4f4becf7f81e04661646a811c7a253539",
+      "current_import_sha256": "65e2b769d92094c72e8856b04530c3cf158cddbf5ef414964eb3affa616a094c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/squash.py",
@@ -1588,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b093de6d09ca1f03620d5bd7a7db97c5dec22c373d5ed406a8a7ad8885ab0d4b",
+      "current_import_sha256": "8c52c2b0206b2758fb6fb578b836280d135a6a2cebc130c1365f9c5d1bfb5c99",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/world.py",
@@ -1599,10 +1643,32 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3cdd624d05325aca93671399e28af46a836e632c83c3370de5a0b0a79bff10ff",
+      "current_import_sha256": "9ffd0421cf6988c7b31e14865e67e491901693a1ad215ee99e51757d56b7618a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_adapter.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "472a848bbe8bfa0d206c39a348fdf3d27ce2651d74a619bc340f64323a6ef10f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_claims.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "08a7a8ec4c042fc543979ea7691123cd00b50b3fc48ba744005ae34a5fe49b1d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Let a release end only its own branch's claim, so a session that loses a claim race leaves the winner's claim standing"
     },
     {
       "path": "plugins/botcore-factory/tests/test_commands.py",
@@ -1610,10 +1676,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a29f5296c5cff622839d5dfc9fbead900cab90507167abc5363932886179dd85",
+      "current_import_sha256": "276e1c02913d21bc0fd0633504afe786f1f86413c53a05633114ac0725b7523e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_ejections.py",
@@ -1621,10 +1687,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "15c86d289fd2cdeb8c92f9b3009af4049b7666364f6b2903c5053d53acedea6a",
+      "current_import_sha256": "1f5e86fee497a9067e4e75a3995ea94fd8d35ceaef22a61205f386cc6c56ec23",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_events.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7015f123278fc627ad0357f35b4be6e971cd539aa996235b66e8b52415aac27c",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Skip resolved events when delivering a lane wake (#1608)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_foreman.py",
@@ -1632,10 +1709,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "44d1cf1221660009f9c91eab892a6fd987ca9c26bd49b48fbd69bda07b7d2e57",
+      "current_import_sha256": "a82092c873980906ef87a132ba3846ec20e4efdce8562fa38f2806c617813261",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_routes.py",
@@ -1665,10 +1742,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "14af41a0371820bb4ceb45ee546b293ac25626599232c6759a2826eb35914353",
+      "current_import_sha256": "dc83ee2e3a7ae4bebfdd3794e204040a73d16b0f919116a9c45f8e0abcee39ed",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_git.py",
@@ -1704,15 +1781,26 @@
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
     },
     {
+      "path": "plugins/botcore-factory/tests/test_queue.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "1c4b6821bde8b0272c8e1fa1089f9bc2ccff8e53a52ee2913d38dd77d8bdda0a",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"
+    },
+    {
       "path": "plugins/botcore-factory/tests/test_real_world.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "34677c30b048144c2543215a67762d194b7190022f108e96f8f63e6d00838e76",
+      "current_import_sha256": "8237e77d36ac49104913e7b2f1cad459319d9ffb93e0b22f5b45906d31920d3a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_squash.py",

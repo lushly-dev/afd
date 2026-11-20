@@ -230,6 +230,7 @@ def dial_set(factory: Factory, key: str, value, session: str | None = None) -> d
         )
     value = dials.normalize(dial, value)
     with factory.store.update(f"dial-set {key}") as state:
+        foreman.check(state, session, "dial-set", factory.world.clock.now(), owner_may=True)
         previous = dials.value(state["dials"], key)
         state["dials"][key] = value
         factory.store.log({"kind": "dial-set", "key": key, "value": value, "previous": previous})

@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bundlePage } from './bundle';
-import { openPage, openShell, serveDist } from './harness';
+import { closeAndRelease, openPage, openShell, serveDist } from './harness';
 
 let browser: Browser;
 let site: Awaited<ReturnType<typeof serveDist>>;
@@ -37,7 +37,7 @@ describe('P2-E13: E10: a second tab', () => {
 		);
 
 		// Once the first tab is gone, a new one takes the lock.
-		await first.page.close();
+		await closeAndRelease(first, site.origin);
 		const third = await openPage(browser, site.origin, {}, first.context);
 		await third.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await first.context.close();

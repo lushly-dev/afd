@@ -13,6 +13,7 @@ import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+	closeAndRelease,
 	type DeploymentSite,
 	DIST,
 	deploymentEntry,
@@ -132,7 +133,7 @@ describe('P2-E1: one first paint', () => {
 			};
 			await shell.kernel.flush();
 		});
-		await setup.page.close();
+		await closeAndRelease(setup, deep.root);
 		deep.hold(STAGE_B);
 		measured.push(
 			await firstPaint(deep, '/personal/p/atlas/hello/items', setup.context, async (page) => {

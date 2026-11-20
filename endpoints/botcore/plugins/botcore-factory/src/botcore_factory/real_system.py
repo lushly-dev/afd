@@ -17,7 +17,7 @@ from pathlib import Path
 
 from botcore_factory.claims import parse_time
 from botcore_factory.real_run import Run, make_runner, path_env, resolve_program, run_process
-from botcore_factory.world import Completed, Plan, WorldError, nvmrc_version
+from botcore_factory.world import TAIL_LINES, Completed, Plan, WorldError, nvmrc_version
 
 GIB = 1024**3
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
@@ -57,6 +57,9 @@ class LocalMachine:
         while not where.exists() and where.parent != where:
             where = where.parent
         return shutil.disk_usage(where).free / GIB
+
+    def is_dir(self, path: str) -> bool:
+        return Path(path).is_dir()
 
     def has_program(self, name: str) -> bool:
         return shutil.which(name) is not None
@@ -267,7 +270,7 @@ class OsProcesses:
     is killed unless it is still the process that started then (pid and start time)."""
 
     def __init__(self) -> None:
-        self._running: dict[str, tuple[subprocess.Popen, str, tuple[str, ...]]] = {}
+        self._running: dict[str, tuple[subprocess.Popen, str, tuple[str, ...], int]] = {}
 
     def alive(self, pid: int, started_at: float | None = None) -> bool:
         if not _exists(pid):
@@ -306,24 +309,31 @@ class OsProcesses:
     def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
         """``python -m botcore_factory.job`` in its own group, its output appended to ``log``."""
         args = (sys.executable, "-m", "botcore_factory.job", json.dumps({"steps": list(steps)}))
+        start = _size(log)  # This job's output starts here; an earlier one may precede it.
         child = _spawn(args, cwd, log, new_group())
         handle = f"{child.pid}@{self.start_time(child.pid) or ''}"
-        self._running[handle] = (child, log, args)
+        self._running[handle] = (child, log, args, start)
         return handle
 
     def poll(self, handle: str) -> Completed | None:
         if handle not in self._running:  # Started by a lane process that has since gone.
             raise WorldError(f"No job {handle} in this process")
-        child, log, args = self._running[handle]
+        child, log, args, start = self._running[handle]
         code = child.poll()
         if code is None:
             return None
         del self._running[handle]
-        tail = _tail(log)
+        output = _read_from(log, start)  # This job's own, not an earlier job's in the log.
+        tail = "\n".join(output.splitlines()[-TAIL_LINES:])
+        from botcore_factory.failures import disk_full, failing_tests
         from botcore_factory.job import failure
 
         failed = failure(tail) if code else None
-        return Completed(args, code, tail, "", (failed or {}).get("failed"))
+        # Every failing test, from all this job wrote: the tail misses those a long run
+        # pushed out of it (lushly-dev/afd#1607).
+        tests = tuple(failing_tests(output)) if code else None
+        full = disk_full(output) if code else None
+        return Completed(args, code, tail, "", (failed or {}).get("failed"), tests, full)
 
     def kill(self, handle: str) -> None:
         entry = self._running.pop(handle, None)
@@ -416,11 +426,18 @@ def _darwin_start_time(pid: int) -> float | None:
     return time.mktime(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y"))
 
 
-def _tail(log: str, lines: int = 200) -> str:
+def _size(log: str) -> int:
     try:
-        return "\n".join(
-            Path(log).read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
-        )
+        return Path(log).stat().st_size
+    except OSError:
+        return 0
+
+
+def _read_from(log: str, start: int) -> str:
+    try:
+        with Path(log).open("rb") as handle:
+            handle.seek(start)
+            return handle.read().decode("utf-8", errors="replace")
     except OSError:
         return ""
 

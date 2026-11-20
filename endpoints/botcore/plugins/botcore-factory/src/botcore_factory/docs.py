@@ -15,21 +15,26 @@ and `catalog` for the inputs. They have no time limit, and exit 1 on a refusal.
 ## Order of calls (foreman)
 
 One foreman per lane. Pass your own `session` (your T3 Code thread id) to `cell_register`,
-`lane_wait(consumer="foreman")` and `dial_set`: the first takes the lane's lease and each renews
-it for `foreman.leaseMinutes` (waiting renews it too). Another session is refused
+`lane_wait(consumer="foreman")`, `dial_set`, `ejection_excuse`, `gate_allow` and `lane_drop`:
+the first takes the lane's lease and each renews it for `foreman.leaseMinutes` (waiting renews
+it too). Each checks the session again inside the change it makes, and a wait checks it again
+before it is given events, so a session that lost the lane meanwhile changes nothing and its
+open wait leaves the events to its successor. Another session is refused
 `FOREMAN_BUSY` (naming the holder and when its lease runs out): stop, and leave the lane to it.
 A session another one took the lane from (after its lease ran out, or a `foreman_handoff`) is
 superseded: its foreman commands are refused `FOREMAN_STALE` (naming the newer session and
 when), since its brief may be out of date. Stop and report; a foreman that should run again
-starts in a new session.
+starts in a new session. A session whose lease was handed over or ran out between the check
+and the change (a wait without `timeout_ms` keeps no lease) is refused `FOREMAN_LOST` and changes
+nothing: read `lane_status`, then call again if no other session holds the lane.
 
 1. `lane_status()`: when `canStartCell`, it names the `plan` and `nextIssue`; otherwise `reason`
    (and `nextReset` when every plan is at its ceiling).
 2. `cell_register(issues=[nextIssue], branch, route, session)`: claims the issue on GitHub
    (`status:in-progress` plus a claim comment with the lease) and assigns the plan. Call it
    before starting the cell, so a refusal costs nothing; then `cell_attach(branch, thread)`.
-3. `lane_wait(consumer="foreman", session)`: the events not yet given to you, each with a compact
-   `status`. Answer each one; reading resolves nothing.
+3. `lane_wait(consumer="foreman", session)`: open events not yet given to you, each with a
+   compact `status`. Answer each one; reading resolves nothing.
 4. `issue_check()` when triage has run or a claim may have expired.
 
 A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn.
@@ -56,7 +61,10 @@ limit), `lane-error`
 running after `lane.checkTimeoutMinutes` with its PR left open, a pull request still in the
 merge queue after as long, left there; free disk at the lane's slots below
 `host.minFreeDiskGb` before a validation starts (the paused lane merges nothing either, and
-pauses again on resuming while the disk is still short); it paused and ejected nothing;
+pauses again on resuming while the disk is still short), or a validation or coverage run that
+failed on a full disk (`ENOSPC`, "No space left on device", read from the whole log, never
+from a test's own row or name): the validation runs again on resuming (`rerun` `disk-full`)
+and counts no ejection, once per attempt, and coverage stays owed; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
 `merged` (`detail` ends `through the merge queue` when it went through one),
 `merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
@@ -75,12 +83,15 @@ queues held branches when there is room, validates in `lane.slots` slots (reserv
 gives its slot to a front branch that needs one and keeps its validation, its checkout moved
 aside to `kept-<branch>-<hash>` with its record, a `slot-released` record; each merges the
 base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
-`validate` in the background), merges serially in queue order (the base is read again before
-the push and just before the merge; when it moved, the branch advances to it without a new
-validation, a `base-advanced` record, only if main's changes touch no `shared_paths` or
-`gate_paths`, merge cleanly with the validated head, and share no unit with the branch's, as the
-adapter's `units` command names them, run in a clean `units` slot checked out at the new
-base; otherwise it is validated again, `rerun` `main-moved`;
+`validate` in the background, with `CARGO_TARGET_DIR` at the slot's own build directory,
+`<host.buildDir>/<slots directory's name>-build/<slot>` or `.build/<slot>` in the slots'
+directory, over any `CARGO_TARGET_DIR` the lane host sets, removed when the slot takes another
+branch, the dial moves, or the slot is free and its branch has left the queue), merges serially in
+queue order (the base is read again before the push and just before the merge; when it moved,
+the branch advances to it without a new validation, a `base-advanced` record, only if main's
+changes touch no `shared_paths` or `gate_paths`, merge cleanly with the validated head, and
+share no unit with the branch's, as the adapter's `units` command names them, run in a clean
+`units` slot checked out at the new base; otherwise it is validated again, `rerun` `main-moved`;
 after `lane.maxBaseReruns` of those, a move that merges cleanly and touches no
 `revalidate_paths` (`gate_paths` when unset) advances it anyway, a `base-advanced` record with
 `reason` `rerun-limit`, and the PR's
@@ -146,7 +157,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `plans.ceiling`; names the next reset), `NO_CLAUDE_PLAN` (no Claude plan while
   `cells.claudeOnly` is on),
   `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`), `DISK_LOW` (free
-  disk where the lane's slots build below `host.minFreeDiskGb`; names that directory),
+  disk where the lane's slots or, with `host.buildDir`, their build output are below
+  `host.minFreeDiskGb`; names that directory),
   `DISK_UNREADABLE` (that free disk could not be read; 0 turns the check off),
   `ALREADY_CLAIMED` (names the holding branch), `NOT_DISPATCHABLE` (triage has not planned it,
   or a rule holds it),
@@ -177,13 +189,15 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   branch's own changes count, against a base the lane fetches, so main's gate changes a rebase or
   merge brings in do not),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
-  (names the stage, with its first lines), `MERGE_QUEUED` (the branch's pull request is in
+  (names the stage, with its first lines, and the adapter's `install` command for a new or
+  rebased worktree not installed since), `MERGE_QUEUED` (the branch's pull request is in
   GitHub's merge queue, which locks the branch), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,
   detail?, logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`;
   over MCP pass at most 300000. As `foreman`, refuses `FOREMAN_STALE` for a superseded session
-  and `FOREMAN_BUSY` while another session holds the lane; with `session` it takes the lease,
+  and `FOREMAN_BUSY` while another session holds the lane, and `FOREMAN_LOST` when its session
+  lost the lease before events were given to it; with `session` it takes the lease,
   and keeps it while waiting when `timeout_ms` is given.
 - `foreman_handoff(session)` -> `released` (the lease, or null when none was held): frees the
   lane for another foreman; the owner's call when a session has ended. It names the holder's
@@ -191,10 +205,13 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `event_resolve(id, note)` -> `resolved`. Refuses `NOT_FOUND`.
 - `lane_pause(reason?)`, `lane_resume(reason?)` -> `paused`; resuming answers `lane-error`.
 - `cell_attach(branch, thread)` -> `cell`. Refuses `NOT_FOUND`.
-- `gate_allow(branch, reason)` -> `allowed`: a diagnosis found the gate edit to be the right
-  repair. Refuses `NOT_FOUND`.
-- `lane_drop(branch, reason)` -> `dropped`, `released[]`: dequeues the branch, puts each issue
-  back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND` and
+- `gate_allow(branch, reason, session?)` -> `allowed`: a diagnosis found the gate edit to be the
+  right repair. A foreman names its `session`; the owner names none. Refuses
+  `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST` and `NOT_FOUND`.
+- `lane_drop(branch, reason, session?)` -> `dropped`, `released[]`: dequeues the branch, puts
+  each issue back to `status:planned` with one comment and forgets the cell. A foreman names its
+  `session`; the owner names none. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`,
+  `FOREMAN_LOST`, `NOT_FOUND` and
   `MERGE_QUEUED` (the branch is in GitHub's merge queue, where it would merge after the lane
   forgot it: wait, or remove it from the queue on GitHub, `lane_resume` a paused lane and
   wait for its `ejected` event first).
@@ -208,7 +225,7 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `excused`, `counted`, `limit`, `answered[]`: the cell's latest ejection was not its branch's
   fault (a known flake), so it stops counting toward `cells.maxEjections`; under the limit again,
   it answers the open `ejection-limit`. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`,
-  `FOREMAN_BUSY`, `NOT_FOUND`
+  `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND`
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
@@ -241,13 +258,17 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   its `session` (the owner, setting a dial by hand, names none). Refuses `FOREMAN_STALE`,
   `FOREMAN_BUSY`,
   `NOT_FOUND`,
-  `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`) and
+  `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`; `host.buildDir`
+  an absolute directory, or empty) and
   `CONFIRMATION_REQUIRED` for the owner's `review.*` dials.
 
 ## Dials
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `host.minFreeDiskGb` 20
-(at the lane's slots, which keep each slot's build output), `lane.queueTarget` 2,
+(at the lane's slots and their build output), `host.buildDir` empty (where the slots' Rust
+build output goes, such as a data volume, which must exist: a missing one, an unmounted
+volume, pauses the lane; empty keeps it in the slots' directory),
+`lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `cells.claudeOnly` true,
 `lane.coverageEvery` 5, `lane.checkTimeoutMinutes` 90 (the required check on a pull request,
 and then the wait in a merge queue), `lane.maxBaseReruns` 2 (100 all but

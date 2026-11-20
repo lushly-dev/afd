@@ -108,7 +108,8 @@ mod wire;
 
 /// A monotonic `Instant` for every supported target.
 ///
-/// - With `native`, it is `tokio::time::Instant`. Batch and pipeline deadlines
+/// - On native targets with `native`, it is `tokio::time::Instant` even when
+///   Cargo also enables the `wasm` feature. Batch and pipeline deadlines
 ///   are computed with it and enforced with `tokio::time::timeout`, so both
 ///   read the same clock. Outside a paused Tokio test clock,
 ///   `tokio::time::Instant::now()` is `std::time::Instant::now()`, so this
@@ -117,22 +118,28 @@ mod wire;
 ///   paused clock instead of disagreeing with it.
 /// - `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so the
 ///   `wasm` feature switches to `web-time`, which reads `performance.now()`
-///   there and is `std::time::Instant` everywhere else.
+///   there.
 /// - Otherwise it is `std::time::Instant`.
 mod time {
-    #[cfg(not(any(feature = "native", feature = "wasm")))]
-    pub(crate) use std::time::Instant;
-    #[cfg(all(feature = "native", not(feature = "wasm")))]
-    pub(crate) use tokio::time::Instant;
+    #[cfg(not(feature = "wasm"))]
+    use std::time as platform_time;
     #[cfg(feature = "wasm")]
-    pub(crate) use web_time::Instant;
+    use web_time as platform_time;
+
+    #[cfg(any(
+        not(feature = "native"),
+        all(target_family = "wasm", target_os = "unknown")
+    ))]
+    pub(crate) use platform_time::Instant;
+    #[cfg(all(
+        feature = "native",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
+    pub(crate) use tokio::time::Instant;
 
     // `std::time::SystemTime::now()` traps on `wasm32-unknown-unknown` too; `web-time` reads
     // `Date.now()` there.
-    #[cfg(not(feature = "wasm"))]
-    pub(crate) use std::time::SystemTime;
-    #[cfg(feature = "wasm")]
-    pub(crate) use web_time::SystemTime;
+    pub(crate) use platform_time::SystemTime;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

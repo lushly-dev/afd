@@ -104,8 +104,8 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         def body() -> CommandResult:
             factory = get()
-            foreman.hold(factory, session, "ejection-excuse", owner_may=True)
-            return success(cells.ejection_excuse(factory, branch, reason))
+            guard = foreman.acting(factory, session, "ejection-excuse", owner_may=True)
+            return success(cells.ejection_excuse(factory, branch, reason, guard))
 
         return await execute(body)
 

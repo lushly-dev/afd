@@ -115,8 +115,9 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
 
         def body() -> CommandResult:
-            foreman.hold(get(), session, "cell-register")
-            cell = cells.register(get(), issues, branch, route, thread, related_because)
+            factory = get()
+            guard = foreman.acting(factory, session, "cell-register")
+            cell = cells.register(factory, issues, branch, route, thread, related_because, guard)
             return success(
                 {"cell": cell},
                 reasoning=f"Claimed {', '.join(f'#{n}' for n in issues)} for {branch} on "
@@ -150,13 +151,13 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(lambda: success(status.dial_get(get(), key)))
 
     async def dial_set(
-        key: str, value: int | float | bool, session: str | None = None
+        key: str, value: int | float | bool | str, session: str | None = None
     ) -> CommandResult:
         """Set a dial; the previous value is returned so the change can be undone.
 
         Args:
             key: The dial, e.g. lane.slots.
-            value: The new value, within the dial's range.
+            value: The new value, within the dial's range; host.buildDir takes a directory.
             session: The foreman's own session; the owner, setting a dial by hand, names none.
         """
         return await run(lambda: success(status.dial_set(get(), key, value, session)))
@@ -185,10 +186,10 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
     async def lane_wait(
         consumer: str, timeout_ms: int | None = None, session: str | None = None
     ) -> CommandResult:
-        """Wait for events this consumer has not been given; reading never resolves them.
+        """Wait for open events this consumer has not been given. Reading never resolves them.
 
         Args:
-            consumer: Who reads, e.g. foreman; each consumer is given each event once.
+            consumer: Who reads, e.g. foreman; each consumer is given an open event at most once.
             timeout_ms: How long to wait; no limit when left out (over MCP pass at most 300000).
             session: The foreman's own session (its T3 Code thread id); it holds the lane, and
                 waiting keeps it.
@@ -200,7 +201,12 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             keep = foreman.waiting(factory, consumer, session, timeout_ms)
             return success(
                 events.lane_wait(
-                    factory, consumer, timeout_ms, lambda: status.compact_status(factory), keep
+                    factory,
+                    consumer,
+                    timeout_ms,
+                    lambda: status.compact_status(factory),
+                    keep,
+                    foreman.wait_guard(factory, consumer, session),
                 )
             )
 
@@ -240,23 +246,37 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success({"cell": cells.attach(get(), branch, thread)}))
 
-    async def lane_drop(branch: str, reason: str) -> CommandResult:
+    async def lane_drop(branch: str, reason: str, session: str | None = None) -> CommandResult:
         """Dequeue a branch, release its issues back to status:planned and forget its cell.
 
         Args:
             branch: The cell's branch; its worktree is left alone.
             reason: Why, posted on each released issue.
+            session: The foreman's own session (its T3 Code thread id); the owner names none.
         """
-        return await run(lambda: success(cells.drop(get(), branch, reason)))
 
-    async def gate_allow(branch: str, reason: str) -> CommandResult:
+        return await run(
+            lambda: success(
+                cells.drop(get(), branch, reason, foreman.acting(get(), session, "lane-drop", True))
+            )
+        )
+
+    async def gate_allow(branch: str, reason: str, session: str | None = None) -> CommandResult:
         """Record that a diagnosis found a repair's gate edit to be the right repair.
 
         Args:
             branch: The ejected cell's branch.
             reason: What the diagnosis found.
+            session: The foreman's own session (its T3 Code thread id); the owner names none.
         """
-        return await run(lambda: success(cells.gate_allow(get(), branch, reason)))
+
+        return await run(
+            lambda: success(
+                cells.gate_allow(
+                    get(), branch, reason, foreman.acting(get(), session, "gate-allow", True)
+                )
+            )
+        )
 
     async def plan_list() -> CommandResult:
         """Each plan's weekly window: share used and elapsed, room, pace (room below

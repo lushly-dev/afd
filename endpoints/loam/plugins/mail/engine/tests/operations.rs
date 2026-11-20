@@ -374,6 +374,153 @@ fn label_copies_and_undo_removes_only_a_copy_whose_original_is_still_there() {
     assert_eq!(subjects(&fixture, "Receipts"), ["About s1"]);
 }
 
+/// Found by step D2's run: undone in the reverse order of the changes, a
+/// move is undone though a later change moved its messages away and back,
+/// which gave them new ids where the move put them.
+#[test]
+fn undone_in_reverse_order_a_move_follows_its_messages_to_their_new_ids() {
+    let fixture = Fixture::new(|world_| {
+        world(world_);
+        world_.add("Receipts", mail(NEWS, "r0", ""), &[]);
+        world_.add("Receipts", mail(NEWS, "r1", ""), &["\\Seen"]);
+    });
+    let inbox = fixture.mailbox_id("inbox");
+    let ids = [fixture.message("r0"), fixture.message("r1")];
+    let before = fixture.server.world().contents("Receipts");
+    let moved = fixture.changed("mail-label", json!({ "messages": ids, "mailbox": inbox }));
+    assert_eq!(moved["changed"], 2);
+    let marked = fixture.changed("mail-mark", json!({ "messages": ids, "flagged": true }));
+    let archived = fixture.changed("mail-archive", json!({ "messages": ids }));
+    assert_eq!(archived["changed"], 2);
+    let back = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": archived["operation"] }),
+    );
+    assert_eq!(back["changed"], 2);
+    // The archive's undo gave them new ids in the inbox: the mark's undo
+    // and the move's find them there.
+    let unmarked = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": marked["operation"] }),
+    );
+    assert_eq!(unmarked["changed"], 2, "{unmarked}");
+    let returned = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": moved["operation"] }),
+    );
+    assert_eq!(returned["changed"], 2, "{returned}");
+    assert_eq!(returned["missing"], 0);
+    assert_eq!(subjects(&fixture, "Receipts"), ["About r0", "About r1"]);
+    let flags = |contents: Vec<(u32, Vec<String>)>| -> Vec<Vec<String>> {
+        let mut flags: Vec<_> = contents.into_iter().map(|(_, flags)| flags).collect();
+        flags.sort();
+        flags
+    };
+    assert_eq!(
+        flags(fixture.server.world().contents("Receipts")),
+        flags(before),
+        "each message's flags as they were"
+    );
+    fixture.shown_as_synced();
+}
+
+/// Found by step D2's review: a change records the copy it made at an id
+/// past the mailbox's cursor, and a pass of sync with QRESYNC saw what left
+/// or changed flags only below the cursor. A copy another client removed,
+/// or marked, before the next pass stayed in the store as it was, for good.
+#[test]
+fn a_copy_removed_or_marked_elsewhere_before_the_next_pass_is_seen_by_it() {
+    let fixture = Fixture::new(|world_| {
+        world(world_);
+        world_.add("Receipts", mail(NEWS, "r0", ""), &[]);
+    });
+    let receipts = fixture.mailbox_id("none");
+    let copied = fixture.changed(
+        "mail-label",
+        json!({ "messages": [fixture.message("s0"), fixture.message("s1")], "mailbox": receipts, "copy": true }),
+    );
+    assert_eq!(copied["changed"], 2);
+    let contents = fixture.server.world().contents("Receipts");
+    let (s0, s1) = (contents[1].0, contents[2].0);
+    fixture.server.world().expunge("Receipts", s0);
+    fixture
+        .server
+        .world()
+        .set_flags("Receipts", s1, &["\\Seen"]);
+    fixture.sync();
+    assert_eq!(
+        fixture
+            .shown()
+            .into_iter()
+            .filter(|(role, _)| role == "none")
+            .collect::<Vec<_>>(),
+        [
+            ("none".to_string(), "About r0".to_string()),
+            ("none".to_string(), "About s1".to_string())
+        ]
+    );
+    let database = fixture.directory.path().join("data").join("mail.sqlite3");
+    let flags: String = rusqlite::Connection::open(database)
+        .unwrap()
+        .query_row(
+            "SELECT flags FROM observation WHERE mailbox_id = ?1 AND provider_id = ?2
+               AND ended_at IS NULL",
+            rusqlite::params![receipts, s1.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(flags.contains("Seen"), "{flags}");
+    fixture.shown_as_synced();
+}
+
+/// The guard on that: a copy of the same message that was in the mailbox
+/// before the operation is never taken for the one the operation made.
+#[test]
+fn an_undo_never_takes_a_copy_that_was_there_before_for_its_own() {
+    let fixture = Fixture::new(|world_| {
+        world(world_);
+        world_.add("Receipts", mail(STRANGER, "s0", ""), &[]);
+    });
+    let receipts = fixture.mailbox_id("none");
+    let message = fixture.message("s0");
+    let copied = fixture.changed(
+        "mail-label",
+        json!({ "messages": [message], "mailbox": receipts, "copy": true }),
+    );
+    assert_eq!(copied["changed"], 1);
+    assert_eq!(subjects(&fixture, "Receipts"), ["About s0", "About s0"]);
+    // The copy the operation made goes, elsewhere.
+    let made = fixture
+        .server
+        .world()
+        .contents("Receipts")
+        .into_iter()
+        .map(|(uid, _)| uid)
+        .next_back()
+        .unwrap();
+    fixture.server.world().expunge("Receipts", made);
+    // The copy from before is marked meanwhile, which the store records as
+    // a new observation of its place: it was still first seen before.
+    let before = fixture.server.world().contents("Receipts")[0].0;
+    fixture
+        .server
+        .world()
+        .set_flags("Receipts", before, &["\\Seen"]);
+    fixture.sync();
+    let undone = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": copied["operation"] }),
+    );
+    assert_eq!(undone["changed"], 0, "{undone}");
+    assert_eq!(undone["missing"], 1);
+    assert_eq!(
+        subjects(&fixture, "Receipts"),
+        ["About s0"],
+        "the copy from before stays"
+    );
+    assert!(subjects(&fixture, "INBOX").contains(&"About s0".to_string()));
+}
+
 #[test]
 fn label_moves_within_its_account_and_refuses_a_mailbox_that_is_not_there() {
     let fixture = Fixture::new(world);

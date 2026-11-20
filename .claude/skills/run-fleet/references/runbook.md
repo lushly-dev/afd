@@ -18,8 +18,9 @@ and repairs. Then run prepare-pr in lane mode: it records the review with
 scripts/review-record.mjs and enqueues with a title and body through factory-cell. End your
 turn once the branch is queued (or held); you are resumed only if it is ejected.
 Run the tests you changed, not whole suites or reproduction loops: the lane's validation shares
-this host. A new or rebased worktree needs `pnpm install` and a build of the packages your tests
-and the pre-queue typecheck import before they pass. A flake you cannot reproduce in one run becomes a needs:repro issue.
+this host. A new or rebased worktree needs `pnpm install --frozen-lockfile` (start-session runs it)
+and a build of the packages your tests and the pre-queue typecheck import before they pass:
+lane-enqueue's lint stage fails without it. A flake you cannot reproduce in one run becomes a needs:repro issue.
 Under needs:approach, post your approach on the issue and proceed; needs:ux gets screenshots.
 Others share the repository; never revert their work.
 Read .claude/skills/start-session/SKILL.md and .claude/skills/prepare-pr/SKILL.md (a skill
@@ -37,7 +38,7 @@ When `main` moves under a validated branch, the lane advances the branch to the 
 
 Where `main` takes merges only through GitHub's merge queue, the lane's merge request queues the pull request instead of merging it. Its entry in `lane-status` then reads `merge-queued` (with `mergeQueue`: GitHub's `state` and `position`) for the minutes the queue takes, and nothing behind it is pushed meanwhile. This too raises no event and needs nothing: `merged` comes when it lands, with `through the merge queue` in its detail. `lane-drop` and `lane-enqueue` refuse such a branch as `MERGE_QUEUED`: GitHub locks its branch and would merge it after the lane forgot it. To stop one, remove it from the queue on GitHub, `lane-resume` the lane if it is paused, and wait for its `ejected` event (a minute or two) before `lane-drop`. A branch that still holds a merge of `main` an older lane authored as `botcore-factory` is ejected with that name in a `Co-authored-by:` line: its cell rebuilds the branch without that merge commit.
 
-`lane-wait` returns events this consumer has not seen; reading one does not answer it. An event
+`lane-wait` returns open events this consumer has not seen. Reading one leaves it open. An event
 stays in `lane-status`'s `openEvents` until the action that answers it (a re-enqueue or drop
 answers `ejected`, `lane-resume` answers `lane-error`, a new `cell-register` answers
 `queue-room`) or `event-resolve` records your decision. At pickup, open `merged` and `queue-room`
@@ -58,7 +59,7 @@ until it is resolved.
 | `ejection-limit` | The branch's own failures reached `cells.maxEjections`. If the last one was a known flake, `ejection-excuse` it, which answers this, and resume the cell. Otherwise `lane-drop` it, put the diagnosis on the issue and label it `needs:decision` for the owner (`cell-park` is not built yet) |
 | `merged`, `queue-room` | Start a cell if `canStartCell` |
 | `main-broken` | The lane has paused. With `reason` `unchecked-merge`, a check failed on `main` after a merge the lane advanced past a moved `main` without validating it again (an unrelated move, or one past `lane.maxBaseReruns`); `suspects` are those PRs, the first places to look. `lane-drop` or leave queued what a broken `main` would eject. File a `priority:1` issue naming the merge at fault, labelled `status:planned` and one `execution:*` so it is dispatchable, and start a cell on it; reverting is that cell's work (`lane-revert` is not built yet). Then `lane-resume` and `event-resolve` it, so the next foreman does not file it again |
-| `merged-without-check` | Check that PR's required check; if it failed, treat it as `main-broken`; otherwise `event-resolve` |
+| `merged-without-check` | Check that PR's required check; if it failed, treat it as `main-broken`; otherwise `event-resolve {"id": "<event id>", "note": "Required check passed"}` |
 | `lane-error` | Fix what the detail names (network, `gh` sign-in, the lane's checkout), then `lane-resume`. One that says a pull request has waited in the merge queue past `lane.checkTimeoutMinutes` left it queued: read the queue on GitHub (a stuck or long queue is the owner's to clear), then `lane-resume`, which starts the wait again. Only a sign-in goes to the owner |
 | `lane-stopped` | Read the end of `lane.log` in the lane's state directory, then `lane-start` and `event-resolve` it |
 | `queue-empty` | Run `triage-issues`; if a cell can start, start it and then `event-resolve` this; otherwise leave it open (resolving it with nothing to start makes the lane say it again) and finish or wait for a reset |

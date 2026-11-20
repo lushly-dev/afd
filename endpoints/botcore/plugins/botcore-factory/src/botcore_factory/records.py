@@ -27,8 +27,8 @@ kind                    required fields                                     writ
                         checksRun, testsRun (when the adapter reports
                         them), flaky, logPath
 ``rerun``               branch, attempt, reason (main-moved | restart |     the lane loop
-                        slot-needed); optional detail (why main's move
-                        needs a new validation)
+                        slot-needed | disk-full); optional detail (why
+                        main's move needs a new validation)
 ``base-advanced``       branch, attempt, previous, base: main moved under   the lane loop
                         a validated branch and nothing it changed can touch
                         what was validated; optional head; with reason
@@ -47,7 +47,9 @@ kind                    required fields                                     writ
                         commit and merge-failed otherwise); optional
                         head, logPath, counted (false: not the branch's
                         own failure, so it does not count toward
-                        cells.maxEjections), excuse (why not)
+                        cells.maxEjections), excuse (why not), failures
+                        and failureCount (every failing test the job's
+                        log names, lushly-dev/afd#1607)
 ``ejection-excused``    branch, attempt, cause, reason: the foreman found   ejection-excuse
                         the latest ejection was not the branch's fault
 ``slot-released``       branch, attempt, slot, path: a validated branch     the lane loop
