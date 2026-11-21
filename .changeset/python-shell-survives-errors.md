@@ -4,4 +4,5 @@
 
 ### Fixed
 
-- **`afd shell` keeps running when a request fails** (#1835), as TypeScript's shell does: a failed `call` prints "Call failed: ..." and a failed `tools` prints "Listing tools failed: ...", both without terminal escapes or Rich markup, and the prompt returns. Before, the exception ended the shell with a traceback. `call` without a name prints its usage, and an unknown command is echoed literally, so `[/x]` in it no longer raises a Rich markup error.
+- **`afd shell` keeps running when a request fails** (#1835), as TypeScript's shell does: a failed `call` prints "Call failed: ..." and a failed `tools` prints "Listing tools failed: ...", and the prompt returns. Before, the exception ended the shell with a traceback. `call` followed by a tab is a call, and a bare `call` prints its usage instead of "Unknown command".
+- **The CLI prints server text as written.** A result's error code, message and suggestion, reasoning, plan steps and alternatives, tool names and descriptions, and the messages of `afd validate`, `connect` and the other commands are shown as plain text: terminal escape sequences are stripped, and Rich does not read `[/x]` as markup or `:smile:` as an emoji. Before, such text could end `afd call`, `afd tools` or the shell with a Rich markup error, or change what was shown.

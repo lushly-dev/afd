@@ -221,3 +221,48 @@ def test_an_unknown_command_with_markup_is_printed_literally(transport, monkeypa
     outcome = _shell(transport, monkeypatch, "frobnicate [/x] [bold]")
     assert outcome.exit_code == 0, outcome.output
     assert "Unknown command: frobnicate [/x] [bold]" in outcome.output
+
+
+def test_a_failed_result_with_markup_does_not_end_the_shell(transport, monkeypatch):
+    transport.call_tool.return_value = {
+        "success": False,
+        "error": {"code": "BAD [x]", "message": "bad [/x] arg :smile:", "suggestion": "fix \x1b]0;t\x07[/b]"},
+    }
+    outcome = _shell(transport, monkeypatch, "call todo-create", "exit")
+    assert outcome.exit_code == 0, outcome.output
+    assert "bad [/x] arg :smile:" in outcome.output
+    assert "fix [/b]" in outcome.output
+    assert "\x1b" not in outcome.output
+    assert "Call failed" not in outcome.output
+
+
+def test_afd_call_prints_a_failed_result_with_markup_literally(transport):
+    transport.call_tool.return_value = {
+        "success": False,
+        "error": {"code": "E", "message": "see [/x] :smile:", "suggestion": "[bold]retry"},
+    }
+    outcome = CliRunner().invoke(cli, ["call", "todo-create", "-s", "http://x/mcp"])
+    assert "see [/x] :smile:" in outcome.output
+    assert "[bold]retry" in outcome.output
+
+
+def test_tools_with_markup_in_a_description_are_listed_as_written(transport, monkeypatch):
+    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    outcome = _shell(transport, monkeypatch, "tools")
+    assert "Listing tools failed" not in outcome.output
+    assert "See [/example] :smile:" in outcome.output
+    assert "todo-[x]" in outcome.output
+    listing = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
+    assert listing.exit_code == 0, listing.output
+    assert "See [/example] :smile:" in listing.output
+
+
+def test_call_followed_by_a_tab_is_a_call(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "call\ttodo-create title=milk")
+    assert outcome.exit_code == 0, outcome.output
+    transport.call_tool.assert_awaited_once_with("todo-create", {"title": "milk"})
+
+
+def test_an_unknown_command_keeps_emoji_codes_literal(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "unknown :smile:")
+    assert "Unknown command: unknown :smile:" in outcome.output

@@ -974,8 +974,10 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
     Provides a REPL for calling tools interactively. A call's arguments are a
     JSON object or key=value pairs. Use 'exit' or Ctrl+D to quit.
     """
-    from rich.markup import escape as rich_escape
     from rich.prompt import Prompt
+    from rich.text import Text
+
+    from afd.cli.output import plain
 
     from afd.cli.args import describe_args_error, parse_tool_args
 
@@ -988,7 +990,7 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
         print_error("No server connected. Use 'afd connect <server>' first.")
         sys.exit(1)
     
-    console.print(f"[bold]AFD Shell[/bold] - Connected to [cyan]{server}[/cyan]")
+    console.print(Text.assemble(("AFD Shell", "bold"), " - Connected to ", plain(server, "cyan")))
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/dim]\n")
     
     async def _shell() -> None:
@@ -1028,7 +1030,7 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
                         _fail(f"Listing tools failed: {e}")
                     continue
 
-                if line == "call" or line.startswith("call "):
+                if line.split(maxsplit=1)[0] == "call":
                     parts = line[4:].strip().split(maxsplit=1)
                     if not parts:
                         _fail("Usage: call <name> [args]")
@@ -1042,13 +1044,12 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
 
                     try:
                         result = await transport.call_tool(tool_name, tool_args)
+                        print_result(result)
                     except Exception as e:
                         _fail(f"Call failed: {e}")
-                        continue
-                    print_result(result)
                     continue
 
-                console.print(f"[yellow]Unknown command: {rich_escape(line)}[/yellow]")
+                console.print(plain(f"Unknown command: {line}", "yellow"))
                 
         finally:
             await transport.disconnect()

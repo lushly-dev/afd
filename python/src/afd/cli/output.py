@@ -10,14 +10,22 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
+from rich.text import Text
 from rich.tree import Tree
 
+from afd.cli.terminal import terminal_text
 from afd.core import CommandResult
 from afd.transports import ToolInfo
 
 # Global console instance
 console = Console()
 error_console = Console(stderr=True)
+
+
+def plain(value: Any, style: str = "") -> Text:
+    """Server text as a Rich ``Text``: terminal escapes stripped, and no markup (``[/x]``)
+    or emoji codes (``:smile:``) read from it."""
+    return Text(terminal_text(value), style=style)
 
 
 def print_result(result: CommandResult[Any], *, json_output: bool = False) -> None:
@@ -63,14 +71,14 @@ def _print_success_result(result: CommandResult[Any]) -> None:
 
     # Show confidence if present
     confidence = _get_attr(result, "confidence")
-    if confidence is not None:
+    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
         confidence_bar = _create_confidence_bar(confidence)
         console.print(f"Confidence: {confidence_bar} {confidence:.0%}")
 
     # Show reasoning if present
     reasoning = _get_attr(result, "reasoning")
     if reasoning:
-        console.print(f"[dim]💭 {reasoning}[/dim]")
+        console.print(plain(f"💭 {reasoning}", "dim"))
 
     # Show data
     data = _get_attr(result, "data")
@@ -80,7 +88,7 @@ def _print_success_result(result: CommandResult[Any]) -> None:
             syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
             console.print(Panel(syntax, title="[green]✓ Success[/green]", border_style="green"))
         else:
-            console.print(Panel(str(data), title="[green]✓ Success[/green]", border_style="green"))
+            console.print(Panel(plain(data), title="[green]✓ Success[/green]", border_style="green"))
     else:
         console.print("[green]✓ Command completed successfully[/green]")
 
@@ -116,9 +124,11 @@ def _print_error_result(result: CommandResult[Any]) -> None:
         message = getattr(error, "message", "An unknown error occurred")
         suggestion = getattr(error, "suggestion", None)
 
-    error_text = f"[bold red]{code}[/bold red]\n{message}"
+    error_text = Text.assemble(plain(code, "bold red"), "\n", plain(message))
     if suggestion:
-        error_text += f"\n\n[yellow]💡 Suggestion:[/yellow] {suggestion}"
+        error_text.append("\n\n")
+        error_text.append("💡 Suggestion: ", style="yellow")
+        error_text.append(plain(suggestion))
 
     error_console.print(Panel(error_text, title="[red]✗ Error[/red]", border_style="red"))
 
@@ -158,8 +168,8 @@ def _print_plan(plan: list[dict[str, Any]]) -> None:
             "skipped": "⏭️",
         }
         icon = status_icons.get(str(status), "•")
-        
-        tree.add(f"{icon} {description}")
+
+        tree.add(Text.assemble(f"{icon} ", plain(description)))
     
     console.print(tree)
 
@@ -189,7 +199,7 @@ def _print_alternatives(alternatives: list[dict[str, Any]]) -> None:
         else:
             data_str = str(data)[:50]
         
-        table.add_row(data_str, reason, confidence_str)
+        table.add_row(plain(data_str), plain(reason), confidence_str)
     
     console.print(table)
 
@@ -210,11 +220,12 @@ def print_tools(tools: list[ToolInfo]) -> None:
     table.add_column("Description", style="dim")
 
     for tool in sorted(tools, key=lambda t: t.name):
-        description = tool.description or "[dim]No description[/dim]"
+        description = tool.description or ""
         # Truncate long descriptions
         if len(description) > 60:
             description = description[:57] + "..."
-        table.add_row(tool.name, description)
+        cell = plain(description) if description else Text("No description", style="dim")
+        table.add_row(plain(tool.name), cell)
 
     console.print(table)
     console.print(f"\n[dim]Total: {len(tools)} tools[/dim]")
@@ -229,10 +240,12 @@ def print_tool_detail(tool: ToolInfo) -> None:
     """
     import json
 
-    console.print(f"\n[bold cyan]{tool.name}[/bold cyan]")
-    
+    console.print()
+    console.print(plain(tool.name, "bold cyan"))
+
     if tool.description:
-        console.print(f"[dim]{tool.description}[/dim]\n")
+        console.print(plain(tool.description, "dim"))
+        console.print()
 
     if tool.input_schema:
         console.print("[bold]Input Schema:[/bold]")
@@ -248,7 +261,7 @@ def print_error(message: str) -> None:
     Args:
         message: Error message to display
     """
-    error_console.print(f"[red]✗ Error:[/red] {message}")
+    error_console.print(Text.assemble(("✗ Error:", "red"), " ", plain(message)))
 
 
 def print_success(message: str) -> None:
@@ -258,7 +271,7 @@ def print_success(message: str) -> None:
     Args:
         message: Success message to display
     """
-    console.print(f"[green]✓[/green] {message}")
+    console.print(Text.assemble(("✓", "green"), " ", plain(message)))
 
 
 def print_warning(message: str) -> None:
@@ -268,7 +281,7 @@ def print_warning(message: str) -> None:
     Args:
         message: Warning message to display
     """
-    console.print(f"[yellow]⚠[/yellow] {message}")
+    console.print(Text.assemble(("⚠", "yellow"), " ", plain(message)))
 
 
 def print_info(message: str) -> None:
@@ -278,12 +291,12 @@ def print_info(message: str) -> None:
     Args:
         message: Info message to display
     """
-    console.print(f"[blue]ℹ[/blue] {message}")
+    console.print(Text.assemble(("ℹ", "blue"), " ", plain(message)))
 
 
 def print_connecting(server: str) -> None:
     """Print a connecting message."""
-    console.print(f"[dim]Connecting to {server}...[/dim]")
+    console.print(plain(f"Connecting to {server}...", "dim"))
 
 
 def print_disconnecting() -> None:
