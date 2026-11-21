@@ -983,6 +983,7 @@ export async function createLateParts(
 				anchorFound: (owner, anchor) =>
 					owner.kind !== 'agent' &&
 					(deps.overlayAnchors?.resolve?.({ kind: owner.kind, id: owner.id }, anchor) ?? false),
+				allows: (actor, scope) => deps.scope.allows(actor, scope),
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),

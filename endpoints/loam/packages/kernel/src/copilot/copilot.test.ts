@@ -656,12 +656,37 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 	});
 
 	it('never reaches a confirmation, a human command or a palette path, and lists none of them', async () => {
-		const { agent } = await fakeTurn();
+		const { agent, journal } = await fakeTurn();
 		const call = async (name: string, input: unknown = {}) => {
 			agent.post({ id: 7, key: 'call', name, input });
 			return ((await agent.next()) as { result: CommandResult }).result;
 		};
 		expect((await call('confirmation-get', { id: 'n1' })).error?.code).toBe('COPILOT_PORT_REFUSED');
+		// #1869: CHROME_ONLY and internal commands are blocked at the agent port too, not just hidden from listCommands,
+		// and each refusal is logged via `copilot-port-refuse`.
+		const blockedCommands = [
+			'palette-open',
+			'palette-close',
+			'editor-selection-set',
+			'overlay-global-set',
+			'app-call-refuse',
+		];
+		const beforeRefusals = (await entries(journal)).filter(
+			(entry) => entry.command === 'copilot-port-refuse'
+		).length;
+		for (const blocked of blockedCommands) {
+			expect((await call(blocked, {})).error?.code, blocked).toBe('COPILOT_PORT_REFUSED');
+		}
+		const addedRefusals = (await entries(journal))
+			.filter((entry) => entry.command === 'copilot-port-refuse')
+			.slice(beforeRefusals);
+		expect(addedRefusals).toHaveLength(blockedCommands.length);
+		for (const refusal of addedRefusals) {
+			expect(refusal.input).toMatchObject({
+				reason: 'Not a command the copilot calls',
+				keys: ['name'],
+			});
+		}
 		expect((await call('session-list', {})).error?.code).toBe('HUMAN_REQUIRED');
 		expect((await call('copilot-message-send', { session: 'x', text: 'y' })).error?.code).toBe(
 			'HUMAN_REQUIRED'
@@ -696,6 +721,81 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 			expect(names, hidden).not.toContain(hidden);
 		expect(tools.length).toBeLessThanOrEqual(128);
 		expect(tools.every((tool) => typeof tool.inputSchema === 'object')).toBe(true);
+	});
+
+	it('never reads another caller’s confirmation.input via notification-list (#1868)', async () => {
+		const store = new MemoryAdapter();
+		const launcher = fakeLauncher();
+		const host = createCopilotHost({
+			launcher,
+			transport: {
+				send: (_provider, body, signal) => createTestProvider({ scripts: {} }).send(body, signal),
+			},
+		});
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			copilot: {
+				providers: [TEST],
+				runner: host,
+				takeRunId: (session) => host.takeRunId(session),
+			},
+		});
+		disposers.push(async () => {
+			host.reset();
+			await kernel.dispose();
+		});
+
+		const notificationId = 'ntf_0000000000000099';
+		await store.create('notification', {
+			id: notificationId,
+			workspace: 'personal',
+			person: 'local',
+			source: 'agent:shell-agent',
+			cbucket: 'agents:local',
+			kind: 'confirmation',
+			title: 'Confirm delete',
+			tone: 'warning',
+			scope: { workspace: 'personal' },
+			createdAt: 1_700_000_000_001,
+			confirmation: {
+				command: 'doc-delete',
+				caller: 'agent:shell-agent',
+				input: { secret: 'do-not-leak-to-copilot' },
+				header: 'Requested by shell-agent for you',
+				prompt: 'Delete?',
+				title: 'Delete',
+				expiresAt: 1_900_000_000_000,
+				state: 'pending',
+			},
+		} as never);
+
+		const session = await startSession(kernel);
+		data(await kernel.call('copilot-message-send', { session, text: 'Check inbox', wait: false }));
+		const ports = launcher.launched[0] as RuntimePortsV1;
+		const agent = side(ports.agent);
+		const panel = side(ports.panel);
+		await panel.next((message) => (message as { key?: string }).key === 'run');
+
+		for (const input of [
+			{ kind: 'confirmation', body: true },
+			{ notification: notificationId, body: true },
+		]) {
+			agent.post({ id: 21, key: 'call', name: 'notification-list', input });
+			const reply = (await agent.next()) as {
+				result: CommandResult<{
+					notifications: Array<{ id: string; confirmation?: Record<string, unknown> }>;
+				}>;
+			};
+			expect(reply.result.success).toBe(true);
+			const row = reply.result.data?.notifications.find((each) => each.id === notificationId);
+			expect(row?.confirmation).toBeDefined();
+			expect(row?.confirmation).not.toHaveProperty('input');
+		}
 	});
 
 	it('answers nothing more once the turn is stopped, and the stop lists every call made', async () => {

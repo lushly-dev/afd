@@ -604,7 +604,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		row: StoredNotice,
 		body: boolean,
 		now: number,
-		reader: { bucket?: string; one: boolean }
+		reader: { bucket?: string; one: boolean; human: boolean }
 	): NotificationV1 => {
 		const copy = structuredClone(row);
 		const raisedBy = (row as { cbucket?: string }).cbucket;
@@ -614,10 +614,15 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			const record = copy.confirmation as ConfirmationRecordV1;
 			// A pending confirmation past its 10 minutes is listed `expired` (7.2): no write records it.
 			record.state = stateNow(record, now);
-			// Its outcome is the raiser's, as `confirmation-get` gives it (R1); a list bounds its input, a read by id shows it
-			// whole, so the person sees all of it before confirming (blocker 9).
-			if (!ownedBy({ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot }, reader.bucket))
-				delete record.result;
+			// Its outcome is the raiser's, as `confirmation-get` gives it (R1); its input is the person's or the raiser's
+			// alone, never another agent's or the copilot's (#1868). A list bounds its input; a read by id shows it whole
+			// to the person or raiser.
+			const isOwner = ownedBy(
+				{ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot },
+				reader.bucket
+			);
+			if (!isOwner) delete record.result;
+			if (!reader.human && !isOwner) delete record.input;
 			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
 			// And its stored outcome, as its input (step 6's second round, 8): a large result never breaks a page.
 			if (!reader.one && record.result !== undefined) record.result = summaryOf(record.result);
@@ -686,6 +691,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			const unreadCount = all.filter(unread).length;
 			const reader = {
 				one: input.notification !== undefined,
+				human: deps.humanGesture(context),
 				...((b) => (b === undefined ? {} : { bucket: b }))(deps.bucketOf?.(context)),
 			};
 			const page: NotificationV1[] = [];
