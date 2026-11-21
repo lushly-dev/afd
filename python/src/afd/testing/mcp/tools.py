@@ -235,8 +235,8 @@ def create_tool_registry(
 
 	Args:
 		command_handler: Handler that scenario-evaluate runs commands with.
-		cwd: Project root. scenario-create writes, and scenario-evaluate reads,
-			only inside it (default: the process working directory).
+		cwd: Project root. All scenario tools stay inside it (default: the
+			process working directory).
 
 	Returns a dict mapping tool name -> async handler function.
 	"""
@@ -249,7 +249,7 @@ def create_tool_registry(
 
 	async def handle_list(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input)
-		result = scenario_list(parsed)
+		result = scenario_list(parsed, root=cwd)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-list", result)
 		return enhance_with_agent_hints("scenario-list", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
@@ -284,7 +284,7 @@ def create_tool_registry(
 			parsed["knownCommands"] = parsed["known_commands"]
 		if "knownCommands" not in parsed and "known_commands" not in parsed:
 			raise ValueError("Missing required field: knownCommands")
-		result = scenario_coverage_cmd(parsed)
+		result = scenario_coverage_cmd(parsed, root=cwd)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-coverage", result)
 		return enhance_with_agent_hints("scenario-coverage", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
@@ -298,7 +298,7 @@ def create_tool_registry(
 
 	async def handle_suggest(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input, ["context"])
-		result = scenario_suggest(parsed)
+		result = scenario_suggest(parsed, root=cwd)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-suggest", result)
 		return enhance_with_agent_hints("scenario-suggest", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})

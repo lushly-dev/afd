@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import math
 from typing import Any, Sequence
 
 from afd.core.approval import approval_mode
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
-from afd.core.result import CommandResult, success
+from afd.core.result import CommandResult, error, success
 from afd.core.similarity import find_similar_tools, truncate_name
 
 # How many close matches a COMMAND_NOT_FOUND suggestion names at most.
@@ -61,22 +63,128 @@ def _matches_tags(command: CommandDefinition, tags: Sequence[str], mode: str) ->
     return any(tag in command_tags for tag in tags)
 
 
+_MISSING = object()
+
+
+def _parse_discover_int(
+    value: Any,
+    *,
+    field: str,
+    default: int,
+) -> tuple[int | None, CommandResult[dict[str, Any]] | None]:
+    if value is _MISSING:
+        return default, None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, error(
+            "VALIDATION_ERROR",
+            f"Invalid {field}: expected an integer",
+            suggestion=f"Provide '{field}' as a finite integer.",
+            details={"field": field},
+        )
+    if isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            return None, error(
+                "VALIDATION_ERROR",
+                f"Invalid {field}: expected a finite integer",
+                suggestion=f"Provide '{field}' as a finite integer.",
+                details={"field": field},
+            )
+        return int(value), None
+    return value, None
+
+
 def execute_discover(
     commands: Sequence[CommandDefinition],
     raw_input: dict[str, Any] | None,
 ) -> CommandResult[dict[str, Any]]:
     """List available commands with lightweight metadata."""
 
-    payload = dict(raw_input or {})
-    category = payload.get("category")
-    tag = payload.get("tag")
-    tag_mode = payload.get("tag_mode", payload.get("tagMode", "any"))
-    search = payload.get("search")
-    include_mutation = bool(
-        payload.get("include_mutation", payload.get("includeMutation", False))
+    if raw_input is not None and not isinstance(raw_input, Mapping):
+        return error(
+            "VALIDATION_ERROR",
+            "afd-discover input must be an object",
+            suggestion="Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }.",
+        )
+
+    payload = dict(raw_input) if raw_input is not None else {}
+
+    category = payload.get("category", _MISSING)
+    if category is _MISSING:
+        category = None
+    elif not isinstance(category, str):
+        return error(
+            "VALIDATION_ERROR",
+            "Invalid category: expected a string",
+            suggestion="Provide 'category' as a string or omit it.",
+            details={"field": "category"},
+        )
+
+    tag = payload.get("tag", _MISSING)
+    if tag is _MISSING:
+        tag = None
+    elif not isinstance(tag, str) and not (
+        isinstance(tag, list) and all(isinstance(t, str) for t in tag)
+    ):
+        return error(
+            "VALIDATION_ERROR",
+            "Invalid tag: expected a string or list of strings",
+            suggestion="Provide 'tag' as a string or array of strings, or omit it.",
+            details={"field": "tag"},
+        )
+
+    if "tag_mode" in payload:
+        tag_mode = payload["tag_mode"]
+    elif "tagMode" in payload:
+        tag_mode = payload["tagMode"]
+    else:
+        tag_mode = "any"
+    if tag_mode not in ("any", "all"):
+        return error(
+            "VALIDATION_ERROR",
+            f"Invalid tagMode: {tag_mode!r}",
+            suggestion="Use 'any' or 'all' for tagMode, or omit it.",
+            details={"field": "tagMode"},
+        )
+
+    search = payload.get("search", _MISSING)
+    if search is _MISSING:
+        search = None
+    elif not isinstance(search, str):
+        return error(
+            "VALIDATION_ERROR",
+            "Invalid search: expected a string",
+            suggestion="Provide 'search' as a string or omit it.",
+            details={"field": "search"},
+        )
+
+    if "include_mutation" in payload:
+        raw_include_mutation = payload["include_mutation"]
+    elif "includeMutation" in payload:
+        raw_include_mutation = payload["includeMutation"]
+    else:
+        raw_include_mutation = False
+    if not isinstance(raw_include_mutation, bool):
+        return error(
+            "VALIDATION_ERROR",
+            "Invalid includeMutation: expected a boolean",
+            suggestion="Provide 'includeMutation' as true or false, or omit it.",
+            details={"field": "includeMutation"},
+        )
+    include_mutation = raw_include_mutation
+
+    parsed_limit, limit_err = _parse_discover_int(
+        payload.get("limit", _MISSING), field="limit", default=50
     )
-    limit = max(1, min(int(payload.get("limit", 50) or 50), 200))
-    offset = max(0, int(payload.get("offset", 0) or 0))
+    if limit_err is not None:
+        return limit_err
+    parsed_offset, offset_err = _parse_discover_int(
+        payload.get("offset", _MISSING), field="offset", default=0
+    )
+    if offset_err is not None:
+        return offset_err
+
+    limit = max(1, min(parsed_limit, 200))
+    offset = max(0, parsed_offset)
 
     all_categories = sorted({_derive_category(command) for command in commands})
     all_tags = sorted({tag for command in commands for tag in (command.tags or [])})

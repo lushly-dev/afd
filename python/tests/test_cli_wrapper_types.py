@@ -195,55 +195,51 @@ class TestBuildArgs:
 	"""Tests for CliWrapper._build_args."""
 
 	def test_basic_command(self):
-		"""Should build basic call args with --json."""
+		"""Should build basic call args with root-level --json."""
 		wrapper = CliWrapper()
 		args = wrapper._build_args("todo-list")
-		assert args == ["call", "todo-list", "--json"]
+		assert args == ["--json", "call", "todo-list"]
 
 	def test_with_server_url(self):
-		"""Should include --connect when server_url is set."""
+		"""Should include --server when server_url is set."""
 		wrapper = CliWrapper(CliConfig(server_url="http://localhost:3000/mcp"))
 		args = wrapper._build_args("todo-create")
 		assert args == [
+			"--json",
 			"call",
 			"todo-create",
-			"--connect",
+			"--server",
 			"http://localhost:3000/mcp",
-			"--json",
 		]
 
 	def test_with_input(self):
-		"""Should include --input with JSON-serialized dict."""
+		"""Should pass JSON-serialized dict as positional args."""
 		wrapper = CliWrapper()
 		input_data = {"title": "Buy milk", "done": False}
 		args = wrapper._build_args("todo-create", input_data)
-		assert args[0] == "call"
-		assert args[1] == "todo-create"
-		assert args[2] == "--json"
-		assert args[3] == "--input"
-		assert json.loads(args[4]) == input_data
+		assert args[0] == "--json"
+		assert args[1] == "call"
+		assert args[2] == "todo-create"
+		assert json.loads(args[3]) == input_data
 
 	def test_with_server_url_and_input(self):
-		"""Should include both --connect and --input."""
+		"""Should include positional JSON input and --server."""
 		wrapper = CliWrapper(CliConfig(server_url="http://host/mcp"))
 		input_data = {"key": "value"}
 		args = wrapper._build_args("cmd", input_data)
-		assert "--connect" in args
-		assert "http://host/mcp" in args
-		assert "--input" in args
-		assert "--json" in args
+		assert args == ["--json", "call", "cmd", '{"key": "value"}', "--server", "http://host/mcp"]
 
 	def test_with_empty_input(self):
-		"""Should NOT include --input when input dict is empty."""
+		"""Should omit positional JSON arg when input dict is empty."""
 		wrapper = CliWrapper()
 		args = wrapper._build_args("todo-list", {})
-		assert "--input" not in args
+		assert args == ["--json", "call", "todo-list"]
 
 	def test_with_none_input(self):
-		"""Should NOT include --input when input is None."""
+		"""Should omit positional JSON arg when input is None."""
 		wrapper = CliWrapper()
 		args = wrapper._build_args("todo-list", None)
-		assert "--input" not in args
+		assert args == ["--json", "call", "todo-list"]
 
 
 # ==============================================================================

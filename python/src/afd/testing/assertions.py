@@ -239,12 +239,9 @@ def assert_has_sources(
     converted_sources = []
     for s in sources:
         if isinstance(s, dict):
-            converted_sources.append(Source(
-                title=s.get("title", ""),
-                url=s.get("url"),
-                content=s.get("content"),
-                relevance=s.get("relevance"),
-            ))
+            source_data = dict(s)
+            source_data.setdefault("type", "unknown")
+            converted_sources.append(Source.model_validate(source_data))
         else:
             converted_sources.append(s)
     
