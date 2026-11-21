@@ -146,7 +146,7 @@ def _link_boundary(ws: Path | None) -> Path | None:
         return context.workspace
     if ws is None:
         return None
-    root = Path(os.path.abspath(ws))
+    root = _resolved(Path(os.path.abspath(ws)))
     for candidate in (root, *root.parents):
         if (candidate / ".git").exists():
             return candidate
