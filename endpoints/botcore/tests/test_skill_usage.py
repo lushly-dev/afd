@@ -70,8 +70,10 @@ class T3Store:
         delegated_from: str | None = None,
         lineage: bool = True,
         model: str | None = None,
+        extra: dict | None = None,
     ) -> str:
         payload: dict = {"modelSelection": {"model": model}} if model else {}
+        payload.update(extra or {})
         if parent and lineage:
             payload["lineage"] = {"parentThreadId": parent, "relationshipToParent": relationship}
         if delegated_from:
@@ -852,8 +854,8 @@ def test_every_session_is_recorded_with_its_pull_requests(state: Path, t3_store:
     assert sorted(sessions) == ["main-1", "main-2"]
     assert sessions["main-2"] == {
         "root": "main-2", "agent": "main", "harness": "codex", "project": "garden",
-        "created_at": stamp(2), "updated_at": stamp(1), "pull_requests": ["acme/garden#7"],
-        "machine": "bench",
+        "created_at": stamp(2), "updated_at": stamp(1), "machine": "bench",
+        "pull_requests": [{"ref": "acme/garden#7", "linked_at": None}],
     }  # fmt: skip
     assert SECRET not in (state / store.SESSIONS_FILE).read_text(encoding="utf-8")
     assert (row["sessions"], row["of_sessions"], row["share"]) == (1, 2, 0.5)

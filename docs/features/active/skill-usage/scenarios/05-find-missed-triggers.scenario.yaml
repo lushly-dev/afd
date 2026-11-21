@@ -21,10 +21,22 @@ steps:
             loaded: 2
             missed: 3
             unknown: 1
+            unknown_why: { no_pull_request: 0, no_session: 1, no_recorded_change: 0 }
+            rate: 0.4
+            sessions_changed: 7
+            sessions_loaded_first: 3
             misses:
               - { change: 101, sessions: [session-a] }
               - { change: 104, sessions: [session-b] }
               - { change: 109, sessions: [session-c, session-d] }
+  - description: A path that is not a checkout is refused
+    command: skill-usage-triggers
+    input: { days: 30, repo: /work/nowhere }
+    expect:
+      success: false
+      error:
+        code: NO_WORKSPACE
+        suggestion: { contains: repo }
   - description: A repository that declares no required skill is told how to declare one
     command: skill-usage-triggers
     input: { days: 30, repo: /work/shed }

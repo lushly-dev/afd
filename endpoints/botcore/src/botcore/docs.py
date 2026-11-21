@@ -113,8 +113,9 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
   or edit that names the file is not a load, nor a read sent to a file, a count or a search.
 - It also records each session, with the pull requests T3 Code linked to it, whether or not it
-  loaded a skill, and each change a session made to a skill's files (`loads_added` and
-  `edits_added` count the two).
+  loaded a skill; each change a session made to a skill's files; and each change to a path
+  the project's `[[skills.required]]` names (`loads_added`, `edits_added` and `triggers_added`
+  count the three).
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
@@ -154,6 +155,32 @@ first (`NOT_COLLECTED` otherwise).
 - A project, harness or skill the record has never seen is `INVALID_INPUT` with the known
   values, not an empty report. `warnings` says when the record is over a day old or holds
   events an older botcore recognised. Also `RECORD_UNAVAILABLE`.
+
+## skill_usage_triggers(days=30, repo=None)
+Read-only. For each skill a repository requires, the changes merged to its default branch in
+the last `days` days that touched the skill's paths, and whether the session that made each
+had loaded the skill first. A repository declares them in its botcore configuration:
+`[[skills.required]]` with `skill = "<name>"` and `paths = ["<glob>", ...]` (`*` stays in one
+folder, `**` spans folders). `skill_usage_collect` records each change a session makes to such
+a path (the skill required, never the file): from the files a turn left changed in the
+session's checkout, and from completed file edits. A turn that moved the checkout to other
+commits (a merge, pull, rebase, checkout of another branch, hard reset or base sync) lists
+other people's changes, so it is not read.
+- Per rule: `changes`; `loaded` (every session linked to the change's pull request that
+  changed a required path had loaded the skill before its first such change, itself or through
+  a subagent; a load at review time does not count); `missed`, with `misses` naming each
+  change's pull request and the sessions that had not loaded it; `unknown`, with `unknown_why`
+  (`no_pull_request`, `no_session` on a collected machine, `no_recorded_change` in the
+  session); `rate` (loaded out of loaded and missed).
+- A session linked to several pull requests is judged one at a time: the changes it made
+  after linking the one before, up to linking this one, built this one.
+- `sessions_changed` and `sessions_loaded_first` count the sessions that changed a required
+  path in the window, whatever was merged.
+- `repo`: the repository's checkout; the one holding the working directory when left out.
+- After declaring or changing required skills, run `skill_usage_collect(rebuild=True)`:
+  changes recorded before are unknown until then, and `warnings` says so.
+- Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
+  `GIT_FAILED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT`.
 """,
     "docs": """\
 # Docs Commands

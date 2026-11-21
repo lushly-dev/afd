@@ -17,8 +17,9 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.scan import compile_pattern
 from botcore.commands.skill_usage import t3
-from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
+from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TRIGGER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
     append_events,
@@ -32,6 +33,7 @@ from botcore.commands.skill_usage.store import (
     state_dir,
     t3_store_path,
 )
+from botcore.config import load_config
 
 STATE_VERSION = 1
 OVERLAP = timedelta(days=1)  # re-read this much, for items a harness finished writing late
@@ -150,11 +152,51 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
     return projects, names
 
 
-def _read_t3(path: Path, since: str | None, all_items: bool = False) -> t3.T3Read:
+def required_skills(root: str) -> list[dict]:
+    """A checkout's `[[skills.required]]`, as it stands in its working tree; none when the
+    checkout is not here or its configuration cannot be read (`skill-usage-triggers` reports
+    that; collection of loads does not depend on it)."""
+    try:
+        if not Path(root).is_dir():
+            return []
+        rules = load_config(workspace=Path(root)).skills.required
+    except Exception:  # noqa: BLE001 - a broken configuration must not stop collection
+        return []
+    return [{"skill": rule.skill, "paths": list(rule.paths)} for rule in rules]
+
+
+class Required:
+    """Which skills each checkout requires for a change to a path, read once per checkout."""
+
+    def __init__(self) -> None:
+        self.rules: dict[str, list[dict]] = {}
+        self._patterns: dict[str, list[tuple[str, list[re.Pattern[str]]]]] = {}
+
+    def of(self, root: str) -> list[dict]:
+        if root not in self.rules:
+            self.rules[root] = required_skills(root)
+            self._patterns[root] = [
+                (rule["skill"], [compile_pattern(path) for path in rule["paths"]])
+                for rule in self.rules[root]
+            ]
+        return self.rules[root]
+
+    def __call__(self, root: str, path: str) -> list[str]:
+        self.of(root)
+        return [
+            skill
+            for skill, patterns in self._patterns[root]
+            if any(pattern.match(path) for pattern in patterns)
+        ]
+
+
+def _read_t3(
+    path: Path, since: str | None, required: Required, all_items: bool = False
+) -> t3.T3Read:
     connection = t3.open_store(path)
     try:
         t3.check_schema(connection)
-        return t3.read(connection, since=since, all_items=all_items)
+        return t3.read(connection, since=since, all_items=all_items, required=required)
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:
@@ -171,7 +213,7 @@ def _events(
     for load in found.loads:
         events.append(
             Event(
-                id=f"t3:{load.skill}@{load.item}",
+                id=f"t3:{load.skill}@{load.item}" + ("#trigger" if load.path == TRIGGER else ""),
                 at=load.at,
                 skill=load.skill,
                 path=load.path,
@@ -186,7 +228,9 @@ def _events(
                 native=load.native,
             )
         )
-    loaded = known | {(event.project, event.skill) for event in events if event.path != TYPED}
+    loaded = known | {
+        (event.project, event.skill) for event in events if event.path not in (TYPED, TRIGGER)
+    }
 
     def is_skill(event: Event) -> bool:
         roots = _strings(_mapping(projects.get(event.project)).get("roots"))
@@ -203,7 +247,7 @@ def _failure(code: str, message: str, suggestion: str) -> CommandResult[dict]:
 
 def _item(event: Event) -> str | None:
     """The store's id for the item an event was recognised in."""
-    return event.id.partition("@")[2] or None
+    return event.id.partition("@")[2].removesuffix("#trigger") or None
 
 
 async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source can fail
@@ -306,10 +350,14 @@ def _collect(
     else:
         since = _stamp(newest - OVERLAP)
 
-    found = _read_t3(path, since, all_items=rebuild)
+    required = Required()
+    found = _read_t3(path, since, required, all_items=rebuild)
     projects, names = _name_projects(_mapping(state.get("projects")), found.projects)
+    for project_id, root in found.projects.items():
+        # what was looked for, so that a report can tell when a repository has since changed it
+        projects[names[project_id]]["required"] = required.of(root)
     known_ids = {event.id for event in stored}
-    known_skills = {(event.project, event.skill) for event in stored}
+    known_skills = {(event.project, event.skill) for event in stored if event.path != TRIGGER}
     events = _events(found, names, projects, machine, known_skills)
     added = [event for event in events if event.id not in known_ids]
     removed = 0
@@ -331,7 +379,10 @@ def _collect(
             "project": names.get(session.project_id or "", UNKNOWN_PROJECT),
             "created_at": session.created_at,
             "updated_at": session.updated_at,
-            "pull_requests": list(session.pull_requests),
+            "pull_requests": [
+                {"ref": reference, "linked_at": linked_at}
+                for reference, linked_at in session.pull_requests
+            ],
             "machine": machine,
         }
     save_sessions(directory, sessions)
@@ -371,10 +422,12 @@ def _collect(
         "sessions": len(sessions),
     }
     edits = sum(event.path == EDIT for event in added)
-    data["loads_added"], data["edits_added"] = len(added) - edits, edits
+    triggers = sum(event.path == TRIGGER for event in added)
+    loads = len(added) - edits - triggers
+    data.update(loads_added=loads, edits_added=edits, triggers_added=triggers)
     reasoning = (
-        f"Added {len(added) - edits} skill loads and {edits} changes to skill files; this "
-        f"machine's record now holds {total} events"
+        f"Added {loads} skill loads, {edits} changes to skill files and {triggers} changes "
+        f"that require a skill; this machine's record now holds {total} events"
     )
     if rebuild:
         source["removed"] = data["removed"] = removed

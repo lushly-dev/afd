@@ -21,9 +21,13 @@ PATHS = (SKILL_TOOL, FILE_READ, SHELL_READ, TYPED)
 # as the subject of its work, so the report counts it as authoring the skill, not using it.
 EDIT = "edit"
 
-# The version of the rules in this module that recognised an event. A record holding events
-# of an older version can be rebuilt from what the harness still has.
-RECOGNIZER = 1
+# Not a load either: the session changed a file that its repository says requires the skill
+# (`[[skills.required]]`). The event names the skill, never the file.
+TRIGGER = "trigger"
+
+# The version of the rules that recognised an event. A record holding events of an older
+# version can be rebuilt from what the harness still has. 2 added `trigger` events.
+RECOGNIZER = 2
 
 # Who loaded it. A session is a thread a person started or a task delegated to its own
 # agent; a subagent works inside one and reports back to it.

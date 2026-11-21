@@ -23,6 +23,17 @@ _TOOL_DEFAULTS: dict[str, dict[str, str]] = {
 # ── Pydantic models ────────────────────────────────────────────────────────
 
 
+class RequiredSkill(BaseModel):
+    """A skill a kind of change requires: `skill-usage-triggers` reports the changes to
+    these paths whose session had not loaded it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill: str = Field(min_length=1)
+    # Globs over repository-relative paths; `*` stays in one folder and `**` spans folders
+    paths: list[str] = Field(min_length=1)
+
+
 class SkillsConfig(BaseModel):
     """Skill registry settings."""
 
@@ -34,6 +45,8 @@ class SkillsConfig(BaseModel):
     agent_skills: bool = False
     # Characters of descriptions (plus when_to_use) the host lists; Claude Code's fallback
     listing_budget: int = Field(default=8000, gt=0, strict=True)
+    # [[skills.required]]: the skills that kinds of change require
+    required: list[RequiredSkill] = []
 
 
 class SweepConfig(BaseModel):

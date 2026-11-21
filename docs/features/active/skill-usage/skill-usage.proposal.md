@@ -74,8 +74,9 @@ filter to be refused: an empty report reads as nobody using a skill.
 (pytest searches the files for a canary). Refusals and results that need a state of the
 machine, not an input: `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING`, and a
 machine with no T3 Code, which succeeds with nothing collected so that its schedule does not
-fail every hour (pytest makes each state). Scale: a real store of 160,000 items reads in about
-20 seconds, measured, not asserted.
+fail every hour; and for the triggers report, a checkout whose configuration does not parse
+(`CONFIG_INVALID`) or that has no history (`GIT_FAILED`) (pytest makes each state). Scale: a
+real store of 160,000 items reads in about 20 seconds, measured, not asserted.
 
 **Walked by.** One reader who did not write the plan took the three seats of the jobs-first
 rule. What it found and what changed is under [The walk](#the-walk).
@@ -194,7 +195,7 @@ rename table covers the skills it ships. A name the checkout still holds is neve
 | --- | --- | --- | --- |
 | `skill-usage-collect` | `since_days`, `t3_store` with `machine`, `rebuild` | `machine`, `added`, `events`, `sessions`, and per source `status` (`read`, `absent`, `off`), `since`, `scanned`, `found`, `added` | `INVALID_INPUT`, `SOURCE_NOT_FOUND`, `SOURCE_SCHEMA_CHANGED`, `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING` |
 | `skill-usage-report` | `days`, `ending_days_ago`, `project`, `harness`, `skill`, `agent`, `limit` | `window`, `totals`, `skills` (per skill: `sessions`, `of_sessions`, `share`, `loads`, `typed_sessions`, `harnesses`, `models`, `machines`, `agents`, `paths`, `last_used`, `also_loaded_as`, `authoring_sessions`, `size_bytes`, `max_context_bytes`, `listing_chars`), `more`, `quiet`, `record`, `warnings` | `INVALID_INPUT`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
-| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown`, and `misses` naming each change and its sessions | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
+| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown` with `unknown_why`, `rate`, `misses` naming each change and its sessions, `sessions_changed` and `sessions_loaded_first` | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
 
 The unit of the report is a session that used a skill, out of the sessions the project had. A
 skill read three times in one session, in parts, is one use; `loads` counts the reads.
@@ -217,17 +218,36 @@ skill = "gate-discipline"
 paths = ["lefthook.yml", ".github/workflows/ci.yml", "scripts/check-*.mjs"]
 ```
 
+Collection records each change a session makes to such a path as a `trigger` event, which
+names the skill required and never the file. Two things in the store show a change: the files
+a turn left changed in the session's checkout (a checkpoint, which sees every edit whatever
+made it), and a completed file edit. A turn that moved the checkout to other commits (a merge,
+pull, rebase, checkout of another branch, hard reset or base sync) lists other people's
+changes, so its checkpoint is not read: on the machine first measured, 94% of the checkpoints
+that listed a gate file were such turns.
+
 For each change merged to the default branch in the window whose files match, the report finds
-the session that made it, by the pull request T3 Code linked to it, and says whether that
-session or a subagent of it loaded the skill before the change's first commit. A load at
-review time does not count, nor does a load by another task under the same root: forty cells
-of one fleet are forty sessions. Each miss names its change and its sessions, so that the
-session can be opened. The diff side comes from git, the load side from the record, and the
-tie between them from `sessions.json`. A change with no session on any collected machine is
-reported as unknown, never as a miss.
+the sessions T3 Code linked to its pull request, and says whether each one that changed a
+required path had loaded the skill before its first such change, itself or through a
+subagent. A load at review time does not count, nor does a load by another task under the same
+root: forty cells of one fleet are forty sessions. A session linked to several pull requests is
+judged one at a time: what it changed after linking the one before, up to linking this one,
+built this one. Each miss names its change and its sessions, so that the session can be opened.
+The diff side comes from git, the load side and the session's changes from the record, and the
+tie between them from `sessions.json`.
+
+A change is unknown, never a miss, when the record cannot say: it has no pull request number,
+no session on a collected machine is linked to it, or no change of the linked sessions was
+recorded (it was made in a turn that also merged, or on a machine not collected). The report
+also counts, whatever was merged, the sessions that changed a required path and how many had
+loaded the skill first.
+
+After a repository declares or changes its required skills, `skill-usage-collect --rebuild`
+reads the store again for them; until then the report says the record is older than the rules.
 
 The declaration is the one source of which skill a change requires. A repository whose
-instruction file also lists required skills checks that list against it.
+instruction file also lists required skills checks that list against it. Which skills a
+repository requires is that repository's decision: this one declares none yet.
 
 ### Every machine
 
@@ -257,6 +277,9 @@ for the schedule.
   skills, and one of a project whose checkout is not on the machine all count as use.
 - **A thread moved between machines** may be counted on both until phase 3 compares two
   machines' records.
+- **A change the triggers report cannot see.** One made in a turn that also moved the checkout
+  to other commits, unless a file edit of it was recorded; and a follow-up change to a pull
+  request made after the session linked its next one, which is counted with that next one.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.
 - **Windows and Linux** are covered by tests of the recognition and paths, and are first

@@ -27,6 +27,7 @@ from botcore.commands.skill_usage.events import (
     MAIN,
     RECOGNIZER,
     SUBAGENT,
+    TRIGGER,
     TYPED,
     Event,
 )
@@ -324,8 +325,8 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     for event in events:
         outdated += event.v < RECOGNIZER
         moment = _parse(event.at)
-        if moment is None or not _is_project(project, event.project):
-            continue
+        if moment is None or event.path == TRIGGER or not _is_project(project, event.project):
+            continue  # a change that requires a skill is skill-usage-triggers' business
         name = current_name(
             event.skill, renames.get(event.project, {}), on_disk.get(event.project, {})
         )

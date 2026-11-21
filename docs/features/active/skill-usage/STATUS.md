@@ -14,6 +14,39 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Missed triggers, first reading, 2026-11-21 (#1817)
+
+Measured on the MacBook Air over 30 days with the rule Lushly's instructions state (the gate
+skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly declares it.
+
+- **A merge looks like a change.** A turn's checkpoint lists every file the turn left changed
+  in the checkout, so a session that merged `main` appeared to change each gate file anyone
+  had changed. Of 159 gate-file changes seen that way, 149 were in a turn that moved the
+  checkout to other commits. Those turns are not read.
+- **What is left is small and trustworthy.** 9 sessions changed a gate file themselves, and 5
+  had loaded the gate skill first.
+- **Most merged changes are unknown from one machine.** Of 55 merged changes to a gate file,
+  45 had no session on this machine, 7 had a linked session but no change recorded outside a
+  merging turn, 1 had no pull request number, and 2 could be judged (both had loaded the
+  skill). Collection on every machine is what raises that.
+- **A long-lived thread is linked to many pull requests.** Judged as one, a coordinator that
+  changed a gate file once answered for every pull request it had linked. Each link has a
+  time, so a session is judged one pull request at a time.
+- **Which skill a repository requires is its own decision.** AFD's instructions send a change
+  to CI or a hook to `gates.md`, a reference file of another skill, not to `maintain-gates`;
+  declaring that skill required here would have reported every session as a miss. AFD declares
+  none in this pull request.
+- **Lushly cannot declare its rule yet.** Its tooling runs a released botcore, and an older
+  botcore refuses a setting it does not know. It waits for the release (#1692).
+
+### First collections, 2026-11-21 (#1819)
+
+- **MacBook Air:** 3,060 loads, 60 skill edits and 509 sessions from a store that goes back
+  to August.
+- **Random:** 1,335 loads, 105 skill edits and 241 sessions, run from the merge commit with
+  `uvx` so the installed botcore was not replaced. Its record names the machine `mac`, from its
+  hostname: a machine needs a way to name itself before records are read together (#1818).
+
 ### First readings on the MacBook Air, 2026-11-21 (#1815, #1816)
 
 - **Most loads are not the Skill tool.** Over 30 days T3 Code's store showed 2,469 skill loads:
@@ -59,13 +92,13 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Phase 2. Missed triggers
 
-- `skill-usage-triggers` and `[[skills.required]]` (#1817): not started.
+- `skill-usage-triggers` and `[[skills.required]]` (#1817): in this pull request.
 
 ## Phase 3. Every machine
 
 - Collection with the hourly job, and one report across machines (#1818): not started.
 
-- Rollout to the Air, Random and Hero (#1819): not started.
+- Rollout to the Air, Random and Hero (#1819): first collections run by hand on the Air and Random on 2026-11-21 (see Findings); Hero and the schedule to come.
 
 ## Phase 4. Provider logs
 
