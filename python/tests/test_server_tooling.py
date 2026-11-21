@@ -743,3 +743,44 @@ def test_a_refused_name_leaves_nothing_registered():
         _register(server, "afd-help")
     assert "afd-help" not in {command.name for command in server.list_commands()}
     assert server._get_command_index()["afd-help"].description != "A command with a built-in's name"
+
+
+def _raw_definition(name):
+    from afd.core.commands import CommandDefinition
+
+    async def handler(input, context=None):
+        return success({"mine": True})
+
+    return CommandDefinition(name=name, description="Raw", handler=handler)
+
+
+async def test_a_reserved_name_added_through_the_registry_is_refused_before_a_request():
+    server = create_server("test-app", bootstrap=True)
+    server.registry.register(_raw_definition("afd-help"))
+    with pytest.raises(ValueError, match="'afd-help' is reserved: bootstrap=True"):
+        await server.execute("afd-help", {})
+    with pytest.raises(ValueError, match="is reserved"):
+        server.get_mcp_tools()
+
+
+async def test_turning_a_built_in_on_after_registration_is_refused_before_a_request():
+    server = create_server("test-app")
+    _register(server, "afd-help")
+    assert (await server.execute("afd-help", {})).data == {"mine": True}
+    server.config.bootstrap = True
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
+
+    contexts = create_server("test-app")
+    _register(contexts, "afd-context-list")
+    contexts.config.contexts = [ContextConfig(name="alpha")]
+    with pytest.raises(ValueError, match="'afd-context-list' is reserved: contexts"):
+        await contexts.execute("afd-context-list", {})
+
+
+async def test_a_definition_renamed_after_registration_is_refused_before_a_request():
+    server = create_server("test-app", bootstrap=True)
+    _register(server, "app-help")
+    server.registry.get("app-help").name = "afd-help"
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
