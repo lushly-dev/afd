@@ -114,6 +114,10 @@ def _private_state(worktree: Path, admin: Path | None, timeout: float) -> str | 
                    "refs/bisect", timeout=timeout).split()
     if refs:
         return f"per-worktree refs: {refs[0]}"
+    try:
+        reflog_only_commits(worktree, timeout)
+    except ReflogTooLong as exc:
+        return f"{exc}, more than removal can pin"
     for name, what in (("config.worktree", "its own git config"),
                        ("info/sparse-checkout", "its own sparse-checkout rules")):
         try:
@@ -126,13 +130,26 @@ def _private_state(worktree: Path, admin: Path | None, timeout: float) -> str | 
     return None
 
 
-def reflog_only_commits(worktree: Path, timeout: float, limit: int = 200) -> list[str]:
-    """Commits the worktree's HEAD reflog reaches that no branch, remote or tag does."""
+REFLOG_LIMIT = 2000
+
+
+class ReflogTooLong(Exception):
+    """The worktree's reflog is longer than removal can pin."""
+
+
+def reflog_only_commits(worktree: Path, timeout: float, limit: int | None = None) -> list[str]:
+    """Commits the worktree's HEAD reflog reaches that no branch, remote or tag does.
+
+    Raises ReflogTooLong past `limit` entries: commits older than what was read could be lost.
+    """
+    limit = REFLOG_LIMIT if limit is None else limit
     try:
-        logged = git_out(worktree, "log", "-g", f"-n{limit}", "--format=%H", "HEAD",
+        logged = git_out(worktree, "log", "-g", f"-n{limit + 1}", "--format=%H", "HEAD",
                          timeout=timeout).split()
     except GitError:
         return []
+    if len(logged) > limit:
+        raise ReflogTooLong(f"its reflog has more than {limit} entries")
     if not logged:
         return []
     wanted = list(dict.fromkeys(logged))
@@ -327,11 +344,15 @@ def _paths_match(worktree: Path, head: str, landing_ref: str, timeout: float) ->
     ones included, is identical in the landing ref."""
     try:
         base = git_out(worktree, "merge-base", head, landing_ref, timeout=timeout).strip()
-        touched = _literal(worktree, "log", "--format=", "--name-only", "--no-renames", "-z",
-                           f"{base}..{head}", timeout=timeout)
+        touched = _literal(worktree, "log", "--format=", "--name-only", "--no-renames",
+                           "--diff-merges=separate", "-z", f"{base}..{head}", timeout=timeout)
+        overall = _literal(worktree, "diff", "--name-only", "--no-renames", "-z", base, head,
+                           timeout=timeout)
     except GitError:
         return False
-    paths = list(dict.fromkeys(p for p in touched.split("\0") if p.strip()))
+    paths = list(dict.fromkeys(
+        p for p in (touched + "\0" + overall).split("\0") if p.strip()
+    ))
     if not paths or len(paths) > MAX_PATHS:
         return False
     try:

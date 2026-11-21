@@ -129,14 +129,21 @@ def pin_name(target: Path) -> str:
 
 
 def pin_commits(target: Path, main: Path, head: str) -> list[str]:
-    """Pin the commit and every commit only the worktree's reflog reaches; return the refs."""
+    """Pin the commit and every commit only the worktree's reflog reaches; return the refs.
+
+    All or nothing: if any pin fails, the ones made are released and the error is raised.
+    """
     folder = pin_name(target)
     commits = [head] + [c for c in reflog_only_commits(target, 60) if c != head]
-    refs = []
-    for index, commit in enumerate(commits):
-        ref = f"{folder}/head" if index == 0 else f"{folder}/reflog-{index}"
-        git_out(main, "update-ref", ref, commit)
-        refs.append(ref)
+    refs: list[str] = []
+    try:
+        for index, commit in enumerate(commits):
+            ref = f"{folder}/head" if index == 0 else f"{folder}/reflog-{index}"
+            git_out(main, "update-ref", ref, commit)
+            refs.append(ref)
+    except GitError:
+        unpin(main, refs)
+        raise
     return refs
 
 

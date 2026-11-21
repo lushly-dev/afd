@@ -393,3 +393,52 @@ def test_restore_refuses_a_missing_parent_folder(repo: dict[str, Path]) -> None:
     shutil.rmtree(repo["done"].parent)
     result = asyncio.run(keep.disk_restore(str(repo["done"])))
     assert not result.success and "missing" in result.error.message
+
+
+# ── Verification pass ───────────────────────────────────────────────────────
+
+
+def test_an_edit_made_only_in_a_merge_commit_is_not_landed(repo: dict[str, Path]) -> None:
+    sq = repo["squashed"]
+    git(sq, "merge", "-q", "--no-commit", "--no-ff", "origin/main")
+    (sq / "merge-only.txt").write_text("written while merging", encoding="utf-8")
+    git(sq, "add", "merge-only.txt")
+    git(sq, "commit", "-q", "-m", "merge main, with an extra file")
+    age_worktree(repo["main"], sq)
+    assert rows(run(report.disk_report()))["squashed"]["tier"] != 2
+
+
+def test_a_reflog_too_long_to_pin_is_unique(
+    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botcore.commands.disk import finished
+
+    monkeypatch.setattr(finished, "REFLOG_LIMIT", 1)
+    for _ in range(2):
+        git(repo["done"], "commit", "-q", "--allow-empty", "-m", "churn")
+    age_worktree(repo["main"], repo["done"])
+    verdict = rows(run(report.disk_report()))["done"]["finished"]
+    assert "more than removal can pin" in " ".join(verdict["unique"])
+
+
+def test_a_failed_record_releases_its_pins_and_keeps_the_worktree(
+    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def full_disk(*_args, **_kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(reclaim, "begin_record", full_disk)
+    data = run(reclaim.disk_reclaim(tier=2, apply=True))
+    assert not removed(data) and repo["done"].exists()
+    assert git(repo["main"], "for-each-ref", "refs/botcore/removed").strip() == ""
+
+
+def test_a_full_remote_ref_name_is_fetched(repo: dict[str, Path]) -> None:
+    other = repo["tmp"] / "other"
+    subprocess.run(["git", "clone", "-q", str(repo["tmp"] / "origin.git"), str(other)],
+                   check=True)
+    commit(other, "upstream.txt", "new", "upstream work")
+    git(other, "push", "-q", "origin", "main")
+    before = git(repo["main"], "rev-parse", "origin/main").strip()
+    assert reclaim.refresh_landing(repo["main"], "refs/remotes/origin/main") is None
+    assert git(repo["main"], "rev-parse", "origin/main").strip() != before

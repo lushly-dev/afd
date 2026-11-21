@@ -24,6 +24,7 @@ from pathlib import Path
 from afd import CommandResult, error, success
 
 from botcore.commands.disk.caches import unsafe_aged_root
+from botcore.commands.disk.finished import ReflogTooLong
 from botcore.commands.disk.git import (
     GitError,
     git_out,
@@ -407,8 +408,17 @@ def _carry_out_removal(action: Action, run: Run) -> None:
     if reason:
         action.outcome, action.detail = "skipped", reason
         return
-    refs = pin_commits(target, main, action.head or "")
-    record_id = begin_record(target, main, action.branch, action.head, refs)
+    try:
+        refs = pin_commits(target, main, action.head or "")
+    except (GitError, ReflogTooLong) as exc:
+        action.outcome, action.detail = "skipped", f"its commits could not be pinned: {exc}"
+        return
+    try:
+        record_id = begin_record(target, main, action.branch, action.head, refs)
+    except OSError as exc:
+        unpin(main, refs)
+        action.outcome, action.detail = "skipped", f"the removal could not be recorded: {exc}"
+        return
     done, problem = remove_worktree(target, main)
     if not done:
         unpin(main, refs)
@@ -438,14 +448,20 @@ def refresh_landing(main: Path, landing_ref: str) -> str | None:
         remotes = git_out(main, "remote", timeout=30).split()
     except GitError as exc:
         return str(exc)
-    remote = next((r for r in remotes if landing_ref.startswith(f"{r}/")), None)
+    ref = landing_ref.removeprefix("refs/remotes/")
+    remote = next((r for r in remotes if ref.startswith(f"{r}/")), None)
     if remote is None:
         return None
-    branch = landing_ref[len(remote) + 1:]
+    branch = ref[len(remote) + 1:]
     try:
-        git_out(main, "-c", "gc.auto=0", "-c", "maintenance.auto=false", "fetch", "--quiet",
-                "--no-prune", "--no-tags", remote, branch, timeout=120,
-                env={"GIT_SSH_COMMAND": "ssh -o BatchMode=yes"})
+        configured = git_out(main, "config", "--get", "core.sshCommand", timeout=30).strip()
+    except GitError:
+        configured = ""
+    ssh = f"{configured or 'ssh'} -o BatchMode=yes"  # the user's own command, never prompting
+    try:
+        git_out(main, "-c", "gc.auto=0", "-c", "maintenance.auto=false",
+                "-c", f"core.sshCommand={ssh}", "fetch", "--quiet", "--no-prune", "--no-tags",
+                remote, branch, timeout=120)
     except GitError as exc:
         return str(exc)
     return None
