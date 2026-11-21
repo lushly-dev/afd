@@ -29,11 +29,22 @@ class RequiredSkill(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # A skill's name (or a plugin's `plugin:skill`): it is written to the usage record, so
-    # nothing but a name is accepted
+    # A skill's name (or a plugin's `plugin:skill`), as the usage record holds it
     skill: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9][A-Za-z0-9._-]*)?$")
-    # Globs over repository-relative paths; `*` stays in one folder and `**` spans folders
+    # Globs over repository-relative paths as git writes them: forward slashes, matched by
+    # case; `*` stays in one folder and `**` spans folders
     paths: list[str] = Field(min_length=1)
+
+    @field_validator("paths")
+    @classmethod
+    def _as_git_writes_them(cls, paths: list[str]) -> list[str]:
+        for path in paths:
+            if not path or "\\" in path or path.startswith(("/", "./", "../")):
+                raise ValueError(
+                    f"{path!r} is not a repository-relative path: write it as git does, "
+                    "with forward slashes and no leading ./ or /, for example scripts/check-*.mjs"
+                )
+        return paths
 
 
 class SkillsConfig(BaseModel):

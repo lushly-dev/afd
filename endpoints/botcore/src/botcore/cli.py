@@ -509,7 +509,7 @@ def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
 def skill_usage_triggers_cmd(
     ctx: click.Context, days: int, repo: str | None, **_kwargs: Any,
 ) -> None:
-    """Report the merged changes that needed a skill no session had loaded. Read-only."""
+    """Report the merged changes that needed a skill their session had not loaded. Read-only."""
     from botcore.commands.skill_usage import skill_usage_triggers
 
     result = _run_async(skill_usage_triggers(days=days, repo=repo))

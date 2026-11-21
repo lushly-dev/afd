@@ -857,8 +857,7 @@ def test_every_session_is_recorded_with_its_pull_requests(state: Path, t3_store:
     assert sessions["main-2"] == {
         "root": "main-2", "agent": "main", "harness": "codex", "project": "garden",
         "created_at": stamp(2), "updated_at": stamp(1), "machine": "bench",
-        "pull_requests": [{"ref": "acme/garden#7", "linked_at": None, "branch": None}],
-        "branch": None,
+        "pull_requests": [{"ref": "acme/garden#7", "linked_at": None, "opened": None}],
     }  # fmt: skip
     assert SECRET not in (state / store.SESSIONS_FILE).read_text(encoding="utf-8")
     assert (row["sessions"], row["of_sessions"], row["share"]) == (1, 2, 0.5)

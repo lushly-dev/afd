@@ -158,22 +158,28 @@ first (`NOT_COLLECTED` otherwise).
 
 ## skill_usage_triggers(days=30, repo=None)
 Read-only. For each skill a repository requires, the changes merged to its default branch in
-the last `days` days that touched the skill's paths, and whether a session that published each
-had loaded the skill by then. A repository declares them in its botcore configuration:
-`[[skills.required]]` with `skill = "<name>"` and `paths = ["<glob>", ...]` (`*` stays in one
-folder, `**` spans folders); several tables for one skill are one rule. Nothing is collected
-for it: a rule declared today judges the record as it stands.
-- It uses three things: which merged changes touched those paths (git); which sessions the
-  harness linked to each change's pull request and when, or that worked on the branch it came
-  from (the record); and when each session loaded the skill, itself or through a subagent
-  (the record). What a session changed turn by turn is not used.
-- Per rule: `changes`; `loaded` (a session of the change had loaded the skill by the time the
-  pull request was linked, and before it merged); `missed` (no session of the change loaded
-  the skill before it merged), with `misses` naming each change's pull request and its
-  sessions; `rate` (loaded out of loaded and missed); and `unknown`, with `unknown_why`:
-  `no_pull_request`, `no_session` on a collected machine, `no_link_time` (a session loaded the
-  skill before the merge, and its link has no time), and `after_publication` (the skill was
-  loaded only after the pull request was linked: at review, or for a later push).
+the last `days` days that touched the skill's paths, and whether the session that opened each
+one's pull request had loaded the skill by then. A repository declares them in its botcore
+configuration: `[[skills.required]]` with `skill = "<name>"` and `paths = ["<glob>", ...]`
+(repository-relative, as git writes them, matched by case; `*` stays in one folder, `**` spans
+folders); several tables for one skill are one rule. Nothing is collected for it: a rule
+declared today judges the record as it stands.
+- It uses three things: which merged changes touched those paths (git); which session opened
+  each change's pull request and when (the harness says which, and the record keeps it); and
+  when that session loaded the skill, itself or through a subagent (the record). A session
+  that attached itself to a pull request to repair, review or merge it is not judged, and
+  neither a session's turns nor its branch tie it to a change.
+- Per rule: `changes`; `loaded` (the session that opened the pull request had loaded the
+  skill by then); `missed` (that session never loaded the skill before the change merged),
+  with `misses` naming each change's pull request and that session; `rate` (loaded out of
+  loaded and missed); and `unknown`, with `unknown_why`: `no_pull_request`, `no_session` (none
+  on a collected machine is linked to it), `opened_elsewhere` (the sessions linked to it only
+  attached themselves: a script, a person or a machine not collected opened it),
+  `no_link_time` (the record does not place the opening before the merge) and `after_opening`
+  (the skill was loaded only after the pull request was opened: at review, or for a later
+  push).
+- `merged`: the branch that was read and its newest change; fetch the checkout when that is
+  old. `warnings` says when links in the record do not say who opened them (collect again).
 - `repo`: the repository's checkout; the one holding the working directory when left out.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),

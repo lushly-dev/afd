@@ -19,10 +19,18 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 Measured on the MacBook Air over 30 days with the rule Lushly's instructions state (the gate
 skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly declares it.
 
-- **The reading.** 55 merged changes touched a gate file. 45 had no session on this machine
-  and 1 had no pull request number. Of the 9 that could be judged, 3 were published by a
-  session that had loaded the gate skill and 6 by sessions that never loaded it before the
-  merge. One long session that published twelve pull requests accounts for four of the six.
+- **The reading.** 55 merged changes touched a gate file. 45 had no session on this machine,
+  1 had no pull request number, and 3 had only sessions that attached themselves to a pull
+  request something else had opened. Of the 6 that could be judged, the session that opened
+  the pull request had loaded the gate skill in 2 and never loaded it before the merge in 4.
+  Over 90 days it is the same 6, out of 168.
+- **T3 Code says who opened a pull request.** A link's `source` is `created` on the thread
+  that opened it and `agent` on one that attached itself later: 406 and 151 of the store's
+  557 links. No pull request has two openers, and 48 have none on this machine.
+- **A fleet's changes cannot be judged yet.** Lushly's merge lane, a script, opens a cell's
+  pull request, so no thread opened it: 127 of Lushly's 137 delegated tasks with a checkout of
+  their own opened none, where 73 of AFD's 123 did. Most of Lushly's gate changes come from
+  cells (#1887).
 - **What a session changed cannot be read from its turns.** A turn's checkpoint lists every
   file the turn left changed in the checkout. A merge of `main` makes a session appear to
   change each gate file anyone had changed: 29 of the 34 turns that left a gate file changed
@@ -31,15 +39,18 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
   a merge that stopped on a conflict, `git switch -C fix origin/main`, the merge lane's
   `handoff --sync`, and a shared checkout that other sessions move between a session's turns.
   Of the 5 changes that survived every filter, 4 were still not the session's own.
-- **So the report uses what is recorded outright:** which session published a pull request,
-  when, and when it loaded the skill. It judged 9 changes where the turn-by-turn design could
+- **Nor from its branch.** A thread keeps only the branch it is on now: 267 of the 293 pull
+  requests a person's thread opened came from another branch than the thread's. What a branch
+  did tie was the tasks a session sends to review its work, which share its branch: 58 of
+  them, against 6 tasks with their own checkout. Counting every linked session as well made
+  2 of 6 reported misses name a session that had only repaired and merged the change.
+- **So the report uses what is recorded outright:** which session opened a pull request,
+  when, and when it loaded the skill. It judges 6 changes where the turn-by-turn design could
   honestly judge 1.
 - **Gate files are not edited with the edit tools.** No file-edit item in the store touches
   one, so the exact moment of such a change is not on record at all.
-- **A long-lived thread is linked to many pull requests,** each with a time (all 554 links in
+- **A long-lived thread is linked to many pull requests,** each with a time (all 557 links in
   the store carry one), so each is judged by its own.
-- **In a fleet a script publishes the change.** The session that made it is then known only
-  by the branch it worked on, which the record keeps as a hash.
 - **Which skill a repository requires is its own decision.** AFD's instructions send a change
   to CI or a hook to `gates.md`, a reference file of another skill, not to `maintain-gates`;
   declaring that skill required here would have reported every session as a miss. AFD declares
@@ -115,6 +126,8 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 ## Later
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
+
+- Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): needs its design first.
 
 - Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.
 

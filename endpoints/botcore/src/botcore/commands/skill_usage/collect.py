@@ -332,10 +332,9 @@ def _collect(
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "pull_requests": [
-                {"ref": reference, "linked_at": linked_at, "branch": branch}
-                for reference, linked_at, branch in session.pull_requests
+                {"ref": reference, "linked_at": linked_at, "opened": opened}
+                for reference, linked_at, opened in session.pull_requests
             ],
-            "branch": session.branch,
             "machine": machine,
         }
     save_sessions(directory, sessions)

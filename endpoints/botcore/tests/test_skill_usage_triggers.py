@@ -10,22 +10,26 @@ import os
 import subprocess
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 from botcore.cli import cli
+from botcore.commands.disk import scan
 from botcore.commands.skill_usage import (
     skill_usage_collect,
     skill_usage_report,
     skill_usage_triggers,
     store,
+    triggers,
 )
 from botcore.config import SkillsConfig, load_config
 from tests.test_skill_usage import (  # noqa: F401 - fixtures
     NOW,
     T3Store,
     checkout,
+    checkout_at,
     collected,
     fail,
     git,
@@ -76,14 +80,21 @@ def merge(root: Path, subject: str, *files: str, days_ago: float = 0) -> None:
     )  # fmt: skip
 
 
-def session(built: T3Store, name: str, *links: tuple[int, str | None], **more: object) -> str:
-    """A session linked to pull requests, each with when it linked it."""
-    extra = {
-        "pullRequests": [
-            {"repository": "acme/garden", "number": number, "linkedAt": at, "title": PRIVATE}
-            for number, at in links
-        ]
-    }
+def link(number: int, at: str | None, source: str | None = "created", **more: object) -> dict:
+    """A pull request as T3 Code links it to a thread: `created` on the one that opened it."""
+    found = {"repository": "acme/garden", "number": number, "linkedAt": at, "title": PRIVATE}
+    return {**found, **({"source": source} if source else {}), **more}
+
+
+def session(built: T3Store, name: str, *opened: tuple[int, str | None], **more: object) -> str:
+    """A session that opened pull requests, each with when."""
+    extra = {"pullRequests": [link(number, at) for number, at in opened]}
+    return built.thread(name, extra=extra, **more)
+
+
+def attached(built: T3Store, name: str, *numbers: int, **more: object) -> str:
+    """A session that attached itself to pull requests something else opened."""
+    extra = {"pullRequests": [link(number, stamp(2), "agent") for number in numbers]}
     return built.thread(name, extra=extra, **more)
 
 
@@ -96,10 +107,14 @@ def judged(found: dict) -> tuple[int, int, int]:
     return found["loaded"], found["missed"], found["unknown"]
 
 
+def why(found: dict) -> dict[str, int]:
+    return {reason: count for reason, count in found["unknown_why"].items() if count}
+
+
 # ── judging a merged change ─────────────────────────────────────────────────
 
 
-def test_each_merged_change_is_judged_by_the_sessions_that_published_it(
+def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
@@ -109,7 +124,7 @@ def test_each_merged_change_is_judged_by_the_sessions_that_published_it(
     merge(repo, "feat: by another machine (#105)", "hooks.yml")
     merge(repo, "feat: pushed straight to main", "hooks.yml")
     first = session(t3_store, "first", (101, stamp(2)))
-    t3_store.skill_tool(first, "gate-discipline", stamp(3))  # before it published the change
+    t3_store.skill_tool(first, "gate-discipline", stamp(3))  # before it opened the pull request
     second = session(t3_store, "second", (102, stamp(2)))
     t3_store.skill_tool(second, "gate-discipline", stamp(1))  # only afterwards, at review
     session(t3_store, "fourth", (104, stamp(2)))  # never
@@ -123,10 +138,12 @@ def test_each_merged_change_is_judged_by_the_sessions_that_published_it(
     assert (found["skill"], found["changes"]) == ("gate-discipline", 5)
     assert judged(found) == (1, 1, 3)
     assert found["unknown_why"] == {
-        "no_pull_request": 1, "no_session": 1, "no_link_time": 0, "after_publication": 1,
+        "no_pull_request": 1, "no_session": 1, "opened_elsewhere": 0, "no_link_time": 0,
+        "after_opening": 1,
     }  # fmt: skip
     assert found["misses"] == [{"change": 104, "sessions": ["fourth"]}]
     assert found["rate"] == 0.5 and found["paths"] == ["hooks.yml", "scripts/check-*.mjs"]
+    assert data["merged"]["branch"] == "main" and data["merged"]["latest"] >= stamp(1)[:19]
     assert data["warnings"] == []
 
 
@@ -148,79 +165,128 @@ def test_a_subagent_loads_for_its_session_and_a_sibling_task_does_not(
     assert found["misses"] == [{"change": 102, "sessions": ["thread:delegated-task:other"]}]
 
 
-def test_the_session_that_worked_on_the_branch_answers_when_another_published_it(
+def test_a_session_that_only_attached_itself_to_a_pull_request_is_not_judged(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    merge(repo, "feat: another hook (#103)", "hooks.yml")
+    # 101: a script or another machine opened it; this session only repaired and merged it
+    attached(t3_store, "repairer", 101, 102)
+    t3_store.skill_tool("repairer", "gate-discipline", stamp(3))
+    session(t3_store, "careless", (102, stamp(2)))  # 102: the repairer's load is not its own
+    author = session(t3_store, "author", (103, stamp(2)))
+    t3_store.skill_tool(author, "gate-discipline", stamp(3))
+    attached(t3_store, "watcher", 103)  # 103: a watcher that loaded nothing takes nothing away
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 1, 1)
+    assert why(found) == {"opened_elsewhere": 1}
+    assert found["misses"] == [{"change": 102, "sessions": ["careless"]}]
+
+
+def test_working_on_the_same_branch_ties_no_session_to_a_change(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
     merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
     branch = f"lush/{PRIVATE}"  # a branch is often named after its task
-    links = [
-        {"repository": "acme/garden", "number": number, "linkedAt": stamp(2),
-         "snapshot": {"headBranch": f"{branch}-{number}", "title": PRIVATE}}
-        for number in (101, 102)
-    ]  # fmt: skip
-    t3_store.thread("foreman", extra={"pullRequests": links})  # it only published them
-    careful = t3_store.thread("cell-1", extra={"branch": f"{branch}-101"})
-    t3_store.thread("cell-2", extra={"branch": f"{branch}-102"})
-    t3_store.skill_tool(careful, "gate-discipline", stamp(3))
+    head = {"snapshot": {"headBranch": branch, "title": PRIVATE}}
+    # 101: its author never loaded the skill; the reviewer it sent to the same branch did,
+    # and so did an earlier session that had used the branch's name
+    author = t3_store.thread(
+        "author", extra={"branch": branch, "pullRequests": [link(101, stamp(2), **head)]}
+    )
+    reviewer = t3_store.thread(
+        "thread:delegated-task:review", parent=author, extra={"branch": branch}
+    )
+    earlier = t3_store.thread("earlier", extra={"branch": branch})
+    t3_store.skill_tool(reviewer, "gate-discipline", stamp(3))
+    t3_store.skill_tool(earlier, "gate-discipline", stamp(9))
+    # 102: a script opened it from a cell's branch, and the foreman attached itself to it
+    t3_store.thread("foreman", extra={"pullRequests": [link(102, stamp(2), "agent", **head)]})
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert judged(found) == (1, 1, 0)
-    assert found["misses"] == [{"change": 102, "sessions": ["cell-2", "foreman"]}]
+    assert judged(found) == (0, 1, 1)
+    assert found["misses"] == [{"change": 101, "sessions": ["author"]}]
+    assert why(found) == {"opened_elsewhere": 1}
     for name in (store.SESSIONS_FILE, store.EVENTS_FILE, store.STATE_FILE):
-        assert PRIVATE not in (state / name).read_text("utf-8")  # a branch is kept as a hash
-
-
-def test_one_session_that_had_loaded_the_skill_answers_for_the_change(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    merge(repo, "feat: a hook (#101)", "hooks.yml")
-    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
-    author = session(t3_store, "author", (101, stamp(2)), (102, stamp(1)))
-    t3_store.skill_tool(author, "gate-discipline", stamp(3))  # once, before both
-    session(t3_store, "watcher", (101, stamp(2)), (102, stamp(1)))  # linked them, loaded nothing
-    run(skill_usage_collect())
-
-    assert judged(rule(run(skill_usage_triggers(repo=str(repo))))) == (2, 0, 0)
+        assert PRIVATE not in (state / name).read_text("utf-8")  # no branch is kept
 
 
 def test_a_load_after_the_change_merged_is_no_load(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
-    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=3)
     late = session(t3_store, "late", (101, stamp(4)))
     t3_store.skill_tool(late, "gate-discipline", stamp(2))  # a day after it merged
-    closing = session(t3_store, "closing", (102, stamp(1)))  # linked it only when wrapping up
-    t3_store.skill_tool(closing, "gate-discipline", stamp(2))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert judged(found) == (0, 2, 0)
-    assert sorted(miss["change"] for miss in found["misses"]) == [101, 102]
+    assert judged(found) == (0, 1, 0)
+    assert found["misses"] == [{"change": 101, "sessions": ["late"]}]
 
 
-def test_a_link_without_a_time_cannot_say_whether_the_load_came_first(
+def test_an_opening_the_record_puts_after_the_merge_is_not_judged(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=3)
+    merge(repo, "feat: another hook (#103)", "hooks.yml", days_ago=3)
+    closing = session(t3_store, "closing", (101, stamp(1)))  # linked when wrapping up
+    t3_store.skill_tool(closing, "gate-discipline", stamp(4))  # yet loaded before the merge
+    session(t3_store, "idle", (102, stamp(1)))  # linked as late, and never loaded
+    session(t3_store, "undated", (103, "no time at all"))
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (0, 0, 3)  # neither a load nor a miss can be placed
+    assert why(found) == {"no_link_time": 3}
+
+
+def test_a_session_filed_under_another_project_answers_with_its_loads(
+    state: Path, t3_store: T3Store, repo: Path, tmp_path: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    t3_store.project("p2", checkout_at(tmp_path / "orchard"))  # where the sessions started
+    visitor = t3_store.thread(
+        "visitor", project_id="p2", extra={"pullRequests": [link(101, stamp(2))]}
+    )
+    t3_store.skill_tool(visitor, "gate-discipline", stamp(3))
+    cased = {"pullRequests": [link(102, stamp(2), repository="Acme/Garden")]}
+    t3_store.thread("stranger", project_id="p2", extra=cased)  # the name in another case
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 1, 0)
+    assert found["misses"] == [{"change": 102, "sessions": ["stranger"]}]
+
+
+def test_links_that_do_not_say_who_opened_them_judge_nothing(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
     merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
     t3_store.skill_tool(t3_store.thread("loaded"), "gate-discipline", stamp(2))
-    t3_store.skill_tool(t3_store.thread("never"), "plant-beds", stamp(2))
+    t3_store.thread("never", extra={"pullRequests": [link(102, stamp(2), source=None)]})
     run(skill_usage_collect())
     sessions = store.load_sessions(state)  # as an earlier botcore wrote its links
     sessions["loaded"]["pull_requests"] = ["acme/garden#101"]
-    sessions["never"]["pull_requests"] = ["acme/garden#102"]
     store.save_sessions(state, sessions)
 
-    found = rule(run(skill_usage_triggers(repo=str(repo))))
+    data = run(skill_usage_triggers(repo=str(repo)))
 
-    assert judged(found) == (0, 1, 1)
-    assert found["unknown_why"]["no_link_time"] == 1
-    assert found["misses"] == [{"change": 102, "sessions": ["never"]}]
+    assert judged(rule(data)) == (0, 0, 2)
+    assert why(rule(data)) == {"opened_elsewhere": 2}
+    assert "2 links" in data["warnings"][0] and "skill-usage-collect" in data["warnings"][0]
 
 
 def test_a_rule_follows_a_renamed_skill_and_two_declarations_are_one_rule(
@@ -299,6 +365,34 @@ def test_a_renamed_or_oddly_named_file_still_matches(
     assert rule(run(skill_usage_triggers(days=60, repo=str(repo))))["changes"] == 4
 
 
+def test_a_merge_commit_names_its_pull_request_too(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "Merge pull request #101 from acme/a-hook", "hooks.yml")
+    merge(repo, "fix: see #7 for the reason", "hooks.yml")  # a mention is not its number
+    session(t3_store, "main", (101, stamp(2)), (7, stamp(2)))
+    t3_store.skill_tool("main", "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 0, 1) and why(found) == {"no_pull_request": 1}
+
+
+def test_a_path_is_matched_by_case_on_every_system(
+    state: Path, t3_store: T3Store, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merge(repo, "feat: not the hook file (#101)", "HOOKS.YML")
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+
+    assert rule(run(skill_usage_triggers(repo=str(repo))))["changes"] == 0
+    monkeypatch.setattr(scan, "os", SimpleNamespace(name="nt"))  # where a [disk] glob is not
+    assert scan.compile_pattern("hooks.yml").match("HOOKS.YML")
+    assert not triggers._matcher("hooks.yml").match("HOOKS.YML")
+    assert triggers._matcher("scripts/**/check-*.mjs").match("scripts/a/b/check-x.mjs")
+
+
 # ── what the record must be to be judged from ───────────────────────────────
 
 
@@ -332,18 +426,28 @@ def test_only_a_load_counts_as_a_load(state: Path, t3_store: T3Store, repo: Path
     assert "gate-discipline" not in rows(run(skill_usage_report()))  # nor a use of it
 
 
-def test_nothing_but_a_time_and_a_number_is_kept_of_a_link(
+def test_nothing_but_a_time_a_number_and_who_opened_it_is_kept_of_a_link(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    session(t3_store, "main", (101, f"2026-01-01 and {PRIVATE}"), (102, "2026-11-01T10:00:00Z"))
+    links = [
+        link(101, f"2026-01-01 and {PRIVATE}"),
+        link(102, "2026-11-01T10:00:00Z", "agent"),
+        link(103, "0001-01-01T00:00:00+23:59", PRIVATE),  # a time before the calendar starts
+        link(104, None, source=None),
+        link(True, None),  # not a number
+    ]
+    t3_store.thread("main", extra={"pullRequests": links, "branch": PRIVATE})
     t3_store.skill_tool("main", "plant-beds", stamp(1))
     run(skill_usage_collect())
 
     assert PRIVATE not in (state / store.SESSIONS_FILE).read_text("utf-8")
     assert store.load_sessions(state)["main"]["pull_requests"] == [
-        {"ref": "acme/garden#101", "linked_at": None, "branch": None},
-        {"ref": "acme/garden#102", "linked_at": "2026-11-01T10:00:00.000Z", "branch": None},
+        {"ref": "acme/garden#101", "linked_at": None, "opened": True},
+        {"ref": "acme/garden#102", "linked_at": "2026-11-01T10:00:00.000Z", "opened": False},
+        {"ref": "acme/garden#103", "linked_at": None, "opened": False},
+        {"ref": "acme/garden#104", "linked_at": None, "opened": None},
     ]
+    assert "branch" not in store.load_sessions(state)["main"]
 
 
 # ── refusals, warnings, the command line ────────────────────────────────────
@@ -398,6 +502,7 @@ def test_an_odd_or_old_record_does_not_break_the_report(
     store.save_state(state, saved)
     sessions = store.load_sessions(state)
     sessions["odd"] = {"pull_requests": 7, "project": None}
+    sessions["odder"] = {"pull_requests": [7, None, {"ref": 7}, {"ref": "acme/garden#x"}]}
     store.save_sessions(state, sessions)
 
     data = run(skill_usage_triggers(repo=str(repo)))
@@ -430,6 +535,10 @@ def test_required_skills_load_from_the_configuration(tmp_path: Path) -> None:
         "skill = 'x'\npaths = []\n",
         "paths = ['a']\n",
         f"skill = '/work/{PRIVATE}.md'\npaths = ['a']\n",  # only a skill's name is accepted
+        "skill = 'x'\npaths = ['./hooks.yml']\n",  # a path as git writes it, or no change matches
+        "skill = 'x'\npaths = ['/hooks.yml']\n",
+        "skill = 'x'\npaths = ['scripts\\\\check-*.mjs']\n",
+        "skill = 'x'\npaths = ['']\n",
     )
     for body in wrong:
         (tmp_path / "botcore.toml").write_text(f"[[skills.required]]\n{body}", "utf-8")

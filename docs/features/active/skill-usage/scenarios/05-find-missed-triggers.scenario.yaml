@@ -1,14 +1,14 @@
 # JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
 # another program's store on the machine, so this file is checked, not run: the pytest cases in
 # endpoints/botcore/tests/test_skill_usage_triggers.py run the job against a store built to that shape.
-name: See the merged changes that needed a skill their sessions had not loaded
+name: See the merged changes that needed a skill their session had not loaded
 description: >-
   When a repository says a skill is required for a kind of change, I want to see the merged
-  changes of that kind whose sessions had not loaded the skill, so that I can fix the trigger.
+  changes of that kind whose session had not loaded the skill, so that I can fix the trigger.
 job: find-missed-triggers
 tags: [triggers]
 steps:
-  - description: Each required skill, the changes that matched its paths and whether their sessions had loaded it
+  - description: Each required skill, the changes that matched its paths and whether the session that opened each had loaded it
     command: skill-usage-triggers
     input: { days: 30 }
     expect:
@@ -17,16 +17,16 @@ steps:
         project: acme/garden
         rules:
           - skill: gate-discipline
-            changes: 6
+            changes: 7
             loaded: 2
             missed: 3
-            unknown: 1
-            unknown_why: { no_pull_request: 0, no_session: 1, no_link_time: 0, after_publication: 0 }
+            unknown: 2
+            unknown_why: { no_pull_request: 0, no_session: 1, opened_elsewhere: 1, no_link_time: 0, after_opening: 0 }
             rate: 0.4
             misses:
               - { change: 101, sessions: [session-a] }
               - { change: 104, sessions: [session-b] }
-              - { change: 109, sessions: [session-c, session-d] }
+              - { change: 109, sessions: [session-c] }
   - description: A path that is not a checkout is refused
     command: skill-usage-triggers
     input: { days: 30, repo: /work/nowhere }

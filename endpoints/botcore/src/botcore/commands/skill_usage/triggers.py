@@ -1,12 +1,15 @@
-"""`skill-usage-triggers`: the merged changes that needed a skill, and whether a session that
-published each had loaded it.
+"""`skill-usage-triggers`: the merged changes that needed a skill, and whether the session
+that opened each one's pull request had loaded it.
 
 A repository declares which paths require which skill (`[[skills.required]]`). Three things
 are known for certain, and the report uses only those: which merged changes touched those
-paths (git), which sessions the harness linked to each change's pull request and when (the
-record), and when each session loaded the skill (the record). What a session changed turn by
-turn is not used: a checkout is moved under a session by merges, sync scripts and other
-sessions, and a moved file looks like a changed one.
+paths (git), which session opened each change's pull request and when (the harness says so,
+and the record keeps it), and when that session loaded the skill (the record).
+
+Nothing else ties a session to a change. What a session changed turn by turn is not used: a
+checkout is moved under a session by merges, sync scripts and other sessions, and a moved
+file looks like a changed one. A session that attached itself to a pull request to repair,
+review or merge it is not judged, and neither is one that only worked on the same branch.
 
 Read-only. Where those three cannot settle it, a change is unknown, never a miss.
 """
@@ -47,7 +50,9 @@ _DEFAULT_BRANCHES = (
 )
 _PULL_REQUEST = re.compile(r"\(#(\d+)\)\s*$|^Merge pull request #(\d+)\b")
 _RECORD, _FIELD = "\x1e", "\x1f"
-_UNKNOWN = ("no_pull_request", "no_session", "no_link_time", "after_publication")
+# Why a change cannot be judged, in the order they are asked
+_UNKNOWN = ("no_pull_request", "no_session", "opened_elsewhere", "no_link_time", "after_opening")
+LOADED, MISSED = "loaded", "missed"
 
 
 @dataclass
@@ -59,13 +64,22 @@ class Change:
     files: list[str]
 
 
+@dataclass
+class Merged:
+    """What merged to the default branch in a window, and how far the checkout knows it."""
+
+    branch: str  # as the checkout names it, for example origin/main
+    latest: datetime | None  # its newest change: a checkout that was not fetched ends early
+    changes: list[Change]  # oldest first
+
+
 class _NoBranch(Exception):
     """The checkout does not say which branch changes are merged to."""
 
 
-def merged_changes(root: Path, since: datetime) -> list[Change]:
-    """The changes merged to the default branch since a moment, oldest first, each with every
-    path it touched: both sides of a rename, and names git would otherwise quote."""
+def merged_changes(root: Path, since: datetime) -> Merged:
+    """The changes merged to the default branch since a moment, each with every path it
+    touched: both sides of a rename, and names git would otherwise quote."""
     for ref in _DEFAULT_BRANCHES:
         try:
             git_out(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}",
@@ -75,6 +89,7 @@ def merged_changes(root: Path, since: datetime) -> list[Change]:
             continue
     else:
         raise _NoBranch
+    latest = _parse(git_out(root, "log", "-1", "--format=%cI", ref, timeout=GIT_SECONDS).strip())
     text = git_out(
         root, "log", ref, "--first-parent", f"--since={since.isoformat()}", "--no-renames",
         "-z", "--name-only", f"--format={_RECORD}%cI{_FIELD}%s", timeout=GIT_SECONDS * 2,
@@ -90,7 +105,12 @@ def merged_changes(root: Path, since: datetime) -> list[Change]:
         number = int(found.group(1) or found.group(2)) if found else None
         files = [name.strip("\n") for name in rest.split("\0") if name.strip("\n")]
         changes.append(Change(moment, number, files))
-    return sorted(changes, key=lambda change: change.at)
+    try:  # origin/HEAD by the name of the branch it points at
+        branch = git_out(root, "rev-parse", "--abbrev-ref", ref, timeout=GIT_SECONDS).strip()
+    except GitError:
+        branch = ""
+    branch = branch or ref.removeprefix("refs/remotes/").removeprefix("refs/heads/")
+    return Merged(branch, latest, sorted(changes, key=lambda change: change.at))
 
 
 def required_skills(root: Path) -> dict[str, list[str]]:
@@ -102,6 +122,61 @@ def required_skills(root: Path) -> dict[str, list[str]]:
     return {skill: sorted(paths) for skill, paths in rules.items()}
 
 
+def _matcher(path: str) -> re.Pattern[str]:
+    """A rule's glob over the paths git names. Git tells `Makefile` from `makefile` on every
+    system, so the match is by case even where the file system's is not."""
+    return re.compile(compile_pattern(path).pattern)
+
+
+@dataclass
+class _Links:
+    """What the record says of a repository's pull requests."""
+
+    opened: dict[int, dict[str, datetime | None]]  # number -> who opened it, and when
+    attached: set[int]  # every number some session is linked to, whoever opened it
+    unsaid: int  # links that do not say whether their session opened the pull request
+
+
+def _links(sessions: dict[str, dict], project: str) -> _Links:
+    found = _Links({}, set(), 0)
+    for session_id, entry in sorted(sessions.items()):
+        references = entry.get("pull_requests")
+        for item in references if isinstance(references, list) else []:
+            reference = item.get("ref") if isinstance(item, dict) else item
+            reference = reference if isinstance(reference, str) else ""
+            repository, _, number = reference.rpartition("#")
+            # a repository's name is the same in any case
+            if repository.casefold() != project.casefold() or not number.isdigit():
+                continue
+            found.attached.add(int(number))
+            opened = item.get("opened") if isinstance(item, dict) else None
+            if opened is True:
+                moment = _parse(item.get("linked_at"))
+                found.opened.setdefault(int(number), {})[session_id] = moment
+            elif opened is not False:
+                found.unsaid += 1
+    return found
+
+
+def _judge(
+    change: Change, openers: dict[str, datetime | None], loads: dict[str, list[datetime]]
+) -> str:
+    """One merged change against the sessions that opened its pull request: `loaded`,
+    `missed`, or the reason it is unknown."""
+    verdicts: set[str] = set()
+    for session_id, opened_at in openers.items():
+        before_merge = [load for load in loads.get(session_id, []) if load <= change.at]
+        if opened_at is None or opened_at > change.at:
+            verdicts.add("no_link_time")  # the record does not place the opening before the merge
+        elif any(load <= opened_at for load in before_merge):
+            verdicts.add(LOADED)
+        elif before_merge:
+            verdicts.add("after_opening")  # at a review or a repair: after the change was made
+        else:
+            verdicts.add(MISSED)
+    return next(verdict for verdict in (LOADED, *_UNKNOWN, MISSED) if verdict in verdicts)
+
+
 def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
 
@@ -109,13 +184,16 @@ def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
 async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
     days: int = 30, repo: str | None = None
 ) -> CommandResult[dict]:
-    """For each skill a repository requires, the merged changes to its paths and whether a
-    session that published each had loaded the skill by then.
+    """For each skill a repository requires, the merged changes to its paths and whether the
+    session that opened each one's pull request had loaded the skill by then.
 
-    A change is `loaded` when a session linked to its pull request had loaded the skill,
-    itself or through a subagent, by the time it linked it. It is `missed` when no linked
-    session loaded the skill before the change merged, and names those sessions. Between the
-    two, and wherever the record cannot say, it is `unknown`: `unknown_why` gives the reason.
+    A change is `loaded` when that session had loaded the skill, itself or through a
+    subagent, by the time it opened the pull request. It is `missed` when that session never
+    loaded it before the change merged, and names the session. Everything else is `unknown`,
+    and `unknown_why` gives the reason: the change has no pull request, no session in the
+    record is linked to it, the sessions linked to it only attached themselves to a pull
+    request something else opened, the record does not place the opening before the merge,
+    or the session loaded the skill only after opening it.
 
     Args:
         days: Length of the window in days.
@@ -188,7 +266,7 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     now = datetime.now(UTC)
     since = now - timedelta(days=days)
     try:
-        changes = merged_changes(root, since)
+        merged = merged_changes(root, since)
     except _NoBranch:
         return _fail(
             "GIT_FAILED",
@@ -214,91 +292,53 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     for skill, paths in rules.items():
         declared.setdefault(named(skill), []).extend(paths)
 
-    loads: dict[tuple[str, str], list[datetime]] = {}  # (skill, session) -> when it loaded it
+    # skill -> session -> when it loaded it. A session's loads count whichever project the
+    # harness filed the session under: one started in another project can open a pull
+    # request here, and it loaded the skill all the same.
+    loads: dict[str, dict[str, list[datetime]]] = {}
     for event in events:
         moment = _parse(event.at)
-        if moment is not None and event.project == project and event.path in PATHS:
-            loads.setdefault((named(event.skill), event.thread), []).append(moment)
+        if moment is not None and event.path in PATHS:
+            loads.setdefault(named(event.skill), {}).setdefault(event.thread, []).append(moment)
 
-    # Each pull request of this project: the sessions linked to it and when, and the sessions
-    # that worked on the branch it came from. In a fleet a script publishes the change, and
-    # the session that made it is known only by its branch.
-    linked: dict[int, dict[str, datetime | None]] = {}
-    branches: dict[int, set[str]] = {}
-    prefix = f"{project}#"
-    for session_id, entry in sorted(sessions.items()):
-        references = entry.get("pull_requests")
-        for item in references if isinstance(references, list) else []:
-            reference = item.get("ref") if isinstance(item, dict) else item
-            if not isinstance(reference, str) or not reference.startswith(prefix):
-                continue
-            number = reference[len(prefix) :]
-            if not number.isdigit():
-                continue
-            linked_at = _parse(item.get("linked_at")) if isinstance(item, dict) else None
-            linked.setdefault(int(number), {})[session_id] = linked_at
-            branch = item.get("branch") if isinstance(item, dict) else None
-            if isinstance(branch, str) and branch:
-                branches.setdefault(int(number), set()).add(branch)
-    on_branch: dict[str, list[str]] = {}
-    for session_id, entry in sorted(sessions.items()):
-        if isinstance(entry.get("branch"), str) and entry.get("project") == project:
-            on_branch.setdefault(entry["branch"], []).append(session_id)
-    for number, its_branches in branches.items():
-        published = [moment for moment in linked[number].values() if moment]
-        for session_id in (s for branch in its_branches for s in on_branch.get(branch, [])):
-            # it made the change; the change was published when the first session linked it
-            linked[number].setdefault(session_id, min(published, default=None))
-
+    links = _links(sessions, project)
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
-        patterns = [compile_pattern(path) for path in paths]
-        counts = {"loaded": 0, "missed": 0}
+        patterns = [_matcher(path) for path in paths]
+        counts = {LOADED: 0, MISSED: 0}
         unknown = dict.fromkeys(_UNKNOWN, 0)
         misses: list[dict] = []
         matching = [
             change
-            for change in changes
+            for change in merged.changes
             if any(pattern.match(file) for file in change.files for pattern in patterns)
         ]
         for change in matching:
+            openers = links.opened.get(change.number, {}) if change.number else {}
             if change.number is None:
-                unknown["no_pull_request"] += 1
-                continue
-            its_sessions = linked.get(change.number, {})
-            if not its_sessions:
-                unknown["no_session"] += 1
-                continue
-            by_publication = before_merge = untimed = False
-            for session_id, linked_at in its_sessions.items():
-                its_loads = loads.get((skill, session_id), [])
-                if not any(load <= change.at for load in its_loads):
-                    continue
-                before_merge = True
-                if linked_at is None:
-                    untimed = True
-                elif any(load <= min(linked_at, change.at) for load in its_loads):
-                    by_publication = True
-            if by_publication:
-                counts["loaded"] += 1
-            elif not before_merge:
-                counts["missed"] += 1
-                misses.append({"change": change.number, "sessions": sorted(its_sessions)})
-            elif untimed:
-                unknown["no_link_time"] += 1
+                verdict = "no_pull_request"
+            elif openers:
+                verdict = _judge(change, openers, loads.get(skill, {}))
             else:
-                unknown["after_publication"] += 1
-        judged = counts["loaded"] + counts["missed"]
+                attached = change.number in links.attached
+                verdict = "opened_elsewhere" if attached else "no_session"
+            if verdict in counts:
+                counts[verdict] += 1
+            else:
+                unknown[verdict] += 1
+            if verdict == MISSED:
+                misses.append({"change": change.number, "sessions": sorted(openers)})
+        judged = counts[LOADED] + counts[MISSED]
         report.append(
             {
                 "skill": skill,
                 "paths": sorted(paths),
                 "changes": len(matching),
-                "loaded": counts["loaded"],
-                "missed": counts["missed"],
+                "loaded": counts[LOADED],
+                "missed": counts[MISSED],
                 "unknown": sum(unknown.values()),
                 "unknown_why": unknown,
-                "rate": round(counts["loaded"] / judged, 3) if judged else None,
+                "rate": round(counts[LOADED] / judged, 3) if judged else None,
                 "misses": misses,
             }
         )
@@ -308,6 +348,12 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     if collected is None or now - collected > STALE_AFTER:
         when = state.get("collected_at") or "never"
         warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
+    if links.unsaid:
+        warnings.append(
+            f"{links.unsaid} links to {project} pull requests do not say which session opened "
+            "them, so their changes are unknown: run skill-usage-collect with this botcore to "
+            "record it"
+        )
     if not any(event.project == project for event in events) and not any(
         entry.get("project") == project for entry in sessions.values()
     ):
@@ -317,7 +363,7 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             f"{', '.join(known) or 'no project'}. Collect on a machine that works in it"
         )
 
-    judged = sum(rule["loaded"] + rule["missed"] for rule in report)
+    judged = sum(rule[LOADED] + rule[MISSED] for rule in report)
     return success(
         {
             "project": project,
@@ -325,6 +371,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
                 "days": days,
                 "since": since.isoformat(timespec="seconds"),
                 "until": now.isoformat(timespec="seconds"),
+            },
+            "merged": {
+                "branch": merged.branch,
+                "latest": merged.latest.isoformat(timespec="seconds") if merged.latest else None,
             },
             "rules": report,
             "record": {
@@ -335,6 +385,6 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "warnings": warnings,
         },
         reasoning=f"{sum(rule['changes'] for rule in report)} merged changes needed a skill; "
-        f"{sum(rule['missed'] for rule in report)} of the {judged} the record can judge were "
-        "published by sessions that never loaded it",
+        f"{sum(rule[MISSED] for rule in report)} of the {judged} the record can judge came "
+        "from a session that never loaded it",
     )
