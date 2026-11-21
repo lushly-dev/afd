@@ -624,7 +624,9 @@ export const CEILINGS = Object.freeze({
 	// (+778 over 44,873), plus a margin. Raised from 46,200 to 51,000 by AFD #863 (D115): the home's loading
 	// state is `violet-progress`, as design.md's States table asks, and no chunk loaded before the section holds
 	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
-	sectionsMinified: 51_000,
+	// Raised from 51,000 to 51,500 by AFD #1586 (D115): `violet-text-field` adds `error-text` and
+	// `part="error-message"` and `loam-projects-section` binds `error-text`; measured 51,184, plus a margin.
+	sectionsMinified: 51_500,
 	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
 	editorMinified: 36_500,
 	documentsMinified: 56_314,
