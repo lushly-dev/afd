@@ -6,7 +6,11 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
-import { releaseClaim } from './release-claim.mjs';
+import {
+	CLAIM_READBACK_DEADLINE_MS,
+	CLAIM_READBACK_MAX_ATTEMPTS,
+	releaseClaim,
+} from './release-claim.mjs';
 import { hash } from './release-operations/shared.mjs';
 
 const environment = {
@@ -72,7 +76,7 @@ function fixture(t, { intent = true } = {}) {
 		const page = Number(new URL(`https://github.com/${endpoint}`).searchParams.get('page'));
 		return state.entries.slice((page - 1) * 100, page * 100);
 	};
-	const options = { root, environment, api };
+	const options = { root, environment, api, wait: () => {} };
 	const invoke = (action, extras = {}) => releaseClaim({ ...options, action, ...extras });
 	return { root, state, write, invoke, options };
 }
@@ -475,4 +479,390 @@ test('recovery accepts a release carried past the commit that introduced its int
 	});
 	assert.equal(recovered.state, 'pending');
 	assert.equal(recovered.commit, failed.commit);
+});
+
+test('stale claim readback retries with backoff and succeeds once the created status appears', (t) => {
+	const f = fixture(t);
+	let reads = 0;
+	const waits = [];
+	let time = 0;
+	const created = [];
+	const claim = f.invoke('acquire', {
+		now: () => time,
+		wait: (ms) => {
+			waits.push(ms);
+			time += ms;
+		},
+		api: ({ body }) => {
+			if (body) {
+				const item = {
+					id: 10,
+					context: body.context,
+					state: body.state,
+					target_url: body.target_url,
+				};
+				created.unshift(item);
+				return item;
+			}
+			reads++;
+			// Read 1 is pre-acquire check; reads 2 and 3 lag behind the POST; read 4 sees the write.
+			return reads <= 3 ? [] : created;
+		},
+	});
+	assert.equal(claim.state, 'pending');
+	assert.equal(claim.statusId, 10);
+	assert.deepEqual(waits, [1000, 2000]);
+
+	// Older status ID visible during complete readback also retries until the new ID appears.
+	let completeReads = 0;
+	const completeWaits = [];
+	const completeResult = f.invoke('complete', {
+		...completed(f, claim),
+		validate: () => {},
+		now: () => time,
+		wait: (ms) => {
+			completeWaits.push(ms);
+			time += ms;
+		},
+		api: ({ body }) => {
+			if (body) {
+				const item = {
+					id: 11,
+					context: body.context,
+					state: body.state,
+					target_url: body.target_url,
+				};
+				created.unshift(item);
+				return item;
+			}
+			completeReads++;
+			// Read 1 is verifyOwn (id 10); read 2 lags behind POST (still only id 10); read 3 sees id 11.
+			return completeReads <= 2 ? created.filter((entry) => entry.id === 10) : created;
+		},
+	});
+	assert.equal(completeResult.state, 'succeeded');
+	assert.equal(completeResult.statusId, 11);
+	assert.deepEqual(completeWaits, [1000]);
+
+	// Reconcile also retries when readback still sees the exact failed status ID.
+	const rf = fixture(t);
+	const first = rf.invoke('acquire');
+	const failed = rf.invoke('fail', { claim: first });
+	const recEntries = structuredClone(rf.state.entries);
+	let recReads = 0;
+	const recWaits = [];
+	let recTime = 0;
+	const recovered = rf.invoke('reconcile', {
+		claim: failed,
+		plan: { sourceRevision: failed.commit, intentDigest: failed.intentDigest },
+		receipt: { state: 'held' },
+		environment: { ...environment, GITHUB_RUN_ID: '456' },
+		reconcile: () => ({ verified: ['a'], missing: [] }),
+		now: () => recTime,
+		wait: (ms) => {
+			recWaits.push(ms);
+			recTime += ms;
+		},
+		api: ({ body }) => {
+			if (body) {
+				const item = {
+					id: failed.statusId + 1,
+					context: body.context,
+					state: body.state,
+					target_url: body.target_url,
+				};
+				recEntries.unshift(item);
+				return item;
+			}
+			recReads++;
+			// Reads 1 & 2 are pre-check and post-reconcile check; read 3 lags on failed.statusId; read 4 sees the new write.
+			return recReads <= 3 ? recEntries.filter((entry) => entry.id <= failed.statusId) : recEntries;
+		},
+	});
+	assert.equal(recovered.state, 'pending');
+	assert.equal(recovered.statusId, failed.statusId + 1);
+	assert.deepEqual(recWaits, [1000]);
+});
+
+test('newer conflicting status, field mismatch, or readback error fails immediately without waiting', (t) => {
+	for (const scenario of [
+		{
+			name: 'newer status id',
+			readback: (written) => [{ ...written, id: written.id + 1 }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'written id returned under a different context',
+			readback: (written) => [{ ...written, context: 'release/npm/other-context' }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'unexpected older status id on acquire',
+			readback: (written) => [{ ...written, id: written.id - 1 }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'concurrent extra status alongside written id on acquire',
+			readback: (written) => [written, { ...written, id: written.id - 1 }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'mismatched state on same id',
+			readback: (written) => [{ ...written, state: 'failure' }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'mismatched target_url on same id',
+			readback: (written) => [{ ...written, target_url: 'https://github.com/other/run' }],
+			pattern: /readback differs/,
+		},
+		{
+			name: 'api error during readback',
+			readback: () => {
+				throw new Error('github 502');
+			},
+			pattern: /github 502/,
+		},
+	]) {
+		const f = fixture(t);
+		let written = null;
+		let readbackCalls = 0;
+		assert.throws(
+			() =>
+				f.invoke('acquire', {
+					wait: () => assert.fail(`must not wait for ${scenario.name}`),
+					api: ({ body }) => {
+						if (body) {
+							written = {
+								id: 5,
+								context: body.context,
+								state: body.state,
+								target_url: body.target_url,
+							};
+							return written;
+						}
+						if (!written) return [];
+						readbackCalls++;
+						return scenario.readback(written);
+					},
+				}),
+			scenario.pattern
+		);
+		assert.equal(readbackCalls, 1, scenario.name);
+	}
+
+	// On complete, empty readback or an intervening unknown status ID fails at once with zero waits.
+	for (const badComplete of [
+		{ name: 'empty readback on complete', entries: () => [] },
+		{
+			name: 'unexpected intervening status id on complete',
+			entries: (written, prior) => [written, { ...prior, id: prior.id + 1 }, prior],
+		},
+		{
+			name: 'unknown older status id on complete',
+			entries: (_written, prior) => [{ ...prior, id: prior.id + 1 }, prior],
+		},
+	]) {
+		const f = fixture(t);
+		const claim = f.invoke('acquire');
+		const prior = f.state.entries[0];
+		let written = null;
+		let readbackCalls = 0;
+		assert.throws(
+			() =>
+				f.invoke('complete', {
+					...completed(f, claim),
+					validate: () => {},
+					wait: () => assert.fail(`must not wait for ${badComplete.name}`),
+					api: ({ body }) => {
+						if (body) {
+							written = {
+								id: prior.id + 2,
+								context: body.context,
+								state: body.state,
+								target_url: body.target_url,
+							};
+							return written;
+						}
+						if (!written) return [prior];
+						readbackCalls++;
+						return badComplete.entries(written, prior);
+					},
+				}),
+			/readback differs/
+		);
+		assert.equal(readbackCalls, 1, badComplete.name);
+	}
+});
+
+test('stale readback stops at attempt limit and deadline without extra waits', (t) => {
+	const f = fixture(t);
+	let time = 0;
+	let postDone = false;
+	let readbacks = 0;
+	const waits = [];
+	const timeouts = [];
+	assert.throws(
+		() =>
+			f.invoke('acquire', {
+				now: () => time,
+				wait: (ms) => {
+					waits.push(ms);
+					time += ms;
+				},
+				api: ({ body, timeoutMs }) => {
+					if (body) {
+						postDone = true;
+						return { id: 1, context: body.context, state: body.state, target_url: body.target_url };
+					}
+					if (postDone) {
+						readbacks++;
+						timeouts.push(timeoutMs);
+					}
+					return [];
+				},
+			}),
+		/readback differs/
+	);
+	assert.equal(readbacks, CLAIM_READBACK_MAX_ATTEMPTS);
+	assert.deepEqual(waits, [1000, 2000, 4000, 8000, 8000]);
+	assert.deepEqual(timeouts, [30_000, 29_000, 27_000, 23_000, 15_000, 7_000]);
+	assert.equal(waits.length, CLAIM_READBACK_MAX_ATTEMPTS - 1);
+
+	// A slow readback that reaches the deadline stops without waiting or issuing another GET.
+	const slow = fixture(t);
+	let slowTime = 0;
+	let slowPostDone = false;
+	let slowReadbacks = 0;
+	assert.throws(
+		() =>
+			slow.invoke('acquire', {
+				now: () => slowTime,
+				wait: () => assert.fail('deadline reached'),
+				api: ({ body }) => {
+					if (body) {
+						slowPostDone = true;
+						return { id: 1, context: body.context, state: body.state, target_url: body.target_url };
+					}
+					if (slowPostDone) {
+						slowReadbacks++;
+						slowTime = CLAIM_READBACK_DEADLINE_MS;
+					}
+					return [];
+				},
+			}),
+		/readback differs/
+	);
+	assert.equal(slowReadbacks, 1);
+
+	// When remaining budget is no larger than the next backoff wait, stop without waiting or starting a GET at the deadline.
+	const bounded = fixture(t);
+	let boundTime = 0;
+	let boundPostDone = false;
+	let boundReadbacks = 0;
+	const boundWaits = [];
+	const boundTimeouts = [];
+	assert.throws(
+		() =>
+			bounded.invoke('acquire', {
+				now: () => boundTime,
+				wait: (ms) => {
+					boundWaits.push(ms);
+					boundTime += ms;
+				},
+				api: ({ body, timeoutMs }) => {
+					if (body) {
+						boundPostDone = true;
+						return { id: 1, context: body.context, state: body.state, target_url: body.target_url };
+					}
+					if (boundPostDone) {
+						assert.ok(
+							boundTime < CLAIM_READBACK_DEADLINE_MS,
+							'must not start GET at or after deadline'
+						);
+						boundReadbacks++;
+						boundTimeouts.push(timeoutMs);
+						boundTime += 14_250;
+					}
+					return [];
+				},
+			}),
+		/readback differs/
+	);
+	assert.equal(boundReadbacks, 2);
+	assert.deepEqual(boundWaits, [1000]);
+	assert.deepEqual(boundTimeouts, [30_000, 14_750]);
+
+	// Pagination checks the remaining budget before requesting page 2.
+	const paged = fixture(t);
+	let pageTime = 0;
+	let pagePostDone = false;
+	let pageRequests = 0;
+	const fullPage = Array.from({ length: 100 }, (_, index) => ({
+		id: index + 100,
+		context: 'unrelated',
+	}));
+	assert.throws(
+		() =>
+			paged.invoke('acquire', {
+				now: () => pageTime,
+				wait: () => assert.fail('deadline reached during pagination'),
+				api: ({ body, endpoint }) => {
+					if (body) {
+						pagePostDone = true;
+						return { id: 1, context: body.context, state: body.state, target_url: body.target_url };
+					}
+					if (!pagePostDone) return [];
+					pageRequests++;
+					assert.ok(endpoint.endsWith('page=1'), `must not request ${endpoint} past deadline`);
+					pageTime = CLAIM_READBACK_DEADLINE_MS;
+					return fullPage;
+				},
+			}),
+		/readback differs/
+	);
+	assert.equal(pageRequests, 1);
+});
+
+test('supersedes record gives a fresh unclaimed digest and rejects malformed records', (t) => {
+	const f = fixture(t);
+	const originalBytes = readFileSync(join(f.root, '.release/npm-intent.json'), 'utf8');
+	const heldClaim = f.invoke('acquire');
+	const superseded = {
+		...JSON.parse(originalBytes),
+		supersedes: {
+			intentDigest: heldClaim.intentDigest,
+			statusId: heldClaim.statusId,
+			runId: '123',
+			attempt: '1',
+			reason: 'Claim readback failed before upload',
+		},
+	};
+	f.write('.release/npm-intent.json', superseded);
+	git(f.root, ['add', '.']);
+	git(f.root, ['commit', '-m', 'supersede held intent']);
+	const next = f.invoke('inspect');
+	assert.equal(next.state, 'unclaimed');
+	assert.notEqual(next.intentDigest, heldClaim.intentDigest);
+	assert.equal(next.commit, git(f.root, ['rev-parse', 'HEAD']).trim());
+
+	for (const bad of [
+		null,
+		'not-an-object',
+		[],
+		{ ...superseded.supersedes, intentDigest: 'short' },
+		{ ...superseded.supersedes, statusId: 0 },
+		{ ...superseded.supersedes, statusId: '1' },
+		{ ...superseded.supersedes, runId: 'abc' },
+		{ ...superseded.supersedes, attempt: '' },
+		{ ...superseded.supersedes, reason: '   ' },
+		{ ...superseded.supersedes, extra: true },
+	]) {
+		f.write('.release/npm-intent.json', { ...JSON.parse(originalBytes), supersedes: bad });
+		git(f.root, ['add', '.']);
+		git(f.root, ['commit', '-m', 'bad supersedes']);
+		const calls = f.state.calls.length;
+		assert.throws(() => f.invoke('inspect'), /supersedes/);
+		assert.equal(f.state.calls.length, calls);
+	}
 });

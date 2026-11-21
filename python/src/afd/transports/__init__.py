@@ -29,6 +29,8 @@ from afd.transports.base import (
     ToolExecutionError,
     ConnectionError,
     ToolNotFoundError,
+    HttpStatusError,
+    JsonRpcError,
 )
 from afd.transports.fastmcp import FastMCPTransport
 from afd.transports.mock import MockTransport
@@ -80,6 +82,8 @@ __all__ = [
     "ToolExecutionError",
     "ConnectionError",
     "ToolNotFoundError",
+    "HttpStatusError",
+    "JsonRpcError",
     "FastMCPTransport",
     "MockTransport",
     "HttpTransport",

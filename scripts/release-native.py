@@ -48,6 +48,8 @@ TRACKS = {
     },
 }
 AUTHORITY = "github: lushly-dev/afd"
+# A release tag publishes only a commit that `main` already contains.
+MAIN_REF = "refs/remotes/origin/main"
 
 
 def require(condition, message):
@@ -63,6 +65,20 @@ def git(root, *args):
     return subprocess.run(
         ["git", "-C", str(root), *args], check=True, capture_output=True
     ).stdout
+
+
+def require_on_main(root, commit):
+    """Refuse a commit that MAIN_REF does not contain; a missing or shallow history fails closed."""
+    present = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "--quiet",
+                              f"{MAIN_REF}^{{commit}}"], capture_output=True)
+    require(present.returncode == 0,
+            f"{MAIN_REF} is missing; check out with fetch-depth: 0 so the guard can read main")
+    require(git(root, "rev-parse", "--is-shallow-repository").decode().strip() == "false",
+            "Checkout is shallow; check out with fetch-depth: 0 so the guard can read main")
+    result = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, MAIN_REF],
+                            capture_output=True)
+    require(result.returncode in (0, 1), f"Cannot compare the tag with main: {result.stderr.decode().strip()}")
+    require(result.returncode == 0, "Release tag source is not on main")
 
 
 def tracked_bytes(root, file):
@@ -215,6 +231,7 @@ def inspect(args):
     source = git(root, "rev-parse", "HEAD").decode().strip()
     tag_source = git(root, "rev-parse", f"refs/tags/{args.tag}^{{commit}}").decode().strip()
     require(source == tag_source, "Checkout is not the exact release tag source")
+    require_on_main(root, source)
     inventory_file = "scripts/release/inventory.json"
     inventory_bytes = (root / inventory_file).read_bytes()
     require(inventory_bytes == tracked_bytes(root, inventory_file), "Inventory differs from candidate source")
