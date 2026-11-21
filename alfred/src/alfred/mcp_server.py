@@ -17,14 +17,20 @@ def create_server(workspace: str | Path, target=None, *, profile='inspection',
                                   description='Alfred unified repository command host')
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--workspace', required=True)
     parser.add_argument('--target')
     parser.add_argument('--profile', choices=('inspection', 'trusted-local'), default='inspection')
     parser.add_argument('--raw-python', action='store_true')
-    parser.add_argument('--sse', action='store_true')
-    args = parser.parse_args()
+    parser.add_argument('--sse', action='store_true',
+                        help='Serve over SSE; only the inspection profile without --raw-python')
+    args = parser.parse_args(argv)
+    if args.sse and (args.raw_python or args.profile != 'inspection'):
+        # An SSE port has no authentication, so it serves only the inspection profile.
+        parser.error('--sse serves only the inspection profile without --raw-python: '
+                     'the trusted-local profile and raw Python run over stdio, for the client '
+                     'that started the server')
     server = create_server(args.workspace, args.target, profile=args.profile, raw_python=args.raw_python)
     server.run(transport='sse' if args.sse else 'stdio')
 
