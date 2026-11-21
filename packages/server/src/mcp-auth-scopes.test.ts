@@ -27,6 +27,7 @@ import {
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
+import { SkillCatalog } from './skills.js';
 
 const RESOURCE = 'https://mcp.test.example/mcp';
 const METADATA = 'https://mcp.test.example/.well-known/oauth-protected-resource/mcp';
@@ -730,5 +731,146 @@ describe('P3-E9: M6, credentials the resolver sees', () => {
 		expect(seen.length).toBeGreaterThan(0);
 		expect(JSON.stringify(seen)).not.toContain(bearer);
 		expect(seen[0]).toMatchObject({ subject: 'user-1', scopes: ['todo:read'] });
+	});
+});
+
+describe('P3-E9: M6, requiredScopes on GET /sse and post-routing resources/skills (#1702)', () => {
+	it('refuses GET /sse with 403 for bearer tokens, host-admitted callers, and preDispatchCheck when requiredScopes are missing', async () => {
+		const base = await serve({}, { requiredScopes: ['todo:read'] });
+		const none = await token('');
+		const denied = await fetch(`${base}/sse`, { headers: { Authorization: `Bearer ${none}` } });
+		expect(denied.status).toBe(403);
+		expect(denied.headers.get('www-authenticate')).toContain('error="insufficient_scope"');
+		expect(denied.headers.get('www-authenticate')).toContain('scope="todo:read"');
+
+		// Host-admitted caller skipping preDispatchCheck() must also be refused on GET /sse.
+		const handler = createMcpHandler({
+			name: 'todo',
+			version: '1.0.0',
+			commands: commands({ hidden: false }),
+			auth: {
+				resource: RESOURCE,
+				authorizationServers: [as.issuer],
+				verifier: new JwtVerifier({
+					rules: { resource: RESOURCE },
+					issuers: [{ issuer: as.issuer, algorithms: ['RS256'], keys: jwksKeySource(as.jwks()) }],
+				}),
+				requiredScopes: ['todo:read'],
+			},
+		});
+		const check = handler.preDispatchCheck({
+			challenge: new ScopeChallenge('Gateway', { realm: 'todo' }),
+		});
+		let preDecision: ReturnType<typeof check.decide> | undefined;
+		const server = createServer(async (req, res) => {
+			handler.admit(req, {
+				issuer: as.issuer,
+				subject: 'user-1',
+				clientId: 'gateway',
+				scopes: [],
+				resource: RESOURCE,
+				expiresAt: Math.floor(Date.now() / 1000) + 300,
+				issuedAt: Math.floor(Date.now() / 1000),
+			});
+			preDecision = check.decide(req, '');
+			// Intentionally omit sending preDecision to verify handler() itself enforces GET /sse.
+			await handler(req, res);
+		});
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		cleanups.push(async () => {
+			handler.dispose();
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		});
+		const hostBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+		const hostDenied = await fetch(`${hostBase}/sse`);
+		expect(hostDenied.status).toBe(403);
+		expect(hostDenied.headers.get('www-authenticate')).toContain('error="insufficient_scope"');
+		expect(preDecision).toMatchObject({
+			proceed: false,
+			status: 403,
+			headers: {
+				'WWW-Authenticate': 'Gateway realm="todo", error="insufficient_scope", scope="todo:read"',
+			},
+		});
+	});
+
+	it('refuses resources/* and skills/* post-routing when admitted without requiredScopes', async () => {
+		const skills = new SkillCatalog(
+			[
+				{
+					path: 'triage',
+					files: {
+						'SKILL.md': '---\nname: triage\ndescription: Triage guide\n---\n# Triage\n',
+					},
+				},
+			],
+			{ directoryRead: true }
+		);
+		const handler = createMcpHandler({
+			name: 'todo',
+			version: '1.0.0',
+			commands: commands({ hidden: false }),
+			auth: {
+				resource: RESOURCE,
+				authorizationServers: [as.issuer],
+				verifier: new JwtVerifier({
+					rules: { resource: RESOURCE },
+					issuers: [{ issuer: as.issuer, algorithms: ['RS256'], keys: jwksKeySource(as.jwks()) }],
+				}),
+				requiredScopes: ['todo:read'],
+			},
+			resources: [
+				{
+					uri: 'file:///secret.txt',
+					name: 'secret',
+					mimeType: 'text/plain',
+					content: 'top-secret',
+				},
+			],
+			skills,
+		});
+		const server = createServer(async (req, res) => {
+			// Host-admitted caller with empty scopes, skipping preDispatchCheck (post-routing M6 guarantee).
+			handler.admit(req, {
+				issuer: as.issuer,
+				subject: 'user-1',
+				clientId: 'gateway',
+				scopes: [],
+				resource: RESOURCE,
+				expiresAt: Math.floor(Date.now() / 1000) + 300,
+				issuedAt: Math.floor(Date.now() / 1000),
+			});
+			await handler(req, res);
+		});
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		cleanups.push(async () => {
+			handler.dispose();
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		});
+		const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+		for (const [method, params, mcpName] of [
+			['resources/list', { _meta: META }, undefined],
+			['resources/templates/list', { _meta: META }, undefined],
+			['resources/read', { uri: 'file:///secret.txt', _meta: META }, 'file:///secret.txt'],
+			['skills/list', { _meta: META }, undefined],
+			['skills/get', { uri: 'skill://triage/', _meta: META }, undefined],
+			['resources/directory/read', { uri: 'skill://triage/', _meta: META }, undefined],
+		] as const) {
+			const res = await fetch(`${base}/mcp`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json, text/event-stream',
+					'MCP-Protocol-Version': '2026-07-28',
+					'Mcp-Method': method,
+					...(mcpName ? { 'Mcp-Name': mcpName } : {}),
+				},
+				body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+			});
+			const body = (await res.json()) as { error?: { code?: number; data?: { code?: string } } };
+			expect(body.error?.data?.code, method).toBe('INSUFFICIENT_SCOPE');
+		}
 	});
 });

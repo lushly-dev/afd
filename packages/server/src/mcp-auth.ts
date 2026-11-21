@@ -34,6 +34,7 @@ import {
 	decideBody,
 	decidesBody,
 	type ForbiddenStyle,
+	forbidden,
 	type PreDispatch,
 } from './mcp-auth-dispatch.js';
 
@@ -45,7 +46,12 @@ import {
 	isScopeToken,
 	type ProtectedResource,
 } from './mcp-auth-resource.js';
-import { type AuthRuleCode, type Credentials, withRedactedInspect } from './mcp-auth-rules.js';
+import {
+	type AuthRuleCode,
+	type Credentials,
+	MAX_CLOCK_SKEW_S,
+	withRedactedInspect,
+} from './mcp-auth-rules.js';
 import type { ScopeChallenge, ScopeResolver } from './mcp-auth-scopes.js';
 import { createScopeAuthority } from './mcp-auth-view.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -354,6 +360,17 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 		throw new Error('[AFD] auth.verifier must be a TokenVerifier, such as a JwtVerifier');
 	}
 	const rules = verifier.rules;
+	if (
+		rules &&
+		(typeof rules.clockSkewS !== 'number' ||
+			!Number.isSafeInteger(rules.clockSkewS) ||
+			rules.clockSkewS < 0 ||
+			rules.clockSkewS > MAX_CLOCK_SKEW_S)
+	) {
+		throw new Error(
+			`[AFD] verifier.rules.clockSkewS must be a whole number from 0 to ${MAX_CLOCK_SKEW_S}`
+		);
+	}
 	if (rules && rules.resource !== options.resource) {
 		throw new Error(
 			`[AFD] the verifier accepts the audience ${JSON.stringify(rules.resource)} but auth.resource is ${JSON.stringify(options.resource)}`
@@ -429,9 +446,14 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 	}
 
 	/** Admit `credentials` for `req` and its response alone, branded until the response closes. */
-	function take(req: IncomingMessage, res: ServerResponse, credentials: Credentials): boolean {
+	function take(
+		req: IncomingMessage,
+		res: ServerResponse,
+		credentials: Credentials,
+		skewS = 0
+	): boolean {
 		if (res.destroyed || res.writableEnded) return false;
-		brandVerifiedCredentials(credentials);
+		brandVerifiedCredentials(credentials, skewS);
 		admitted.set(req, credentials);
 		views.set(req, authority.view(credentials));
 		// No credentials outlive their request as verified.
@@ -449,8 +471,15 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 		view: ScopeView,
 		style: ForbiddenStyle = {}
 	): Promise<PreDispatch> {
-		if (req.method !== 'POST' || !decidesBody(path) || !isJsonContent(req))
+		if (req.method !== 'POST' || !decidesBody(path) || !isJsonContent(req)) {
+			if (path === '/sse' && req.method === 'GET') {
+				const decision = view.decideRequest();
+				return decision === 'proceed'
+					? { proceed: true }
+					: forbidden(resource, decision.forbidden, style);
+			}
 			return { proceed: true };
+		}
 		let body = prereadBody(req);
 		if (!body) {
 			const read = await readBodyBytes(req, maxBodyBytes);
@@ -498,24 +527,50 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 			return unauthorized(res, 'unavailable');
 		}
 		if (!verification.ok) return unauthorized(res, verification.rule, verification.issuer);
+		const rawSkew = rules?.clockSkewS ?? 0;
+		const skewS =
+			typeof rawSkew === 'number' &&
+			Number.isSafeInteger(rawSkew) &&
+			rawSkew >= 0 &&
+			rawSkew <= MAX_CLOCK_SKEW_S
+				? rawSkew
+				: 0;
 		const credentials = admissible(verification.credentials, {
 			resource: resource.resource,
 			requireBoundTokens,
 			certificate,
 			now: Math.floor(clock.now() / 1000),
-			skewS: rules?.clockSkewS ?? 0,
+			skewS,
 		});
 		if (typeof credentials === 'string') return unauthorized(res, credentials);
 		// Every route takes JSON; a form body has served its one purpose (M2).
 		if (form !== undefined)
 			throw new HttpRequestError(415, 'Content-Type must be application/json');
-		if (!take(req, res, credentials)) return false;
+		if (!take(req, res, credentials, skewS)) return false;
 		// M6: the 403 before dispatch.
 		return respond(res, await decideBefore(req, url.pathname, views.get(req) as ScopeView));
 	}
 
+	function rawQueryString(rawUrl: string | undefined): string {
+		if (!rawUrl) return '';
+		const queryIndex = rawUrl.indexOf('?');
+		if (queryIndex < 0) return '';
+		const hashIndex = rawUrl.indexOf('#', queryIndex + 1);
+		return hashIndex < 0 ? rawUrl.slice(queryIndex + 1) : rawUrl.slice(queryIndex + 1, hashIndex);
+	}
+
+	function originTargetPath(rawUrl: string | undefined): string | undefined {
+		const target = rawUrl ?? '/';
+		if (!target.startsWith('/') || target.startsWith('//')) return undefined;
+		try {
+			return new URL(target, 'http://host').pathname;
+		} catch {
+			return undefined;
+		}
+	}
+
 	function hostAdmit(req: IncomingMessage, credentials: Credentials): void {
-		const query = new URL(req.url ?? '/', 'http://host').search.slice(1);
+		const query = rawQueryString(req.url);
 		if (authorizationValues(req).length > 0 || namesAccessToken(query)) {
 			throw new Error(
 				'[AFD] admit refuses a request that carries a bearer token: one request has one source of credentials'
@@ -542,11 +597,20 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 			maxBodyBytes,
 			decide(req: IncomingMessage, body: Uint8Array | string): PreDispatch {
 				const bytes = typeof body === 'string' ? Buffer.from(body, 'utf8') : Buffer.from(body);
-				const path = new URL(req.url ?? '/', 'http://host').pathname;
-				if (bytes.length > maxBodyBytes) return bodyTooLarge(path);
-				if (req.method !== 'POST') return { proceed: true };
+				const path = originTargetPath(req.url);
+				if (bytes.length > maxBodyBytes) return bodyTooLarge(path ?? '');
+				if (path === undefined) return { proceed: true };
 				const credentials = vouched.get(req) ?? admitted.get(req);
-				if (!credentials || !decidesBody(path) || !isJsonContent(req)) return { proceed: true };
+				if (!credentials) return { proceed: true };
+				if (req.method === 'GET' && path === '/sse') {
+					const view = views.get(req) ?? authority.view(credentials);
+					const decision = view.decideRequest();
+					return decision === 'proceed'
+						? { proceed: true }
+						: forbidden(resource, decision.forbidden, style);
+				}
+				if (req.method !== 'POST') return { proceed: true };
+				if (!decidesBody(path) || !isJsonContent(req)) return { proceed: true };
 				const view = views.get(req) ?? authority.view(credentials);
 				return decideBody(view, path, bytes.toString('utf8'), resource, style);
 			},

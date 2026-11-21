@@ -326,8 +326,45 @@ describe('P3-E9: createAuthMiddleware clock', () => {
 			isVerifiedCredentials,
 			clock: fixedClock(expiry),
 		});
-		// Signed out and expired: the session treatment, so UNAUTHORIZED.
-		expect((await after('todo-list', {}, { credentials }, next)).error?.code).toBe('UNAUTHORIZED');
+		// Expired branded credentials fail closed as TOKEN_EXPIRED, never falling through to the session.
+		expect((await after('todo-list', {}, { credentials }, next)).error?.code).toBe('TOKEN_EXPIRED');
+	});
+
+	it('fails closed on expired branded credentials even when the adapter is signed in (#1701)', async () => {
+		const credentials = brandVerifiedCredentials(credentialsFields());
+		const expiry = credentialsFields().expiresAt * 1000;
+		const adapter = new MockAuthAdapter();
+		adapter._setUser({ id: 'session-user', email: 'session@example.com', name: 'Session' });
+		let reads = 0;
+		const getSession = adapter.getSession.bind(adapter);
+		adapter.getSession = () => {
+			reads += 1;
+			return getSession();
+		};
+		let ran = false;
+		const next = () => {
+			ran = true;
+			return Promise.resolve(success({ ok: true }));
+		};
+		const middleware = createAuthMiddleware(adapter, {
+			isVerifiedCredentials,
+			clock: fixedClock(expiry),
+		});
+
+		for (const name of ['todo-list', 'auth-session-get']) {
+			const context: CommandContext = {
+				actor: { ...tokenActor },
+				credentials,
+				auth: forgedAuth,
+			};
+			const result = await middleware(name, {}, context, next);
+			expect(result.success, name).toBe(false);
+			expect(result.error?.code, name).toBe('TOKEN_EXPIRED');
+			expect(context.auth).toBeUndefined();
+			expect(context.actor).toEqual(tokenActor);
+		}
+		expect(ran).toBe(false);
+		expect(reads).toBe(0);
 	});
 
 	it('gives no pass to credentials whose request has ended', async () => {

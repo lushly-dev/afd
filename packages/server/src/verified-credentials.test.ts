@@ -82,6 +82,14 @@ describe('verified credentials brand', () => {
 		}
 	});
 
+	it('honours an admitted clock-skew window passed when branding', () => {
+		const branded = brandVerifiedCredentials(fields(), 60);
+		const expiry = (NOW / 1000 + 600) * 1000;
+		expect(isVerifiedCredentials(branded, expiry)).toBe(true);
+		expect(isVerifiedCredentials(branded, expiry + 59_999)).toBe(true);
+		expect(isVerifiedCredentials(branded, expiry + 60_000)).toBe(false);
+	});
+
 	it('is not verified once unbranded', () => {
 		const branded = brandVerifiedCredentials(fields());
 		unbrandVerifiedCredentials(branded);

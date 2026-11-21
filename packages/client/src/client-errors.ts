@@ -32,9 +32,10 @@ export class RequestTimeoutError extends Error {
 export class HttpStatusError extends Error {
 	constructor(
 		readonly status: number,
-		readonly statusText: string
+		readonly statusText: string,
+		options?: ErrorOptions
 	) {
-		super(`HTTP error: ${status} ${statusText}`);
+		super(`HTTP error: ${status} ${statusText}`, options);
 		this.name = 'HttpStatusError';
 	}
 }
