@@ -148,7 +148,7 @@ export interface UpFrontDeps {
 	/** Whether `command`'s policy holds this input. */
 	requiresApproval(command: string, input: unknown, context: CommandContext): Promise<boolean>;
 	/** Whether `command`'s policy could hold some input ('required' or a function). */
-	mayRequireApproval(command: string): boolean;
+	mayRequireApproval(command: string, context: CommandContext): boolean;
 	/**
 	 * The bindings of an up-front approval, one per key, the signing key's first: a keyed digest of
 	 * the call (its {@link callTags} under that key), the command, its input and the actor.
@@ -220,6 +220,13 @@ export interface UpFrontApproval {
 	 * step runs on its own validation, as usual.
 	 */
 	validated(command: string, input: unknown): Promise<{ input: unknown } | undefined>;
+	/**
+	 * The server's definition of `command` (its approval policy and prompt), so the middleware
+	 * decides every step from the command that step runs.
+	 */
+	command(
+		command: string
+	): Pick<ZodCommandDefinition, 'name' | 'approval' | 'confirmPrompt'> | undefined;
 	/**
 	 * Run one step through the up-front gate, with the approval middleware's own keys, nonce
 	 * store and policies (`deps`): nothing runs until the whole call is approved.

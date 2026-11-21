@@ -1,7 +1,8 @@
 /**
  * @fileoverview The pre-execution approval policy a command declares (#272). The server's
- * `createApprovalMiddleware` enforces it; this module only holds the types and the
- * reporting rule, so it stays free of Node.js builtins.
+ * `createApprovalMiddleware` enforces it, and its execution engine refuses a gated command no
+ * approval step admitted; this module only holds the types and the reporting rule, so it stays
+ * free of Node.js builtins.
  */
 
 import type { CommandContext } from './commands.js';
@@ -12,7 +13,10 @@ export type ApprovalDecision = 'not-required' | 'required';
 /**
  * A command's approval policy: a fixed decision, or a function of the validated input and the
  * call context (for example, "agents need approval, humans do not"). Unset means
- * `'not-required'`. Enforced only where `createApprovalMiddleware` is installed.
+ * `'not-required'`. Decided by `createApprovalMiddleware`; without it, the server's engines
+ * (`createMcpServer`, `createDirectRegistry`) refuse a policy other than `'not-required'` with
+ * `APPROVAL_UNAVAILABLE`, so a declared policy never runs ungated there. This package's
+ * `createCommandRegistry` has no such check.
  */
 export type ApprovalPolicy<TInput = unknown> = ApprovalDecision | ApprovalPolicyFunction<TInput>;
 

@@ -28,7 +28,8 @@ export default function createReplayRegistry(): McpServer {
 	return createMcpServer(
 		createTodoServerOptions(
 			// Every journaled call already got past the approval hold, and the approval itself is not
-			// journaled, so replay without the hold or an approved call would be held again.
+			// journaled, so replay without the hold (todo-clear served without its approval policy),
+			// or an approved call would be held again.
 			{ ...process.env, APPROVALS: 'off', TODO_JOURNAL: undefined },
 			// The same middleware as when recording: a journal middleware records nothing during a
 			// replay, but restarts each call's tape at its own position.

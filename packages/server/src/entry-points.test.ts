@@ -239,6 +239,14 @@ const HOST_IMPORTS =
  *   Raised to 42,000 / 54,000 / 76,500 / 116,000 by bounded pipeline variable expansion (#1704, under D115):
  *   measured 41,666 / 53,605 / 76,090 / 115,729 bytes after adding bounded cloning and expansion accounting
  *   to `packages/core/src/pipeline-variables.ts` and `VALIDATION_ERROR` handling to `pipeline-executor.ts`.
+ *   Raised to 43,300 / 55,700 / 77,700 / 117,800 by approval admission (a declared approval policy
+ *   holds without the approval middleware, under D115): measured on `main` at `2700c62e` 41,666 /
+ *   53,649 / 76,090 / 115,773 bytes, and 42,951 / 55,365 / 77,375 / 117,482 after, with esbuild
+ *   0.28.2. The engine records each call's policy and admission and refuses an unadmitted gated
+ *   call; the canonical JSON that binds an admission to its input comes from the approval
+ *   middleware, so a host without it does not bundle it. A second refusal reason (an approval step
+ *   ran, but not for this dispatch) took them to 43,305 / 55,719 / 77,729 / 117,836; raised to
+ *   43,700 / 56,100 / 78,100 / 118,200.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -251,19 +259,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 42_000,
+		bytes: 43_700,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 54_000,
+		bytes: 56_100,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 76_500,
+		bytes: 78_100,
 	},
-	{ what: 'every export', imports: undefined, bytes: 116_000 },
+	{ what: 'every export', imports: undefined, bytes: 118_200 },
 ];
 
 /** The modules only the tool surface needs. */

@@ -10,8 +10,8 @@
  * that calls `command.handler(input)` directly: it skips all of that.
  */
 
-import { allCommands } from '@afd/example-todo-ts/commands';
 import {
+	createTodoCommands,
 	createTodoMiddleware,
 	type Env,
 	type TodoServerDeps,
@@ -37,7 +37,8 @@ import { createPageViewCommands } from './page.js';
  * ```
  */
 export function createCopilotRegistry(env: Env, deps: TodoServerDeps = {}): DirectCommandRegistry {
-	return createDirectRegistry([...allCommands, ...createPageViewCommands()], {
+	// With APPROVALS=off, todo-clear comes without its approval policy, as on the MCP server.
+	return createDirectRegistry([...createTodoCommands(env), ...createPageViewCommands()], {
 		middleware: createTodoMiddleware(env, deps),
 		tools: createDirectToolSurface(),
 		devMode: env.NODE_ENV === 'development',

@@ -114,8 +114,8 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-49 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
-engines emitted without a constant; then the 2 confirmation codes, the approval code, the output
+50 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+engines emitted without a constant; then the 2 confirmation codes, the 2 approval codes, the output
 budget code, the authorization code, the task code and the app call code.
 
 ### Validation
@@ -227,12 +227,13 @@ Emitted only by a server that enforces `confirmPrompt`; see
 
 ### Approvals
 
-Emitted only by the approval middleware; see [Approvals](./command-metadata.md#approvals). No
-handler ran.
+Emitted by the approval middleware (`APPROVAL_REQUIRED`) and by the server engine
+(`APPROVAL_UNAVAILABLE`); see [Approvals](./command-metadata.md#approvals). No handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. An `afd-pipe` refused up front because a gated step's input comes from an earlier step has `reason: "input-not-known"`, `step` and `command` instead, and nothing ran: split the pipeline before that step. An `afd-batch` or `afd-pipe` with more than `limit` (20) gated steps has `reason: "too-many-approvals"` and `limit`, and nothing ran: split it. Retry the same call with the token once a human approved | No | Middleware |
+| `APPROVAL_UNAVAILABLE` | The command declares an approval policy other than `not-required`, and the server has no approval step that admitted the call, so it cannot ask a person. Nothing ran. `details.reason` is `no-approval-step`, or `admission-mismatch` when an approval step ran but did not admit this dispatch (a retry or an input change after it). The suggestion says not to retry; the operator adds an approval step, removes the policy or reorders the middleware | No | Server engine |
 
 ### Output budgets
 
@@ -277,8 +278,8 @@ Engine codes a `spec/` page defines before any language emits them. Each joins
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
 in Umbel phase 2 step 0b, `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b and `TASK_TOKEN_EXPIRED` in
-Umbel phase 5 step 0e, and the catalog stands at 49 codes, `CALL_NOT_GRANTED` the latest (Loam
-phase 5 step 0b). None is waiting.
+Umbel phase 5 step 0e, and the catalog stands at 50 codes, `APPROVAL_UNAVAILABLE` the latest
+(declared approval policies held without the approval middleware). None is waiting.
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing
 `UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged

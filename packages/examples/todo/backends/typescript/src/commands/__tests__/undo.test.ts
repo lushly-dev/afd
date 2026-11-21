@@ -10,7 +10,7 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import { fixedClock, seededRandom } from '@lushly-dev/afd-core';
 import { createMcpServer } from '@lushly-dev/afd-server';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createTodoServerOptions } from '../../server-options.js';
+import { createTodoCommands, createTodoServerOptions } from '../../server-options.js';
 import { FileStore } from '../../store/file.js';
 import { store } from '../../store/index.js';
 import { HISTORY_LIMIT } from '../../store/memory.js';
@@ -248,6 +248,13 @@ describe('todo-clear', () => {
 		const open = createMcpServer(createTodoServerOptions({ APPROVALS: 'off' }));
 		const result = await open.execute('todo-clear', { all: true }, agent);
 		expect(result.success).toBe(true);
+	});
+
+	it('serves todo-clear without its approval policy only with APPROVALS=off', () => {
+		const clear = (env: Record<string, string>) =>
+			createTodoCommands(env).find((command) => command.name === 'todo-clear');
+		expect(clear({ APPROVALS: 'off' })).not.toHaveProperty('approval');
+		expect(typeof clear({})?.approval).toBe('function');
 	});
 
 	it('refuses an unknown APPROVALS value and a short secret', () => {
