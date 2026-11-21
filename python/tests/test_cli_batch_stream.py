@@ -415,8 +415,9 @@ def test_batch_sends_headers_from_the_flags_and_the_environment(transport, monke
 
 def test_batch_refuses_a_malformed_header(transport):
     outcome = CliRunner().invoke(cli, ["batch", "[]", "-H", "no colon"])
-    assert outcome.exit_code == 2
-    assert 'Invalid header "no colon"' in outcome.output
+    assert outcome.exit_code == 1
+    assert "--header 1: Invalid header" in outcome.output
+    assert "no colon" not in outcome.output
 
 
 def test_a_short_batch_deadline_still_waits_the_default_request_timeout(transport):
@@ -513,7 +514,7 @@ def test_a_header_flag_replaces_an_environment_header_of_the_same_name():
         "Authorization": "Bearer flag",
         "X-A": "1",
     }
-    with pytest.raises(ValueError, match="AFD_HEADERS: Invalid header"):
+    with pytest.raises(ValueError, match="AFD_HEADERS line 1: Invalid header"):
         resolve_headers([], {"AFD_HEADERS": "bad header"})
 
 

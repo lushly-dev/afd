@@ -1,0 +1,57 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: Be told when the numbers cannot be trusted
+description: >-
+  When a harness changes how it records its threads, or nothing has been collected, I want the
+  commands to say so and keep what they have, so that a silent zero is never read as "nobody
+  uses skills".
+job: never-a-silent-zero
+tags: [slice]
+steps:
+  - description: A report before any collection is refused, with the way forward
+    command: skill-usage-report
+    expect:
+      success: false
+      error:
+        code: NOT_COLLECTED
+        suggestion: { contains: skill-usage-collect }
+  - description: A window that makes no sense is refused
+    command: skill-usage-report
+    input: { days: 0 }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: days }
+  - description: A store that is not where the caller said is refused
+    command: skill-usage-collect
+    input: { t3_store: /data/nowhere.sqlite, machine: shed }
+    expect:
+      success: false
+      error:
+        code: SOURCE_NOT_FOUND
+        suggestion: { contains: statev2.sqlite }
+  - description: A store whose layout changed is reported, and nothing collected before is lost
+    command: skill-usage-collect
+    input: { t3_store: /data/changed-layout.sqlite, machine: shed }
+    expect:
+      success: false
+      error:
+        code: SOURCE_SCHEMA_CHANGED
+        message: payload_json
+        suggestion: { contains: update botcore }
+  - description: This machine's store is collected
+    command: skill-usage-collect
+    expect:
+      success: true
+      data:
+        added: 3
+  - description: A misspelled filter is refused with the values the record has, not answered with nothing
+    command: skill-usage-report
+    input: { harness: Claude }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: claude }

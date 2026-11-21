@@ -83,7 +83,7 @@ clients migrate from arbitrary `alfred-run` code to structured command calls.
 The new canonical IDs are `info-targets` and `alfred-check-plan`; their underscore
 spellings remain dispatch aliases for compatibility, and a plugin command using
 either spelling fails host construction.
-Raw Python is available only by explicit `--raw-python --profile trusted-local`.
+Raw Python is available only by explicit `--raw-python --profile trusted-local`. The MCP server runs over stdio only and refuses `--sse`.
 The legacy Alfred Botcore plugin remains a trusted compatibility interface and
 is deliberately ineligible for a restricted managed host.
 
