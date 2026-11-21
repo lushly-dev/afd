@@ -2674,7 +2674,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "421dee5ee93d2b97dd8444969ae4afbf1adb529b13f5740ea674c56ba535577e",
+      "current_import_sha256": "0fdc474994cb984617938dd67e716e5390becfb305a6d7205cab6acbf72a7308",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
@@ -2685,7 +2685,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2505f771ad19dc1a6d584e0ef7bf71a420799175be9abf83065ce1afade94b29",
+      "current_import_sha256": "3fa8cb2fbaad62904a8d32cd707d95e953a92bfde19fc94572145070d10215e9",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
@@ -2696,7 +2696,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0ed6063c33290c5d835a7eb207a8098e8a1b0da7a7805747b9badca9df65bc7d",
+      "current_import_sha256": "d2ee47cd3a831209289a2937e15e96a6d3052a2e4dfcdb12ddf27bb9a3e3750b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
@@ -2740,7 +2740,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ff0bb242dc65cc3ffc5aad5079d38ceb7e37f30069659bd59ceb6a01ddb5ae6a",
+      "current_import_sha256": "a2a414b3fc3730be96d014c81ab165e2de7675dff10cfbde16b7ea8712ac641c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
@@ -2789,7 +2789,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "8675d56ee9f86a68e8de0e9159d9a3ef80d4f543f2d0c165bd91425c598e85a5",
+      "current_import_sha256": "197300ae441d0deef6555db841d3a26f528fae7147c447ccb34d9b742e9181d8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -6558,7 +6558,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9a6c92a3867915432b9b39ef8d4c4b58fe7a50f1eb2242e0f59e8c41e9ff517d",
+      "current_import_sha256": "7fbda49af85f781cd4198e09046f88395a297b0cebef48faf7c46d6f8d2b869c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"

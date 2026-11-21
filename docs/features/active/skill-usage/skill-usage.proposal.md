@@ -229,12 +229,16 @@ store show a change:
 - **The files a turn left changed** in the session's checkout (a checkpoint), which sees an
   edit whatever made it but says only that it happened during the turn. A turn that moved the
   checkout to other commits lists other people's changes, so it is not read: a merge, pull,
-  rebase or cherry-pick, a hard reset, a checkout of another commit (a new branch counts only
-  when it starts somewhere else), `gh pr checkout`, `gh pr merge` or a base sync, run by the
-  session or a subagent of it and completed. On the machine first measured, 153 of the 159
-  checkpoints that listed a gate file were such turns.
+  rebase or cherry-pick, a hard reset, a restore from another commit, a checkout of another
+  commit (a new branch counts only when it starts somewhere else), `gh pr checkout`,
+  `gh pr merge` or a base sync; run by the session or a subagent of it, directly, through a
+  shell or through a runner (`fnm exec … -- git merge`), and however it ended, since a merge
+  that stopped on a conflict has already brought the files. On the machine first measured, 29
+  of the 34 turns that left a gate file changed were such turns.
 
 One turn's changes for one skill are one record, at the edit's own time when a tool made it.
+Where the end of the turn shows a required path that no edit covers, the record keeps the
+turn's beginning as the earliest that part can have happened.
 
 For each change merged to the default branch in the window whose files match, the report finds
 the sessions T3 Code linked to its pull request, and says whether each one that changed a
@@ -247,7 +251,10 @@ commit), the load side and the session's changes from the record, and the tie be
 from `sessions.json`.
 
 A session linked to several pull requests is judged one at a time: what it changed after
-linking the one before, up to the next one it linked or the merge, built this one.
+linking the one before, up to the next one it linked or the merge, built this one. The skill
+counts as loaded first only when it was loaded before the earliest moment any of those changes
+can have happened, and as missed only when it was not loaded by the first moment one is known
+to have.
 
 A change is unknown, never a miss, wherever the record cannot establish who made it or in
 which order:
@@ -258,6 +265,8 @@ which order:
   which cannot be told;
 - no change of the linked sessions was recorded (it was made in a turn that also moved the
   checkout, after the merge, or on a machine not collected);
+- the change was made while the pull request the session linked before was still open, so it
+  may be a fix to that one;
 - the skill was loaded in the very turn that made the change, and only the end of the turn
   shows the change.
 
@@ -265,10 +274,11 @@ The report also counts, whatever was merged, the sessions that changed a require
 many had loaded the skill first. A record with a line it cannot read judges nothing: a lost
 load would make a miss, and a lost change the reverse.
 
-Each record carries the identity of the declaration that saw it. After a repository declares
-or changes its required skills, evidence gathered under the old paths is not judged, and until
-a full read (`skill-usage-collect --rebuild`, or the weekly one) has read the history under the
-new ones, the report says so.
+Each record carries the identity of the declaration that saw it, as part of its own. After a
+repository declares or changes its required skills, evidence gathered under the old paths is
+not judged, a turn read again under the new ones is a new record, and until a full read
+(`skill-usage-collect --rebuild`, or the weekly one) has read the history under them, the
+report says so.
 
 The declaration is the one source of which skill a change requires. A repository whose
 instruction file also lists required skills checks that list against it. Which skills a
@@ -302,10 +312,10 @@ for the schedule.
   skills, and one of a project whose checkout is not on the machine all count as use.
 - **A thread moved between machines** may be counted on both until phase 3 compares two
   machines' records.
-- **A change the triggers report cannot see.** One made in a turn that also moved the checkout
-  to other commits, unless a tool made the edit; and a follow-up change to a pull request made
-  after the session linked its next one, which is counted with that next one. Both are
-  reported as unknown, not as a miss.
+- **A change the triggers report cannot judge.** One made in a turn that also moved the
+  checkout to other commits, unless a tool made the edit; and one made while the pull request
+  the session linked before was still open, which may belong to either. Both are reported as
+  unknown, not as a miss.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.
 - **Windows and Linux** are covered by tests of the recognition and paths, and are first

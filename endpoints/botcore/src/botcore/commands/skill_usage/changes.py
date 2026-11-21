@@ -23,21 +23,28 @@ from botcore.commands.skill_usage.events import moves_checkout
 CHANGE, CHECKPOINT = "file_change", "checkpoint"
 # Words one of which every checkout-moving command holds: a cheap first cut before parsing
 _MIGHT_MOVE = (
-    "merge", "pull", "rebase", "cherry-pick", "reset", "checkout", "switch", "base:sync",
-    "base-sync",
+    "merge", "pull", "rebase", "cherry-pick", "reset", "restore", "checkout", "switch",
+    "base:sync", "base-sync",
 )  # fmt: skip
 _DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
+_NESTED_WORKTREE = re.compile(r"^\.claude/worktrees/[^/]+/")
 # When a turn began is not known: a load at any earlier time may have come after the change
 UNKNOWN_START = "0001-01-01T00:00:00.000Z"
+
+Needs = dict[tuple[str, str], set[str]]  # (skill, rule) -> the required paths changed
 
 
 @dataclass
 class Seen:
-    """A turn, or one edit, in which a session changed a path that requires a skill."""
+    """A turn, or one edit, in which a session changed a path that requires a skill.
+
+    `at` is when the change is known to have been made by: an edit's own moment, or the end
+    of the turn. `since` is set when part of it is known only from the end of the turn: the
+    earliest that part can have happened."""
 
     key: str  # `run:<id>` for a turn, else the store's id for the item
     at: str
-    since: str | None  # the earliest it can have happened, when only a checkpoint shows it
+    since: str | None
     skill: str
     rule: str
     thread: str
@@ -50,23 +57,41 @@ class Changes:
     keys: set[str] | None = None  # every turn and item the store holds, when asked for
 
 
+@dataclass
+class _Edit:
+    at: str
+    key: str | None  # its turn, when the store says which
+    item: str
+    needs: Needs
+    project_id: str | None
+    placed: bool = False
+
+
+@dataclass
+class _Turn:
+    at: str
+    key: str
+    needs: Needs
+    project_id: str | None
+
+
 def inside(file: str, checkouts: list[str | None]) -> str | None:
     """A changed file as a forward-slash path inside its session's checkout. A path that is
-    not absolute is already inside it. Windows paths compare without regard to case."""
+    not absolute is already inside it. Windows paths compare without regard to case. A
+    checkout nested in another (`.claude/worktrees/<name>/`) is the checkout."""
     target = file.replace("\\", "/")
     windows = bool(_DRIVE.match(file))
+    relative: str | None = None
     if not windows and not target.startswith("/"):
-        return target.removeprefix("./") or None
-    for checkout in checkouts:
-        prefix = (checkout or "").replace("\\", "/").rstrip("/")
-        if not prefix:
-            continue
-        head = target[: len(prefix) + 1]
-        if (head.casefold() if windows else head) == (
-            prefix.casefold() if windows else prefix
-        ) + "/":
-            return target[len(prefix) + 1 :] or None
-    return None
+        relative = target.removeprefix("./")
+    else:
+        compared = target.casefold() if windows else target
+        for checkout in checkouts:
+            prefix = (checkout or "").replace("\\", "/").rstrip("/")
+            if prefix and compared.startswith((prefix.casefold() if windows else prefix) + "/"):
+                relative = target[len(prefix) + 1 :]
+                break
+    return (_NESTED_WORKTREE.sub("", relative) or None) if relative else None
 
 
 def _changed_files(payload: dict) -> list[str]:
@@ -77,25 +102,32 @@ def _changed_files(payload: dict) -> list[str]:
 
 
 def _checkouts(
-    thread_id: str, threads: dict[str, t3.Thread], family: t3._Family
+    thread_id: str, session: str, threads: dict[str, t3.Thread], family: t3._Family
 ) -> list[str | None]:
-    """The checkouts a thread works in: its own, then those of the threads above it. Never
-    another session's: an edit there is not this session's change to its own work."""
+    """The checkouts a thread works in: its own, then those above it up to its session's.
+    Past the session only while none is known, for a task that shares the checkout of the
+    thread that started it. Never a sibling session's."""
     found: list[str | None] = []
     seen: set[str] = set()
     current: str | None = thread_id
+    reached = False
     while current and current not in seen:
         seen.add(current)
         known = threads.get(current)
         found.append(known.worktree if known else None)
+        reached = reached or current == session
+        if reached and any(found):
+            break
         current = family.parent(current)
     return found
 
 
 def _moves(
-    connection: sqlite3.Connection, family: t3._Family, since: str | None
+    connection: sqlite3.Connection, family: t3._Family, sessions: set[str], since: str | None
 ) -> dict[str, list[str]]:
-    """When each session, or a subagent of it, ran a command that moved its checkout."""
+    """When each of these sessions, or a subagent of it, ran a command that moves its
+    checkout. However the command ended: a merge that stopped on a conflict has already put
+    other people's files in the checkout."""
     might = " or ".join(f"payload_json like '%{word}%'" for word in _MIGHT_MOVE)
     where, arguments = ("and updated_at >= ?", [since]) if since else ("", [])
     moves: dict[str, list[str]] = {}
@@ -104,10 +136,21 @@ def _moves(
         f"where type = '{t3.COMMAND}' and ({might}) {where}",
         arguments,
     ):
-        payload = t3._object(payload_json)
-        if payload.get("status") == t3.DONE and moves_checkout(t3.command_of(payload)):
-            moves.setdefault(family.session(thread_id), []).append(updated_at)
+        session = family.session(thread_id)
+        moment = t3._moment(updated_at)
+        if session not in sessions or moment is None:
+            continue
+        if moves_checkout(t3.command_of(t3._object(payload_json))):
+            moves.setdefault(session, []).append(moment)
     return moves
+
+
+def _merged(*all_needs: Needs) -> Needs:
+    merged: Needs = {}
+    for needs in all_needs:
+        for pair, paths in needs.items():
+            merged.setdefault(pair, set()).update(paths)
+    return merged
 
 
 def read_changes(  # noqa: C901, PLR0912, PLR0915 - one pass over the store
@@ -120,8 +163,9 @@ def read_changes(  # noqa: C901, PLR0912, PLR0915 - one pass over the store
     """Every change to a required path the store shows at or after `since`.
 
     `required(workspace_root, path)` gives the (skill, rule) pairs a project requires for a
-    path inside its checkout. One change is returned per turn and skill: an edit seen both as
-    a file change and in its turn's checkpoint is one, at the edit's own time.
+    path inside its checkout. One change is returned per turn and skill. An edit seen both as
+    a file change and in its turn's checkpoint is one, at the edit's own time; where the
+    checkpoint shows a required path no edit covers, the turn keeps its lower bound.
     """
     result = Changes()
     projects = {
@@ -155,8 +199,8 @@ def read_changes(  # noqa: C901, PLR0912, PLR0915 - one pass over the store
         """,
         arguments,
     )
-    edits: dict[tuple[str, str, str], tuple[str, str, str | None]] = {}  # precise evidence
-    turns: dict[str, list[tuple[str, str, set[tuple[str, str]], str | None]]] = {}
+    edits: dict[str, list[_Edit]] = {}
+    turns: dict[str, list[_Turn]] = {}
     shaped = {CHANGE: [0, 0], CHECKPOINT: [0, 0]}  # seen, as expected
     for item_id, thread_id, kind, updated_at, run_id, payload_json in rows:
         payload = t3._object(payload_json)
@@ -165,78 +209,111 @@ def read_changes(  # noqa: C901, PLR0912, PLR0915 - one pass over the store
         own, top = threads.get(thread_id), threads.get(session)
         project_id = (top.project_id if top else None) or (own.project_id if own else None)
         root = projects.get(project_id or "")
-        key = f"run:{run_id}" if run_id else str(item_id)
+        key = f"run:{run_id}" if run_id else None
+        needs: Needs = {}
         if kind == CHANGE:
             shaped[kind][1] += isinstance(payload.get("fileName"), str) and isinstance(
                 payload.get("status"), str
             )
-            if not root or payload.get("status") != t3.DONE:
+            at = t3._moment(payload.get("startedAt")) or t3._moment(updated_at)
+            if not root or at is None or payload.get("status") != t3.DONE:
                 continue
-            checkouts = [*_checkouts(thread_id, threads, family), root]
-            at = t3._text(payload.get("startedAt")) or updated_at
+            checkouts = [*_checkouts(thread_id, session, threads, family), root]
             for file in _changed_files(payload):
                 path = inside(file, checkouts)
-                for skill, rule in required(root, path) if path else []:
-                    earlier = edits.get((session, key, skill))
-                    if earlier is None or at < earlier[0]:
-                        edits[(session, key, skill)] = (at, rule, project_id)
+                for pair in required(root, path) if path else []:
+                    needs.setdefault(pair, set()).add(path)
+            if needs:
+                edits.setdefault(session, []).append(
+                    _Edit(at, key, str(item_id), needs, project_id)
+                )
         else:
             files = payload.get("files")
             shaped[kind][1] += isinstance(files, list)
-            paths = (
-                [t3._text(t3._mapping(file).get("path")) for file in files or []]
-                if isinstance(files, list)
-                else []
-            )
-            needs = {
-                pair
-                for path in paths
-                if path
-                for pair in (required(root, path.replace("\\", "/")) if root else [])
-            }
-            turns.setdefault(session, []).append((updated_at, key, needs, project_id))
+            at = t3._moment(updated_at)
+            if at is None:
+                continue
+            for file in files if isinstance(files, list) and root else []:
+                path = t3._text(t3._mapping(file).get("path"))
+                path = inside(path, []) if path else None
+                for pair in required(root, path) if path else []:
+                    needs.setdefault(pair, set()).add(path)
+            turns.setdefault(session, []).append(_Turn(at, key or str(item_id), needs, project_id))
     missing = [
         f"{t3.ITEMS}.payload_json of {kind}"
-        for kind, (seen, ok) in shaped.items()
-        if seen and not ok
+        for kind, (seen, expected) in shaped.items()
+        if seen and not expected
     ]
     if missing:
         raise t3.SchemaChanged(missing)
 
-    # the checkpoint before the window, per session: the lower bound of its first turn here
+    # Only a session that changed a required path matters from here on
+    relevant = {session for session, found in turns.items() if any(t.needs for t in found)}
+    relevant |= set(edits)
+    # Each one's first turn here began at its previous checkpoint, or when the session did
     before: dict[str, str] = {}
-    if since:
+    if since and relevant:
         for thread_id, latest in connection.execute(
             f"select thread_id, max(updated_at) from {t3.ITEMS} "
             f"where type = '{CHECKPOINT}' and updated_at < ? group by thread_id",
             [since],
         ):
             session = family.session(thread_id)
-            before[session] = max(before.get(session, ""), latest)
-    # the turn before each session's first checkpoint here began at its previous checkpoint,
-    # or when the session did; commands are read from the earliest of those on
+            moment = t3._moment(latest)
+            if session in relevant and moment:
+                before[session] = max(before.get(session, ""), moment)
     starts = {
         session: before.get(session)
-        or (threads[session].created_at if session in threads else None)
-        for session in turns
+        or (t3._moment(threads[session].created_at) if session in threads else None)
+        for session in relevant
     }
-    known_starts = [start for start in starts.values() if start]
-    whole = not since or len(known_starts) < len(starts)
-    moves = _moves(connection, family, None if whole else min(known_starts)) if turns else {}
+    checked = {session for session in relevant if any(t.needs for t in turns.get(session, []))}
+    known = [starts[session] for session in checked if starts[session]]
+    whole = not since or len(known) < len(checked)
+    moves = _moves(connection, family, checked, None if whole else min(known)) if checked else {}
 
-    for session, checkpoints in turns.items():
+    def emit(turn_key: str, at: str, began: str | None, pair: tuple[str, str], session: str,
+             project_id: str | None) -> None:  # fmt: skip
+        result.seen.append(Seen(turn_key, at, began, pair[0], pair[1], session, project_id))
+
+    for session in relevant:
         previous = starts[session]
-        for at, key, needs, project_id in sorted(checkpoints, key=lambda entry: entry[0]):
+        its_edits = edits.get(session, [])
+        for turn in sorted(turns.get(session, []), key=lambda found: found.at):
+            inside_turn = [
+                edit
+                for edit in its_edits
+                if not edit.placed
+                and (
+                    edit.key == turn.key
+                    if edit.key
+                    else (previous is None or previous < edit.at) and edit.at <= turn.at
+                )
+            ]
+            for edit in inside_turn:
+                edit.placed = True
             moved = any(
-                (previous is None or previous < moment) and moment <= at
+                (previous is None or previous < moment) and moment <= turn.at
                 for moment in moves.get(session, ())
             )
-            for skill, rule in () if moved else sorted(needs):
-                if (session, key, skill) not in edits:
-                    began = previous or UNKNOWN_START
-                    result.seen.append(Seen(key, at, began, skill, rule, session, project_id))
-            previous = at
-    for (session, key, skill), (at, rule, project_id) in edits.items():
-        result.seen.append(Seen(key, at, None, skill, rule, session, project_id))
+            edited = _merged(*(edit.needs for edit in inside_turn))
+            left = {} if moved else turn.needs
+            for pair in sorted(set(edited) | set(left)):
+                began = previous or UNKNOWN_START
+                if pair in edited:
+                    at = min(edit.at for edit in inside_turn if pair in edit.needs)
+                    covered = left.get(pair, set()) <= edited[pair]
+                    emit(turn.key, at, None if covered else began, pair, session, turn.project_id)
+                else:
+                    emit(turn.key, turn.at, began, pair, session, turn.project_id)
+            previous = turn.at
+        loose: dict[tuple[str, tuple[str, str]], _Edit] = {}  # no checkpoint of its turn here
+        for edit in its_edits:
+            for pair in () if edit.placed else sorted(edit.needs):
+                first = loose.setdefault((edit.key or edit.item, pair), edit)
+                if edit.at < first.at:
+                    loose[(edit.key or edit.item, pair)] = edit
+        for (turn_key, pair), edit in loose.items():
+            emit(turn_key, edit.at, None, pair, session, edit.project_id)
     result.seen.sort(key=lambda seen: seen.at)
     return result

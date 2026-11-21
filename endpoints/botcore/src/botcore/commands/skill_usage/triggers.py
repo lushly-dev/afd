@@ -57,7 +57,10 @@ _DEFAULT_BRANCHES = (
 _PULL_REQUEST = re.compile(r"\(#(\d+)\)\s*$|^Merge pull request #(\d+)\b")
 _RECORD, _FIELD = "\x1e", "\x1f"
 LOADED, MISSED, UNORDERED = "loaded", "missed", "same_turn"
-_UNKNOWN = ("no_pull_request", "no_session", "no_link_time", "no_recorded_change", UNORDERED)
+AMBIGUOUS = "between_pull_requests"
+_UNKNOWN = (
+    "no_pull_request", "no_session", "no_link_time", "no_recorded_change", AMBIGUOUS, UNORDERED,
+)  # fmt: skip
 
 
 @dataclass
@@ -107,17 +110,19 @@ def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
 
 
-def _verdict(first: Trigger, loads: list[datetime]) -> str:
-    """Whether a session had loaded the skill before a change. A checkpoint shows only that
-    the change happened during its turn (`since` to `at`), so a load inside that turn, or at
-    the very moment of an edit, leaves the order unknown."""
-    at = _parse(first.at)
-    earliest = _parse(first.since) if first.since else at
-    if at is None or earliest is None:
+def _verdict(found: list[Trigger], loads: list[datetime]) -> str:
+    """Whether a session had loaded the skill before the changes it made. The end of a turn
+    shows only that a change happened during it (`since` to `at`), so the skill counts as
+    loaded first only when it was loaded before the earliest moment any of the changes can
+    have happened, and as missed only when it was not loaded by the first moment one is
+    known to have. Between the two the order is unknown."""
+    known = [_parse(trigger.at) for trigger in found]
+    possible = [_parse(trigger.since) if trigger.since else _parse(trigger.at) for trigger in found]
+    if any(moment is None for moment in (*known, *possible)):
         return UNORDERED
-    if any(load < earliest for load in loads):
+    if any(load < min(possible) for load in loads):
         return LOADED
-    return UNORDERED if any(load <= at for load in loads) else MISSED
+    return UNORDERED if any(load <= min(known) for load in loads) else MISSED
 
 
 async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
@@ -239,14 +244,11 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         if moment is not None and event.project == project and event.path in PATHS:
             loads.setdefault((named(event.skill), event.thread), []).append(moment)
     changed: dict[tuple[str, str], list[Trigger]] = {}  # (skill, session), oldest first
-    stale = 0
     for trigger in sorted(triggers, key=lambda trigger: trigger.at):
         if trigger.project != project or _parse(trigger.at) is None:
             continue
-        if trigger.rule not in current:  # seen under paths the repository has since changed
-            stale += 1
-            continue
-        changed.setdefault((named(trigger.skill), trigger.thread), []).append(trigger)
+        if trigger.rule in current:  # not one seen under paths the repository has since changed
+            changed.setdefault((named(trigger.skill), trigger.thread), []).append(trigger)
 
     # The pull requests of this project each session was linked to, with when
     links: dict[str, dict[int, datetime | None]] = {}
@@ -265,24 +267,32 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         for number in its_links:
             linked.setdefault(number, []).append(session_id)
 
-    def built(skill: str, session_id: str, change: Change) -> list[Trigger] | None:
+    merged_at = {change.number: change.at for change in changes if change.number is not None}
+
+    def built(skill: str, session_id: str, change: Change) -> list[Trigger] | str:
         """The required changes a session made while it built one pull request: after it
         linked the one before, up to the next one it linked or the merge, whichever came
-        first. None when the session linked several and a link has no time: which of its
-        changes built which cannot be told."""
+        first. Or why they cannot be told apart: a link with no time, or a change made
+        while the pull request before was still open, which may be a fix to that one."""
         its_links = links[session_id]
         if len(its_links) > 1 and any(moment is None for moment in its_links.values()):
-            return None
+            return "no_link_time"
         ordered = sorted(its_links.items(), key=lambda link: link[1] or change.at)
         position = next(at for at, link in enumerate(ordered) if link[0] == change.number)
-        after = ordered[position - 1][1] if position else None
+        before, after = ordered[position - 1] if position else (None, None)
         following = ordered[position + 1][1] if position + 1 < len(ordered) else None
         until = min(following, change.at) if following else change.at
-        return [
+        found = [
             trigger
             for trigger in changed.get((skill, session_id), [])
             if (after is None or _parse(trigger.at) > after) and _parse(trigger.at) <= until
         ]
+        if found and after is not None:
+            closed = merged_at.get(before)  # when the one before merged, if it did here
+            still_open = _parse(found[0].at) <= closed if closed else after >= since
+            if still_open:
+                return AMBIGUOUS
+        return found
 
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
@@ -304,11 +314,12 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
                 unknown["no_session"] += 1
                 continue
             made = {session_id: built(skill, session_id, change) for session_id in its_sessions}
-            if any(found is None for found in made.values()):
-                unknown["no_link_time"] += 1
+            unclear = [found for found in made.values() if isinstance(found, str)]
+            if unclear:
+                unknown[unclear[0]] += 1
                 continue
             verdicts = {
-                session_id: _verdict(found[0], loads.get((skill, session_id), []))
+                session_id: _verdict(found, loads.get((skill, session_id), []))
                 for session_id, found in made.items()
                 if found
             }
@@ -325,7 +336,7 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         # Whatever was merged: the sessions that changed a required path in the window,
         # each judged by its first such change
         touched = {
-            session_id: _verdict(found[0], loads.get((name, session_id), []))
+            session_id: _verdict(found, loads.get((name, session_id), []))
             for (name, session_id), found in changed.items()
             if name == skill and any(_parse(trigger.at) >= since for trigger in found)
         }
@@ -362,7 +373,7 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         )
     read_under = _mapping(_mapping(_mapping(state.get("triggers")).get("rules")).get(project))
     now_rules = {skill: rule_id(skill, paths) for skill, paths in rules.items()}
-    if read_under != now_rules or stale:
+    if read_under != now_rules:
         warnings.append(
             "The record's history was not read under the required skills as they are declared "
             "now, so changes made before that are unknown: run skill-usage-collect --rebuild"

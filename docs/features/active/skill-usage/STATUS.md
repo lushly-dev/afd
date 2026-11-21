@@ -21,19 +21,27 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - **A merge looks like a change.** A turn's checkpoint lists every file the turn left changed
   in the checkout, so a session that merged `main` appeared to change each gate file anyone
-  had changed. Of 159 checkpoints that listed a gate file, 153 were of a turn that moved the
-  checkout to other commits. Those turns are not read.
-- **Making a branch can move the checkout too.** `git switch -C fix origin/main` starts the
-  branch somewhere else. Counting it as harmless let three delegated tasks through as "loaded
-  first"; a new branch now counts as a move when a start point follows its name.
-- **What is left is small and trustworthy.** 6 sessions changed a gate file themselves, and 2
+  had changed. Of 34 turns that left a gate file changed, 29 had moved the checkout to other
+  commits. Those turns are not read.
+- **Three ways a move hid.** `git switch -C fix origin/main` starts a branch somewhere else.
+  `fnm exec --using=… -- git merge` is how these repositories run git, and 53 such commands
+  were not seen as moves. A merge that stopped on a conflict had already brought `main`'s
+  files, and the turn finished it with `git commit`. Each one passed other people's changes
+  off as a session's own.
+- **What is left is small and trustworthy.** 5 sessions changed a gate file themselves, and 2
   had loaded the gate skill first.
 - **Gate files are not edited with the edit tools.** No file-edit item in the store touches
-  one, so every one of those six is known only from the end of its turn.
+  one, so every one of those five is known only from the end of its turn.
 - **Most merged changes are unknown from one machine.** Of 55 merged changes to a gate file,
   45 had no session on this machine, 8 had a linked session but no change recorded outside a
   turn that moved the checkout, 1 had no pull request number, and 1 could be judged (it had
   loaded the skill). Collection on every machine is what raises that.
+- **The order inside a turn is often unknown.** A change known only from the end of its turn
+  can have happened any time in it, so a skill loaded in that turn is neither "loaded first"
+  nor a miss. A tool edit in the same turn dates only what it edited.
+- **A fix and the next pull request look alike.** A change made after a session links one
+  pull request and before that one merges may be a fix to it or the start of the next. It is
+  reported as unknown for the next.
 - **A long-lived thread is linked to many pull requests.** Judged as one, a coordinator that
   changed a gate file once answered for every pull request it had linked. Each link has a
   time (all 554 in the store do), so a session is judged one pull request at a time.

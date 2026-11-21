@@ -390,7 +390,8 @@ def _collect(
 
     triggers = [
         Trigger(
-            id=f"t3:{seen.skill}@{seen.key}",
+            # the rule is part of what it is: the same turn read under other paths is another
+            id=f"t3:{seen.skill}@{seen.key}#{seen.rule}",
             at=seen.at,
             since=seen.since,
             skill=seen.skill,
@@ -406,7 +407,9 @@ def _collect(
     if rebuild:
         held = changed.keys or set()
         kept_triggers = [
-            trigger for trigger in stored_triggers if trigger.id.partition("@")[2] not in held
+            trigger
+            for trigger in stored_triggers
+            if trigger.id.partition("@")[2].rpartition("#")[0] not in held
         ]
         rewrite_triggers(
             directory, sorted(kept_triggers + triggers, key=lambda trigger: trigger.at)

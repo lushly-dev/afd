@@ -6,6 +6,9 @@ T3 Code's and a real git history."""
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -17,11 +20,13 @@ from botcore.commands.skill_usage import (
     skill_usage_report,
     skill_usage_triggers,
     store,
+    t3,
 )
 from botcore.commands.skill_usage.changes import CHANGE, CHECKPOINT, inside
 from botcore.commands.skill_usage.events import moves_checkout
 from botcore.config import SkillsConfig, load_config
 from tests.test_skill_usage import (  # noqa: F401 - fixtures
+    NOW,
     T3Store,
     checkout,
     collected,
@@ -57,14 +62,23 @@ def repo(checkout: Path) -> Path:
     return checkout
 
 
-def merge(root: Path, subject: str, *files: str) -> None:
-    """A change merged to the default branch, as a squash merge leaves it."""
+def merge(root: Path, subject: str, *files: str, days_ago: float | None = None) -> None:
+    """A change merged to the default branch, as a squash merge leaves it: now, or then."""
     for file in files:
         target = root / file
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(target.read_text("utf-8") + "x" if target.exists() else "x", "utf-8")
     git(root, "add", "-A")
-    git(root, "commit", "-q", "-m", subject)
+    if days_ago is None:
+        git(root, "commit", "-q", "--allow-empty", "-m", subject)
+        return
+    when = (NOW - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    subprocess.run(
+        ["git", "-C", str(root), "-c", "user.name=T", "-c", "user.email=t@example.com",
+         "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", subject],
+        check=True, capture_output=True,
+        env={**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+    )  # fmt: skip
 
 
 def session(
@@ -137,7 +151,7 @@ def test_each_merged_change_is_judged_by_the_session_that_made_it(
     assert judged(found) == (1, 1, 3)
     assert found["unknown_why"] == {
         "no_pull_request": 1, "no_session": 1, "no_link_time": 0, "no_recorded_change": 1,
-        "same_turn": 0,
+        "between_pull_requests": 0, "same_turn": 0,
     }  # fmt: skip
     assert found["misses"] == [{"change": 102, "sessions": ["second"]}]
     assert found["rate"] == 0.5
@@ -224,15 +238,15 @@ def test_a_change_is_missed_when_any_of_its_sessions_had_not_loaded_the_skill(
 def test_a_session_of_several_pull_requests_is_judged_one_at_a_time(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    merge(repo, "feat: a hook (#101)", "hooks.yml")
-    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
-    merge(repo, "feat: another hook (#103)", "hooks.yml")
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=4.5)
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=2)
+    merge(repo, "feat: another hook (#103)", "hooks.yml", days_ago=0.5)
     long = session(t3_store, "long", repo, (101, stamp(5)), (102, stamp(3)), (103, stamp(1)))
     session(t3_store, "watcher", repo, (101, stamp(5)), (102, stamp(3)))  # changed nothing
     edit(t3_store, long, "long", repo, "hooks.yml", stamp(6))  # built #101 without the skill
     t3_store.skill_tool(long, "gate-discipline", stamp(4))  # then loaded it
     edit(t3_store, long, "long", repo, "scripts/check-beds.mjs", stamp(3, -30))  # #102, with it
-    edit(t3_store, long, "long", repo, "hooks.yml", stamp(-1))  # after everything had merged
+    edit(t3_store, long, "long", repo, "hooks.yml", stamp(0.2))  # after everything had merged
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
@@ -240,6 +254,23 @@ def test_a_session_of_several_pull_requests_is_judged_one_at_a_time(
     assert judged(found) == (1, 1, 1)
     assert found["misses"] == [{"change": 101, "sessions": ["long"]}]
     assert found["unknown_why"]["no_recorded_change"] == 1  # #103: nothing before it merged
+
+
+def test_a_change_made_while_the_pull_request_before_was_open_is_not_judged(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=1)
+    main = session(t3_store, "main", repo, (101, stamp(5)), (102, stamp(2)))
+    t3_store.skill_tool(main, "gate-discipline", stamp(6))
+    edit(t3_store, main, "main", repo, "hooks.yml", stamp(5, -60))  # built #101, skill loaded
+    edit(t3_store, main, "main", repo, "hooks.yml", stamp(4))  # a fix to #101, or early #102?
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 0, 1)  # #101 judged by its own build; #102 cannot be
+    assert found["unknown_why"]["between_pull_requests"] == 1
 
 
 def test_links_without_a_time_cannot_tell_which_change_built_which(
@@ -326,6 +357,14 @@ def test_a_session_that_spans_the_window_is_counted(
         "git switch -C codex/fix origin/main",
         "git checkout -b fix origin/main",
         "git checkout origin/main -- hooks.yml",
+        "git checkout -",
+        "git switch -",
+        "git restore --source origin/main .",
+        "fnm exec --using=24.18.0 -- git merge --no-edit 91d26e5",
+        "fnm exec --using 24 git switch -c fix abc123",
+        'fnm exec --using="$(cat .nvmrc)" -- pnpm base:sync',
+        '/bin/zsh -lc "fnm exec --using=24 -- git -c core.editor=true rebase origin/main"',
+        "uv run git pull",
         "gh pr checkout 5",
         "gh pr merge 5 --squash --delete-branch",
         "pnpm base:sync",
@@ -347,6 +386,12 @@ def test_a_command_that_moves_the_checkout_to_other_commits(command: str) -> Non
         "git checkout -- hooks.yml",
         "git reset HEAD~1",
         "git stash pop",
+        "git restore hooks.yml",
+        "git restore --staged hooks.yml",
+        'fnm exec --using=24 -- git commit -m "merge it later"',
+        "fnm exec --using=24 -- git push",
+        "fnm exec --using=24 -- pnpm test",
+        "uv run pytest",
         "git status",
         "git log --merges",
         'echo "git merge main"',
@@ -369,7 +414,8 @@ def test_a_turn_that_moved_the_checkout_is_not_read_as_the_sessions_changes(
     checkpoint(t3_store, main, stamp(5, 1), "hooks.yml", "notes.txt")  # someone else's change
     t3_store.shell(helper, "git switch -C fix origin/main", stamp(4))  # its subagent moved it
     checkpoint(t3_store, main, stamp(4, 1), "hooks.yml")
-    t3_store.shell(main, "git merge origin/main", stamp(3), status="failed")  # moved nothing
+    t3_store.shell(main, "git merge origin/main", stamp(3, -30), status="failed")
+    checkpoint(t3_store, main, stamp(3, -20), "hooks.yml")  # a conflict leaves their files too
     t3_store.shell(main, 'echo "git merge main"', stamp(3, 1))
     t3_store.skill_tool(main, "gate-discipline", stamp(3, 2))
     checkpoint(t3_store, main, stamp(3, 3), "notes.txt")
@@ -409,6 +455,24 @@ def test_one_change_is_one_trigger_however_many_things_show_it(
     assert run(skill_usage_collect())["triggers_added"] == 0
 
 
+def test_a_tool_edit_does_not_date_a_change_the_end_of_the_turn_also_shows(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook and a check (#101)", "hooks.yml", "scripts/check-beds.mjs")
+    main = session(t3_store, "main", repo, 101)
+    helper = t3_store.thread("thread:subagent:helper", parent=main)
+    checkpoint(t3_store, main, stamp(2), "notes.txt")
+    t3_store.skill_tool(main, "gate-discipline", stamp(1, 1))  # after a script changed the hook
+    path = str(repo.parent / "worktree-main" / "scripts" / "check-beds.mjs")
+    t3_store.item(helper, CHANGE, stamp(1, 2), fileName=path)  # then its subagent edited
+    checkpoint(t3_store, main, stamp(1, 5), "hooks.yml", "scripts/check-beds.mjs")
+
+    assert run(skill_usage_collect())["triggers_added"] == 1  # one turn, though two show it
+    (only,) = triggers(state)
+    assert (only.at, only.since) == (stamp(1, 2), stamp(2))  # known by the edit, maybe earlier
+    assert rule(run(skill_usage_triggers(repo=str(repo))))["unknown_why"]["same_turn"] == 1
+
+
 def test_an_edit_belongs_to_the_checkout_of_the_session_that_made_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
@@ -430,6 +494,8 @@ def test_a_changed_file_is_placed_inside_its_checkout() -> None:
     assert inside("/w/Tree/hooks.yml", ["/w/tree"]) is None  # a POSIX path keeps its case
     assert inside("/w/tree-two/hooks.yml", ["/w/tree"]) is None
     assert inside("/elsewhere/hooks.yml", ["/w/tree", None]) is None
+    nested = "/w/tree/.claude/worktrees/task-594/scripts/check-a.mjs"
+    assert inside(nested, ["/w/tree"]) == "scripts/check-a.mjs"  # a checkout inside the checkout
 
 
 def test_a_checkpoint_path_written_by_windows_matches(
@@ -515,6 +581,29 @@ def test_evidence_gathered_under_other_paths_is_not_judged(
 
     assert judged(rule(changed)) == (0, 0, 0)  # hooks.yml no longer requires the skill
     assert "--rebuild" in changed["warnings"][0]
+
+
+def test_the_weekly_full_read_reads_the_past_under_a_changed_rule(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    (repo / "botcore.toml").write_text(RULES.replace('"hooks.yml", ', ""), "utf-8")
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    main = session(t3_store, "main", repo, 101)
+    t3_store.run("turn-1", "claude-opus-5-5")
+    edit(t3_store, main, "main", repo, "scripts/check-beds.mjs", stamp(3), run_id="turn-1")
+    edit(t3_store, main, "main", repo, "hooks.yml", stamp(3, 1), run_id="turn-1")
+    t3_store.skill_tool(main, "plant-beds", stamp(0))
+    assert run(skill_usage_collect())["triggers_added"] == 1  # the check, under the old paths
+
+    (repo / "botcore.toml").write_text(RULES, "utf-8")  # the hook requires the skill too now
+    saved = store.load_state(state)
+    saved["sources"][t3.SOURCE]["stores"][str(t3_store.path)]["full_at"] = stamp(8)
+    store.save_state(state, saved)
+    weekly = run(skill_usage_collect())  # the same turn, read again under the new paths
+    after = run(skill_usage_triggers(repo=str(repo)))
+
+    assert weekly["sources"][0]["since"] is None and weekly["triggers_added"] == 1
+    assert rule(after)["missed"] == 1 and after["warnings"] == []
 
 
 def test_a_damaged_record_judges_nothing(state: Path, t3_store: T3Store, repo: Path) -> None:

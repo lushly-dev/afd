@@ -470,6 +470,12 @@ _GIT_MOVING = {"merge", "pull", "rebase", "cherry-pick"}
 _GIT_GIVING_UP = {"--abort", "--quit"}
 _GIT_NEW_BRANCH = {"-b", "-B", "-c", "-C", "--create", "--force-create", "--orphan"}
 _SCRIPT_RUNNERS = {"pnpm", "npm", "yarn", "bun", "npx", "node"}
+# Programs that run another command given as their arguments (`fnm exec --using=24 -- git …`)
+_RUNNERS = {
+    "fnm", "mise", "asdf", "nvm", "volta", "corepack", "uv", "poetry", "bundle", "direnv",
+    "nice", "nohup", "timeout", "caffeinate", "xargs", "npx", "pnpm", "npm", "yarn", "bun",
+}  # fmt: skip
+_RUN = {"git", "gh", *_SCRIPT_RUNNERS}
 
 
 def _git_moves(arguments: list[str]) -> bool:
@@ -485,25 +491,49 @@ def _git_moves(arguments: list[str]) -> bool:
         return not _GIT_GIVING_UP & set(rest)
     if subcommand == "reset":
         return "--hard" in rest
+    if subcommand == "restore":  # from another commit, not from the index
+        return any(word in ("-s", "--source") or word.startswith("--source=") for word in rest)
     if subcommand in ("checkout", "switch"):
-        if (
-            "--" in rest
-        ):  # `checkout <commit> -- <path>` brings that commit's file; bare `--` restores
+        if "--" in rest:
+            # `checkout <commit> -- <path>` brings that commit's file; a bare `--` restores
             return any(not word.startswith("-") for word in rest[: rest.index("--")])
-        words = [word for word in rest if not word.startswith("-")]
+        words = [word for word in rest if word == "-" or not word.startswith("-")]
         if _GIT_NEW_BRANCH & set(rest):
             return len(words) > 1  # a start point after the new branch's name
-        return bool(words)
+        return bool(words)  # another branch or commit; `-` is the one before
     return False
+
+
+def _run_by(name: str, arguments: list[str]) -> tuple[str, list[str]]:
+    """The command a runner is asked to run: what follows `--`, or the first word that is a
+    program this module judges. Anything else is returned as it came."""
+    if name not in _RUNNERS:
+        return name, arguments
+    rest = arguments[arguments.index("--") + 1 :] if "--" in arguments else []
+    if not rest:
+        start = next(
+            (
+                at
+                for at, word in enumerate(arguments)
+                if re.split(r"[/\\]", word)[-1].lower().removesuffix(".exe") in _RUN
+            ),
+            None,
+        )
+        rest = arguments[start:] if start is not None else []
+    return _program(rest) if rest else (name, arguments)
 
 
 def moves_checkout(command: str, depth: int = 0) -> bool:
     """Whether a shell command moves its checkout to other commits: a merge, pull, rebase or
-    cherry-pick, a hard reset, a checkout or switch to another commit (a new branch counts
-    only when it starts somewhere else), `gh pr checkout` or `gh pr merge`, or a base sync.
-    After one, the files a turn left changed include other people's."""
+    cherry-pick, a hard reset, a restore from another commit, a checkout or switch to another
+    commit (a new branch counts only when it starts somewhere else), `gh pr checkout` or
+    `gh pr merge`, or a base sync; run directly, through a shell or through a runner such as
+    `fnm exec … -- git merge`. After one, the files a turn left changed include other
+    people's."""
     for simple in _commands(_without_here_documents(command)):
         name, arguments = _program(simple.words)
+        if _script(name, arguments) is None:
+            name, arguments = _run_by(name, arguments)
         script = _script(name, arguments)
         if script is not None:
             if depth < 3 and moves_checkout(script, depth + 1):
