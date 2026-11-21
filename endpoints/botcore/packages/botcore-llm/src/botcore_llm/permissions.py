@@ -125,27 +125,30 @@ def create_permission_handler(
     return handler
 
 
+_FORBIDDEN_SHELL_RE = re.compile(r"[\r\n\0`<>(){}$]|(?<!&)&(?!&)|&{3,}|\|{3,}")
+
+
 def _matches_shell_allowlist(command: str, allowlist: list[str]) -> bool:
     """Check if *command* matches the shell allowlist.
 
     Splits on shell operators (``&&``, ``||``, ``;``, ``|``) and requires
-    every non-empty segment to match at least one allowlist pattern via
+    every segment to be non-empty and match at least one allowlist pattern via
     ``fnmatch.fnmatch``.
 
-    Denies empty/whitespace-only commands and commands containing subshell
-    injection vectors (backticks, ``$()``).
+    Denies empty/whitespace-only commands, operator-only commands (such as
+    ``;`` or ``&&``), and commands containing shell injection, variable
+    expansion, or redirection metacharacters (newlines, NUL, single ``&``,
+    backticks, ``$`` expansion, subshells/braces, process substitution, and
+    redirections).
     """
     if not command or not command.strip():
         return False
-    # Reject subshell injection vectors that bypass operator splitting
-    if re.search(r"`|\$\(", command):
+    if _FORBIDDEN_SHELL_RE.search(command):
         return False
-    segments = re.split(r"\s*(?:&&|\|\||[;|])\s*", command)
-    return all(
-        any(fnmatch.fnmatch(seg.strip(), pat) for pat in allowlist)
-        for seg in segments
-        if seg.strip()
-    )
+    segments = [seg.strip() for seg in re.split(r"(?:&&|\|\||[;|])", command)]
+    if not segments or any(not seg for seg in segments):
+        return False
+    return all(any(fnmatch.fnmatch(seg, pat) for pat in allowlist) for seg in segments)
 
 
 def _path_allowed(requested: str, allowed_paths: list[str]) -> bool:

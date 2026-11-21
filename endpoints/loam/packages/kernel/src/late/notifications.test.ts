@@ -454,6 +454,66 @@ describe('notification-list (10.2)', () => {
 		expect(
 			(await listed(kernel, { kind: 'confirmation', body: true })).notifications[0]?.confirmation
 		).toHaveProperty('input');
+		// #1868: confirmation.input is visible to the person and the owning raiser bucket, never to
+		// another caller (non-owner agent or copilot) in either list or single-id reads.
+		const appOwned = {
+			...pending(4),
+			source: 'probe',
+			cbucket: 'app:probe',
+			confirmation: {
+				...(pending(4).confirmation as NonNullable<NotificationV1['confirmation']>),
+				caller: 'probe',
+				input: { secret: 'app-only' },
+			},
+		};
+		const agentOwned = {
+			...pending(5),
+			source: 'agent:shell-agent',
+			cbucket: 'agents:local',
+			confirmation: {
+				...(pending(5).confirmation as NonNullable<NotificationV1['confirmation']>),
+				input: { secret: 'agent-own' },
+			},
+		};
+		await store.create(NOTIFICATION_TABLE, appOwned as never);
+		await store.create(NOTIFICATION_TABLE, agentOwned as never);
+
+		// Person/shell sees both inputs.
+		expect(
+			(await listed(kernel, { notification: appOwned.id, body: true })).notifications[0]
+				?.confirmation?.input
+		).toEqual({ secret: 'app-only' });
+		expect(
+			(await listed(kernel, { notification: agentOwned.id, body: true })).notifications[0]
+				?.confirmation?.input
+		).toEqual({ secret: 'agent-own' });
+
+		// Owning agent sees its own input, never the app's input (neither paginated nor by id).
+		const agentList = (
+			await kernel.agent.call<Listed>('notification-list', { kind: 'confirmation', body: true })
+		).data;
+		expect(
+			agentList?.notifications.find((each) => each.id === agentOwned.id)?.confirmation?.input
+		).toEqual({ secret: 'agent-own' });
+		expect(
+			agentList?.notifications.find((each) => each.id === appOwned.id)?.confirmation
+		).not.toHaveProperty('input');
+		expect(
+			(
+				await kernel.agent.call<Listed>('notification-list', {
+					notification: agentOwned.id,
+					body: true,
+				})
+			).data?.notifications[0]?.confirmation?.input
+		).toEqual({ secret: 'agent-own' });
+		expect(
+			(
+				await kernel.agent.call<Listed>('notification-list', {
+					notification: appOwned.id,
+					body: true,
+				})
+			).data?.notifications[0]?.confirmation
+		).not.toHaveProperty('input');
 	});
 
 	it('ends a page early rather than pass its budget', async () => {

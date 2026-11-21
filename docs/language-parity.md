@@ -200,7 +200,7 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` only works against the TS server; as TypeScript's, it streams in the connection's MCP session and ends with a `complete` or `error` chunk it makes itself when the server does not (#548), but it does not renew an expired session ([#1821](https://github.com/lushly-dev/afd/issues/1821)) | No | No: not declared |
+| MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` needs a server with AFD's `/stream` route, such as the TypeScript server; as TypeScript's, it ends with a `complete` or `error` chunk it makes itself when the server does not (#548). It forwards a session ID the server issued but does not renew one the server has expired; TypeScript's `/mcp` issues none. The deprecated `http` transport sends no session ID (see [Intended differences](#intended-differences)) | No | No: not declared |
 | Browser-safe MCP transport (`StreamableHttpTransport` at `@lushly-dev/afd-client/streamable-http`, with no Node.js builtin or `eventsource` of ours and a 340,000-byte budget; Loam phase 1 step 0a) | Yes | N/A | N/A | N/A |
 | In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Yes (#545 candidate): validating `create_direct_registry` enforces exposure; fail-closed `allow` (carried into nested calls), ordered middleware and millisecond deadlines on `DirectClient`; legacy registries remain host adapters | Partial: approval-aware `DirectClient.call` with agent exposure and total deadline; no `pipe`, `allow` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | `DirectClient` interface selection (the interface calls run as, default `agent`, so a CLI host calls CLI-exposed commands) | Yes (`createDirectRegistry({ interface })`) | Yes (`DirectCommandRegistry(server, interface=...)`) | Yes (added in the Rust crate's Unreleased changes): `DirectClient::with_interface` | Yes: `DirectClientOptions::surface` |
@@ -213,7 +213,7 @@ Limits of these checks:
 
 ## Intended differences
 
-These gaps are appropriate. They follow the framework-agnostic rule, a language's idioms, or the C++ scope principle.
+These gaps are appropriate. They follow the framework-agnostic rule, a language's idioms, the C++ scope principle, or a decision recorded on an issue.
 
 | Difference | Where | Why it is fine |
 |---|---|---|
@@ -226,6 +226,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 | Renames: `requires` to `prerequisites`, `interface` to `surface` | C++ | `requires` is a C++20 keyword, and `<windows.h>` defines `interface`. |
 | Renames: `success_with`, `failure_with`, `ResultOptions` | Rust | They stand in for TypeScript's option spreads. |
 | Pythonic MCP names (`TextContent`, `ToolDefinition`, `mcp_request`) | Python | Same capability, different names. |
+| The deprecated `http` client transport sends no MCP session ID | Python | Decided on [#1821](https://github.com/lushly-dev/afd/issues/1821), since the lane is deprecated. A TypeScript server with `contexts` issues a session ID on `/message`. TypeScript's `HttpTransport` sends it, and after a 404 on a request that carried it, replaces it and retries once. Python's sends none, so `afd-context-enter` returns `SESSION_REQUIRED` over it. Python's deprecated `sse` transport is the MCP SDK's client and keeps one session per connection; it reaches Python servers, but not yet TypeScript's `/sse` lane ([#1899](https://github.com/lushly-dev/afd/issues/1899)). The default `streamable-http` transport is unaffected: TypeScript's `/mcp` issues no session ID for either client to keep. |
 | Typed condition guards (`isEqCondition` and nine more) | Missing in Python and C++ | They are TypeScript discriminated-union artifacts. Pydantic models (Python) and validated JSON (C++) do the same job. |
 | JSON Schema validation instead of Zod or Pydantic | Rust, C++ | Each language uses its own validator. [`spec/validation.md`](../spec/validation.md) defines the subset every validator supports and the results it gives. |
 | No CLI | Rust, C++ | One CLI serves every language, provided the language ships an MCP server the CLI can reach. |

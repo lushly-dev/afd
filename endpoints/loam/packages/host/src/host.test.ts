@@ -332,7 +332,7 @@ describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 	});
 
 	it("P5-A2: serves every file under sandbox/copilot/ with the copilot frame's path-scoped policy (phase 5's 3.2)", async () => {
-		const { port } = await start({
+		const { port, data } = await start({
 			body,
 			server: { sandbox: { origin: SANDBOX_ORIGIN } },
 			dist: async (dist) => {
@@ -345,6 +345,17 @@ describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 				await writeFile(join(dist, 'sandbox', 'copilot-other.html'), '<p>other</p>\n');
 			},
 		});
+		// #1866: symlinks crossing the copilot/ boundary in either direction are refused; links inside copilot/ keep its policy.
+		const sandboxDir = join(data, 'public', 'site', 'sandbox');
+		await symlink(join(sandboxDir, 'proxy.html'), join(sandboxDir, 'copilot', 'escape.html'));
+		await symlink(
+			join(sandboxDir, 'copilot', 'index.html'),
+			join(sandboxDir, 'alias-copilot.html')
+		);
+		await symlink(
+			join(sandboxDir, 'copilot', 'bootstrap.js'),
+			join(sandboxDir, 'copilot', 'same.js')
+		);
 		const policy = `default-src 'none'; script-src ${SANDBOX_ORIGIN}/sandbox/copilot/; worker-src blob:; connect-src 'none'; frame-ancestors https://localhost:8443`;
 		for (const path of [
 			'/sandbox/copilot/index.html',
@@ -364,6 +375,24 @@ describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 				],
 				path
 			).toBe('frame-ancestors https://localhost:8443');
+		// #1866: non-canonical spellings (`//`, `./`) and cross-boundary symlinks must never serve copilot files under the looser sandbox policy.
+		for (const path of [
+			'/sandbox//copilot/index.html',
+			'/sandbox/./copilot/index.html',
+			'/sandbox/copilot//index.html',
+			'/sandbox/copilot/./index.html',
+			'/sandbox/copilot/escape.html',
+			'/sandbox/alias-copilot.html',
+			'//index.html',
+			'/./index.html',
+			'//login',
+		]) {
+			const host = path.startsWith('/sandbox/') ? SANDBOX_HOST : SHELL_HOST;
+			expect((await raw(port, path, { host, accept: HTML })).status, path).toBe(404);
+		}
+		const sameLink = await raw(port, '/sandbox/copilot/same.js', { host: SANDBOX_HOST });
+		expect(sameLink.status).toBe(200);
+		expect(sameLink.headers['content-security-policy']).toBe(policy);
 		// The shell's origin serves sandbox/ inert, the copilot's path among it (P6-E2).
 		expect(
 			(await raw(port, '/sandbox/copilot/index.html', { host: SHELL_HOST, accept: HTML })).headers[

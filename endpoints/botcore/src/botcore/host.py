@@ -11,6 +11,7 @@ import inspect
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from pathlib import PureWindowsPath
 from typing import Any
 
 from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
@@ -296,9 +297,13 @@ class CommandHost:
             package = kwargs.get("package")
             if package and (
                 not isinstance(package, str)
-                or package.startswith("-")
+                or "\x00" in package
+                or "\\" in package
+                or ":" in package
+                or package.startswith(("-", "/"))
                 or ".." in package.split("/")
-                or package.startswith("/")
+                or PureWindowsPath(package).is_absolute()
+                or bool(PureWindowsPath(package).drive)
             ):
                 raise ValueError("Package must be a declared name inside the selected target")
             for key in policy.paths:

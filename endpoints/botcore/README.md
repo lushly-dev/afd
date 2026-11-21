@@ -348,8 +348,9 @@ botcore skill-usage-report --days 30 --ending-days-ago 30 --skill my-skill
 botcore skill-usage-triggers --days 30
 ```
 
-The loads are read from T3 Code's store, so nothing is added to a skill and no agent reports
-anything. The record never holds a prompt, a command or file contents.
+The loads are read from T3 Code's store and, for sessions it did not run, from Claude Code's
+transcripts, so nothing is added to a skill and no agent reports anything. The record never
+holds a prompt, a command or file contents.
 
 The hourly job that `botcore disk-setup` installs collects on its own. To read several
 machines as one, name each machine and one folder they all see (a synced drive, kept private)

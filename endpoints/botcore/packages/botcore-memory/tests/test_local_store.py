@@ -192,3 +192,66 @@ class TestConcurrency:
 
         results = await store.list_entries("agent", "bot-1", None, 0, 100)
         assert len(results) == 20
+
+    async def test_atomic_write_preserves_existing_file_on_replace_error(
+        self, store: LocalMemoryStore, tmp_path: Path, monkeypatch
+    ):
+        """A failing write leaves the previous JSON intact and removes temp files (#1875)."""
+        await store.set(_entry(key="keep", value="original"))
+        scope_dir = tmp_path / "agent"
+
+        def fail_replace(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("botcore_memory.local_store.os.replace", fail_replace)
+        with pytest.raises(OSError, match="disk full"):
+            await store.set(_entry(key="keep", value="corrupted"))
+
+        assert list(scope_dir.glob("*.tmp")) == []
+        recovered = await store.get("agent", "bot-1", "keep")
+        assert recovered is not None
+        assert recovered.value == "original"
+
+    async def test_search_waits_for_per_file_scope_lock_even_when_scope_id_empty(
+        self, store: LocalMemoryStore
+    ):
+        """search() with empty scope_id acquires each file's real scope lock (#1875)."""
+        await store.set(_entry(scope="team", scope_id="alpha", key="k1", value="initial"))
+        await store.set(_entry(scope="team", scope_id="beta", key="k2", value="other"))
+
+        lock = store._get_lock("team", "alpha")
+        await lock.acquire()
+        search_task = asyncio.create_task(store.search("team", "", "updated", None, 10))
+        try:
+            await asyncio.sleep(0.02)
+            assert not search_task.done()
+            # Simulate an in-flight write completing before releasing the lock
+            alpha_path = store._file_path("team", "alpha")
+            data = store._read_file(alpha_path)
+            data["k1"]["value"] = "updated"
+            store._write_file(alpha_path, data)
+        finally:
+            lock.release()
+
+        results = await search_task
+        assert len(results) == 1
+        assert results[0].scope_id == "alpha"
+        assert results[0].value == "updated"
+
+    async def test_search_tolerates_file_disappearing_during_read(
+        self, store: LocalMemoryStore, monkeypatch
+    ):
+        """search() returns cleanly if a scope file is deleted concurrently (#1875)."""
+        await store.set(_entry(scope="team", scope_id="gone", key="k1", value="needle"))
+        await store.set(_entry(scope="team", scope_id="kept", key="k2", value="needle"))
+        gone_path = store._file_path("team", "gone")
+        real_read_text = Path.read_text
+
+        def flaky_read_text(self: Path, *args, **kwargs):
+            if self == gone_path:
+                raise FileNotFoundError(self)
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", flaky_read_text)
+        results = await store.search("team", None, "needle", None, 10)
+        assert [r.scope_id for r in results] == ["kept"]

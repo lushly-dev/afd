@@ -36,6 +36,13 @@ describe("P6-E2: serveSite's refusals (3.5)", () => {
 		['index.html\0'],
 		['a..b.txt'],
 		['%E0%A4%A'],
+		['/copilot/index.html'],
+		['./copilot/index.html'],
+		['copilot//index.html'],
+		['copilot/./index.html'],
+		['.'],
+		['copilot/.'],
+		['//index.html'],
 	])('P6-E2: refuses %j with a 404, whatever the request accepts', async (path) => {
 		const { serve } = await layout();
 		for (const accept of [undefined, HTML])

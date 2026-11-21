@@ -1741,35 +1741,74 @@ fn parse_cursor(cursor: &str) -> Option<(u32, Option<u64>)> {
 /// An `INTERNALDATE` (`17-Jul-1996 02:44:25 -0700`) in milliseconds since
 /// the epoch.
 fn internal_date(text: &str) -> Option<i64> {
+    let parse_uint = |part: &str| -> Option<i64> {
+        if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        part.parse().ok()
+    };
     let text = text.trim();
     let (date, rest) = text.split_once(' ')?;
     let (time, zone) = rest.trim().split_once(' ')?;
     let mut date = date.split('-');
-    let day: i64 = date.next()?.trim().parse().ok()?;
+    let day = parse_uint(date.next()?.trim())?;
     let month = date.next()?;
-    let year: i64 = date.next()?.parse().ok()?;
+    let year = parse_uint(date.next()?)?;
+    if date.next().is_some() {
+        return None;
+    }
     let month = [
         "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
     ]
     .iter()
     .position(|name| name.eq_ignore_ascii_case(month))?;
     let mut time = time.split(':');
-    let hour: i64 = time.next()?.parse().ok()?;
-    let minute: i64 = time.next()?.parse().ok()?;
-    let second: i64 = time.next()?.parse().ok()?;
-    let (sign, zone) = match zone.as_bytes().first()? {
-        b'+' => (1, &zone[1..]),
-        b'-' => (-1, &zone[1..]),
-        _ => return None,
-    };
-    if zone.len() != 4 || !(1..=31).contains(&day) || hour > 23 || minute > 59 || second > 60 {
+    let hour = parse_uint(time.next()?)?;
+    let minute = parse_uint(time.next()?)?;
+    let second = parse_uint(time.next()?)?;
+    if time.next().is_some() {
         return None;
     }
-    let offset: i64 = zone[..2].parse::<i64>().ok()? * 60 + zone[2..].parse::<i64>().ok()?;
+    let (sign, zone) = match zone.as_bytes().first()? {
+        b'+' => (1i64, &zone[1..]),
+        b'-' => (-1i64, &zone[1..]),
+        _ => return None,
+    };
     let month = i64::try_from(month).ok()? + 1;
+    let max_day = days_in_month(year, month)?;
+    if zone.len() != 4
+        || !zone.bytes().all(|byte| byte.is_ascii_digit())
+        || !(1..=9999).contains(&year)
+        || !(1..=max_day).contains(&day)
+        || !(0..=23).contains(&hour)
+        || !(0..=59).contains(&minute)
+        || !(0..=60).contains(&second)
+    {
+        return None;
+    }
+    let tz_hours: i64 = zone[..2].parse().ok()?;
+    let tz_minutes: i64 = zone[2..].parse().ok()?;
+    if tz_hours > 23 || tz_minutes > 59 {
+        return None;
+    }
+    let offset = tz_hours.checked_mul(60)?.checked_add(tz_minutes)?;
     let days = days_from_civil(year, month, day);
-    let seconds = days * 86_400 + hour * 3_600 + minute * 60 + second - sign * offset * 60;
-    Some(seconds * 1_000)
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(hour * 3_600 + minute * 60 + second)?
+        .checked_sub(sign.checked_mul(offset)?.checked_mul(60)?)?;
+    seconds.checked_mul(1_000)
+}
+
+/// Days in `month` (1..=12) of `year` in the Gregorian calendar.
+fn days_in_month(year: i64, month: i64) -> Option<i64> {
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => Some(31),
+        4 | 6 | 9 | 11 => Some(30),
+        2 => Some(if leap { 29 } else { 28 }),
+        _ => None,
+    }
 }
 
 /// Days since 1970-01-01 of a date in the proleptic Gregorian calendar.
@@ -2005,6 +2044,26 @@ mod tests {
         );
         assert_eq!(internal_date("1-Foo-1970 00:00:00 +0000"), None);
         assert_eq!(internal_date("nonsense"), None);
+        // #1870: non-ASCII 4-byte timezone, negative times, out-of-range offsets, extreme years.
+        assert_eq!(internal_date("17-Jul-1996 02:44:25 +😀"), None);
+        assert_eq!(internal_date("17-Jul-1996 02:44:25 -😀"), None);
+        assert_eq!(internal_date("17-Jul-1996 -1:00:00 +0000"), None);
+        assert_eq!(internal_date("17-Jul-1996 00:-1:00 +0000"), None);
+        assert_eq!(internal_date("17-Jul-1996 00:00:-1 +0000"), None);
+        assert_eq!(internal_date("17-Jul-1996 02:44:25 +2500"), None);
+        assert_eq!(internal_date("17-Jul-1996 02:44:25 +0060"), None);
+        assert_eq!(internal_date("17-Jul-1996 02:44:25 +-001"), None);
+        assert_eq!(
+            internal_date("17-Jul-999999999999999999 00:00:00 +0000"),
+            None
+        );
+        assert_eq!(internal_date("17-Jul-0000 00:00:00 +0000"), None);
+        assert_eq!(internal_date("31-Apr-1996 02:44:25 +0000"), None);
+        assert_eq!(internal_date("29-Feb-2025 00:00:00 +0000"), None);
+        assert_eq!(internal_date("29-Feb-1900 00:00:00 +0000"), None);
+        assert!(internal_date("29-Feb-2024 00:00:00 +0000").is_some());
+        assert!(internal_date("29-Feb-2000 00:00:00 +0000").is_some());
+        assert_eq!(internal_date("17-Jul-1996 +1:00:00 +0000"), None);
     }
 
     #[test]

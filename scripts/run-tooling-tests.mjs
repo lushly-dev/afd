@@ -55,6 +55,7 @@ export const testFiles = [
 	'scripts/review-record.test.mjs',
 	'scripts/provenance-merge.test.mjs',
 	'scripts/base-sync.test.mjs',
+	'scripts/branch-squash.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
 	'scripts/issue-claim.test.mjs',
