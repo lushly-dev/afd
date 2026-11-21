@@ -27,9 +27,9 @@ Example:
     ...     return success(CreateOutput(id="123", name=input.name))
 
 Bootstrap Commands:
-    Every AFD server includes bootstrap commands for command discovery:
+    ``create_server(..., bootstrap=True)`` adds afd-help, afd-docs and afd-schema, which
+    describe the server's commands (off by default, as in TypeScript):
 
-    >>> # Bootstrap commands are included automatically
     >>> from afd.server.bootstrap import get_bootstrap_commands
     >>>
     >>> # Or access them directly:

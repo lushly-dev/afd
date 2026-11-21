@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 
-from afd.core.builtin_names import AFD_CONTEXT_COMMAND_NAMES, AFD_META_TOOL_NAMES
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+)
 from afd.core.commands import CommandDefinition
 from afd.server.tools import MAX_FIRST_CLASS_TOOLS
 
@@ -79,9 +83,14 @@ def check_first_class_tools(
         seen.add(name)
         command = commands.get(name)
         if command is None:
+            hint = (
+                " Set bootstrap=True to register it."
+                if name in AFD_BOOTSTRAP_COMMAND_NAMES
+                else ""
+            )
             raise ValueError(
                 f"first_class_tools entry '{name}' is not a registered command. Register it, "
-                "or remove it from first_class_tools."
+                f"or remove it from first_class_tools.{hint}"
             )
         if not is_mcp_exposed(command):
             raise ValueError(

@@ -1,6 +1,7 @@
 """Bootstrap commands for AFD servers.
 
-Bootstrap commands are built-in commands that every AFD server provides:
+Bootstrap commands are built-in commands a server registers with ``bootstrap=True``
+(the context commands, with ``contexts``):
 - afd-help: List all available commands with tags and grouping
 - afd-docs: Generate markdown documentation for commands
 - afd-schema: Export JSON schemas for all commands
@@ -10,8 +11,8 @@ Example:
     >>> from afd.server import create_server
     >>> from afd.server.bootstrap import get_bootstrap_commands
     >>>
-    >>> server = create_server("my-app")
-    >>> # Bootstrap commands are automatically registered
+    >>> server = create_server("my-app", bootstrap=True)
+    >>> # afd-help, afd-docs and afd-schema are registered (off by default)
     >>>
     >>> # Or manually get them:
     >>> commands = get_bootstrap_commands(server.list_commands)

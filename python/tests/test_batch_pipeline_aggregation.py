@@ -232,7 +232,7 @@ class TestBuiltInToolsCannotBeNested:
 
     @pytest.mark.asyncio
     async def test_bootstrap_commands_still_run_inside_a_batch(self):
-        server = _server([])
+        server = _server([], bootstrap=True)
 
         result = await server.call_tool("afd-batch", {"commands": [{"command": "afd-help"}]})
 

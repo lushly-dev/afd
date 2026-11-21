@@ -174,6 +174,9 @@ class ServerConfig:
     """Request values the host declares (``spec/context-fields.md``), checked at construction.
     MCP ``tools/call`` reads them from ``params._meta``; ``server/discover`` and ``afd-help``
     list them."""
+    bootstrap: bool = False
+    """Register ``afd-help``, ``afd-docs`` and ``afd-schema``, as TypeScript's ``bootstrap: true``
+    does (parity decision D5). Off by default; the context tools do not depend on it."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -185,7 +188,7 @@ _CURRENT_REQUEST: ContextVar[Any] = ContextVar("afd_mcp_request", default=None)
 
 
 def default_instructions(
-    name: str, tool_strategy: str, contexts: list[ContextConfig]
+    name: str, tool_strategy: str, contexts: list[ContextConfig], bootstrap: bool = False
 ) -> str:
     """The ``server/discover`` instructions: how an agent should use this server's tools."""
     lines = [
@@ -211,6 +214,8 @@ def default_instructions(
     else:
         lines.append("Each command is its own tool; afd-call also runs any command by name.")
     lines.append("Use afd-batch for several independent commands and afd-pipe to chain them.")
+    if bootstrap:
+        lines.append("afd-help, afd-docs and afd-schema describe this server.")
     if contexts:
         lines.append(
             "Commands are scoped by context (afd-context-list lists them). Send "
@@ -393,6 +398,7 @@ class MCPServer:
                 options["first_class_tools"] = list(self.config.first_class_tools or [])
             if self.config.context_fields:
                 options["context_fields"] = list(self.config.context_fields)
+            options["include_discovery"] = self.config.bootstrap
             if self.config.contexts:
                 options["get_contexts"] = self.list_contexts
                 options["context_state"] = self._context_state
@@ -1368,9 +1374,14 @@ class MCPServer:
         self._mcp_server = SessionMCPServer(
             self.config.name,
             description=self.config.description,
+            # A host's own instructions win, even an empty string, as in TypeScript.
             instructions=self.config.instructions
-            or default_instructions(
-                self.config.name, self.config.tool_strategy, self.config.contexts
+            if self.config.instructions is not None
+            else default_instructions(
+                self.config.name,
+                self.config.tool_strategy,
+                self.config.contexts,
+                self.config.bootstrap,
             ),
             version=self.config.version,
             cache_hints={"tools/list": hint, "server/discover": hint},
@@ -1634,6 +1645,7 @@ def create_server(
     first_class_tools: Sequence[str] | None = None,
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
     advertise_output_schema: bool = True,
+    bootstrap: bool = False,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1711,6 +1723,10 @@ def create_server(
             fails on the client; set False to switch it off. Every tool result carries the
             whole CommandResult as ``structuredContent`` either way, and ``_meta.outputSchema``
             is always reported. Mirrors TypeScript's ``advertiseOutputSchema``.
+        bootstrap: Register the ``afd-help``, ``afd-docs`` and ``afd-schema`` tools, which
+            describe the server's commands, and name them in the default instructions. Off by
+            default, as TypeScript's ``bootstrap`` option (parity decision D5); earlier releases
+            always registered them. The meta-tools and context tools are listed either way.
     """
     if confirmations not in CONFIRMATION_MODES:
         raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
@@ -1749,6 +1765,7 @@ def create_server(
         confirmation_key=confirmation_key,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
         advertise_output_schema=advertise_output_schema,
+        bootstrap=bootstrap,
         # MCPServer checks the declarations and converts mappings.
         context_fields=[] if context_fields is None else context_fields,  # type: ignore[arg-type]
     )

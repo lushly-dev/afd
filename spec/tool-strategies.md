@@ -34,7 +34,7 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | Default | `grouped` | `grouped` | `Grouped` | `grouped` |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | `StdioServerOptions::group_by` |
 | Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
-| Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
+| Bootstrap tools | `bootstrap: true` (default `false`) | `bootstrap=True` (default `False`) | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | `StdioServerOptions::first_class_tools` |
 
@@ -150,8 +150,8 @@ Unless the server sets its own `instructions`, they are these sentences, joined 
    - `individual`: "Each command is its own tool; afd-call also runs any command by name."
    - `hybrid`: see [H8](#h8-what-afd-help-serverdiscover-and-afd-detail-report).
 3. "Use afd-batch for several independent commands and afd-pipe to chain them."
-4. With bootstrap tools (TypeScript with `bootstrap: true`; Rust and C++ when all three are
-   registered and exposed; Python never adds it): "afd-help, afd-docs and afd-schema describe this server."
+4. With bootstrap tools (TypeScript with `bootstrap: true`, Python with `bootstrap=True`; Rust and
+   C++ when all three are registered and exposed): "afd-help, afd-docs and afd-schema describe this server."
 5. With contexts: "Commands are scoped by context (afd-context-list lists them). Send
    `_meta["dev.afd/context"]` with a context name on tools/list and tools/call to work in that
    context."
@@ -317,7 +317,7 @@ Build every server from the file's `commands` and `contexts`:
 - Every command takes an object input with no required properties and succeeds with its input as
   data. `expose.mcp` is the only exposure that matters.
 - `config.contexts: true` configures both contexts, which registers the three context tools.
-  `config.bootstrap: true` registers `afd-help`, `afd-docs` and `afd-schema` (Python always does).
+  `config.bootstrap: true` registers `afd-help`, `afd-docs` and `afd-schema`.
 - `config.confirmations` is the confirmation mode; absent means `off`.
 - `config.toolsListTtlMs` sets the `ttlMs` option; absent leaves the default.
 

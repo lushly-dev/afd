@@ -129,6 +129,8 @@ def create_app(store: Store, env: Env | None = None) -> MCPServer:
         confirmations=env.get("CONFIRMATIONS", "off"),
         # Registers afd-context-list, -enter and -exit (todo_backend/contexts.py).
         contexts=TODO_CONTEXTS,
+        # Adds the afd-help, afd-docs and afd-schema bootstrap tools, as the TypeScript backend.
+        bootstrap=True,
     )
     for command in commands:
         server.register(command)

@@ -51,6 +51,8 @@ def _options(config):
         options["confirmations"] = config["confirmations"]
     if "toolsListTtlMs" in config:
         options["tools_list_ttl_ms"] = config["toolsListTtlMs"]
+    if config.get("bootstrap"):
+        options["bootstrap"] = True
     return options
 
 
@@ -285,7 +287,7 @@ async def _help(server, **arguments):
 
 @pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
 async def test_afd_help_reports_the_strategy_and_nothing_hybrid_elsewhere(strategy):
-    server = _build({"toolStrategy": strategy, "contexts": False})
+    server = _build({"toolStrategy": strategy, "contexts": False, "bootstrap": True})
     for arguments in ({}, {"format": "full"}):
         data = await _help(server, **arguments)
         assert data["toolStrategy"] == strategy

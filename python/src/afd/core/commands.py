@@ -546,7 +546,9 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     if annotations:
         tool["annotations"] = annotations
 
-    meta: Dict[str, Any] = {"mutation": command.mutation}
+    # spec/command-metadata.md: tools/list _meta leads with the category, as TypeScript's does.
+    meta: Dict[str, Any] = {} if command.category is None else {"category": command.category}
+    meta["mutation"] = command.mutation
     # Planning signals only: title and confirm_prompt are display text and stay out of _meta.
     if command.destructive is not None:
         meta["destructive"] = command.destructive

@@ -80,7 +80,7 @@ class TestDiscoveryOnlySeesMcpExposedCommands:
         ],
     )
     async def test_bootstrap_commands_omit_private_commands(self, tool, args):
-        server = _server_with_private_command()
+        server = _server_with_private_command(bootstrap=True)
 
         result = await server.call_tool(tool, args)
 
@@ -89,7 +89,7 @@ class TestDiscoveryOnlySeesMcpExposedCommands:
 
     @pytest.mark.asyncio
     async def test_bootstrap_commands_still_list_exposed_commands(self):
-        server = _server_with_private_command()
+        server = _server_with_private_command(bootstrap=True)
 
         help_result = await server.call_tool("afd-help", {})
         schema_result = await server.call_tool("afd-schema", {})
@@ -384,7 +384,7 @@ class TestInputValidationErrors:
 
     @pytest.mark.asyncio
     async def test_bootstrap_input_error_maps_to_validation_error(self):
-        server = _server_with_private_command()
+        server = _server_with_private_command(bootstrap=True)
 
         result = await server.call_tool("afd-schema", {"format": "yaml"})
 

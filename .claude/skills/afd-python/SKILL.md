@@ -89,7 +89,8 @@ Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 `tool_strategy` is `"grouped"` (the default, as in every language), `"individual"`, `"lazy"` or `"hybrid"` ([spec/tool-strategies.md](../../../spec/tool-strategies.md)). The lists are TypeScript's:
 
 - **Every strategy** lists the five meta-tools first (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), as every language does (#533). `grouped` is the default: one tool per group with `_meta.actions`, the bootstrap and context commands in the `bootstrap` group; `lazy` adds only the context tools. A command any strategy leaves unlisted is still callable by its own name, with its confirmation and approval rounds.
-- **With `contexts`,** the context tools are registered before `afd-help`, `afd-docs` and `afd-schema`, so the `bootstrap` group lists them first; lazy and hybrid list them in every context.
+- **Bootstrap tools are opt-in.** `afd-help`, `afd-docs` and `afd-schema` are registered only with `create_server(..., bootstrap=True)`, as TypeScript's `bootstrap: true` (D5, #542); the meta-tools and context tools need no flag.
+- **With `contexts`,** the context tools are registered before the bootstrap tools, so the `bootstrap` group lists them first; lazy and hybrid list them in every context.
 - **Out-of-context calls.** A context-scoped command is hidden from discovery outside its context and returns `COMMAND_NOT_IN_CONTEXT` when called.
 
 Hybrid lists a few hot-path commands as their own tools and runs everything else through `afd-call`:
