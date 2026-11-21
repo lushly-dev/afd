@@ -121,7 +121,7 @@ wasmtime-wasi-io = { version = "48.0.8", optional = true, default-features = fal
 # certificate, no redirects) and `sse-stream` for the SSE types the bounded HTTP client returns.
 futures = { version = "0.3", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"], optional = true }
-sse-stream = { version = "0.2", optional = true }
+sse-stream = { version = "0.3", optional = true }
 
 # Optional: the `auth` feature, the hosted HTTP surface. `rustls-pki-types`' `PemObject` reads the
 # PEM files; SQLite holds the limit counters every process behind one URL shares (section 10.2).
