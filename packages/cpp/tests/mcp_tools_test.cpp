@@ -835,6 +835,29 @@ TEST_CASE("without a commands list, a batch is approved up front from the server
     CHECK(*fixture.removes == 1);
 }
 
+TEST_CASE("an up-front step whose input has no canonical form is refused before any step runs") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json big = Json::parse(R"({"tag": 9007199254740993})");
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-remove"}, {"input", big}}}}};
+    const Json batched = body(call(*server, "afd-batch", batch, client.requester()));
+    CHECK(batched["error"]["code"] == "APPROVAL_UNAVAILABLE");
+    CHECK(batched["error"]["details"]["reason"] == "input-not-canonical");
+    CHECK(batched["results"].empty());
+
+    const Json pipe{
+        {"steps", {{{"command", "tag-list"}}, {{"command", "tag-remove"}, {"input", big}}}}};
+    const Json piped = body(call(*server, "afd-pipe", pipe, client.requester()));
+    CHECK(piped["steps"][0]["error"]["code"] == "APPROVAL_UNAVAILABLE");
+    CHECK(piped["steps"][0]["error"]["details"]["reason"] == "input-not-canonical");
+    CHECK(client.asked.empty());
+    CHECK(*fixture.removes == 0);
+}
+
 TEST_CASE("without the approval middleware, a gated tool is refused before its handler") {
     Fixture fixture(false, false, false);
     auto server = make_server(*fixture.registry);

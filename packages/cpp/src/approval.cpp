@@ -685,6 +685,23 @@ CommandResult unbindable(std::string_view command, const std::string& reason) {
     });
 }
 
+/// A call that needs approval whose input has no canonical JSON, so no approval can be bound to
+/// it (spec/command-metadata.md, "Approvals"). Nobody is asked.
+CommandError input_not_canonical(std::string_view command) {
+    return CommandError{
+        .code = error_codes::APPROVAL_UNAVAILABLE,
+        .message = std::string(command) +
+                   " needs a person's approval, and this input cannot be bound to one",
+        .suggestion = "Do not retry with this input: it has no exact canonical form, so an "
+                      "approval cannot be bound to it. Send the input in a form canonical JSON "
+                      "accepts (for example, an integer a JavaScript number cannot hold exactly, "
+                      "such as 2^53 + 1, as a string).",
+        .retryable = false,
+        .details = Json{{"reason", "input-not-canonical"}},
+        .cause = nullptr,
+    };
+}
+
 /// Longest input shown in a relayed approval's question, in UTF-16 code units as TypeScript
 /// counts them; C++ cuts at a code point boundary at or below that many bytes.
 constexpr std::size_t max_shown_input = 1000;
@@ -854,16 +871,7 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
         }
         const auto canonical = canonical_json(*step.input);
         if (!canonical) {
-            return Plan{.refusal =
-                            CommandError{.code = error_codes::COMMAND_EXECUTION_ERROR,
-                                         .message = "The input of " + step.command +
-                                                    " cannot be bound to an approval",
-                                         .suggestion = "Pass plain JSON input: integers within "
-                                                       "±2^53",
-                                         .retryable = false,
-                                         .details = std::nullopt,
-                                         .cause = nullptr},
-                        .approved = {}};
+            return Plan{.refusal = input_not_canonical(step.command), .approved = {}};
         }
         gated.push_back(
             GatedStep{.index = step.index,
@@ -977,8 +985,11 @@ CommandResult run_up_front(ApprovalState& state, detail::UpFrontApproval& up, st
         return next();
     }
     const auto canonical = canonical_json(input);
+    if (!canonical) {
+        return failure(input_not_canonical(name));
+    }
     const auto actor = actor_binding(context.actor);
-    if (canonical && actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
+    if (actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
         return next();
     }
     // A gated step the human was not asked about up front (its policy changed its mind).
@@ -1032,13 +1043,18 @@ void admit_approval(CommandContext& context, std::string_view name, const Json& 
         return;
     }
     std::optional<std::string> canonical;
+    std::optional<Json> copy;
     if (record->command && gates(record->command->approval)) {
         if (auto encoded = canonical_json(input)) {
             canonical = std::move(*encoded);
+        } else {
+            // Only a policy that let the call through admits such an input: kept by value.
+            copy = input;
         }
     }
     const std::lock_guard lock(record->mutex);
-    record->admitted = AdmittedCall{.name = std::string(name), .canonical = std::move(canonical)};
+    record->admitted = AdmittedCall{
+        .name = std::string(name), .canonical = std::move(canonical), .input = std::move(copy)};
 }
 
 AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
@@ -1058,11 +1074,14 @@ AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& c
     if (context.approval_admission.get() != &record || admitted->name != name) {
         return AdmissionCheck::mismatch;
     }
-    const auto canonical = canonical_json(input);
-    if (!canonical || !admitted->canonical) {
-        return AdmissionCheck::not_canonical;
+    bool same = false;
+    if (admitted->canonical) {
+        const auto canonical = canonical_json(input);
+        same = canonical && *canonical == *admitted->canonical;
+    } else if (admitted->input) {
+        same = *admitted->input == input;
     }
-    return *canonical == *admitted->canonical ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
+    return same ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
 }
 
 Expected<std::string> canonical_json_as_read(const Json& value) {
@@ -1147,7 +1166,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
         const auto input_binding = canonical_json(input);
         if (!input_binding) {
-            return unbindable(name, input_binding.error());
+            return failure(input_not_canonical(name));
         }
         const auto actor = actor_binding(context.actor);
         if (!actor) {

@@ -54,8 +54,7 @@ std::string contexts_suggestion(const CommandDefinition& command, bool context_t
 }
 
 // A gated command no approval step admitted for this dispatch (spec/command-metadata.md,
-// "Approvals"): no approval step ran (`missing`), the input has no canonical JSON to bind an
-// approval to (`not_canonical`), or an approval step ran but this dispatch is not the one it
+// "Approvals"): no approval step ran (`missing`), or one ran but this dispatch is not the one it
 // admitted (a retry placed after it, or the input changed after it).
 CommandResult approval_unavailable(const std::string& name, detail::AdmissionCheck check) {
     std::string suggestion;
@@ -67,12 +66,6 @@ CommandResult approval_unavailable(const std::string& name, detail::AdmissionChe
                      " needs their approval and this server has no approval step; do not retry. "
                      "The operator adds the approval middleware (create_approval_middleware) or "
                      "removes the command's approval policy.";
-        break;
-    case detail::AdmissionCheck::not_canonical:
-        reason = "input-not-canonical";
-        suggestion = "Do not retry with this input: it has no exact JSON form, so an approval "
-                     "cannot be bound to it. Send the input as JSON can represent it (for "
-                     "example, an id above 2^53 as a string).";
         break;
     default:
         reason = "admission-mismatch";

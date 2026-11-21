@@ -106,12 +106,7 @@ void check_unavailable(const afd::CommandResult& result, const std::string& name
           name + " needs a person's approval, and this server cannot ask for it");
     CHECK(result.error->retryable == std::optional<bool>(false));
     CHECK((*result.error->details)["reason"] == reason);
-    if (reason == "input-not-canonical") {
-        CHECK(*result.error->suggestion ==
-              "Do not retry with this input: it has no exact JSON form, so an approval cannot be "
-              "bound to it. Send the input as JSON can represent it (for example, an id above "
-              "2^53 as a string).");
-    } else if (reason == "no-approval-step") {
+    if (reason == "no-approval-step") {
         CHECK(*result.error->suggestion ==
               "Tell the user that " + name +
                   " needs their approval and this server has no approval step; do not retry. "
@@ -414,20 +409,51 @@ TEST_CASE("an admission belongs to the record the registry made for that dispatc
     CHECK(commands.ran->empty());
 }
 
-TEST_CASE("a gated command whose input has no canonical form is not admitted") {
+TEST_CASE("an input with no canonical form") {
     Commands commands;
-    afd::CommandDefinition remove =
-        commands.remove(afd::ApprovalPolicy([](const Json&, const afd::CommandContext&) {
-            return afd::ApprovalDecision::not_required;
-        }));
-    auto registry = registry_of({remove}, {approval_middleware()});
     // Beyond 2^53 - 1 and not spelled as JavaScript writes its double: canonical_json refuses it.
     const Json input = Json::parse(R"({"id": 9007199254740993})");
-    check_unavailable(registry->execute("todo-delete", input, as_agent()), "todo-delete",
-                      "input-not-canonical");
-    CHECK(commands.ran->empty());
-    // A safe integer is admitted as before.
-    CHECK(registry->execute("todo-delete", {{"id", 1}}, as_agent()).success);
+
+    SUBCASE("needing approval, is answered by the approval middleware, asking nobody") {
+        auto registry = registry_of({commands.remove()}, {approval_middleware()});
+        const auto result = registry->execute("todo-delete", input, as_agent());
+        REQUIRE(result.error);
+        CHECK(result.error->code == afd::error_codes::APPROVAL_UNAVAILABLE);
+        CHECK(result.error->message ==
+              "todo-delete needs a person's approval, and this input cannot be bound to one");
+        CHECK(result.error->suggestion ==
+              std::optional<std::string>(
+                  "Do not retry with this input: it has no exact canonical form, so an approval "
+                  "cannot be bound to it. Send the input in a form canonical JSON accepts (for "
+                  "example, an integer a JavaScript number cannot hold exactly, such as 2^53 + "
+                  "1, as a string)."));
+        CHECK(result.error->retryable == std::optional<bool>(false));
+        CHECK(Json(result)["error"]["details"] == Json{{"reason", "input-not-canonical"}});
+        CHECK(commands.ran->empty());
+    }
+
+    const afd::ApprovalPolicy lets_through([](const Json&, const afd::CommandContext&) {
+        return afd::ApprovalDecision::not_required;
+    });
+
+    SUBCASE("let through by its policy, runs, compared by value") {
+        auto registry = registry_of({commands.remove(lets_through)}, {approval_middleware()});
+        CHECK(registry->execute("todo-delete", input, as_agent()).success);
+        CHECK(*commands.ran == std::vector<std::string>{"todo-delete:9007199254740993"});
+    }
+
+    SUBCASE("let through by its policy, then changed in place, is refused") {
+        const afd::CommandMiddleware change = [](std::string_view, const Json& admitted,
+                                                 afd::CommandContext&, const afd::Next& next) {
+            const_cast<Json&>(admitted)["id"] = Json::parse("9007199254740995");
+            return next();
+        };
+        auto registry =
+            registry_of({commands.remove(lets_through)}, {approval_middleware(), change});
+        check_unavailable(registry->execute("todo-delete", input, as_agent()), "todo-delete",
+                          "admission-mismatch");
+        CHECK(commands.ran->empty());
+    }
 }
 
 #if AFD_ENABLE_THREADS

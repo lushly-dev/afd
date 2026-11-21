@@ -27,8 +27,11 @@ namespace afd::detail {
 struct AdmittedCall {
     std::string name;
     /// The canonical JSON of the input; unset when the command declares no gating policy or the
-    /// input has none, which a gated dispatch never accepts.
+    /// input has none.
     std::optional<std::string> canonical;
+    /// A copy of a gated command's input that has no canonical JSON, which only a policy that
+    /// let the call through admits; compared by value at dispatch.
+    std::optional<Json> input;
 };
 
 /// One call's admission record. Opaque outside the library. `admitted` and `taken` are read and
@@ -50,13 +53,12 @@ bool gates(const std::optional<ApprovalPolicy>& policy) noexcept;
 /// for a context the registry did not record.
 void admit_approval(CommandContext& context, std::string_view name, const Json& input);
 
-/// `not_canonical`: the input has no canonical JSON, so no admission can be bound to it.
-enum class AdmissionCheck { admitted, missing, mismatch, not_canonical };
+enum class AdmissionCheck { admitted, missing, mismatch };
 
 /// Takes the admission of `record`, the one the registry made for this dispatch: `admitted` when
 /// `context` still carries that record and its admission names `name` and the same canonical
-/// `input`, `missing` when no approval step admitted the call, `not_canonical` when the input has
-/// no canonical form, `mismatch` otherwise (another record, command or input). Taken whatever the
+/// `input` (the same by value, when it has no canonical form), `missing` when no approval step
+/// admitted the call, `mismatch` otherwise (another record, command or input). Taken whatever the
 /// answer, in one step under the record's mutex, so a second or concurrent dispatch needs a
 /// second admission.
 AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,

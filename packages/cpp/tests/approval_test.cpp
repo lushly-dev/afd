@@ -535,7 +535,7 @@ TEST_CASE("approval policies") {
     }
 #endif
 
-    SUBCASE("an input that cannot be bound fails without running the handler") {
+    SUBCASE("an input that cannot be bound is APPROVAL_UNAVAILABLE without running the handler") {
         afd::CommandDefinition big{
             .name = "big-run",
             .description = "Takes any number",
@@ -550,8 +550,8 @@ TEST_CASE("approval policies") {
         const auto result =
             registry.execute("big-run", {{"n", std::uint64_t{18446744073709551615ULL}}});
         REQUIRE(result.error);
-        CHECK(result.error->code == "COMMAND_EXECUTION_ERROR");
-        CHECK(result.error->suggestion);
+        CHECK(result.error->code == "APPROVAL_UNAVAILABLE");
+        CHECK(afd::Json(result)["error"]["details"]["reason"] == "input-not-canonical");
     }
 }
 
