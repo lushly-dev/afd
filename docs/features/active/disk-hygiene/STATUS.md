@@ -117,4 +117,4 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 4. Prevention
 
-- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): in review.
+- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): in PR #1728.
