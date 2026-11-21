@@ -14,7 +14,14 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
-from afd.transports.base import ToolExecutionError, ToolInfo, TransportError, TransportState
+from afd.transports.base import (
+    HttpStatusError,
+    JsonRpcError,
+    ToolExecutionError,
+    ToolInfo,
+    TransportError,
+    TransportState,
+)
 
 # MCP protocol version matching the TS client
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -93,18 +100,26 @@ class _HttpBasedTransport:
             self._state = TransportState.ERROR
             raise TransportError(str(exc), cause=exc) from exc
 
-        if not response.is_success:
-            raise TransportError(
-                f"HTTP {response.status_code}: {response.text}",
-            )
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        err = data.get("error") if isinstance(data, dict) else None
+        code = err.get("code") if isinstance(err, dict) else None
+        if isinstance(code, int) and not isinstance(code, bool):
+            # A JSON-RPC error says what the server did, whatever the HTTP status.
+            raise JsonRpcError(code, str(err.get("message", "Unknown")), err.get("data"))
 
-        data = response.json()
+        if not response.is_success:
+            raise HttpStatusError(
+                response.status_code, f"HTTP {response.status_code}: {response.text}"
+            )
+        if not isinstance(data, dict):
+            raise TransportError("The server's answer is not a JSON-RPC response")
 
         if "error" in data:
-            err = data["error"]
-            raise TransportError(
-                f"JSON-RPC error {err.get('code', '?')}: {err.get('message', 'Unknown')}"
-            )
+            message = err.get("message", "Unknown") if isinstance(err, dict) else "Unknown"
+            raise TransportError(f"JSON-RPC error {code if code is not None else '?'}: {message}")
 
         return data.get("result")
 

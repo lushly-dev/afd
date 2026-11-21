@@ -201,7 +201,9 @@ class TestStream:
         received = [chunk async for chunk in client.stream("todo list", {"limit": 1})]
 
         assert seen == ["http://localhost:3100/stream/todo%20list"]
-        assert received == chunks
+        # As TypeScript's client, the stream ends at its first complete or error chunk.
+        end = next(i for i, chunk in enumerate(chunks) if chunk["type"] in ("complete", "error"))
+        assert received == chunks[: end + 1]
 
     @pytest.mark.asyncio
     async def test_http_error_yields_a_stream_error_chunk(self, monkeypatch):
@@ -216,13 +218,27 @@ class TestStream:
 
         received = [chunk async for chunk in client.stream("missing")]
 
-        assert len(received) == 1
-        assert received[0]["type"] == "error"
-        assert received[0]["error"]["code"] == "STREAM_ERROR"
-        assert received[0]["error"]["message"] == "HTTP 404: Not found"
-        assert received[0]["error"]["suggestion"]
-        assert received[0]["chunksBeforeError"] == 0
-        assert received[0]["recoverable"] is False
+        # The server's own error is kept, as TypeScript's client keeps it.
+        assert received == [{
+            "type": "error",
+            "error": {"code": "HTTP_404", "message": "Not found"},
+            "chunksBeforeError": 0,
+            "recoverable": False,
+        }]
+
+    @pytest.mark.asyncio
+    async def test_an_http_error_without_an_afd_error_is_a_stream_error(self, monkeypatch):
+        self._patch_http(monkeypatch, lambda request: httpx.Response(502, text="Bad gateway"))
+        client = await self._client(url="http://localhost:3100/sse")
+
+        received = [chunk async for chunk in client.stream("missing")]
+
+        assert received[0]["error"] == {
+            "code": "STREAM_ERROR",
+            "message": "HTTP 502: Bad Gateway",
+            "suggestion": "Check the command name and arguments, and that the server supports streaming",
+            "retryable": True,
+        }
 
 
 def _python_server():
