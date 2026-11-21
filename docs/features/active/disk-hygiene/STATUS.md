@@ -96,7 +96,7 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 3. Removing finished worktrees
 
-- Tier 2, `disk-keep` and `disk-restore` (#1694): built on branch `lush/disk-tier2`.
+- Tier 2, `disk-keep` and `disk-restore` (#1694): in PR #1723.
 
 ## Phase 4. Prevention
 
