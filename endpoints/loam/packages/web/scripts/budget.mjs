@@ -564,7 +564,9 @@ export const CEILINGS = Object.freeze({
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 102_700,
+	// afd-server's approval admission with its refusal reasons, against `main` at `2700c62e`: 102,213 to 102,795 gzip
+	// (+582); set to 103,200 under D115.
+	jsGzip: 103_200,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
