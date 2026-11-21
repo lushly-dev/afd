@@ -79,9 +79,13 @@ class ClaudeRead:
     # calls. One that is gone keeps its entry: what it gave is still in the record
     files: dict[str, dict] = field(default_factory=dict)
     read: list[str] = field(default_factory=list)  # the transcripts read this time
-    # The sessions (as the record names them) that a transcript read this time gave before or
-    # gives now: what the record holds of them is replaced by what was read
-    replaced: set[str] = field(default_factory=set)
+    # What was in front of the reader this time: the id of every tool call and typed command
+    # it met. An event the record holds for one of these, and that this read did not give
+    # again, is no longer one; an event for a call it did not meet stays, whatever became
+    # of the file that held it
+    seen: set[str] = field(default_factory=set)
+    # The sessions (as the record names them) met this time that are T3 Code's and none of ours
+    t3_sessions: set[str] = field(default_factory=set)
     failed: list[str] = field(default_factory=list)  # could not be read whole: left as it was
     transcripts: int = 0
     unchanged: int = 0
@@ -213,7 +217,7 @@ class _Call:
     at: str | None
     model: str | None
     subagent: bool
-    by_t3: bool  # the row that holds it names T3 Code as what started the session
+    program: str | None  # what started the session, as the row that holds the call says
 
 
 @dataclass
@@ -233,7 +237,8 @@ class _Transcript:
     sessions: dict[str, _Seen] = field(default_factory=dict)
     calls: dict[str, _Call] = field(default_factory=dict)
     finished: set[str] = field(default_factory=set)
-    typed: list[tuple[str, str, str, str]] = field(default_factory=list)  # session, row, name, at
+    # a command a person typed: session, row, name, when, and what started the session
+    typed: list[tuple[str, str, str, str, str | None]] = field(default_factory=list)
 
 
 def _parts(row: dict) -> list[dict]:
@@ -276,9 +281,8 @@ def _note(found: _Transcript, row: dict, home: str, others: set[str], subagent: 
             if part.get("type") == "tool_use" and call and tool and isinstance(arguments, dict):
                 model = _text(message.get("model"))
                 model = model if model and _MODEL.fullmatch(model) else None
-                by_t3 = started_by == T3_STARTED
                 found.calls.setdefault(
-                    call, _Call(session, tool, arguments, at, model, sidechain, by_t3)
+                    call, _Call(session, tool, arguments, at, model, sidechain, started_by)
                 )
     elif kind == "user":
         for part in _parts(row):
@@ -291,8 +295,8 @@ def _note(found: _Transcript, row: dict, home: str, others: set[str], subagent: 
         if typed and not sidechain and row.get("isMeta") is not True and at:
             named = _COMMAND.search(text)
             row_id = _identifier(row.get("uuid"))
-            if named and row_id and started_by != T3_STARTED:
-                found.typed.append((session, row_id, named.group(1), at))
+            if named and row_id:
+                found.typed.append((session, row_id, named.group(1), at, started_by))
 
 
 def _transcript(home: str, files: list[Path], others: set[str]) -> _Transcript | None:
@@ -338,7 +342,9 @@ def _loads_of(call: _Call) -> list[tuple[str, str]]:
         return [(name, EDIT)] if name else []
     if call.tool == "Bash":
         command = _text(call.arguments.get("command"))
-        return [(name, SHELL_READ) for name in skills_read_by(command)] if command else []
+        if not command or "SKILL.md" not in command:  # nearly every command: not worth parsing
+            return []
+        return [(name, SHELL_READ) for name in skills_read_by(command)]
     return []
 
 
@@ -356,10 +362,10 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
     those loads and their rows belong to.
 
     `held` is the harness's own id of every Claude tool call T3 Code is known to have
-    recorded. A call is T3 Code's when `held` has it or its row names T3 Code as what
-    started the session; a session all of whose calls are T3 Code's is left to it. A
-    transcript is read again when its files changed, and when a call it gave as its own has
-    since turned up in `held`.
+    recorded. A call is T3 Code's when `held` has it, and when its row names the program
+    T3 Code ran that session with: T3 Code itself, or whatever started a call `held` has. A
+    session nothing of which is ours is left to T3 Code. A transcript is read again when its
+    files changed, and when a call it gave as its own has since turned up in `held`.
     """
     result = ClaudeRead(files={name: _entry(entry) for name, entry in known.items()})
     checkouts = _Checkouts()
@@ -385,20 +391,31 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
             result.failed.append(home)
             continue
         result.read.append(home)
-        own: dict[str, list[str]] = {}  # session -> its calls that are not T3 Code's
-        t3: set[str] = set()  # sessions with a call that is
+        result.seen.update(parsed.calls)
+        result.seen.update(row_id for _, row_id, _, _, _ in parsed.typed)
+        # What T3 Code ran of each session: the program that made a call T3 Code recorded is
+        # T3 Code, for that session, in every row that names it. Its store misses a call now
+        # and then, and such a call is no session of its own
+        ran: dict[str, set[str | None]] = {}
         for call_id, call in parsed.calls.items():
-            if call.by_t3 or call_id in held:
-                t3.add(call.session)
+            if call_id in held:
+                ran.setdefault(call.session, {T3_STARTED}).add(call.program)
+        own: dict[str, list[str]] = {}  # session -> its calls that are not T3 Code's
+        for call_id, call in parsed.calls.items():
+            if call_id in held or call.program in ran.get(call.session, {T3_STARTED}):
                 result.left_to_t3 += 1
             else:
                 own.setdefault(call.session, []).append(call_id)
         gave: list[str] = []
         for session, seen in parsed.sessions.items():
-            # T3 Code's own session: it started it, or holds a call of it, and none is ours
-            if session not in own and (session in t3 or seen.started_by == {T3_STARTED}):
-                continue
+            by_t3 = ran.get(session, {T3_STARTED})
             thread = f"{PREFIX}{session}"
+            # ours when a call of it is, or a row of it names a program T3 Code did not run
+            # it with; and when nothing says who ran it at all
+            if session not in own and not seen.started_by - by_t3:
+                if seen.started_by or session in ran:
+                    result.t3_sessions.add(thread)
+                    continue
             gave.append(thread)
             if checkout[session]:
                 result.projects[checkout[session]] = checkout[session]
@@ -436,10 +453,10 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                             model=call.model,
                         )
                     )
-        for session, row_id, name, at in parsed.typed:
+        for session, row_id, name, at, program in parsed.typed:
             skill = clean_skill_name(name)
             thread = f"{PREFIX}{session}"
-            if skill and thread in gave:
+            if skill and thread in gave and program not in ran.get(session, {T3_STARTED}):
                 result.loads.append(
                     Load(
                         item=row_id,
@@ -455,7 +472,6 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                         model=None,
                     )
                 )
-        result.replaced.update(_names(before.get("sessions")), gave)
         sample = [call_id for call_ids in own.values() for call_id in call_ids][:SAMPLE]
         result.files[home] = {"stamp": stamp, "sessions": gave, "calls": sample}
     result.loads.sort(key=lambda load: (load.at, load.thread, load.item))

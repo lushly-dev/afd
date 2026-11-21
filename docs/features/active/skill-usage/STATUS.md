@@ -21,22 +21,28 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
   command line; T3 Code started 326. Of 734 Skill tool calls in their transcripts, 529 came
   from the desktop app's sessions, between March and October, and none of those was in the
   record.
-- **T3 Code's calls are told exactly.** Every session T3 Code started holds a tool call
-  whose id T3 Code's store holds too, and no other does. The id is the same in both places
-  (`toolu_…`, which the record keeps as `claude:toolu_…`). Run over T3 Code's own sessions,
-  the transcript reader gave the 1,328 loads the store gave, by id, skill and kind.
+- **T3 Code's calls are told by their ids, and its sessions by the program.** Every session
+  T3 Code started holds a tool call whose id T3 Code's store holds too, and no other does.
+  The id is the same in both places (`toolu_…`, which the record keeps as
+  `claude:toolu_…`). But the store misses a call now and then: in 32 older sessions it
+  lacked 1 to 22 of 40 to 2,822. So a call is also T3 Code's when its row names the program
+  that made a call the store holds. Run over T3 Code's own sessions, the transcript reader
+  gave the 1,333 loads the store gave, by id, skill and kind, and 12 the store missed.
 - **A file is not a session.** 192 files beside the transcripts are subagents', as older
   versions wrote them: every row names the session it worked for. 380 tool calls are in two
   transcripts, copied when a session was continued. 7 transcripts name two programs.
   Reading a file as a session gave 192 sessions too many and 28 loads written twice, which
   the first review found; a row is now the session's it names.
-- **What reading them added.** 3,055 events from 415 sessions, beside T3 Code's 3,180 from
-  527: 1,623 file reads, 705 Skill tool calls, 536 shell reads, 138 changes to a skill's
+- **A record keeps what was collected.** The first fix replaced what a transcript gave with
+  what it gives now, and the next review erased a load with it by clearing a subagent's
+  file. A load now leaves only when its call is read again and is no longer one.
+- **What reading them added.** 3,055 events from 381 sessions, beside T3 Code's 3,193 from
+  529: 1,623 file reads, 705 Skill tool calls, 536 shell reads, 138 changes to a skill's
   files and 53 typed commands. 2,639 are Lushly's; 72 ran in a folder that is gone and
   leads to no repository.
-- **Cost.** The transcripts are 3.2 GB. The first collection takes about a minute with a
-  full read of T3 Code's store, and the next about 4 seconds: only a transcript that changed
-  is opened.
+- **Cost.** The transcripts are 3.2 GB. The first collection, with a full read of T3 Code's
+  store, took 40 seconds on an idle machine and 78 on a busy one; the next took 4 and 13.
+  Only a transcript that changed is opened.
 - **Codex logs are not worth reading yet.** 208 of 213 across the Air and Random name T3
   Code as what started them; 5 came from the Codex desktop app (#1891).
 - **The rollout.** The Air and Random run the merged build, installed from git by commit as

@@ -190,21 +190,35 @@ def test_what_t3_code_ran_is_left_to_its_store(
     transcripts.call("mixed", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_mixed",
                      entrypoint="t3-code")  # fmt: skip
     transcripts.call("mixed", "Skill", {"skill": "prune-roses"}, stamp(1))
+    # and one whose own transcript is gone: one copy of its rows holds what T3 Code ran of
+    # it, another what it did elsewhere. It is ours for the second, whatever the first says
+    transcripts.call("split", "Skill", {"skill": "plant-beds"}, stamp(2), into="p",
+                     entrypoint="t3-code")  # fmt: skip
+    transcripts.call("split", "Skill", {"skill": "prune-roses"}, stamp(1), into="q")
 
     data = run(skill_usage_collect())
 
     assert sorted((event.thread, event.skill) for event in collected(state)) == [
         ("claude-code:free", "prune-roses"),
         ("claude-code:mixed", "prune-roses"),
+        ("claude-code:split", "prune-roses"),
         ("main", "plant-beds"),
         ("main", "plant-beds"),
     ]
-    assert sorted(store.load_sessions(state)) == ["claude-code:free", "claude-code:mixed", "main"]
+    assert sorted(store.load_sessions(state)) == [
+        "claude-code:free", "claude-code:mixed", "claude-code:split", "main",
+    ]  # fmt: skip
     found = source(data)
-    assert (found["transcripts"], found["read"], found["calls_left_to_t3"]) == (4, 4, 3)
+    assert (found["transcripts"], found["read"], found["calls_left_to_t3"]) == (6, 6, 4)
 
     opened = opens(monkeypatch)  # a transcript that did not change is not opened again
     assert run(skill_usage_collect())["added"] == 0 and opened == []
+
+    # the copy that holds T3 Code's part grows, and is read alone: the session is still ours
+    transcripts.call("split", "Skill", {"skill": "plant-beds"}, stamp(1), into="p",
+                     entrypoint="t3-code")  # fmt: skip
+    run(skill_usage_collect())
+    assert opened == ["p"] and "claude-code:split" in store.load_sessions(state)
 
 
 def test_a_session_t3_code_turns_out_to_have_run_leaves_the_record(
@@ -215,6 +229,8 @@ def test_a_session_t3_code_turns_out_to_have_run_leaves_the_record(
     monkeypatch.setenv(store.T3_STORE_ENV, "")
     transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_one",
                      entrypoint="sdk-ts")  # fmt: skip
+    transcripts.say("s1", "<command-name>/plant-beds</command-name>", stamp(2),
+                    entrypoint="sdk-ts")  # fmt: skip
     # a later session holds a copy of that row, as one continued from it does
     transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_one",
                      entrypoint="sdk-ts", into="free")  # fmt: skip
@@ -231,7 +247,7 @@ def test_a_session_t3_code_turns_out_to_have_run_leaves_the_record(
         ("claude-code", "claude-code:free"), ("t3-code", "main"),
     ]  # fmt: skip
     assert sorted(store.load_sessions(state)) == ["claude-code:free", "main"]
-    assert source(data)["removed"] == 1
+    assert source(data)["removed"] == 2  # the load, and the command typed in that session
 
     # and the other way about: T3 Code drops the thread before a second transcript of the
     # session is ever seen. The record still knows the call was T3 Code's
@@ -271,20 +287,105 @@ def test_only_a_transcript_that_changed_is_read_again(
     assert opened == ["s2"]
 
 
-def test_what_a_transcript_gave_is_replaced_by_what_it_gives(
+def test_a_load_leaves_the_record_only_when_its_call_is_read_and_is_no_longer_one(
     state: Path, transcripts: Transcripts
 ) -> None:
     transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_a")
     transcripts.call("s1", "Skill", {"skill": "prune-roses"}, stamp(2), call="toolu_b")
+    transcripts.call("s1", "Skill", {"skill": "prune-roses"}, stamp(2), call="toolu_c",
+                     subagent="a1")  # fmt: skip
+    transcripts.call("s1", "Skill", {"skill": "prune-roses"}, stamp(2), call="toolu_d",
+                     into="agent-a2", isSidechain=True)  # fmt: skip
     run(skill_usage_collect())
+    assert len(collected(state)) == 4
+
+    # Claude Code clears part of the session: a subagent's file, in either layout, and a call
+    # from the transcript itself. What was collected of them stays: that is what a record is
+    transcripts.file("s1", "a1").unlink()
+    transcripts.file("agent-a2").unlink()
     text = transcripts.file("s1").read_text("utf-8")
     lines = [line for line in text.splitlines() if "toolu_b" not in line]
     transcripts.file("s1").write_text("\n".join(lines) + "\n", "utf-8")
+    data = run(skill_usage_collect())
+    assert len(collected(state)) == 4 and (source(data)["read"], source(data)["removed"]) == (1, 0)
+    assert run(skill_usage_collect(rebuild=True))["removed"] == 0
 
-    data = run(skill_usage_collect())  # no rebuild: the next collection sees it
+    # a call that is still there and now shows another skill is read as it is now
+    text = transcripts.file("s1").read_text("utf-8")
+    transcripts.file("s1").write_text(text.replace("plant-beds", "prune-roses"), "utf-8")
+    data = run(skill_usage_collect())
+    assert sorted((event.id.partition("@")[2], event.skill) for event in collected(state)) == [
+        ("toolu_a", "prune-roses"), ("toolu_b", "prune-roses"), ("toolu_c", "prune-roses"),
+        ("toolu_d", "prune-roses"),
+    ]  # fmt: skip
+    assert (source(data)["removed"], data["added"]) == (1, 1)
 
-    assert [event.skill for event in collected(state)] == ["plant-beds"]
-    assert (source(data)["removed"], data["added"]) == (1, 0)
+
+def test_a_transcript_that_appears_after_its_copy_loses_nothing(
+    state: Path, transcripts: Transcripts
+) -> None:
+    # only the continued session's transcript is here, holding the first one's rows
+    transcripts.call("first", "Skill", {"skill": "plant-beds"}, stamp(3), call="toolu_a",
+                     into="second")  # fmt: skip
+    run(skill_usage_collect())
+    # then the first one's own transcript appears, and the second goes on
+    transcripts.call("first", "Skill", {"skill": "plant-beds"}, stamp(3), call="toolu_a")
+    run(skill_usage_collect())
+    transcripts.call("second", "Skill", {"skill": "prune-roses"}, stamp(1), call="toolu_b")
+
+    data = run(skill_usage_collect())
+
+    assert sorted((event.thread, event.skill) for event in collected(state)) == [
+        ("claude-code:first", "plant-beds"), ("claude-code:second", "prune-roses"),
+    ]  # fmt: skip
+    assert source(data)["removed"] == 0
+
+
+def test_a_call_t3_codes_store_missed_is_no_session_of_its_own(
+    state: Path, t3_store: T3Store, transcripts: Transcripts, checkout: Path
+) -> None:
+    thread = t3_store.thread("main")
+    for number in range(5):
+        t3_store.skill_tool(thread, "plant-beds", stamp(2, number), native_id=f"toolu_{number}")
+        transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2, number),
+                         call=f"toolu_{number}", entrypoint="sdk-ts")  # fmt: skip
+    # T3 Code ran the whole session, and its store missed this call and this command
+    transcripts.call("s1", "Read", {"file_path": skill_file(checkout, "prune-roses")}, stamp(1),
+                     entrypoint="sdk-ts")  # fmt: skip
+    transcripts.say("s1", "<command-name>/prune-roses</command-name>", stamp(1),
+                    entrypoint="sdk-ts")  # fmt: skip
+
+    run(skill_usage_collect())
+
+    assert sorted(store.load_sessions(state)) == ["main"]
+    assert {event.source for event in collected(state)} == {"t3-code"}
+
+    # until the session is continued in another program: that part is a session of its own
+    transcripts.call("s1", "Read", {"file_path": skill_file(checkout, "prune-roses")}, stamp(0))
+    run(skill_usage_collect())
+    assert sorted(store.load_sessions(state)) == ["claude-code:s1", "main"]
+    assert [(event.thread, event.skill) for event in collected(state)
+            if event.source == "claude-code"] == [("claude-code:s1", "prune-roses")]  # fmt: skip
+
+
+def test_git_that_does_not_answer_leaves_a_transcript_for_the_next_time(
+    state: Path, transcripts: Transcripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2))
+    transcripts.call("s2", "Skill", {"skill": "plant-beds"}, stamp(2),
+                     cwd=str(transcripts.cwd / ".claude"))  # fmt: skip
+    asked: list[str] = []
+
+    def stalls(folder: Path, *args: str, **more: object) -> str:
+        asked.append(str(folder))
+        raise claude_code.GitError("git rev-parse --git-common-dir: timed out after 10 seconds")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(claude_code, "git_out", stalls)
+        data = run(skill_usage_collect())
+
+    assert (source(data)["not_read"], data["added"], len(asked)) == (2, 0, 1)  # asked once
+    assert run(skill_usage_collect())["added"] == 2  # and read when git answers again
 
 
 def test_a_transcript_that_cannot_be_read_whole_is_left_as_it_was(
@@ -502,7 +603,8 @@ def test_a_load_two_sources_show_is_one_load(
     # T3 Code has since dropped the thread; Claude Code still has the session's transcript
     emptied = T3Store(tmp_path / "later.sqlite")
     monkeypatch.setenv(store.T3_STORE_ENV, str(emptied.path))
-    transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_one")
+    transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_one",
+                     entrypoint="t3-code")  # fmt: skip
     transcripts.call("s1", "Skill", {"skill": "prune-roses"}, stamp(2), call="toolu_two")
 
     run(skill_usage_collect())
@@ -520,8 +622,9 @@ def test_a_rebuild_reads_every_transcript_again_and_keeps_what_is_gone(
     run(skill_usage_collect())
     transcripts.file("goes").unlink()  # Claude Code clears old transcripts
     recognised = collected(state)
-    stale = [{**event.to_json(), "id": f"{event.id}-old", "skill": "an-old-reading"}
-             for event in recognised]  # fmt: skip
+    # as an older botcore read the same calls: the same call, another name for the skill
+    stale = [{**event.to_json(), "id": f"cc:an-old-reading@{event.id.partition('@')[2]}",
+              "skill": "an-old-reading"} for event in recognised]  # fmt: skip
     with (state / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
         handle.writelines(json.dumps(event) + "\n" for event in stale)
 

@@ -11,7 +11,6 @@ import hashlib
 import re
 import sqlite3
 import uuid
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -413,39 +412,28 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
     # a skill that T3 Code's sessions loaded in this very read is a skill to a command typed
     # elsewhere
     loaded = known_skills | {(e.project, e.skill) for e in from_t3 if e.path != TYPED}
-    from_claude: list[Event] = []
+    fresh: dict[str, Event] = {}
     for event in _events(claude.loads, claude_code.SOURCE, names, projects, machine, loaded):
-        if event.id not in {found.id for found in from_claude}:
-            from_claude.append(event)  # once, however many transcripts hold the call
+        fresh.setdefault(event.id, event)  # once, however many transcripts hold the call
+    from_claude = list(fresh.values())
     events = [*from_t3, *from_claude]
-
-    # What a transcript read this time gave before is replaced by what it gives now: a call
-    # that has become T3 Code's, or is no longer there, leaves the record. A session that
-    # several transcripts give (its own is gone, and copies of its rows remain) only gains:
-    # one copy read again does not speak for the others
-    givers = Counter(
-        name for entry in claude.files.values() for name in _strings(entry.get("sessions"))
-    )
-    fresh = {event.id for event in from_claude}
-    replaced = [
-        event
-        for event in stored
-        if event.source == claude_code.SOURCE
-        and event.thread in claude.replaced
-        and givers[event.thread] <= 1
-        and event.id not in fresh
-    ]
-    held = found.items or set()
+    read_now = {event.id for event in events}
 
     def gone(event: Event) -> bool:
-        """What a rebuild read again and no longer recognises. What it cannot read again
-        is kept: an item the store has dropped, a transcript that is gone."""
+        """What was read again and is no longer a load. An event leaves the record only
+        when what it was read from was in front of this collection and did not give it
+        again: an item the store has dropped, a call whose file is gone or no longer holds
+        it, stays. For T3 Code's store that is a rebuild; a transcript is read whole each
+        time, so a call that has become T3 Code's, or changed, goes at once."""
+        if event.id in read_now:
+            return False
         if event.source == t3.SOURCE:
-            return rebuild and path is not None and _item(event) in held
+            return rebuild and path is not None and _item(event) in (found.items or set())
+        if event.source == claude_code.SOURCE:
+            return _item(event) in claude.seen
         return False
 
-    dropped = [event for event in stored if gone(event) and event.id not in {e.id for e in events}]
-    dropped += replaced
+    dropped = [event for event in stored if gone(event)]
     added = [event for event in events if event.id not in known_ids]
     if dropped or rebuild:
         lost = {event.id for event in dropped}
@@ -462,8 +450,9 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         for source in (t3.SOURCE, claude_code.SOURCE)
     }
 
-    # a session a transcript no longer gives, and no other transcript does, was T3 Code's
-    for thread in claude.replaced - set(givers):
+    # a session met this time that is T3 Code's, and that no transcript gives, is not ours
+    given = {name for entry in claude.files.values() for name in _strings(entry.get("sessions"))}
+    for thread in claude.t3_sessions - given:
         sessions.pop(thread, None)
     for session in [*found.sessions, *claude.sessions]:
         sessions[session.id] = {

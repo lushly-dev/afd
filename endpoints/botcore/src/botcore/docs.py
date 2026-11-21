@@ -109,9 +109,10 @@ Nothing is added to a skill and no agent reports anything: the loads are read, r
 from T3 Code's store (one snapshot, its Claude and Codex threads alike) and, for sessions T3
 Code did not run, from Claude Code's transcripts (`~/.claude/projects`, or
 `BOTCORE_SKILL_USAGE_CLAUDE_DIR`; empty turns it off). A tool call T3 Code ran is left to its
-store, so a load both show is one load; only a transcript that changed is read again, and
-what it gave before is replaced by what it gives. A session outside any repository is filed
-as `unknown`. `sources` says what each source did (for the transcripts: how many were
+store, so a load both show is one load; only a transcript that changed is read again. A load
+leaves the record only when its call is read again and is no longer one; what Claude Code
+has cleared keeps what was collected of it. A session outside any repository is filed as
+`unknown`. `sources` says what each source did (for the transcripts: how many were
 `read`, `unchanged` or `not_read` because a file could not be opened, and `removed`); a
 machine with neither source succeeds with nothing read.
 - A load is: the Skill tool; a file tool that reads `…/skills/<name>/SKILL.md`; a shell command
