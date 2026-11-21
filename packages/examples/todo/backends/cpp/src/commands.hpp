@@ -5,24 +5,17 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
 #include "store.hpp"
 #include <afd/command.hpp>
-#include <afd/registry.hpp>
 
 namespace todo {
 
 /// The todo commands over `store`, in the TypeScript backend's order. Every successful change is
 /// recorded in the store's history.
 std::vector<afd::CommandDefinition> todo_commands(const std::shared_ptr<TodoStore>& store);
-
-/// Registers every todo command on `registry`, backed by `store`. Returns an error message if a
-/// command could not be registered.
-std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry,
-                                                  const std::shared_ptr<TodoStore>& store);
 
 /// The text a person approves for a held `todo-clear`: what goes for good, and how many that is
 /// now.
