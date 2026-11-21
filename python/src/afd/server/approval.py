@@ -58,6 +58,7 @@ from afd.core.commands import CommandContext, CommandDefinition, CommandMiddlewa
 from afd.core.errors import ErrorCodes
 from afd.core.journal import _js_number, _js_string
 from afd.core.result import CommandError, CommandResult, failure
+from afd.server.approval_admission import admit_approval, gates, live_command
 from afd.server.approval_relay import (
     AcceptedApproval,
     ApprovalQuestion,
@@ -164,7 +165,7 @@ from afd.core.direct_approval import _exchange
 def create_approval_middleware(
     *,
     secret: Union[ApprovalSecret, Sequence[ApprovalSecret]],
-    commands: Iterable[Any],
+    commands: Optional[Iterable[Any]] = None,
     ttl_ms: float = _DEFAULT_TTL_MS,
     replay: Literal["single-use", "within-ttl"] = "single-use",
     nonce_store: Optional[ApprovalNonceStore] = None,
@@ -181,6 +182,10 @@ def create_approval_middleware(
     Otherwise it returns ``APPROVAL_REQUIRED`` with a fresh token, and the handler does
     not run.
 
+    Under ``create_server`` and ``create_direct_registry`` it decides from each command's own
+    policy. Without it, those engines refuse a command whose policy is not ``"not-required"``
+    with ``APPROVAL_UNAVAILABLE``, so a declared policy always holds (#1886).
+
     Install it after any middleware that sets or refines ``context.actor`` (such as
     auth), since tokens are bound to the actor. ``context.approval`` must only ever be
     set by trusted surface code once a human approved, never from tool arguments:
@@ -190,9 +195,13 @@ def create_approval_middleware(
         secret: The HMAC key, or several during a key rotation: the first signs, any
             of them verifies. Required, with no default; each key must be at least 32
             bytes. Keep it out of source.
-        commands: The commands to gate: :class:`CommandDefinition` objects or functions
-            decorated with ``define_command``. A command that is not in this list is
-            never held, whatever its ``approval`` policy says.
+        commands: Optional. :class:`CommandDefinition` objects or functions decorated with
+            ``define_command``. The middleware decides from the policy and ``confirm_prompt``
+            of the command each call runs (under ``create_server`` and
+            ``create_direct_registry``), and also from the policy this list gives that
+            command: a call is held when either holds it, so a gate declared only here still
+            holds. Outside those engines, where no engine names the command, only this list
+            decides, and a command missing from it is not held. Each policy given is validated.
         ttl_ms: How long a token stays valid, in milliseconds. Default: 300000
             (5 minutes); at most 24 hours.
         replay: ``"single-use"`` (default): a token runs the command once; a second
@@ -232,16 +241,11 @@ def create_approval_middleware(
             positive number of milliseconds of at most 24 hours.
 
     Example:
-        >>> commands = [todo_delete, todo_list]  # decorated with define_command
         >>> server = create_server(
         ...     "todo",
-        ...     middleware=[
-        ...         create_approval_middleware(
-        ...             secret=os.environ["AFD_APPROVAL_SECRET"], commands=commands
-        ...         )
-        ...     ],
+        ...     middleware=[create_approval_middleware(secret=os.environ["AFD_APPROVAL_SECRET"])],
         ... )
-        >>> for command in commands:
+        >>> for command in [todo_delete, todo_list]:  # decorated with define_command
         ...     server.register(command)
     """
     keys = _to_keys(secret)
@@ -263,7 +267,7 @@ def create_approval_middleware(
     memory_store = None if nonce_store is not None else _MemoryNonceStore()
 
     gated: dict[str, Any] = {}
-    for command in commands:
+    for command in commands or ():
         definition = _as_command(command)
         policy = getattr(definition, "approval", None)
         if policy is not None and policy not in ("required", "not-required") and not callable(policy):
@@ -272,6 +276,31 @@ def create_approval_middleware(
                 "use 'required', 'not-required' or a function"
             )
         gated[definition.name] = definition
+
+    def command_for(command_name: str, context: CommandContext) -> Any:
+        """The command ``command_name`` names for this call: the one the engine runs (its own
+        policy and prompt), else, for another step of an up-front batch or pipeline, the server's
+        definition, else, outside the engine, the ``commands`` entry."""
+        live = live_command(context)
+        if live is not None and live.name == command_name:
+            return live
+        up_front = current_up_front_approval()
+        found = up_front.command(command_name) if up_front is not None else None
+        return found if found is not None else gated.get(command_name)
+
+    def policies_for(command_name: str, context: CommandContext) -> list[Any]:
+        """The policies that decide ``command_name`` for this call: the command's own (see
+        ``command_for``) and, when it differs, the one the ``commands`` option lists for it."""
+        own = getattr(command_for(command_name, context), "approval", None)
+        listed = getattr(gated.get(command_name), "approval", None)
+        return [own] if listed is None or listed is own else [own, listed]
+
+    async def holds(command_name: str, input: Any, context: CommandContext) -> bool:
+        """Whether this call needs approval: its own policy or its listed one holds it."""
+        for policy in policies_for(command_name, context):
+            if await _requires_approval(policy, input, context):
+                return True
+        return False
 
     def verify(
         evidence: Any, command_name: str, input_binding: str, actor_binding: str, now: float
@@ -348,6 +377,7 @@ def create_approval_middleware(
     def summary_of(command_name: str, input: Any, context: CommandContext) -> str:
         return (
             (summarize(command_name, input, context) if summarize is not None else None)
+            or getattr(command_for(command_name, context), "confirm_prompt", None)
             or getattr(gated.get(command_name), "confirm_prompt", None)
             or f"Run {command_name}"
         )
@@ -392,9 +422,8 @@ def create_approval_middleware(
 
     up_front_deps = _UpFrontDeps(
         now=security_clock.now,
-        requires=lambda name, value, context: _requires_approval(gated.get(name), value, context),
-        may_require=lambda name: getattr(gated.get(name), "approval", None)
-        not in (None, "not-required"),
+        requires=holds,
+        may_require=lambda name, context: any(gates(p) for p in policies_for(name, context)),
         keys=keys,
         genuine=genuine,
         spend=spend,
@@ -403,8 +432,15 @@ def create_approval_middleware(
     )
 
     async def approval_middleware(
-        command_name: str, input: Any, context: CommandContext, next_fn: NextFn
+        command_name: str, input: Any, context: CommandContext, outer_next: NextFn
     ) -> CommandResult[Any]:
+        # Every way this middleware lets the call through admits this command on this input,
+        # which the engine checks, and takes, before it dispatches a command that declares an
+        # approval policy.
+        async def next_fn() -> CommandResult[Any]:
+            admit_approval(context, command_name, input, _canonical_or_none)
+            return await outer_next()
+
         # Claimed only by the command the tool call routes to, once, gated or not, so a command
         # that runs inside another (or after it) cannot turn the tool call into an elicitation.
         bound = current_approval_relay() if relays else None
@@ -413,8 +449,8 @@ def create_approval_middleware(
         up_front = current_up_front_approval() if relays else None
         if up_front is not None:
             return await up_front.run(up_front_deps, command_name, input, context, next_fn)
-        command = gated.get(command_name)
-        if not await _requires_approval(command, input, context):
+        # The policy of the command this call runs, and the one the `commands` option lists.
+        if not await holds(command_name, input, context):
             return await next_fn()
 
         now = security_clock.now()
@@ -560,7 +596,7 @@ class _UpFrontDeps:
 
     now: Callable[[], float]
     requires: Callable[[str, Any, CommandContext], Awaitable[bool]]
-    may_require: Callable[[str], bool]
+    may_require: Callable[[str, CommandContext], bool]
     keys: Sequence[bytes]
     genuine: Callable[[AcceptedApproval, Sequence[str], float], bool]
     spend: Callable[[str, float, float], Awaitable[bool]]
@@ -570,8 +606,8 @@ class _UpFrontDeps:
     async def requires_approval(self, command: str, input: Any, context: CommandContext) -> bool:
         return await self.requires(command, input, context)
 
-    def may_require_approval(self, command: str) -> bool:
-        return self.may_require(command)
+    def may_require_approval(self, command: str, context: CommandContext) -> bool:
+        return self.may_require(command, context)
 
     def binding_input(self, input: Any) -> str:
         return _canonical_json(_plain_input(input))
@@ -591,11 +627,11 @@ class _UpFrontDeps:
         return [_b64url(_hmac(key, f"relay-call\0{call}")) for key in self.keys]
 
 
-async def _requires_approval(command: Any, input: Any, context: CommandContext) -> bool:
-    policy = getattr(command, "approval", None)
+async def _requires_approval(policy: Any, input: Any, context: CommandContext) -> bool:
     if policy is None or policy == "not-required":
         return False
-    if policy == "required":
+    # Fail closed: "required" or anything that is not a function holds the call.
+    if not callable(policy):
         return True
     decision = policy(input, context)
     if inspect.isawaitable(decision):
@@ -637,6 +673,15 @@ def _plain_input(value: Any) -> Any:
         _check_bindable(value)
         return value.model_dump(mode="json", by_alias=True)
     return value
+
+
+def _canonical_or_none(value: Any) -> Optional[str]:
+    """The canonical JSON of a validated input, or ``None`` when it has none (an approval
+    admission then compares the input by identity)."""
+    try:
+        return _canonical_json(_plain_input(value))
+    except (TypeError, ValueError, RecursionError):
+        return None
 
 
 def _check_bindable(value: Any) -> None:

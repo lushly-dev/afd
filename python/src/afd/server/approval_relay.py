@@ -267,7 +267,7 @@ class UpFrontDeps(Protocol):
     async def requires_approval(self, command: str, input: Any, context: CommandContext) -> bool:
         """Whether ``command``'s policy holds this input."""
 
-    def may_require_approval(self, command: str) -> bool:
+    def may_require_approval(self, command: str, context: CommandContext) -> bool:
         """Whether ``command``'s policy could hold some input (``"required"`` or a function)."""
 
     def binding_input(self, input: Any) -> str:
@@ -328,8 +328,10 @@ class UpFrontApproval:
         request: Any,
         can_run: CanRun,
         validate: StepValidator,
+        lookup: Optional[Callable[[str], Any]] = None,
     ) -> None:
         self.relay = relay
+        self._lookup = lookup
         self.tool = tool
         self._request = request
         self._can_run = can_run
@@ -349,6 +351,11 @@ class UpFrontApproval:
         # One plan per approval middleware, shared by the call's steps (concurrent ones too).
         self._plans: dict[int, asyncio.Future[_Plan]] = {}
         self._tags: dict[int, list[str]] = {}
+
+    def command(self, command: str) -> Any:
+        """The server's definition of ``command`` (its approval policy and prompt), so the
+        middleware decides every step from the command that step runs; ``None`` when unknown."""
+        return self._lookup(command) if self._lookup is not None else None
 
     async def steps(self) -> list[UpFrontStep]:
         """The call's steps, worked out once. A step the human already approved in an earlier
@@ -443,7 +450,11 @@ class UpFrontApproval:
     async def _decide(self, deps: UpFrontDeps, context: CommandContext) -> _Plan:
         steps = await self.steps()
         late = next(
-            (step for step in steps if step.dynamic and deps.may_require_approval(step.command)),
+            (
+                step
+                for step in steps
+                if step.dynamic and deps.may_require_approval(step.command, context)
+            ),
             None,
         )
         if late is not None:

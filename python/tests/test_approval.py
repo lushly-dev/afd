@@ -122,13 +122,20 @@ def test_define_command_rejects_an_invalid_policy():
 
 
 async def test_server_reports_approval_and_version_in_meta_detail_and_docs():
-    server = create_server("approval-meta", tool_strategy="individual", bootstrap=True)
+    # The engine refuses a gated command without an approval step (#1886), so this server has
+    # one; its policy lets the empty input through, and the call is stamped with the version.
+    server = create_server(
+        "approval-meta",
+        tool_strategy="individual",
+        bootstrap=True,
+        middleware=[create_approval_middleware(secret=SECRET)],
+    )
 
     @server.command(
         name="todo-delete",
         description="Delete a todo",
         mutation=True,
-        approval=lambda input, context: "required",
+        approval=lambda input, context: "required" if input else "not-required",
         version="2.1.0",
         expose=MCP,
     )
