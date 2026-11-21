@@ -181,7 +181,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 ## Phase 4. Provider logs
 
-- Claude Code's transcripts as a source (#1820): merged in #1892.
+- Claude Code's transcripts as a source (#1820): merged in #1893.
 
 ## Later
 
