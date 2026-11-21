@@ -167,8 +167,10 @@ a shared folder, every other machine's, each session once; run `skill_usage_coll
   compare two periods. `limit`: skills listed, most used first; `more` counts the rest.
 - A project, harness or skill the record has never seen is `INVALID_INPUT` with the known
   values, not an empty report. `warnings` says when a machine's record is over a day old,
-  when lines of one could not be read, when the shared folder was not there, and when an
-  older botcore recognised events. Also `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`.
+  when lines of one could not be read, when a machine's copy in the shared folder is not
+  whole and was not read (a sync part way through), when the shared folder was not there,
+  and when an older botcore recognised events. Also `RECORD_UNAVAILABLE`,
+  `MACHINE_SETTINGS_INVALID`.
 
 ## skill_usage_triggers(days=30, repo=None)
 Read-only. For each skill a repository requires, the changes merged to its default branch in
@@ -202,7 +204,8 @@ declared today judges the record as it stands.
   and when an older botcore recognised its events (rebuild).
 - `repo`: the repository's checkout; the one holding the working directory when left out.
 - It reads every machine's record, as the usage report does, so a change opened on another
-  machine is judged here.
+  machine is judged here. A machine's copy that is not whole is not read, and is named in
+  `warnings`: its changes are `no_session` until it is.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),
   `RECORD_DAMAGED` (a line of a machine's record cannot be read: rebuild on that machine, or

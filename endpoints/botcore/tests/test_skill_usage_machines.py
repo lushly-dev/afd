@@ -83,9 +83,9 @@ def test_collection_also_writes_the_record_to_the_shared_folder(machines: Machin
     for name in (store.EVENTS_FILE, store.SESSIONS_FILE):
         assert (folder / name).read_bytes() == (machines.record("bench") / name).read_bytes()
     # of its state a machine shares what another needs, and none of its folders
-    assert sorted(json.loads((folder / store.STATE_FILE).read_text("utf-8"))) == [
-        "collected_at", "machine", "recognizer", "version",
-    ]  # fmt: skip
+    shared_state = json.loads((folder / store.STATE_FILE).read_text("utf-8"))
+    assert sorted(shared_state) == ["collected_at", "files", "machine", "recognizer", "version"]
+    assert sorted(shared_state["files"]) == [store.EVENTS_FILE, store.SESSIONS_FILE]
     assert str(machines.project) in (machines.record("bench") / store.STATE_FILE).read_text()
     for found in folder.iterdir():
         assert str(machines.project) not in found.read_text("utf-8")
@@ -174,15 +174,58 @@ def test_a_machine_whose_record_is_old_or_damaged_is_named(machines: Machines, r
     assert warning.startswith(f"shed last collected {stamp(3)}") and "disk-status" in warning
     assert rule(run(skill_usage_triggers(repo=str(repo))))["changes"] == 1
 
-    with (machines.shared / "tower" / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
-        handle.write('{"id": "half a line')
-    (machines.shared / "shed" / store.SESSIONS_FILE).write_text("{ half a file", "utf-8")
+    # the shed's own record has a line that cannot be read, and it shares it as it is
+    machines.on("shed")
+    with (machines.record("shed") / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
+        handle.write('{"id": "a lost load\n')
+    run(skill_usage_collect())
+    machines.on("bench")
 
     warnings = run(skill_usage_report())["warnings"]
     assert "1 lines of shed's record could not be read and were skipped" in warnings
-    assert "1 lines of tower's record could not be read and were skipped" in warnings
     damaged = fail(skill_usage_triggers(repo=str(repo)))  # a lost load would make a miss
-    assert damaged.code == "RECORD_DAMAGED" and "shed, tower" in damaged.message
+    assert damaged.code == "RECORD_DAMAGED" and "(shed)" in damaged.message
+
+
+def test_a_copy_that_a_sync_has_only_half_delivered_is_not_read(
+    machines: Machines, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("early"), "plant-beds", stamp(2))
+    run(skill_usage_collect())
+    before = {name: (machines.shared / "shed" / name).read_bytes() for name in store.RECORD_FILES}
+    opener = session(shed, "opener", (101, stamp(2)))
+    shed.skill_tool(opener, "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    after = {name: (machines.shared / "shed" / name).read_bytes() for name in before}
+    bench = machines.on("bench")
+    bench.skill_tool(bench.thread("idle"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    assert rule(run(skill_usage_triggers(repo=str(repo))))["loaded"] == 1
+
+    # the sync has brought the shed's new sessions, and not yet its new events: read as they
+    # lie, the session that opened the pull request would have loaded nothing
+    (machines.shared / "shed" / store.EVENTS_FILE).write_bytes(before[store.EVENTS_FILE])
+
+    data = run(skill_usage_triggers(repo=str(repo)))
+    assert why(rule(data)) == {"no_session": 1} and rule(data)["missed"] == 0
+    assert any("shed's copy in the shared folder is not whole" in w for w in data["warnings"])
+    report = run(skill_usage_report())
+    assert report["record"]["machines"] == ["bench"]
+    assert any("shed's copy in the shared folder is not whole" in w for w in report["warnings"])
+
+    # nor is one whose state is the older one, or has not arrived at all
+    (machines.shared / "shed" / store.EVENTS_FILE).write_bytes(after[store.EVENTS_FILE])
+    (machines.shared / "shed" / store.STATE_FILE).write_bytes(before[store.STATE_FILE])
+    assert run(skill_usage_report())["record"]["machines"] == ["bench"]
+    (machines.shared / "shed" / store.STATE_FILE).unlink()
+    assert run(skill_usage_report())["record"]["machines"] == ["bench"]
+    (machines.shared / "shed" / store.STATE_FILE).write_bytes(after[store.STATE_FILE])
+    assert run(skill_usage_report())["record"]["machines"] == ["bench", "shed"]  # all arrived
+    # and the other way about: its new events, and not yet the sessions they belong to
+    (machines.shared / "shed" / store.SESSIONS_FILE).write_bytes(before[store.SESSIONS_FILE])
+    assert run(skill_usage_report())["record"]["machines"] == ["bench"]
 
 
 def test_a_change_opened_on_another_machine_is_judged_here(machines: Machines, repo: Path) -> None:

@@ -11,6 +11,7 @@ Botcore does not sync the folder.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
@@ -29,6 +30,7 @@ SHARED_ENV = "BOTCORE_SKILL_USAGE_SHARED"
 EVENTS_FILE = "events.jsonl"
 STATE_FILE = "state.json"
 SESSIONS_FILE = "sessions.json"
+RECORD_FILES = (EVENTS_FILE, STATE_FILE, SESSIONS_FILE)
 LOCK_FILE = "collect.lock"
 
 
@@ -219,17 +221,17 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
         raise SharedUnavailable(f"{shared} is not a folder this machine can see")
     target = shared / machine
     state = load_state(directory)
-    files = {
-        STATE_FILE: json.dumps(
-            {key: state[key] for key in SHARED_STATE if key in state}, indent=2, sort_keys=True
-        ).encode("utf-8")
-        + b"\n"
-    }
+    files: dict[str, bytes] = {}
     for name in (EVENTS_FILE, SESSIONS_FILE):
         try:
             files[name] = (directory / name).read_bytes()
         except FileNotFoundError:
             continue
+    # The state goes last and says what the other two files must be: a sync delivers files
+    # one at a time, and a reader must not take new sessions with old events
+    shared_state = {key: state[key] for key in SHARED_STATE if key in state}
+    shared_state["files"] = {name: _digest(data) for name, data in files.items()}
+    files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     written = False
     for name, data in files.items():
         destination = target / name
@@ -246,6 +248,26 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     return written
 
 
+def _digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _whole(folder: Path, state: dict) -> bool:
+    """Whether a machine's folder holds the files its state says it wrote: every one, and
+    no other version of any."""
+    files = state.get("files")
+    if not isinstance(files, dict):
+        return False
+    for name in (EVENTS_FILE, SESSIONS_FILE):
+        try:
+            found = _digest((folder / name).read_bytes())
+        except FileNotFoundError:
+            found = None
+        if files.get(name) != found:
+            return False
+    return True
+
+
 @dataclass
 class Record:
     """This machine's record and, where a shared folder is named, every other machine's."""
@@ -256,6 +278,7 @@ class Record:
     # machine -> when it last collected, for every machine read
     collected: dict[str, str | None] = field(default_factory=dict)
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
+    partial: list[str] = field(default_factory=list)  # machines whose copy is not whole
     recognizer: int | None = None  # the oldest rules any machine's record began under
     shared: Path | None = None
     missing: str | None = None  # why the shared folder was not read
@@ -307,13 +330,15 @@ def load_record(directory: Path, here: Local) -> Record:
         if machine == here.machine or not folder.is_dir() or machine.startswith("."):
             continue
         state = load_state(folder)
-        theirs, unreadable = load_events(folder)
-        try:
-            sessions = load_sessions(folder)
-        except RecordDamaged:  # a copy half written or half synced: say so, and read the rest
-            sessions, unreadable = {}, unreadable + 1
-        if not (state or theirs or sessions or unreadable):
+        if not state and not any((folder / name).exists() for name in RECORD_FILES):
             continue  # not a machine's record
+        if not _whole(folder, state):
+            # a sync is part way through, or a write was cut short: taking new sessions
+            # with old events would show sessions that loaded nothing
+            record.partial.append(machine)
+            continue
+        theirs, unreadable = load_events(folder)
+        sessions = load_sessions(folder)
         record.collected[machine] = state.get("collected_at")
         if unreadable:
             record.unreadable[machine] = unreadable

@@ -182,6 +182,11 @@ def record_warnings(record: Record, here: Local, now: datetime) -> list[str]:
             )
     if record.missing:
         warnings.append(f"{record.missing}, so only this machine's record was read")
+    for machine in record.partial:
+        warnings.append(
+            f"{machine}'s copy in the shared folder is not whole, so it was not read: a sync "
+            "may be part way through. Its next collection writes it again"
+        )
     return warnings
 
 

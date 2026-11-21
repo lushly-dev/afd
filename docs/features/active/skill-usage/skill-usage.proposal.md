@@ -308,13 +308,17 @@ skill_usage_collect = false                 # only to turn the hourly collection
 The shared folder is any folder every machine can see, whether a synced drive or a checkout.
 After each collection a machine writes its record to a folder of its own name there: its
 events and sessions, and of its state only when it collected and under which rules, never its
-folders. A file that did not change is not written again, so a sync has little to send.
+folders. A file that did not change is not written again, so a sync has little to send. The
+state is written last and says what the other two files must be.
 
 The usage report and the triggers report read this machine's record and every other machine's
 folder, each event and session once. A thread moved between machines is one session, with the
-pull requests either machine saw. Both name a machine whose collection is over a day old, and
-one whose copy cannot be read whole; the triggers report then judges nothing, since a lost
-load would make a miss.
+pull requests either machine saw. Both name a machine whose collection is over a day old. A
+sync delivers files one at a time, and a machine's new sessions read with its old events would
+show a session that opened a pull request and loaded nothing: a copy whose files are not the
+ones its state names is not read, and is named. A machine's record with a line that cannot be
+read is named too, and the triggers report then judges nothing, as it does for this
+machine's.
 
 The folder holds session ids, project names and pull request numbers, so it must be private.
 Botcore does not sync it and never creates it: a folder that is not there is a drive or a

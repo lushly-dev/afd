@@ -2696,7 +2696,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "db182399c1cbdf5f527bc8f61de69cf32acbf69dcb20657c8eae713cd5320327",
+      "current_import_sha256": "4afac742137c7ce4d4a6ce6030dc86c9f88d7609a395ca8526054b567e157421",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
@@ -2707,7 +2707,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "719211e52ee43515349c827d56fa17baf4bbf53da801032b98992cfeb30fe9e9",
+      "current_import_sha256": "8458a27aaaf38776034319d5e119bb79e7ed23b7c5b667528064b400868950a0",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
@@ -2778,7 +2778,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "e250adcc8d308b8373facc18f2dd45cb84aca648c1a0dfbbe8c432384147f47d",
+      "current_import_sha256": "2e3aec5276c0d38677b8e5c41f85dfbbb155982d406f42427dd09b9608c776ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -6547,7 +6547,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5d8242a5432589255e7ac9a30e52808afe8ddcd01b2d4548eb64feb8e8129209",
+      "current_import_sha256": "6d2e7b7aaac95a69c2c8e193f7fba2b4dffdc18a926764432869c7141708fe7a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
