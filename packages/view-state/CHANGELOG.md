@@ -1,5 +1,16 @@
 # @lushly-dev/afd-view-state
 
+## 2.5.0
+
+### Minor Changes
+
+- [#1650](https://github.com/lushly-dev/afd/pull/1650) [`68b0024`](https://github.com/lushly-dev/afd/commit/68b002499c6ccd9194f48e77d5e0046fd8a1b377) Thanks [@Falkicon](https://github.com/Falkicon)! - `ViewStateRegistry.flush()` resolves with `{ failed }`, the IDs whose write failed, instead of nothing, and a failed write is kept and written again by the next flush, unless a newer state for its ID replaced it. Before, a failed write was logged and dropped, so a caller that awaited `flush()` could not tell its state was not stored. `flush()` still never rejects. A `hydrate()` that applies an ID's stored state drops a write kept for it, including one that fails while being written, and a failing ID is logged once until a write of it succeeds. The new `ViewStateFlushResult` type is exported.
+
+### Patch Changes
+
+- Updated dependencies [[`5962565`](https://github.com/lushly-dev/afd/commit/5962565062f2f34331f4c5e1f14b132700736959), [`274fcca`](https://github.com/lushly-dev/afd/commit/274fcca21fdeebb344a19873cea5b37a41cf80ff), [`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`f1b4e51`](https://github.com/lushly-dev/afd/commit/f1b4e51fe863dcd3ba8dab509b9e9a1af390b4ce), [`68b0024`](https://github.com/lushly-dev/afd/commit/68b002499c6ccd9194f48e77d5e0046fd8a1b377), [`4da865f`](https://github.com/lushly-dev/afd/commit/4da865ffd7b7d7717e77b7ab83b9101b11ed8019), [`e96c2f0`](https://github.com/lushly-dev/afd/commit/e96c2f0022745190659d9ef1eff4e024b69ce5ae), [`076b364`](https://github.com/lushly-dev/afd/commit/076b3643552fe7bac71b81f78843dc5a973f8772)]:
+  - @lushly-dev/afd-server@2.5.0
+
 ## 2.4.0
 
 ### Patch Changes

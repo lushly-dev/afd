@@ -1,21 +1,62 @@
 {
 	"schemaVersion": 1,
-	"selectedUnits": ["violet-elements"],
-	"inventoryHash": "2e14649d9365f274f9e9937665cc6203bf30339e5885807cd17f78496696eae8",
-	"sourceDigest": "63c174e9b93d7db20fe820f849165ab763e3475cac3e02cef13b81ba7ce03444",
-	"supersedes": {
-		"intentDigest": "571f4963b8fb23df6cfa3c545d6e37c97c2b13113582850fdc2869f49a6df38b",
-		"statusId": 59519695251,
-		"runId": "44827924550",
-		"attempt": "1",
-		"reason": "Acquire claim readback failed on GitHub status lag before any npm upload"
-	},
+	"selectedUnits": ["afd-npm"],
+	"inventoryHash": "aaf6e40d20403f0c83cf826020f5a246852b0f1f212c39533902f784cdab32bc",
+	"sourceDigest": "94b0eb3709bd35615765e3a461aee775ae04815115b79c5ad9ff6d8d9fa674c2",
 	"distributions": [
 		{
-			"name": "@lushly-dev/violet-elements",
-			"version": "0.2.0-preview.3",
-			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"manifestHash": "3aa69658b642469de8eda81f6478199b04e9a0786bd04a299f0df3d327c2687e"
+			"name": "@lushly-dev/afd-adapters",
+			"version": "2.5.0",
+			"manifest": "packages/adapters/package.json",
+			"manifestHash": "e3bbadb5e83131fb92962f17e6a445ba25e49f833ccb25293b56ef2fc70a7d51"
+		},
+		{
+			"name": "@lushly-dev/afd-auth",
+			"version": "2.5.0",
+			"manifest": "packages/auth/package.json",
+			"manifestHash": "3e76b54159b894f99954cf323b253195068cc7596ea7c165bd7877260a23b4bb"
+		},
+		{
+			"name": "@lushly-dev/afd-cli",
+			"version": "2.5.0",
+			"manifest": "packages/cli/package.json",
+			"manifestHash": "6816320f3472598b43131a4079501e9b79443241942b13cf92b4b5ac6ff54f27"
+		},
+		{
+			"name": "@lushly-dev/afd-client",
+			"version": "2.5.0",
+			"manifest": "packages/client/package.json",
+			"manifestHash": "d76f8296010ed3fffea05c0effdd0af93ad95b8e1ce7ed55a167cf32bdb23279"
+		},
+		{
+			"name": "@lushly-dev/afd-core",
+			"version": "2.5.0",
+			"manifest": "packages/core/package.json",
+			"manifestHash": "a2ea58e2aa69dd3842388d14f8c3f39b1ae569cd04874d31b4ae2ea0ceacca1a"
+		},
+		{
+			"name": "@lushly-dev/local-db",
+			"version": "2.5.0",
+			"manifest": "packages/local-db/package.json",
+			"manifestHash": "bd654eb0ea1daa2134ca0422d29444c603cb2ea11905496accc81b4019d8ab44"
+		},
+		{
+			"name": "@lushly-dev/afd-server",
+			"version": "2.5.0",
+			"manifest": "packages/server/package.json",
+			"manifestHash": "20c8967085c8f3866044244b120394475918a5b4a6b13e497e90269a6691c36b"
+		},
+		{
+			"name": "@lushly-dev/afd-testing",
+			"version": "2.5.0",
+			"manifest": "packages/testing/package.json",
+			"manifestHash": "3f190d1a64bf4b0807b797d02a3816a2cc858c9530adce739dd7472577821984"
+		},
+		{
+			"name": "@lushly-dev/afd-view-state",
+			"version": "2.5.0",
+			"manifest": "packages/view-state/package.json",
+			"manifestHash": "cf7161ef62a6dabb3b7fca25217da550e062b171626f795171876f44f6e4af38"
 		}
 	]
 }
