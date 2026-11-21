@@ -127,7 +127,7 @@ class TestConnectCommand:
             result = runner.invoke(cli, ["connect", "http://example.com/sse"])
 
         assert result.exit_code == 0
-        sse_ctor.assert_called_once_with("http://example.com/sse")
+        sse_ctor.assert_called_once_with("http://example.com/sse", timeout=30.0)
         sse_transport.connect.assert_called_once()
 
     @pytest.mark.parametrize("target", ["my-server", "todo-app", "localhost:3100", "ftp://host/sse"])
@@ -248,12 +248,19 @@ class TestCallCommand:
             assert result.exit_code == 0
             mock_transport.call_tool.assert_called_once()
 
-    def test_call_invalid_json(self, runner, temp_state_file):
-        """Should error on invalid JSON args."""
+    @pytest.mark.parametrize(
+        ("raw", "reason"),
+        [("{not json", "Expecting property name"), ("not json", 'Expected key=value, got "not"'),
+         ('{"a": NaN}', "NaN is not JSON")],
+    )
+    def test_call_invalid_args(self, runner, temp_state_file, raw, reason):
+        """Should error on arguments that are neither a JSON object nor key=value pairs."""
         _save_state({"server": "mock"})
-        result = runner.invoke(cli, ["call", "user-create", "not json"])
+        result = runner.invoke(cli, ["call", "user-create", raw])
         assert result.exit_code == 1
-        assert "Invalid JSON" in result.output
+        assert "Invalid arguments (" in result.output
+        assert reason in result.output
+        assert "Use a JSON object or key=value pairs." in result.output
 
     def test_call_default_empty_args(self, runner, temp_state_file, mock_transport):
         """Should use empty object for missing args."""

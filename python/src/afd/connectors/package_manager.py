@@ -265,10 +265,20 @@ class PackageManagerConnector:
                 )
             data = json_mod.loads(result.stdout)
             deps: list[Dependency] = []
-            dep_map = data.get("dependencies", {})
-            for name, info in dep_map.items():
-                version = info.get("version", "unknown") if isinstance(info, dict) else "unknown"
-                deps.append(Dependency(name=name, version=version))
+            seen: set[tuple[str, str]] = set()
+            entries = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                dep_map = entry.get("dependencies")
+                if not isinstance(dep_map, dict):
+                    continue
+                for name, info in dep_map.items():
+                    version = info.get("version", "unknown") if isinstance(info, dict) else "unknown"
+                    key = (name, version)
+                    if key not in seen:
+                        seen.add(key)
+                        deps.append(Dependency(name=name, version=version))
             return deps
 
         elif self._pm == "uv":

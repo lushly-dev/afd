@@ -48,7 +48,7 @@ class TestHandleRequestToolsCallValid:
     @pytest.mark.asyncio
     async def test_calls_scenario_list_with_tmp_dir(self, tmp_path):
         """Should invoke scenario-list and return content array."""
-        server = McpTestingServer()
+        server = McpTestingServer(cwd=str(tmp_path))
         params = {
             "name": "scenario-list",
             "arguments": {"directory": str(tmp_path)},
@@ -66,7 +66,7 @@ class TestHandleRequestToolsCallValid:
     @pytest.mark.asyncio
     async def test_content_is_json_string(self, tmp_path):
         """The content text should be valid JSON."""
-        server = McpTestingServer()
+        server = McpTestingServer(cwd=str(tmp_path))
         params = {
             "name": "scenario-list",
             "arguments": {"directory": str(tmp_path)},
@@ -81,7 +81,7 @@ class TestHandleRequestToolsCallValid:
     @pytest.mark.asyncio
     async def test_is_error_false_on_success(self, tmp_path):
         """isError should be False when the tool succeeds."""
-        server = McpTestingServer()
+        server = McpTestingServer(cwd=str(tmp_path))
         params = {
             "name": "scenario-list",
             "arguments": {"directory": str(tmp_path)},
@@ -308,7 +308,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_scenario_list_with_empty_dir(self, tmp_path):
         """Calling scenario-list on an empty directory should succeed."""
-        server = McpTestingServer()
+        server = McpTestingServer(cwd=str(tmp_path))
         result = await server.execute_tool(
             "scenario-list", {"directory": str(tmp_path)}
         )

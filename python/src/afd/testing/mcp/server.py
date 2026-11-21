@@ -71,10 +71,29 @@ class McpTestingServer:
 		if self._verbose:
 			print("[MCP Testing]", *args, file=sys.stderr)
 
-	async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
+	async def handle_request(self, request: Any) -> dict[str, Any]:
 		"""Handle a JSON-RPC request."""
+		if not isinstance(request, dict):
+			return {
+				"jsonrpc": "2.0",
+				"id": None,
+				"error": {
+					"code": JSON_RPC_ERRORS["INVALID_REQUEST"],
+					"message": "Invalid Request: expected a JSON object",
+				},
+			}
+
 		req_id = request.get("id")
-		method = request.get("method", "")
+		method = request.get("method")
+		if not isinstance(method, str):
+			return {
+				"jsonrpc": "2.0",
+				"id": req_id,
+				"error": {
+					"code": JSON_RPC_ERRORS["INVALID_REQUEST"],
+					"message": "Invalid Request: 'method' must be a string",
+				},
+			}
 		params = request.get("params")
 
 		try:
