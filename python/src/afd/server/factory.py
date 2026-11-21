@@ -1374,8 +1374,10 @@ class MCPServer:
         self._mcp_server = SessionMCPServer(
             self.config.name,
             description=self.config.description,
+            # A host's own instructions win, even an empty string, as in TypeScript.
             instructions=self.config.instructions
-            or default_instructions(
+            if self.config.instructions is not None
+            else default_instructions(
                 self.config.name,
                 self.config.tool_strategy,
                 self.config.contexts,

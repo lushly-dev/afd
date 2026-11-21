@@ -8,4 +8,5 @@
 
 ### Fixed
 
-- **A command tool's `_meta` carries its `category`** (`spec/command-metadata.md`), first, as TypeScript's does, so `afd validate --surface` and other clients reading `tools/list` see it without `afd-help` (#542).
+- **`create_server(instructions="")` keeps the empty string** instead of generating the default instructions, as TypeScript's does (#542).
+- **A command tool's `_meta` carries its `category`** (`spec/command-metadata.md`), first, an empty one included, as TypeScript's does, so `afd validate --surface` and other clients reading `tools/list` see it without `afd-help` (#542).

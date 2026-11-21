@@ -675,3 +675,27 @@ def test_command_tools_carry_the_category_in_meta():
     tool = next(tool for tool in server.get_mcp_tools() if tool["name"] == "todo-create")
     assert tool["_meta"]["category"] == "todo"
     assert next(iter(tool["_meta"])) == "category"
+
+
+def test_advertised_instructions_follow_bootstrap_and_keep_a_hosts_empty_string():
+    sentence = "afd-help, afd-docs and afd-schema describe this server."
+    assert sentence not in create_server("srv")._create_mcp_server().instructions
+    assert sentence in create_server("srv", bootstrap=True)._create_mcp_server().instructions
+    # TypeScript keeps a host's instructions, even "", with `??`.
+    empty = create_server("srv", bootstrap=True, instructions="")
+    assert empty._create_mcp_server().instructions == ""
+
+
+@pytest.mark.parametrize(("category", "expected"), [("", {"category": ""}), (None, {})])
+def test_an_empty_category_is_kept_and_a_missing_one_left_out(category, expected):
+    from afd.core.commands import CommandDefinition, command_to_mcp_tool
+
+    async def handler(input, context=None):
+        return success({})
+
+    meta = command_to_mcp_tool(
+        CommandDefinition(
+            name="todo-create", description="Create", handler=handler, category=category
+        )
+    )["_meta"]
+    assert {key: meta[key] for key in meta if key == "category"} == expected

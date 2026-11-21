@@ -1,6 +1,7 @@
 """Bootstrap commands for AFD servers.
 
-Bootstrap commands are built-in commands that every AFD server provides:
+Bootstrap commands are built-in commands a server registers with ``bootstrap=True``
+(the context commands, with ``contexts``):
 - afd-help: List all available commands with tags and grouping
 - afd-docs: Generate markdown documentation for commands
 - afd-schema: Export JSON schemas for all commands
