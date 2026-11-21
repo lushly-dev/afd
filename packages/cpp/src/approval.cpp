@@ -1055,13 +1055,14 @@ AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& c
     }
     // A middleware may have put another call's record on the context: the admission must be on
     // the record the registry made for this dispatch, and that record must still be the call's.
-    if (context.approval_admission.get() != &record || admitted->name != name ||
-        !admitted->canonical) {
+    if (context.approval_admission.get() != &record || admitted->name != name) {
         return AdmissionCheck::mismatch;
     }
     const auto canonical = canonical_json(input);
-    return canonical && *canonical == *admitted->canonical ? AdmissionCheck::admitted
-                                                           : AdmissionCheck::mismatch;
+    if (!canonical || !admitted->canonical) {
+        return AdmissionCheck::not_canonical;
+    }
+    return *canonical == *admitted->canonical ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
 }
 
 Expected<std::string> canonical_json_as_read(const Json& value) {

@@ -50,12 +50,13 @@ bool gates(const std::optional<ApprovalPolicy>& policy) noexcept;
 /// for a context the registry did not record.
 void admit_approval(CommandContext& context, std::string_view name, const Json& input);
 
-enum class AdmissionCheck { admitted, missing, mismatch };
+/// `not_canonical`: the input has no canonical JSON, so no admission can be bound to it.
+enum class AdmissionCheck { admitted, missing, mismatch, not_canonical };
 
 /// Takes the admission of `record`, the one the registry made for this dispatch: `admitted` when
 /// `context` still carries that record and its admission names `name` and the same canonical
-/// `input`, `missing` when no approval step admitted the call, `mismatch` otherwise (another
-/// record, another command or input, or an input with no canonical form). Taken whatever the
+/// `input`, `missing` when no approval step admitted the call, `not_canonical` when the input has
+/// no canonical form, `mismatch` otherwise (another record, command or input). Taken whatever the
 /// answer, in one step under the record's mutex, so a second or concurrent dispatch needs a
 /// second admission.
 AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,

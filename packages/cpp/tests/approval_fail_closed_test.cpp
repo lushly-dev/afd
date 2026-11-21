@@ -16,6 +16,8 @@
 #include "detail/approval_admission.hpp"
 #include <doctest.h>
 
+// Named, so a unity build does not merge these helpers with approval_test.cpp's.
+namespace approval_fail_closed_test {
 namespace {
 
 using afd::Json;
@@ -104,7 +106,12 @@ void check_unavailable(const afd::CommandResult& result, const std::string& name
           name + " needs a person's approval, and this server cannot ask for it");
     CHECK(result.error->retryable == std::optional<bool>(false));
     CHECK((*result.error->details)["reason"] == reason);
-    if (reason == "no-approval-step") {
+    if (reason == "input-not-canonical") {
+        CHECK(*result.error->suggestion ==
+              "Do not retry with this input: it has no exact JSON form, so an approval cannot be "
+              "bound to it. Send the input as JSON can represent it (for example, an id above "
+              "2^53 as a string).");
+    } else if (reason == "no-approval-step") {
         CHECK(*result.error->suggestion ==
               "Tell the user that " + name +
                   " needs their approval and this server has no approval step; do not retry. "
@@ -417,7 +424,7 @@ TEST_CASE("a gated command whose input has no canonical form is not admitted") {
     // Beyond 2^53 - 1 and not spelled as JavaScript writes its double: canonical_json refuses it.
     const Json input = Json::parse(R"({"id": 9007199254740993})");
     check_unavailable(registry->execute("todo-delete", input, as_agent()), "todo-delete",
-                      "admission-mismatch");
+                      "input-not-canonical");
     CHECK(commands.ran->empty());
     // A safe integer is admitted as before.
     CHECK(registry->execute("todo-delete", {{"id", 1}}, as_agent()).success);
@@ -456,3 +463,5 @@ TEST_CASE("two overlapping dispatches of one admission run the handler once") {
     CHECK(runs->load() == calls);
 }
 #endif
+
+} // namespace approval_fail_closed_test
