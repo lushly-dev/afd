@@ -535,6 +535,7 @@ where the agent's own code is the MCP client.
 afd connect http://localhost:3100/mcp   # MCP Streamable HTTP (/sse and /message URLs use the deprecated transports)
 afd tools
 afd call todo-create '{"title": "Hello"}'
+afd call todo-create title="Buy milk" priority=2 -H "Authorization: Bearer $TOKEN"
 afd batch '[{"command": "todo-create", "input": {"title": "One"}}, {"command": "todo-list"}]'
 afd stream export-run '{"format": "csv"}'
 ```
@@ -543,7 +544,12 @@ afd stream export-run '{"format": "csv"}'
 first error, `-t` sets the batch deadline in milliseconds, `-p` the parallelism) and exits 2 when
 some commands fail. `afd stream` takes a JSON object or `key=value` pairs and reads AFD's
 `POST /stream/<command>` events, which the TypeScript server serves; `-f json` prints one chunk
-per line, and Ctrl+C exits 130. Both send `-H "Name: value"` headers and those in `AFD_HEADERS`.
+per line, and Ctrl+C exits 130.
+
+Arguments are a JSON object or `key=value` pairs, whose values are parsed as JSON when they can
+be (`count=2`, `done=true`) and kept as strings otherwise (`title=milk`). `connect`, `tools`,
+`call`, `validate`, `shell`, `batch` and `stream` send each `-H "Name: value"` header and those
+in `AFD_HEADERS` (one per line); headers are never saved.
 
 `afd connect` takes a server URL (or `mock` for testing); it does not start or name
 servers. `afd call item-delete --module ./commands.py` instead loads a trusted Python file

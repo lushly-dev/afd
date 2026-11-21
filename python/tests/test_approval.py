@@ -882,7 +882,7 @@ def test_afd_validate_reports_the_warning_and_fails_with_strict(monkeypatch):
     transport.list_tools = AsyncMock(
         return_value=[ToolInfo(name="todo-clear", description="Clear", meta={"mutation": True})]
     )
-    monkeypatch.setattr(cli_main, "_get_transport", lambda server=None: transport)
+    monkeypatch.setattr(cli_main, "_get_transport", lambda server=None, **options: transport)
     runner = CliRunner()
     result = runner.invoke(cli_main.cli, ["--json", "validate", "-s", "mock"])
     assert result.exit_code == 0, result.output
