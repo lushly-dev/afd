@@ -11,7 +11,8 @@ owner to approve the domain and the budget before any session runs. Read
   held material is written and frozen, the runner is written without its walks, readers and
   statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
   reviewed and approved by the owner, and a copy of it holds the faults
-  ([STATUS.md](STATUS.md#the-reference-build)); no building session has run.
+  ([STATUS.md](STATUS.md#the-reference-build)). Only the pilots have run
+  ([STATUS.md](STATUS.md#the-pilots)).
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
@@ -25,8 +26,9 @@ owner to approve the domain and the budget before any session runs. Read
 - **Measured:** the cost and size of a page-building session, from the
   [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
   in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
-  replace the assumptions about a build and a walk before the full runs. Nothing pilots a
-  reader; step 0.1's first readers measure one.
+  measured a build and a walk on 2026-11-20, and the bare pilot's reader a reader
+  ([STATUS.md](STATUS.md#the-pilots)); the Budget's lines stand as written until step 0.1's
+  first fifteen builds give the share of the allowance.
 - **Deliberately not in this file:** the planted faults, the checks, the persona cards, the
   walk scripts and the two jobs held back for the panel loop. A session that could read them
   would be scored on what it had read. They were written on 2026-11-15 and are kept in a
@@ -201,10 +203,12 @@ else.
 - **Five persona cards,** the panel size the owner agreed. One for each modality in the
   proposal's table and a second sighted persona with a different stance, so that overlap
   between two reviewers of one modality is measured.
-- **The runner enforces the modality** by the tools it exposes, through Botcore's `cdp_*`
-  commands. The screen-reader persona gets the accessibility tree after each key press. Live
-  announcements are read from that tree, which is an approximation; capturing them as a
-  screen reader speaks them is not built.
+- **The runner enforces the modality** by the tools it exposes, through an MCP server of its
+  own on Playwright; Botcore's `cdp_*` commands, first named here, keep no window size between
+  calls and cannot click at a point. The screen-reader persona reads the accessibility tree
+  with a reading cursor and hears what it says after each key press. Live announcements are
+  heard by watching the page's live regions change, which is an approximation; a region inside
+  a component's shadow root is not heard, and the reference build has none.
 - **One model family in phase 0,** by choice. The five personas are Claude sessions, so that
   how many faults a panel finds is measured without a second thing varying. The overlap it
   reports is therefore within one family, and the proposal's point about reviewers of
