@@ -699,3 +699,47 @@ def test_an_empty_category_is_kept_and_a_missing_one_left_out(category, expected
         )
     )["_meta"]
     assert {key: meta[key] for key in meta if key == "category"} == expected
+
+
+def _register(server, name):
+    @server.command(name=name, description="A command with a built-in's name")
+    async def handler(input):
+        return success({"mine": True})
+
+
+@pytest.mark.parametrize("name", sorted(BOOTSTRAP_TOOLS))
+def test_bootstrap_names_are_reserved_only_with_bootstrap(name):
+    """#1731, as TypeScript's assertValidCommandNames: with bootstrap=True a command of the
+    same name would shadow the built-in, so registering it raises."""
+    with pytest.raises(ValueError, match=f"Command name '{name}' is reserved: bootstrap=True"):
+        _register(create_server("test-app", bootstrap=True), name)
+
+    plain = create_server("test-app")
+    _register(plain, name)
+    assert plain._get_command_index()[name].description == "A command with a built-in's name"
+
+
+async def test_without_bootstrap_a_command_named_afd_help_runs_as_itself():
+    server = create_server("test-app")
+    _register(server, "afd-help")
+    result = await server.execute("afd-help", {})
+    assert result.success is True
+    assert result.data == {"mine": True}
+
+
+@pytest.mark.parametrize("name", ["afd-context-list", "afd-context-enter", "afd-context-exit"])
+def test_context_names_are_reserved_only_with_contexts(name):
+    with pytest.raises(ValueError, match=f"Command name '{name}' is reserved: contexts"):
+        _register(create_server("test-app", contexts=[ContextConfig(name="alpha")]), name)
+
+    plain = create_server("test-app")
+    _register(plain, name)
+    assert name in {command.name for command in plain.list_commands()}
+
+
+def test_a_refused_name_leaves_nothing_registered():
+    server = create_server("test-app", bootstrap=True)
+    with pytest.raises(ValueError):
+        _register(server, "afd-help")
+    assert "afd-help" not in {command.name for command in server.list_commands()}
+    assert server._get_command_index()["afd-help"].description != "A command with a built-in's name"

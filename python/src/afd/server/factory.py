@@ -77,7 +77,11 @@ from afd.server.decorators import (
     has_command_metadata,
     validate_command_input,
 )
-from afd.core.builtin_names import AFD_META_TOOL_NAMES
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+)
 from afd.server.context_fields import (
     AFD_CONTEXT_FIELDS_META_KEY,
     ContextField,
@@ -335,10 +339,14 @@ class MCPServer:
         """Register an already-decorated command function.
 
         Raises:
-            ValueError: If the function is not decorated, or its name is one of
-                the router's built-in tools (``afd-call``, ``afd-batch``,
-                ``afd-pipe``, ``afd-discover``, ``afd-detail``), which would
-                make the command unreachable.
+            ValueError: If the function is not decorated, or its name is one the
+                server handles itself, as TypeScript's ``assertValidCommandNames``
+                refuses: the router's meta-tools (``afd-call``, ``afd-batch``,
+                ``afd-pipe``, ``afd-discover``, ``afd-detail``), always; ``afd-help``,
+                ``afd-docs`` and ``afd-schema`` when ``bootstrap=True``; and
+                ``afd-context-list``, ``afd-context-enter`` and ``afd-context-exit``
+                when contexts are configured. Without those options the names are
+                ordinary commands.
         """
 
         if not has_command_metadata(func):
@@ -353,6 +361,17 @@ class MCPServer:
                 f"Command name '{definition.name}' is reserved: the tool router handles "
                 f"'{definition.name}' itself, so the command would be unreachable. "
                 "Rename the command."
+            )
+        if self.config.bootstrap and definition.name in AFD_BOOTSTRAP_COMMAND_NAMES:
+            raise ValueError(
+                f"Command name '{definition.name}' is reserved: bootstrap=True registers a "
+                f"built-in '{definition.name}'. Rename the command, or drop it (for example "
+                "get_bootstrap_commands() output) from the commands you register."
+            )
+        if self.config.contexts and definition.name in AFD_CONTEXT_COMMAND_NAMES:
+            raise ValueError(
+                f"Command name '{definition.name}' is reserved: contexts registers a built-in "
+                f"'{definition.name}'. Rename the command."
             )
 
         first_class = self.config.first_class_tools or []
@@ -416,7 +435,8 @@ class MCPServer:
         """Name -> definition for registered and bootstrap commands (cached)."""
         if self._command_index is None:
             index = {command.name: command for command in self._get_bootstrap_commands()}
-            # A registered command shadows a bootstrap command of the same name.
+            # register() refuses a built-in's name while that built-in is on, so a
+            # registered command can only replace one that is off (none is listed then).
             index.update({command.name: command for command in self._registry.list()})
             self._command_index = index
         return self._command_index
