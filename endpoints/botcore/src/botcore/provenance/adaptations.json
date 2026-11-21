@@ -2369,10 +2369,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "27996646b083d5d259449aa7fae5d8e492d2de770b65e99ef6980add7229ac91",
+      "current_import_sha256": "0cc945d2cbb7db646f3ddfef0cd821b4fdc3f00ccc3f92b6374f09715c89ed7e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/git.py",
@@ -6175,10 +6175,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8110e5a410d7f5f7cbaf12ef3cbc1a7f8af2caf7ee117285e47166c48c87fc0f",
+      "current_import_sha256": "eda22b63bdba69c44960eebf4bd88e096d8c74244855ad8971bdb57c026a7819",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694)"
     },
     {
       "path": "tests/test_docs.py",

@@ -414,11 +414,14 @@ def test_a_reflog_too_long_to_pin_is_unique(
     from botcore.commands.disk import finished
 
     monkeypatch.setattr(finished, "REFLOG_LIMIT", 1)
-    for _ in range(2):
-        git(repo["done"], "commit", "-q", "--allow-empty", "-m", "churn")
-    age_worktree(repo["main"], repo["done"])
+    done = repo["done"]
+    for name in ("one", "two"):  # two detached experiments, each dropped
+        git(done, "checkout", "-q", "--detach")
+        commit(done, f"{name}.txt", name, f"experiment {name}")
+        git(done, "checkout", "-q", "done")
+    age_worktree(repo["main"], done)
     verdict = rows(run(report.disk_report()))["done"]["finished"]
-    assert "more than removal can pin" in " ".join(verdict["unique"])
+    assert "more than removal pins" in " ".join(verdict["unique"])
 
 
 def test_a_failed_record_releases_its_pins_and_keeps_the_worktree(

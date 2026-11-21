@@ -117,7 +117,7 @@ def _private_state(worktree: Path, admin: Path | None, timeout: float) -> str | 
     try:
         reflog_only_commits(worktree, timeout)
     except ReflogTooLong as exc:
-        return f"{exc}, more than removal can pin"
+        return f"{exc}, more than removal pins"
     for name, what in (("config.worktree", "its own git config"),
                        ("info/sparse-checkout", "its own sparse-checkout rules")):
         try:
@@ -144,19 +144,19 @@ def reflog_only_commits(worktree: Path, timeout: float, limit: int | None = None
     """
     limit = REFLOG_LIMIT if limit is None else limit
     try:
-        logged = git_out(worktree, "log", "-g", f"-n{limit + 1}", "--format=%H", "HEAD",
-                         timeout=timeout).split()
+        logged = git_out(worktree, "log", "-g", "--format=%H", "HEAD", timeout=timeout).split()
     except GitError:
         return []
-    if len(logged) > limit:
-        raise ReflogTooLong(f"its reflog has more than {limit} entries")
     if not logged:
         return []
     wanted = list(dict.fromkeys(logged))
-    out = git_out(worktree, "rev-list", *wanted, "--not", "--branches", "--remotes", "--tags",
-                  timeout=timeout)
+    out = git_out(worktree, "rev-list", "--stdin", "--not", "--branches", "--remotes", "--tags",
+                  stdin="\n".join(wanted) + "\n", timeout=timeout)
     unreachable = set(out.split())
-    return [commit for commit in wanted if commit in unreachable]
+    tips = [commit for commit in wanted if commit in unreachable]
+    if len(tips) > limit:
+        raise ReflogTooLong(f"its reflog holds more than {limit} commits on no branch")
+    return tips
 
 
 # ── Ignored files ───────────────────────────────────────────────────────────
@@ -344,8 +344,8 @@ def _paths_match(worktree: Path, head: str, landing_ref: str, timeout: float) ->
     ones included, is identical in the landing ref."""
     try:
         base = git_out(worktree, "merge-base", head, landing_ref, timeout=timeout).strip()
-        touched = _literal(worktree, "log", "--format=", "--name-only", "--no-renames",
-                           "--diff-merges=separate", "-z", f"{base}..{head}", timeout=timeout)
+        touched = _literal(worktree, "log", "--format=", "--name-only", "--no-renames", "--cc",
+                           "-z", f"{base}..{head}", timeout=timeout)
         overall = _literal(worktree, "diff", "--name-only", "--no-renames", "-z", base, head,
                            timeout=timeout)
     except GitError:
