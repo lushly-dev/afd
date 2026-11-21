@@ -736,7 +736,17 @@ describe('P2-E13: E11: the console by keyboard', () => {
 		const described = await page
 			.locator('loam-console form violet-checkbox input')
 			.evaluate((input) =>
-				(input as HTMLInputElement).ariaDescribedByElements?.map((node) => node.textContent)
+				(input as HTMLInputElement).ariaDescribedByElements?.map((node) => {
+					const slot = node.querySelector('slot');
+					return (
+						slot
+							? slot
+									.assignedNodes({ flatten: true })
+									.map((n) => n.textContent ?? '')
+									.join('')
+							: (node.textContent ?? '')
+					).trim();
+				})
 			);
 		expect(described).toEqual(['In capitals']);
 		const select = page.locator('loam-console form violet-select');
