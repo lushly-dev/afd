@@ -829,6 +829,14 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
                                      const CommandContext& context) {
     using Plan = detail::UpFrontApproval::Plan;
     const std::string what(noun(up.tool()));
+    // The server plans every batch and pipeline up front, since it cannot see the `commands`
+    // list: one with no step any policy here may gate runs as it would on its own.
+    if (std::none_of(up.steps().begin(), up.steps().end(), [&](const detail::UpFrontStep& step) {
+            return ApprovalState::may_require_approval(
+                state.decider(step.command, step.definition.get()));
+        })) {
+        return Plan{};
+    }
     // A gated pipeline step whose input comes from an earlier step cannot be shown up front.
     for (const auto& step : up.steps()) {
         if (!step.dynamic || !ApprovalState::may_require_approval(
@@ -1037,51 +1045,70 @@ bool gates(const std::optional<ApprovalPolicy>& policy) noexcept {
     return policy && (policy->function() || policy->decision() != ApprovalDecision::not_required);
 }
 
-void admit_approval(CommandContext& context, std::string_view name, const Json& input) {
+void admit_approval(CommandContext& context, std::string_view name, const Json& input,
+                    bool listed_gate) {
     ApprovalAdmission* record = context.approval_admission.get();
     if (!record) {
         return;
     }
-    std::optional<std::string> canonical;
-    std::optional<Json> copy;
-    if (record->command && gates(record->command->approval)) {
-        if (auto encoded = canonical_json(input)) {
-            canonical = std::move(*encoded);
-        } else {
-            // Only a policy that let the call through admits such an input: kept by value.
-            copy = input;
-        }
+    AdmittedCall admitted{
+        .name = std::string(name), .canonical = std::nullopt, .input = std::nullopt};
+    if (auto encoded = canonical_json(input)) {
+        admitted.canonical = std::move(*encoded);
+    } else {
+        // Only a policy that let the call through admits such an input: kept by value.
+        admitted.input = input;
     }
     const std::lock_guard lock(record->mutex);
-    record->admitted = AdmittedCall{
-        .name = std::string(name), .canonical = std::move(canonical), .input = std::move(copy)};
+    if (listed_gate) {
+        record->listed_gate = true;
+    }
+    record->admitted.push_back(std::move(admitted));
+}
+
+bool needs_admission(ApprovalAdmission& record) {
+    if (record.command && gates(record.command->approval)) {
+        return true;
+    }
+    const std::lock_guard lock(record.mutex);
+    return record.listed_gate;
 }
 
 AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
                               std::string_view name, const Json& input) {
-    std::optional<AdmittedCall> admitted;
+    std::vector<AdmittedCall> admitted;
     {
         const std::lock_guard lock(record.mutex);
-        if (!record.admitted) {
+        if (record.admitted.empty()) {
             return record.taken ? AdmissionCheck::mismatch : AdmissionCheck::missing;
         }
-        admitted = std::move(record.admitted);
-        record.admitted.reset();
+        admitted.swap(record.admitted);
         record.taken = true;
     }
     // A middleware may have put another call's record on the context: the admission must be on
     // the record the registry made for this dispatch, and that record must still be the call's.
-    if (context.approval_admission.get() != &record || admitted->name != name) {
+    if (context.approval_admission.get() != &record) {
         return AdmissionCheck::mismatch;
     }
-    bool same = false;
-    if (admitted->canonical) {
-        const auto canonical = canonical_json(input);
-        same = canonical && *canonical == *admitted->canonical;
-    } else if (admitted->input) {
-        same = *admitted->input == input;
+    std::optional<Expected<std::string>> canonical;
+    for (const auto& step : admitted) {
+        if (step.name != name) {
+            return AdmissionCheck::mismatch;
+        }
+        bool same = false;
+        if (step.canonical) {
+            if (!canonical) {
+                canonical = canonical_json(input);
+            }
+            same = *canonical && **canonical == *step.canonical;
+        } else if (step.input) {
+            same = *step.input == input;
+        }
+        if (!same) {
+            return AdmissionCheck::mismatch;
+        }
     }
-    return same ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
+    return AdmissionCheck::admitted;
 }
 
 Expected<std::string> canonical_json_as_read(const Json& value) {
@@ -1134,11 +1161,19 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
     return CommandMiddleware([state](std::string_view name, const Json& input,
                                      CommandContext& context,
                                      const Next& outer_next) -> CommandResult {
-        // Every way this middleware lets the call through admits this command on this input,
-        // which the registry checks, and takes, before it dispatches a command that declares an
-        // approval policy.
+        // The policy of the command this call runs, and the one the `commands` option lists.
+        const Decider decider = state->decider(name, context);
+        // Every way this middleware lets a call it may gate through admits this command on this
+        // input, which the registry checks, and takes, before it dispatches a command that its own
+        // or its listed policy gates. A call no policy here gates is not admitted: an admission
+        // from another approval step stands alone, and a retry placed after that step is still
+        // refused.
+        const bool may_gate = ApprovalState::may_require_approval(decider);
+        const bool listed_gate = decider.listed && detail::gates(decider.listed->approval);
         const Next next = [&]() {
-            detail::admit_approval(context, name, input);
+            if (may_gate) {
+                detail::admit_approval(context, name, input, listed_gate);
+            }
             return outer_next();
         };
         // A step of an afd-batch or afd-pipe approved up front. The step never sees the up-front
@@ -1157,8 +1192,6 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             context.mcp_approval_relay->claim(name)) {
             relay = context.mcp_approval_relay.get();
         }
-        // The policy of the command this call runs, and the one the `commands` option lists.
-        const Decider decider = state->decider(name, context);
         if (!ApprovalState::requires_approval(decider, input, context)) {
             return next();
         }

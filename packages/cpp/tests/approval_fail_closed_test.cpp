@@ -159,8 +159,8 @@ TEST_CASE("a gated command without the approval middleware is refused before its
         afd::CommandContext context = as_agent();
         const Json input{{"id", 1}};
         context.approval_admission = std::make_shared<afd::detail::ApprovalAdmission>();
-        context.approval_admission->admitted =
-            afd::detail::AdmittedCall{.name = "todo-delete", .canonical = R"({"id":1})"};
+        context.approval_admission->admitted.push_back(
+            afd::detail::AdmittedCall{.name = "todo-delete", .canonical = R"({"id":1})"});
         check_unavailable(registry->execute("todo-delete", input, context), "todo-delete",
                           "no-approval-step");
         CHECK(commands.ran->empty());
@@ -355,8 +355,12 @@ TEST_CASE("one admission runs one handler, on what was approved") {
     }
 
     SUBCASE("an admission for another command is refused") {
-        const afd::CommandMiddleware approval = approval_middleware();
-        // Asks the middleware about an ungated command, then lets the gated one through.
+        const afd::CommandMiddleware approval = approval_middleware({afd::ApprovalCommand(
+            "todo-touch", afd::ApprovalPolicy([](const Json&, const afd::CommandContext&) {
+                return afd::ApprovalDecision::not_required;
+            }))});
+        // Asks the middleware about a command its policy lets through, then lets the gated one
+        // through.
         const afd::CommandMiddleware swap = [approval](std::string_view, const Json& input,
                                                        afd::CommandContext& context,
                                                        const afd::Next& next) {
@@ -451,6 +455,90 @@ TEST_CASE("an input with no canonical form") {
         auto registry =
             registry_of({commands.remove(lets_through)}, {approval_middleware(), change});
         check_unavailable(registry->execute("todo-delete", input, as_agent()), "todo-delete",
+                          "admission-mismatch");
+        CHECK(commands.ran->empty());
+    }
+}
+
+TEST_CASE("an approval step admits only a call one of its own policies may gate") {
+    Commands commands;
+    /// The `commands` list of an approval middleware that gates todo-delete.
+    const std::vector<afd::ApprovalCommand> listed{
+        afd::ApprovalCommand("todo-delete", afd::ApprovalDecision::required)};
+    /// A middleware that retries a transient failure up to twice.
+    const afd::CommandMiddleware retry = [](std::string_view, const Json&, afd::CommandContext&,
+                                            const afd::Next& next) {
+        afd::CommandResult result = next();
+        for (int i = 0;
+             i < 2 && !result.success && result.error && result.error->code == "TRANSIENT_ERROR";
+             ++i) {
+            result = next();
+        }
+        return result;
+    };
+    const auto client_of = [](std::vector<afd::CommandDefinition> definitions,
+                              std::vector<afd::CommandMiddleware> middleware) {
+        std::shared_ptr<const afd::CommandRegistry> registry =
+            registry_of(std::move(definitions), std::move(middleware));
+        return afd::DirectClient(
+            registry, {.actor = agent, .on_approval_needed = [](const auto&) { return true; }});
+    };
+    int attempts = 0;
+    /// todo-delete with no policy of its own, failing once transiently.
+    afd::CommandDefinition flaky = commands.remove(std::nullopt);
+    flaky.handler = [&attempts](const Json&, afd::CommandContext&) {
+        ++attempts;
+        return attempts == 1 ? afd::error("TRANSIENT_ERROR", "try again") : afd::success(nullptr);
+    };
+
+    SUBCASE("an approved call behind a second approval middleware that does not gate it runs") {
+        const auto client = client_of({commands.remove(std::nullopt)},
+                                      {approval_middleware(listed), approval_middleware()});
+        CHECK(client.call("todo-delete", {{"id", 4}}).success);
+        CHECK(*commands.ran == std::vector<std::string>{"todo-delete:4"});
+    }
+
+    SUBCASE("a gate given only by the list is taken at dispatch: a retry after it is refused") {
+        const auto client = client_of({flaky}, {approval_middleware(listed), retry});
+        check_unavailable(client.call("todo-delete", {{"id", 5}}), "todo-delete",
+                          "admission-mismatch");
+        CHECK(attempts == 1);
+    }
+
+    SUBCASE("a retry between it and a second approval middleware that does not gate it") {
+        const auto client =
+            client_of({flaky}, {approval_middleware(listed), retry, approval_middleware()});
+        check_unavailable(client.call("todo-delete", {{"id", 5}}), "todo-delete",
+                          "admission-mismatch");
+        CHECK(attempts == 1);
+    }
+
+    /// A middleware that changes the validated input in place.
+    const afd::CommandMiddleware change = [](std::string_view, const Json& input,
+                                             afd::CommandContext&, const afd::Next& next) {
+        const_cast<Json&>(input)["id"] = 99;
+        return next();
+    };
+
+    SUBCASE("an input changed before a second approval middleware that does not gate it") {
+        const auto client = client_of({commands.remove(std::nullopt)},
+                                      {approval_middleware(listed), change, approval_middleware()});
+        check_unavailable(client.call("todo-delete", {{"id", 1}}), "todo-delete",
+                          "admission-mismatch");
+        CHECK(commands.ran->empty());
+    }
+
+    SUBCASE("an input changed before a second approval middleware that lets it through") {
+        // The second one's policy may gate the call, so it admits the changed input too: every
+        // admission must match.
+        const auto client = client_of(
+            {commands.remove(std::nullopt)},
+            {approval_middleware(listed), change,
+             approval_middleware({afd::ApprovalCommand(
+                 "todo-delete", afd::ApprovalPolicy([](const Json&, const afd::CommandContext&) {
+                     return afd::ApprovalDecision::not_required;
+                 }))})});
+        check_unavailable(client.call("todo-delete", {{"id", 1}}), "todo-delete",
                           "admission-mismatch");
         CHECK(commands.ran->empty());
     }

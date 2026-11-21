@@ -460,12 +460,13 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
     // The innermost step: run the handler and stamp its result (a copy; never in place).
     const Next run_handler = [&]() -> CommandResult {
         // A declared approval policy holds without the approval middleware: a command whose
-        // policy is neither unset nor not_required runs only when an approval step admitted this
-        // dispatch, of this command on this validated input. A policy function is not evaluated
-        // here. The admission is taken from the record `execute` made for this call, so a
+        // policy is neither unset nor not_required, or that an approval step marked as gated by
+        // its `commands` list, runs only when every approval step that admitted this dispatch
+        // admitted this command on this validated input. A policy function is not evaluated
+        // here. The admissions are taken from the record `execute` made for this call, so a
         // second dispatch (a retry inside the chain) needs a second one, and a record a middleware
         // put on the context from another call is not honoured.
-        if (detail::gates(definition.approval)) {
+        if (detail::needs_admission(admission)) {
             const auto check = detail::take_admission(admission, context, definition.name, input);
             if (check != detail::AdmissionCheck::admitted) {
                 return approval_unavailable(definition.name, check);

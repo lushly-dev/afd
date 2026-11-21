@@ -164,11 +164,14 @@ struct ApprovalMiddlewareOptions {
 /// with exceptions) fails it. An input `canonical_json` cannot encode fails the call with
 /// `COMMAND_EXECUTION_ERROR`.
 ///
-/// Every path that lets a call through admits it, and the registry runs a command whose declared
-/// policy is not `not_required` only on that admission: once, for that command and that validated
-/// input (`APPROVAL_UNAVAILABLE` otherwise). Install middleware that retries or changes the input
-/// before this one, and this one after any middleware that sets or refines `context.actor`, since
-/// tokens are bound to the actor. A registry may run calls concurrently: `summarize`,
+/// Every path that lets through a call one of its policies may gate (the command's own, or the
+/// one `commands` lists for it) admits it, and the registry runs a command whose declared or
+/// listed policy is not `not_required` only on every such admission: once, for that command and
+/// that validated input (`APPROVAL_UNAVAILABLE` otherwise). A call no policy here gates is not
+/// admitted. Install one approval middleware per registry: two that both gate a command's own
+/// policy each ask for it. Install middleware that retries or changes the input before this one,
+/// and this one after any middleware that sets or refines `context.actor`, since tokens are bound
+/// to the actor. A registry may run calls concurrently: `summarize`,
 /// `on_approval_required`, `random_bytes` and a custom `nonce_store` must then be thread-safe. The
 /// built-in nonce store is.
 ///

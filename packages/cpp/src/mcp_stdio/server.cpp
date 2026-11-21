@@ -1226,19 +1226,13 @@ struct StdioServer::State {
         return step;
     }
 
-    /// Whether a batch or pipeline is approved up front: the request can carry a form elicitation
-    /// and a step names an exposed command with an approval policy.
-    [[nodiscard]] bool may_gate(const std::vector<std::pair<std::string, Json>>& steps,
-                                const RequestInfo& info, const ClientRequester& ask) const {
-        if (!declares_form_elicitation(info.client_capabilities) ||
-            !(info.modern || static_cast<bool>(ask))) {
-            return false;
-        }
-        return std::any_of(steps.begin(), steps.end(), [this](const auto& step) {
-            const auto command = registry.get(step.first);
-            return command && is_exposed_to(command->definition.expose, Interface::mcp) &&
-                   command->definition.approval.has_value();
-        });
+    /// Whether a batch or pipeline is approved up front: the request can carry a form
+    /// elicitation. Every such call is planned up front, gated or not, since a step may be gated
+    /// only by the approval middleware's `commands` list, which the server cannot see; the
+    /// middleware's plan runs every step when none is gated.
+    [[nodiscard]] static bool may_gate(const RequestInfo& info, const ClientRequester& ask) {
+        return declares_form_elicitation(info.client_capabilities) &&
+               (info.modern || static_cast<bool>(ask));
     }
 
     /// The approval answers a modern retry carries for the questions asked last round.
@@ -1393,7 +1387,7 @@ struct StdioServer::State {
             const BatchResult result = registry.execute_batch(*parsed, steps_context);
             return json_tool_result(Json(result), !result.success);
         };
-        if (!may_gate(steps, info, ask)) {
+        if (!may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
@@ -1448,7 +1442,7 @@ struct StdioServer::State {
                 });
             return json_tool_result(Json(result), failed);
         };
-        if (!may_gate(steps, info, ask)) {
+        if (!may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs. A
