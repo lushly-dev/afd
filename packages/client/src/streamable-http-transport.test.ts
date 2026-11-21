@@ -8,6 +8,7 @@ import { NodeStreamableHTTPServerTransport, toNodeHandler } from '@modelcontextp
 import { createMcpHandler, Server } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { McpClient } from './client.js';
+import { HttpStatusError } from './client-errors.js';
 import { StreamableHttpTransport } from './streamable-http-transport.js';
 import { createTransport } from './transport.js';
 
@@ -153,5 +154,65 @@ describe('streamable-http transport', () => {
 		expect(unsupported.error?.code).toBe(-32601);
 		transport.disconnect();
 		expect(transport.isConnected()).toBe(false);
+	});
+
+	it('classifies non-2xx HTTP statuses and 403 insufficient_scope challenges as HttpStatusError (#1706)', async () => {
+		let failWith: { status: number; text: string; headers?: Record<string, string> } | undefined;
+		const handler = createMcpHandler(() => sdkServer());
+		cleanups.push(() => handler.close());
+		const sdkNode = toNodeHandler(handler);
+		const url = await listen((req, res) => {
+			if (failWith) {
+				res.writeHead(failWith.status, failWith.text, {
+					'Content-Type': 'text/plain',
+					...failWith.headers,
+				});
+				res.end(failWith.text);
+				return;
+			}
+			sdkNode(req, res);
+		});
+		const mcp = client(url);
+		await mcp.connect();
+
+		failWith = { status: 401, text: 'Unauthorized' };
+		await expect(mcp.request('tools/call', { name: 'echo-run', arguments: {} })).rejects.toThrow(
+			HttpStatusError
+		);
+		const called = await mcp.call('echo-run', {});
+		expect(called.success).toBe(false);
+		expect(called.error?.code).toBe('HTTP_401');
+		expect(called.error?.retryable).toBe(false);
+
+		const batched = await mcp.batch([{ command: 'echo-run', input: {} }]);
+		expect(batched.success).toBe(false);
+		expect(batched.summary.failureCount).toBe(1);
+		expect(batched.error?.code).toBe('HTTP_401');
+
+		const piped = await mcp.pipe([{ command: 'echo-run', input: {} }]);
+		expect(piped.steps[0]?.status).toBe('failure');
+		expect(piped.steps[0]?.error?.code).toBe('HTTP_401');
+
+		// 403 with WWW-Authenticate: Bearer error="insufficient_scope" throws InsufficientScopeError in the SDK.
+		failWith = {
+			status: 403,
+			text: 'Forbidden',
+			headers: {
+				'WWW-Authenticate': 'Bearer error="insufficient_scope", scope="todo:write"',
+			},
+		};
+		const forbidden = await mcp.call('echo-run', {});
+		expect(forbidden.success).toBe(false);
+		expect(forbidden.error?.code).toBe('HTTP_403');
+		expect(forbidden.error?.retryable).toBe(false);
+		const forbiddenBatch = await mcp.batch([{ command: 'echo-run', input: {} }]);
+		expect(forbiddenBatch.summary.failureCount).toBe(1);
+		expect(forbiddenBatch.error?.code).toBe('HTTP_403');
+
+		failWith = { status: 503, text: 'Service Unavailable' };
+		const unavailable = await mcp.call('echo-run', {});
+		expect(unavailable.success).toBe(false);
+		expect(unavailable.error?.code).toBe('HTTP_503');
+		expect(unavailable.error?.retryable).toBe(true);
 	});
 });

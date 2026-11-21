@@ -26,7 +26,12 @@ import {
 	aggregatePipelineWarnings,
 	buildConfidenceBreakdown,
 } from './pipeline.js';
-import { copyPipelineData, evaluateCondition, resolveVariables } from './pipeline-variables.js';
+import {
+	copyPipelineData,
+	evaluateCondition,
+	PipelineResolutionLimitError,
+	resolveVariables,
+} from './pipeline-variables.js';
 import { isPipelineRequest, pipelineLimitError } from './request-validation.js';
 import type { CommandResult } from './result.js';
 
@@ -259,8 +264,21 @@ export async function executePipeline(
 			if (step.input) {
 				resolvedInput = resolveVariables(step.input, pipelineContext);
 			}
-		} catch {
-			resolutionFailure = { success: false, error: RESOLUTION_ERROR };
+		} catch (error) {
+			resolutionFailure =
+				error instanceof PipelineResolutionLimitError
+					? {
+							success: false,
+							error: {
+								code: 'VALIDATION_ERROR',
+								message: error.message,
+								suggestion:
+									'Reduce pipeline input size, repeated reference fan-out, or nesting depth so the resolved step input stays within the limits',
+								retryable: false,
+								details: { stepIndex: i, limit: error.limit },
+							},
+						}
+					: { success: false, error: RESOLUTION_ERROR };
 		}
 
 		// Execute the command

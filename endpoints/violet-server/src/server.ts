@@ -1,7 +1,8 @@
 /**
  * Violet Design MCP Server
  *
- * Creates an MCP server that exposes all Violet commands as AI tools.
+ * Creates an MCP server that exposes the Violet commands as AI tools, all but the
+ * host-only `validate` and `doctor` (tools/generator.ts).
  * Uses the official @modelcontextprotocol/sdk for protocol compliance.
  */
 

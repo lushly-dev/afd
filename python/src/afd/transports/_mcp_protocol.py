@@ -14,7 +14,14 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
-from afd.transports.base import ToolExecutionError, ToolInfo, TransportError, TransportState
+from afd.transports.base import (
+    HttpStatusError,
+    JsonRpcError,
+    ToolExecutionError,
+    ToolInfo,
+    TransportError,
+    TransportState,
+)
 
 # MCP protocol version matching the TS client
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -93,25 +100,32 @@ class _HttpBasedTransport:
             self._state = TransportState.ERROR
             raise TransportError(str(exc), cause=exc) from exc
 
-        if not response.is_success:
-            raise TransportError(
-                f"HTTP {response.status_code}: {response.text}",
-            )
-
         try:
             data = response.json()
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise TransportError(
-                f"Invalid JSON response (HTTP {response.status_code}): {exc}",
-                cause=exc,
-            ) from exc
+            json_exc: Optional[ValueError] = None
+        except ValueError as exc:
+            data = None
+            json_exc = exc
+        err = data.get("error") if isinstance(data, dict) else None
+        code = err.get("code") if isinstance(err, dict) else None
+        if isinstance(code, int) and not isinstance(code, bool):
+            # A JSON-RPC error says what the server did, whatever the HTTP status.
+            raise JsonRpcError(code, str(err.get("message", "Unknown")), err.get("data"))
 
+        if not response.is_success:
+            raise HttpStatusError(
+                response.status_code, f"HTTP {response.status_code}: {response.text}"
+            )
+        if json_exc is not None:
+            raise TransportError(
+                f"Invalid JSON response (HTTP {response.status_code}): {json_exc}",
+                cause=json_exc,
+            ) from json_exc
         if not isinstance(data, dict):
             raise TransportError(
                 f"Invalid JSON-RPC response: expected JSON object, got {type(data).__name__}",
             )
 
-        err = data.get("error")
         if err is not None:
             if isinstance(err, dict):
                 raise TransportError(

@@ -8,7 +8,7 @@
  * branded, so code that trusts {@link isVerifiedCredentials} trusts only what afd-server verified.
  */
 
-const verified = new WeakSet<object>();
+const verified = new WeakMap<object, number>();
 
 /**
  * Mark `credentials` as set by afd-server after it verified the call's token, freezing them and
@@ -16,14 +16,23 @@ const verified = new WeakSet<object>();
  * verified. Internal: the MCP authorization layer calls it on the object it puts on the context,
  * and nothing else may.
  *
+ * @param skewS - clock skew in seconds the admission layer accepted past `expiresAt`. Default: `0`.
  * @returns the same object, frozen
  */
-export function brandVerifiedCredentials<T extends object>(credentials: T): Readonly<T> {
+export function brandVerifiedCredentials<T extends object>(credentials: T, skewS = 0): Readonly<T> {
 	for (const value of Object.values(credentials)) {
 		if (typeof value === 'object' && value !== null) Object.freeze(value);
 	}
 	Object.freeze(credentials);
-	verified.add(credentials);
+	const { expiresAt } = credentials as { expiresAt?: unknown };
+	const deadline =
+		typeof expiresAt === 'number' &&
+		Number.isFinite(expiresAt) &&
+		Number.isFinite(skewS) &&
+		skewS >= 0
+			? (expiresAt + skewS) * 1000
+			: Number.NaN;
+	verified.set(credentials, deadline);
 	return credentials;
 }
 
@@ -37,17 +46,17 @@ export function unbrandVerifiedCredentials(credentials: object): void {
 
 /**
  * Whether `credentials` is the object afd-server put on a call after verifying its token, and
- * its `expiresAt` (whole seconds since the epoch, M4) is still after `now`. A copy, an object
- * built with the same fields, branded credentials without a numeric `expiresAt`, and unbranded
- * ones are not. Pass this to afd-auth's `createAuthMiddleware({ isVerifiedCredentials })`, which
- * gives `now` from its clock, so a token's call keeps its actor.
+ * its admitted expiry (`expiresAt` plus any admission clock skew, M4) is still after `now`. A
+ * copy, an object built with the same fields, branded credentials without a numeric `expiresAt`,
+ * and unbranded ones are not. Pass this to afd-auth's `createAuthMiddleware({ isVerifiedCredentials })`,
+ * which gives `now` from its clock, so a token's call keeps its actor.
  *
  * @param now - milliseconds since the epoch. Default: `Date.now()`.
  */
 export function isVerifiedCredentials(credentials: unknown, now: number = Date.now()): boolean {
-	if (typeof credentials !== 'object' || credentials === null || !verified.has(credentials)) {
+	if (typeof credentials !== 'object' || credentials === null) {
 		return false;
 	}
-	const { expiresAt } = credentials as { expiresAt?: unknown };
-	return typeof expiresAt === 'number' && Number.isFinite(expiresAt) && expiresAt * 1000 > now;
+	const deadline = verified.get(credentials);
+	return deadline !== undefined && Number.isFinite(deadline) && deadline > now;
 }

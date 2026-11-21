@@ -53,14 +53,15 @@ export class FileJournalSink implements JournalSink {
 	append(record: JournalRecord): Promise<JournalEntry> {
 		const write = this.queue.then(async () => {
 			let prefix = '';
-			if (this.lastSeq === undefined) {
+			let baseSeq = this.lastSeq;
+			if (baseSeq === undefined) {
 				const existing = await this.readFile();
-				this.lastSeq = existing.entries[existing.entries.length - 1]?.seq ?? 0;
+				baseSeq = existing.entries[existing.entries.length - 1]?.seq ?? 0;
 				if (existing.tornAt !== undefined) await truncate(this.path, existing.tornAt);
 				else if (existing.unterminated) prefix = '\n';
 				await mkdir(dirname(this.path), { recursive: true });
 			}
-			const entry: JournalEntry = { seq: this.lastSeq + 1, ...record };
+			const entry: JournalEntry = { seq: baseSeq + 1, ...record };
 			await appendFile(this.path, `${prefix}${serializeJournalEntry(entry)}\n`, 'utf8');
 			this.lastSeq = entry.seq;
 			return entry;

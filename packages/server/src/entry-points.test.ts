@@ -236,31 +236,34 @@ const HOST_IMPORTS =
  *   Raised to 39,600 by the journal's append order and `JournalRange.last`'s clamp (#1650, under D115):
  *   measured 39,419 bytes on `main` at `1ec16f4c` and 39,508 after, with esbuild 0.28.2. The journal
  *   middleware takes a turn as a command returns, so concurrent calls append in the order they finished.
+ *   Raised to 42,000 / 54,000 / 76,500 / 116,000 by bounded pipeline variable expansion (#1704, under D115):
+ *   measured 41,666 / 53,605 / 76,090 / 115,729 bytes after adding bounded cloning and expansion accounting
+ *   to `packages/core/src/pipeline-variables.ts` and `VALIDATION_ERROR` handling to `pipeline-executor.ts`.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
  * - 103.7 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool
  *   surface and approvals joined the entry; it was 113 KB, and app-to-app calls raised it to 114 KB
  *   (Loam phase 5 step 0b, D115): 111,851 measured on `main`, 113,133 with `createAppCallRegistry`;
- *   113,432 with `main` at `5e219704` merged in.
+ *   113,432 with `main` at `5e219704` merged in; 115,729 with #1704.
  */
 const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_600,
+		bytes: 42_000,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 52_000,
+		bytes: 54_000,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 74_000,
+		bytes: 76_500,
 	},
-	{ what: 'every export', imports: undefined, bytes: 114_000 },
+	{ what: 'every export', imports: undefined, bytes: 116_000 },
 ];
 
 /** The modules only the tool surface needs. */

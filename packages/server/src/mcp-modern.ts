@@ -534,7 +534,11 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				},
 			}
 		);
-		deps.resources?.install(server, { modern: era === 'modern', internalError });
+		deps.resources?.install(server, {
+			modern: era === 'modern',
+			internalError,
+			requestView: options.requestView,
+		});
 		refuseApprovalKeyBeforeParsing(server, era === 'modern', report);
 
 		if (deps.contextFields?.length) {

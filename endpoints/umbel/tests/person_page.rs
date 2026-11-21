@@ -4,6 +4,8 @@
 //! headers, escaping and CSRF defences, and what the page never shows.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+#[path = "support/person_canaries.rs"]
+mod person_canaries;
 mod support;
 
 use serde_json::{Value, json};
@@ -867,31 +869,7 @@ async fn the_page_never_shows_or_keeps_what_it_must_not() {
     .await;
     assert_eq!(approve.status, 403);
     // Nothing of the preview, nor the input's text, is in any file of the workspace.
-    for entry in walk(page.dir.path()) {
-        let bytes = std::fs::read(&entry).unwrap();
-        for canary in [PREVIEW_CANARY, "reason-canary-7a"] {
-            assert!(
-                !bytes
-                    .windows(canary.len())
-                    .any(|window| window == canary.as_bytes()),
-                "{canary} in {}",
-                entry.display()
-            );
-        }
-    }
-}
-
-fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut found = Vec::new();
-    for entry in std::fs::read_dir(dir).unwrap().flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            found.extend(walk(&path));
-        } else {
-            found.push(path);
-        }
-    }
-    found
+    person_canaries::assert_absent(page.dir.path(), &[PREVIEW_CANARY, "reason-canary-7a"]);
 }
 
 // ── Serving and limits ─────────────────────────────────────────────────────────────────────────
