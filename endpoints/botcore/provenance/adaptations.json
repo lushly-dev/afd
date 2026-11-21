@@ -2674,7 +2674,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c6d869b921fb348ff506c3fc47bec8b43ef4f55574fa37837d26fbcce606a68a",
+      "current_import_sha256": "6bf8ebb2d236c6e438b95e6593a69839c4bdb1a1ebb0722d481cd00339cfd4c2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
@@ -2685,7 +2685,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "162f8562093195d077dde662df7ce0f7eacef84dbc29875a25903c99c5491bf4",
+      "current_import_sha256": "0232f837712316c83caf7dd7ae87607dac68a2e91f5be4515570b9e12e26b087",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
@@ -2729,7 +2729,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "365abf0bc6a20420b334538789bac673e173e420bbe307b8d44e0aada852571c",
+      "current_import_sha256": "e62779098a10231cec251f8ecd71593cf4f6632d50df684dd11bf604fc0097e4",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
@@ -2789,7 +2789,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "514099539906737bb9df13d54a7a47f45098dd8464e748045fc681a7ee0acace",
+      "current_import_sha256": "07b1fc3620bbd96018b0ce0c7614f2d401a3dec60fdee6fd3580041b52e764ba",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -6274,10 +6274,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ee8253b194f80223d82a394b923c5455de254ed8cf728de18ad70f60ec5ef0e8",
+      "current_import_sha256": "1d295701dc55e3ae1e5915fcc624781c7d0fcd47e537c738610a280b459bee8e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "tests/test_disk_tier2.py",
@@ -6558,7 +6558,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6ab47ea740a57c3fed8c93a2f343137067ce3a94c0525fa432edf2c3aa7de487",
+      "current_import_sha256": "eb03cc20c99307907efe6a3391528702bbb01c8364583e0b9069c3064e6429cf",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"

@@ -11,6 +11,7 @@ import hashlib
 import re
 import sqlite3
 import uuid
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -158,25 +159,13 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
     return projects, names
 
 
-def _t3_calls(path: Path | None) -> set[str]:
-    """The harness's own id of every item T3 Code's store holds: what tells a session T3
-    Code ran from one it did not."""
-    if path is None:
-        return set()
-    connection = t3.open_store(path)
-    try:
-        return t3.native_ids(connection)
-    except sqlite3.Error as exc:
-        raise t3.StoreUnreadable(str(exc)) from exc
-    finally:
-        connection.close()
-
-
-def _read_t3(path: Path, since: str | None, all_items: bool = False) -> t3.T3Read:
+def _read_t3(
+    path: Path, since: str | None, all_items: bool = False, natives: bool = False
+) -> t3.T3Read:
     connection = t3.open_store(path)
     try:
         t3.check_schema(connection)
-        return t3.read(connection, since=since, all_items=all_items)
+        return t3.read(connection, since=since, all_items=all_items, natives=natives)
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:
@@ -281,7 +270,8 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
     those that changed.
 
     Args:
-        since_days: Re-read this many days instead of continuing from the last collection.
+        since_days: Re-read this many days of T3 Code's store instead of continuing from the
+            last collection of it.
         t3_store: Read this T3 Code store instead of this machine's; needs `machine`.
         machine: The machine a store named with `t3_store` came from.
         rebuild: Read everything and replace what was recognised before in items the store
@@ -390,65 +380,91 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
             since = None
         else:
             since = _stamp(newest - OVERLAP)
-        found = _read_t3(path, since, all_items=rebuild)
+        wanted = transcripts is not None  # what T3 Code holds, from the snapshot of its loads
+        found = _read_t3(path, since, all_items=rebuild, natives=wanted)
         if since is not None and any(session_id not in sessions for session_id in found.behind):
             # a session this record has never seen, with work older than the last collection,
             # was moved to this machine: what it did before is behind where this read began
             since = None
-            found = _read_t3(path, since, all_items=rebuild)
+            found = _read_t3(path, since, all_items=rebuild, natives=wanted)
         stores[str(path)] = {
             "newest": found.newest or last.get("newest"),
             "full_at": _stamp(now) if since is None else last.get("full_at"),
         }
 
+    known_ids = {event.id for event in stored}
+    known_skills = {(event.project, event.skill) for event in stored}
     claude = claude_code.ClaudeRead()
     if transcripts is not None:
         seen = _mapping(_mapping(sources.get(claude_code.SOURCE)).get("files"))
-        claude = claude_code.read(transcripts, seen, lambda: _t3_calls(path), everything=rebuild)
+        # a call T3 Code recorded is T3 Code's, whether its store still holds it or only the
+        # record does: the thread may have been dropped since
+        recorded = {
+            event.native.partition(":")[2]
+            for event in stored
+            if event.source == t3.SOURCE and event.native and event.harness == claude_code.HARNESS
+        }
+        claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
 
     projects, names = _name_projects(
         _mapping(state.get("projects")), {**found.projects, **claude.projects}
     )
-    known_ids = {event.id for event in stored}
-    known_skills = {(event.project, event.skill) for event in stored}
     from_t3 = _events(found.loads, t3.SOURCE, names, projects, machine, known_skills)
-    # a load T3 Code's store shows too is one load: the store's event stands
-    shown = {
-        event.native
-        for event in [*stored, *from_t3]
-        if event.native and event.source != claude_code.SOURCE
-    }
-    from_claude = [
-        event
-        for event in _events(
-            claude.loads, claude_code.SOURCE, names, projects, machine, known_skills
-        )
-        if event.native not in shown
-    ]
+    # a skill that T3 Code's sessions loaded in this very read is a skill to a command typed
+    # elsewhere
+    loaded = known_skills | {(e.project, e.skill) for e in from_t3 if e.path != TYPED}
+    from_claude: list[Event] = []
+    for event in _events(claude.loads, claude_code.SOURCE, names, projects, machine, loaded):
+        if event.id not in {found.id for found in from_claude}:
+            from_claude.append(event)  # once, however many transcripts hold the call
     events = [*from_t3, *from_claude]
+
+    # What a transcript read this time gave before is replaced by what it gives now: a call
+    # that has become T3 Code's, or is no longer there, leaves the record. A session that
+    # several transcripts give (its own is gone, and copies of its rows remain) only gains:
+    # one copy read again does not speak for the others
+    givers = Counter(
+        name for entry in claude.files.values() for name in _strings(entry.get("sessions"))
+    )
+    fresh = {event.id for event in from_claude}
+    replaced = [
+        event
+        for event in stored
+        if event.source == claude_code.SOURCE
+        and event.thread in claude.replaced
+        and givers[event.thread] <= 1
+        and event.id not in fresh
+    ]
+    held = found.items or set()
+
+    def gone(event: Event) -> bool:
+        """What a rebuild read again and no longer recognises. What it cannot read again
+        is kept: an item the store has dropped, a transcript that is gone."""
+        if event.source == t3.SOURCE:
+            return rebuild and path is not None and _item(event) in held
+        return False
+
+    dropped = [event for event in stored if gone(event) and event.id not in {e.id for e in events}]
+    dropped += replaced
     added = [event for event in events if event.id not in known_ids]
-    removed = 0
-    if rebuild:
-        held = found.items or set()
-        reread = {f"{claude_code.PREFIX}{session}" for session in claude.read}
-
-        def stays(event: Event) -> bool:
-            """What a rebuild cannot read again is kept: an item the store has dropped, a
-            session whose transcript is gone, a source that is not here."""
-            if event.source == t3.SOURCE:
-                return path is None or _item(event) not in held
-            if event.source == claude_code.SOURCE:
-                return transcripts is None or event.thread not in reread
-            return True
-
-        kept = [event for event in stored if stays(event)]
-        removed = len(stored) - len(kept) - (len(events) - len(added))
-        rewrite_events(directory, sorted(kept + events, key=lambda event: event.at))
-        total = len(kept) + len(events)
+    if dropped or rebuild:
+        lost = {event.id for event in dropped}
+        kept = [event for event in stored if event.id not in lost]
+        current = {event.id: event for event in events}
+        kept = [current.pop(event.id, event) for event in kept]  # read again: the new reading
+        rewrite_events(directory, sorted([*kept, *current.values()], key=lambda event: event.at))
+        total = len(kept) + len(current)
     else:
         append_events(directory, added)
         total = len(known_ids) + len(added)
+    removed = {
+        source: sum(event.source == source for event in dropped)
+        for source in (t3.SOURCE, claude_code.SOURCE)
+    }
 
+    # a session a transcript no longer gives, and no other transcript does, was T3 Code's
+    for thread in claude.replaced - set(givers):
+        sessions.pop(thread, None)
     for session in [*found.sessions, *claude.sessions]:
         sessions[session.id] = {
             "root": session.root,
@@ -496,6 +512,8 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
                 "added": len(new),
             }
         )
+        if rebuild:
+            read_sources[-1]["removed"] = removed[t3.SOURCE]
     if transcripts is not None:
         new = [event for event in added if event.source == claude_code.SOURCE]
         read_sources.append(
@@ -503,12 +521,14 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
                 "source": claude_code.SOURCE,
                 "status": "read",
                 "path": str(transcripts),
-                "sessions": claude.sessions_seen,
+                "transcripts": claude.transcripts,
                 "read": len(claude.read),
                 "unchanged": claude.unchanged,
-                "left_to_t3": claude.left_to_t3,
+                "not_read": len(claude.failed),
+                "calls_left_to_t3": claude.left_to_t3,
                 "found": len(from_claude),
                 "added": len(new),
+                "removed": removed[claude_code.SOURCE],
             }
         )
     data: dict = {
@@ -526,11 +546,9 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         f"machine's record now holds {total} events"
     )
     if rebuild:
-        data["removed"] = removed
-        if read_sources:
-            read_sources[0]["removed"] = removed
+        data["removed"] = sum(removed.values())
         reasoning = (
-            f"Rebuilt the record: {len(added)} events added and {removed} no longer recognised "
-            f"removed; it now holds {total}"
+            f"Rebuilt the record: {len(added)} events added and {data['removed']} no longer "
+            f"recognised removed; it now holds {total}"
         )
     return success(data, reasoning=reasoning)

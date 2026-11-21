@@ -108,9 +108,12 @@ Add the skill loads recorded since the last collection to this machine's skill u
 Nothing is added to a skill and no agent reports anything: the loads are read, read-only,
 from T3 Code's store (one snapshot, its Claude and Codex threads alike) and, for sessions T3
 Code did not run, from Claude Code's transcripts (`~/.claude/projects`, or
-`BOTCORE_SKILL_USAGE_CLAUDE_DIR`; empty turns it off). A session T3 Code ran is left to its
-store, a load both show is one load, and only a transcript that changed is read again.
-`sources` says what each source did; a machine with neither succeeds with nothing read.
+`BOTCORE_SKILL_USAGE_CLAUDE_DIR`; empty turns it off). A tool call T3 Code ran is left to its
+store, so a load both show is one load; only a transcript that changed is read again, and
+what it gave before is replaced by what it gives. A session outside any repository is filed
+as `unknown`. `sources` says what each source did (for the transcripts: how many were
+`read`, `unchanged` or `not_read` because a file could not be opened, and `removed`); a
+machine with neither source succeeds with nothing read.
 - A load is: the Skill tool; a file tool that reads `…/skills/<name>/SKILL.md`; a shell command
   that shows the agent that file (`cat`, `sed`, `head`, `tail`, `nl`, `less`, `more`, `bat`,
   `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
@@ -125,8 +128,9 @@ store, a load both show is one load, and only a transcript that changed is read 
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
-- It continues from the last collection and reads everything again once a week. The hourly
-  job `disk-setup` installs runs it, so it is run by hand only for a first collection.
+- Of T3 Code's store it continues from the last collection and reads everything again once
+  a week; of the transcripts it opens those that changed. The hourly job `disk-setup`
+  installs runs it, so it is run by hand only for a first collection.
 - Several machines: each names itself and one shared folder in its machine settings
   (`disk.toml`: `skill_usage_machine = "<name>"`, its hostname when left out, and
   `skill_usage_shared = "<folder every machine can see>"`; `BOTCORE_SKILL_USAGE_MACHINE` and
@@ -139,7 +143,7 @@ store, a load both show is one load, and only a transcript that changed is read 
   numbers, and each project's renamed skills; never a folder of the machine or a line it
   could not read. Keep it private. A name is lower case and fit for a folder on any system;
   the shared folder is a full path.
-- `since_days`: re-read that many days instead
+- `since_days`: re-read that many days of T3 Code's store instead
 - `t3_store`, `machine`: read a store copied from another machine, named by `machine`
 - `rebuild`: read everything and replace what an older botcore recognised, or the name a
   machine had before it was renamed

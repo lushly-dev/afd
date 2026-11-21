@@ -95,26 +95,39 @@ ranking the jobs is his; the phases below follow the order he agreed.
    platform). It records each tool call, shell command and message of the threads it runs, for
    each provider, with the thread, its parent, the project, the model of each run and the
    linked pull requests. One reader covers Claude and Codex.
-2. **Claude Code's transcripts**, for a session that never ran under T3 Code: one started
-   in the Claude desktop app or from the command line. Claude Code writes each session as a
-   file of JSON lines under `~/.claude/projects/`, and each subagent in a folder beside it.
-   - **A session T3 Code ran is left to T3 Code's store**, which knows more of it: its
-     thread, its lineage, its pull requests. Such a session is told two ways. Its transcript
-     names the program that started it, and T3 Code's store holds the harness's own id of
-     every tool call it recorded, so a session with one call the store holds is T3 Code's.
-     Once told, its transcript is never opened again.
-   - **Only a transcript that changed is read again**, by how many files a session has,
-     their size and their newest change. Only lines that can hold a tool call, its result or
-     a typed command are parsed.
-   - **The same loads count**, with the same rules: the Skill tool, a file read, a shell
-     read, a change to a skill's files, and a command a person typed (`/name`, which Claude
-     Code records between `<command-name>` tags) when the name is a skill. A call counts
-     once its result came back without an error. A subagent's load is its session's.
-   - **A session is filed under the repository it ran in.** A worktree that is gone is found
-     through the nearest folder still there, which inside a repository leads to it; one
-     that leads nowhere is `unknown`.
-   - **An event carries the harness's own id for the tool call** (`native`), as T3 Code's
-     do, so a load both sources show is one load: T3 Code's event stands.
+2. **Claude Code's transcripts**, for what never ran under T3 Code: a session started in the
+   Claude desktop app or from the command line. Claude Code writes each session as a file of
+   JSON lines under `~/.claude/projects/`, and each subagent in a file beside it.
+   - **What T3 Code ran is left to T3 Code's store**, which knows more of it: the thread, its
+     lineage, its pull requests. A tool call is T3 Code's when its row names T3 Code as what
+     started the session, or when the harness's own id of the call is one T3 Code recorded:
+     in its store, read from the same snapshot as its loads, or on an event the record
+     already holds, since the store may have dropped the thread. A session all of whose
+     calls are T3 Code's is not counted here. One continued in another program keeps, as a
+     session of its own, what it did there.
+   - **A row belongs to the session it names.** A subagent's file is its session's wherever
+     it lies: in the session's folder, or, as older versions wrote it, beside the transcript
+     under a name of its own. Rows copied into a session that was continued from another
+     belong to the other, whose own transcript has them.
+   - **Only a transcript that changed is read again**, by each of its files' size and last
+     change; and one whose call has since turned up as T3 Code's. Only lines that can hold a
+     tool call, its result or a typed command are parsed.
+   - **What a transcript gave is replaced by what it gives.** A call that has become T3
+     Code's leaves the record, and so does its session when nothing of it is left. A
+     transcript that cannot be read whole is left as it was and tried again: half a session
+     replaces nothing. A session whose transcript is gone keeps what was read of it.
+   - **The same loads count**, by the same rules: the Skill tool, a file read, a shell read,
+     a change to a skill's files, and a command a person typed, which Claude Code writes as
+     a message of `<command-name>/name</command-name>` and `<command-message>` tags, when
+     the name is a skill. A call counts once its result came back without an error. A
+     subagent's load is its session's.
+   - **A session is filed under the repository it ran in**: its main checkout, never a
+     worktree, whose folder is often named after a branch. A worktree that is gone is found
+     through the nearest folder still there. A folder in no repository is `unknown`: a
+     session can run anywhere, and a folder's name is not the record's to keep.
+   - **Only what is shaped like an id or a name is kept**: a call's id, a row's, a session's
+     and a model's name go into the record whole, so one that is not shaped like one is
+     dropped with what it belongs to.
    - Such a session has no pull request on record, so the triggers report cannot judge a
      change it opened.
 
