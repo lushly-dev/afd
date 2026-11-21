@@ -8,7 +8,8 @@
  * `commands` option lists for the command gates it. The engine dispatches a call whose own or
  * listed policy is not `'not-required'` only when such an admission matches the command and
  * validated input it is about to run, and it takes the admission as it dispatches, so one
- * admission runs one handler. An input with no canonical form never matches.
+ * admission runs one handler. An input with no canonical form, which only a policy that let the
+ * call through admits (the middleware refuses to hold one), is compared by identity.
  *
  * Every call gets a fresh context object (`withContextDefaults` copies), so a batch item, a
  * pipeline step or a command run from inside another command's handler has its own record and
@@ -37,8 +38,9 @@ export type Canonicalize = (value: unknown) => string | undefined;
 /** What an approval step admitted: the command and input it decided on. */
 interface Admitted {
 	name: string;
-	/** The canonical JSON of the input it decided on, or undefined when it has none (never matches). */
+	/** The canonical JSON of the input it decided on, or undefined when it has none (compared by identity). */
 	canonical: string | undefined;
+	input: unknown;
 	/**
 	 * The approval step's own canonical JSON, so a host without the approval middleware does not
 	 * bundle it.
@@ -124,6 +126,8 @@ export interface Admit {
 	 * need approval), computed before any await, or undefined when it has none.
 	 */
 	canonical: string | undefined;
+	/** The input it decided on, compared by identity when it has no canonical form. */
+	input: unknown;
 	/** Whether the policy its `commands` option lists for the command gates it. */
 	listedGate: boolean;
 	/** Its canonical JSON, for the engine to compare the input it dispatches. */
@@ -138,6 +142,7 @@ export function admitApproval(context: CommandContext, admit: Admit): void {
 	found.admitted = {
 		name: admit.commandName,
 		canonical: admit.canonical,
+		input: admit.input,
 		canonicalize: admit.canonicalize,
 	};
 }
@@ -159,9 +164,9 @@ export function gates(policy: ApprovalPolicy<never> | undefined): boolean {
 
 /**
  * Take the admission of the call of `context`: `admitted` when it admitted `commandName` on
- * `input`: the same name and the same canonical input, `missing` with none, `mismatch`
- * otherwise, including an input with no canonical form, whose change could not be seen. Taken
- * whatever the answer, so a second dispatch needs a second admission.
+ * `input`: the same name, and the same canonical input (the same value, when the input has no
+ * canonical form), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a
+ * second dispatch needs a second admission.
  */
 export function takeAdmission(
 	context: CommandContext,
@@ -174,8 +179,13 @@ export function takeAdmission(
 	if (!admitted) return found.taken ? 'mismatch' : 'missing';
 	found.admitted = undefined;
 	found.taken = true;
-	if (admitted.name !== commandName || admitted.canonical === undefined) return 'mismatch';
-	return admitted.canonicalize(input) === admitted.canonical ? 'admitted' : 'mismatch';
+	if (admitted.name !== commandName) return 'mismatch';
+	const canonical = admitted.canonicalize(input);
+	const same =
+		admitted.canonical === undefined
+			? admitted.input === input && canonical === undefined
+			: canonical === admitted.canonical;
+	return same ? 'admitted' : 'mismatch';
 }
 
 /**

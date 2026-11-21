@@ -325,25 +325,62 @@ describe('one admission runs one handler, on what was approved', () => {
 		expect(ran).toEqual(['todo-delete:2']);
 	});
 
-	it('refuses a gated input that has no canonical form, so a change to it cannot go unseen', async () => {
+	/** todo-tag, whose validated input holds a Set (canonical JSON refuses it), with `after` behind approval. */
+	function tagged(approval: ApprovalPolicy<{ tags: Set<string> }>, after?: CommandMiddleware) {
 		const handled = vi.fn();
+		const asked = vi.fn();
 		const tag = defineCommand({
 			name: 'todo-tag',
 			description: 'Its validated input holds a Set, which canonical JSON refuses',
-			approval: () => 'not-required',
+			approval,
 			input: z.object({ tags: z.array(z.string()).transform((tags) => new Set(tags)) }),
 			handler: async () => {
 				handled();
 				return { success: true as const, data: null };
 			},
 		});
-		const change: CommandMiddleware = (_name, input, _context, next) => {
-			(input as { tags: Set<string> }).tags.add('changed');
-			return next();
-		};
 		const registry = createDirectRegistry([tag], {
-			middleware: [createApprovalMiddleware({ secret: SECRET }), change],
+			middleware: [
+				createApprovalMiddleware({ secret: SECRET, onApprovalRequired: asked }),
+				...(after ? [after] : []),
+			],
 		});
+		return { handled, asked, registry };
+	}
+
+	it('answers a held call on an input with no canonical form without asking anyone', async () => {
+		const { handled, asked, registry } = tagged('required');
+		const result = await registry.execute('todo-tag', { tags: ['a'] });
+		expect(result).toMatchObject({
+			success: false,
+			error: {
+				code: 'APPROVAL_UNAVAILABLE',
+				message: "todo-tag needs a person's approval, and this input cannot be bound to one",
+				suggestion:
+					'Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).',
+				retryable: false,
+				details: { reason: 'input-not-canonical' },
+			},
+		});
+		expect(asked).not.toHaveBeenCalled();
+		expect(handled).not.toHaveBeenCalled();
+	});
+
+	it('runs a call its policy lets through on an input with no canonical form', async () => {
+		const { handled, registry } = tagged(() => 'not-required');
+		expect((await registry.execute('todo-tag', { tags: ['a'] })).success).toBe(true);
+		expect(handled).toHaveBeenCalledOnce();
+	});
+
+	it('refuses such an input replaced in place after the approval', async () => {
+		// Compared by identity: the same object, still with no canonical form.
+		const { handled, registry } = tagged(
+			() => 'not-required',
+			(_name, input, _context, next) => {
+				(input as { tags: unknown }).tags = ['changed'];
+				return next();
+			}
+		);
 		expectUnavailable(
 			await registry.execute('todo-tag', { tags: ['a'] }),
 			'todo-tag',

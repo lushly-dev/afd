@@ -559,6 +559,8 @@ export const CEILINGS = Object.freeze({
 	// Approval admission in afd-server (the engine records each call's approval policy and admission and refuses an
 	// unadmitted gated call), measured in one tree against `main` at `2700c62e`: 325,057 to 326,342 (+1,285); set to
 	// 326,800 under D115. Gzip 102,213 to 102,675, within its row.
+	// The approval-admission follow-ups, in one tree against `main` at `d6764276`: 326,696 to 326,777 (+81) and gzip
+	// 102,795 to 102,827, within both rows.
 	jsMinified: 326_800,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
@@ -585,7 +587,9 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #1701 and #1704: measured 135,309 against `main` at `e6395319`; set to 136,000.
 	// Approval admission in afd-server, against `main` at `2700c62e`: 135,309 to 136,945 (+1,636); set to 137,400 under
 	// D115.
-	kernelMinified: 137_400,
+	// Its follow-ups (a listed policy's gate, the canonical input decided on, the middleware's `input-not-canonical`
+	// answer), against `main` at `d6764276`: 137,347 to 137,446 (+99); set to 137,800 under D115.
+	kernelMinified: 137_800,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

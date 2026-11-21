@@ -56,6 +56,7 @@ import {
 	decodeBase64urlText,
 	digest,
 	hmac,
+	inputNotCanonical,
 	randomBytes,
 	safeEqualText,
 	toKeys,
@@ -501,6 +502,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			admitApproval(context, {
 				commandName,
 				canonical,
+				input,
 				listedGate,
 				canonicalize: canonicalOrUndefined,
 			});
@@ -528,9 +530,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// The policy of the command this call runs, and the one the `commands` option lists for it.
 		if (!(await holds(commandName, input, context))) return next(decidedOn);
 
+		// No token or relayed approval can bind an input with no canonical form, so nobody is asked.
+		if (decidedOn === undefined) return failure(inputNotCanonical(commandName));
 		const now = clock.now();
-		// Throws for an input with no canonical form: a call on one cannot be approved.
-		const inputBinding = decidedOn ?? canonicalJson(input);
+		const inputBinding = decidedOn;
 		const actorBinding = actorJson(context.actor);
 		const who: Binding = approver
 			? {

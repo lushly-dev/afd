@@ -29,7 +29,13 @@ import type {
 	PipelineRequest,
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure } from '@lushly-dev/afd-core';
-import { actorJson, base64url, canonicalJson, canonicalOrUndefined } from './approval-crypto.js';
+import {
+	actorJson,
+	base64url,
+	canonicalJson,
+	canonicalOrUndefined,
+	inputNotCanonical,
+} from './approval-crypto.js';
 import {
 	type AcceptedApproval,
 	type ApprovalRelay,
@@ -202,7 +208,9 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		for (const step of steps) {
 			if (step.dynamic || !step.valid) continue;
 			if (!(await deps.requiresApproval(step.command, step.input, context))) continue;
-			const input = canonicalJson(step.input);
+			// No approval can bind it, so nothing runs and nobody is asked.
+			const input = canonicalOrUndefined(step.input);
+			if (input === undefined) return { kind: 'refuse', error: inputNotCanonical(step.command) };
 			gated.push({
 				index: step.index,
 				command: step.command,
@@ -312,8 +320,8 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		// The handler, and any command it runs, never sees the up-front approval.
 		releaseUpFrontApproval(context);
 		if (!(await deps.requiresApproval(commandName, input, context))) return next(decidedOn);
-		// Throws for an input with no canonical form: a step on one cannot be approved.
-		const inputBinding = decidedOn ?? canonicalJson(input);
+		if (decidedOn === undefined) return failure(inputNotCanonical(commandName));
+		const inputBinding = decidedOn;
 		const bindings = await deps.bindings(
 			await callTags(upFront),
 			commandName,

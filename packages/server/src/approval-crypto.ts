@@ -7,10 +7,25 @@
  * `node:crypto` implementation issued: `spec/vectors/approval-tokens.json` checks it.
  */
 
-import type { Actor } from '@lushly-dev/afd-core';
+import type { Actor, CommandError } from '@lushly-dev/afd-core';
 import { canonicalJson } from '@lushly-dev/afd-core/internal/canonical-json';
 
 export { canonicalJson };
+
+/**
+ * The answer to a call that needs approval on an input with no canonical form: no token can bind
+ * it, so the person is not asked.
+ */
+export function inputNotCanonical(commandName: string): CommandError {
+	return {
+		code: 'APPROVAL_UNAVAILABLE',
+		message: `${commandName} needs a person's approval, and this input cannot be bound to one`,
+		suggestion:
+			'Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).',
+		retryable: false,
+		details: { reason: 'input-not-canonical' },
+	};
+}
 
 /** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
 export function canonicalOrUndefined(value: unknown): string | undefined {
