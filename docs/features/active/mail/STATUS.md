@@ -120,7 +120,7 @@ waits for Gmail has a line of its own.
 - D1, the scripted Gmail API's half. Not started. It waits for step B6 (the specification's section 15).
 
 - D2, the iCloud half: the run of the four change commands and their undos against the owner's iCloud account (`tests/live_changes.rs`), tested first on the scripted server, which puts back what it changed when a step fails; undo after a later change moved the mail away and back; and sync seeing a copy the engine made leave or change before the next pass. Merged as [#1646](https://github.com/lushly-dev/afd/pull/1646); the run itself waits for the owner.
-- D2, the iCloud half, its large run: `tests/live_large_changes.rs` on the owner's iCloud account, in its largest mailbox (an agent's proposed trash of 10 000 approved and undone, the undo cancelled at half and resumed, an agent's copy into junk, marks, an archive), with the engine fixes it found: presence by search or `FETCH`, an original confirmed by `FETCH` before its copy is removed, and mail that leaves unreported found by the mailbox's count. In progress.
+- D2, the iCloud half, its large run: `tests/live_large_changes.rs` on the owner's iCloud account, in its largest mailbox (an agent's proposed trash of 10 000 approved and undone, the undo cancelled at half and resumed, an agent's copy into junk, marks, an archive), with the engine fixes it found: presence by search or `FETCH`, an original confirmed by `FETCH` before its copy is removed, and mail that leaves unreported found by the mailbox's count. In progress as [#1725](https://github.com/lushly-dev/afd/pull/1725).
 
 - D2, the Gmail half. Not started. It waits for step B6 (the owner deferred the Gmail steps on 2026-11-14).
 
