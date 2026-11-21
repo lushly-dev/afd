@@ -257,6 +257,7 @@ async def disk_setup(
     uninstall: bool = False,
     repos: list[str] | None = None,
     install_schedule: bool = True,
+    remove_landed: bool | None = None,
 ) -> CommandResult[dict]:
     """Register this repository (and `repos`), record watched volumes, install the schedule.
 
@@ -287,11 +288,13 @@ async def disk_setup(
             added_repos.append(str(main))
     added_volumes = _watch_volumes(settings)
     record_tools(settings)
+    if remove_landed is not None:
+        settings.remove_landed = remove_landed
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(settings_toml(settings), encoding="utf-8")
     data: dict = {"settings": str(path), "added_repos": added_repos,
                   "added_volumes": added_volumes, "repos": settings.repos,
-                  "tools": settings.tools}
+                  "tools": settings.tools, "remove_landed": settings.remove_landed}
     if not install_schedule:
         return success(data=data)
     checkouts: list[Path] = []
@@ -466,7 +469,8 @@ async def disk_run(force: bool = False) -> CommandResult[dict]:
     if not due:
         _write_check({})
         return success(data={"ran": False, "low": low, "last_apply_hours_ago": age})
-    result = await disk_reclaim(tier=1, apply=True, pressure=False)
+    result = await disk_reclaim(tier=2 if settings.remove_landed else 1, apply=True,
+                                pressure=False)
     if not result.success:
         _write_check({"last_error": result.error.message if result.error else "failed"})
         code = result.error.code if result.error else "DISK_RECLAIM_FAILED"

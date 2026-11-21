@@ -14,6 +14,20 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Rollout, 2026-11-20 (#1693)
+
+- Installed on each machine with `uv tool install` from #1698's merge commit `0f50fb7dc`
+  (no release yet, #1692). On each, a dry run came first and the largest planned strips were
+  checked by hand (ignored by git, no tracked file, not a link or junction, `CACHEDIR.TAG`).
+- **MacBook Air:** 886 strips and `uv cache prune` in 188 s, no failures, 2.6 GiB freed (Wave 0
+  had freed 525 GiB by hand). LaunchAgent installed; `/Volumes/Dev/cache/*` aged at 7 days.
+- **Random:** its afd worktrees belong to `~/afd`, not `~/github/afd`. 501 strips in 139 s, no
+  failures, 19.9 GiB freed. LaunchAgent installed; `/Volumes/Dev/cargo-build/*` (192 GiB in 24
+  per-worktree folders, all under six days old then) aged at 7 days.
+- **Hero:** 626 strips in 336 s, no failures, 858.8 GB freed (C: 165, D: 693). Task Scheduler
+  task installed (hidden, headless conhost, allowed on battery). Every walk was complete.
+- Lushly's worktrees only get cache pruning until Lushly adopts `[disk]` (lushly#2697).
+
 ### Hero, 2026-11-20 (#1685)
 
 - **Room to spare, same pattern.** C: has 2,754 GB free of 3,725, D: 1,669 of 3,726 and E: 2,347
@@ -64,25 +78,25 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 1. Report and the safe tiers
 
-- `disk-report`, discovery, idle signals and config (#1688): in PR #1698 (branch `lush/disk-hygiene`), with both first-review rounds fixed. Tested on macOS and Windows (Hero); Linux in CI.
+- `disk-report`, discovery, idle signals and config (#1688): merged in #1698 on 2026-11-20.
 
-- `disk-reclaim` tiers 0 and 1 (#1689): in PR #1698. Tested on macOS; Windows on Hero; Linux in CI.
+- `disk-reclaim` tiers 0 and 1 (#1689): merged in #1698 on 2026-11-20.
 
 ## Phase 2. Schedule, skill and rollout
 
-- `disk-setup`, `disk-status` and the schedulers (#1690): in PR #1698. Scheduler definitions are tested; each install is checked on its machine at rollout.
+- `disk-setup`, `disk-status` and the schedulers (#1690): merged in #1698 on 2026-11-20.
 
-- The `disk-hygiene` skill and adoption in afd (#1691): in PR #1698: the skill (here `free-disk-space`), afd's `[disk]`, SETUP.md and an AGENTS.md row.
+- The `disk-hygiene` skill and adoption in afd (#1691): merged in #1698 on 2026-11-20.
 
 - Publishing a botcore release with the commands (#1692): the owner's step, after the pieces above.
 
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
-- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): not started.
+- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20 (see Findings); a week of receipts, then the cleanup agent is retired.
 
 ## Phase 3. Removing finished worktrees
 
-- Tier 2, `disk-keep` and `disk-restore` (#1694): not started.
+- Tier 2, `disk-keep` and `disk-restore` (#1694): in PR #1723.
 
 ## Phase 4. Prevention
 

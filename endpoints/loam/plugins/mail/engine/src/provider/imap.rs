@@ -35,7 +35,7 @@ use tokio::net::TcpStream;
 
 use super::{
     Changes, Connector, Copied, Fetched, FlagsSeen, Gone, Listing, NextId, Opened, OpenedToChange,
-    PartFetched, Provider, ProviderError, RemoteMailbox, Since,
+    PartFetched, Provider, ProviderError, RemoteMailbox, Returned, Since,
 };
 use crate::parts::{self, Leaf, Limit, Node, Structure};
 use crate::store::{AccountRow, HeaderSeen, Role};
@@ -133,6 +133,8 @@ struct Examined {
     validity: u32,
     uid_next: Option<u32>,
     modseq: Option<u64>,
+    /// How many messages the server said the mailbox holds (`EXISTS`).
+    exists: Option<u32>,
 }
 
 impl Imap {
@@ -424,6 +426,7 @@ impl Imap {
             gone,
             flags,
             cursor: cursor(next_now, examined.modseq),
+            held: examined.exists.map(u64::from),
         }))
     }
 
@@ -467,6 +470,27 @@ impl Imap {
             }
         })
         .await
+    }
+
+    /// The UIDs of `set` that a `UID FETCH ... (UID)` returns: the messages
+    /// the open mailbox holds, read from the mailbox rather than a search.
+    async fn fetched(&mut self, set: &str) -> Result<Vec<u32>, ProviderError> {
+        let mut uids = Vec::new();
+        self.command(
+            &format!("UID FETCH {set} (UID)"),
+            "listing a mailbox",
+            |response| {
+                if let Response::Fetch(_, attributes) = response {
+                    for attribute in attributes.iter() {
+                        if let AttributeValue::Uid(uid) = attribute {
+                            uids.push(*uid);
+                        }
+                    }
+                }
+            },
+        )
+        .await?;
+        Ok(uids)
     }
 
     /// `UID SEARCH` with `criteria`, as UIDs.
@@ -949,7 +973,13 @@ impl Provider for Imap {
             return Ok(Vec::new());
         }
         let asked: HashSet<u32> = uids.iter().copied().collect();
-        let mut found = self.search(&format!("UID {}", uid_set(&mut uids))).await?;
+        let set = uid_set(&mut uids);
+        // Either account of the mailbox: iCloud's search lists messages
+        // its FETCH never returns, and messages that have left, so neither
+        // alone is the mailbox. Asking for a message that is not there
+        // costs nothing; leaving one out would skip it.
+        let mut found = self.search(&format!("UID {set}")).await?;
+        found.extend(self.fetched(&set).await?);
         found.sort_unstable();
         found.dedup();
         Ok(found
@@ -964,16 +994,35 @@ impl Provider for Imap {
         let from = from
             .parse::<u32>()
             .map_err(|_| ProviderError::Protocol("an id is not a UID"))?;
-        // `n:*` names the highest UID even when it is below `n`.
-        let mut found: Vec<u32> = self
-            .search(&format!("UID {from}:*"))
-            .await?
-            .into_iter()
-            .filter(|uid| *uid >= from)
-            .collect();
+        // `n:*` names the highest UID even when it is below `n`. Both
+        // accounts, as for `present`: a copy one of them left out would be
+        // asked for again.
+        let set = format!("{from}:*");
+        let mut found = self.search(&format!("UID {set}")).await?;
+        found.extend(self.fetched(&set).await?);
+        found.retain(|uid| *uid >= from);
         found.sort_unstable();
         found.dedup();
         Ok(found.iter().map(u32::to_string).collect())
+    }
+
+    async fn returned(&mut self) -> Result<Returned, ProviderError> {
+        let examined = self.examined()?;
+        let mut found = self.fetched("1:*").await?;
+        found.sort_unstable();
+        found.dedup();
+        // What its `EXISTS` counted is what it held when opened: mail that
+        // arrived since is returned, but must not make up for an answer cut
+        // short. Without a `UIDNEXT` the two cannot be told apart, so none is
+        // counted, and the answer is taken as complete only for a mailbox
+        // that said it held nothing.
+        let held = examined
+            .uid_next
+            .map_or(0, |next| found.iter().filter(|uid| **uid < next).count());
+        Ok(Returned {
+            ids: found.iter().map(u32::to_string).collect(),
+            held_when_opened: u64::try_from(held).unwrap_or(u64::MAX),
+        })
     }
 
     async fn flags_of(&mut self, ids: &[String]) -> Result<Vec<FlagsSeen>, ProviderError> {
@@ -1241,6 +1290,7 @@ struct Reply {
     validity: Option<u32>,
     uid_next: Option<u32>,
     modseq: Option<u64>,
+    exists: Option<u32>,
     vanished: Vec<std::ops::RangeInclusive<u32>>,
     flags: Vec<(u32, Vec<String>)>,
 }
@@ -1255,6 +1305,7 @@ impl Reply {
                 _ => {}
             },
             Response::Vanished { uids, .. } => self.vanished.extend(uids.iter().cloned()),
+            Response::MailboxData(MailboxDatum::Exists(count)) => self.exists = Some(*count),
             Response::Fetch(_, attributes) => {
                 let mut uid = None;
                 let mut flags = None;
@@ -1283,6 +1334,7 @@ impl Reply {
                 .ok_or(ProviderError::Protocol("the mailbox has no UIDVALIDITY"))?,
             uid_next: self.uid_next,
             modseq: self.modseq,
+            exists: self.exists,
         })
     }
 

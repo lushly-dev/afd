@@ -7,7 +7,7 @@
  * Usage:
  *   node scripts/issue-claim.mjs check <n>... [--json]
  *   node scripts/issue-claim.mjs claim <n>... [--hours 24] [--branch <name>] [--machine <name>]
- *   node scripts/issue-claim.mjs release <n>... [--reason <text>] [--force]
+ *   node scripts/issue-claim.mjs release <n>... [--reason <text>] [--force] [--closed-only]
  *   node scripts/issue-claim.mjs stale [--json]
  *
  * Every agent works through one GitHub account, so an assignee cannot say which session holds
@@ -29,7 +29,9 @@
  * labelled issue), then comments, then reads back: if another claim landed first it releases
  * its own (the earliest standing claim wins). The factory does not read back, so a cell that
  * read the issue before the label landed can still claim beside it; that window is a single
- * GitHub write. `release` restores the status the claim replaced (else `status:planned` with
+ * GitHub write. On a closed issue, `release` ends standing claims and removes the claim label.
+ * With `--closed-only`, it skips open issues. Otherwise, on an open issue
+ * it restores the status the claim replaced (else `status:planned` with
  * an execution profile, `status:triage` without) and refuses another holder's live claim
  * without `--force`. `stale` lists claimed issues whose holder has gone quiet.
  *
@@ -82,7 +84,8 @@ export function claimBody(me, leaseUntil, status) {
 }
 
 export function releaseBody(branch, reason) {
-	return `<!-- botcore-factory:release ${pyJson({ branch })} -->\nReleased \`${branch}\`: ${reason}`;
+	const target = branch ? `\`${branch}\`` : 'all claims';
+	return `<!-- botcore-factory:release ${pyJson({ branch })} -->\nReleased ${target}: ${reason}`;
 }
 
 /** Claim and release events, in posted order. Marker fields are untrusted: plain values only. */
@@ -302,16 +305,14 @@ function makeContext(deps, flags) {
 				'edit',
 				String(n),
 				...repo,
-				'--add-label',
-				add,
+				...(add ? ['--add-label', add] : []),
 				...(remove.length ? ['--remove-label', remove.join(',')] : []),
 			]),
 		comment: (n, body) => gh(['issue', 'comment', String(n), ...repo, '--body', body]),
 	};
 }
 
-const evaluateNumber = (ctx, n) => {
-	const issue = ctx.issue(n);
+const evaluateNumber = (ctx, n, issue = ctx.issue(n)) => {
 	return {
 		issue,
 		e: evaluate({ issue, prs: ctx.prs(), me: ctx.me, now: ctx.now(), hours: ctx.hours }),
@@ -422,11 +423,24 @@ function runRelease(ctx, numbers, flags) {
 		.slice(0, 300);
 	let refused = false;
 	for (const n of numbers) {
-		const { issue, e } = evaluateNumber(ctx, n);
-		if (e.state === 'closed') {
-			ctx.log(sentence(n, e));
+		const issue = ctx.issue(n);
+		if (issue.state === 'CLOSED') {
+			if (issue.labels.some((label) => label.name === IN_PROGRESS)) {
+				// End old leases before removing the label, or reclaiming after reopen revives them.
+				if (standingClaims(issue.comments).length)
+					ctx.comment(n, releaseBody(undefined, 'issue closed'));
+				ctx.edit(n, null, [IN_PROGRESS]);
+				ctx.log(`#${n}: closed, removed ${IN_PROGRESS}`);
+			} else {
+				ctx.log(`#${n}: closed, nothing to release`);
+			}
 			continue;
 		}
+		if (flags['closed-only']) {
+			ctx.log(`#${n}: open, skipping closed-issue cleanup`);
+			continue;
+		}
+		const { e } = evaluateNumber(ctx, n, issue);
 		if (e.state === 'held' && !flags.force) {
 			ctx.log(`${sentence(n, e)}. Not released: pass --force to take another holder's claim away.`);
 			refused = true;
@@ -474,7 +488,7 @@ export function parseArgs(argv) {
 		const eq = arg.indexOf('=');
 		const key = arg.slice(2, eq < 0 ? undefined : eq);
 		if (eq >= 0) flags[key] = arg.slice(eq + 1);
-		else if (key === 'json' || key === 'force') flags[key] = true;
+		else if (key === 'json' || key === 'force' || key === 'closed-only') flags[key] = true;
 		else flags[key] = argv[++i];
 	}
 	return { positionals, flags };
@@ -487,7 +501,7 @@ export function run(argv, deps = {}) {
 	const error = deps.error ?? console.error;
 	if (!COMMANDS.includes(command ?? '')) {
 		error(
-			'Usage: issue-claim.mjs <check|claim|release|stale> [<issue>...] [--hours 24] [--reason text] [--force] [--json]'
+			'Usage: issue-claim.mjs <check|claim|release|stale> [<issue>...] [--hours 24] [--reason text] [--force] [--closed-only] [--json]'
 		);
 		return EXIT_ERROR;
 	}

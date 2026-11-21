@@ -28,12 +28,11 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-19 (dates in this file are Pacific time) against `main` at
-  `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
+- **Last verified:** 2026-11-20 (dates in this file are Pacific time): G0's test writes in
+  Lushly, below. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
   `lushly-factory-gateway[bot]` for both repositories with a rate limit of 5000, and `issue-get`
-  (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub. No real GitHub write has
-  been made through it yet.
+  (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub.
 - **Done:** the proposal, jobs and manifest (#1222); botcore's host changes 1, 2, 5 and 6
   ([#1230](https://github.com/lushly-dev/afd/pull/1230), merged 2026-11-15); the G1 command
   skeleton in `botcore-factory` against a fake GitHub, all fifteen jobs passing
@@ -79,10 +78,33 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   and its Python live root-owned in `/Library/FactoryGateway/app`; state in `data` (service
   only), the configuration and key in `etc` (the key mode 0600, the service's), the log in `log`.
   It listens on `random`'s tailnet address, port 8787. The owner's token is in
-  `~/.config/factory-gateway/owner.token` on `random`. Not yet checked: that the mirrors primed
-  at startup (the log is readable by the service only) and that it survives a restart.
-- **Next, in order:** G0's remaining checks (a restart of `random`, one test write per
-  permission, how an App's squash merge is credited in Lushly, the runbook
+  `~/.config/factory-gateway/owner.token` on `random`. Its configuration squashes in both
+  repositories (`mergeMethods`, 2026-11-19, since AFD became squash-only). Both mains fetched at
+  startup (the log shows no fetch warning across two starts). Not yet checked: that it survives a
+  restart of `random`.
+- **G0's test writes (2026-11-20, Lushly, owner route):** issues: `issue-create`, `issue-label`,
+  `issue-claim`, `issue-comment` and `issue-release` on
+  [lushly#2706](https://github.com/lushly-dev/lushly/issues/2706), all by the bot. Contents and
+  pull requests: `upload`, `branch-push` and `pr-open` made
+  [lushly#2707](https://github.com/lushly-dev/lushly/pull/2707) from one commit the owner
+  authored, and its push started Lushly's CI (`ci-ok` passed). Checks: `verification-record`
+  published `factory/verification` as success. Workflows: `branch-push` of a change to
+  `.github/workflows/` on a throwaway branch succeeded (the branch was then deleted). Not yet
+  tested: the variables write (needs a root step on `random`) and the rate limit against a
+  replay of a fleet day's reads.
+- **Squash credit, settled 2026-11-20: an App's squash takes the credit.** `pr-merge` squashed
+  lushly#2707 as `72adbcc5`, whose author is `lushly-factory-gateway[bot]` and committer GitHub,
+  with no line for the owner, who wrote its only commit (`bc996e25`): the gateway's explicit
+  body ([#1520](https://github.com/lushly-dev/afd/pull/1520)) leaves out the `Co-authored-by`
+  line GitHub would otherwise add, and with it the owner would still be only a co-author. In
+  AFD's merge queue the squash would carry that line and `ci-ok` refuses any co-author, so an
+  App's pull request cannot merge there at all. Until the owner chooses how factory merges keep
+  his credit, the gateway must not merge: lushly#2707 is the only such merge.
+- **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
+  claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
+  `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).
+- **Next, in order:** the owner's choice of how factory merges keep his credit; G0's remaining
+  checks (a restart of `random`, the variables write, the rate-limit replay, the runbook
   `docs/operations/factory-gateway.md`); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
@@ -94,7 +116,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; open: surviving a restart, the runbook, the test writes and squash-credit check | — | — |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for issues, contents, pull requests, checks and workflows 2026-11-20; squash credit settled against the App (the owner's choice open); open: surviving a restart, the variables write, the rate-limit replay, the runbook | — | — |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
