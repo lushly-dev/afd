@@ -357,13 +357,9 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
         since = _stamp(newest - OVERLAP)
 
     found = _read_t3(path, since, all_items=rebuild)
-    began = _parse(since)
-    if began is not None and any(
-        session.id not in sessions and (_parse(session.created_at) or began) < began
-        for session in found.sessions
-    ):
-        # a thread that is new here and older than the last collection was moved to this
-        # machine: what it did before is in the store, and behind where this read began
+    if since is not None and any(session_id not in sessions for session_id in found.behind):
+        # a session this record has never seen, with work older than the last collection,
+        # was moved to this machine: what it did before is behind where this read began
         since = None
         found = _read_t3(path, since, all_items=rebuild)
     projects, names = _name_projects(_mapping(state.get("projects")), found.projects)

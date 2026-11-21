@@ -46,9 +46,11 @@ def test_settings_toml_round_trips() -> None:
         aged=[{"path": "/Volumes/Dev/cache/*", "max_age_days": 7}],
         skill_usage_machine="random",
         skill_usage_shared="~/Shared Drive/🌱/skill\x7fusage",  # what TOML has no escape for
+        skill_usage_away=["hero", "attic"],
     )
     assert MachineSettings(**tomllib.loads(setup.settings_toml(settings))) == settings
     assert "skill_usage_collect" not in setup.settings_toml(settings)  # the default is not written
+    assert "skill_usage_away" not in setup.settings_toml(MachineSettings())
     off = MachineSettings(skill_usage_collect=False)
     assert MachineSettings(**tomllib.loads(setup.settings_toml(off))) == off
 

@@ -800,7 +800,15 @@ def test_an_append_after_an_interrupted_write_loses_nothing(state: Path) -> None
     store.append_events(state, [event("b")])
     events, unreadable = store.load_events(state)
 
-    assert [found.id for found in events] == ["a", "b"] and unreadable == 1
+    # the half line is taken off: the collection that died never saved how far it had got,
+    # so the next one reads its events again, and no report meets a line it cannot read
+    assert [found.id for found in events] == ["a", "b"] and unreadable == 0
+    lines = (state / store.EVENTS_FILE).read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2 and "half-writ" not in "".join(lines)
+
+    (state / store.EVENTS_FILE).write_text('{"id": "only half a li', encoding="utf-8")
+    store.append_events(state, [event("c")])  # a file that is nothing but the half line
+    assert [found.id for found in store.load_events(state)[0]] == ["c"]
 
 
 # ── reporting ───────────────────────────────────────────────────────────────

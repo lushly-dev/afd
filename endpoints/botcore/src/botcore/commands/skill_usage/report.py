@@ -325,6 +325,8 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         )
 
     renames, on_disk = _inventory(_mapping(state.get("projects")))
+    for name, told in record.renames.items():  # what the other machines know of a project
+        renames[name] = {**told, **renames.get(name, {})}
     known_projects = {event.project for event in events} | set(on_disk)
     known_projects |= {
         entry["project"] for entry in recorded.values() if isinstance(entry.get("project"), str)

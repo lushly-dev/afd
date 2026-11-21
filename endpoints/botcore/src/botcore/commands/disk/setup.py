@@ -57,7 +57,8 @@ SESSION_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/fol
 SESSION_PART = "fnm_multishells"
 # Keys newer than the first release, left out of the file while at their defaults, so a botcore
 # from before them (which refuses unknown keys) still reads a file this one wrote
-OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit", "skill_usage_collect")
+OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit", "skill_usage_collect",
+                   "skill_usage_away")
 
 
 # ── The settings file ───────────────────────────────────────────────────────

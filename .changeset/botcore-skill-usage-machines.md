@@ -8,8 +8,8 @@
 
 ### Changed
 
-- **`skill-usage-triggers`** calls a change a miss only once every machine's record reaches the change's merge; until then it is unknown (`incomplete_record`). It also reads a skill's renames from the checkout it is given, and allows five minutes between a machine's clock and the forge's.
-- **`skill-usage-collect`** refuses a machine name that cannot name a folder and a shared folder that is not a full path (`INVALID_INPUT`), and machine settings it cannot read (`MACHINE_SETTINGS_INVALID`). It reads a thread that was moved to the machine from its start, and names a project of a store copied from another system by its folder, never by the whole path.
+- **`skill-usage-triggers`** calls a change a miss only once every machine's record reaches the change's merge; until then it is unknown (`incomplete_record`), and the report names the machines it waits for. A machine the owner knows is switched off is named in `skill_usage_away` and is then not waited for. It also reads a skill's renames from the checkout it is given, and allows five minutes between a machine's clock and the forge's.
+- **`skill-usage-collect`** refuses a machine name that cannot name a folder and a shared folder that is not a full path (`INVALID_INPUT`), and machine settings it cannot read (`MACHINE_SETTINGS_INVALID`). It reads a thread that was moved to the machine from its start, names a project of a store copied from another system by its folder, never by the whole path, and takes a line that an interrupted collection left unfinished off the record instead of keeping it as one that cannot be read.
 
 ### Fixed
 

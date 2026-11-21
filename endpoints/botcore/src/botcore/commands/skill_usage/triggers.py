@@ -37,7 +37,6 @@ from botcore.commands.skill_usage.collect import (
 from botcore.commands.skill_usage.events import DELEGATE, EDIT, MAIN, PATHS, RECOGNIZER, SUBAGENT
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
-    STALE_AFTER,
     _inventory,
     _mapping,
     _parse,
@@ -378,23 +377,29 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         )
 
     # The checkout in hand says what its skills are called now, whether or not this machine
-    # ever collected in it: a report read here may be all another machine's record
+    # ever collected in it; then this machine's collection; then the other machines'
     renames, on_disk = _inventory(projects)
-    project_renames = {**renames.get(project, {}), **(skill_renames(root) or {})}
+    project_renames = {
+        **record.renames.get(project, {}),
+        **renames.get(project, {}),
+        **(skill_renames(root) or {}),
+    }
     held = skills_on_disk(str(root)) or on_disk.get(project, {})
 
     # A miss needs every machine's record up to the change's merge: a load made on another
-    # machine, or after this one last collected, is a load all the same. A machine that has
-    # not collected for over a day is taken to be away, and is named in the warnings.
-    waits = [
-        _parse(when)
+    # machine, or after this one last collected, is a load all the same. Every machine is
+    # waited for but those the owner names as away; this machine always is.
+    waits = {
+        machine: _parse(when)
         for machine, when in record.collected.items()
-        if machine == here.machine
-        or ((moment := _parse(when)) is not None and now - moment <= STALE_AFTER)
-    ]
+        if machine == here.machine or machine not in here.away
+    }
+    awaited: set[str] = set()  # the machines a change that would be a miss is waiting for
 
     def certain(change: Change) -> bool:
-        return record.whole and all(moment is not None and moment >= change.at for moment in waits)
+        late = {name for name, moment in waits.items() if moment is None or moment < change.at}
+        awaited.update(late)
+        return record.whole and not late
 
     def named(skill: str) -> str:
         return current_name(skill, project_renames, held)
@@ -476,6 +481,13 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         warnings.append(  # a load an older botcore did not know reads as a miss
             f"{outdated} events were recognised by an older botcore, which may have missed "
             "loads: run skill-usage-collect --rebuild to read them again"
+        )
+    if awaited:
+        warnings.append(
+            f"No change is called missed until every machine has collected since it merged, "
+            f"and {', '.join(sorted(awaited))} had not for some: run skill-usage-collect "
+            "there. A machine that is switched off can be named in skill_usage_away in this "
+            "machine's settings, and is then not waited for"
         )
     if links.unsaid:
         warnings.append(

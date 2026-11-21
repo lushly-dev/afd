@@ -131,8 +131,9 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   a machine's folder that holds another record of the same name (`error`), does not undo the
   collection, and botcore never creates or syncs the shared folder. What is shared is what
   was read, with this module's fields only: session ids, project names and pull request
-  numbers, never a folder of the machine or a line it could not read. Keep it private. A
-  name is lower case and fit for a folder on any system; the shared folder is a full path.
+  numbers, and each project's renamed skills; never a folder of the machine or a line it
+  could not read. Keep it private. A name is lower case and fit for a folder on any system;
+  the shared folder is a full path.
 - `since_days`: re-read that many days instead
 - `t3_store`, `machine`: read a store copied from another machine, named by `machine`
 - `rebuild`: read everything and replace what an older botcore recognised, or the name a
@@ -212,8 +213,11 @@ declared today judges the record as it stands.
 - `repo`: the repository's checkout; the one holding the working directory when left out.
 - It reads every machine's record, as the usage report does, so a change opened on another
   machine is judged here. A machine's copy that is not whole is not read, and is named in
-  `warnings`; while one is, no change is `missed`. A machine not heard from for over a day is
-  taken to be away: named, and not waited for.
+  `warnings`; while one is, no change is `missed`. Every machine with a record is waited for,
+  however long silent, and `warnings` names those a change waits for; a machine the owner
+  knows is switched off is named in `skill_usage_away` in this machine's settings
+  (`BOTCORE_SKILL_USAGE_AWAY`, comma-separated, overrides it) and is then not waited for.
+  This machine always is.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),
   `RECORD_DAMAGED` (a line of a machine's record cannot be read: rebuild on that machine, or

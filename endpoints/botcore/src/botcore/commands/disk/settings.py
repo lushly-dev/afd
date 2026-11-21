@@ -74,6 +74,9 @@ class MachineSettings(BaseModel):
     skill_usage_collect: bool = True
     skill_usage_machine: str | None = None
     skill_usage_shared: str | None = None
+    # Machines the triggers report read here does not wait for before it calls a change a
+    # miss: ones the owner knows are switched off. It waits for every other machine
+    skill_usage_away: list[str] = []
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 

@@ -20,7 +20,9 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
   request and the load that answers for it can be on different ones: a thread moved between
   machines, a task delegated to another. Both first reviewers reproduced a load turning into
   a miss when one machine's copy was skipped, stale or away. So no change is a miss until
-  every machine still collecting has collected past the change's merge.
+  every machine has collected past the change's merge. The first fix stopped waiting for a
+  machine silent for a day, and the next review made a miss out of that too: a machine is
+  now left out only when the owner names it as switched off.
 - **A sync delivers files one at a time.** A machine's state names its other files by digest,
   and a reader parses the bytes it checked: checking and then reading again let a sync land
   in between.

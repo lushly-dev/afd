@@ -336,6 +336,21 @@ def test_a_change_merged_since_the_last_collection_is_not_yet_a_miss(
     assert found["misses"] == [{"change": 101, "sessions": ["main"]}]
 
 
+def test_this_machine_is_never_away(
+    state: Path, t3_store: T3Store, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session(t3_store, "main", (101, stamp(1)))
+    t3_store.skill_tool("main", "plant-beds", stamp(4))
+    run(skill_usage_collect())
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=-1)  # after it collected
+    monkeypatch.setenv(store.AWAY_ENV, "bench")  # its own name
+
+    data = run(skill_usage_triggers(repo=str(repo)))
+
+    assert why(rule(data)) == {"incomplete_record": 1}  # it can collect: it is waited for
+    assert any("bench had not" in warning for warning in data["warnings"])
+
+
 def test_an_opening_the_record_puts_after_the_merge_is_not_judged(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:

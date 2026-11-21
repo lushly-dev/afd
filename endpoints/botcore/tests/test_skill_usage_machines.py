@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -86,7 +87,8 @@ def test_collection_also_writes_the_record_to_the_shared_folder(machines: Machin
     # of its state a machine shares what another needs, and none of its folders
     shared_state = json.loads((folder / store.STATE_FILE).read_text("utf-8"))
     assert sorted(shared_state) == [
-        "collected_at", "files", "machine", "recognizer", "record_id", "unreadable", "version",
+        "collected_at", "files", "machine", "recognizer", "record_id", "renames", "unreadable",
+        "version",
     ]  # fmt: skip
     assert sorted(shared_state["files"]) == [store.EVENTS_FILE, store.SESSIONS_FILE]
     assert (shared_state["machine"], shared_state["unreadable"]) == ("bench", 0)
@@ -300,6 +302,7 @@ def test_a_machine_names_itself_and_its_shared_folder_in_its_settings(
 
     monkeypatch.delenv(store.MACHINE_ENV)
     monkeypatch.delenv(store.SHARED_ENV)
+    monkeypatch.delenv(store.AWAY_ENV)
     for wrong, code in (
         ('skill_usage_machine = "../elsewhere"\n', "INVALID_INPUT"),
         ('skill_usage_machine = "nul.txt"\n', "INVALID_INPUT"),  # a device, to Windows
@@ -315,8 +318,11 @@ def test_a_machine_names_itself_and_its_shared_folder_in_its_settings(
             lambda: skill_usage_triggers(repo=str(repo)),
         ):
             assert fail(refused()).code == code, wrong
-    settings.write_text('skill_usage_machine = "Random"\n', "utf-8")
-    assert store.local().machine == "random"  # a shared drive does not tell Random from random
+    settings.write_text('skill_usage_machine = "Random"\nskill_usage_away = ["Hero"]\n', "utf-8")
+    here = store.local()  # a shared drive does not tell Random from random
+    assert (here.machine, here.away) == ("random", frozenset({"hero"}))
+    settings.write_text('skill_usage_away = ["a machine"]\n', "utf-8")
+    assert fail(skill_usage_triggers(repo=str(repo))).code == "INVALID_INPUT"
 
 
 # ── what a machine may write to the shared folder ───────────────────────────
@@ -497,11 +503,10 @@ def test_a_reader_with_no_record_of_its_own_knows_a_renamed_skill(
     shed = machines.on("shed")
     shed.skill_tool(session(shed, "opener", (101, stamp(2))), "gate-discipline", stamp(3))
     run(skill_usage_collect())
-    git_mv = ["git", "-C", str(repo), "-c", "user.name=T", "-c", "user.email=t@example.com"]
-    import subprocess
-
-    subprocess.run([*git_mv, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates"],
-                   check=True)  # fmt: skip
+    subprocess.run(
+        ["git", "-C", str(repo), "mv", ".claude/skills/gate-discipline", ".claude/skills/gates"],
+        check=True,
+    )
     (repo / "botcore.toml").write_text(
         '[[skills.required]]\nskill = "gates"\npaths = ["hooks.yml"]\n', "utf-8"
     )
@@ -578,19 +583,25 @@ def test_no_change_is_a_miss_while_a_machines_record_is_not_all_here(
     state_file.write_text(json.dumps(behind), "utf-8")
     assert judged_now() == (0, 0, {"incomplete_record": 1})
 
-    # a machine not heard from for days is away, and is named: it is not waited for
+    # nor does it stop waiting for a machine that has been silent for days: the shed may
+    # have been working all the while, with its collection stopped
     state_file.write_text(json.dumps({**behind, "collected_at": stamp(3)}), "utf-8")
-    assert judged_now() == (0, 1, {})
+    assert judged_now() == (0, 0, {"incomplete_record": 1})
     warnings = run(skill_usage_triggers(repo=str(repo)))["warnings"]
     assert any(warning.startswith("shed last collected") for warning in warnings)
+    assert any("shed had not" in warning and "skill_usage_away" in warning for warning in warnings)
+
+    # until the owner says the shed is switched off: then what is here is all there is
+    machines.monkeypatch.setenv(store.AWAY_ENV, " Shed ,attic")
+    assert judged_now() == (0, 1, {})
 
 
 def test_a_thread_moved_to_this_machine_is_read_from_its_start(machines: Machines) -> None:
     tower = machines.on("tower")
     tower.skill_tool(tower.thread("here"), "plant-beds", stamp(0))
     run(skill_usage_collect())
-    old = {"createdAt": stamp(20), "updatedAt": stamp(0)}
-    tower.skill_tool(tower.thread("moved", extra=old), "prune-roses", stamp(19))
+    # whatever the move made of the thread's own dates, its items are as old as they were
+    tower.skill_tool(tower.thread("moved"), "prune-roses", stamp(19))
 
     data = run(skill_usage_collect())  # the load is weeks behind where this read would begin
 
@@ -598,3 +609,38 @@ def test_a_thread_moved_to_this_machine_is_read_from_its_start(machines: Machine
     assert sorted(event.skill for event in collected(machines.record("tower"))) == [
         "plant-beds", "prune-roses",
     ]  # fmt: skip
+
+
+def test_a_machine_whose_state_was_lost_is_not_shut_out_of_its_own_folder(
+    machines: Machines,
+) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(session(shed, "shed-0", (7, stamp(2))), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    first = store.load_state(machines.record("shed"))["record_id"]
+    (machines.record("shed") / store.STATE_FILE).write_text("{ half a file", "utf-8")
+    shed.skill_tool(shed.thread("shed-1"), "plant-beds", stamp(0))
+
+    data = run(skill_usage_collect())  # it begins a new id, and reads everything again
+
+    assert store.load_state(machines.record("shed"))["record_id"] != first
+    assert data["shared"] == {"path": str(machines.shared), "exists": True, "written": True}
+    machines.on("bench")
+    assert run(skill_usage_report())["record"]["sessions"] == 2
+
+
+def test_a_reader_with_no_checkout_knows_a_skills_new_name(machines: Machines, repo: Path) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "gate-discipline", stamp(3))
+    subprocess.run(
+        ["git", "-C", str(repo), "mv", ".claude/skills/gate-discipline", ".claude/skills/gates"],
+        check=True,
+    )
+    merge(repo, "chore: rename the skill (#100)")
+    run(skill_usage_collect())  # the shed has the checkout, and with it the rename
+    renames = json.loads((machines.shared / "shed" / store.STATE_FILE).read_text("utf-8"))
+    assert renames["renames"] == {"acme/garden": {"gate-discipline": "gates"}}
+
+    machines.on("bench")  # it never collected, so it knows no checkout of the project
+
+    assert sorted(rows(run(skill_usage_report()))) == ["gates"]

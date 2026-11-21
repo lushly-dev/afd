@@ -260,8 +260,11 @@ can be opened. Otherwise it is unknown, never a miss:
   machine last collected before the change merged, a machine's copy in the shared folder is
   not whole, or the shared folder was not there. A load made on another machine, or since
   this one last collected, is a load all the same, so until every machine has collected past
-  the merge the change waits. A machine not heard from for over a day is taken to be away:
-  it is named, and not waited for.
+  the merge the change waits, and the report names the machines it waits for. Every machine
+  with a record is waited for, however long it has been silent: it may have been working
+  all the while with its collection stopped. A machine the owner knows is switched off is
+  named in `skill_usage_away`, in the settings of the machine the report is read on, and is
+  then not waited for. This machine is always waited for: it can collect.
 
 A load's time is its machine's and a merge's is the forge's. A load up to five minutes after
 the merge may have come before it, and is no ground for a miss.
@@ -314,6 +317,7 @@ A machine says three things in its machine settings (`disk.toml`):
 skill_usage_machine = "random"              # its name in the record
 skill_usage_shared = "~/Shared/skill-usage"  # a folder every machine can see, as a full path
 skill_usage_collect = false                 # only to turn the hourly collection off
+skill_usage_away = ["hero"]                 # machines a triggers report read here does not wait for
 ```
 
 A name is a folder's name on every system: lower case (a shared drive does not tell `Bench`
@@ -327,7 +331,9 @@ After each collection a machine writes its record to a folder of its own name th
 - **What it understood, not its files as they lie.** Its events and sessions are written
   again from what was read, with the fields this module writes and no other. A line that
   could not be read stays on the machine, and the state says how many there are. Of its
-  state it shares when it collected and under which rules, never its folders.
+  state it shares when it collected, under which rules, and each project's renamed skills,
+  so that a reader with no checkout of a project still knows a skill by its name now. Never
+  its folders.
 - **Only what changed**, so a sync has little to send, and the state last. The state names
   the other two files by their digests.
 - **Only its own folder.** Each record has an id. A folder that holds another record under
@@ -355,9 +361,14 @@ sync that is away, so the collection says so and the record stays whole on the m
 
 A machine renamed after it has collected keeps its old name on the events it wrote. Run
 `skill-usage-collect --rebuild` on it and remove its old folder from the shared one; events
-whose threads T3 Code has dropped keep the old name. A machine whose record was started
-again is a new record: remove its old folder from the shared one, which it will not write
-over.
+whose threads T3 Code has dropped keep the old name. A machine whose state was lost begins a
+new id and still writes its folder, since everything in the folder is in its record. One
+whose record was started again from less is a new record: remove its old folder from the
+shared one, which it will not write over.
+
+A collection cut short part way through a line leaves that line unfinished. The next
+collection takes it off before it writes: the one that died never saved how far it had got,
+so its events are read again, and no report meets a line it cannot read.
 
 The first collection on each machine is run by hand as soon as phase 1 merges, without waiting
 for the schedule.
@@ -378,10 +389,11 @@ for the schedule.
   skills, and one of a project whose checkout is not on the machine all count as use.
 - **A machine that has not synced.** Each machine's numbers end at its last collection that
   reached the shared folder; the report gives that time for every machine.
-- **A machine taken to be away.** One not heard from for over a day is not waited for. If it
-  was working all the while and only its collection or its sync had stopped, a load it holds
-  is not in the record, and a change may be called a miss until it is. The report names the
-  machine, and its own `disk-status` reports the failure.
+- **A machine named as away.** `skill_usage_away` is the owner's word that a machine was
+  switched off. If it was working, a load it holds is not in the record, and a change may be
+  called a miss until its record arrives.
+- **A load two machines give to different sessions** is counted for both: once more than it
+  happened in the usage report, and never as a miss.
 - **What the triggers report cannot tell.** Whether the skill was still in the agent's
   context when it made the change: a long session that loaded it days before counts as
   loaded. Whether the load came before the change or at its review: both come before the

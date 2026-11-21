@@ -27,6 +27,8 @@ STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
 T3_STORE_ENV = "BOTCORE_SKILL_USAGE_T3_STORE"
 MACHINE_ENV = "BOTCORE_SKILL_USAGE_MACHINE"
 SHARED_ENV = "BOTCORE_SKILL_USAGE_SHARED"
+AWAY_ENV = "BOTCORE_SKILL_USAGE_AWAY"
+TAIL = 1 << 16  # more than any event's line
 EVENTS_FILE = "events.jsonl"
 STATE_FILE = "state.json"
 SESSIONS_FILE = "sessions.json"
@@ -104,22 +106,32 @@ class Local:
 
     machine: str  # its name in the record
     shared: Path | None  # the folder every machine can see, when one is named
+    # The machines the owner says are switched off: not waited for before a miss is called
+    away: frozenset[str] = frozenset()
 
 
 def local() -> Local:
-    """This machine's name and shared folder: the environment first, then the machine
-    settings, then its hostname and no shared folder. Raises `SettingsError` when the
-    machine settings cannot be read, and `InvalidMachine`."""
+    """This machine's name, its shared folder and the machines it does not wait for: the
+    environment first, then the machine settings, then its hostname, no shared folder and
+    no machine away. Raises `SettingsError` when the machine settings cannot be read, and
+    `InvalidMachine`."""
     name, shared = os.environ.get(MACHINE_ENV), os.environ.get(SHARED_ENV)
-    if not name or shared is None:  # an empty BOTCORE_SKILL_USAGE_SHARED means none
+    listed = os.environ.get(AWAY_ENV)
+    away = listed.split(",") if listed is not None else None
+    if not name or shared is None or away is None:  # an empty variable means none
         settings = load_machine_settings()[0]
         name = name or settings.skill_usage_machine
         shared = settings.skill_usage_shared or "" if shared is None else shared
+        away = settings.skill_usage_away if away is None else away
     folder = expand(shared) if shared else None
     if folder is not None and not folder.is_absolute():
         # a job does not run where a person does: a relative folder would be two folders
         raise InvalidMachine(f"The shared folder must be a full path, not {shared!r}")
-    return Local(checked_machine(name) if name else default_machine(), folder)
+    return Local(
+        checked_machine(name) if name else default_machine(),
+        folder,
+        frozenset(checked_machine(other.strip()) for other in away if other.strip()),
+    )
 
 
 def machine_name() -> str:
@@ -159,17 +171,24 @@ def load_events(directory: Path) -> tuple[list[Event], int]:
 
 def append_events(directory: Path, events: list[Event]) -> None:
     """Add events to the record. A repeated id is harmless: readers keep the first. A final
-    line an interrupted write left unfinished is closed first, so the next event is not
-    joined to it and lost with it."""
+    line an interrupted write left unfinished is taken off first: the collection that was
+    writing it never saved where it had got to, so this one has read those events again,
+    and a line that cannot be read would stop every report that must not miss a load."""
     if not events:
         return
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / EVENTS_FILE).open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
-        if handle.tell():
-            handle.seek(-1, os.SEEK_END)
-            if handle.read(1) != b"\n":
-                handle.write(b"\n")
+        size = handle.tell()
+        if size:
+            handle.seek(max(0, size - TAIL))
+            tail = handle.read()
+            if not tail.endswith(b"\n"):
+                kept = tail.rfind(b"\n") + 1  # 0 when the tail holds no whole line
+                if kept or size <= TAIL:
+                    handle.truncate(size - len(tail) + kept)
+                else:  # a line longer than any event: not ours to drop
+                    handle.write(b"\n")
         for event in events:
             handle.write((json.dumps(event.to_json(), sort_keys=True) + "\n").encode("utf-8"))
         handle.flush()
@@ -288,6 +307,39 @@ def _same_folder(one: Path, other: Path) -> bool:
         return False
 
 
+def _renames(state: dict) -> dict[str, dict[str, str]]:
+    """Each project's renamed skills, old name to new, as a machine's state holds them: a
+    reader with no checkout of a project knows a skill's name from the machines that have."""
+    found: dict[str, dict[str, str]] = {}
+    projects = state.get("projects")
+    for name, entry in projects.items() if isinstance(projects, dict) else []:
+        renames = entry.get("renames") if isinstance(entry, dict) else None
+        pairs = {
+            old: new
+            for old, new in (renames.items() if isinstance(renames, dict) else [])
+            if isinstance(old, str) and isinstance(new, str)
+        }
+        if isinstance(name, str) and pairs:
+            found[name] = pairs
+    return found
+
+
+def _earlier(folder: Path, events: list[Event], sessions: dict[str, dict]) -> bool:
+    """Whether a folder under this machine's name holds an earlier copy of this record,
+    whatever id it carries: everything in it is in the record here. A machine whose state
+    was lost begins a new id, and must not be shut out of its own folder; another machine's
+    record holds sessions this one never had."""
+    try:
+        copy = _read_copy(folder)
+    except (OSError, ValueError):
+        return False
+    if copy is None or not (copy.events or copy.sessions):
+        return False
+    return {event.id for event in copy.events} <= {event.id for event in events} and set(
+        copy.sessions
+    ) <= set(sessions)
+
+
 def publish(directory: Path, shared: Path, machine: str) -> bool:
     """Write this machine's record to its own folder in the shared one. Whether anything
     was written: a file that did not change is left alone, so a sync has nothing to send.
@@ -310,16 +362,15 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
             "the shared one"
         )
     state = load_state(directory)
-    held = _load_json(target / STATE_FILE)
-    mine, theirs = state.get("record_id"), held.get("record_id")
-    if theirs and theirs != mine:
+    events, unreadable = load_events(directory)
+    sessions = load_sessions(directory)
+    theirs = _load_json(target / STATE_FILE).get("record_id")
+    if theirs and theirs != state.get("record_id") and not _earlier(target, events, sessions):
         raise SharedUnavailable(
             f"{target} holds the record of another machine named {machine}: give this "
             "machine a name of its own (skill_usage_machine), or remove that folder if it "
             "is this machine's old record"
         )
-    events, unreadable = load_events(directory)
-    sessions = load_sessions(directory)
     files = {
         EVENTS_FILE: "".join(
             json.dumps(event.to_json(), sort_keys=True) + "\n" for event in events
@@ -336,6 +387,7 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     shared_state = {key: state[key] for key in SHARED_STATE if key in state}
     shared_state["machine"] = machine
     shared_state["unreadable"] = unreadable
+    shared_state["renames"] = _renames(state)
     shared_state["files"] = {name: _digest(data) for name, data in files.items()}
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     target.mkdir(exist_ok=True)
@@ -401,6 +453,8 @@ class Record:
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
     partial: list[str] = field(default_factory=list)  # machines whose copy is not whole
     recognizer: int | None = None  # the oldest rules any machine's record began under
+    # project -> old skill name -> new, as every machine that holds the project knows them
+    renames: dict[str, dict[str, str]] = field(default_factory=dict)
     shared: Path | None = None
     missing: str | None = None  # why the shared folder was not read
 
@@ -459,6 +513,7 @@ def load_record(directory: Path, here: Local) -> Record:
     known = isinstance(record.state.get("recognizer"), int)
     record.recognizer = record.state["recognizer"] if known else None
     machines: dict[str, tuple[list[Event], dict[str, dict]]] = {}
+    renames = {here.machine: _renames(record.state)}
     sessions = load_sessions(directory)
     if events or record.state or sessions:
         machines[here.machine] = (events, sessions)
@@ -490,6 +545,11 @@ def load_record(directory: Path, here: Local) -> Record:
                 record.partial.append(folder.name)
                 continue
             machines[machine] = (copy.events, copy.sessions)
+            told = copy.state.get("renames")
+            told = told if isinstance(told, dict) else {}
+            renames[machine] = _renames(
+                {"projects": {name: {"renames": pairs} for name, pairs in told.items()}}
+            )
             record.collected[machine] = copy.state.get("collected_at")
             if copy.unreadable:
                 record.unreadable[machine] = copy.unreadable
@@ -498,6 +558,9 @@ def load_record(directory: Path, here: Local) -> Record:
             record.recognizer = (
                 rules if record.recognizer is None else min(record.recognizer, rules)
             )
+    for machine in sorted(renames, reverse=True):  # the first by name has the last word
+        for project, pairs in renames[machine].items():
+            record.renames.setdefault(project, {}).update(pairs)
     seen: set[tuple[str, str]] = set()
     for machine in sorted(machines):  # by name, so that every reader merges alike
         theirs, entries = machines[machine]
