@@ -87,6 +87,9 @@ impl Provider for Scoped {
     async fn list(&mut self) -> Result<Listing, ProviderError> {
         self.inner.list().await
     }
+    async fn returned(&mut self) -> Result<Vec<String>, ProviderError> {
+        self.inner.returned().await
+    }
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError> {
         self.inner.changes(cursor).await
     }
