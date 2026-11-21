@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.lushly.factory-gateway</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Library/FactoryGateway/app/venv/bin/factory-gateway-admin</string>
+    <string>serve</string>
+    <string>--data</string><string>/Library/FactoryGateway/data</string>
+    <string>--config</string><string>/Library/FactoryGateway/etc/gateway.json</string>
+    <string>--address</string><string>100.82.142.64</string>
+    <string>--port</string><string>8787</string>
+    <string>--app-key</string><string>/Library/FactoryGateway/etc/app.pem</string>
+  </array>
+  <key>UserName</key><string>_factorygw</string>
+  <key>GroupName</key><string>_factorygw</string>
+  <key>Umask</key><integer>63</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Library/FactoryGateway/data</string>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Library/FactoryGateway/log/gateway.log</string>
+  <key>StandardErrorPath</key><string>/Library/FactoryGateway/log/gateway.log</string>
+</dict>
+</plist>
