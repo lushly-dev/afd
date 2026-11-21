@@ -570,11 +570,21 @@ async fn resource_providers_see_the_caller() {
         "{}",
         listed.text
     );
+    assert_eq!(
+        listed.body["result"]["cacheScope"], "private",
+        "caller-gated resources/list must be private (#1880): {}",
+        listed.text
+    );
     let listed = send(&server, post("resources/list", json!({}), Some(&other))).await;
     assert_eq!(
         listed.body["result"]["resources"],
         json!([]),
         "{}",
+        listed.text
+    );
+    assert_eq!(
+        listed.body["result"]["cacheScope"], "private",
+        "caller-gated resources/list must be private even when empty (#1880): {}",
         listed.text
     );
     let read = json!({ "uri": "file:///secret.txt" });
@@ -591,8 +601,57 @@ async fn resource_providers_see_the_caller() {
         "{}",
         answer.text
     );
+    assert_eq!(
+        answer.body["result"]["cacheScope"], "private",
+        "caller-gated resources/read must be private (#1880): {}",
+        answer.text
+    );
     let answer = send(&server, read_post(&other)).await;
     assert_eq!(answer.body["error"]["code"], -32602, "{}", answer.text);
+}
+
+#[tokio::test]
+async fn skill_catalog_reads_stay_public_while_provider_resources_are_private() {
+    use afd::server::{Skill, SkillCatalog};
+
+    let catalog = SkillCatalog::new(vec![Skill::new("demo").with_file(
+        "SKILL.md",
+        b"---\nname: demo\ndescription: Demo skill\n---\nBody\n".to_vec(),
+    )])
+    .unwrap();
+    let fixture = fixture();
+    let server = fixture
+        .server(ToolStrategy::Individual, authorization())
+        .with_resources(Gated)
+        .with_skills(catalog.clone());
+    let reader = token_with_scope(Some("docs:read"));
+
+    // Combined resources/list includes caller-gated provider entries -> private
+    let listed = send(&server, post("resources/list", json!({}), Some(&reader))).await;
+    assert_eq!(listed.body["result"]["cacheScope"], "private");
+
+    // Static skill:// read comes from the skill catalog -> remains public
+    let mut skill_req = post(
+        "resources/read",
+        json!({ "uri": "skill://demo/SKILL.md" }),
+        Some(&reader),
+    );
+    skill_req
+        .headers_mut()
+        .insert("mcp-name", "skill://demo/SKILL.md".parse().unwrap());
+    let skill_read = send(&server, skill_req).await;
+    assert_eq!(skill_read.body["result"]["cacheScope"], "public");
+
+    // Skills-only authorized server (no ResourceProvider) keeps resources/list public
+    let skills_only = fixture
+        .server(ToolStrategy::Individual, authorization())
+        .with_skills(catalog);
+    let listed_skills = send(
+        &skills_only,
+        post("resources/list", json!({}), Some(&reader)),
+    )
+    .await;
+    assert_eq!(listed_skills.body["result"]["cacheScope"], "public");
 }
 
 // ─── Claims and debug output ─────────────────────────────────────────────────────────────────

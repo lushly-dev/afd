@@ -521,6 +521,18 @@ fn document_ids_follow_section_5_1() {
         document_id("c", "../a.md", Kind::Markdown),
         Err(PathProblem::Hidden)
     );
+    assert_eq!(
+        document_id("c", "C:state/keys/http.token", Kind::Markdown),
+        Err(PathProblem::Character)
+    );
+    assert_eq!(
+        document_id("c", "sub/d:secret.md", Kind::Markdown),
+        Err(PathProblem::Character)
+    );
+    assert_eq!(
+        document_id("c", "doc.md:Zone.Identifier", Kind::Markdown),
+        Err(PathProblem::Character)
+    );
     let long = format!("{}.md", "a".repeat(600));
     assert_eq!(
         document_id("c", &long, Kind::Markdown),

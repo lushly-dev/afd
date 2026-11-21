@@ -118,7 +118,7 @@ pub struct Analysis {
 pub enum PathProblem {
     /// The path is empty or starts or ends with `/`.
     Empty,
-    /// A control character or a backslash.
+    /// A control character, backslash, colon (drive prefix or NTFS stream), or non-normal path component.
     Character,
     /// A segment starts with `.` (hidden files, `..`).
     Hidden,
@@ -147,7 +147,10 @@ pub fn document_id(collection: &str, path: &str, kind: Kind) -> Result<String, P
     if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
         return Err(PathProblem::Empty);
     }
-    if path.chars().any(|c| c.is_control() || c == '\\') {
+    if path
+        .chars()
+        .any(|c| c.is_control() || c == '\\' || c == ':')
+    {
         return Err(PathProblem::Character);
     }
     for segment in path.split('/') {
@@ -157,6 +160,12 @@ pub fn document_id(collection: &str, path: &str, kind: Kind) -> Result<String, P
         if segment.starts_with('.') {
             return Err(PathProblem::Hidden);
         }
+    }
+    if !std::path::Path::new(path)
+        .components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(PathProblem::Character);
     }
     let trimmed = match kind {
         Kind::Markdown => path.strip_suffix(".md").unwrap_or(path),
