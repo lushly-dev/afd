@@ -44,6 +44,7 @@ from botcore.commands.skill import (
     skill_unadopt,
 )
 from botcore.commands.skill_lint import skill_lint_spec
+from botcore.commands.skill_usage import skill_usage_collect, skill_usage_report
 from botcore.commands.spec import spec_create, spec_delete, spec_status, spec_validate
 from botcore.commands.undo import undo_clear, undo_status
 
@@ -69,6 +70,8 @@ __all__ = [
     "skill_seed",
     "skill_list",
     "skill_status",
+    "skill_usage_collect",
+    "skill_usage_report",
     "skill_lint",
     "skill_lint_spec",
     "skill_adopt",
