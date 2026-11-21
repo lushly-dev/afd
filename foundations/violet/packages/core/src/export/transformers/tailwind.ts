@@ -259,6 +259,21 @@ function toTailwindRadius(value: unknown): string {
 }
 
 /**
+ * Escape a string for safe inclusion inside a single-quoted JavaScript literal
+ */
+function escapeJsString(str: string): string {
+	return str
+		.replace(/\\/g, '\\\\')
+		.replace(/'/g, "\\'")
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r')
+		.replace(/\t/g, '\\t')
+		.replaceAll('\0', '\\x00')
+		.replace(/\u2028/g, '\\u2028')
+		.replace(/\u2029/g, '\\u2029');
+}
+
+/**
  * Format object as JavaScript string with proper indentation
  */
 function formatObject(obj: Record<string, unknown>, baseIndent: number): string {
@@ -273,16 +288,18 @@ function formatObject(obj: Record<string, unknown>, baseIndent: number): string 
 	const lines: string[] = ['{'];
 
 	for (const [key, value] of entries) {
-		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`;
+		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${escapeJsString(key)}'`;
 
 		if (value && typeof value === 'object' && !Array.isArray(value)) {
 			const nestedStr = formatObject(value as Record<string, unknown>, baseIndent + 1);
 			lines.push(`${innerIndent}${formattedKey}: ${nestedStr},`);
 		} else if (Array.isArray(value)) {
-			const arrayStr = JSON.stringify(value);
+			const arrayStr = JSON.stringify(value)
+				.replace(/\u2028/g, '\\u2028')
+				.replace(/\u2029/g, '\\u2029');
 			lines.push(`${innerIndent}${formattedKey}: ${arrayStr},`);
 		} else {
-			lines.push(`${innerIndent}${formattedKey}: '${value}',`);
+			lines.push(`${innerIndent}${formattedKey}: '${escapeJsString(String(value))}',`);
 		}
 	}
 

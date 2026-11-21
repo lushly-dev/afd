@@ -16,8 +16,12 @@ export const kotlinTransformer: Transformer = {
 		const { includeComments = true } = options;
 
 		// Use kotlin-specific options
-		const packageName = (options as KotlinOptions).packageName || 'com.violet.tokens';
-		const objectName = (options as KotlinOptions).className || 'VioletTokens';
+		const packageName = sanitizeKotlinPackage(
+			(options as KotlinOptions).packageName || 'com.violet.tokens',
+		);
+		const objectName = sanitizeKotlinIdentifier(
+			(options as KotlinOptions).className || 'VioletTokens',
+		);
 
 		const lines: string[] = [];
 
@@ -37,31 +41,46 @@ export const kotlinTransformer: Transformer = {
 
 		// Group tokens by category
 		const groups = groupByCategory(tokens);
+		const usedCategoryNames = new Set<string>();
 
 		for (const [category, categoryTokens] of groups) {
 			lines.push('');
 
 			if (includeComments) {
-				lines.push(`    // ${capitalize(category)}`);
+				lines.push(`    // ${sanitizeLineComment(capitalize(category))}`);
 			}
 
-			lines.push(`    object ${capitalize(category)}s {`);
+			const categoryObjName = allocateKotlinIdentifier(
+				`${capitalize(category)}s`,
+				usedCategoryNames,
+			);
+			lines.push(`    object ${categoryObjName} {`);
 
 			// Group by subcategory
 			const subGroups = groupBySubcategory(categoryTokens);
+			const usedCategoryScopeNames = new Set<string>();
 
 			for (const [subcategory, subTokens] of subGroups) {
+				let usedMemberNames = usedCategoryScopeNames;
 				if (subcategory !== '_root') {
-					lines.push(`        object ${toPascalCase(subcategory)} {`);
+					const subObjName = allocateKotlinIdentifier(
+						toPascalCase(subcategory),
+						usedCategoryScopeNames,
+					);
+					lines.push(`        object ${subObjName} {`);
+					usedMemberNames = new Set<string>();
 				}
 
 				for (const token of subTokens) {
 					const kotlinValue = toKotlinValue(token);
-					const propName = toPascalCase(getPropertyName(token.id));
+					const propName = allocateKotlinIdentifier(
+						toPascalCase(getPropertyName(token.id)),
+						usedMemberNames,
+					);
 					const indent = subcategory !== '_root' ? '            ' : '        ';
 
 					if (includeComments && token.metadata?.description) {
-						lines.push(`${indent}/** ${token.metadata.description} */`);
+						lines.push(`${indent}/** ${sanitizeBlockComment(token.metadata.description)} */`);
 					}
 
 					lines.push(`${indent}val ${propName} = ${kotlinValue}`);
@@ -137,40 +156,40 @@ function capitalize(str: string): string {
  * Convert token value to Kotlin literal
  */
 function toKotlinValue(token: ResolvedToken): string {
-	const category = token.id.split('.')[0];
 	const value = token.resolvedValue;
 
-	// Colors
-	if (category === 'color' || isHexColor(value)) {
+	// Colors (only emit Color(0x...) when value is a valid CSS hex color)
+	if (isHexColor(value)) {
 		return `Color(0x${toArgbHex(String(value))})`;
 	}
 
 	// Numbers with units
 	if (typeof value === 'string') {
 		// Pixel values → dp
-		if (value.endsWith('px')) {
+		if (/^-?(?:\d+\.?\d*|\.\d+)px$/.test(value)) {
 			return `${Number.parseFloat(value)}.dp`;
 		}
 		// Rem values → dp (assume 16px base)
-		if (value.endsWith('rem')) {
+		if (/^-?(?:\d+\.?\d*|\.\d+)rem$/.test(value)) {
 			return `${Number.parseFloat(value) * 16}.dp`;
 		}
 		// SP values for fonts
-		if (value.endsWith('sp')) {
+		if (/^-?(?:\d+\.?\d*|\.\d+)sp$/.test(value)) {
 			return `${Number.parseFloat(value)}.sp`;
 		}
 		// Pure numbers (assume dp for spacing)
-		if (/^-?\d+(\.\d+)?$/.test(value)) {
+		if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) {
+			const normalized = Number.parseFloat(value);
 			// Check if it's likely a font size based on token name
 			if (token.id.includes('font') || token.id.includes('text')) {
-				return `${value}.sp`;
+				return `${normalized}.sp`;
 			}
-			return `${value}.dp`;
+			return `${normalized}.dp`;
 		}
 	}
 
 	// Numbers
-	if (typeof value === 'number') {
+	if (typeof value === 'number' && Number.isFinite(value)) {
 		return `${value}.dp`;
 	}
 
@@ -185,14 +204,88 @@ const KOTLIN_ESCAPES: Record<string, string> = {
 	'\n': '\\n',
 	'\r': '\\r',
 	'\t': '\\t',
+	'\0': '\\u0000',
 };
+
+const KOTLIN_RESERVED = new Set([
+	'_',
+	'as',
+	'break',
+	'class',
+	'continue',
+	'do',
+	'else',
+	'false',
+	'for',
+	'fun',
+	'if',
+	'in',
+	'interface',
+	'is',
+	'null',
+	'object',
+	'package',
+	'return',
+	'super',
+	'this',
+	'throw',
+	'true',
+	'try',
+	'typealias',
+	'typeof',
+	'val',
+	'var',
+	'when',
+	'while',
+]);
 
 /**
  * Escape a value for a double-quoted Kotlin string literal, including `$`
  * so it cannot start a string template
  */
 function escapeKotlinString(str: string): string {
-	return str.replace(/[\\"$\n\r\t]/g, (c) => KOTLIN_ESCAPES[c]);
+	return str.replace(/[\\"$\n\r\t]/g, (c) => KOTLIN_ESCAPES[c]).replaceAll('\0', '\\u0000');
+}
+
+function sanitizeKotlinIdentifier(str: string): string {
+	let cleaned = str.replace(/[^a-zA-Z0-9_]/g, '_');
+	if (!cleaned || /^_+$/.test(cleaned)) {
+		return 'token';
+	}
+	if (/^\d/.test(cleaned) || KOTLIN_RESERVED.has(cleaned)) {
+		cleaned = `_${cleaned}`;
+	}
+	return cleaned;
+}
+
+function allocateKotlinIdentifier(raw: string, used: Set<string>): string {
+	const base = sanitizeKotlinIdentifier(raw);
+	let candidate = base;
+	let suffix = 2;
+	while (used.has(candidate)) {
+		candidate = `${base}_${suffix++}`;
+	}
+	used.add(candidate);
+	return candidate;
+}
+
+function sanitizeKotlinPackage(pkg: string): string {
+	const parts = pkg
+		.split('.')
+		.filter((part) => part.length > 0)
+		.map(sanitizeKotlinIdentifier);
+	return parts.length > 0 ? parts.join('.') : 'com.violet.tokens';
+}
+
+function sanitizeLineComment(str: string): string {
+	return str.replace(/[\r\n]+/g, ' ');
+}
+
+function sanitizeBlockComment(str: string): string {
+	return str
+		.replace(/\/\*/g, '/\\*')
+		.replace(/\*\//g, '*\\/')
+		.replace(/[\r\n]+/g, ' ');
 }
 
 /**

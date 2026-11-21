@@ -191,6 +191,44 @@ describe('typescript transformer', () => {
 		expect(ts).toContain("  spacing: {\n    '2xl': 32\n  }");
 	});
 
+	it('escapes malicious keys, identifiers, reserved words, collisions, NUL+digit and categories (#1878)', () => {
+		const nasty = [
+			token(
+				"color.a';globalThis.pwn=1;//",
+				"val\r\n'\u00001\u2028\u2029",
+				'bad */ globalThis.pwn = 1; /*',
+			),
+			token('class', 'reserved-keyword'),
+			token('eval', 'strict-eval'),
+			token('arguments', 'strict-arguments'),
+			token('tokens', 'collides-with-nested-object'),
+			token('color.brand', '#0078D4'),
+			token('colorBrand', '#107C10'),
+			token('spacing.low-key', '1px'),
+			token('spacing.low_key', '2px'),
+			token('Index.first', 'a'),
+			token('index.second', 'b'),
+			token('aux.device', 'c'),
+			token("bad'cat/../../evil.item", 'ok'),
+		];
+		const single = typescriptTransformer.transform(nasty, { includeComments: true });
+		expect(typeCheck(new Map([['tokens.ts', single]]))).toEqual([]);
+		expect(single).not.toContain('bad */ globalThis.pwn');
+		expect(single).toContain('\\x001');
+
+		const multi = typescriptTransformer.transformMulti?.(nasty, { includeComments: true });
+		expect(multi).toBeDefined();
+		const lowerNames = new Set<string>();
+		for (const name of multi?.keys() ?? []) {
+			expect(name).not.toContain('/');
+			expect(name).not.toContain('..');
+			expect(name.toLowerCase()).not.toBe('aux.ts');
+			expect(lowerNames.has(name.toLowerCase())).toBe(false);
+			lowerNames.add(name.toLowerCase());
+		}
+		expect(typeCheck(multi ?? new Map())).toEqual([]);
+	});
+
 	describe('transformMulti', () => {
 		it('writes one file per category plus an index re-exporting them', () => {
 			const files = typescriptTransformer.transformMulti?.(tokens);

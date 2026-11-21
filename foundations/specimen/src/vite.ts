@@ -1,6 +1,17 @@
-import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+	copyFile,
+	lstat,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	realpath,
+	rm,
+	stat,
+	writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	build,
@@ -12,6 +23,93 @@ import {
 } from 'vite';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
 import type { SpecimenEntry } from './types.js';
+import { isSafeStaticMount } from './validate.js';
+
+/** Verify `target` stays inside `root` without following any symlink outside `root`. */
+function isContained(root: string, target: string): boolean {
+	const rel = relative(root, target);
+	return rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/** Verify no existing component along `dest` under `outRoot` is a symlink. */
+async function assertNoSymlinkPath(outRoot: string, dest: string): Promise<void> {
+	const rel = relative(outRoot, dest);
+	if (!isContained(outRoot, dest))
+		throw new Error(`Build write escapes the build output directory: ${dest}`);
+	if (!rel) return;
+	let current = outRoot;
+	for (const part of rel.split(sep)) {
+		if (!part) continue;
+		current = join(current, part);
+		try {
+			const info = await lstat(current);
+			if (info.isSymbolicLink())
+				throw new Error(`Refusing to write through symbolic link inside build output: ${current}`);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+			throw error;
+		}
+	}
+}
+
+/**
+ * Copy a static directory into `outDir` under `to`, rejecting escaping symlinks and
+ * materializing in-root symlinks so no symlink can redirect later writes out of `outDir`.
+ */
+export async function copyStaticTree(from: string, outDir: string, to: string): Promise<void> {
+	const outRoot = await realpath(outDir);
+	const fromRoot = await realpath(from);
+	const destRoot = staticDestination(outRoot, to);
+	if (isContained(fromRoot, destRoot) || isContained(destRoot, fromRoot))
+		throw new Error(`staticDirs source and destination overlap: ${from} -> ${to}`);
+	await assertNoSymlinkPath(outRoot, destRoot);
+	await mkdir(destRoot, { recursive: true });
+	const visited = new Set<string>([fromRoot]);
+
+	async function copyDir(srcDir: string, dstDir: string): Promise<void> {
+		const entries = await readdir(srcDir);
+		for (const name of entries) {
+			const src = join(srcDir, name);
+			const dst = join(dstDir, name);
+			await assertNoSymlinkPath(outRoot, dst);
+			const entryStat = await lstat(src);
+			if (entryStat.isSymbolicLink()) {
+				const targetReal = await realpath(src);
+				if (!isContained(fromRoot, targetReal))
+					throw new Error(`staticDirs symlink escapes its source root: ${src}`);
+				const targetStat = await stat(targetReal);
+				if (targetStat.isDirectory()) {
+					if (visited.has(targetReal)) throw new Error(`staticDirs symlink cycle detected: ${src}`);
+					visited.add(targetReal);
+					await mkdir(dst, { recursive: true });
+					await copyDir(targetReal, dst);
+					visited.delete(targetReal);
+				} else if (targetStat.isFile()) {
+					await copyFile(targetReal, dst);
+				}
+			} else if (entryStat.isDirectory()) {
+				await mkdir(dst, { recursive: true });
+				await copyDir(src, dst);
+			} else if (entryStat.isFile()) {
+				await copyFile(src, dst);
+			}
+		}
+	}
+
+	await copyDir(fromRoot, destRoot);
+}
+
+/** Resolve a static directory's copy destination and guarantee it stays within `outDir`. */
+export function staticDestination(outDir: string, to: string): string {
+	if (!isSafeStaticMount(to))
+		throw new Error(`staticDirs mount path escapes the build output directory: ${to}`);
+	const base = resolve(outDir);
+	const trimmed = to.replace(/^\/+/, '');
+	const target = resolve(base, trimmed);
+	if (!isContained(base, target))
+		throw new Error(`staticDirs mount path escapes the build output directory: ${to}`);
+	return target;
+}
 
 const ENTRY = '/__specimen_entry__.js';
 /** Every story's identity and loader: sized by the consumer, so never in the entry's chunk. */
@@ -329,7 +427,7 @@ async function buildStatic(
 	});
 	if (Array.isArray(result) || !('output' in result))
 		throw new Error('Unexpected Vite build result');
-	for (const { from, to } of staticDirs) await cp(from, join(directory, to), { recursive: true });
+	for (const { from, to } of staticDirs) await copyStaticTree(from, directory, to);
 	const chunks = result.output.filter((output) => output.type === 'chunk');
 	// The proposal's categories: the shell lists and mounts a plain fixture; retained stories'
 	// runtime is interaction support and axe is the accessibility engine, each loaded only by
@@ -399,8 +497,11 @@ async function buildStatic(
 		throw new Error(`The bench pages' stylesheet was not emitted from ${stylesheet}`);
 	const styleBytes = Buffer.byteLength(styles.source);
 	const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
+	const outRoot = await realpath(directory);
+	const reportPath = join(outRoot, 'specimen-build.json');
+	await assertNoSymlinkPath(outRoot, reportPath);
 	await writeFile(
-		join(directory, 'specimen-build.json'),
+		reportPath,
 		JSON.stringify(
 			{
 				...report,
