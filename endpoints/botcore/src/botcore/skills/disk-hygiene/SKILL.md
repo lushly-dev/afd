@@ -13,7 +13,8 @@ metadata:
 
 Development machines fill up with worktrees, Rust `target/` folders, `node_modules` and
 caches. An hourly job (`botcore disk-run`) keeps them in check; when space is short anyway,
-use the same commands it uses. `disk-report` and `disk-status` only read. `disk-reclaim`
+use the same commands it uses. `disk-report` and `disk-status` only read; `disk-keep`, `disk-unkeep` and `disk-restore`
+change one worktree each. `disk-reclaim`
 without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, `disk-run`
 (which applies a reclaim when one is due) and `disk-setup` make changes.
 
@@ -30,7 +31,7 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 
 ## Never
 
-- **`rm -rf` a worktree, or delete inside one by hand.** `disk-reclaim` checks that the path is
+- **`rm -rf` a worktree, `git worktree remove --force` one, or delete inside one by hand.** `disk-reclaim` checks that the path is
   ignored and untracked, that nothing is using the worktree and that it is still idle,
   immediately before deleting, and never follows a link or junction. A hand delete does none of
   that.
@@ -48,8 +49,15 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 - T3 Code removes the worktrees it creates once its storage cleanup rules are on (Settings,
   storage cleanup: when the pull request merged, when the thread was deleted, after it has been
   settled for some days). The report marks them `managed_by: "t3-code"`.
-- To keep a parked worktree from being stripped: `git worktree lock --reason "<why>" <path>`.
-  Unlock it when you resume.
+- To keep a parked worktree from being stripped or removed: `botcore disk-keep <path> --reason
+  "<why>"` (14 days, or `--until YYYY-MM-DD`). `botcore disk-unkeep <path>` when you resume.
+- Tier 2 removes worktrees T3 Code does not manage once nothing unique is in them (no changes,
+  hidden ones included; no operation in progress; the commit on a branch, remote or tag; no
+  per-worktree refs, config or sparse rules; no ignored file that is not rebuildable or an
+  unchanged declared copy) and their work has landed. `git worktree remove` only: the branch
+  stays, and the commit is pinned under `refs/botcore/removed/` first. The hourly job does it
+  only after `disk-setup --remove-landed`. `botcore disk-restore <path>` brings a removed
+  worktree back at the same commit.
 - A stripped worktree has a `botcore-disk-strip.json` in its git folder
   (`git rev-parse --absolute-git-dir`). Install and build again before running anything.
 

@@ -459,21 +459,27 @@ def disk_report_cmd(
 
 
 @cli.command("disk-reclaim")
-@click.option("--tier", type=click.IntRange(0, 1), default=1, show_default=True,
-              help="0: caches and aged folders only; 1: also idle build output")
+@click.option("--tier", type=click.IntRange(0, 2), default=1, show_default=True,
+              help="0: caches and aged folders; 1: also idle build output; "
+                   "2: also finished worktrees")
+@click.option("--include-restorable", is_flag=True, default=False,
+              help="With --tier 2, also remove worktrees that hold nothing unique but have "
+                   "not landed")
 @click.option("--apply", is_flag=True, default=False, help="Carry out the plan (default: dry run)")
 @click.option("--repo", default=None, help="Reclaim one repository instead of the registered ones")
 @click.option("--pressure", is_flag=True, default=False,
               help="Act as if a watched volume were low on space")
 @_json_option
 @click.pass_context
-def disk_reclaim_cmd(
-    ctx: click.Context, tier: int, apply: bool, repo: str | None, pressure: bool, **_kwargs: Any,
+def disk_reclaim_cmd(  # noqa: PLR0913 - one argument per option
+    ctx: click.Context, tier: int, include_restorable: bool, apply: bool, repo: str | None,
+    pressure: bool, **_kwargs: Any,
 ) -> None:
-    """Prune caches and strip idle build output. A dry run unless --apply."""
+    """Prune caches, strip build output, remove finished worktrees. Dry run unless --apply."""
     from botcore.commands.disk import disk_reclaim
 
-    result = _run_async(disk_reclaim(tier=tier, apply=apply, repo=repo, pressure=pressure))
+    result = _run_async(disk_reclaim(tier=tier, apply=apply, repo=repo, pressure=pressure,
+                                     include_restorable=include_restorable))
     _format_result(result, _is_json(ctx))
 
 
@@ -483,17 +489,58 @@ def disk_reclaim_cmd(
 @click.option("--repo", "repos", multiple=True, help="Also register this repository")
 @click.option("--no-schedule", is_flag=True, default=False,
               help="Write the settings without installing the job")
+@click.option("--remove-landed/--keep-landed", default=None,
+              help="Let the job remove finished worktrees (tier 2); off unless asked")
 @_json_option
 @click.pass_context
-def disk_setup_cmd(
-    ctx: click.Context, uninstall: bool, repos: tuple[str, ...], no_schedule: bool, **_kw: Any,
+def disk_setup_cmd(  # noqa: PLR0913 - one argument per option
+    ctx: click.Context, uninstall: bool, repos: tuple[str, ...], no_schedule: bool,
+    remove_landed: bool | None, **_kw: Any,
 ) -> None:
     """Register repositories and volumes, and install the hourly disk job."""
     from botcore.commands.disk import disk_setup
 
     result = _run_async(disk_setup(uninstall=uninstall, repos=list(repos),
-                                   install_schedule=not no_schedule))
+                                   install_schedule=not no_schedule,
+                                   remove_landed=remove_landed))
     _format_result(result, _is_json(ctx))
+
+
+@cli.command("disk-keep")
+@click.argument("path")
+@click.option("--until", default=None, help="YYYY-MM-DD; 14 days from today by default")
+@click.option("--reason", default="", help="Why it is kept")
+@_json_option
+@click.pass_context
+def disk_keep_cmd(
+    ctx: click.Context, path: str, until: str | None, reason: str, **_kw: Any,
+) -> None:
+    """Protect a worktree from every disk-* action until a date."""
+    from botcore.commands.disk import disk_keep
+
+    _format_result(_run_async(disk_keep(path=path, until=until, reason=reason)), _is_json(ctx))
+
+
+@cli.command("disk-unkeep")
+@click.argument("path")
+@_json_option
+@click.pass_context
+def disk_unkeep_cmd(ctx: click.Context, path: str, **_kw: Any) -> None:
+    """Release a keep that disk-keep made."""
+    from botcore.commands.disk import disk_unkeep
+
+    _format_result(_run_async(disk_unkeep(path=path)), _is_json(ctx))
+
+
+@cli.command("disk-restore")
+@click.argument("path")
+@_json_option
+@click.pass_context
+def disk_restore_cmd(ctx: click.Context, path: str, **_kw: Any) -> None:
+    """Recreate a worktree a tier 2 reclaim removed, at the same path and commit."""
+    from botcore.commands.disk import disk_restore
+
+    _format_result(_run_async(disk_restore(path=path)), _is_json(ctx))
 
 
 @cli.command("disk-status")
