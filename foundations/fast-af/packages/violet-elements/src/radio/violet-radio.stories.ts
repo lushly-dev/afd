@@ -9,6 +9,7 @@ type VioletRadioStoryArgs = {
     disabled: boolean;
     inline: boolean;
     invalid: boolean;
+    errorText: string;
     ariaLabel: string;
     label: string;
     supporting: string;
@@ -22,6 +23,7 @@ function renderRadio(args: VioletRadioStoryArgs): HTMLElement {
     element.disabled = args.disabled;
     element.inline = args.inline;
     element.invalid = args.invalid;
+    element.errorText = args.errorText;
     element.name = args.name;
     element.value = args.value;
 
@@ -73,6 +75,7 @@ export const Overview: Story = {
         disabled: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Broadcast sowing",
         supporting: "Best when the tray should stay in a dense sowing pattern.",
@@ -99,6 +102,7 @@ export const Checked: Story = {
         disabled: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Direct seed",
         supporting: "Use when the crop should stay in its final bed.",
@@ -113,6 +117,7 @@ export const KeyboardActivation: Story = {
         disabled: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Direct seed",
         supporting: "Use Space or Enter to choose this option.",
@@ -144,6 +149,7 @@ export const Disabled: Story = {
         disabled: true,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Tray transplant",
         supporting: "Unavailable while this batch is already committed to field.",
@@ -158,9 +164,10 @@ export const Invalid: Story = {
         disabled: false,
         inline: false,
         invalid: true,
+        errorText: "Select a valid sowing method.",
         ariaLabel: "",
         label: "Tray transplant",
-        supporting: "Show invalid treatment when a required group needs attention.",
+        supporting: "Starts seedlings in trays before transplanting.",
         name: "sowingMethod",
         value: "transplant",
     },
@@ -172,6 +179,7 @@ export const Inline: Story = {
         disabled: false,
         inline: true,
         invalid: false,
+        errorText: "",
         ariaLabel: "Compact direct seed option",
         label: "",
         supporting: "",
@@ -191,6 +199,7 @@ export const InlineGridDensity: Story = {
         disabled: false,
         inline: true,
         invalid: false,
+        errorText: "",
         ariaLabel: "Grid direct seed option",
         label: "",
         supporting: "",

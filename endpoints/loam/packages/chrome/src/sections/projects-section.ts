@@ -40,10 +40,6 @@ import {
 } from './cards.js';
 import { styles } from './section-styles.js';
 
-/** A field's refusal, beside it, as the console words one. */
-const withError = (message: string, help: string): string =>
-	message ? `Error: ${message}${help ? ` ${help}` : ''}` : help;
-
 const SLUG_HELP =
 	"Up to 63 lower-case letters, digits and inner hyphens. It is the project's address and cannot change; left empty, it comes from the name.";
 
@@ -71,13 +67,15 @@ const createForm = html<LoamProjectsSection>`
 			required
 			maxlength="80"
 			?invalid="${(x) => x.errors.name !== ''}"
-			supporting-text="${(x) => withError(x.errors.name, NAME_HELP)}"
+			supporting-text="${NAME_HELP}"
+			error-text="${(x) => (x.errors.name ? `Error: ${x.errors.name}` : '')}"
 		></violet-text-field>
 		<violet-text-field
 			data-ref="slugField"
 			label="Slug"
 			?invalid="${(x) => x.errors.slug !== ''}"
-			supporting-text="${(x) => withError(x.errors.slug, SLUG_HELP)}"
+			supporting-text="${SLUG_HELP}"
+			error-text="${(x) => (x.errors.slug ? `Error: ${x.errors.slug}` : '')}"
 		></violet-text-field>
 		<p class="failure" role="alert" ?hidden="${(x) => !x.errors.form}">${(x) => x.errors.form}</p>
 		<div class="actions">
@@ -153,7 +151,8 @@ const renameForm = html<LoamProjectsSection>`
 			maxlength="80"
 			:value="${(x) => x.project?.name ?? ''}"
 			?invalid="${(x) => x.errors.name !== ''}"
-			supporting-text="${(x) => withError(x.errors.name, 'Its address stays the same.')}"
+			supporting-text="Its address stays the same."
+			error-text="${(x) => (x.errors.name ? `Error: ${x.errors.name}` : '')}"
 		></violet-text-field>
 		<p class="failure" role="alert" ?hidden="${(x) => !x.errors.form}">${(x) => x.errors.form}</p>
 		<div class="actions">

@@ -18,7 +18,7 @@
   "a11y": [
     {
       "id": "switch.semantics",
-      "text": "The inner input has role switch and is labelled by the slotted text. Content in the supporting slot is linked as its description.",
+      "text": "The inner input has role switch and is labelled by the slotted text. The active error message, or content in the supporting slot when no error is shown, is linked as its description.",
       "members": [
         "supporting"
       ]

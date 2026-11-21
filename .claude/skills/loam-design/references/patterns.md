@@ -261,8 +261,9 @@ ids; a Loam field reads all of them:
 }
 ```
 
-Invalid also sets `aria-invalid="true"` and shows supporting text in
-`--color-state-danger-text`.
+Invalid also sets `aria-invalid="true"` and shows `error-text` in
+`part="error-message"` using `--color-state-danger-text` (replacing supporting
+text while invalid).
 
 ## Icons
 

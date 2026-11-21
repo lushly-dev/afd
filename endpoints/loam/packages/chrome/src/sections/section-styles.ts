@@ -97,12 +97,13 @@ export const styles = css`
 		margin: 0;
 		accent-color: var(--color-control-selected-background);
 	}
-	violet-text-field[invalid]::part(supporting-text),
+	violet-text-field[invalid]::part(error-message),
 	.failure {
 		color: var(--color-state-danger-text);
 	}
 	violet-text-field::part(label),
-	violet-text-field::part(supporting-text) {
+	violet-text-field::part(supporting-text),
+	violet-text-field::part(error-message) {
 		overflow-wrap: anywhere;
 	}
 	table {
@@ -225,7 +226,7 @@ export const styles = css`
 		h3,
 		.facts dt,
 		.counts dt,
-		violet-text-field[invalid]::part(supporting-text) {
+		violet-text-field[invalid]::part(error-message) {
 			color: CanvasText;
 		}
 	}

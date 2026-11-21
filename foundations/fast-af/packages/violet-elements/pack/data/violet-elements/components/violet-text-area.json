@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "text-area.describedby",
-				"text": "The textarea is described only by its supporting text; an aria-describedby on the host is not forwarded to it."
+				"text": "The textarea is described by its active error message or, when no error is shown, its supporting text; an aria-describedby on the host is not forwarded to it."
 			}
 		]
 	},
@@ -26,6 +26,17 @@
 					"taxonomy.disabled"
 				],
 				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional error message shown while the field is invalid.",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
 			},
 			{
 				"basis": "observed",
@@ -187,17 +198,17 @@
 		{
 			"basis": "observed",
 			"from": "components-text-area--disabled",
-			"html": "<violet-text-area disabled label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Unavailable while sync is running\" rows=\"5\" supporting-text=\"Disabled areas should still show their footprint in a dense form.\"></violet-text-area>"
+			"html": "<violet-text-area disabled error-text label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Unavailable while sync is running\" rows=\"5\" supporting-text=\"Disabled areas should still show their footprint in a dense form.\"></violet-text-area>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-area--invalid",
-			"html": "<violet-text-area invalid label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Describe the issue...\" required rows=\"5\" supporting-text=\"Required before submitting the crop review.\"></violet-text-area>"
+			"html": "<violet-text-area error-text=\"Required before submitting the crop review.\" invalid label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Describe the issue...\" required rows=\"5\" supporting-text=\"Include date and bed number.\"></violet-text-area>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-area--overview",
-			"html": "<violet-text-area label=\"Planting notes\" name=\"plantingNotes\" placeholder=\"Add observations for this bed...\" required rows=\"4\" supporting-text=\"Keep the most recent field notes with the current plan.\"></violet-text-area>"
+			"html": "<violet-text-area error-text label=\"Planting notes\" name=\"plantingNotes\" placeholder=\"Add observations for this bed...\" required rows=\"4\" supporting-text=\"Keep the most recent field notes with the current plan.\"></violet-text-area>"
 		}
 	],
 	"format": 1,
@@ -220,10 +231,12 @@
 		"field.placeholder",
 		"field.supporting-text",
 		"field.value-attribute",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
 		"taxonomy.disabled",
+		"taxonomy.error-text",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.maxlength",
@@ -249,11 +262,6 @@
 			"basis": "authored",
 			"id": "text-area.rows",
 			"text": "The rows attribute sets the initial height and falls back to 4 when it is not a positive number; the user can still resize the field vertically."
-		},
-		{
-			"basis": "authored",
-			"id": "text-area.error",
-			"text": "There is no error-text attribute and no error message is rendered: invalid sets aria-invalid and turns the border and the supporting text the danger colour. Put the error wording in supporting-text while invalid."
 		}
 	]
 }

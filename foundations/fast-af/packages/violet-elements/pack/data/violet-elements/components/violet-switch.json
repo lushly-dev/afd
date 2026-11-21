@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "switch.semantics",
-				"text": "The inner input has role switch and is labelled by the slotted text. Content in the supporting slot is linked as its description."
+				"text": "The inner input has role switch and is labelled by the slotted text. The active error message, or content in the supporting slot when no error is shown, is linked as its description."
 			}
 		]
 	},
@@ -35,6 +35,17 @@
 					"taxonomy.disabled"
 				],
 				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional error message shown while the switch is invalid.",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
 			},
 			{
 				"basis": "observed",
@@ -208,17 +219,17 @@
 		{
 			"basis": "observed",
 			"from": "components-switch--checked",
-			"html": "<violet-switch checked name=\"trayRestocks\" value=\"enabled\">Auto-approve tray restocks<span slot=\"supporting\">Keeps replenishment requests moving without manual review.</span></violet-switch>"
+			"html": "<violet-switch checked error-text name=\"trayRestocks\" value=\"enabled\">Auto-approve tray restocks<span slot=\"supporting\">Keeps replenishment requests moving without manual review.</span></violet-switch>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-switch--disabled",
-			"html": "<violet-switch disabled name=\"harvestSync\" value=\"enabled\">Enable harvest sync<span slot=\"supporting\">Unavailable while the field audit is in progress.</span></violet-switch>"
+			"html": "<violet-switch disabled error-text name=\"harvestSync\" value=\"enabled\">Enable harvest sync<span slot=\"supporting\">Unavailable while the field audit is in progress.</span></violet-switch>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-switch--inline",
-			"html": "<violet-switch aria-label=\"Compact irrigation alerts switch\" checked inline name=\"compactIrrigationAlerts\" value=\"enabled\"></violet-switch>"
+			"html": "<violet-switch aria-label=\"Compact irrigation alerts switch\" checked error-text inline name=\"compactIrrigationAlerts\" value=\"enabled\"></violet-switch>"
 		}
 	],
 	"format": 1,
@@ -229,11 +240,13 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
 		"taxonomy.checked",
 		"taxonomy.disabled",
+		"taxonomy.error-text",
 		"taxonomy.inline",
 		"taxonomy.invalid",
 		"taxonomy.name",

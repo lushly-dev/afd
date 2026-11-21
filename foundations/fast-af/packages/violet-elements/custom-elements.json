@@ -2898,6 +2898,10 @@
               "name": "control"
             },
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Native checkbox input.",
               "name": "input"
             },
@@ -2929,6 +2933,16 @@
             }
           ],
           "members": [
+            {
+              "kind": "field",
+              "name": "_displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\"",
+              "description": "Backing state for `displayErrorText`."
+            },
             {
               "kind": "field",
               "name": "#defaultChecked",
@@ -2981,6 +2995,24 @@
             },
             {
               "kind": "method",
+              "name": "#setDisplayErrorText",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "#syncControlState",
               "privacy": "private",
               "return": {
@@ -2998,7 +3030,7 @@
                   "text": "void"
                 }
               },
-              "description": "Describes the input by the host's `aria-describedby` targets and the slotted supporting text.\nHost IDREFs cannot cross the shadow boundary, so they are resolved in the host's root node and\nassigned through element reflection (`ariaDescribedByElements`). Without element reflection only\nthe supporting text is linked, by an IDREF inside the shadow root."
+              "description": "Describes the input by the host's `aria-describedby` targets and the active error or slotted\nsupporting text. Host IDREFs cannot cross the shadow boundary, so they are resolved in the\nhost's root node and assigned through element reflection (`ariaDescribedByElements`). Without\nelement reflection only the internal caption is linked, by an IDREF inside the shadow root."
             },
             {
               "kind": "method",
@@ -3095,6 +3127,16 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Active error message rendered while the checkbox is invalid.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -3102,6 +3144,28 @@
               "privacy": "public",
               "readonly": true,
               "description": "Author `disabled` or fieldset-disabled."
+            },
+            {
+              "kind": "field",
+              "name": "errorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Optional error message shown while the checkbox is invalid.",
+              "default": "\"\"",
+              "attribute": "error-text",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -3386,7 +3450,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
-          "summary": "Token-driven checkbox with label, inline selection mode, and indeterminate support.",
+          "summary": "Token-driven checkbox with label, inline selection mode, indeterminate support, and field errors.",
           "attributes": [
             {
               "name": "checked",
@@ -3432,6 +3496,15 @@
               },
               "default": "false",
               "fieldName": "invalid"
+            },
+            {
+              "name": "error-text",
+              "description": "Optional error message shown while the checkbox is invalid.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "errorText"
             },
             {
               "name": "name",
@@ -31457,6 +31530,10 @@
               "name": "control"
             },
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Primary label text wrapper.",
               "name": "label"
             },
@@ -31485,6 +31562,16 @@
           ],
           "members": [
             {
+              "kind": "field",
+              "name": "_displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\"",
+              "description": "Backing state for `displayErrorText`."
+            },
+            {
               "kind": "method",
               "name": "#activateFromUser",
               "privacy": "private",
@@ -31506,12 +31593,35 @@
             },
             {
               "kind": "field",
+              "name": "#describedByObserver",
+              "privacy": "private",
+              "readonly": true,
+              "default": "new MutationObserver(() => this.#syncAccessibilityState())"
+            },
+            {
+              "kind": "field",
+              "name": "#disabledByFieldset",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
               "name": "#disabledFromGroup",
               "privacy": "private",
               "type": {
                 "text": "boolean"
               },
               "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#fieldsetObserver",
+              "privacy": "private",
+              "readonly": true,
+              "default": "new MutationObserver(() => this.#syncFieldsetDisabled())"
             },
             {
               "kind": "field",
@@ -31533,7 +31643,55 @@
             },
             {
               "kind": "method",
+              "name": "#observeAncestorFieldsets",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#setDisplayErrorText",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "#syncAccessibilityState",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#syncErrorState",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#syncFieldsetDisabled",
               "privacy": "private",
               "return": {
                 "type": {
@@ -31626,12 +31784,44 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Active error message rendered while the radio is invalid.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
               },
               "privacy": "public",
               "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "errorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Optional error message shown while the radio is invalid.",
+              "default": "\"\"",
+              "attribute": "error-text",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -31834,7 +32024,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
-          "summary": "Token-driven radio option with label and optional supporting text.",
+          "summary": "Token-driven radio option with label, optional supporting text, and field errors.",
           "attributes": [
             {
               "name": "checked",
@@ -31871,6 +32061,15 @@
               },
               "default": "false",
               "fieldName": "invalid"
+            },
+            {
+              "name": "error-text",
+              "description": "Optional error message shown while the radio is invalid.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "errorText"
             },
             {
               "name": "name",
@@ -36267,6 +36466,10 @@
               "name": "control"
             },
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Native checkbox input carrying switch semantics.",
               "name": "input"
             },
@@ -36307,6 +36510,16 @@
             },
             {
               "kind": "field",
+              "name": "_displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\"",
+              "description": "Backing state for `displayErrorText`."
+            },
+            {
+              "kind": "field",
               "name": "#defaultChecked",
               "privacy": "private",
               "type": {
@@ -36332,6 +36545,24 @@
                 "text": "ElementInternals"
               },
               "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "#setDisplayErrorText",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
             },
             {
               "kind": "method",
@@ -36437,6 +36668,16 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Active error message rendered while the switch is invalid.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -36444,6 +36685,38 @@
               "privacy": "public",
               "readonly": true,
               "description": "Author `disabled` or fieldset-disabled."
+            },
+            {
+              "kind": "field",
+              "name": "errorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Optional error message shown while the switch is invalid.",
+              "default": "\"\"",
+              "attribute": "error-text",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "errorTextId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`${this.localName || \"violet-switch\"}-error-${id}`"
             },
             {
               "kind": "field",
@@ -36730,7 +37003,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
-          "summary": "Token-driven binary switch with label, inline mode, and form participation.",
+          "summary": "Token-driven binary switch with label, inline mode, form participation, and field errors.",
           "attributes": [
             {
               "name": "checked",
@@ -36763,6 +37036,15 @@
               },
               "default": "false",
               "fieldName": "invalid"
+            },
+            {
+              "name": "error-text",
+              "description": "Optional error message shown while the switch is invalid.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "errorText"
             },
             {
               "name": "name",
@@ -37881,6 +38163,10 @@
               "name": "control-frame"
             },
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Field wrapper.",
               "name": "field"
             },
@@ -37909,6 +38195,16 @@
             },
             {
               "kind": "field",
+              "name": "_displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\"",
+              "description": "Backing state for `displayErrorText`."
+            },
+            {
+              "kind": "field",
               "name": "#defaultValue",
               "privacy": "private",
               "type": {
@@ -37927,6 +38223,34 @@
             },
             {
               "kind": "method",
+              "name": "#scheduleSync",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#setDisplayErrorText",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "#syncFormState",
               "privacy": "private",
               "return": {
@@ -37934,6 +38258,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#syncScheduled",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
             },
             {
               "kind": "method",
@@ -37969,6 +38302,16 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Active error message rendered while the field is invalid.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -37976,6 +38319,39 @@
               "privacy": "public",
               "readonly": true,
               "description": "Author `disabled` or fieldset-disabled."
+            },
+            {
+              "kind": "field",
+              "name": "errorId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "description": "Id of the error message, which describes the textarea while invalid.",
+              "default": "`${this.inputId}-error`"
+            },
+            {
+              "kind": "field",
+              "name": "errorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Optional error message shown while the field is invalid.",
+              "default": "\"\"",
+              "attribute": "error-text",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -38302,7 +38678,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
-          "summary": "Token-driven multiline text area with built-in label and supporting text.",
+          "summary": "Token-driven multiline text area with built-in label, supporting text, and field errors.",
           "attributes": [
             {
               "name": "label",
@@ -38339,6 +38715,15 @@
               },
               "default": "\"\"",
               "fieldName": "supportingText"
+            },
+            {
+              "name": "error-text",
+              "description": "Optional error message shown while the field is invalid.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "errorText"
             },
             {
               "name": "maxlength",
@@ -38441,6 +38826,10 @@
               "name": "control-frame"
             },
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Field wrapper.",
               "name": "field"
             },
@@ -38466,6 +38855,16 @@
                 "text": "number"
               },
               "default": "1"
+            },
+            {
+              "kind": "field",
+              "name": "_displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\"",
+              "description": "Backing state for `displayErrorText`."
             },
             {
               "kind": "field",
@@ -38511,6 +38910,24 @@
             },
             {
               "kind": "method",
+              "name": "#setDisplayErrorText",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "#syncDescribedBy",
               "privacy": "private",
               "return": {
@@ -38518,7 +38935,7 @@
                   "text": "void"
                 }
               },
-              "description": "IDREFs in a host `aria-describedby` cannot cross the shadow boundary, so the ids are\nresolved in the host's root node and assigned to the input through element reflection\n(`ariaDescribedByElements`), together with the supporting text. Without element\nreflection only the supporting text is linked, by an IDREF inside the shadow root;\nlight-DOM targets cannot be referenced in that case."
+              "description": "IDREFs in a host `aria-describedby` cannot cross the shadow boundary, so the ids are\nresolved in the host's root node and assigned to the input through element reflection\n(`ariaDescribedByElements`), together with the active error or supporting text. Without\nelement reflection only the internal caption is linked, by an IDREF inside the shadow root;\nlight-DOM targets cannot be referenced in that case."
             },
             {
               "kind": "method",
@@ -38600,6 +39017,16 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Active error message rendered while the field is invalid.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -38607,6 +39034,39 @@
               "privacy": "public",
               "readonly": true,
               "description": "Author `disabled` or fieldset-disabled."
+            },
+            {
+              "kind": "field",
+              "name": "errorId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "description": "Id of the error message element inside the shadow root.",
+              "default": "`${this.inputId}-error`"
+            },
+            {
+              "kind": "field",
+              "name": "errorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Optional error message shown while the field is invalid.",
+              "default": "\"\"",
+              "attribute": "error-text",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -39078,7 +39538,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
-          "summary": "Token-driven single-line text input with built-in label and supporting text.",
+          "summary": "Token-driven single-line text input with built-in label, supporting text, and field errors.",
           "attributes": [
             {
               "name": "label",
@@ -39188,6 +39648,15 @@
               },
               "default": "\"\"",
               "fieldName": "supportingText"
+            },
+            {
+              "name": "error-text",
+              "description": "Optional error message shown while the field is invalid.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "errorText"
             },
             {
               "name": "disabled",
@@ -40065,7 +40534,7 @@
           "type": {
             "text": "ElementStyles"
           },
-          "default": "css` :host { color: var(--color-text-primary, #181b1a); font-family: var(--font-family-body, \"Inter\", system-ui, sans-serif); --_surface-page: var(--color-surface-page, #f4f0ea); --_surface-subtle: var(--color-surface-subtle, #e9e5de); --_text-secondary: var(--color-text-secondary, #48534b); --_text-muted: var(--color-text-muted, #5e6460); --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10)); --_field-border: var(--color-field-border, #869089); /* A read-only field's line: its fill is too light behind the resting border for 3:1. */ --_field-border-readonly: var(--color-border-strong, #6b7d6e); --_field-border-hover: var(--color-field-border-hover, #48534b); --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring)); --_field-background: var(--color-field-background, var(--_surface-page)); --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle)); --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a)); --_field-placeholder: var(--color-field-placeholder, var(--_text-muted)); --_focus-ring: var(--color-focus-ring, #146ba0); --_danger-border: var(--color-field-border-invalid, #c42a1a); --_surface-card: var(--color-surface-card, #f8f9f3); --_surface-floating: var(--color-surface-floating, #ffffff); --_radius-md: var(--radius-md, 8px); --_radius-lg: var(--radius-lg, 12px); --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)); --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)); /* * A field is a well let into the page. Its edge is an inner cut: a hairline border all * round and, inside it along the top, the 3:1 rule that finds the control, with a soft * shadow under it. The rule is an inset shadow, not a border colour, so it thins to * nothing round the corners. The full outline comes back for focus and an invalid value. */ --_shadow-well: var(--shadow-well, inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)); --_field-shadow: inset 0 1px 0 var(--_field-border), var(--_shadow-well); --_field-shadow-hover: inset 0 1px 0 var(--_field-border-hover), var(--_shadow-well); --_field-shadow-focus: 0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--_field-border-focus), 0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent); --_layer-base: var(--z-index-base, 0); --_layer-raised: var(--z-index-raised, 1); --_layer-sticky: var(--z-index-sticky, 10); --_layer-overlay: var(--z-index-overlay, 100); --_layer-popover: var(--z-index-popover, 200); --_layer-modal: var(--z-index-modal, 300); --_layer-toast: var(--z-index-toast, 400); --_space-stack-xs: var(--space-stack-xs, 4px); --_space-stack-sm: var(--space-stack-sm, 8px); --_space-stack-2xs: calc(var(--_space-stack-xs) / 2); /* One gap above a control, under its label, and one below it, over its supporting text. */ --_space-field-gap: calc(var(--_space-stack-xs) + var(--_space-stack-2xs)); --_space-inline-sm: var(--space-inline-sm, 4px); --_space-inline-md: var(--space-inline-md, 8px); --_type-label-size: var(--type-label-sm-size, 13px); --_type-label-line: var(--type-label-sm-line, 16px); --_type-label-weight: var(--type-label-sm-weight, 500); --_type-body-size: var(--type-body-md-size, 14px); --_type-body-line: var(--type-body-md-line, 20px); --_type-caption-size: var(--type-caption-xs-size, 12px); --_type-caption-line: var(--type-caption-xs-line, 16px); --_type-label-size-compact: calc(var(--_type-label-size) - 1px); --_type-body-size-compact: calc(var(--_type-body-size) - 1px); --_type-caption-size-compact: calc(var(--_type-caption-size) - 1px); --_target-size-compact: var(--size-target-compact, 24px); --_target-size-natural: var(--size-target-natural, 32px); --_target-size-comfortable: var(--size-target-comfortable, 44px); --_auto-target-size: var(--_target-size-natural); --_target-size: var(--violet-target-size, var(--_auto-target-size)); --_control-label-size: var(--violet-control-label-size, var(--_type-label-size)); --_control-body-size: var(--violet-control-body-size, var(--_type-body-size)); --_control-caption-size: var(--violet-control-caption-size, var(--_type-caption-size)); --_duration-fast: var(--duration-fast, 120ms); --_duration-base: var(--duration-base, 180ms); --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)); } @media (any-pointer: coarse) { :host { --_auto-target-size: var(--_target-size-comfortable); } } @media (prefers-reduced-motion: reduce) { :host { --_duration-fast: 0.01ms; --_duration-base: 0.01ms; } } `"
+          "default": "css` :host { color: var(--color-text-primary, #181b1a); font-family: var(--font-family-body, \"Inter\", system-ui, sans-serif); --_surface-page: var(--color-surface-page, #f4f0ea); --_surface-subtle: var(--color-surface-subtle, #e9e5de); --_text-secondary: var(--color-text-secondary, #48534b); --_text-muted: var(--color-text-muted, #5e6460); --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10)); --_field-border: var(--color-field-border, #869089); /* A read-only field's line: its fill is too light behind the resting border for 3:1. */ --_field-border-readonly: var(--color-border-strong, #6b7d6e); --_field-border-hover: var(--color-field-border-hover, #48534b); --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring)); --_field-background: var(--color-field-background, var(--_surface-page)); --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle)); --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a)); --_field-placeholder: var(--color-field-placeholder, var(--_text-muted)); --_focus-ring: var(--color-focus-ring, #146ba0); --_danger-border: var(--color-field-border-invalid, #c42a1a); --_danger-text: var(--color-state-danger-text, #c42a1a); --_surface-card: var(--color-surface-card, #f8f9f3); --_surface-floating: var(--color-surface-floating, #ffffff); --_radius-md: var(--radius-md, 8px); --_radius-lg: var(--radius-lg, 12px); --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)); --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)); /* * A field is a well let into the page. Its edge is an inner cut: a hairline border all * round and, inside it along the top, the 3:1 rule that finds the control, with a soft * shadow under it. The rule is an inset shadow, not a border colour, so it thins to * nothing round the corners. The full outline comes back for focus and an invalid value. */ --_shadow-well: var(--shadow-well, inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)); --_field-shadow: inset 0 1px 0 var(--_field-border), var(--_shadow-well); --_field-shadow-hover: inset 0 1px 0 var(--_field-border-hover), var(--_shadow-well); --_field-shadow-focus: 0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--_field-border-focus), 0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent); --_layer-base: var(--z-index-base, 0); --_layer-raised: var(--z-index-raised, 1); --_layer-sticky: var(--z-index-sticky, 10); --_layer-overlay: var(--z-index-overlay, 100); --_layer-popover: var(--z-index-popover, 200); --_layer-modal: var(--z-index-modal, 300); --_layer-toast: var(--z-index-toast, 400); --_space-stack-xs: var(--space-stack-xs, 4px); --_space-stack-sm: var(--space-stack-sm, 8px); --_space-stack-2xs: calc(var(--_space-stack-xs) / 2); /* One gap above a control, under its label, and one below it, over its supporting text. */ --_space-field-gap: calc(var(--_space-stack-xs) + var(--_space-stack-2xs)); --_space-inline-sm: var(--space-inline-sm, 4px); --_space-inline-md: var(--space-inline-md, 8px); --_type-label-size: var(--type-label-sm-size, 13px); --_type-label-line: var(--type-label-sm-line, 16px); --_type-label-weight: var(--type-label-sm-weight, 500); --_type-body-size: var(--type-body-md-size, 14px); --_type-body-line: var(--type-body-md-line, 20px); --_type-caption-size: var(--type-caption-xs-size, 12px); --_type-caption-line: var(--type-caption-xs-line, 16px); --_type-label-size-compact: calc(var(--_type-label-size) - 1px); --_type-body-size-compact: calc(var(--_type-body-size) - 1px); --_type-caption-size-compact: calc(var(--_type-caption-size) - 1px); --_target-size-compact: var(--size-target-compact, 24px); --_target-size-natural: var(--size-target-natural, 32px); --_target-size-comfortable: var(--size-target-comfortable, 44px); --_auto-target-size: var(--_target-size-natural); --_target-size: var(--violet-target-size, var(--_auto-target-size)); --_control-label-size: var(--violet-control-label-size, var(--_type-label-size)); --_control-body-size: var(--violet-control-body-size, var(--_type-body-size)); --_control-caption-size: var(--violet-control-caption-size, var(--_type-caption-size)); --_duration-fast: var(--duration-fast, 120ms); --_duration-base: var(--duration-base, 180ms); --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)); } @media (any-pointer: coarse) { :host { --_auto-target-size: var(--_target-size-comfortable); } } @media (prefers-reduced-motion: reduce) { :host { --_duration-fast: 0.01ms; --_duration-base: 0.01ms; } } `"
         },
         {
           "kind": "variable",

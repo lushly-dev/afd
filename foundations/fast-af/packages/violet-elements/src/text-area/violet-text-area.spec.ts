@@ -469,3 +469,178 @@ describe("violet-text-area value attribute", () => {
         expect(area.getAttribute("value")).toBe("initial");
     });
 });
+
+describe("violet-text-area field errors", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    it("renders no error before invalid is set, even with required and error-text", async () => {
+        const { area } = await renderArea({
+            configure: el => {
+                el.label = "Notes";
+                el.supportingText = "Include bed number.";
+                el.errorText = "Add notes before saving.";
+                el.required = true;
+            },
+        });
+
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(area.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Include bed number.");
+        expect(area.checkValidity()).toBe(false);
+    });
+
+    it("replaces supporting text with error-text while invalid, announces it, and updates aria-describedby", async () => {
+        const { area } = await renderArea({
+            configure: el => {
+                el.label = "Notes";
+                el.supportingText = "Include bed number.";
+                el.setAttribute("error-text", "Add notes before saving.");
+            },
+        });
+
+        area.invalid = true;
+        await nextFrame();
+        await nextFrame();
+
+        const error = area.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe("Add notes before saving.");
+        expect(error?.getAttribute("role")).toBe("alert");
+        expect(area.shadowRoot?.querySelector(".supporting")).toBeNull();
+        expect(textarea(area).getAttribute("aria-describedby")).toBe(area.errorId);
+        await expect.element(textarea(area)).toHaveAccessibleDescription("Add notes before saving.");
+        expect(area.validationMessage).toBe("Add notes before saving.");
+
+        area.invalid = false;
+        await nextFrame();
+        await nextFrame();
+
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(textarea(area).getAttribute("aria-describedby")).toBe(area.supportingId);
+        await expect.element(textarea(area)).toHaveAccessibleDescription("Include bed number.");
+    });
+
+    it("falls back to the browser validation message when invalid and required without error-text", async () => {
+        const { area } = await renderArea({
+            configure: el => {
+                el.label = "Notes";
+                el.supportingText = "Include bed number.";
+                el.required = true;
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+
+        const error = area.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe(textarea(area).validationMessage);
+        expect(error?.textContent?.trim()).not.toBe("");
+        expect(error?.getAttribute("role")).toBe("alert");
+        expect(area.shadowRoot?.querySelector(".supporting")).toBeNull();
+    });
+
+    it("suppresses the error message while disabled or readonly", async () => {
+        const { area } = await renderArea({
+            configure: el => {
+                el.label = "Notes";
+                el.supportingText = "Helper.";
+                el.errorText = "Add notes.";
+                el.invalid = true;
+                el.readonly = true;
+            },
+        });
+        await nextFrame();
+
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(area.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Helper.");
+
+        area.readonly = false;
+        area.disabled = true;
+        await nextFrame();
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+
+        area.disabled = false;
+        await nextFrame();
+        await nextFrame();
+        expect(area.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Add notes.");
+    });
+
+    it("falls back for whitespace-only error-text, avoids manufacturing captions, and recomputes on form reset", async () => {
+        const { area, form } = await renderArea({
+            inForm: true,
+            configure: el => {
+                el.label = "Notes";
+                el.supportingText = "Include bed number.";
+                el.required = true;
+                el.setAttribute("value", "Saved note");
+            },
+        });
+        await nextFrame();
+
+        area.value = "";
+        area.errorText = "   ";
+        area.invalid = true;
+        await nextFrame();
+        await nextFrame();
+
+        expect(area.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe(textarea(area).validationMessage);
+        expect(area.shadowRoot?.querySelector(".error")?.textContent?.trim()).not.toBe("");
+
+        area.value = " ";
+        await nextFrame();
+        await nextFrame();
+        expect(textarea(area).validationMessage).toBe("");
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+
+        area.value = "";
+        await nextFrame();
+        await nextFrame();
+        expect(area.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe(textarea(area).validationMessage);
+
+        (form as HTMLFormElement).reset();
+        await nextFrame();
+        await nextFrame();
+        expect(area.value).toBe("Saved note");
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+
+        expect(() => area.removeAttribute("value")).not.toThrow();
+    });
+
+    it("suppresses the error message inside a disabled fieldset and restores it when re-enabled", async () => {
+        document.body.innerHTML = "";
+        const form = document.createElement("form");
+        const fieldset = document.createElement("fieldset");
+        fieldset.disabled = true;
+        const area = document.createElement("violet-text-area") as VioletTextArea;
+        area.label = "Notes";
+        area.supportingText = "Helper.";
+        area.errorText = "Add notes.";
+        area.invalid = true;
+        fieldset.append(area);
+        form.append(fieldset);
+        document.body.append(form);
+        await customElements.whenDefined("violet-text-area");
+        await nextFrame();
+        await nextFrame();
+
+        expect(area.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(area.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Helper.");
+
+        fieldset.disabled = false;
+        await nextFrame();
+        await nextFrame();
+
+        expect(area.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Add notes.");
+        expect(area.shadowRoot?.querySelector(".supporting")).toBeNull();
+    });
+
+    it("keeps displayErrorText read-only", async () => {
+        const { area } = await renderArea({
+            configure: el => {
+                el.label = "Notes";
+            },
+        });
+
+        const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(area), "displayErrorText");
+        expect(descriptor?.set).toBeUndefined();
+    });
+});

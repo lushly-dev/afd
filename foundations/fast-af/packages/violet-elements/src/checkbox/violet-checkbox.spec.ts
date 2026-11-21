@@ -467,4 +467,147 @@ describe("violet-checkbox", () => {
             expect(new FormData(form as HTMLFormElement).has("terms")).toBe(false);
         });
     });
+
+    describe("field errors", () => {
+        it("renders no error before invalid is set, even with required and error-text", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                supporting: "Read the policy first.",
+                configure: el => {
+                    el.required = true;
+                    el.errorText = "Accept the terms to continue.";
+                },
+            });
+
+            expect(checkbox.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(checkbox.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(false);
+            expect(checkbox.checkValidity()).toBe(false);
+        });
+
+        it("replaces supporting text with error-text while invalid, announces it, and links it as description", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                supporting: "Read the policy first.",
+                configure: el => {
+                    el.setAttribute("error-text", "Accept the terms to continue.");
+                },
+            });
+            const hostHint = document.createElement("p");
+            hostHint.id = "checkbox-host-hint";
+            hostHint.textContent = "Required for checkout.";
+            document.body.prepend(hostHint);
+            checkbox.setAttribute("aria-describedby", "checkbox-host-hint");
+
+            checkbox.invalid = true;
+            await nextFrame();
+            await nextFrame();
+
+            const error = checkbox.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            const supporting = checkbox.shadowRoot?.querySelector('[part~="supporting-text"]') as HTMLElement | null;
+            expect(error?.textContent?.trim()).toBe("Accept the terms to continue.");
+            expect(error?.getAttribute("role")).toBe("alert");
+            expect(supporting?.hasAttribute("hidden")).toBe(true);
+            expect(Array.from(input(checkbox).ariaDescribedByElements ?? [])).toEqual([hostHint, error]);
+            expect(checkbox.validationMessage).toBe("Accept the terms to continue.");
+
+            checkbox.invalid = false;
+            await nextFrame();
+            await nextFrame();
+
+            expect(checkbox.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(supporting?.hasAttribute("hidden")).toBe(false);
+            expect(Array.from(input(checkbox).ariaDescribedByElements ?? [])).toEqual([hostHint, supporting]);
+        });
+
+        it("falls back to the browser validation message when invalid and required without error-text", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                supporting: "Read the policy first.",
+                configure: el => {
+                    el.required = true;
+                    el.invalid = true;
+                },
+            });
+            await nextFrame();
+
+            const error = checkbox.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            expect(error?.textContent?.trim()).toBe(input(checkbox).validationMessage);
+            expect(error?.textContent?.trim()).not.toBe("");
+            expect(checkbox.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("suppresses the error message while disabled and reveals content for inline errors", async () => {
+            const { checkbox } = await renderCheckbox({
+                configure: el => {
+                    el.inline = true;
+                    el.setAttribute("aria-label", "Select row");
+                    el.errorText = "Select at least one row.";
+                    el.invalid = true;
+                },
+            });
+            await nextFrame();
+
+            expect(checkbox.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(false);
+            expect(checkbox.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Select at least one row.");
+
+            checkbox.disabled = true;
+            await nextFrame();
+
+            expect(checkbox.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(checkbox.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("falls back to the browser validation message when error-text is only whitespace", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                configure: el => {
+                    el.required = true;
+                    el.errorText = "   ";
+                    el.invalid = true;
+                },
+            });
+            await nextFrame();
+
+            const error = checkbox.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            expect(error?.textContent?.trim()).toBe(input(checkbox).validationMessage);
+            expect(error?.textContent?.trim()).not.toBe("");
+        });
+
+        it("suppresses the error message inside a disabled fieldset and restores it when re-enabled", async () => {
+            document.body.innerHTML = "";
+            const form = document.createElement("form");
+            const fieldset = document.createElement("fieldset");
+            fieldset.disabled = true;
+            const checkbox = document.createElement("violet-checkbox") as VioletCheckbox;
+            checkbox.textContent = "Accept terms";
+            const supporting = document.createElement("span");
+            supporting.slot = "supporting";
+            supporting.textContent = "Helper.";
+            checkbox.append(supporting);
+            checkbox.errorText = "Accept the terms.";
+            checkbox.invalid = true;
+            fieldset.append(checkbox);
+            form.append(fieldset);
+            document.body.append(form);
+            await customElements.whenDefined("violet-checkbox");
+            await nextFrame();
+            await nextFrame();
+
+            expect(checkbox.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(checkbox.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(false);
+
+            fieldset.disabled = false;
+            await nextFrame();
+            await nextFrame();
+
+            expect(checkbox.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Accept the terms.");
+            expect(checkbox.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("keeps displayErrorText read-only", async () => {
+            const { checkbox } = await renderCheckbox({ label: "Accept" });
+            const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(checkbox), "displayErrorText");
+            expect(descriptor?.set).toBeUndefined();
+        });
+    });
 });
