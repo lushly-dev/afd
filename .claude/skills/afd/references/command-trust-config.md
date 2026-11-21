@@ -49,8 +49,8 @@ bound to command, input and actor, expire (5 minutes by default) and work once b
   whose policy is not `'not-required'` with `APPROVAL_UNAVAILABLE` unless the approval middleware
   admitted the call, and the middleware decides from each command's own policy (its `commands`
   option is optional). Rust and C++ do this later; there, pass the middleware the same `commands`
-  as the server, since an unlisted command is not held. Install it after any middleware that sets `context.actor` (auth), since
-  tokens bind the actor. The secret must be at least 32 bytes.
+  as the server, since an unlisted command is not held. Install it after any middleware that
+  sets `context.actor` (auth), since tokens bind the actor. The secret must be at least 32 bytes.
 - A policy function fails closed: anything but `'not-required'` holds the call. Write it so a
   call with no actor is held.
 - Never read `context.approval` from tool arguments. MCP results leave the token out by default

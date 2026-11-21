@@ -188,8 +188,11 @@ class CommandDefinition:
         undoable: Whether the command's effects can be undone. ``None`` is unset.
         approval: Whether a call needs a human's approval before the handler runs:
             ``"required"``, ``"not-required"`` (the default when unset) or a function of
-            the validated input and context. Enforced by ``create_approval_middleware``;
-            reported as ``_meta.approval``.
+            the validated input and context. Decided by ``create_approval_middleware``;
+            ``create_server`` and ``create_direct_registry`` refuse a declared policy other
+            than ``"not-required"`` with ``APPROVAL_UNAVAILABLE`` when no approval step
+            admitted the call, while ``create_command_registry`` has no check. Reported as
+            ``_meta.approval``.
         title: A short human-readable label, the MCP tool ``title`` of the command's own
             tool. Display text, never derived from the name and never in ``_meta``.
     
