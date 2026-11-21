@@ -161,6 +161,10 @@ struct StdioServerOptions {
     /// `agent` actor, a trace id and the call's cancellation), to add what the host knows, such
     /// as the actor's id. Never set `approval` here from anything the request carries.
     std::function<void(CommandContext& context, const RequestInfo& request)> context_hook;
+    /// Called if `serve` stops before `in` reaches EOF (for example, when writing to `out`
+    /// fails), so a host using a blocking input stream can close or unblock `in` before the
+    /// reader thread is joined.
+    std::function<void()> on_shutdown;
 };
 
 /// Sends a request (`{"method", "params"}`) to the client and returns its `result`, or

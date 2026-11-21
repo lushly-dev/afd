@@ -37,7 +37,9 @@ SystemRandom::SystemRandom() : engine_(std::random_device{}()) {}
 
 double SystemRandom::next() {
     const std::lock_guard lock(mutex_);
-    return std::uniform_real_distribution<double>(0.0, 1.0)(engine_);
+    // 53-bit uniform double strictly in [0.0, 1.0), avoiding LWG 2524 where
+    // std::uniform_real_distribution<double>(0.0, 1.0) can return 1.0.
+    return static_cast<double>(engine_() >> 11) * 0x1.0p-53;
 }
 
 namespace {
