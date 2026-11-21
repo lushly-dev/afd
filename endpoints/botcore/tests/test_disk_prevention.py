@@ -345,3 +345,55 @@ def test_setup_reports_the_cargo_arrangement(
     assert result.success, result.error
     assert result.data["cargo"]["arrangement"] == "moved out of the worktrees"
     assert any(str(root) in s for s in result.suggestions or [])
+
+
+def test_cargo_cache_home_template_is_a_real_folder(
+    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CARGO_BUILD_BUILD_DIR", "{cargo-cache-home}/build/{workspace-path-hash}")
+    [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
+    assert (moved.state, moved.root) == ("moved", str(cargo_home / "build"))
+    assert moved.aged == str(cargo_home / "build" / "*")
+
+
+def test_cargo_cover_refused_by_the_planner_does_not_count(
+    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    holder = place.parent  # holds the checkout, so the planner refuses to clear it
+    monkeypatch.setenv("CARGO_TARGET_DIR", str(holder / "target"))
+    rule = MachineSettings(aged=[AgedFolder(path=str(holder / "*"), max_gb=50)])
+    [problem] = check(place, rule)["problems"]
+    assert '"build-dir"' not in problem and "cargo-build" in problem  # a folder of its own
+
+
+def test_cargo_include_must_be_toml_and_file_browser_litter_is_ignored(
+    cargo_home: Path, place: Path, tmp_path: Path,
+) -> None:
+    (cargo_home / "config.toml").write_text('include = ["extra.conf"]\n', encoding="utf-8")
+    [problem] = check(place)["problems"]
+    assert "must end in .toml" in problem
+    root = tmp_path / "builds"
+    (root / "ab").mkdir(parents=True)
+    (root / ".DS_Store").write_bytes(b"")
+    write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
+    assert cargo.cargo_outputs(MachineSettings(), [place])[0][0].aged == str(root / "*")
+
+
+def test_aged_entries_are_aged_by_what_builds_touch_deep_inside(tmp_path: Path) -> None:
+    from botcore.commands.disk import caches
+    from botcore.commands.disk.scan import newest_mtime
+
+    bucket = tmp_path / "ab"
+    deps = bucket / "0305f56e9b9616" / "debug" / "deps"
+    deps.mkdir(parents=True)
+    old = 1_000_000_000.0
+    for folder in (bucket, bucket / "0305f56e9b9616", deps.parent):
+        os_utime(folder, old)
+    assert newest_mtime(bucket) == old
+    assert newest_mtime(bucket, caches.AGED_DEPTH) > old
+
+
+def os_utime(path: Path, when: float) -> None:
+    import os
+
+    os.utime(path, (when, when))

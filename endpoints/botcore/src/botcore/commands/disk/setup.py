@@ -381,7 +381,8 @@ def disk_warnings(settings: MachineSettings | None = None, status: dict | None =
     for main, entry in (repos if isinstance(repos, dict) else {}).items():
         if not isinstance(entry, dict) or not isinstance(entry.get("warning"), str):
             continue
-        if registered and path_key(main) not in registered:
+        checkout = entry.get("checkout") or main
+        if registered and path_key(checkout) not in registered and path_key(main) not in registered:
             continue  # no longer registered
         age = _age_hours(entry.get("at"))
         stale = age is None or age * 3600 > STALE_SECONDS

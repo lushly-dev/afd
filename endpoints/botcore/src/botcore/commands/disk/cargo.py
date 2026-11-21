@@ -11,8 +11,9 @@ Config files are found as Cargo finds them for a build in each registered worktr
 `.cargo/config` (or `.cargo/config.toml`; `config` wins when both exist) in the worktree and
 every folder above it, then `$CARGO_HOME`'s, each with its `include` files. Values are taken
 literally, as Cargo takes them (no `~` or variable expansion), and a config file's relative
-path is relative to the folder holding its `.cargo`. Environment variables are read from the
-process running the check: a shell, an agent's host or Factory may each see different ones.
+path is relative to the folder holding its `.cargo`. A nested workspace's own `.cargo` below a
+worktree's top folder is not read. Environment variables are read from the process running the
+check: a shell, an agent's host or Factory may each see different ones.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from pathlib import Path
 from botcore.commands.disk.caches import unsafe_aged_root
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
 from botcore.commands.disk.scan import is_dir, is_file
-from botcore.commands.disk.settings import MachineSettings, expand
+from botcore.commands.disk.settings import MachineSettings, expand, t3_worktree_roots
 
 SUGGESTED_AGE_DAYS = 7
 KINDS = ("target-dir", "build-dir")
@@ -39,6 +40,7 @@ ENVIRONMENT = {
 CONFIG_NAMES = ("config", "config.toml")
 MAX_INCLUDE_DEPTH = 10
 HASH_BUCKET = re.compile(r"^[0-9a-f]{2}$")  # {workspace-path-hash} is `<2 hex>/<rest>`
+SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}  # left by file browsers
 _WORKSPACE = "{workspace-root}"
 _PER_WORKSPACE = "{workspace-path-hash}"
 
@@ -66,12 +68,14 @@ class Placement:
         if self.state != "moved" or self.covered_by:
             return None
         if not self.per_workspace:
+            own = Path(self.root or "").parent / "cargo-build"
             return (f"{where} puts every workspace's output in one folder, {self.root}: parallel "
                     "worktrees wait on its lock, and nothing can tell which output a removed "
-                    "worktree left. Use a build-dir with one folder per workspace, "
-                    f"{json.dumps(str(Path(self.root or '') / _PER_WORKSPACE))}, and an "
-                    f"[[aged]] entry for {json.dumps(str(Path(self.root or '') / '*'))}, or cap "
-                    "this folder with an [[aged]] entry that sets max_gb")
+                    f"worktree left. Unset it (Cargo then keeps {self.kind} in each worktree); "
+                    "to keep build output off the worktrees' disk, set build-dir to "
+                    f"{json.dumps(str(own / _PER_WORKSPACE))} and give "
+                    f"{json.dumps(str(own / '*'))} an [[aged]] entry. Or cap this folder with an "
+                    "[[aged]] entry that sets max_gb")
         if self.aged is None:
             return (f"{where} puts build output under {self.root}, which also holds other "
                     "things (or is a drive's top folder, the home folder or Cargo's own): point "
@@ -121,7 +125,10 @@ class _Configs:
         merged: dict[str, tuple[str, Path]] = {}
         for include, optional in _includes(data.get("include")):
             target = path.parent / include
-            if depth >= MAX_INCLUDE_DEPTH:
+            if not include.endswith(".toml"):
+                self.problems.append(f"Cargo's config {path} includes {include}, which Cargo "
+                                     "refuses: an include must end in .toml")
+            elif depth >= MAX_INCLUDE_DEPTH:
                 self.problems.append(f"Cargo's config {path} includes too deeply to follow")
             elif is_file(target):
                 merged.update(self.settings(target, depth + 1))
@@ -172,6 +179,10 @@ def _place(kind: str, source: str, value: str, base: Path | None, place: Path) -
     templated = kind == "build-dir"  # only build-dir takes templates
     if templated:
         text = text.replace("{cargo-cache-home}", str(cargo_home()))
+    # Relative to the workspace, or (an environment variable's) to wherever Cargo runs
+    relative_to_build = (templated and _WORKSPACE in text) or (
+        base is None and not Path(text).is_absolute())
+    if templated:
         text = text.replace(_WORKSPACE, str(place))
     per_workspace = templated and _PER_WORKSPACE in text
     prefix = text.split(_PER_WORKSPACE, 1)[0] if per_workspace else text
@@ -181,7 +192,7 @@ def _place(kind: str, source: str, value: str, base: Path | None, place: Path) -
     resolved = os.path.normpath(str(path))
     if _inside(path_key(resolved), path_key(place)):
         return Placement(kind, source, value, "inside")
-    if (base is None and not Path(value).is_absolute()) or (templated and _WORKSPACE in value):
+    if relative_to_build:
         return Placement(kind, source, value, "unknown")
     if per_workspace and not prefix.endswith(("/", "\\")):
         root, aged = os.path.dirname(resolved), None  # a name prefix: [[aged]] names folders
@@ -205,6 +216,8 @@ def _cargo_only(root: Path) -> bool:
     except OSError:
         return False
     for child in children:
+        if child.name in SYSTEM_FILES and not child.is_symlink():
+            continue
         if child.is_symlink() or not child.is_dir(follow_symlinks=False):
             return False
         if not (HASH_BUCKET.match(child.name) or is_file(Path(child.path) / "CACHEDIR.TAG")):
@@ -212,7 +225,9 @@ def _cargo_only(root: Path) -> bool:
     return True
 
 
-def _covered_by(found: Placement, settings: MachineSettings) -> str | None:
+def _covered_by(
+    found: Placement, settings: MachineSettings, protected: list[Path],
+) -> str | None:
     """The [[aged]] path that clears this output, if any. A folder shared by every workspace is
     always in use, so only a size cap (max_gb) clears it; per-workspace folders need an entry
     for root's own children that sets an age or a size."""
@@ -223,7 +238,7 @@ def _covered_by(found: Placement, settings: MachineSettings) -> str | None:
         text = aged.path.rstrip()
         wildcard = text.endswith(("/*", "\\*"))
         base = expand(text[:-2] if wildcard else text)
-        if not base.is_absolute() or unsafe_aged_root(base):
+        if not base.is_absolute() or unsafe_aged_root(base, protected):
             continue  # the planner refuses it
         key = path_key(base)
         if found.per_workspace and wildcard and key == root:
@@ -237,17 +252,21 @@ def _covered_by(found: Placement, settings: MachineSettings) -> str | None:
 # ── The check ───────────────────────────────────────────────────────────────
 
 
-def _places(settings: MachineSettings) -> list[Path]:
-    """Every registered checkout, or the working directory when none is registered."""
+def _places(settings: MachineSettings) -> tuple[list[Path], list[Path]]:
+    """Every registered checkout (or the working directory when none is registered), and the
+    folders the [[aged]] planner refuses to clear: checkouts, git folders, T3 Code's roots."""
     places: list[Path] = []
+    protected: list[Path] = list(t3_worktree_roots(settings)[0])
     for repo in settings.repos:
         try:
-            _common, worktrees = list_worktrees(expand(repo))
+            common, worktrees = list_worktrees(expand(repo))
         except GitError:
             places.append(expand(repo))
             continue
         places += [w.path for w in worktrees]
-    return places or [Path.cwd()]
+        protected.append(common)
+    places = places or [Path.cwd()]
+    return places, protected + places
 
 
 def cargo_outputs(
@@ -257,7 +276,11 @@ def cargo_outputs(
     reading Cargo's config."""
     configs = _Configs()
     found: dict[tuple, Placement] = {}
-    for place in places if places is not None else _places(settings):
+    if places is None:
+        places, protected = _places(settings)
+    else:
+        protected = list(places)
+    for place in places:
         chain = _chain(place, configs)
         for kind in KINDS:
             setting = _setting(kind, chain, configs)
@@ -268,7 +291,7 @@ def cargo_outputs(
             if placed.state == "inside":
                 continue
             placed = Placement(**{**asdict(placed),
-                                  "covered_by": _covered_by(placed, settings)})
+                                  "covered_by": _covered_by(placed, settings, protected)})
             found.setdefault((kind, source, value, placed.state, placed.root), placed)
     return list(found.values()), list(dict.fromkeys(configs.problems))
 

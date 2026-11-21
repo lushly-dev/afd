@@ -197,7 +197,8 @@ ran out first); past the machine's `idle_worktree_limit` (20; 0 turns it off) it
 ## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, include_restorable=False)
 A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
 prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
-store) and clears aged cache folders from the machine settings. Tier 1 also strips the build
+store) and clears aged cache folders from the machine settings (an entry's age is its newest
+time up to three folders down). Tier 1 also strips the build
 output disk_report marks ready in idle worktrees. Before each deletion it checks again that the
 worktree is idle and unused and the path is still ignored and untracked. When a watched volume
 is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and

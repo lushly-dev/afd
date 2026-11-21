@@ -483,18 +483,27 @@ def allocated(path: Path, deadline: float) -> int | None:
     return total
 
 
-def newest_mtime(path: Path) -> float | None:
-    """The newest modification time of path and its immediate children."""
+def newest_mtime(path: Path, depth: int = 1) -> float | None:
+    """The newest modification time of path and of what lies up to `depth` folders below it
+    (its immediate children by default). Links are not followed."""
     times = []
     value = _mtime(path)
     if value is not None:
         times.append(value)
-    try:
-        for child in os.scandir(path):
+    level = [path]
+    for _ in range(depth):
+        below = []
+        for folder in level:
             try:
-                times.append(child.stat(follow_symlinks=False).st_mtime)
+                entries = list(os.scandir(folder))
             except OSError:
-                pass
-    except OSError:
-        pass
+                continue
+            for child in entries:
+                try:
+                    times.append(child.stat(follow_symlinks=False).st_mtime)
+                    if child.is_dir(follow_symlinks=False):
+                        below.append(Path(child.path))
+                except OSError:
+                    pass
+        level = below
     return max(times) if times else None

@@ -10,4 +10,5 @@
 ### Fixed
 
 - **Tier 2 never removes Botcore Factory's lane slots.** Worktrees directly in the repository's own `<repository>.factory-slots/` are `managed_by: "factory"`: an idle slot could otherwise have counted as finished, and a parked slot holds its validation record.
+- **An `[[aged]]` entry's age is read three folders deep**, not only from its first level: builds write deep inside (Cargo's build-dir is `<2 hex>/<hash>/<profile>/deps/...`), so a folder still in use could look a week old and be cleared, forcing a full rebuild.
 - **A settings file written by `disk-setup` stays readable by an older botcore.** `remove_landed` and `idle_worktree_limit` are left out while at their defaults, since a botcore from before them refuses unknown keys.
