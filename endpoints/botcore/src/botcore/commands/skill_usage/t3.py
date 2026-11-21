@@ -131,6 +131,9 @@ class T3Read:
     newest: str | None = None
     # The sessions with items older than where this read began: none of theirs was read
     behind: set[str] = field(default_factory=set)
+    # The harness's own id of every item the store holds that is not Codex's, when asked for:
+    # what tells a Claude Code session T3 Code ran from one it did not
+    natives: set[str] = field(default_factory=set)
 
 
 def open_store(path: Path) -> sqlite3.Connection:
@@ -438,14 +441,34 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
     return sessions
 
 
-def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool = False) -> T3Read:
+def _native_ids(connection: sqlite3.Connection) -> set[str]:
+    """The harness's own id of every item the store holds, as the harness wrote it, but
+    Codex's: an item whose payload cannot be read has none to give."""
+    rows = connection.execute(
+        f"""
+        select json_extract(payload_json, '$.nativeItemRef.nativeId') from {ITEMS}
+        where json_valid(payload_json)
+          and coalesce(json_extract(payload_json, '$.nativeItemRef.driver'), '') != 'codex'
+        """
+    )
+    return {str(row[0]) for row in rows if row[0]}
+
+
+def read(
+    connection: sqlite3.Connection, *, since: str | None, all_items: bool = False,
+    natives: bool = False,
+) -> T3Read:  # fmt: skip
     """Every skill load, and change to a skill's files, the store shows at or after `since`
     (an ISO time), oldest first; and every session it holds.
 
     A typed name is returned as a load too; the caller keeps it only when the name is a skill.
-    `all_items` also returns the id of every item the store holds, for a rebuild.
+    `all_items` also returns the id of every item the store holds, for a rebuild, and
+    `natives` the harness's own id of each: from the same snapshot as the loads, so that what
+    is called T3 Code's is what this read saw.
     """
     result = T3Read()
+    if natives:
+        result.natives = _native_ids(connection)
     for project_id, workspace_root in connection.execute(
         f"select project_id, workspace_root from {PROJECTS}"
     ):
