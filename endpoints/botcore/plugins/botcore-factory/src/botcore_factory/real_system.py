@@ -64,6 +64,17 @@ class LocalMachine:
     def has_program(self, name: str) -> bool:
         return shutil.which(name) is not None
 
+    def disk_warnings(self) -> list[str]:
+        """botcore's disk-status warnings: read from its state files, so nothing is scanned."""
+        try:
+            from botcore.commands.disk.setup import disk_warnings
+        except ImportError:  # a botcore from before the disk commands
+            return []
+        try:
+            return disk_warnings()
+        except (OSError, ValueError):
+            return []
+
     def symlinks(self) -> bool:
         """Try one: Windows refuses without Developer Mode (or elevation)."""
         import tempfile

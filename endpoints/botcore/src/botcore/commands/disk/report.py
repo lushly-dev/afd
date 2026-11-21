@@ -1,8 +1,8 @@
 """`disk-report`: every worktree of every registered repository, with what could be reclaimed.
 
 Read-only. The tiers are the proposal's (docs/features/active/disk-hygiene/): 0 tool caches and
-aged cache folders, 1 build output in an idle worktree, 3 report only (everything else).
-Removing finished worktrees (tier 2) is a later piece.
+aged cache folders, 1 build output in an idle worktree, 2 a finished worktree no other tool
+manages, 3 report only (everything else).
 
 Protection comes first: a row is eligible for tier 1 only when its folder is the checkout git
 records, it is not the main checkout, locked, busy or on an unverified volume, its process list
@@ -65,6 +65,12 @@ from botcore.commands.disk.settings import (
 from botcore.config import DiskConfig
 
 MIN_GIT_SECONDS = 10.0
+# Botcore Factory's lane checks its validation slots out in `<repository>.factory-slots/`
+FACTORY_SLOTS_SUFFIX = ".factory-slots"
+MANAGERS = {
+    "t3-code": "T3 Code removes this worktree (its storage cleanup)",
+    "factory": "Botcore Factory's lane reuses this slot and removes it itself",
+}
 
 
 @dataclass
@@ -92,6 +98,15 @@ class Context:
 def _inside(root: Path | str, path: Path | str) -> bool:
     outer, inner = path_key(root), path_key(path)
     return inner != outer and inner.startswith(outer.rstrip(os.sep) + os.sep)
+
+
+def manager(path: Path | str, t3_roots: list[Path]) -> str | None:
+    """The tool that creates and removes this worktree itself, if any: tier 2 leaves it alone."""
+    if any(_inside(root, path) for root in t3_roots):
+        return "t3-code"
+    if Path(path).parent.name.endswith(FACTORY_SLOTS_SUFFIX):
+        return "factory"
+    return None
 
 
 def volume_for(path: Path, ctx: Context) -> VolumeState | None:
@@ -245,7 +260,7 @@ def _base_row(wt: Worktree, ctx: Context) -> dict:
         "exists": False,
         "locked": wt.locked,
         "prunable": wt.prunable,
-        "managed_by": "t3-code" if any(_inside(r, wt.path) for r in ctx.t3_roots) else None,
+        "managed_by": None if wt.is_main else manager(wt.path, ctx.t3_roots),
         "tier": 3,
         "can_strip": False,
         "complete": False,
@@ -275,7 +290,7 @@ def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
         row["reasons"].append("git's record of this worktree was not found")
     protected = len(row["reasons"]) > before
     if row["managed_by"]:
-        row["reasons"].append("T3 Code removes this worktree (its storage cleanup)")
+        row["reasons"].append(MANAGERS[row["managed_by"]])
     return protected
 
 
@@ -323,7 +338,7 @@ def _judge_finished(
     row: dict, wt: Worktree, main: Path, changed: list[str], operation: str | None,
     config: DiskConfig, idle: float | None, ctx: Context,
 ) -> None:
-    """Tier 2: a worktree T3 Code does not manage, idle long enough, nothing unique, landed."""
+    """Tier 2: a worktree no other tool manages, idle long enough, nothing unique, landed."""
     due = ctx.settings.remove_landed_after_days
     if idle is None or idle < due * DAY:
         return
@@ -455,7 +470,30 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
         _worktree_row(wt, common, main, repo_cfg.config, ctx, block, presence[str(wt.path)])
         for wt in worktrees
     ]
+    _count_idle(out, ctx.settings)
     return out, repo_cfg.config
+
+
+def _count_idle(out: dict, settings: MachineSettings) -> None:
+    """How many linked worktrees have been idle strip_after_days or longer, and a warning when
+    that passes idle_worktree_limit. Kept and unreadable worktrees are not counted, so after a
+    report that ran out of time the count is a floor."""
+    days = settings.strip_after_days
+    idle = [
+        w for w in out["worktrees"]
+        if not w["main"] and w["exists"] and w["locked"] is None
+        and w.get("idle_days") is not None and w["idle_days"] >= days
+    ]
+    managed = sum(1 for w in idle if w["managed_by"] == "t3-code")
+    out["idle_worktrees"] = {"count": len(idle), "days": days, "t3_code": managed,
+                             "limit": settings.idle_worktree_limit}
+    limit = settings.idle_worktree_limit
+    if limit and len(idle) > limit:
+        out["warning"] = (
+            f"{out['main']}: {len(idle)} worktrees idle {days:g} days or more, over the limit "
+            f"of {limit}. {managed} are T3 Code's (its storage cleanup removes them once its "
+            "rules are on); disk-report lists the rest"
+        )
 
 
 # ── The whole machine ───────────────────────────────────────────────────────
@@ -579,7 +617,8 @@ async def disk_report(
         settings, repo, unclassified=unclassified, budget_seconds=budget_seconds,
     )
     data["settings"] = {"path": str(settings_file), "found": settings_found}
-    suggestions = ["Run disk-reclaim to preview what a reclaim would do (a dry run by default)"]
+    suggestions = [*data["warnings"],
+                   "Run disk-reclaim to preview what a reclaim would do (a dry run by default)"]
     if not settings_found:
         suggestions.append(f"Run disk-setup, or create {settings_file}, to register repositories")
     if not data["complete"]:
@@ -646,4 +685,5 @@ def build_report(
         "complete": ctx.complete,
     }
     data["totals"] = _totals(repo_rows, cache_rows + aged_rows)
+    data["warnings"] = [r["warning"] for r in repo_rows if r.get("warning")]
     return data, pairs, ctx

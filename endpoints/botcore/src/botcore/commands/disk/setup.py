@@ -19,6 +19,7 @@ from pathlib import Path
 from afd import CommandResult, error, success
 
 from botcore.commands.disk import schedule
+from botcore.commands.disk.cargo import cargo_check, cargo_roots
 from botcore.commands.disk.git import GitError, list_worktrees
 from botcore.commands.disk.scan import exists, mount_point, volume_id, volume_state
 from botcore.commands.disk.settings import (
@@ -95,10 +96,11 @@ def default_low_space_gb(mount: Path) -> float:
 
 
 def _watch_volumes(settings: MachineSettings) -> list[str]:
-    """Record every volume holding a registered repository's worktrees or T3 Code's folders."""
+    """Record every volume holding a registered repository's worktrees, T3 Code's folders or
+    Cargo output moved out of the worktrees."""
     added = []
     known = {str(expand(v.mount)) for v in settings.volume}
-    paths: list[Path] = list(t3_worktree_roots(settings)[0])
+    paths: list[Path] = list(t3_worktree_roots(settings)[0]) + cargo_roots(settings)
     for repo in settings.repos:
         try:
             _common, worktrees = list_worktrees(expand(repo))
@@ -292,11 +294,13 @@ async def disk_setup(
         settings.remove_landed = remove_landed
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(settings_toml(settings), encoding="utf-8")
+    cargo = cargo_check(settings)
     data: dict = {"settings": str(path), "added_repos": added_repos,
                   "added_volumes": added_volumes, "repos": settings.repos,
-                  "tools": settings.tools, "remove_landed": settings.remove_landed}
+                  "tools": settings.tools, "remove_landed": settings.remove_landed,
+                  "cargo": cargo}
     if not install_schedule:
-        return success(data=data)
+        return success(data=data, suggestions=cargo["problems"])
     checkouts: list[Path] = []
     for repo in settings.repos:
         try:
@@ -316,6 +320,7 @@ async def disk_setup(
                      suggestion="Read the detail, fix it, and run disk-setup again")
     schedule.run_now()
     return success(data=data, suggestions=[
+        *cargo["problems"],
         "Approve any permission prompt now: the first run has started",
         "disk-status shows the last run",
     ])
@@ -346,6 +351,19 @@ def _age_hours(stamp: str | None) -> float | None:
     except ValueError:
         return None
     return round((datetime.now(UTC) - then).total_seconds() / 3600, 1)
+
+
+def disk_warnings(settings: MachineSettings | None = None) -> list[str]:
+    """What the owner should fix that does not stop a run: repositories over the idle-worktree
+    limit at the last full reclaim, and Cargo output no [[aged]] folder covers. Factory's
+    lane-status shows these to the foreman before it starts cells."""
+    if settings is None:
+        try:
+            settings = load_machine_settings()[0]
+        except SettingsError:
+            return []
+    worktrees = (_read_status().get("worktree_warnings") or {}).get("warnings") or []
+    return [w for w in worktrees if isinstance(w, str)] + cargo_check(settings)["problems"]
 
 
 def _volumes_now(settings: MachineSettings) -> list[dict]:
@@ -387,8 +405,11 @@ async def disk_status() -> CommandResult[dict]:
         "volumes": volumes,
         "healthy": not problems,
         "problems": problems,
+        "warnings": disk_warnings(settings),
+        "warnings_at": (status.get("worktree_warnings") or {}).get("at"),
     }
-    return success(data=data, suggestions=problems[:1] or ["Nothing to do"])
+    return success(data=data,
+                   suggestions=problems[:1] or data["warnings"][:1] or ["Nothing to do"])
 
 
 # ── The scheduled job ───────────────────────────────────────────────────────

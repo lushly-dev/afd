@@ -6,7 +6,7 @@ description: >
   Use when running the backlog, or starting, resuming or closing out a fleet.
 metadata:
   source: afd
-  version: 0.1.1
+  version: 0.1.2
   portable: true
 ---
 
@@ -30,6 +30,7 @@ Run from the primary checkout on current `main`, on the lane host; cells run the
 - **Not running:** `lane-start`. Paused by its own trouble: fix what `pauseReason` names, then `lane-resume`. Never resume a pause the owner made.
 - **Open events first:** act on every `openEvents` entry, as [the runbook](references/runbook.md#events) says, before starting anything. A foreman that died may have read them.
 - Read the runbook's [host notes](references/runbook.md#host-notes) for the machine.
+- **Disk warnings:** pass any `diskWarnings` (too many idle worktrees, Cargo output nothing removes) on to the owner before starting cells. They never stop one.
 - **Woken late** (by a schedule, a retry, a queued message, or a resume after a usage limit): before you act, compare the message that started you with `lane-status` and the state of its issues and PRs. A run that waited may wake hours after its brief. If another session already did the work, or the owner has changed the plan since, take nothing and pass no `session`; report what you found and stop.
 
 ## Pick work and start a cell

@@ -358,9 +358,13 @@ Platform traps the implementation must handle and test:
 
 ### Prevention
 
-- **The same Rust build settings on every machine.** SETUP picks one arrangement (a per-machine
-  Cargo `build-dir` or a shared `CARGO_TARGET_DIR`) and `disk-setup` checks for it. Specimen's
-  pinned target folder stays as it is: changing it was reviewed and withdrawn on 2026-11-15.
+- **The same Rust build settings on every machine.** SETUP picks one arrangement: Cargo's
+  `target/` inside each worktree, where tier 1 and worktree removal reach it. A machine whose
+  worktrees sit on a small disk may move Cargo's `build-dir` to an always-attached drive, with
+  an `[[aged]]` folder covering it; `disk-setup` and `disk-status` warn when none does. A shared
+  `CARGO_TARGET_DIR` is not used: parallel worktrees would wait on its lock and rebuild each
+  other's changes. Specimen's pinned target folder stays as it is: changing it was reviewed and
+  withdrawn on 2026-11-15.
 - **Sweep outside `pnpm verify`.** `rust:sweep` keeps its per-build eviction for shared target
   folders. The scheduled tool covers what it cannot reach: idle worktrees and aged cache folders.
 - **Warn on too many idle worktrees.** `disk-report` says so when a repository passes a set count,

@@ -44,7 +44,14 @@ from botcore.commands.disk.removal import (
     unpin,
 )
 from botcore.commands.disk.remove import UnsafePath, remove_inside
-from botcore.commands.disk.report import Context, build_report, settings_error, volume_for
+from botcore.commands.disk.report import (
+    MANAGERS,
+    Context,
+    build_report,
+    manager,
+    settings_error,
+    volume_for,
+)
 from botcore.commands.disk.scan import (
     DAY,
     Processes,
@@ -377,15 +384,13 @@ def carry_out(action: Action, run: Run) -> None:
 
 
 def _t3_owned(target: Path, run: Run) -> str | None:
-    """T3 Code's ownership read again: never remove what it manages, or when it cannot tell."""
+    """Ownership read again: never remove what T3 Code or Factory manages, or when T3 Code's
+    settings cannot tell."""
     roots, read_ok = t3_worktree_roots(run.ctx.settings)
     if not read_ok:
         return "T3 Code's settings cannot be read, so its worktrees are unknown"
-    key = path_key(target)
-    for root in roots:
-        if key.startswith(path_key(root).rstrip(os.sep) + os.sep):
-            return "T3 Code manages it (its storage cleanup removes it)"
-    return None
+    owner = manager(target, roots)
+    return MANAGERS[owner] if owner else None
 
 
 def _carry_out_removal(action: Action, run: Run) -> None:
@@ -536,6 +541,8 @@ def write_status(payload: dict, receipt: Path) -> None:
         "free_after": payload.get("free_after", {}),
     }
     current["volumes"] = payload["volumes_after"]
+    if payload.get("all_repos"):  # a --repo run says nothing about the other repositories
+        current["worktree_warnings"] = {"at": now, "warnings": payload.get("warnings", [])}
     _write_atomic(path, json.dumps(current, indent=1))
 
 
@@ -661,6 +668,8 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         "still_low": _low(ctx) if apply else [],
         "free_after": after,
         "volumes_after": [v.as_dict() for v in ctx.volumes.values()],
+        "warnings": data.get("warnings", []),
+        "all_repos": repo is None,
         "error": failure,
     }
     receipt = write_receipt(payload)

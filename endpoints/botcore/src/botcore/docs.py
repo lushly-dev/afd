@@ -185,9 +185,13 @@ repository holding the working directory) with its tier, idle days, whether a pr
 and the build output its `[disk].regenerable` patterns name. Also watched volumes, tool caches
 and aged cache folders. `unclassified=True` lists ignored paths no pattern covers.
 
-Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 report only
-(missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
-`managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
+Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 2 a finished
+worktree; 3 report only (missing worktrees, orphan folders). Worktrees under T3 Code's worktree
+folders are marked `managed_by: "t3-code"` (T3 Code's storage cleanup removes them), and
+Botcore Factory's lane slots (`<repository>.factory-slots/`) `managed_by: "factory"`; tier 2
+never removes either. Each repository's `idle_worktrees` counts linked worktrees idle
+`strip_after_days` or longer (kept ones aside); past the machine's `idle_worktree_limit` (20;
+0 turns it off) it gets a `warning`, also listed in `warnings`.
 
 ## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, include_restorable=False)
 A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
@@ -211,12 +215,19 @@ records each volume holding their worktrees or T3 Code's worktree folders with i
 and a low-space threshold, and installs the hourly job: a LaunchAgent on macOS, a Task
 Scheduler task on Windows, a systemd user timer (or crontab) on Linux. Needs botcore installed
 as a tool (`uv tool install lushly-botcore==<version>`), not run through uvx. Safe to run
-again. `uninstall=True` removes the job and keeps settings and receipts.
+again. `uninstall=True` removes the job and keeps settings and receipts. Its `cargo` says where
+Cargo puts build output on this machine (the user's Cargo config and `CARGO_TARGET_DIR`,
+`CARGO_BUILD_TARGET_DIR`, `CARGO_BUILD_BUILD_DIR`): inside each worktree by default; a
+`target-dir` or `build-dir` moved out of the worktrees needs an `[[aged]]` folder covering it,
+and the suggestions name the entry to add.
 
 ## disk_status()
 The job's state, the last applied run and its age, free space on watched volumes, and
 `problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
-when there are none. Session preflights read this.
+when there are none. Session preflights read this. `warnings` do not affect `healthy`: the
+idle-worktree warnings of the last reclaim that covered every repository (`warnings_at`) and
+Cargo output no `[[aged]]` folder covers. Botcore Factory's `lane_status` shows them to the
+foreman as `diskWarnings`.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
