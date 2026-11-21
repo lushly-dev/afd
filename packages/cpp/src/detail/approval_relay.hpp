@@ -8,6 +8,7 @@
 // an elicitation. Opaque outside the library: never serialized, never read from tool arguments.
 #pragma once
 
+#include "afd/command.hpp"
 #include "afd/errors.hpp"
 #include "afd/json.hpp"
 
@@ -104,6 +105,9 @@ struct UpFrontStep {
     /// The validated input of a step that is not dynamic; unset when it names no command the
     /// caller can run or does not validate (it then fails when it runs).
     std::optional<Json> input;
+    /// The server's definition of the command, whose approval policy and confirmation prompt
+    /// decide the step; unset when it names no command the caller can run.
+    std::shared_ptr<const CommandDefinition> definition;
 };
 
 /// The human's answers an up-front call carries: every accepted question, and the bindings of

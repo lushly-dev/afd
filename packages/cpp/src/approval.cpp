@@ -14,6 +14,7 @@
 #include <random>
 #include <utility>
 
+#include "detail/approval_admission.hpp"
 #include "detail/approval_relay.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/hmac.hpp"
@@ -385,6 +386,27 @@ void system_random_bytes(std::uint8_t* out, std::size_t size) {
     }
 }
 
+/// What decides a call of one command: its own policy and confirmation prompt (the command the
+/// registry runs, or the server's definition of an up-front step), and the `commands` option's
+/// entry for it. The call is held when either policy holds it.
+struct Decider {
+    const CommandDefinition* own = nullptr;
+    const ApprovalCommand* listed = nullptr;
+};
+
+/// Whether `policy` holds a call. Fail closed: anything but an explicit `not_required` holds it.
+bool policy_holds(const std::optional<ApprovalPolicy>& policy, const Json& input,
+                  const CommandContext& context) {
+    if (!policy) {
+        return false;
+    }
+    const ApprovalPolicyFunction* decide = policy->function();
+    if (!decide) {
+        return policy->decision() != ApprovalDecision::not_required;
+    }
+    return !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
+}
+
 struct ApprovalState {
     std::vector<std::string> keys;
     std::map<std::string, ApprovalCommand, std::less<>> commands;
@@ -394,17 +416,32 @@ struct ApprovalState {
     MemoryNonceStore memory_store;
     ApprovalMiddlewareOptions options;
 
-    bool requires_approval(const ApprovalCommand* command, const Json& input,
-                           const CommandContext& context) const {
-        if (!command || !command->approval) {
-            return false;
-        }
-        const ApprovalPolicyFunction* decide = command->approval->function();
-        if (!decide) {
-            return command->approval->decision() != ApprovalDecision::not_required;
-        }
-        // Fail closed: anything but an explicit not_required holds the call.
-        return !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
+    /// What decides a call of `name` whose own definition is `own` (none outside the registry).
+    [[nodiscard]] Decider decider(std::string_view name, const CommandDefinition* own) const {
+        const auto found = commands.find(name);
+        return {.own = own, .listed = found == commands.end() ? nullptr : &found->second};
+    }
+
+    /// What decides this call of `name`: the command the registry runs for it.
+    [[nodiscard]] Decider decider(std::string_view name, const CommandContext& context) const {
+        const detail::ApprovalAdmission* record = context.approval_admission.get();
+        const CommandDefinition* own = record && record->command && record->command->name == name
+                                           ? record->command.get()
+                                           : nullptr;
+        return decider(name, own);
+    }
+
+    /// Whether the call needs approval: its own policy or its listed one holds it.
+    static bool requires_approval(const Decider& decider, const Json& input,
+                                  const CommandContext& context) {
+        return (decider.own && policy_holds(decider.own->approval, input, context)) ||
+               (decider.listed && policy_holds(decider.listed->approval, input, context));
+    }
+
+    /// Whether the call may need approval, without evaluating a policy function.
+    static bool may_require_approval(const Decider& decider) {
+        return (decider.own && detail::gates(decider.own->approval)) ||
+               (decider.listed && detail::gates(decider.listed->approval));
     }
 
     Verdict verify_token(std::string_view evidence, std::string_view command,
@@ -576,14 +613,16 @@ struct ApprovalState {
 
     /// The summary of a held call: the host's, else the confirmation prompt, else "Run <name>".
     [[nodiscard]] std::string summary(std::string_view name, const Json& input,
-                                      const CommandContext& context,
-                                      const ApprovalCommand* command) const {
+                                      const CommandContext& context, const Decider& decider) const {
         std::string text;
         if (options.summarize) {
             text = options.summarize(name, input, context).value_or("");
         }
-        if (text.empty() && command && command->confirm_prompt) {
-            text = *command->confirm_prompt;
+        if (text.empty() && decider.own && decider.own->confirm_prompt) {
+            text = *decider.own->confirm_prompt;
+        }
+        if (text.empty() && decider.listed && decider.listed->confirm_prompt) {
+            text = *decider.listed->confirm_prompt;
         }
         return text.empty() ? "Run " + std::string(name) : text;
     }
@@ -775,12 +814,8 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
     const std::string what(noun(up.tool()));
     // A gated pipeline step whose input comes from an earlier step cannot be shown up front.
     for (const auto& step : up.steps()) {
-        const auto found = state.commands.find(step.command);
-        if (!step.dynamic || found == state.commands.end() || !found->second.approval) {
-            continue;
-        }
-        const ApprovalPolicy& policy = *found->second.approval;
-        if (!policy.function() && policy.decision() == ApprovalDecision::not_required) {
+        if (!step.dynamic || !ApprovalState::may_require_approval(
+                                 state.decider(step.command, step.definition.get()))) {
             continue;
         }
         const std::string at = std::to_string(step.index);
@@ -813,9 +848,8 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
         if (step.dynamic || !step.input) {
             continue;
         }
-        const auto found = state.commands.find(step.command);
-        const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
-        if (!state.requires_approval(command, *step.input, context)) {
+        const Decider decider = state.decider(step.command, step.definition.get());
+        if (!ApprovalState::requires_approval(decider, *step.input, context)) {
             continue;
         }
         const auto canonical = canonical_json(*step.input);
@@ -835,7 +869,7 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
             GatedStep{.index = step.index,
                       .command = step.command,
                       .input = *canonical,
-                      .summary = state.summary(step.command, *step.input, context, command),
+                      .summary = state.summary(step.command, *step.input, context, decider),
                       .bindings = state.up_front_bindings(up, step.command, *canonical, *actor)});
         if (gated.size() > max_up_front_approvals) {
             const std::string limit = std::to_string(max_up_front_approvals);
@@ -939,9 +973,7 @@ CommandResult run_up_front(ApprovalState& state, detail::UpFrontApproval& up, st
     if (plan->refusal) {
         return failure(*plan->refusal);
     }
-    const auto found = state.commands.find(name);
-    const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
-    if (!state.requires_approval(command, input, context)) {
+    if (!ApprovalState::requires_approval(state.decider(name, context), input, context)) {
         return next();
     }
     const auto canonical = canonical_json(input);
@@ -989,6 +1021,45 @@ Expected<std::string> canonical_json(const Json& value) {
 }
 
 namespace detail {
+
+bool gates(const std::optional<ApprovalPolicy>& policy) noexcept {
+    return policy && (policy->function() || policy->decision() != ApprovalDecision::not_required);
+}
+
+void admit_approval(CommandContext& context, std::string_view name, const Json& input) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    std::optional<std::string> canonical;
+    if (record->command && gates(record->command->approval)) {
+        if (auto encoded = canonical_json(input)) {
+            canonical = std::move(*encoded);
+        }
+    }
+    record->admitted =
+        AdmittedCall{.name = std::string(name), .canonical = std::move(canonical), .input = &input};
+}
+
+AdmissionCheck take_admission(CommandContext& context, std::string_view name, const Json& input) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return AdmissionCheck::missing;
+    }
+    if (!record->admitted) {
+        return record->taken ? AdmissionCheck::mismatch : AdmissionCheck::missing;
+    }
+    const AdmittedCall admitted = std::move(*record->admitted);
+    record->admitted.reset();
+    record->taken = true;
+    if (admitted.name != name) {
+        return AdmissionCheck::mismatch;
+    }
+    const auto canonical = canonical_json(input);
+    const bool same = admitted.canonical ? canonical && *canonical == *admitted.canonical
+                                         : admitted.input == &input && !canonical;
+    return same ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
+}
 
 Expected<std::string> canonical_json_as_read(const Json& value) {
     std::string out;
@@ -1038,7 +1109,15 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
     state->options = std::move(options);
 
     return CommandMiddleware([state](std::string_view name, const Json& input,
-                                     CommandContext& context, const Next& next) -> CommandResult {
+                                     CommandContext& context,
+                                     const Next& outer_next) -> CommandResult {
+        // Every way this middleware lets the call through admits this command on this input,
+        // which the registry checks, and takes, before it dispatches a command that declares an
+        // approval policy.
+        const Next next = [&]() {
+            detail::admit_approval(context, name, input);
+            return outer_next();
+        };
         // A step of an afd-batch or afd-pipe approved up front. The step never sees the up-front
         // approval, so a command it runs falls back as a nested command does.
         if (context.up_front_approval) {
@@ -1055,9 +1134,9 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             context.mcp_approval_relay->claim(name)) {
             relay = context.mcp_approval_relay.get();
         }
-        const auto found = state->commands.find(name);
-        const ApprovalCommand* command = found == state->commands.end() ? nullptr : &found->second;
-        if (!state->requires_approval(command, input, context)) {
+        // The policy of the command this call runs, and the one the `commands` option lists.
+        const Decider decider = state->decider(name, context);
+        if (!ApprovalState::requires_approval(decider, input, context)) {
             return next();
         }
         const ApprovalMiddlewareOptions& settings = state->options;
@@ -1092,7 +1171,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
         }
 
-        const std::string summary = state->summary(name, input, context, command);
+        const std::string summary = state->summary(name, input, context, decider);
 
         if (relay) {
             const auto bindings = state->relay_bindings(name, *input_binding, *actor);

@@ -30,7 +30,9 @@ struct Fixture {
     std::shared_ptr<std::atomic<int>> removes = std::make_shared<std::atomic<int>>(0);
     std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
 
-    explicit Fixture(bool with_contexts = false) {
+    /// `listed`: the approval middleware is given the commands list, else none (#1886).
+    /// `approvals`: install the approval middleware at all.
+    explicit Fixture(bool with_contexts = false, bool listed = true, bool approvals = true) {
         auto deleted = deletes;
         auto removed = removes;
         std::vector<afd::CommandDefinition> commands{
@@ -92,13 +94,21 @@ struct Fixture {
                            afd::CommandContext&) { return afd::success(Json::array()); },
              .expose = {.mcp = true}},
         };
+        std::vector<afd::ApprovalCommand> gated;
+        if (listed) {
+            gated.assign(commands.begin(), commands.end());
+        }
         auto approval =
             afd::create_approval_middleware({.secrets = {std::string(32, 's')},
-                                             .commands = {commands.begin(), commands.end()},
+                                             .commands = std::move(gated),
                                              .relay = afd::ApprovalRelay::mcp_elicitation});
         REQUIRE(approval);
+        std::vector<afd::CommandMiddleware> middleware;
+        if (approvals) {
+            middleware.push_back(*approval);
+        }
         registry = std::make_shared<afd::CommandRegistry>(
-            afd::CommandRegistryOptions{.middleware = {*approval}});
+            afd::CommandRegistryOptions{.middleware = std::move(middleware)});
         for (const auto& command : commands) {
             REQUIRE_FALSE(registry->register_command(command));
         }
@@ -798,6 +808,45 @@ TEST_CASE("2025: a batch is approved up front, once, before any step runs") {
     CHECK(silent["error"]["code"] == "APPROVAL_REQUIRED");
     CHECK_FALSE(silent["error"].contains("details"));
     CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("without a commands list, a batch is approved up front from the server's commands") {
+    Fixture fixture(false, false);
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-remove"}, {"input", {{"tag", "old"}}}}}}};
+    const Json ran = body(call(*server, "afd-batch", batch, client.requester()));
+    REQUIRE(client.asked.size() == 1);
+    CHECK(client.asked[0]["params"]["message"].get<std::string>().find("Step 2: Run tag-remove") !=
+          std::string::npos);
+    CHECK(ran["summary"]["successCount"] == 2);
+    CHECK(*fixture.removes == 1);
+
+    // A pipeline step whose input comes from an earlier one cannot be asked about up front.
+    const Json pipe{{"steps",
+                     {{{"command", "tag-list"}},
+                      {{"command", "tag-remove"}, {"input", {{"tag", "$prev.0"}}}}}}};
+    const Json refused = body(call(*server, "afd-pipe", pipe, client.requester()));
+    CHECK(client.asked.size() == 1);
+    CHECK(refused["steps"][0]["error"]["details"]["reason"] == "input-not-known");
+    CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("without the approval middleware, a gated tool is refused before its handler") {
+    Fixture fixture(false, false, false);
+    auto server = make_server(*fixture.registry);
+    for (const auto& [name, arguments] : std::vector<std::pair<std::string, Json>>{
+             {"tag-remove", {{"tag", "old"}}},
+             {"afd-call", {{"command", "tag-remove"}, {"input", {{"tag", "old"}}}}}}) {
+        CAPTURE(name);
+        const Json result = body(call(*server, name, arguments));
+        CHECK(result["error"]["code"] == "APPROVAL_UNAVAILABLE");
+        CHECK(result["error"]["details"]["reason"] == "no-approval-step");
+    }
+    CHECK(*fixture.removes == 0);
 }
 
 TEST_CASE("2026-07-28: one input_required approves the whole batch, and a replay runs nothing") {

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <mutex>
 
+#include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 
@@ -50,6 +51,25 @@ std::string contexts_suggestion(const CommandDefinition& command, bool context_t
     }
     return "Switch to a context this command belongs to (" + contexts +
            "), or call it with no active context.";
+}
+
+// A gated command no approval step admitted for this dispatch (spec/command-metadata.md,
+// "Approvals"). `missing`: no approval step ran; otherwise one ran, but this dispatch is not the
+// one it admitted (a retry placed after it, or the input changed after it).
+CommandResult approval_unavailable(const std::string& name, bool missing) {
+    return failure(create_error(
+        error_codes::APPROVAL_UNAVAILABLE,
+        name + " needs a person's approval, and this server cannot ask for it",
+        {.suggestion =
+             missing ? "Tell the user that " + name +
+                           " needs their approval and this server has no approval step; do not "
+                           "retry. The operator adds the approval middleware "
+                           "(create_approval_middleware) or removes the command's approval policy."
+                     : std::string("Do not retry: this call is not the one approved. The operator "
+                                   "moves middleware that retries or changes input before the "
+                                   "approval middleware."),
+         .retryable = false,
+         .details = Json{{"reason", missing ? "no-approval-step" : "admission-mismatch"}}}));
 }
 
 std::string issue_summary(const ValidationFailure& failure) {
@@ -378,6 +398,13 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
         return std::move(*invalid);
     }
     context.journaled_fields = journaled_fields_;
+    // This call's own admission record (approval_admission.hpp), replacing any the caller passed:
+    // the command it runs, for the approval middleware to decide from, not yet admitted.
+    context.approval_admission =
+        std::make_shared<detail::ApprovalAdmission>(detail::ApprovalAdmission{
+            .command = std::shared_ptr<const CommandDefinition>(command, &command->definition),
+            .admitted = std::nullopt,
+            .taken = false});
 
     // 5-6. Middleware and handler.
     CommandResult result;
@@ -423,6 +450,18 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
 
     // The innermost step: run the handler and stamp its result (a copy; never in place).
     const Next run_handler = [&]() -> CommandResult {
+        // A declared approval policy holds without the approval middleware: a command whose
+        // policy is neither unset nor not_required runs only when an approval step admitted this
+        // dispatch, of this command on this validated input. A policy function is not evaluated
+        // here. The admission is taken, so a second dispatch (a retry inside the chain) needs a
+        // second one.
+        if (detail::gates(definition.approval)) {
+            const auto admission = detail::take_admission(context, definition.name, input);
+            if (admission != detail::AdmissionCheck::admitted) {
+                return approval_unavailable(definition.name,
+                                            admission == detail::AdmissionCheck::missing);
+            }
+        }
         // The context's clock (the registry's unless the caller set one), read again here
         // because middleware may replace it.
         const std::shared_ptr<const Clock> clock = context.clock ? context.clock : options_.clock;

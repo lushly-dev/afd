@@ -329,6 +329,12 @@ struct Attempt {
     std::optional<Json> input_required;
 };
 
+/// The definition of a registered command, sharing its ownership.
+std::shared_ptr<const CommandDefinition>
+definition_of(const std::shared_ptr<const RegisteredCommand>& command) {
+    return {command, &command->definition};
+}
+
 } // namespace
 
 struct StdioServer::State {
@@ -1205,10 +1211,14 @@ struct StdioServer::State {
     /// none when it names no command the caller can run or does not validate.
     [[nodiscard]] detail::UpFrontStep up_front_step(std::size_t index, const std::string& command,
                                                     const Json& input) const {
-        detail::UpFrontStep step{
-            .index = index, .command = command, .dynamic = false, .input = std::nullopt};
+        detail::UpFrontStep step{.index = index,
+                                 .command = command,
+                                 .dynamic = false,
+                                 .input = std::nullopt,
+                                 .definition = nullptr};
         const auto found = registry.get(command);
         if (found && is_exposed_to(found->definition.expose, Interface::mcp)) {
+            step.definition = definition_of(found);
             if (auto validated = found->input_schema.validate(input)) {
                 step.input = std::move(*validated);
             }
@@ -1454,18 +1464,26 @@ struct StdioServer::State {
             const auto command = registry.get(step.command);
             if (!command || !is_exposed_to(command->definition.expose, Interface::mcp)) {
                 // A command the caller cannot run is not one: it fails as a missing name.
-                up_front.push_back(
-                    {.index = i, .command = step.command, .dynamic = false, .input = std::nullopt});
+                up_front.push_back({.index = i,
+                                    .command = step.command,
+                                    .dynamic = false,
+                                    .input = std::nullopt,
+                                    .definition = nullptr});
             } else if (step.input && reads_step_data(*step.input)) {
-                up_front.push_back(
-                    {.index = i, .command = step.command, .dynamic = true, .input = std::nullopt});
+                up_front.push_back({.index = i,
+                                    .command = step.command,
+                                    .dynamic = true,
+                                    .input = std::nullopt,
+                                    .definition = definition_of(command)});
             } else {
                 auto resolved = resolve_variables(step.input.value_or(Json::object()), references);
-                up_front.push_back(resolved ? up_front_step(i, step.command, *resolved)
-                                            : detail::UpFrontStep{.index = i,
-                                                                  .command = step.command,
-                                                                  .dynamic = false,
-                                                                  .input = std::nullopt});
+                up_front.push_back(resolved
+                                       ? up_front_step(i, step.command, *resolved)
+                                       : detail::UpFrontStep{.index = i,
+                                                             .command = step.command,
+                                                             .dynamic = false,
+                                                             .input = std::nullopt,
+                                                             .definition = definition_of(command)});
             }
         }
         return run_up_front("afd-pipe", request, conditional, std::move(up_front), round, binding,
