@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 from afd.testing.commands.coverage import scenario_coverage_cmd
 from afd.testing.commands.suggest import scenario_suggest
 
@@ -65,6 +67,11 @@ def _write_scenario(directory: str, filename: str, content: str) -> str:
 
 class TestScenarioCoverage:
 	"""Tests for the scenario-coverage command."""
+
+	@pytest.fixture(autouse=True)
+	def _project_root(self, tmp_path, monkeypatch):
+		"""scenario-coverage reads only inside the project root (the working directory)."""
+		monkeypatch.chdir(tmp_path)
 
 	def test_empty_directory_no_known_commands(self, tmp_path):
 		"""Returns error with empty directory and no known_commands."""
@@ -220,6 +227,11 @@ class TestScenarioCoverage:
 
 class TestScenarioSuggest:
 	"""Tests for the scenario-suggest command."""
+
+	@pytest.fixture(autouse=True)
+	def _project_root(self, tmp_path, monkeypatch):
+		"""scenario-suggest reads only inside the project root (the working directory)."""
+		monkeypatch.chdir(tmp_path)
 
 	def test_missing_context(self):
 		"""Returns validation error when context is not provided."""

@@ -155,16 +155,14 @@ class CliWrapper:
 			self._verbose = kwargs["verbose"]
 
 	def _build_args(self, command: str, input: dict[str, Any] | None = None) -> list[str]:
-		"""Build CLI arguments for a command."""
-		args = ["call", command]
-
-		if self._server_url:
-			args.extend(["--connect", self._server_url])
-
-		args.append("--json")
+		"""Build CLI arguments matching ``afd [--json] call <tool> [args] [--server <url>]``."""
+		args = ["--json", "call", command]
 
 		if input and len(input) > 0:
-			args.extend(["--input", json.dumps(input)])
+			args.append(json.dumps(input))
+
+		if self._server_url:
+			args.extend(["--server", self._server_url])
 
 		return args
 

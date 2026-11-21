@@ -8,15 +8,24 @@ Port of packages/testing/src/commands/list.ts
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
-from afd.testing.commands._files import find_scenario_files
+from afd.testing.commands._files import find_scenario_files, project_root, resolve_inside
 from afd.testing.scenarios.parser import parse_scenario_file
 
 
-def scenario_list(input: dict[str, Any] | None = None) -> CommandResult[Any]:
+def scenario_list(
+	input: dict[str, Any] | None = None,
+	*,
+	root: str | os.PathLike[str] | None = None,
+) -> CommandResult[Any]:
 	"""List JTBD scenario files.
+
+	``directory`` must stay inside ``root`` (default: the current working
+	directory). ``..`` segments, absolute paths and symlinks that leave
+	``root`` are refused.
 
 	Input:
 		directory: str - Directory to search (default: ./scenarios)
@@ -41,8 +50,24 @@ def scenario_list(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 	sort_order = params.get("order", "asc")
 	recursive = params.get("recursive", True)
 
+	base = project_root(root)
+	scenario_dir = (
+		resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
+	)
+	if scenario_dir is None:
+		return error(
+			"VALIDATION_ERROR",
+			f"Scenario directory is outside the project root: {str(directory)[:200]}",
+			suggestion="Use a directory inside the project, such as ./scenarios.",
+			details={"field": "directory"},
+		)
+
 	try:
-		files = find_scenario_files(directory, recursive)
+		files = [
+			str(resolved)
+			for path in find_scenario_files(str(scenario_dir), recursive)
+			if (resolved := resolve_inside(path, base)) is not None
+		]
 	except Exception as e:
 		return error(
 			"INTERNAL_ERROR",

@@ -102,8 +102,10 @@ class _HttpBasedTransport:
 
         try:
             data = response.json()
-        except ValueError:
+            json_exc: Optional[ValueError] = None
+        except ValueError as exc:
             data = None
+            json_exc = exc
         err = data.get("error") if isinstance(data, dict) else None
         code = err.get("code") if isinstance(err, dict) else None
         if isinstance(code, int) and not isinstance(code, bool):
@@ -114,12 +116,22 @@ class _HttpBasedTransport:
             raise HttpStatusError(
                 response.status_code, f"HTTP {response.status_code}: {response.text}"
             )
+        if json_exc is not None:
+            raise TransportError(
+                f"Invalid JSON response (HTTP {response.status_code}): {json_exc}",
+                cause=json_exc,
+            ) from json_exc
         if not isinstance(data, dict):
-            raise TransportError("The server's answer is not a JSON-RPC response")
+            raise TransportError(
+                f"Invalid JSON-RPC response: expected JSON object, got {type(data).__name__}",
+            )
 
-        if "error" in data:
-            message = err.get("message", "Unknown") if isinstance(err, dict) else "Unknown"
-            raise TransportError(f"JSON-RPC error {code if code is not None else '?'}: {message}")
+        if err is not None:
+            if isinstance(err, dict):
+                raise TransportError(
+                    f"JSON-RPC error {err.get('code', '?')}: {err.get('message', 'Unknown')}"
+                )
+            raise TransportError(f"JSON-RPC error: {err}")
 
         return data.get("result")
 
@@ -135,10 +147,13 @@ class _HttpBasedTransport:
                 "version": self._client_version,
             },
         })
-        init_result = result or {}
-        self._server_info = init_result.get("serverInfo")
-        self._capabilities = init_result.get("capabilities")
-        return init_result
+        if not isinstance(result, dict):
+            raise TransportError(
+                f"Invalid initialize result: expected JSON object, got {type(result).__name__}",
+            )
+        self._server_info = result.get("serverInfo")
+        self._capabilities = result.get("capabilities")
+        return result
 
     async def call_tool(
         self,
@@ -158,8 +173,21 @@ class _HttpBasedTransport:
     async def list_tools(self) -> List[ToolInfo]:
         """List available tools via the MCP ``tools/list`` method."""
         result = await self._send_request("tools/list")
+        if not isinstance(result, dict):
+            raise TransportError(
+                f"Invalid tools/list result: expected JSON object, got {type(result).__name__}",
+            )
+        raw_tools = result.get("tools", [])
+        if not isinstance(raw_tools, list):
+            raise TransportError(
+                f"Invalid tools/list result: 'tools' must be a list, got {type(raw_tools).__name__}",
+            )
         tools: List[ToolInfo] = []
-        for tool in (result or {}).get("tools", []):
+        for tool in raw_tools:
+            if not isinstance(tool, dict) or not isinstance(tool.get("name"), str):
+                raise TransportError(
+                    "Invalid tools/list result: each tool entry must be an object with a string 'name'",
+                )
             tools.append(ToolInfo(
                 name=tool["name"],
                 description=tool.get("description", ""),
