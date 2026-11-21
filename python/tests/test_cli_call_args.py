@@ -181,3 +181,43 @@ def test_the_shell_takes_key_value_pairs_and_survives_bad_arguments(transport, m
     assert "Use a JSON object or key=value pairs." in outcome.output
     transport.call_tool.assert_awaited_once_with("todo-create", {"title": "milk"})
     assert transport.calls[-1]["headers"] == {"X-Api-Key": "k"}
+
+
+def _shell(transport, monkeypatch, *lines):
+    _cli_main._save_state({"server": "http://x/mcp"})
+    feed = iter([*lines, "exit"])
+    monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *args, **kwargs: next(feed))
+    return CliRunner().invoke(cli, ["shell"])
+
+
+def test_a_failed_call_prints_its_error_and_the_shell_continues(transport, monkeypatch):
+    """#1835, as TypeScript's shell: a failed request does not end the shell."""
+    transport.call_tool.side_effect = [RuntimeError("lost \x1b]0;owned\x07[/x] link"), {"success": True}]
+    outcome = _shell(transport, monkeypatch, "call todo-create", "call todo-create title=milk")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Call failed: lost [/x] link" in outcome.output
+    assert "\x1b" not in outcome.output
+    assert transport.call_tool.await_count == 2
+    assert "Goodbye!" in outcome.output
+
+
+def test_a_failed_tools_listing_prints_its_error_and_the_shell_continues(transport, monkeypatch):
+    transport.list_tools.side_effect = [OSError("reset"), [ToolInfo(name="todo-create", description="Create")]]
+    outcome = _shell(transport, monkeypatch, "tools", "tools")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Listing tools failed: reset" in outcome.output
+    assert "todo-create" in outcome.output
+
+
+@pytest.mark.parametrize("line", ["call", "call   "])
+def test_call_without_a_name_prints_its_usage(transport, monkeypatch, line):
+    outcome = _shell(transport, monkeypatch, line)
+    assert outcome.exit_code == 0, outcome.output
+    assert "Usage: call <name> [args]" in outcome.output
+    transport.call_tool.assert_not_awaited()
+
+
+def test_an_unknown_command_with_markup_is_printed_literally(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "frobnicate [/x] [bold]")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Unknown command: frobnicate [/x] [bold]" in outcome.output

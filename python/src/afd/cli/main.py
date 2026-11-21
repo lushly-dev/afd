@@ -974,6 +974,7 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
     Provides a REPL for calling tools interactively. A call's arguments are a
     JSON object or key=value pairs. Use 'exit' or Ctrl+D to quit.
     """
+    from rich.markup import escape as rich_escape
     from rich.prompt import Prompt
 
     from afd.cli.args import describe_args_error, parse_tool_args
@@ -1018,25 +1019,36 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
 """)
                     continue
                 
+                # A failed request prints its error and the prompt returns, as in
+                # TypeScript's shell; only exit, quit or Ctrl+D end it.
                 if line == "tools":
-                    tool_list = await transport.list_tools()
-                    print_tools(tool_list)
+                    try:
+                        print_tools(await transport.list_tools())
+                    except Exception as e:
+                        _fail(f"Listing tools failed: {e}")
                     continue
-                
-                if line.startswith("call "):
-                    parts = line[5:].strip().split(maxsplit=1)
+
+                if line == "call" or line.startswith("call "):
+                    parts = line[4:].strip().split(maxsplit=1)
+                    if not parts:
+                        _fail("Usage: call <name> [args]")
+                        continue
                     tool_name = parts[0]
                     try:
                         tool_args = parse_tool_args(parts[1] if len(parts) > 1 else "")
                     except ValueError as e:
                         _fail(describe_args_error(e))
                         continue
-                    
-                    result = await transport.call_tool(tool_name, tool_args)
+
+                    try:
+                        result = await transport.call_tool(tool_name, tool_args)
+                    except Exception as e:
+                        _fail(f"Call failed: {e}")
+                        continue
                     print_result(result)
                     continue
-                
-                console.print(f"[yellow]Unknown command: {line}[/yellow]")
+
+                console.print(f"[yellow]Unknown command: {rich_escape(line)}[/yellow]")
                 
         finally:
             await transport.disconnect()
