@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "detail/json_io.hpp"
+#include "detail/random_unit.hpp"
 
 namespace afd {
 namespace {
@@ -22,7 +23,7 @@ std::string random_uuid(RandomSource& random) {
     constexpr char hex[] = "0123456789abcdef";
     unsigned char bytes[16];
     for (unsigned char& byte : bytes) {
-        byte = static_cast<unsigned char>(random.next() * 256.0);
+        byte = static_cast<unsigned char>(detail::random_index(random.next(), 256));
     }
     bytes[6] = static_cast<unsigned char>((bytes[6] & 0x0Fu) | 0x40u); // version 4
     bytes[8] = static_cast<unsigned char>((bytes[8] & 0x3Fu) | 0x80u); // RFC 4122 variant

@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <stdexcept>
 #include <streambuf>
 #include <string>
 #include <thread>
@@ -1263,3 +1264,104 @@ TEST_CASE("server/discover says the bootstrap tools describe the server, once al
     CHECK(partial_discover["result"]["instructions"].get<std::string>().find("afd-help") ==
           std::string::npos);
 }
+
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+TEST_CASE("StdioServer catches throwing context_hook and group_by and joins reader on stream throw "
+          "(#1718)") {
+    Notes notes;
+    {
+        auto server =
+            make_server(*notes.registry,
+                        {.context_hook = [](afd::CommandContext&, const afd::mcp::RequestInfo&) {
+                            throw std::runtime_error("hook boom");
+                        }});
+        std::istringstream in(
+            request(1, "tools/call", {{"name", "note-list"}, {"arguments", Json::object()}})
+                .dump() +
+            "\n" + request(2, "ping").dump() + "\n");
+        std::ostringstream out;
+        server->serve(in, out);
+
+        std::istringstream lines(out.str());
+        std::string first_line;
+        std::string second_line;
+        REQUIRE(std::getline(lines, first_line));
+        REQUIRE(std::getline(lines, second_line));
+        const Json first = Json::parse(first_line);
+        const Json second = Json::parse(second_line);
+        CHECK(first["id"] == 1);
+        CHECK(first["error"]["code"] == -32603);
+        CHECK(first["error"]["message"] == "Internal error");
+        CHECK(second["id"] == 2);
+        CHECK(second["result"] == Json::object());
+    }
+
+    {
+        auto server = make_server(
+            *notes.registry,
+            {.group_by = [](const afd::CommandDefinition&) -> std::optional<std::string> {
+                throw std::runtime_error("group boom");
+            }});
+        std::istringstream in(request(10, "tools/list").dump() + "\n" + request(11, "ping").dump() +
+                              "\n");
+        std::ostringstream out;
+        server->serve(in, out);
+
+        std::istringstream lines(out.str());
+        std::string first_line;
+        std::string second_line;
+        REQUIRE(std::getline(lines, first_line));
+        REQUIRE(std::getline(lines, second_line));
+        const Json first = Json::parse(first_line);
+        const Json second = Json::parse(second_line);
+        CHECK(first["id"] == 10);
+        CHECK(first["error"]["code"] == -32603);
+        CHECK(second["id"] == 11);
+        CHECK(second["result"] == Json::object());
+    }
+
+    {
+        // Input stays open after output fails: on_shutdown must unblock the reader so serve()
+        // unwinds cleanly without deadlocking or calling std::terminate().
+        struct FailingBuf final : std::streambuf {
+            int_type overflow(int_type) override { return traits_type::eof(); }
+        };
+        ClientPipe pipe;
+        std::atomic<bool> shutdown_called{false};
+        auto server = make_server(*notes.registry, {.on_shutdown = [&] {
+            shutdown_called.store(true);
+            pipe.close();
+        }});
+        FailingBuf buf;
+        std::ostream out(&buf);
+        out.exceptions(std::ios::badbit | std::ios::failbit);
+        pipe.send(request(20, "ping").dump());
+        bool caught = false;
+        try {
+            server->serve(pipe.in(), out);
+        } catch (const std::ios_base::failure&) {
+            caught = true;
+        }
+        CHECK(caught);
+        CHECK(shutdown_called.load());
+    }
+
+    {
+        // Same open-input shutdown when out fails without throwing (default stream flags).
+        struct FailingBuf final : std::streambuf {
+            int_type overflow(int_type) override { return traits_type::eof(); }
+        };
+        ClientPipe pipe;
+        std::atomic<bool> shutdown_called{false};
+        auto server = make_server(*notes.registry, {.on_shutdown = [&] {
+            shutdown_called.store(true);
+            pipe.close();
+        }});
+        FailingBuf buf;
+        std::ostream out(&buf);
+        pipe.send(request(21, "ping").dump());
+        server->serve(pipe.in(), out);
+        CHECK(shutdown_called.load());
+    }
+}
+#endif
