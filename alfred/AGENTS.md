@@ -39,8 +39,7 @@ uv run alfred --workspace /path/to/worktree parity [--path PATH]
 uv run alfred --workspace /path/to/worktree quality [--path PATH]
 
 # MCP server
-uv run python -m alfred.mcp_server --workspace /path/to/worktree # stdio
-uv run python -m alfred.mcp_server --workspace /path/to/worktree --sse   # inspection profile only
+uv run python -m alfred.mcp_server --workspace /path/to/worktree # stdio only; --sse is refused
 ```
 
 ---

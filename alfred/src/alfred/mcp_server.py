@@ -23,16 +23,15 @@ def main(argv=None):
     parser.add_argument('--target')
     parser.add_argument('--profile', choices=('inspection', 'trusted-local'), default='inspection')
     parser.add_argument('--raw-python', action='store_true')
-    parser.add_argument('--sse', action='store_true',
-                        help='Serve over SSE; only the inspection profile without --raw-python')
+    # Kept so the old flag gets an explanation, not a usage error.
+    parser.add_argument('--sse', action='store_true', help='Refused: the server runs over stdio only')
     args = parser.parse_args(argv)
-    if args.sse and (args.raw_python or args.profile != 'inspection'):
-        # An SSE port has no authentication, so it serves only the inspection profile.
-        parser.error('--sse serves only the inspection profile without --raw-python: '
-                     'the trusted-local profile and raw Python run over stdio, for the client '
-                     'that started the server')
+    if args.sse:
+        # An SSE port has no authentication, and even inspection reads the repository.
+        parser.error('--sse is refused: the Alfred MCP server runs over stdio only, for the '
+                     'client that started it')
     server = create_server(args.workspace, args.target, profile=args.profile, raw_python=args.raw_python)
-    server.run(transport='sse' if args.sse else 'stdio')
+    server.run(transport='stdio')
 
 
 if __name__ == '__main__':
