@@ -32,7 +32,8 @@ struct DirectClientOptions {
     Interface surface = Interface::agent;
     /// Further restricts which commands this client may call.
     std::function<bool(std::string_view name)> allow;
-    /// Client-side middleware, run around the registry's own chain.
+    /// Client-side middleware, run around the registry's own chain. Approval middleware belongs
+    /// on the registry: here it admits nothing, and a gated call fails with `no-approval-step`.
     std::vector<CommandMiddleware> middleware;
     /// The actor for calls whose context has none. Each call gets its own copy.
     Actor actor{.kind = ActorKind::human};
