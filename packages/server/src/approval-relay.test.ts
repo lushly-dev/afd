@@ -803,6 +803,32 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 		expect(requests).toEqual([]);
 	});
 
+	it("decides every step from the server's commands when the middleware lists none", async () => {
+		const { url, calls } = await serve({ middleware: { commands: [] } });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({ name: 'afd-batch', arguments: BATCH });
+		expect(body(result)).toMatchObject({ success: true });
+		expect(prompts).toEqual([`approve: ${BATCH_QUESTION}`]);
+		expect(calls).toEqual(['list', 'delete:1', 'strict:2']);
+	});
+
+	it('runs nothing of a dynamic gated pipeline step when the middleware lists no commands', async () => {
+		const { url, calls } = await serve({ middleware: { commands: [] } });
+		const client = await connect(url, 'accept');
+		const result = await client.callTool({
+			name: 'afd-pipe',
+			arguments: {
+				steps: [{ command: 'todo-list' }, { command: 'todo-delete', input: { id: '$prev.count' } }],
+			},
+		});
+		expect(refusal(result)).toMatchObject({
+			code: 'APPROVAL_REQUIRED',
+			details: { reason: 'input-not-known' },
+		});
+		expect(calls).toEqual([]);
+	});
+
 	it('asks for a pipeline whose gated steps read only $input, then runs it', async () => {
 		const { url, calls } = await serve();
 		const prompts: string[] = [];

@@ -236,31 +236,38 @@ const HOST_IMPORTS =
  *   Raised to 39,600 by the journal's append order and `JournalRange.last`'s clamp (#1650, under D115):
  *   measured 39,419 bytes on `main` at `1ec16f4c` and 39,508 after, with esbuild 0.28.2. The journal
  *   middleware takes a turn as a command returns, so concurrent calls append in the order they finished.
- * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
+ *   Raised to 40,300 by declared approval policies holding without the approval middleware:
+ *   measured 39,516 bytes on `main` at `02c53db7` and 40,243 after, with esbuild 0.28.2. The
+ *   engine records each call's policy and refuses an unadmitted gated call with
+ *   `APPROVAL_UNAVAILABLE`, which every host needs.
+ * - 48.0 KB for a host that also imports `createApprovalMiddleware`. Raised from 52,000 to 52,700
+ *   by approval admission: 51,488 bytes on `main` at `02c53db7`, 52,572 after.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
- *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
+ *   list, the meta-tools, `lazy-tools` and `bootstrap/`. Raised from 74,000 to 74,700 by approval
+ *   admission: 73,926 bytes on `main` at `02c53db7`, 74,653 after.
  * - 103.7 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool
  *   surface and approvals joined the entry; it was 113 KB, and app-to-app calls raised it to 114 KB
  *   (Loam phase 5 step 0b, D115): 111,851 measured on `main`, 113,133 with `createAppCallRegistry`;
- *   113,432 with `main` at `5e219704` merged in.
+ *   113,432 with `main` at `5e219704` merged in. Approval admission raised it to 114,800:
+ *   113,602 on `main` at `02c53db7`, 114,681 after.
  */
 const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_600,
+		bytes: 40_300,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 52_000,
+		bytes: 52_700,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 74_000,
+		bytes: 74_700,
 	},
-	{ what: 'every export', imports: undefined, bytes: 114_000 },
+	{ what: 'every export', imports: undefined, bytes: 114_800 },
 ];
 
 /** The modules only the tool surface needs. */

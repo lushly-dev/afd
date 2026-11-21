@@ -499,7 +499,7 @@ describe('createApprovalMiddleware', () => {
 			expect(details(await call('todo-delete', { id: 1 })).summary).toBe('Run todo-delete');
 		});
 
-		it('never holds a command that is not in its list', async () => {
+		it("holds a command that is not in its list, from the command's own policy", async () => {
 			const unlisted = defineCommand({
 				name: 'todo-wipe',
 				description: 'Wipe todos',
@@ -510,7 +510,20 @@ describe('createApprovalMiddleware', () => {
 			const registry = createDirectRegistry([unlisted], {
 				middleware: [createApprovalMiddleware({ secret: SECRET, commands: [] })],
 			});
-			expect((await registry.execute('todo-wipe', {})).success).toBe(true);
+			const held = await registry.execute('todo-wipe', {});
+			expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		});
+
+		it('outside an engine, decides from its list, where an unlisted command is not held', async () => {
+			const middleware = createApprovalMiddleware({
+				secret: SECRET,
+				commands: [{ name: 'todo-delete', approval: 'required' }],
+			});
+			const next = vi.fn(async () => ({ success: true as const, data: null }));
+			expect((await middleware('todo-wipe', {}, {}, next)).success).toBe(true);
+			const held = await middleware('todo-delete', {}, {}, next);
+			expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+			expect(next).toHaveBeenCalledOnce();
 		});
 	});
 

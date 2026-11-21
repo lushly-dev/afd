@@ -30,6 +30,7 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { approvalAdmitted, beginAdmission } from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	filterByContext,
@@ -138,6 +139,9 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			? undefined
 			: commandMap.get(commandName);
 		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
+		// The command's own approval policy, for the approval middleware to decide from. This
+		// call's context is a fresh object, so no other call's admission applies to it.
+		if (command) beginAdmission(context, command);
 
 		if (!command) {
 			// A few close matches, never the whole list: in lazy mode that would load
@@ -210,6 +214,21 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		// Build middleware chain
 		const runHandler = async (): Promise<CommandResult> => {
+			// A declared approval policy holds without the approval middleware: a command whose
+			// policy is not 'not-required' runs only when an approval step admitted this call. A
+			// policy function is not evaluated here; declaring one needs an approval step.
+			if (
+				command.approval !== undefined &&
+				command.approval !== 'not-required' &&
+				!approvalAdmitted(context)
+			) {
+				return failure({
+					code: 'APPROVAL_UNAVAILABLE',
+					message: `${commandName} needs a person's approval, and this server cannot ask for it`,
+					suggestion: `Tell the user that ${commandName} needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.`,
+					retryable: false,
+				});
+			}
 			const { clock } = context;
 			const startTime = clock.now();
 			const result = await command.handler(data, context);
