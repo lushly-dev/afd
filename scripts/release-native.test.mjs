@@ -103,6 +103,8 @@ function fixture(t, track = 'python', change = () => {}, candidateVersion, manif
 	);
 	const tag = `${prefix}${version}`;
 	git('tag', tag);
+	// The publish checkout fetches main; the fixture's main is its one commit.
+	git('update-ref', 'refs/remotes/origin/main', 'HEAD');
 	const source = git('rev-parse', 'HEAD');
 	const artifacts = join(root, 'artifacts');
 	mkdirSync(artifacts);
@@ -492,6 +494,44 @@ for (const track of ['python', 'botcore']) {
 	});
 }
 
+for (const format of Object.keys(tracks)) {
+	/** A commit outside the candidate's history, with `parents` as its parents. */
+	function commitTree(candidate, ...parents) {
+		return candidate.git(
+			'-c',
+			'user.name=Fixture',
+			'-c',
+			'user.email=fixture@example.test',
+			'commit-tree',
+			'HEAD^{tree}',
+			...parents.flatMap((parent) => ['-p', parent]),
+			'-m',
+			'other'
+		);
+	}
+	test(`${format}: a tag whose commit main does not contain is refused`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', 'refs/remotes/origin/main', commitTree(candidate));
+		rejected(candidate.check(), /not on main/);
+	});
+	test(`${format}: a tag behind main's tip is admitted`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', 'refs/remotes/origin/main', commitTree(candidate, 'HEAD'));
+		const result = candidate.check();
+		assert.equal(result.status, 0, result.stderr);
+	});
+	test(`${format}: a shallow checkout fails closed`, (t) => {
+		const candidate = fixture(t, format);
+		writeFileSync(join(candidate.root, '.git/shallow'), `${candidate.source}\n`);
+		rejected(candidate.check(), /shallow/);
+	});
+	test(`${format}: a checkout without main fails closed`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', '-d', 'refs/remotes/origin/main');
+		rejected(candidate.check(), /origin\/main is missing/);
+	});
+}
+
 test('Botcore: the inventory admits lushly-botcore alone, on the AFD publisher', () => {
 	const family = inventory.units.filter((unit) => unit.family === 'botcore');
 	const botcore = family.find((unit) => unit.id === 'botcore');
@@ -707,4 +747,15 @@ test('Native publisher workflow contracts preserve events, pins, gates and guard
 			rust.lastIndexOf('          cargo publish')
 	);
 	assert.match(rust, /if: steps.registry.outputs.published == 'false'/);
+	// Every checkout takes the exact tag ref, never a same-named branch, with main's history for
+	// the guard. Each step runs from its `uses:` line to the next step.
+	for (const workflow of [python, botcore, rust]) {
+		const steps = workflow.split('uses: actions/checkout@').slice(1);
+		assert.ok(steps.length >= 2);
+		for (const step of steps) {
+			const block = step.split(/\n {6}- /)[0];
+			assert.match(block, /^ {10}ref: \$\{\{ github\.ref \}\}$/m);
+			assert.match(block, /^ {10}fetch-depth: 0$/m);
+		}
+	}
 });

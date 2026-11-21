@@ -1235,3 +1235,49 @@ test('a tarball must hold every file its manifest promises, so an unbuilt releas
 	const built = { 'README.md': '#', 'dist/index.js': '', 'dist/index.d.ts': '', 'dist/bin.js': '' };
 	assertPackedContents(pack('built', built), manifest);
 });
+
+test('reviewed intent accepts a validated supersedes record and fails closed on malformed ones', (t) => {
+	const f = fixture(t);
+	saveIntent(f.root, ['a']);
+	commit(f.root);
+	const original = readIntent(f.root);
+	const intentPath = join(f.root, '.release/npm-intent.json');
+	const raw = JSON.parse(readFileSync(intentPath, 'utf8'));
+	const validSupersedes = {
+		intentDigest: original.intentDigest,
+		statusId: 59519695251,
+		runId: '44827924550',
+		attempt: '1',
+		reason: 'Claim readback failed before upload',
+	};
+	write(f.root, '.release/npm-intent.json', { ...raw, supersedes: validSupersedes });
+	commit(f.root);
+	const next = readIntent(f.root);
+	assert.notEqual(next.intentDigest, original.intentDigest);
+	assert.deepEqual(next.supersedes, validSupersedes);
+	assert.equal(intentStatus({ root: f.root, registry: registry(f) }).publishable, true);
+
+	for (const bad of [
+		null,
+		'string',
+		[],
+		{ ...validSupersedes, intentDigest: 'not-a-sha' },
+		{ ...validSupersedes, statusId: -1 },
+		{ ...validSupersedes, runId: 44827924550 },
+		{ ...validSupersedes, runId: '0' },
+		{ ...validSupersedes, runId: 'run1' },
+		{ ...validSupersedes, attempt: 1 },
+		{ ...validSupersedes, attempt: '0' },
+		{ ...validSupersedes, attempt: '0a' },
+		{ ...validSupersedes, reason: '' },
+		{ ...validSupersedes, unexpected: 1 },
+	]) {
+		write(f.root, '.release/npm-intent.json', { ...raw, supersedes: bad });
+		commit(f.root);
+		assert.throws(() => readIntent(f.root), /supersedes/);
+		assert.throws(() => intentStatus({ root: f.root, registry: registry(f) }), /supersedes/);
+	}
+	// Malformed supersedes fails closed even when the registry already has the version.
+	f.evidence[0].versions = ['1.0.0'];
+	assert.throws(() => intentStatus({ root: f.root, registry: registry(f) }), /supersedes/);
+});

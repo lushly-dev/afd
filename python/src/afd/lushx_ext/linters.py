@@ -19,10 +19,10 @@ logger = logging.getLogger("afd.lint")
 # ─── Suppression / calibration primitives ────────────────────────────────────
 #
 # These make the linter *configurable* without forking. They cover the three
-# false-positive classes that a real consumer (Microsoft Fabric Zero) had to
-# post-filter downstream: story/test fixtures, framework/tooling paths, and
-# comment/data-URI/annotated direct-fetch matches. Every suppression is counted
-# on the LintResult so the calibration stays auditable.
+# false-positive classes that a real consumer had to post-filter downstream:
+# story/test fixtures, framework/tooling paths, and comment/data-URI/annotated
+# direct-fetch matches. Every suppression is counted on the LintResult so the
+# calibration stays auditable.
 
 # Story and unit/spec test files are not product architecture surface, so the
 # UI-directory rules (business-logic and direct-fetch) are near-universal false
@@ -638,9 +638,9 @@ class AFDLinter:
                 Storybook story files and unit/spec test files
                 (``*.stories.*``, ``*.test.*``, ``*.spec.*``). These are
                 demonstrably not product architecture surface — a real consumer
-                (Fabric Zero) saw 23 of 298 business-logic warnings come from
-                story files alone. Set False to restore the pre-calibration
-                behavior and flag them.
+                saw 23 of 298 business-logic warnings come from story files
+                alone. Set False to restore the pre-calibration behavior and
+                flag them.
             rule_path_excludes: Optional mapping of rule id to path
                 substrings/prefixes. An issue is suppressed when its file path
                 contains any substring listed for that rule. Path separators are

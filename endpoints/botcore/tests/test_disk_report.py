@@ -15,7 +15,7 @@ import pytest
 from click.testing import CliRunner
 from pydantic import ValidationError
 
-from botcore.commands.disk import caches, report
+from botcore.commands.disk import caches, report, scan
 from botcore.commands.disk.git import parse_worktree_list
 from botcore.commands.disk.scan import Processes, busy_reason, compile_pattern
 from botcore.config import DiskConfig
@@ -156,6 +156,65 @@ def test_idle_worktree_is_tier_1_and_fresh_one_waits(repo: dict[str, Path]) -> N
     assert by["main"]["tier"] == 3 and "main checkout" in by["main"]["reasons"]
     assert not any(s["ready"] for s in by["main"]["strip"])
     assert data["totals"]["tier1_worktrees"] == 1
+
+
+def date_reflog(reflog: Path, when: float) -> None:
+    """Give every entry of a reflog the timestamp `when`, as if each was written then."""
+    lines = []
+    for line in reflog.read_text(encoding="utf-8").splitlines():
+        head, tab, message = line.partition("\t")  # an entry without a message may have no tab
+        prefix, _, zone = head.rsplit(" ", 2)
+        lines.append(f"{prefix} {int(when)} {zone}{tab}{message}\n")
+    reflog.write_text("".join(lines), encoding="utf-8", newline="\n")
+
+
+@pytest.mark.parametrize(
+    "entries_at", [OLD, 1_600_000_000], ids=["entries kept", "entries expired, reflog emptied"],
+)
+def test_git_gc_rewriting_reflogs_leaves_an_idle_worktree_idle(
+    repo: dict[str, Path], entries_at: float,
+) -> None:
+    old = repo["old"]
+    reflog = Path(git(old, "rev-parse", "--absolute-git-dir").strip()) / "logs" / "HEAD"
+    date_reflog(reflog, entries_at)
+    age_worktree(repo["main"], old)
+    # What `git gc` runs, twice: it rewrites every worktree's reflog and adds no entry. The
+    # expiry is pinned so the machine's git config can't change it, and the file's time is set
+    # to now so the test doesn't depend on the installed git rewriting it.
+    for _ in range(2):
+        git(repo["main"], "reflog", "expire", "--all", "--expire=90.days.ago",
+            "--expire-unreachable=90.days.ago")
+        if reflog.exists():
+            os.utime(reflog, None)
+    by = rows(run_report())
+    assert by["old"]["tier"] == 1 and by["old"]["idle_days"] >= 9
+
+
+def test_reflog_time_is_the_earlier_of_file_and_last_entry(tmp_path: Path) -> None:
+    reflog = tmp_path / "HEAD"
+    now = time.time()
+    old, new = "0" * 40, "1" * 40
+
+    def entry(when: float | str, message: str = "\tcommit: x") -> str:
+        return f"{old} {new} A B <a@example.com> {when} -0800{message}\n"
+
+    def read(text: str) -> float | None:
+        reflog.write_text(text, encoding="utf-8", newline="\n")
+        return scan.reflog_time(reflog)
+
+    assert read(entry(int(OLD))) == pytest.approx(OLD, abs=1)  # rewritten now, entry old
+    assert read(entry(int(OLD), "")) == pytest.approx(OLD, abs=1)  # an entry with no tab
+    assert read(entry(int(OLD), "\tfix <x@y> 7 +0000")) == pytest.approx(OLD, abs=1)
+    os.utime(reflog, (OLD - 86400, OLD - 86400))
+    assert scan.reflog_time(reflog) == pytest.approx(OLD - 86400, abs=1)  # entry newer than file
+    # Not an entry: the file's time, never a number taken from the message.
+    assert read("not a reflog\n") == pytest.approx(now, abs=60)
+    assert read(entry("9" * 400)) == pytest.approx(now, abs=60)
+    longer = entry(int(OLD)) + entry(int(OLD), "\t" + "m" * scan.REFLOG_TAIL + " 7 +0000")
+    assert read(longer) == pytest.approx(now, abs=60)  # the last line starts before the tail
+    # gc empties a reflog whose entries all expired: no activity from it at all.
+    assert read("") is None
+    assert scan.reflog_time(tmp_path / "missing") is None
 
 
 def test_tracked_and_unignored_paths_are_refused(repo: dict[str, Path]) -> None:

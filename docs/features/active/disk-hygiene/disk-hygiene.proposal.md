@@ -165,8 +165,11 @@ All of it is botcore code in `endpoints/botcore`, published to PyPI as `lushly-b
 A folder's own modification time does not change when files deeper inside it change, so it is
 not used. A worktree's last activity is the newest of:
 
-- git's record for that worktree (`HEAD`, `index` and `logs/HEAD` in the repository's
-  `worktrees/<id>` folder), which changes on checkout, commit and staging;
+- git's record for that worktree (`HEAD`, `index`, `logs/HEAD`, `ORIG_HEAD` and `FETCH_HEAD` in
+  the repository's `worktrees/<id>` folder), which changes on checkout, commit, staging, reset,
+  merge and fetch. For `logs/HEAD` it is the earlier of the file's time and its last entry's
+  timestamp, and nothing for an empty one: `git gc` rewrites every worktree's reflog without
+  adding an entry, and empties one whose entries have all expired (#1814);
 - the modification time of any file git reports as changed or untracked;
 - the top level of each declared build-output folder.
 

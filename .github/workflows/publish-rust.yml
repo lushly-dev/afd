@@ -1,7 +1,7 @@
 # Publish the Rust crate to crates.io
 #
 # Triggers on a pushed tag matching 'rust-v*' (e.g., rust-v0.1.0). The tag must
-# match `version` in packages/rust/Cargo.toml.
+# match `version` in packages/rust/Cargo.toml, and `main` must contain its commit.
 #
 # Runs the same checks as rust.yml, then publishes with crates.io trusted
 # publishing (OIDC): rust-lang/crates-io-auth-action exchanges the job's GitHub
@@ -47,6 +47,8 @@ jobs:
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
+          # The release guard reads main's history to refuse a tag that main does not contain.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -83,6 +85,8 @@ jobs:
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
+          # The release guard reads main's history to refuse a tag that main does not contain.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
