@@ -134,6 +134,29 @@ def _get_transport(
     )
 
 
+def _fail(message: str) -> None:
+    """Print an error that may carry server text: escapes stripped, no Rich markup."""
+    click.echo(f"{click.style('✗ Error:', fg='red')} {terminal_text(message)}", err=True)
+
+
+def _headers_option(func: Any) -> Any:
+    return click.option(
+        "--header", "-H", "headers", multiple=True,
+        help="Request header 'Name: value', repeatable (never saved; also read from AFD_HEADERS)",
+    )(func)
+
+
+def _resolve_headers(flags: tuple[str, ...]) -> dict[str, str]:
+    """Headers from ``AFD_HEADERS`` and ``-H``; a malformed one exits 1, as in TypeScript."""
+    from afd.cli.args import resolve_headers
+
+    try:
+        return resolve_headers(flags)
+    except ValueError as e:
+        _fail(str(e))
+        sys.exit(1)
+
+
 @click.group()
 @click.version_option(package_name="afd")
 @click.option("--json", "json_output", is_flag=True, help="Output raw JSON")
@@ -158,9 +181,11 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
 
 @cli.command()
 @click.argument("server")
-@click.option("--timeout", "-t", default=30.0, help="Connection timeout in seconds")
+@click.option("--timeout", "-t", type=click.FloatRange(min=0, min_open=True), default=30.0,
+              show_default=True, help="Connection timeout in seconds")
+@_headers_option
 @click.pass_context
-def connect(ctx: click.Context, server: str, timeout: float) -> None:
+def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str, ...]) -> None:
     """
     Connect to an MCP server.
 
@@ -171,15 +196,22 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
     - http(s)://host/message   Deprecated HTTP message endpoint
     - mock                     Use mock transport for testing
     
+    Headers from -H and AFD_HEADERS are sent to check the connection and are
+    never saved; give them again to each later command.
+
     \b
     Examples:
         afd connect http://localhost:3100/mcp
+        afd connect http://localhost:3100/mcp -H "Authorization: Bearer $TOKEN"
         afd connect mock
     """
     quiet = ctx.obj.get("quiet", False)
+    if not math.isfinite(timeout):
+        raise click.UsageError("--timeout must be finite")
 
     # Rejects a non-URL target before claiming to connect to it.
-    transport = _get_transport(server)
+    request_headers = _resolve_headers(headers)
+    transport = _get_transport(server, timeout=timeout, headers=request_headers)
 
     if not quiet:
         print_connecting(server)
@@ -198,13 +230,19 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
                 tools = await transport.list_tools()
                 if tools:
                     print_info(f"Available tools: {len(tools)}")
+            if request_headers:
+                click.echo(
+                    "Request headers are not saved. Pass --header again or set AFD_HEADERS "
+                    "for later commands.",
+                    err=True,
+                )
         finally:
             await transport.disconnect()
     
     try:
         asyncio.run(_connect())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -240,8 +278,10 @@ def disconnect(ctx: click.Context) -> None:
 @click.option("--server", "-s", help="Server to query (uses saved connection if omitted)")
 @click.option("--filter", "-f", "pattern", help="Filter tools by name pattern")
 @click.option("--detail", "-d", "tool_name", help="Show detailed info for a specific tool")
+@_headers_option
 @click.pass_context
-def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name: str | None) -> None:
+def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name: str | None,
+          headers: tuple[str, ...]) -> None:
     """
     List available tools from the connected server.
 
@@ -252,9 +292,10 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
         afd tools --detail user.create
     """
     json_output = ctx.obj.get("json_output", False)
-    
+    request_headers = _resolve_headers(headers)
+
     async def _list_tools() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         try:
             await transport.connect()
             tool_list = await transport.list_tools()
@@ -297,7 +338,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
     except click.ClickException:
         raise
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -345,44 +386,52 @@ async def _terminal_yes(prompt: str) -> bool:
 
 @cli.command()
 @click.argument("tool")
-@click.argument("args", required=False, default="{}")
+@click.argument("args", required=False, default="")
 @click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
 @click.option("--module", "module_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
               help="Load a Python file exporting registry for an in-process call")
 @click.option("--approve", is_flag=True, help="Explicitly approve one in-process retry")
 @click.option("--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms")
+@_headers_option
 @click.pass_context
 def call(ctx: click.Context, tool: str, args: str, server: str | None,
-         module_path: Path | None, approve: bool, timeout: float | None) -> None:
+         module_path: Path | None, approve: bool, timeout: float | None,
+         headers: tuple[str, ...]) -> None:
     """
     Call a tool on the connected server.
 
     TOOL is the name of the tool to call.
-    ARGS is a JSON string of arguments (default: {}).
+    ARGS is one argument: a JSON object or key=value pairs (quote the whole
+    argument when it holds several pairs or spaces). Empty means {}. A value is
+    parsed as JSON when it can be (count=2, done=true) and kept as a string
+    otherwise (title=milk).
 
     \b
     Examples:
         afd call user.list
         afd call user.create '{"name": "Alice", "email": "alice@example.com"}'
-        afd call doc.get '{"id": "123"}'
+        afd call user.create 'name="Alice Smith" email=alice@example.com'
+        afd call doc.get id=123 -H "Authorization: Bearer $TOKEN"
     """
+    from afd.cli.args import describe_args_error, parse_tool_args
+
     json_output = ctx.obj.get("json_output", False)
-    
-    # Parse args
+
     try:
-        parsed_args = json.loads(args)
-    except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON arguments: {e}")
+        parsed_args = parse_tool_args(args)
+    except ValueError as e:
+        _fail(describe_args_error(e))
         sys.exit(1)
-    
+
     if module_path is not None and server is not None:
         raise click.UsageError("--module and --server cannot be combined")
+    if module_path is not None and headers:
+        raise click.UsageError("--header needs a server; --module calls run in process")
     if module_path is None and (approve or timeout is not None):
         raise click.UsageError("--approve and --timeout require --module; remote approval belongs to the server")
     if timeout is not None and not math.isfinite(timeout):
         raise click.UsageError("--timeout must be finite")
-    if not isinstance(parsed_args, dict):
-        raise click.UsageError("Arguments must be a JSON object")
+    request_headers = _resolve_headers(headers) if module_path is None else {}
 
     async def _call_module() -> None:
         from afd.direct import DirectClient, DirectClientOptions, DirectCallContext
@@ -419,7 +468,7 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
 
     async def _call_tool() -> None:
         transport = _get_transport(
-            server, on_elicitation=interactive_elicitation(_terminal_yes)
+            server, on_elicitation=interactive_elicitation(_terminal_yes), headers=request_headers
         )
         try:
             await transport.connect()
@@ -431,29 +480,8 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
     try:
         asyncio.run(_call_module() if module_path is not None else _call_tool())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
-
-
-def _fail(message: str) -> None:
-    """Print an error that may carry server text: escapes stripped, no Rich markup."""
-    click.echo(f"{click.style('✗ Error:', fg='red')} {terminal_text(message)}", err=True)
-
-
-def _headers_option(func: Any) -> Any:
-    return click.option(
-        "--header", "-H", "headers", multiple=True,
-        help="Request header 'Name: value', repeatable (never saved; also read from AFD_HEADERS)",
-    )(func)
-
-
-def _resolve_headers(flags: tuple[str, ...]) -> dict[str, str]:
-    from afd.cli.args import resolve_headers
-
-    try:
-        return resolve_headers(flags)
-    except ValueError as e:
-        raise click.UsageError(str(e)) from e
 
 
 @cli.command()
@@ -701,6 +729,7 @@ def status(ctx: click.Context) -> None:
 )
 @click.option("--strict", is_flag=True, help="Treat warnings as errors in validation")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed validation output")
+@_headers_option
 @click.pass_context
 def validate(
     ctx: click.Context,
@@ -711,6 +740,7 @@ def validate(
     suppress: tuple[str, ...],
     strict: bool,
     verbose: bool,
+    headers: tuple[str, ...],
 ) -> None:
     """
     Validate server connection/tools, or run cross-command surface validation.
@@ -719,9 +749,10 @@ def validate(
     MISSING_APPROVAL_POLICY warning (an error with --strict).
     """
     json_output = ctx.obj.get("json_output", False)
-    
+    request_headers = _resolve_headers(headers)
+
     async def _validate_connection() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         results: dict[str, Any] = {
             "connection": False,
             "tools_listed": False,
@@ -763,7 +794,7 @@ def validate(
             if json_output:
                 console.print(json.dumps(results, indent=2))
             else:
-                print_error(f"Validation failed: {e}")
+                _fail(f"Validation failed: {e}")
             sys.exit(1)
         finally:
             await transport.disconnect()
@@ -771,7 +802,7 @@ def validate(
     async def _validate_surface() -> None:
         from afd.testing.surface.types import SurfaceValidationOptions
 
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         try:
             await transport.connect()
             commands, configured_contexts, source_warnings = await _load_surface_commands(transport)
@@ -854,7 +885,7 @@ def validate(
                     print_error("Surface validation failed")
                     sys.exit(1)
         except Exception as e:
-            print_error(f"Surface validation failed: {e}")
+            _fail(f"Surface validation failed: {e}")
             sys.exit(1)
         finally:
             await transport.disconnect()
@@ -862,7 +893,7 @@ def validate(
     try:
         asyncio.run(_validate_surface() if surface else _validate_connection())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -934,15 +965,20 @@ async def _load_surface_commands(
 
 
 @cli.command()
+@_headers_option
 @click.pass_context
-def shell(ctx: click.Context) -> None:
+def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
     """
     Start an interactive shell.
 
-    Provides a REPL for calling tools interactively.
-    Use 'exit' or Ctrl+D to quit.
+    Provides a REPL for calling tools interactively. A call's arguments are a
+    JSON object or key=value pairs. Use 'exit' or Ctrl+D to quit.
     """
     from rich.prompt import Prompt
+
+    from afd.cli.args import describe_args_error, parse_tool_args
+
+    request_headers = _resolve_headers(headers)
     
     state = _load_state()
     server = state.get("server")
@@ -955,7 +991,7 @@ def shell(ctx: click.Context) -> None:
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/dim]\n")
     
     async def _shell() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         await transport.connect()
         
         try:
@@ -976,7 +1012,7 @@ def shell(ctx: click.Context) -> None:
                     console.print("""
 [bold]Commands:[/bold]
   tools              List available tools
-  call <tool> [args] Call a tool with optional JSON args
+  call <tool> [args] Call a tool with a JSON object or key=value pairs
   help               Show this help
   exit               Exit the shell
 """)
@@ -990,7 +1026,11 @@ def shell(ctx: click.Context) -> None:
                 if line.startswith("call "):
                     parts = line[5:].strip().split(maxsplit=1)
                     tool_name = parts[0]
-                    tool_args = json.loads(parts[1]) if len(parts) > 1 else {}
+                    try:
+                        tool_args = parse_tool_args(parts[1] if len(parts) > 1 else "")
+                    except ValueError as e:
+                        _fail(describe_args_error(e))
+                        continue
                     
                     result = await transport.call_tool(tool_name, tool_args)
                     print_result(result)
