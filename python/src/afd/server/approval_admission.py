@@ -46,6 +46,8 @@ class AdmissionCommand:
 
 @dataclass(frozen=True)
 class _Admitted:
+    step: object
+    """The approval step (one middleware instance) that admitted it."""
     name: str
     canonical: Optional[str]
     """The canonical JSON of the input the approval step decided on; ``None`` when it has none, and
@@ -57,15 +59,18 @@ class _Admitted:
 class Admission:
     """One dispatch's record. Only the engine and the approval middleware touch it."""
 
-    __slots__ = ("context", "command", "admitted", "taken", "required")
+    __slots__ = ("context", "command", "admitted", "steps", "taken", "required")
 
     def __init__(self, context: Any, command: AdmissionCommand) -> None:
         self.context = context
         self.command = command
         self.admitted: list[_Admitted] = []
-        """What each approval step admitted, in order. Two approval middlewares on one engine each
-        admit, and the dispatch must match them all, so a later one never replaces or weakens an
-        earlier one's binding."""
+        """What each approval step admitted since the last dispatch. Two approval middlewares on
+        one engine each admit, and the dispatch must match them all, so a later one never replaces
+        or weakens an earlier one's binding."""
+        self.steps: list[object] = []
+        """Every approval step that ever admitted this call. A dispatch needs a fresh admission
+        from each, so a retry that reruns only the steps after one of them is refused."""
         self.taken = False
         """Set once a dispatch took an admission, so a second dispatch reads as a mismatch."""
         self.required = False
@@ -126,6 +131,7 @@ def admission_for(context: Any, command: Any) -> Iterator[Admission]:
 
 
 def admit_approval(
+    step: object,
     context: Any,
     command_name: str,
     canonical: Optional[str],
@@ -134,7 +140,7 @@ def admit_approval(
     *,
     required: bool,
 ) -> None:
-    """Record that an approval step admitted the call of ``context`` to run ``command_name`` on
+    """Record that the approval step ``step`` (one middleware instance) admitted the call of ``context`` to run ``command_name`` on
     the input whose canonical JSON is ``canonical`` (the one it verified), or on ``input`` itself
     when that is ``None``. ``required`` says the step required approval for this call. A no-op
     outside the engine."""
@@ -143,8 +149,16 @@ def admit_approval(
         return
     if required:
         found.required = True
+    if not any(known is step for known in found.steps):
+        found.steps.append(step)
     found.admitted.append(
-        _Admitted(name=command_name, canonical=canonical, input=input, canonicalize=canonicalize)
+        _Admitted(
+            step=step,
+            name=command_name,
+            canonical=canonical,
+            input=input,
+            canonicalize=canonicalize,
+        )
     )
 
 
@@ -155,16 +169,19 @@ def admission_required(record: Admission, policy: Any) -> bool:
 
 
 def take_admission(record: Admission, command_name: str, input: Any) -> str:
-    """Take this dispatch's admissions: ``"admitted"`` when every approval step that admitted it
-    admitted ``command_name`` on an input with the same canonical JSON as ``input`` (the same
-    object, still with none, for an input with none; a change inside it is not seen),
-    ``"missing"`` with none, ``"mismatch"`` otherwise. Taken whatever the answer and never
-    restored, so a second dispatch needs a second admission."""
+    """Take this dispatch's admissions: ``"admitted"`` when every approval step that ever admitted
+    it admitted it again since the last dispatch, each on ``command_name`` and an input with the
+    same canonical JSON as ``input`` (the same object, still with none, for an input with none; a
+    change inside it is not seen), ``"missing"`` with none, ``"mismatch"`` otherwise. Taken
+    whatever the answer and never restored, so a second dispatch needs a second admission from
+    each."""
     admitted = record.admitted
     if not admitted:
         return "mismatch" if record.taken else "missing"
     record.admitted = []
     record.taken = True
+    if any(not any(fresh.step is step for fresh in admitted) for step in record.steps):
+        return "mismatch"
 
     def same(step: _Admitted) -> bool:
         if step.name != command_name:

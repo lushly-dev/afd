@@ -653,6 +653,23 @@ async def test_a_retry_between_it_and_a_second_approval_middleware_that_does_not
     expect_unavailable(result, "todo-wipe", "admission-mismatch")
 
 
+async def test_a_retry_between_two_approval_middlewares_that_both_admit_it_is_refused():
+    # The second one's listed policy function may gate the call, so it admits it too; the retry
+    # reruns only the second one, and the first one's admission is not fresh.
+    second = create_approval_middleware(
+        secret=OTHER_SECRET,
+        commands=[_Listed("todo-wipe", lambda input, context: "not-required")],
+    )
+    handled, client = _wipe_behind(
+        create_retry_middleware(max_retries=2, retry_delay=0, jitter=False),
+        second,
+        fail_first=True,
+    )
+    result = await client.call("todo-wipe", {"id": 6})
+    assert handled == [6]
+    expect_unavailable(result, "todo-wipe", "admission-mismatch")
+
+
 async def test_an_input_changed_before_a_second_approval_middleware_is_refused():
     async def change(name, input, context, next_fn):
         input.id = 99
@@ -738,10 +755,10 @@ async def test_an_input_changed_while_a_rejected_token_is_spent_is_refused_witho
 # ─── Up-front approval of afd-batch and afd-pipe, with no commands list ─────
 
 
-def _relay_server(ran: list[str]) -> Any:
+def _relay_server(ran: list[str], delete_policy: Any = "required") -> Any:
     fixture = Fixture()
     fixture.ran = ran
-    fixture.commands = [fixture.command("todo-delete", "required"), fixture.command("todo-list")]
+    fixture.commands = [fixture.command("todo-delete", delete_policy), fixture.command("todo-list")]
     return fixture.server(
         tool_strategy="individual",
         middleware=[
@@ -829,6 +846,29 @@ async def test_a_pipe_step_with_no_canonical_input_needing_approval_runs_nothing
     [refusal] = result["steps"]
     assert refusal["status"] == "failure", result
     expect_not_canonical(refusal["error"], "todo-delete")
+    assert ran == [] and prompts == []
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_batch_step_whose_policy_changes_its_input_runs_nothing(mode):
+    def policy(input: IdInput, context: Any) -> str:
+        input.id = 9
+        return "required"
+
+    ran: list[str] = []
+    prompts: list[str] = []
+    request = {
+        "commands": [
+            {"command": "todo-list", "input": {"id": 1}},
+            {"command": "todo-delete", "input": {"id": 2}},
+        ]
+    }
+    result = await _relay_call(_relay_server(ran, policy), mode, prompts, "afd-batch", request)
+    assert result["success"] is False, result
+    error = result["error"]
+    assert error["code"] == "APPROVAL_UNAVAILABLE"
+    assert error["message"] == "todo-delete's input changed while its approval was being decided"
+    assert error["details"] == {"reason": "admission-mismatch"}
     assert ran == [] and prompts == []
 
 

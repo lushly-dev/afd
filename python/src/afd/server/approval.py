@@ -65,6 +65,7 @@ from afd.server.approval_relay import (
     StepsHold,
     current_approval_relay,
     current_up_front_approval,
+    input_changed_error,
     not_canonical_error,
     relay_message,
 )
@@ -431,6 +432,9 @@ def create_approval_middleware(
             mac=hold_mac(keys[0], binding, nonce, expires_at),
         )
 
+    # This approval step, as the admission records name it.
+    self_step = object()
+
     up_front_deps = _UpFrontDeps(
         now=security_clock.now,
         requires=holds,
@@ -467,6 +471,7 @@ def create_approval_middleware(
                 return await outer_next()
             approved = verified is not _UNVERIFIED
             admit_approval(
+                self_step,
                 context,
                 command_name,
                 verified if approved else decided,
@@ -492,7 +497,7 @@ def create_approval_middleware(
             return failure(not_canonical_error(command_name))
         # A policy function that changed the input would show the person one input and bind another.
         if changed():
-            return failure(_input_changed(command_name))
+            return failure(input_changed_error(command_name))
         summary = summary_of(command_name, input, context)
 
         now = security_clock.now()
@@ -562,11 +567,12 @@ def create_approval_middleware(
 
         approval_token, expires_ms = sign(command_name, input_binding, actor_binding, now)
         expires_at = _iso_timestamp(expires_ms)
+        # Checked again after the awaits since the first check (spending a token awaits a store),
+        # before anyone is told of the call or a direct token is held.
+        if changed():
+            return failure(input_changed_error(command_name))
 
         if on_approval_required is not None:
-            # Spending a token awaited a store: the hook must see the input the token binds.
-            if changed():
-                return failure(_input_changed(command_name))
             notified = on_approval_required(
                 ApprovalRequest(
                     command=command_name,
@@ -669,22 +675,6 @@ class _UpFrontDeps:
 
     def call_tags(self, call: str) -> list[str]:
         return [_b64url(_hmac(key, f"relay-call\0{call}")) for key in self.keys]
-
-
-def _input_changed(command_name: str) -> CommandError:
-    """A call whose input changed while the approval step was deciding on it (inside a policy
-    function or a store it awaited), so what a person would be shown is not what a token would
-    bind."""
-    return CommandError(
-        code=ErrorCodes.APPROVAL_UNAVAILABLE,
-        message=f"{command_name}'s input changed while its approval was being decided",
-        suggestion=(
-            "Do not retry: this call is not the one the approval step decided on. The operator "
-            "fixes the policy function or middleware that changes the input."
-        ),
-        retryable=False,
-        details={"reason": "admission-mismatch"},
-    )
 
 
 async def _requires_approval(policy: Any, input: Any, context: CommandContext) -> bool:

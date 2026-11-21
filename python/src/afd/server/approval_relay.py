@@ -470,12 +470,20 @@ class UpFrontApproval:
         for step in steps:
             if step.dynamic or not step.valid:
                 continue
+            # Before the policy runs, so a policy that changes the input is caught.
+            before = (
+                _binding_or_none(deps, step.input)
+                if deps.may_require_approval(step.command, context)
+                else None
+            )
             if not await deps.requires_approval(step.command, step.input, context):
                 continue
             try:
                 input = deps.binding_input(step.input)
             except _UNBINDABLE:
                 return _Plan("refuse", error=not_canonical_error(step.command))
+            if input != before:
+                return _Plan("refuse", error=input_changed_error(step.command))
             gated.append(
                 _GatedStep(
                     index=step.index,
@@ -706,8 +714,32 @@ def not_canonical_error(command: str) -> CommandError:
     )
 
 
+def input_changed_error(command: str) -> CommandError:
+    """A call whose input changed while the approval step was deciding on it (inside a policy
+    function or a store it awaited), so what a person would be shown is not what a token would
+    bind."""
+    return CommandError(
+        code=ErrorCodes.APPROVAL_UNAVAILABLE,
+        message=f"{command}'s input changed while its approval was being decided",
+        suggestion=(
+            "Do not retry: this call is not the one the approval step decided on. The operator "
+            "fixes the policy function or middleware that changes the input."
+        ),
+        retryable=False,
+        details={"reason": "admission-mismatch"},
+    )
+
+
 _UNBINDABLE = (TypeError, ValueError, RecursionError)
 """What canonical JSON raises for an input it cannot bind."""
+
+
+def _binding_or_none(deps: UpFrontDeps, input: Any) -> str | None:
+    """The canonical JSON ``input`` is bound by, or ``None`` when it has none."""
+    try:
+        return deps.binding_input(input)
+    except _UNBINDABLE:
+        return None
 
 
 def _split_error(tool: str, index: int, command: str) -> CommandError:
