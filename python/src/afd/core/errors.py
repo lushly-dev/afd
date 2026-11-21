@@ -158,6 +158,9 @@ class ErrorCodes:
 
     # Approvals (spec/command-metadata.md, "Approvals")
     APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    # A declared approval policy with no approval step to admit the call. Python's engine does
+    # not refuse it yet; the shared catalog lists it.
+    APPROVAL_UNAVAILABLE = "APPROVAL_UNAVAILABLE"
 
     # Output budgets (spec/output-budgets.md, B5)
     OUTPUT_BUDGET_EXCEEDED = "OUTPUT_BUDGET_EXCEEDED"

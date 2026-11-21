@@ -28,7 +28,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `destructive` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools`. `afd validate --execute` never calls it |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
 | `undoable` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools` |
-| `approval` | `required`, `not-required`, or a function of the validated input and context returning one of them | `not-required` | `_meta`, afd-detail, afd-docs, as `required`, `not-required` or `conditional` (a function). `afd validate` warns when a `mutation` or `destructive` command declares none. Enforced only by the approval middleware; see [Approvals](#approvals) |
+| `approval` | `required`, `not-required`, or a function of the validated input and context returning one of them | `not-required` | `_meta`, afd-detail, afd-docs, as `required`, `not-required` or `conditional` (a function). `afd validate` warns when a `mutation` or `destructive` command declares none. The approval middleware decides it; without an approval step that admits the call, a server engine refuses a command whose policy is not `not-required` with `APPROVAL_UNAVAILABLE`. See [Approvals](#approvals) |
 | `executionTime` | `instant`, `fast`, `slow` or `long-running` | None | afd-detail |
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
@@ -44,8 +44,8 @@ an unset field stays distinguishable from an explicit `false`.
 `destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
 not act on `destructive` or `undoable`: an undo mechanism belongs to the consumer. A server MAY
 enforce `confirmPrompt` on its MCP surfaces, as [Confirmations](#confirmations) describes; it does
-not by default. `approval` is the pre-execution gate: where the approval middleware is installed, a
-call it requires is held before the handler runs, as [Approvals](#approvals) describes.
+not by default. `approval` is the pre-execution gate: a call it requires is held before the handler
+runs, and a server with no approval step refuses it, as [Approvals](#approvals) describes.
 
 ## Reporting rules
 
@@ -219,7 +219,29 @@ What a relay guarantees:
 Confirmations ask whether an action is intended; approvals hold an action until a human signs off.
 A command's `approval` policy decides, per call, whether it needs approval. The approval
 middleware enforces it on every surface the middleware runs on (MCP, the HTTP routes and
-in-process registries alike). Without the middleware, `approval` is a declaration only.
+in-process registries alike), deciding from the policy of the command the call runs.
+
+A server engine never runs a command whose declared policy is not `not-required` unless its
+approval step admitted that call. Each call is admitted on its own: a batch item, a pipeline step
+and a command run from inside another command's handler are each checked, and none inherits the
+admission of the call around it. A server with no approval step, or whose approval step did not
+see the call, answers before the handler runs with:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "APPROVAL_UNAVAILABLE",
+    "message": "todo-delete needs a person's approval, and this server cannot ask for it",
+    "suggestion": "Tell the user that todo-delete needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.",
+    "retryable": false
+  }
+}
+```
+
+This check reads the declaration alone: a policy function is not evaluated, so a command that
+declares one needs an approval step even for calls the function would let through. The suggestion
+names the language's own approval middleware.
 
 When a call needs approval and its context carries no valid approval token, the handler does not
 run and the call fails with:
@@ -460,6 +482,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | --- | --- | --- | --- | --- |
 | `approval` field and `_meta.approval` | Yes | Yes | Yes | Yes (`_meta.approval` from `command_to_mcp_tool`) |
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
+| Declared policy held without the middleware (`APPROVAL_UNAVAILABLE`) | Yes (`createMcpServer`, `createDirectRegistry`; the middleware's `commands` option is optional) | Planned (the constant only) | Planned (the constant only) | Planned (the constant only) |
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio or stateful HTTP connection is asked in band) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
