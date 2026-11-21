@@ -68,6 +68,11 @@ def _populate_scenarios(directory: str) -> list[str]:
 class TestScenarioList:
 	"""Tests for the scenario-list command."""
 
+	@pytest.fixture(autouse=True)
+	def _project_root(self, tmp_path, monkeypatch):
+		"""scenario-list reads only inside the project root (the working directory)."""
+		monkeypatch.chdir(tmp_path)
+
 	def test_empty_directory(self, tmp_path):
 		"""Returns success with zero scenarios for an empty directory."""
 		result = scenario_list({"directory": str(tmp_path)})
@@ -77,8 +82,8 @@ class TestScenarioList:
 		assert result.data["scenarios"] == []
 
 	def test_nonexistent_directory(self):
-		"""Returns success with zero scenarios for a nonexistent directory."""
-		result = scenario_list({"directory": "/nonexistent/path/that/does/not/exist"})
+		"""Returns success with zero scenarios for a nonexistent directory inside root."""
+		result = scenario_list({"directory": "./nonexistent/path/that/does/not/exist"})
 		assert result.success is True
 		assert result.data["total"] == 0
 

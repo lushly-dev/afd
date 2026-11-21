@@ -8,16 +8,25 @@ Port of packages/testing/src/commands/coverage.ts
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
-from afd.testing.commands._files import find_scenario_files
+from afd.testing.commands._files import find_scenario_files, project_root, resolve_inside
 from afd.testing.scenarios.coverage import scenario_coverage
 from afd.testing.scenarios.parser import parse_scenario_file
 
 
-def scenario_coverage_cmd(input: dict[str, Any] | None = None) -> CommandResult[Any]:
+def scenario_coverage_cmd(
+	input: dict[str, Any] | None = None,
+	*,
+	root: str | os.PathLike[str] | None = None,
+) -> CommandResult[Any]:
 	"""Analyze test coverage of JTBD scenarios against known commands.
+
+	``directory`` must stay inside ``root`` (default: the current working
+	directory). ``..`` segments, absolute paths and symlinks that leave
+	``root`` are refused.
 
 	Input:
 		directory: str - Directory containing scenarios
@@ -34,8 +43,24 @@ def scenario_coverage_cmd(input: dict[str, Any] | None = None) -> CommandResult[
 	known_errors = params.get("known_errors") or params.get("knownErrors")
 	output_format = params.get("format", "json")
 
+	base = project_root(root)
+	scenario_dir = (
+		resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
+	)
+	if scenario_dir is None:
+		return error(
+			"VALIDATION_ERROR",
+			f"Scenario directory is outside the project root: {str(directory)[:200]}",
+			suggestion="Use a directory inside the project, such as ./scenarios.",
+			details={"field": "directory"},
+		)
+
 	# Discover and parse scenarios
-	files = find_scenario_files(directory)
+	files = [
+		str(resolved)
+		for path in find_scenario_files(str(scenario_dir))
+		if (resolved := resolve_inside(path, base)) is not None
+	]
 	parsed_scenarios = []
 	for filepath in files:
 		result = parse_scenario_file(filepath)

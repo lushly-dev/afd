@@ -34,9 +34,18 @@ def resolve_inside(path: str | os.PathLike[str], root: Path) -> Path | None:
     """Resolve ``path`` against ``root``; None if the result escapes ``root``.
 
     Symlinks are followed, so a link that points outside the root is refused
-    like ``..`` segments or an absolute path elsewhere.
+    like ``..`` segments or an absolute path elsewhere. Unresolvable paths
+    (such as embedded NUL bytes) also return None.
     """
-    candidate = (root / path).resolve()
+    if not isinstance(path, (str, os.PathLike)):
+        return None
+    raw = os.fspath(path)
+    if not isinstance(raw, str) or "\x00" in raw:
+        return None
+    try:
+        candidate = (root / raw).resolve()
+    except (OSError, ValueError):
+        return None
     if candidate == root or root in candidate.parents:
         return candidate
     return None
