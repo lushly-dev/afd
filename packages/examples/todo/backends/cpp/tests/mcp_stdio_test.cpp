@@ -82,7 +82,7 @@ TEST_CASE("tools/list is TypeScript's grouped list: the todo and bootstrap group
 }
 
 TEST_CASE("each todo command's own tool carries its title, annotations and _meta") {
-    Fixture fixture;
+    Fixture fixture(todo::Approvals::agents);
     auto server = make_server(fixture, afd::mcp::ToolStrategy::individual);
     const auto tools =
         reply(*server, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];

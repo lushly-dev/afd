@@ -55,8 +55,17 @@ afd::Expected<std::unique_ptr<afd::CommandRegistry>>
 make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) {
     auto registry = std::make_unique<afd::CommandRegistry>(
         afd::CommandRegistryOptions{.clock = options.clock, .random = options.random});
-    if (auto error = register_todo_commands(*registry, store)) {
-        return afd::unexpected(*error);
+    // With APPROVALS=off there is no approval middleware, and the registry refuses a command that
+    // declares an approval policy without one (APPROVAL_UNAVAILABLE), so the commands are served
+    // without their policies: todo-clear runs for every caller, and `_meta.approval` advertises
+    // no hold the server does not make. TypeScript's createTodoCommands does the same.
+    for (auto& command : todo_commands(store)) {
+        if (options.approvals == Approvals::off) {
+            command.approval.reset();
+        }
+        if (auto error = registry->register_command(std::move(command))) {
+            return afd::unexpected(*error);
+        }
     }
     if (auto error = afd::register_context_commands(*registry, todo_contexts())) {
         return afd::unexpected(*error);
@@ -66,13 +75,9 @@ make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) 
         return afd::unexpected(*error);
     }
     if (options.approvals == Approvals::agents) {
-        std::vector<afd::ApprovalCommand> commands;
-        for (const auto& command : registry->list()) {
-            commands.emplace_back(command->definition);
-        }
+        // The middleware decides from the policy of the command each call runs.
         auto approval = afd::create_approval_middleware(
             {.secrets = {std::move(options.secret)},
-             .commands = std::move(commands),
              .summarize = [store](std::string_view command, const afd::Json& input,
                                   const afd::CommandContext&) -> std::optional<std::string> {
                  if (command != "todo-clear") {

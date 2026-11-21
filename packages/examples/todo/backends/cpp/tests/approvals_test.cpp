@@ -74,8 +74,12 @@ TEST_CASE("an approved clear runs once with the token, for the same call") {
     CHECK(again["error"]["details"]["reason"] == "already-used");
 }
 
-TEST_CASE("with APPROVALS=off an agent's clear runs") {
+TEST_CASE("with APPROVALS=off an agent's clear runs, served without its approval policy") {
     Fixture fixture(Approvals::off);
+    for (const auto& command : fixture.todo_commands()) {
+        CAPTURE(command->definition.name);
+        CHECK_FALSE(command->definition.approval.has_value());
+    }
     const std::string id = fixture.create("Done already");
     fixture.run("todo-toggle", {{"id", id}});
     CHECK(fixture.run("todo-clear", afd::Json::object(),

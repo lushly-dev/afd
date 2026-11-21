@@ -136,7 +136,7 @@ TEST_CASE("every change declares an approval policy, and the undoable ones say s
     const std::set<std::string> undoable{
         "todo-create",       "todo-update",       "todo-toggle",       "todo-delete",
         "todo-create-batch", "todo-delete-batch", "todo-toggle-batch", "todo-restore"};
-    Fixture fixture;
+    Fixture fixture(todo::Approvals::agents);
     for (const auto& command : fixture.todo_commands()) {
         const auto& definition = command->definition;
         CAPTURE(definition.name);
