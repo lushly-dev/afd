@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
+	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -9,8 +12,9 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
 	restoreRecoveryArtifacts,
 	validateOriginalAttempt,
@@ -208,4 +212,54 @@ test('recovery checks the intent source at the frozen revision, not on a main th
 		/validateRecoveryApproval\(approval, approvalBytes, process\.env, committedIntent\(root\)\.intentDigest\)/
 	);
 	assert.match(script, /validatePlan\(frozen, plan, plan\.core\.registryEvidence\)/);
+});
+
+test('manual recovery rejects malformed intent supersedes before querying GitHub', (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-recover-supersedes-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const intentBytes = `${JSON.stringify({ schemaVersion: 1, selectedUnits: ['afd-npm'], supersedes: null })}\n`;
+	const approvalBytes = `${JSON.stringify({ ...approval, intentDigest: hash(intentBytes) })}\n`;
+	mkdirSync(join(root, '.release'), { recursive: true });
+	writeFileSync(join(root, '.release/npm-intent.json'), intentBytes);
+	writeFileSync(join(root, '.release/npm-recovery.json'), approvalBytes);
+	const git = (args) =>
+		execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+	git(['init', '-b', 'main']);
+	git(['config', 'user.name', 'Fixture']);
+	git(['config', 'user.email', 'fixture@example.invalid']);
+	git(['add', '.']);
+	git(['commit', '-m', 'fixture']);
+	const bin = join(root, 'bin');
+	const marker = join(root, 'gh-called');
+	mkdirSync(bin);
+	const record = `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'called'); process.exit(99);\n`;
+	if (process.platform === 'win32') {
+		writeFileSync(join(bin, 'gh.js'), record);
+		writeFileSync(join(bin, 'gh.cmd'), `@"${process.execPath}" "${join(bin, 'gh.js')}" %*\r\n`);
+	} else {
+		writeFileSync(join(bin, 'gh'), `#!${process.execPath}\n${record}`);
+		chmodSync(join(bin, 'gh'), 0o755);
+	}
+	const result = spawnSync(
+		process.execPath,
+		[fileURLToPath(new URL('./release-recover.mjs', import.meta.url))],
+		{
+			cwd: root,
+			encoding: 'utf8',
+			env: {
+				...process.env,
+				PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+				GITHUB_EVENT_NAME: 'workflow_dispatch',
+				GITHUB_REF: 'refs/heads/main',
+				RECOVERY_APPROVAL: hash(approvalBytes),
+			},
+		}
+	);
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr, /supersedes/);
+	assert.equal(
+		existsSync(marker),
+		false,
+		'release-recover must not invoke gh on invalid supersedes'
+	);
 });
