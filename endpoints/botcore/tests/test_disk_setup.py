@@ -150,12 +150,14 @@ def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
     first = run(setup.disk_run())["skill_usage"]
     assert first["ok"] and first["added"] == 1
     assert len(usage_store.load_events(usage_store.state_dir())[0]) == 1
-    assert run(setup.disk_run())["ran"] is False and usage()["ok"]  # every hour, due or not
+    again = run(setup.disk_run())  # every hour, due or not
+    assert again["ran"] is False and again["skill_usage"]["ok"] and usage()["ok"]
+    worked = again["skill_usage"]["at"]  # when it last worked: a second later, on a busy machine
 
     built.path.write_text("not a database")  # the harness's store stops being readable
     assert run(setup.disk_run())["skill_usage"]["ok"] is False  # and the disk job still runs
     status = run(setup.disk_status())
-    assert (status["skill_usage"]["ok"], status["skill_usage"]["ok_at"]) == (False, first["at"])
+    assert (status["skill_usage"]["ok"], status["skill_usage"]["ok_at"]) == (False, worked)
     assert any("skill usage is not being collected" in found for found in status["warnings"])
     assert not any("skill usage" in found for found in status["problems"])  # not yet
 

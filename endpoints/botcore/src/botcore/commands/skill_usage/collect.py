@@ -19,7 +19,7 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
-from botcore.commands.skill_usage import t3
+from botcore.commands.skill_usage import claude_code, t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
@@ -158,33 +158,40 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
     return projects, names
 
 
-def _read_t3(path: Path, since: str | None, all_items: bool = False) -> t3.T3Read:
+def _read_t3(
+    path: Path, since: str | None, all_items: bool = False, natives: bool = False
+) -> t3.T3Read:
     connection = t3.open_store(path)
     try:
         t3.check_schema(connection)
-        return t3.read(connection, since=since, all_items=all_items)
+        return t3.read(connection, since=since, all_items=all_items, natives=natives)
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:
         connection.close()
 
 
-def _events(
-    found: t3.T3Read, names: dict[str, str], projects: dict, machine: str,
+# What an event's id begins with, by the source it was read from
+PREFIXES = {t3.SOURCE: "t3", claude_code.SOURCE: "cc"}
+
+
+def _events(  # noqa: PLR0913 - one source's loads and what names them
+    loads: list[t3.Load], source: str, names: dict[str, str], projects: dict, machine: str,
     known: set[tuple[str, str]],
 ) -> list[Event]:  # fmt: skip
-    """The loads as events. A typed name is kept only when it is a skill: the record already
-    knows it, this read shows it loaded another way, or the project's checkout holds it."""
+    """A source's loads as events. A typed name is kept only when it is a skill: the record
+    already knows it, this read shows it loaded another way, or the project's checkout holds
+    it."""
     events: list[Event] = []
-    for load in found.loads:
+    for load in loads:
         events.append(
             Event(
-                id=f"t3:{load.skill}@{load.item}",
+                id=f"{PREFIXES[source]}:{load.skill}@{load.item}",
                 at=load.at,
                 skill=load.skill,
                 path=load.path,
                 harness=load.harness,
-                source=t3.SOURCE,
+                source=source,
                 thread=load.thread,
                 root=load.root,
                 agent=load.agent,
@@ -255,12 +262,15 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
 ) -> CommandResult[dict]:  # fmt: skip
     """Add the skill loads recorded since the last collection to this machine's record.
 
-    Reads T3 Code's store (Claude and Codex threads alike), read-only. It continues from the
-    last collection of that store and reads everything again once a week, since a thread
-    moved to this machine can be older than the last collection.
+    Reads T3 Code's store (Claude and Codex threads alike) and, for the sessions T3 Code did
+    not run, Claude Code's transcripts; both read-only. It continues from the last
+    collection of the store and reads everything again once a week, since a thread moved to
+    this machine can be older than the last collection; of the transcripts it opens only
+    those that changed.
 
     Args:
-        since_days: Re-read this many days instead of continuing from the last collection.
+        since_days: Re-read this many days of T3 Code's store instead of continuing from the
+            last collection of it.
         t3_store: Read this T3 Code store instead of this machine's; needs `machine`.
         machine: The machine a store named with `t3_store` came from.
         rebuild: Read everything and replace what was recognised before in items the store
@@ -286,27 +296,38 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
         return settings_refused(exc)
     directory = state_dir()
     path = Path(t3_store).expanduser() if t3_store is not None else t3_store_path()
+    absent: list[dict] = []
     if path is None:
-        return success(
-            {"machine": machine, "state_dir": str(directory), "added": 0,
-             "sources": [{"source": t3.SOURCE, "status": "off"}]},
-            reasoning="T3 Code's store is turned off for this machine; nothing was read",
-        )  # fmt: skip
-    if not path.is_file():
+        absent.append({"source": t3.SOURCE, "status": "off"})
+    elif not path.is_file():
         if t3_store is not None:
             return _failure(
                 "SOURCE_NOT_FOUND", f"No T3 Code store at {path}",
                 "Pass the path of statev2.sqlite in T3 Code's user data folder, or leave "
                 "t3_store out to read this machine's",
             )  # fmt: skip
+        absent.append({"source": t3.SOURCE, "status": "absent", "path": str(path)})
+        path = None
+    # a store copied from another machine is read alone: these transcripts are not its own
+    transcripts = None if t3_store is not None else claude_code.projects_dir()
+    if transcripts is None and t3_store is None:
+        absent.append({"source": claude_code.SOURCE, "status": "off"})
+    elif transcripts is not None and not transcripts.is_dir():
+        absent.append({"source": claude_code.SOURCE, "status": "absent", "path": str(transcripts)})
+        transcripts = None
+    if path is None and transcripts is None:
         return success(
-            {"machine": machine, "state_dir": str(directory), "added": 0,
-             "sources": [{"source": t3.SOURCE, "status": "absent", "path": str(path)}]},
-            reasoning=f"This machine has no T3 Code store at {path}; nothing was read",
-        )  # fmt: skip
+            {"machine": machine, "state_dir": str(directory), "added": 0, "sources": absent},
+            reasoning="This machine has neither a T3 Code store nor Claude Code transcripts "
+            "to read; nothing was collected",
+        )
     try:
         with RunLock(directory / LOCK_FILE):
-            result = _collect(directory, path, since_days, machine, rebuild, here.machine)
+            result = _collect(
+                directory, path, transcripts, since_days, machine, rebuild, here.machine
+            )
+            if result.success and result.data is not None:
+                result.data["sources"] += absent
             return _published(result, directory, here)
     except LockHeld:
         return _failure(
@@ -333,9 +354,9 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
         )  # fmt: skip
 
 
-def _collect(  # noqa: PLR0913 - one collection's inputs
-    directory: Path, path: Path, since_days: int | None, machine: str, rebuild: bool,
-    this_machine: str,
+def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start to end
+    directory: Path, path: Path | None, transcripts: Path | None, since_days: int | None,
+    machine: str, rebuild: bool, this_machine: str,
 ) -> CommandResult[dict]:  # fmt: skip
     stored, _ = load_events(directory)
     state = load_state(directory)
@@ -343,42 +364,111 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
     now = datetime.now(UTC)
     sources = _mapping(state.get("sources"))
     stores = _mapping(_mapping(sources.get(t3.SOURCE)).get("stores"))
-    last = _mapping(stores.get(str(path)))  # a store never read before starts from nothing
+    read_sources: list[dict] = []
 
-    full_at = _parse(last.get("full_at"))
-    newest = _parse(last.get("newest"))
-    if rebuild:
-        since = None
-    elif since_days is not None:
-        since = _stamp(now - timedelta(days=since_days))
-    elif full_at is None or newest is None or now - full_at > FULL_EVERY:
-        since = None
-    else:
-        since = _stamp(newest - OVERLAP)
+    found, since = t3.T3Read(), None
+    if path is not None:
+        last = _mapping(stores.get(str(path)))  # a store never read before starts from nothing
+        full_at = _parse(last.get("full_at"))
+        newest = _parse(last.get("newest"))
+        if rebuild:
+            since = None
+        elif since_days is not None:
+            since = _stamp(now - timedelta(days=since_days))
+        elif full_at is None or newest is None or now - full_at > FULL_EVERY:
+            since = None
+        else:
+            since = _stamp(newest - OVERLAP)
+        wanted = transcripts is not None  # what T3 Code holds, from the snapshot of its loads
+        found = _read_t3(path, since, all_items=rebuild, natives=wanted)
+        if since is not None and any(session_id not in sessions for session_id in found.behind):
+            # a session this record has never seen, with work older than the last collection,
+            # was moved to this machine: what it did before is behind where this read began
+            since = None
+            found = _read_t3(path, since, all_items=rebuild, natives=wanted)
+        stores[str(path)] = {
+            "newest": found.newest or last.get("newest"),
+            "full_at": _stamp(now) if since is None else last.get("full_at"),
+        }
 
-    found = _read_t3(path, since, all_items=rebuild)
-    if since is not None and any(session_id not in sessions for session_id in found.behind):
-        # a session this record has never seen, with work older than the last collection,
-        # was moved to this machine: what it did before is behind where this read began
-        since = None
-        found = _read_t3(path, since, all_items=rebuild)
-    projects, names = _name_projects(_mapping(state.get("projects")), found.projects)
     known_ids = {event.id for event in stored}
     known_skills = {(event.project, event.skill) for event in stored}
-    events = _events(found, names, projects, machine, known_skills)
+    claude = claude_code.ClaudeRead()
+    if transcripts is not None:
+        seen = _mapping(_mapping(sources.get(claude_code.SOURCE)).get("files"))
+        # a call T3 Code recorded is T3 Code's, whether its store still holds it or only the
+        # record does: the thread may have been dropped since
+        recorded = {
+            event.native.partition(":")[2]
+            for event in stored
+            if event.source == t3.SOURCE and event.native and event.harness == claude_code.HARNESS
+        }
+        claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
+
+    projects, names = _name_projects(
+        _mapping(state.get("projects")), {**found.projects, **claude.projects}
+    )
+    # A session stays in the project it was filed under: its checkout may have been moved
+    # or removed since, and where it ran is not where its folder leads today
+    for item in [*claude.loads, *claude.sessions]:
+        thread = item.thread if isinstance(item, t3.Load) else item.id
+        filed = _mapping(sessions.get(thread)).get("project")
+        if item.project_id is None and isinstance(filed, str) and filed != UNKNOWN_PROJECT:
+            item.project_id = f"filed:{thread}"
+            names[item.project_id] = filed
+    from_t3 = _events(found.loads, t3.SOURCE, names, projects, machine, known_skills)
+    # a skill that T3 Code's sessions loaded in this very read is a skill to a command typed
+    # elsewhere
+    loaded = known_skills | {(e.project, e.skill) for e in from_t3 if e.path != TYPED}
+    # a load T3 Code's store shows too is one load, and T3 Code's event stands: whenever its
+    # store came to hold the call, and whether or not the transcript was read again since
+    shown = {
+        event.native for event in [*stored, *from_t3] if event.native and event.source == t3.SOURCE
+    }
+    fresh: dict[str, Event] = {}
+    for event in _events(claude.loads, claude_code.SOURCE, names, projects, machine, loaded):
+        if event.native not in shown:
+            fresh.setdefault(event.id, event)  # once, however many transcripts hold the call
+    from_claude = list(fresh.values())
+    events = [*from_t3, *from_claude]
+    read_now = {event.id for event in events}
+
+    def gone(event: Event) -> bool:
+        """What was read again and is no longer a load. An event leaves the record only
+        when what it was read from was in front of this collection and did not give it
+        again: an item the store has dropped, a call whose file is gone or no longer holds
+        it, stays. For T3 Code's store that is a rebuild; a transcript is read whole each
+        time, so a call that has become T3 Code's, or changed, goes at once."""
+        if event.id in read_now:
+            return False
+        if event.source == t3.SOURCE:
+            return rebuild and path is not None and _item(event) in (found.items or set())
+        if event.source == claude_code.SOURCE:
+            return _item(event) in claude.seen or event.native in shown
+        return False
+
+    dropped = [event for event in stored if gone(event)]
     added = [event for event in events if event.id not in known_ids]
-    removed = 0
-    if rebuild:
-        held = found.items or set()
-        kept = [event for event in stored if event.source != t3.SOURCE or _item(event) not in held]
-        removed = len(stored) - len(kept) - (len(events) - len(added))
-        rewrite_events(directory, sorted(kept + events, key=lambda event: event.at))
-        total = len(kept) + len(events)
+    if dropped or rebuild:
+        lost = {event.id for event in dropped}
+        kept = [event for event in stored if event.id not in lost]
+        current = {event.id: event for event in events}
+        kept = [current.pop(event.id, event) for event in kept]  # read again: the new reading
+        rewrite_events(directory, sorted([*kept, *current.values()], key=lambda event: event.at))
+        total = len(kept) + len(current)
     else:
         append_events(directory, added)
         total = len(known_ids) + len(added)
+    removed = {
+        source: sum(event.source == source for event in dropped)
+        for source in (t3.SOURCE, claude_code.SOURCE)
+    }
 
-    for session in found.sessions:
+    # a session met this time that is T3 Code's, and that no transcript gives, is not ours
+    given = {name for entry in claude.files.values() for name in _strings(entry.get("sessions"))}
+    for thread in claude.t3_sessions - given:
+        sessions.pop(thread, None)
+    for session in [*found.sessions, *claude.sessions]:
         sessions[session.id] = {
             "root": session.root,
             "parent": session.parent,
@@ -395,10 +485,8 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
         }
     save_sessions(directory, sessions)
 
-    stores[str(path)] = {
-        "newest": found.newest or last.get("newest"),
-        "full_at": _stamp(now) if since is None else last.get("full_at"),
-    }
+    if transcripts is not None:
+        sources = {**sources, claude_code.SOURCE: {"files": claude.files}}
     save_state(
         directory,
         {
@@ -414,19 +502,42 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
             "projects": projects,
         },
     )
-    source: dict = {
-        "source": t3.SOURCE,
-        "status": "read",
-        "path": str(path),
-        "since": since,
-        "scanned": found.scanned,
-        "found": len(events),
-        "added": len(added),
-    }
+    if path is not None:
+        new = [event for event in added if event.source == t3.SOURCE]
+        read_sources.append(
+            {
+                "source": t3.SOURCE,
+                "status": "read",
+                "path": str(path),
+                "since": since,
+                "scanned": found.scanned,
+                "found": len(from_t3),
+                "added": len(new),
+            }
+        )
+        if rebuild:
+            read_sources[-1]["removed"] = removed[t3.SOURCE]
+    if transcripts is not None:
+        new = [event for event in added if event.source == claude_code.SOURCE]
+        read_sources.append(
+            {
+                "source": claude_code.SOURCE,
+                "status": "read",
+                "path": str(transcripts),
+                "transcripts": claude.transcripts,
+                "read": len(claude.read),
+                "unchanged": claude.unchanged,
+                "not_read": len(claude.failed),
+                "calls_left_to_t3": claude.left_to_t3,
+                "found": len(from_claude),
+                "added": len(new),
+                "removed": removed[claude_code.SOURCE],
+            }
+        )
     data: dict = {
         "machine": machine,
         "state_dir": str(directory),
-        "sources": [source],
+        "sources": read_sources,
         "added": len(added),
         "events": total,
         "sessions": len(sessions),
@@ -438,9 +549,9 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
         f"machine's record now holds {total} events"
     )
     if rebuild:
-        source["removed"] = data["removed"] = removed
+        data["removed"] = sum(removed.values())
         reasoning = (
-            f"Rebuilt the record: {len(added)} events added and {removed} no longer recognised "
-            f"removed; it now holds {total}"
+            f"Rebuilt the record: {len(added)} events added and {data['removed']} no longer "
+            f"recognised removed; it now holds {total}"
         )
     return success(data, reasoning=reasoning)
