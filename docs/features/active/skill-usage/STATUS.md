@@ -19,32 +19,27 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 Measured on the MacBook Air over 30 days with the rule Lushly's instructions state (the gate
 skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly declares it.
 
-- **A merge looks like a change.** A turn's checkpoint lists every file the turn left changed
-  in the checkout, so a session that merged `main` appeared to change each gate file anyone
-  had changed. Of 34 turns that left a gate file changed, 29 had moved the checkout to other
-  commits. Those turns are not read.
-- **Three ways a move hid.** `git switch -C fix origin/main` starts a branch somewhere else.
-  `fnm exec --using=… -- git merge` is how these repositories run git, and 53 such commands
-  were not seen as moves. A merge that stopped on a conflict had already brought `main`'s
-  files, and the turn finished it with `git commit`. Each one passed other people's changes
-  off as a session's own.
-- **What is left is small and trustworthy.** 5 sessions changed a gate file themselves, and 2
-  had loaded the gate skill first.
+- **The reading.** 55 merged changes touched a gate file. 45 had no session on this machine
+  and 1 had no pull request number. Of the 9 that could be judged, 3 were published by a
+  session that had loaded the gate skill and 6 by sessions that never loaded it before the
+  merge. One long session that published twelve pull requests accounts for four of the six.
+- **What a session changed cannot be read from its turns.** A turn's checkpoint lists every
+  file the turn left changed in the checkout. A merge of `main` makes a session appear to
+  change each gate file anyone had changed: 29 of the 34 turns that left a gate file changed
+  had moved the checkout. Filtering those turns out by the command that moved them failed
+  three reviews running, each finding another way a checkout moves: `fnm exec … -- git merge`,
+  a merge that stopped on a conflict, `git switch -C fix origin/main`, the merge lane's
+  `handoff --sync`, and a shared checkout that other sessions move between a session's turns.
+  Of the 5 changes that survived every filter, 4 were still not the session's own.
+- **So the report uses what is recorded outright:** which session published a pull request,
+  when, and when it loaded the skill. It judged 9 changes where the turn-by-turn design could
+  honestly judge 1.
 - **Gate files are not edited with the edit tools.** No file-edit item in the store touches
-  one, so every one of those five is known only from the end of its turn.
-- **Most merged changes are unknown from one machine.** Of 55 merged changes to a gate file,
-  45 had no session on this machine, 8 had a linked session but no change recorded outside a
-  turn that moved the checkout, 1 had no pull request number, and 1 could be judged (it had
-  loaded the skill). Collection on every machine is what raises that.
-- **The order inside a turn is often unknown.** A change known only from the end of its turn
-  can have happened any time in it, so a skill loaded in that turn is neither "loaded first"
-  nor a miss. A tool edit in the same turn dates only what it edited.
-- **A fix and the next pull request look alike.** A change made after a session links one
-  pull request and before that one merges may be a fix to it or the start of the next. It is
-  reported as unknown for the next.
-- **A long-lived thread is linked to many pull requests.** Judged as one, a coordinator that
-  changed a gate file once answered for every pull request it had linked. Each link has a
-  time (all 554 in the store do), so a session is judged one pull request at a time.
+  one, so the exact moment of such a change is not on record at all.
+- **A long-lived thread is linked to many pull requests,** each with a time (all 554 links in
+  the store carry one), so each is judged by its own.
+- **In a fleet a script publishes the change.** The session that made it is then known only
+  by the branch it worked on, which the record keeps as a hash.
 - **Which skill a repository requires is its own decision.** AFD's instructions send a change
   to CI or a hook to `gates.md`, a reference file of another skill, not to `maintain-gates`;
   declaring that skill required here would have reported every session as a miss. AFD declares

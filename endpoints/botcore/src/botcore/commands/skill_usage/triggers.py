@@ -1,11 +1,14 @@
-"""`skill-usage-triggers`: the merged changes that needed a skill, and whether the session
-that made each had loaded it.
+"""`skill-usage-triggers`: the merged changes that needed a skill, and whether a session that
+published each had loaded it.
 
-A repository declares which paths require which skill (`[[skills.required]]`). The changes
-come from git, the loads and the changes each session made from this machine's record
-(`skill-usage-collect`), and the tie between a merged change and its sessions from the pull
-requests the harness linked to them. Wherever the record cannot establish who made a change,
-or whether the skill was loaded before it, the change is unknown, never a miss. Read-only.
+A repository declares which paths require which skill (`[[skills.required]]`). Three things
+are known for certain, and the report uses only those: which merged changes touched those
+paths (git), which sessions the harness linked to each change's pull request and when (the
+record), and when each session loaded the skill (the record). What a session changed turn by
+turn is not used: a checkout is moved under a session by merges, sync scripts and other
+sessions, and a moved file looks like a changed one.
+
+Read-only. Where those three cannot settle it, a change is unknown, never a miss.
 """
 
 from __future__ import annotations
@@ -19,14 +22,8 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
-from botcore.commands.skill_usage.collect import (
-    GIT_SECONDS,
-    _strings,
-    project_remote,
-    required_skills,
-    rule_id,
-)
-from botcore.commands.skill_usage.events import PATHS, Trigger
+from botcore.commands.skill_usage.collect import GIT_SECONDS, _strings, project_remote
+from botcore.commands.skill_usage.events import PATHS
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
     STALE_AFTER,
@@ -35,13 +32,7 @@ from botcore.commands.skill_usage.report import (
     _parse,
     current_name,
 )
-from botcore.commands.skill_usage.store import (
-    load_events,
-    load_sessions,
-    load_state,
-    load_triggers,
-    state_dir,
-)
+from botcore.commands.skill_usage.store import load_events, load_sessions, load_state, state_dir
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
 
@@ -56,11 +47,7 @@ _DEFAULT_BRANCHES = (
 )
 _PULL_REQUEST = re.compile(r"\(#(\d+)\)\s*$|^Merge pull request #(\d+)\b")
 _RECORD, _FIELD = "\x1e", "\x1f"
-LOADED, MISSED, UNORDERED = "loaded", "missed", "same_turn"
-AMBIGUOUS = "between_pull_requests"
-_UNKNOWN = (
-    "no_pull_request", "no_session", "no_link_time", "no_recorded_change", AMBIGUOUS, UNORDERED,
-)  # fmt: skip
+_UNKNOWN = ("no_pull_request", "no_session", "no_link_time", "after_publication")
 
 
 @dataclass
@@ -106,36 +93,29 @@ def merged_changes(root: Path, since: datetime) -> list[Change]:
     return sorted(changes, key=lambda change: change.at)
 
 
+def required_skills(root: Path) -> dict[str, list[str]]:
+    """A checkout's `[[skills.required]]` as it stands in its working tree: each skill with
+    every path declared for it, so that several tables for one skill are one rule."""
+    rules: dict[str, set[str]] = {}
+    for rule in load_config(workspace=root).skills.required:
+        rules.setdefault(rule.skill, set()).update(rule.paths)
+    return {skill: sorted(paths) for skill, paths in rules.items()}
+
+
 def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
-
-
-def _verdict(found: list[Trigger], loads: list[datetime]) -> str:
-    """Whether a session had loaded the skill before the changes it made. The end of a turn
-    shows only that a change happened during it (`since` to `at`), so the skill counts as
-    loaded first only when it was loaded before the earliest moment any of the changes can
-    have happened, and as missed only when it was not loaded by the first moment one is
-    known to have. Between the two the order is unknown."""
-    known = [_parse(trigger.at) for trigger in found]
-    possible = [_parse(trigger.since) if trigger.since else _parse(trigger.at) for trigger in found]
-    if any(moment is None for moment in (*known, *possible)):
-        return UNORDERED
-    if any(load < min(possible) for load in loads):
-        return LOADED
-    return UNORDERED if any(load <= min(known) for load in loads) else MISSED
 
 
 async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
     days: int = 30, repo: str | None = None
 ) -> CommandResult[dict]:
-    """For each skill a repository requires, the merged changes to its paths and whether the
-    session that made each had loaded the skill first.
+    """For each skill a repository requires, the merged changes to its paths and whether a
+    session that published each had loaded the skill by then.
 
-    A change is `loaded` when every session linked to its pull request that changed a required
-    path had loaded the skill before its first such change, itself or through a subagent; a
-    load at review time, after the change, does not count. It is `missed` when one had not,
-    and names those sessions. It is `unknown` when the record cannot say: `unknown_why` gives
-    the reason.
+    A change is `loaded` when a session linked to its pull request had loaded the skill,
+    itself or through a subagent, by the time it linked it. It is `missed` when no linked
+    session loaded the skill before the change merged, and names those sessions. Between the
+    two, and wherever the record cannot say, it is `unknown`: `unknown_why` gives the reason.
 
     Args:
         days: Length of the window in days.
@@ -155,25 +135,23 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "Run it from inside the repository, or pass repo with the path of its checkout",
         )
     try:
-        load_config(workspace=root)
+        rules = required_skills(root)
     except Exception as exc:  # noqa: BLE001 - any way the configuration fails to load
         return _fail(
             "CONFIG_INVALID",
             f"The botcore configuration of {root} could not be read: {exc}",
             "Fix its botcore.toml (or [tool.botcore] in pyproject.toml) and run it again",
         )
-    rules = required_skills(root)  # each skill once, with every path declared for it
     if not rules:
         return _fail(
             "NO_REQUIRED_SKILLS",
             f"{root.name} declares no required skill",
             'Declare one in its botcore.toml: [[skills.required]] with skill = "<name>" and '
-            'paths = ["<glob>", ...], then run skill-usage-collect --rebuild',
+            'paths = ["<glob>", ...]',
         )
     directory = state_dir()
     try:
-        events, unreadable_events = load_events(directory)
-        triggers, unreadable_triggers = load_triggers(directory)
+        events, unreadable = load_events(directory)
         state = load_state(directory)
         sessions = load_sessions(directory)
     except OSError as exc:
@@ -189,12 +167,11 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "This machine has no skill usage record yet",
             "Run skill-usage-collect first; it reads what the harnesses recorded",
         )
-    if unreadable_events or unreadable_triggers:
-        # a lost load would turn a session into a miss, and a lost change the other way
-        return _fail(
+    if unreadable:
+        return _fail(  # a lost load would turn a change into a miss
             "RECORD_DAMAGED",
-            f"{unreadable_events + unreadable_triggers} lines of the skill usage record cannot "
-            "be read, so no change can be judged from it",
+            f"{unreadable} lines of the skill usage record cannot be read, so no change can be "
+            "judged from it",
             "Run skill-usage-collect --rebuild: it reads the store again and writes the record "
             "without the damaged lines",
         )
@@ -236,68 +213,47 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     declared: dict[str, list[str]] = {}
     for skill, paths in rules.items():
         declared.setdefault(named(skill), []).extend(paths)
-    current = {rule_id(skill, paths) for skill, paths in rules.items()}
 
     loads: dict[tuple[str, str], list[datetime]] = {}  # (skill, session) -> when it loaded it
     for event in events:
         moment = _parse(event.at)
         if moment is not None and event.project == project and event.path in PATHS:
             loads.setdefault((named(event.skill), event.thread), []).append(moment)
-    changed: dict[tuple[str, str], list[Trigger]] = {}  # (skill, session), oldest first
-    for trigger in sorted(triggers, key=lambda trigger: trigger.at):
-        if trigger.project != project or _parse(trigger.at) is None:
-            continue
-        if trigger.rule in current:  # not one seen under paths the repository has since changed
-            changed.setdefault((named(trigger.skill), trigger.thread), []).append(trigger)
 
-    # The pull requests of this project each session was linked to, with when
-    links: dict[str, dict[int, datetime | None]] = {}
+    # Each pull request of this project: the sessions linked to it and when, and the sessions
+    # that worked on the branch it came from. In a fleet a script publishes the change, and
+    # the session that made it is known only by its branch.
+    linked: dict[int, dict[str, datetime | None]] = {}
+    branches: dict[int, set[str]] = {}
     prefix = f"{project}#"
-    for session_id, entry in sessions.items():
+    for session_id, entry in sorted(sessions.items()):
         references = entry.get("pull_requests")
         for item in references if isinstance(references, list) else []:
             reference = item.get("ref") if isinstance(item, dict) else item
+            if not isinstance(reference, str) or not reference.startswith(prefix):
+                continue
+            number = reference[len(prefix) :]
+            if not number.isdigit():
+                continue
             linked_at = _parse(item.get("linked_at")) if isinstance(item, dict) else None
-            if isinstance(reference, str) and reference.startswith(prefix):
-                number = reference[len(prefix) :]
-                if number.isdigit():
-                    links.setdefault(session_id, {})[int(number)] = linked_at
-    linked: dict[int, list[str]] = {}
-    for session_id, its_links in sorted(links.items()):
-        for number in its_links:
-            linked.setdefault(number, []).append(session_id)
-
-    merged_at = {change.number: change.at for change in changes if change.number is not None}
-
-    def built(skill: str, session_id: str, change: Change) -> list[Trigger] | str:
-        """The required changes a session made while it built one pull request: after it
-        linked the one before, up to the next one it linked or the merge, whichever came
-        first. Or why they cannot be told apart: a link with no time, or a change made
-        while the pull request before was still open, which may be a fix to that one."""
-        its_links = links[session_id]
-        if len(its_links) > 1 and any(moment is None for moment in its_links.values()):
-            return "no_link_time"
-        ordered = sorted(its_links.items(), key=lambda link: link[1] or change.at)
-        position = next(at for at, link in enumerate(ordered) if link[0] == change.number)
-        before, after = ordered[position - 1] if position else (None, None)
-        following = ordered[position + 1][1] if position + 1 < len(ordered) else None
-        until = min(following, change.at) if following else change.at
-        found = [
-            trigger
-            for trigger in changed.get((skill, session_id), [])
-            if (after is None or _parse(trigger.at) > after) and _parse(trigger.at) <= until
-        ]
-        if found and after is not None:
-            closed = merged_at.get(before)  # when the one before merged, if it did here
-            still_open = _parse(found[0].at) <= closed if closed else after >= since
-            if still_open:
-                return AMBIGUOUS
-        return found
+            linked.setdefault(int(number), {})[session_id] = linked_at
+            branch = item.get("branch") if isinstance(item, dict) else None
+            if isinstance(branch, str) and branch:
+                branches.setdefault(int(number), set()).add(branch)
+    on_branch: dict[str, list[str]] = {}
+    for session_id, entry in sorted(sessions.items()):
+        if isinstance(entry.get("branch"), str) and entry.get("project") == project:
+            on_branch.setdefault(entry["branch"], []).append(session_id)
+    for number, its_branches in branches.items():
+        published = [moment for moment in linked[number].values() if moment]
+        for session_id in (s for branch in its_branches for s in on_branch.get(branch, [])):
+            # it made the change; the change was published when the first session linked it
+            linked[number].setdefault(session_id, min(published, default=None))
 
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
         patterns = [compile_pattern(path) for path in paths]
-        counts = {LOADED: 0, MISSED: 0}
+        counts = {"loaded": 0, "missed": 0}
         unknown = dict.fromkeys(_UNKNOWN, 0)
         misses: list[dict] = []
         matching = [
@@ -309,52 +265,41 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             if change.number is None:
                 unknown["no_pull_request"] += 1
                 continue
-            its_sessions = linked.get(change.number, [])
+            its_sessions = linked.get(change.number, {})
             if not its_sessions:
                 unknown["no_session"] += 1
                 continue
-            made = {session_id: built(skill, session_id, change) for session_id in its_sessions}
-            unclear = [found for found in made.values() if isinstance(found, str)]
-            if unclear:
-                unknown[unclear[0]] += 1
-                continue
-            verdicts = {
-                session_id: _verdict(found, loads.get((skill, session_id), []))
-                for session_id, found in made.items()
-                if found
-            }
-            if not verdicts:
-                unknown["no_recorded_change"] += 1
-            elif MISSED in verdicts.values():
-                counts[MISSED] += 1
-                without = [s for s, verdict in verdicts.items() if verdict == MISSED]
-                misses.append({"change": change.number, "sessions": without})
-            elif UNORDERED in verdicts.values():
-                unknown[UNORDERED] += 1
+            by_publication = before_merge = untimed = False
+            for session_id, linked_at in its_sessions.items():
+                its_loads = loads.get((skill, session_id), [])
+                if not any(load <= change.at for load in its_loads):
+                    continue
+                before_merge = True
+                if linked_at is None:
+                    untimed = True
+                elif any(load <= min(linked_at, change.at) for load in its_loads):
+                    by_publication = True
+            if by_publication:
+                counts["loaded"] += 1
+            elif not before_merge:
+                counts["missed"] += 1
+                misses.append({"change": change.number, "sessions": sorted(its_sessions)})
+            elif untimed:
+                unknown["no_link_time"] += 1
             else:
-                counts[LOADED] += 1
-        # Whatever was merged: the sessions that changed a required path in the window,
-        # each judged by its first such change
-        touched = {
-            session_id: _verdict(found, loads.get((name, session_id), []))
-            for (name, session_id), found in changed.items()
-            if name == skill and any(_parse(trigger.at) >= since for trigger in found)
-        }
-        judged = counts[LOADED] + counts[MISSED]
+                unknown["after_publication"] += 1
+        judged = counts["loaded"] + counts["missed"]
         report.append(
             {
                 "skill": skill,
                 "paths": sorted(paths),
                 "changes": len(matching),
-                "loaded": counts[LOADED],
-                "missed": counts[MISSED],
+                "loaded": counts["loaded"],
+                "missed": counts["missed"],
                 "unknown": sum(unknown.values()),
                 "unknown_why": unknown,
-                "rate": round(counts[LOADED] / judged, 3) if judged else None,
+                "rate": round(counts["loaded"] / judged, 3) if judged else None,
                 "misses": misses,
-                "sessions_changed": len(touched),
-                "sessions_loaded_first": sum(v == LOADED for v in touched.values()),
-                "sessions_order_unknown": sum(v == UNORDERED for v in touched.values()),
             }
         )
 
@@ -370,13 +315,6 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         warnings.append(
             f"The record holds nothing for {project}, so every change is unknown; it holds "
             f"{', '.join(known) or 'no project'}. Collect on a machine that works in it"
-        )
-    read_under = _mapping(_mapping(_mapping(state.get("triggers")).get("rules")).get(project))
-    now_rules = {skill: rule_id(skill, paths) for skill, paths in rules.items()}
-    if read_under != now_rules:
-        warnings.append(
-            "The record's history was not read under the required skills as they are declared "
-            "now, so changes made before that are unknown: run skill-usage-collect --rebuild"
         )
 
     judged = sum(rule["loaded"] + rule["missed"] for rule in report)
@@ -398,5 +336,5 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         },
         reasoning=f"{sum(rule['changes'] for rule in report)} merged changes needed a skill; "
         f"{sum(rule['missed'] for rule in report)} of the {judged} the record can judge were "
-        "made without it",
+        "published by sessions that never loaded it",
     )

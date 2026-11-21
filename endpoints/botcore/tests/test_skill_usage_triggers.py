@@ -20,10 +20,7 @@ from botcore.commands.skill_usage import (
     skill_usage_report,
     skill_usage_triggers,
     store,
-    t3,
 )
-from botcore.commands.skill_usage.changes import CHANGE, CHECKPOINT, inside
-from botcore.commands.skill_usage.events import moves_checkout
 from botcore.config import SkillsConfig, load_config
 from tests.test_skill_usage import (  # noqa: F401 - fixtures
     NOW,
@@ -45,7 +42,8 @@ RULES = """
 skill = "gate-discipline"
 paths = ["hooks.yml", "scripts/check-*.mjs"]
 """
-PRIVATE = "the-private-diff"
+PRIVATE = "the-private-text"
+SKILL_FILE = "/w/.claude/skills/gate-discipline/SKILL.md"
 
 
 @pytest.fixture
@@ -62,16 +60,13 @@ def repo(checkout: Path) -> Path:
     return checkout
 
 
-def merge(root: Path, subject: str, *files: str, days_ago: float | None = None) -> None:
+def merge(root: Path, subject: str, *files: str, days_ago: float = 0) -> None:
     """A change merged to the default branch, as a squash merge leaves it: now, or then."""
     for file in files:
         target = root / file
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(target.read_text("utf-8") + "x" if target.exists() else "x", "utf-8")
     git(root, "add", "-A")
-    if days_ago is None:
-        git(root, "commit", "-q", "--allow-empty", "-m", subject)
-        return
     when = (NOW - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     subprocess.run(
         ["git", "-C", str(root), "-c", "user.name=T", "-c", "user.email=t@example.com",
@@ -81,39 +76,20 @@ def merge(root: Path, subject: str, *files: str, days_ago: float | None = None) 
     )  # fmt: skip
 
 
-def session(
-    built: T3Store, name: str, repo: Path, *pull_requests: int | tuple[int, str], **more: object
-) -> str:
-    """A session in its own worktree, linked to pull requests (a number, or one with when)."""
-    extra: dict = {"worktreePath": str(repo.parent / f"worktree-{name}"), "pullRequests": []}
-    for pull_request in pull_requests:
-        number, linked_at = (
-            pull_request if isinstance(pull_request, tuple) else (pull_request, None)
-        )
-        extra["pullRequests"].append(
-            {"repository": "acme/garden", "number": number, "linkedAt": linked_at}
-        )
+def session(built: T3Store, name: str, *links: tuple[int, str | None], **more: object) -> str:
+    """A session linked to pull requests, each with when it linked it."""
+    extra = {
+        "pullRequests": [
+            {"repository": "acme/garden", "number": number, "linkedAt": at, "title": PRIVATE}
+            for number, at in links
+        ]
+    }
     return built.thread(name, extra=extra, **more)
-
-
-def edit(built: T3Store, thread: str, name: str, repo: Path, file: str, at: str, **more: object):
-    """A tool edited a file inside the session's worktree: seen at the moment it happened."""
-    path = str(repo.parent / f"worktree-{name}" / file)
-    return built.item(thread, CHANGE, at, fileName=path, diffStr=PRIVATE, **more)
-
-
-def checkpoint(built: T3Store, thread: str, at: str, *files: str, **more: object) -> str:
-    """What a turn left changed in the session's checkout, however it was changed."""
-    return built.item(thread, CHECKPOINT, at, files=[{"path": file} for file in files], **more)
 
 
 def rule(data: dict) -> dict:
     (only,) = data["rules"]
     return only
-
-
-def triggers(state: Path) -> list:
-    return store.load_triggers(state)[0]
 
 
 def judged(found: dict) -> tuple[int, int, int]:
@@ -123,7 +99,7 @@ def judged(found: dict) -> tuple[int, int, int]:
 # ── judging a merged change ─────────────────────────────────────────────────
 
 
-def test_each_merged_change_is_judged_by_the_session_that_made_it(
+def test_each_merged_change_is_judged_by_the_sessions_that_published_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
@@ -132,16 +108,13 @@ def test_each_merged_change_is_judged_by_the_session_that_made_it(
     merge(repo, "feat: another hook (#104)", "hooks.yml")
     merge(repo, "feat: by another machine (#105)", "hooks.yml")
     merge(repo, "feat: pushed straight to main", "hooks.yml")
-    first = session(t3_store, "first", repo, 101)
-    t3_store.skill_tool(first, "gate-discipline", stamp(2))
-    edit(t3_store, first, "first", repo, "hooks.yml", stamp(2, 5))
-    second = session(t3_store, "second", repo, 102)
-    edit(t3_store, second, "second", repo, "scripts/check-beds.mjs", stamp(2))
-    t3_store.skill_tool(second, "gate-discipline", stamp(2, 30))  # at review time: too late
-    session(t3_store, "fourth", repo, 104)  # linked, but no change of its is in the store
-    unrelated = session(t3_store, "third", repo, 103)
-    edit(t3_store, unrelated, "third", repo, "notes.txt", stamp(2))
-    assert run(skill_usage_collect())["triggers_added"] == 2
+    first = session(t3_store, "first", (101, stamp(2)))
+    t3_store.skill_tool(first, "gate-discipline", stamp(3))  # before it published the change
+    second = session(t3_store, "second", (102, stamp(2)))
+    t3_store.skill_tool(second, "gate-discipline", stamp(1))  # only afterwards, at review
+    session(t3_store, "fourth", (104, stamp(2)))  # never
+    t3_store.skill_tool(session(t3_store, "third", (103, stamp(2))), "plant-beds", stamp(3))
+    run(skill_usage_collect())
 
     data = run(skill_usage_triggers(repo=str(repo)))
     found = rule(data)
@@ -150,61 +123,23 @@ def test_each_merged_change_is_judged_by_the_session_that_made_it(
     assert (found["skill"], found["changes"]) == ("gate-discipline", 5)
     assert judged(found) == (1, 1, 3)
     assert found["unknown_why"] == {
-        "no_pull_request": 1, "no_session": 1, "no_link_time": 0, "no_recorded_change": 1,
-        "between_pull_requests": 0, "same_turn": 0,
+        "no_pull_request": 1, "no_session": 1, "no_link_time": 0, "after_publication": 1,
     }  # fmt: skip
-    assert found["misses"] == [{"change": 102, "sessions": ["second"]}]
-    assert found["rate"] == 0.5
-    assert (found["sessions_changed"], found["sessions_loaded_first"]) == (2, 1)
+    assert found["misses"] == [{"change": 104, "sessions": ["fourth"]}]
+    assert found["rate"] == 0.5 and found["paths"] == ["hooks.yml", "scripts/check-*.mjs"]
     assert data["warnings"] == []
-    for name in (store.TRIGGERS_FILE, store.EVENTS_FILE, store.SESSIONS_FILE):
-        record = (state / name).read_text("utf-8")
-        assert "hooks.yml" not in record and "check-beds" not in record  # the skill, not the file
-        assert PRIVATE not in record
 
 
-def test_a_change_seen_only_at_the_end_of_its_turn_is_judged_only_when_the_order_is_known(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    for number in (101, 102, 103, 104):
-        merge(repo, f"feat: a hook (#{number})", "hooks.yml")
-    before = session(t3_store, "before", repo, 101)
-    t3_store.skill_tool(before, "gate-discipline", stamp(3))
-    checkpoint(t3_store, before, stamp(2, 30), "notes.txt")  # the turn before ended here
-    checkpoint(t3_store, before, stamp(2, 40), "hooks.yml")  # changed by a script in this turn
-    during = session(t3_store, "during", repo, 102)
-    checkpoint(t3_store, during, stamp(2, 30), "notes.txt")
-    t3_store.skill_tool(during, "gate-discipline", stamp(2, 35))  # loaded in the same turn
-    checkpoint(t3_store, during, stamp(2, 40), "hooks.yml")
-    never = session(t3_store, "never", repo, 103)
-    checkpoint(t3_store, never, stamp(2, 40), "hooks.yml")
-    instant = session(t3_store, "instant", repo, 104)
-    t3_store.skill_tool(instant, "gate-discipline", stamp(2))
-    edit(t3_store, instant, "instant", repo, "hooks.yml", stamp(2))  # the very same moment
-    run(skill_usage_collect())
-
-    found = rule(run(skill_usage_triggers(repo=str(repo))))
-
-    assert judged(found) == (1, 1, 2)
-    assert found["unknown_why"]["same_turn"] == 2
-    assert found["misses"] == [{"change": 103, "sessions": ["never"]}]
-    assert found["sessions_order_unknown"] == 2
-
-
-def test_a_subagent_loads_and_changes_for_its_session_and_a_sibling_task_does_not(
+def test_a_subagent_loads_for_its_session_and_a_sibling_task_does_not(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
     merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
-    foreman = session(t3_store, "foreman", repo)
-    cell = session(t3_store, "thread:delegated-task:cell", repo, 101, parent=foreman)
+    foreman = t3_store.thread("foreman")
+    cell = session(t3_store, "thread:delegated-task:cell", (101, stamp(2)), parent=foreman)
     reader = t3_store.thread("thread:subagent:reader", parent=cell)
-    writer = t3_store.thread("thread:subagent:writer", parent=cell)
-    t3_store.read_tool(reader, "/w/.claude/skills/gate-discipline/SKILL.md", stamp(1))
-    path = str(repo.parent / "worktree-thread:delegated-task:cell" / "hooks.yml")
-    t3_store.item(writer, CHANGE, stamp(1, 10), fileName=path)  # in its session's checkout
-    other = session(t3_store, "thread:delegated-task:other", repo, 102, parent=foreman)
-    edit(t3_store, other, "thread:delegated-task:other", repo, "scripts/check-beds.mjs", stamp(1))
+    t3_store.read_tool(reader, SKILL_FILE, stamp(3))
+    session(t3_store, "thread:delegated-task:other", (102, stamp(2)), parent=foreman)
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
@@ -213,87 +148,79 @@ def test_a_subagent_loads_and_changes_for_its_session_and_a_sibling_task_does_no
     assert found["misses"] == [{"change": 102, "sessions": ["thread:delegated-task:other"]}]
 
 
-def test_a_change_is_missed_when_any_of_its_sessions_had_not_loaded_the_skill(
+def test_the_session_that_worked_on_the_branch_answers_when_another_published_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    careful = session(t3_store, "careful", repo, 101)
-    careless = session(t3_store, "careless", repo, 101, provider="codex")
-    failing = session(t3_store, "failing", repo, 101)
-    t3_store.skill_tool(careful, "gate-discipline", stamp(1))
-    edit(t3_store, careful, "careful", repo, "hooks.yml", stamp(1, 5))
-    t3_store.item(
-        careless, CHANGE, stamp(1, 6), driver="codex", fileName=str(repo.parent / "x.txt"),
-        changes=[{"path": str(repo.parent / "worktree-careless" / "hooks.yml")}],
-    )  # fmt: skip
-    edit(t3_store, failing, "failing", repo, "hooks.yml", stamp(1), status="failed")
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    branch = f"lush/{PRIVATE}"  # a branch is often named after its task
+    links = [
+        {"repository": "acme/garden", "number": number, "linkedAt": stamp(2),
+         "snapshot": {"headBranch": f"{branch}-{number}", "title": PRIVATE}}
+        for number in (101, 102)
+    ]  # fmt: skip
+    t3_store.thread("foreman", extra={"pullRequests": links})  # it only published them
+    careful = t3_store.thread("cell-1", extra={"branch": f"{branch}-101"})
+    t3_store.thread("cell-2", extra={"branch": f"{branch}-102"})
+    t3_store.skill_tool(careful, "gate-discipline", stamp(3))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert found["misses"] == [{"change": 101, "sessions": ["careless"]}]  # not the failed edit
-    assert (found["sessions_changed"], found["sessions_loaded_first"]) == (2, 1)
+    assert judged(found) == (1, 1, 0)
+    assert found["misses"] == [{"change": 102, "sessions": ["cell-2", "foreman"]}]
+    for name in (store.SESSIONS_FILE, store.EVENTS_FILE, store.STATE_FILE):
+        assert PRIVATE not in (state / name).read_text("utf-8")  # a branch is kept as a hash
 
 
-def test_a_session_of_several_pull_requests_is_judged_one_at_a_time(
+def test_one_session_that_had_loaded_the_skill_answers_for_the_change(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=4.5)
-    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=2)
-    merge(repo, "feat: another hook (#103)", "hooks.yml", days_ago=0.5)
-    long = session(t3_store, "long", repo, (101, stamp(5)), (102, stamp(3)), (103, stamp(1)))
-    session(t3_store, "watcher", repo, (101, stamp(5)), (102, stamp(3)))  # changed nothing
-    edit(t3_store, long, "long", repo, "hooks.yml", stamp(6))  # built #101 without the skill
-    t3_store.skill_tool(long, "gate-discipline", stamp(4))  # then loaded it
-    edit(t3_store, long, "long", repo, "scripts/check-beds.mjs", stamp(3, -30))  # #102, with it
-    edit(t3_store, long, "long", repo, "hooks.yml", stamp(0.2))  # after everything had merged
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    author = session(t3_store, "author", (101, stamp(2)), (102, stamp(1)))
+    t3_store.skill_tool(author, "gate-discipline", stamp(3))  # once, before both
+    session(t3_store, "watcher", (101, stamp(2)), (102, stamp(1)))  # linked them, loaded nothing
     run(skill_usage_collect())
 
-    found = rule(run(skill_usage_triggers(repo=str(repo))))
-
-    assert judged(found) == (1, 1, 1)
-    assert found["misses"] == [{"change": 101, "sessions": ["long"]}]
-    assert found["unknown_why"]["no_recorded_change"] == 1  # #103: nothing before it merged
+    assert judged(rule(run(skill_usage_triggers(repo=str(repo))))) == (2, 0, 0)
 
 
-def test_a_change_made_while_the_pull_request_before_was_open_is_not_judged(
+def test_a_load_after_the_change_merged_is_no_load(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
-    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=1)
-    main = session(t3_store, "main", repo, (101, stamp(5)), (102, stamp(2)))
-    t3_store.skill_tool(main, "gate-discipline", stamp(6))
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(5, -60))  # built #101, skill loaded
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(4))  # a fix to #101, or early #102?
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=3)
+    late = session(t3_store, "late", (101, stamp(4)))
+    t3_store.skill_tool(late, "gate-discipline", stamp(2))  # a day after it merged
+    closing = session(t3_store, "closing", (102, stamp(1)))  # linked it only when wrapping up
+    t3_store.skill_tool(closing, "gate-discipline", stamp(2))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert judged(found) == (1, 0, 1)  # #101 judged by its own build; #102 cannot be
-    assert found["unknown_why"]["between_pull_requests"] == 1
+    assert judged(found) == (0, 2, 0)
+    assert sorted(miss["change"] for miss in found["misses"]) == [101, 102]
 
 
-def test_links_without_a_time_cannot_tell_which_change_built_which(
+def test_a_link_without_a_time_cannot_say_whether_the_load_came_first(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    merge(repo, "feat: another hook (#102)", "hooks.yml")
-    merge(repo, "feat: a third hook (#103)", "hooks.yml")
-    older = session(t3_store, "older", repo)
-    edit(t3_store, older, "older", repo, "hooks.yml", stamp(2))
-    single = session(t3_store, "single", repo)
-    edit(t3_store, single, "single", repo, "hooks.yml", stamp(2))
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    t3_store.skill_tool(t3_store.thread("loaded"), "gate-discipline", stamp(2))
+    t3_store.skill_tool(t3_store.thread("never"), "plant-beds", stamp(2))
     run(skill_usage_collect())
-    sessions = store.load_sessions(state)  # as an earlier botcore wrote them
-    sessions["older"]["pull_requests"] = ["acme/garden#101", "acme/garden#102"]
-    sessions["single"]["pull_requests"] = ["acme/garden#103"]
+    sessions = store.load_sessions(state)  # as an earlier botcore wrote its links
+    sessions["loaded"]["pull_requests"] = ["acme/garden#101"]
+    sessions["never"]["pull_requests"] = ["acme/garden#102"]
     store.save_sessions(state, sessions)
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert judged(found) == (0, 1, 2)
-    assert found["unknown_why"]["no_link_time"] == 2
-    assert found["misses"] == [{"change": 103, "sessions": ["single"]}]
+    assert judged(found) == (0, 1, 1)
+    assert found["unknown_why"]["no_link_time"] == 1
+    assert found["misses"] == [{"change": 102, "sessions": ["never"]}]
 
 
 def test_a_rule_follows_a_renamed_skill_and_two_declarations_are_one_rule(
@@ -312,10 +239,8 @@ paths = ["scripts/check-*.mjs"]
     (repo / "botcore.toml").write_text(two, "utf-8")
     merge(repo, "chore: rename the skill (#100)")
     merge(repo, "feat: a hook and a check (#101)", "hooks.yml", "scripts/check-beds.mjs")
-    main = session(t3_store, "main", repo, 101)
+    main = session(t3_store, "main", (101, stamp(2)))
     t3_store.skill_tool(main, "gate-discipline", stamp(3))  # loaded under its old name
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(3, 5))
-    edit(t3_store, main, "main", repo, "scripts/check-beds.mjs", stamp(3, 6))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))  # one row, one change
@@ -325,195 +250,28 @@ paths = ["scripts/check-*.mjs"]
     assert found["paths"] == ["hooks.yml", "scripts/check-*.mjs"]
 
 
-def test_a_session_that_spans_the_window_is_counted(
+def test_a_rule_declared_today_judges_what_was_collected_before(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    main = session(t3_store, "main", repo)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(40))
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1))
-    run(skill_usage_collect())
-
-    found = rule(run(skill_usage_triggers(repo=str(repo))))
-
-    assert (found["sessions_changed"], found["sessions_loaded_first"]) == (1, 0)
-
-
-# ── what counts as a session's own change ───────────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "git merge --ff-only abc123",
-        "git -C /work pull",
-        "git -c core.editor=true rebase origin/main",
-        "git rebase --continue",
-        "git cherry-pick abc123",
-        "git reset --hard origin/main",
-        "git checkout main",
-        "git switch other",
-        "git checkout --detach HEAD^",
-        "git switch -c fix origin/main",
-        "git switch -C codex/fix origin/main",
-        "git checkout -b fix origin/main",
-        "git checkout origin/main -- hooks.yml",
-        "git checkout -",
-        "git switch -",
-        "git restore --source origin/main .",
-        "fnm exec --using=24.18.0 -- git merge --no-edit 91d26e5",
-        "fnm exec --using 24 git switch -c fix abc123",
-        'fnm exec --using="$(cat .nvmrc)" -- pnpm base:sync',
-        '/bin/zsh -lc "fnm exec --using=24 -- git -c core.editor=true rebase origin/main"',
-        "uv run git pull",
-        "gh pr checkout 5",
-        "gh pr merge 5 --squash --delete-branch",
-        "pnpm base:sync",
-        "node scripts/base-sync.mjs",
-        '/bin/zsh -lc "cd work && git merge main"',
-    ],
-)
-def test_a_command_that_moves_the_checkout_to_other_commits(command: str) -> None:
-    assert moves_checkout(command)
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "git merge-base main HEAD",
-        "git merge --abort",
-        "git checkout -b new",
-        "git switch -c new",
-        "git checkout -- hooks.yml",
-        "git reset HEAD~1",
-        "git stash pop",
-        "git restore hooks.yml",
-        "git restore --staged hooks.yml",
-        'fnm exec --using=24 -- git commit -m "merge it later"',
-        "fnm exec --using=24 -- git push",
-        "fnm exec --using=24 -- pnpm test",
-        "uv run pytest",
-        "git status",
-        "git log --merges",
-        'echo "git merge main"',
-        'git commit -m "git pull before the fix"',
-        'rg "git rebase" docs',
-        "pnpm test",
-    ],
-)
-def test_a_command_that_leaves_the_checkout_where_it_was(command: str) -> None:
-    assert not moves_checkout(command)
-
-
-def test_a_turn_that_moved_the_checkout_is_not_read_as_the_sessions_changes(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
+    (repo / "botcore.toml").write_text("", "utf-8")
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    helper = t3_store.thread("thread:subagent:helper", parent=main)
-    t3_store.shell(main, "git merge origin/main", stamp(5))
-    checkpoint(t3_store, main, stamp(5, 1), "hooks.yml", "notes.txt")  # someone else's change
-    t3_store.shell(helper, "git switch -C fix origin/main", stamp(4))  # its subagent moved it
-    checkpoint(t3_store, main, stamp(4, 1), "hooks.yml")
-    t3_store.shell(main, "git merge origin/main", stamp(3, -30), status="failed")
-    checkpoint(t3_store, main, stamp(3, -20), "hooks.yml")  # a conflict leaves their files too
-    t3_store.shell(main, 'echo "git merge main"', stamp(3, 1))
-    t3_store.skill_tool(main, "gate-discipline", stamp(3, 2))
-    checkpoint(t3_store, main, stamp(3, 3), "notes.txt")
-    checkpoint(t3_store, main, stamp(2), "hooks.yml")  # its own change, after the load
-    assert run(skill_usage_collect())["triggers_added"] == 1
-
-    found = rule(run(skill_usage_triggers(repo=str(repo))))
-
-    assert judged(found) == (1, 0, 0)
-
-
-def test_a_move_before_the_window_still_hides_its_turn(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    main = session(t3_store, "main", repo)
-    checkpoint(t3_store, main, stamp(9), "notes.txt")
-    t3_store.shell(main, "git pull", stamp(4))  # older than what the next collection re-reads
-    t3_store.skill_tool(main, "plant-beds", stamp(1))
+    session(t3_store, "main", (101, stamp(2)))
+    t3_store.skill_tool("main", "plant-beds", stamp(3))
     run(skill_usage_collect())
-    checkpoint(t3_store, main, stamp(0), "hooks.yml")  # the same turn ends now
+    assert fail(skill_usage_triggers(repo=str(repo))).code == "NO_REQUIRED_SKILLS"
 
-    assert run(skill_usage_collect())["triggers_added"] == 0
+    (repo / "botcore.toml").write_text(RULES, "utf-8")  # nothing to collect again
 
-
-def test_one_change_is_one_trigger_however_many_things_show_it(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    main = session(t3_store, "main", repo)
-    t3_store.run("turn-1", "claude-opus-5-5")
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1), run_id="turn-1")
-    edit(t3_store, main, "main", repo, "scripts/check-beds.mjs", stamp(1, 1), run_id="turn-1")
-    checkpoint(t3_store, main, stamp(1, 5), "hooks.yml", "scripts/check-beds.mjs", run_id="turn-1")
-
-    assert run(skill_usage_collect())["triggers_added"] == 1  # one turn, one skill
-    (only,) = triggers(state)
-    assert (only.at, only.since) == (stamp(1), None)  # at the edit's own time
-    assert run(skill_usage_collect())["triggers_added"] == 0
-
-
-def test_a_tool_edit_does_not_date_a_change_the_end_of_the_turn_also_shows(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    merge(repo, "feat: a hook and a check (#101)", "hooks.yml", "scripts/check-beds.mjs")
-    main = session(t3_store, "main", repo, 101)
-    helper = t3_store.thread("thread:subagent:helper", parent=main)
-    checkpoint(t3_store, main, stamp(2), "notes.txt")
-    t3_store.skill_tool(main, "gate-discipline", stamp(1, 1))  # after a script changed the hook
-    path = str(repo.parent / "worktree-main" / "scripts" / "check-beds.mjs")
-    t3_store.item(helper, CHANGE, stamp(1, 2), fileName=path)  # then its subagent edited
-    checkpoint(t3_store, main, stamp(1, 5), "hooks.yml", "scripts/check-beds.mjs")
-
-    assert run(skill_usage_collect())["triggers_added"] == 1  # one turn, though two show it
-    (only,) = triggers(state)
-    assert (only.at, only.since) == (stamp(1, 2), stamp(2))  # known by the edit, maybe earlier
-    assert rule(run(skill_usage_triggers(repo=str(repo))))["unknown_why"]["same_turn"] == 1
-
-
-def test_an_edit_belongs_to_the_checkout_of_the_session_that_made_it(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    mine = session(t3_store, "mine", repo)
-    session(t3_store, "theirs", repo)
-    other = str(repo.parent / "worktree-theirs" / "hooks.yml")
-    t3_store.item(mine, CHANGE, stamp(1), fileName=other)  # in another session's checkout
-    assert run(skill_usage_collect())["triggers_added"] == 0
-
-    t3_store.item(mine, CHANGE, stamp(1, 1), fileName="scripts/check-beds.mjs")  # relative
-    assert run(skill_usage_collect())["triggers_added"] == 1
-
-
-def test_a_changed_file_is_placed_inside_its_checkout() -> None:
-    assert inside("/w/tree/scripts/check-a.mjs", [None, "/w/tree"]) == "scripts/check-a.mjs"
-    assert inside("scripts/check-a.mjs", ["/w/tree"]) == "scripts/check-a.mjs"
-    assert inside("./hooks.yml", []) == "hooks.yml"
-    assert inside("C:\\w\\tree\\hooks.yml", ["c:\\W\\Tree\\"]) == "hooks.yml"
-    assert inside("/w/Tree/hooks.yml", ["/w/tree"]) is None  # a POSIX path keeps its case
-    assert inside("/w/tree-two/hooks.yml", ["/w/tree"]) is None
-    assert inside("/elsewhere/hooks.yml", ["/w/tree", None]) is None
-    nested = "/w/tree/.claude/worktrees/task-594/scripts/check-a.mjs"
-    assert inside(nested, ["/w/tree"]) == "scripts/check-a.mjs"  # a checkout inside the checkout
-
-
-def test_a_checkpoint_path_written_by_windows_matches(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    main = session(t3_store, "main", repo)
-    checkpoint(t3_store, main, stamp(1), "scripts\\check-beds.mjs")
-
-    assert run(skill_usage_collect())["triggers_added"] == 1
+    assert rule(run(skill_usage_triggers(repo=str(repo))))["missed"] == 1
 
 
 # ── reading git ─────────────────────────────────────────────────────────────
 
 
 def test_only_what_merged_to_the_default_branch_is_a_merged_change(
-    state: Path, t3_store: T3Store, repo: Path, tmp_path: Path
+    state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    t3_store.skill_tool(session(t3_store, "main", repo), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(1))
     run(skill_usage_collect())
     git(repo, "remote", "remove", "origin")  # a local main only, and a topic branch checked out
     git(repo, "switch", "-q", "-c", "topic")
@@ -529,88 +287,25 @@ def test_a_renamed_or_oddly_named_file_still_matches(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     (repo / "botcore.toml").write_text(RULES.replace("hooks.yml", "café.yml"), "utf-8")
+    merge(repo, "feat: long ago (#99)", "café.yml", days_ago=45)  # outside the window
     merge(repo, "feat: a named file (#101)", "café.yml")
     merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
     git(repo, "mv", "scripts/check-beds.mjs", "notes.txt")
-    git(repo, "commit", "-q", "-m", "chore: move the check away (#103)")
-    t3_store.skill_tool(session(t3_store, "main", repo), "plant-beds", stamp(1))
+    merge(repo, "chore: move the check away (#103)")
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(1))
     run(skill_usage_collect())
 
     assert rule(run(skill_usage_triggers(repo=str(repo))))["changes"] == 3
+    assert rule(run(skill_usage_triggers(days=60, repo=str(repo))))["changes"] == 4
 
 
-# ── rules that change, records that age ─────────────────────────────────────
-
-
-def test_rules_declared_after_collection_need_a_full_read(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    (repo / "botcore.toml").write_text("", "utf-8")
-    merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(3))
-    t3_store.skill_tool(main, "plant-beds", stamp(0))
-    assert run(skill_usage_collect())["triggers_added"] == 0
-    assert fail(skill_usage_triggers(repo=str(repo))).code == "NO_REQUIRED_SKILLS"
-
-    (repo / "botcore.toml").write_text(RULES, "utf-8")
-    assert run(skill_usage_collect())["triggers_added"] == 0  # an hourly run reads a day back
-    before = run(skill_usage_triggers(repo=str(repo)))
-    assert rule(before)["unknown_why"]["no_recorded_change"] == 1
-    assert "--rebuild" in before["warnings"][0]  # and the warning outlives that run
-
-    assert run(skill_usage_collect(rebuild=True))["triggers_added"] == 1
-    after = run(skill_usage_triggers(repo=str(repo)))
-
-    assert rule(after)["missed"] == 1 and after["warnings"] == []
-
-
-def test_evidence_gathered_under_other_paths_is_not_judged(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(3))
-    t3_store.skill_tool(main, "plant-beds", stamp(0))
-    run(skill_usage_collect())
-    assert rule(run(skill_usage_triggers(repo=str(repo))))["missed"] == 1
-
-    (repo / "botcore.toml").write_text(RULES.replace("hooks.yml", "new.yml"), "utf-8")
-    run(skill_usage_collect())
-    changed = run(skill_usage_triggers(repo=str(repo)))
-
-    assert judged(rule(changed)) == (0, 0, 0)  # hooks.yml no longer requires the skill
-    assert "--rebuild" in changed["warnings"][0]
-
-
-def test_the_weekly_full_read_reads_the_past_under_a_changed_rule(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    (repo / "botcore.toml").write_text(RULES.replace('"hooks.yml", ', ""), "utf-8")
-    merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    t3_store.run("turn-1", "claude-opus-5-5")
-    edit(t3_store, main, "main", repo, "scripts/check-beds.mjs", stamp(3), run_id="turn-1")
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(3, 1), run_id="turn-1")
-    t3_store.skill_tool(main, "plant-beds", stamp(0))
-    assert run(skill_usage_collect())["triggers_added"] == 1  # the check, under the old paths
-
-    (repo / "botcore.toml").write_text(RULES, "utf-8")  # the hook requires the skill too now
-    saved = store.load_state(state)
-    saved["sources"][t3.SOURCE]["stores"][str(t3_store.path)]["full_at"] = stamp(8)
-    store.save_state(state, saved)
-    weekly = run(skill_usage_collect())  # the same turn, read again under the new paths
-    after = run(skill_usage_triggers(repo=str(repo)))
-
-    assert weekly["sources"][0]["since"] is None and weekly["triggers_added"] == 1
-    assert rule(after)["missed"] == 1 and after["warnings"] == []
+# ── what the record must be to be judged from ───────────────────────────────
 
 
 def test_a_damaged_record_judges_nothing(state: Path, t3_store: T3Store, repo: Path) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
+    main = session(t3_store, "main", (101, stamp(1)))
     t3_store.skill_tool(main, "gate-discipline", stamp(2))
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1))
     run(skill_usage_collect())
     with (state / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
         handle.write('{"id": "a lost load\n')
@@ -624,47 +319,31 @@ def test_a_damaged_record_judges_nothing(state: Path, t3_store: T3Store, repo: P
 
 def test_only_a_load_counts_as_a_load(state: Path, t3_store: T3Store, repo: Path) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1))
+    main = session(t3_store, "main", (101, stamp(1)))
     t3_store.skill_tool(main, "plant-beds", stamp(2))
+    t3_store.item(main, "file_change", stamp(2, 1), fileName=SKILL_FILE)  # it edited the skill
     run(skill_usage_collect())
-    (load,) = collected(state)
+    load = next(found for found in collected(state) if found.path == "skill_tool")
     unknown = {**load.to_json(), "id": "newer", "skill": "gate-discipline", "path": "something-new"}
     with (state / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(unknown) + "\n")
 
     assert rule(run(skill_usage_triggers(repo=str(repo))))["missed"] == 1
-    assert "gate-discipline" not in rows(run(skill_usage_report()))
+    assert "gate-discipline" not in rows(run(skill_usage_report()))  # nor a use of it
 
 
-def test_nothing_but_a_time_and_a_name_reaches_the_record(
+def test_nothing_but_a_time_and_a_number_is_kept_of_a_link(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    session(
-        t3_store, "main", repo, (101, f"2026-01-01 and {PRIVATE}"), (102, "2026-11-01T10:00:00Z")
-    )
+    session(t3_store, "main", (101, f"2026-01-01 and {PRIVATE}"), (102, "2026-11-01T10:00:00Z"))
     t3_store.skill_tool("main", "plant-beds", stamp(1))
     run(skill_usage_collect())
 
     assert PRIVATE not in (state / store.SESSIONS_FILE).read_text("utf-8")
     assert store.load_sessions(state)["main"]["pull_requests"] == [
-        {"ref": "acme/garden#101", "linked_at": None},
-        {"ref": "acme/garden#102", "linked_at": "2026-11-01T10:00:00.000Z"},
+        {"ref": "acme/garden#101", "linked_at": None, "branch": None},
+        {"ref": "acme/garden#102", "linked_at": "2026-11-01T10:00:00.000Z", "branch": None},
     ]
-
-
-def test_a_change_that_requires_a_skill_is_not_a_use_of_it(
-    state: Path, t3_store: T3Store, repo: Path
-) -> None:
-    main = session(t3_store, "main", repo)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1))
-    assert run(skill_usage_collect())["triggers_added"] == 1
-
-    data = run(skill_usage_report())
-
-    assert data["skills"] == [] and collected(state) == []  # in a file of its own
-    assert "gate-discipline" in [entry["skill"] for entry in data["quiet"]]
-    assert [found.skill for found in triggers(state)] == ["gate-discipline"]
 
 
 # ── refusals, warnings, the command line ────────────────────────────────────
@@ -673,7 +352,7 @@ def test_a_change_that_requires_a_skill_is_not_a_use_of_it(
 def test_a_repository_the_record_never_saw_is_said_to_be_unknown(
     state: Path, t3_store: T3Store, repo: Path, tmp_path: Path
 ) -> None:
-    t3_store.skill_tool(session(t3_store, "main", repo), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(1))
     run(skill_usage_collect())
     other = tmp_path / "orchard"
     other.mkdir()
@@ -693,7 +372,7 @@ def test_triggers_refuse_what_they_cannot_answer(
     state: Path, t3_store: T3Store, repo: Path, tmp_path: Path
 ) -> None:
     assert fail(skill_usage_triggers(repo=str(repo))).code == "NOT_COLLECTED"
-    t3_store.skill_tool(session(t3_store, "main", repo), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(1))
     run(skill_usage_collect())
 
     assert fail(skill_usage_triggers(days=0, repo=str(repo))).code == "INVALID_INPUT"
@@ -711,17 +390,19 @@ def test_an_odd_or_old_record_does_not_break_the_report(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    t3_store.skill_tool(session(t3_store, "main", repo, 101), "plant-beds", stamp(1))
+    t3_store.skill_tool(session(t3_store, "main", (101, stamp(1))), "plant-beds", stamp(2))
     run(skill_usage_collect())
     saved = store.load_state(state)
     saved["projects"]["acme/garden"]["roots"] = 7
     saved["collected_at"] = stamp(3)
     store.save_state(state, saved)
+    sessions = store.load_sessions(state)
+    sessions["odd"] = {"pull_requests": 7, "project": None}
+    store.save_sessions(state, sessions)
 
     data = run(skill_usage_triggers(repo=str(repo)))
 
-    assert rule(data)["unknown_why"]["no_recorded_change"] == 1
-    assert "Last collected" in data["warnings"][0]
+    assert rule(data)["missed"] == 1 and "Last collected" in data["warnings"][0]
     (state / store.SESSIONS_FILE).write_text("{ half a file", "utf-8")
     assert fail(skill_usage_triggers(repo=str(repo))).code == "RECORD_UNAVAILABLE"
 
@@ -730,8 +411,7 @@ def test_the_triggers_command_runs_from_the_command_line(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml")
-    main = session(t3_store, "main", repo, 101)
-    edit(t3_store, main, "main", repo, "hooks.yml", stamp(1))
+    t3_store.skill_tool(session(t3_store, "main", (101, stamp(1))), "plant-beds", stamp(2))
     run(skill_usage_collect())
 
     result = CliRunner().invoke(cli, ["skill-usage-triggers", "--repo", str(repo), "--json"])
@@ -749,7 +429,7 @@ def test_required_skills_load_from_the_configuration(tmp_path: Path) -> None:
         "skill = 'x'\n",
         "skill = 'x'\npaths = []\n",
         "paths = ['a']\n",
-        f"skill = '/work/{PRIVATE}.md'\npaths = ['a']\n",  # only a name goes in the record
+        f"skill = '/work/{PRIVATE}.md'\npaths = ['a']\n",  # only a skill's name is accepted
     )
     for body in wrong:
         (tmp_path / "botcore.toml").write_text(f"[[skills.required]]\n{body}", "utf-8")

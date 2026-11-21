@@ -147,8 +147,9 @@ T3 Code's store is another program's internal schema, not an interface:
 ### Sessions
 
 Collection also writes `sessions.json`: every session T3 Code holds, whether or not it loaded
-a skill, with its root, agent, harness, project, first and last activity, and the pull
-requests T3 Code linked to it (`owner/name#number`). It holds no title and no branch. It is
+a skill, with its root, agent, harness, project, first and last activity, the pull requests
+T3 Code linked to it (`owner/name#number`, when, and the branch each came from) and the branch
+it works on. A branch is kept as a hash, never by name, and no title is kept. It is
 the denominator of every share, and what ties a session to the change it produced. It is
 written from the first collection, since T3 Code does not keep its threads for ever.
 
@@ -196,7 +197,7 @@ rename table covers the skills it ships. A name the checkout still holds is neve
 | --- | --- | --- | --- |
 | `skill-usage-collect` | `since_days`, `t3_store` with `machine`, `rebuild` | `machine`, `added`, `events`, `sessions`, and per source `status` (`read`, `absent`, `off`), `since`, `scanned`, `found`, `added` | `INVALID_INPUT`, `SOURCE_NOT_FOUND`, `SOURCE_SCHEMA_CHANGED`, `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING` |
 | `skill-usage-report` | `days`, `ending_days_ago`, `project`, `harness`, `skill`, `agent`, `limit` | `window`, `totals`, `skills` (per skill: `sessions`, `of_sessions`, `share`, `loads`, `typed_sessions`, `harnesses`, `models`, `machines`, `agents`, `paths`, `last_used`, `also_loaded_as`, `authoring_sessions`, `size_bytes`, `max_context_bytes`, `listing_chars`), `more`, `quiet`, `record`, `warnings` | `INVALID_INPUT`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
-| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown` with `unknown_why`, `rate`, `misses` naming each change and its sessions, `sessions_changed`, `sessions_loaded_first` and `sessions_order_unknown` | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
+| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown` with `unknown_why`, `rate`, and `misses` naming each change and its sessions | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
 
 The unit of the report is a session that used a skill, out of the sessions the project had. A
 skill read three times in one session, in parts, is one use; `loads` counts the reads.
@@ -219,66 +220,42 @@ skill = "gate-discipline"
 paths = ["lefthook.yml", ".github/workflows/ci.yml", "scripts/check-*.mjs"]
 ```
 
-Collection records each turn in which a session changed such a path, in `triggers.jsonl`: the
-skill required and the declaration that saw it, never the file. It is a file of its own so
-that a botcore that knows nothing of it never reads a change as a load. Two things in the
-store show a change:
+The report uses only what is known for certain:
 
-- **A file edit a tool made**, at the moment it made it, in the checkout of the session that
-  made it (its own, or the session's it works for; never another session's).
-- **The files a turn left changed** in the session's checkout (a checkpoint), which sees an
-  edit whatever made it but says only that it happened during the turn. A turn that moved the
-  checkout to other commits lists other people's changes, so it is not read: a merge, pull,
-  rebase or cherry-pick, a hard reset, a restore from another commit, a checkout of another
-  commit (a new branch counts only when it starts somewhere else), `gh pr checkout`,
-  `gh pr merge` or a base sync; run by the session or a subagent of it, directly, through a
-  shell or through a runner (`fnm exec … -- git merge`), and however it ended, since a merge
-  that stopped on a conflict has already brought the files. On the machine first measured, 29
-  of the 34 turns that left a gate file changed were such turns.
+- **Which merged changes touched those paths**, from git: every path a change touched, both
+  sides of a rename, on the branch the checkout says is the default, never the checked-out
+  commit.
+- **Which sessions a change belongs to**, from the record: those T3 Code linked to its pull
+  request, with when, and those that worked on the branch it came from. In a fleet a script
+  publishes the change, so the session that made it is known only by its branch. A branch is
+  kept in the record as a hash, never by name.
+- **When each session loaded the skill**, itself or through a subagent, from the record. A
+  load by another task under the same root does not count: forty cells of one fleet are forty
+  sessions.
 
-One turn's changes for one skill are one record, at the edit's own time when a tool made it.
-Where the end of the turn shows a required path that no edit covers, the record keeps the
-turn's beginning as the earliest that part can have happened.
-
-For each change merged to the default branch in the window whose files match, the report finds
-the sessions T3 Code linked to its pull request, and says whether each one that changed a
-required path had loaded the skill before its first such change, itself or through a
-subagent. A load at review time does not count, nor does a load by another task under the same
-root: forty cells of one fleet are forty sessions. Each miss names its change and its sessions,
-so that the session can be opened. The diff side comes from git (every path a change touched,
-both sides of a rename, on the branch the checkout says is the default, never the checked-out
-commit), the load side and the session's changes from the record, and the tie between them
-from `sessions.json`.
-
-A session linked to several pull requests is judged one at a time: what it changed after
-linking the one before, up to the next one it linked or the merge, built this one. The skill
-counts as loaded first only when it was loaded before the earliest moment any of those changes
-can have happened, and as missed only when it was not loaded by the first moment one is known
-to have.
-
-A change is unknown, never a miss, wherever the record cannot establish who made it or in
-which order:
+A change is **loaded** when one of its sessions had loaded the skill by the time the pull
+request was linked, and before it merged. It is **missed** when none of its sessions loaded
+the skill before it merged, and names those sessions, so that one can be opened. Otherwise it
+is unknown, never a miss:
 
 - it has no pull request number;
-- no session on a collected machine is linked to it;
-- a session linked several pull requests and one link has no time, so which change built
-  which cannot be told;
-- no change of the linked sessions was recorded (it was made in a turn that also moved the
-  checkout, after the merge, or on a machine not collected);
-- the change was made while the pull request the session linked before was still open, so it
-  may be a fix to that one;
-- the skill was loaded in the very turn that made the change, and only the end of the turn
-  shows the change.
+- no session on a collected machine belongs to it;
+- a session loaded the skill before the merge, and its link has no time;
+- the skill was loaded only after the pull request was linked: at review, or for a later
+  push. The record cannot say which.
 
-The report also counts, whatever was merged, the sessions that changed a required path and how
-many had loaded the skill first. A record with a line it cannot read judges nothing: a lost
-load would make a miss, and a lost change the reverse.
+A record with a line it cannot read judges nothing: a lost load would make a miss. Nothing is
+collected for the rules, so a rule declared today judges the record as it stands.
 
-Each record carries the identity of the declaration that saw it, as part of its own. After a
-repository declares or changes its required skills, evidence gathered under the old paths is
-not judged, a turn read again under the new ones is a new record, and until a full read
-(`skill-usage-collect --rebuild`, or the weekly one) has read the history under them, the
-report says so.
+**What was tried and dropped.** The first design judged each session by its first change to a
+required path, read from what T3 Code records of a turn: the files a turn left changed. A
+checkout is moved under a session by merges, sync scripts and other sessions sharing it, and a
+moved file looks like a changed one. Three rounds of review each found another way: a merge
+through `fnm exec`, a merge that stopped on a conflict, a branch started somewhere else, a
+repository's own sync script, a shared checkout moved between a session's turns. On the
+machine first measured, 4 of the 5 changes that survived every filter were still not the
+session's own. Who published a change and when is recorded outright, and needs no such
+inference.
 
 The declaration is the one source of which skill a change requires. A repository whose
 instruction file also lists required skills checks that list against it. Which skills a
@@ -312,10 +289,11 @@ for the schedule.
   skills, and one of a project whose checkout is not on the machine all count as use.
 - **A thread moved between machines** may be counted on both until phase 3 compares two
   machines' records.
-- **A change the triggers report cannot judge.** One made in a turn that also moved the
-  checkout to other commits, unless a tool made the edit; and one made while the pull request
-  the session linked before was still open, which may belong to either. Both are reported as
-  unknown, not as a miss.
+- **What the triggers report cannot tell.** Whether the skill was still in the agent's
+  context when it made the change: a long session that loaded it days before counts as
+  loaded. Which of several sessions of one change made it: one that had loaded the skill
+  answers for all. And a change published by a script that no thread linked: without a link
+  nothing says which branch it came from, so it is unknown.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.
 - **Windows and Linux** are covered by tests of the recognition and paths, and are first
@@ -360,8 +338,8 @@ in his words and without the author's conclusions.
 
 **Accepted, for a later phase.**
 
-- Missed triggers count a load only by the session that made the change, before its first
-  change to a required path, and name the sessions that missed (phase 2).
+- Missed triggers count a load only by a session of the change, by the time it was published,
+  and name the sessions that missed (phase 2).
 - The first collection on each machine is run by hand as soon as phase 1 merges, and a lasting
   failure shows in the hourly job's status (phase 3).
 - The shared folder must be private (phase 3).

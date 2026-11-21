@@ -9,6 +9,7 @@ reported instead of guessed at.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass, field
@@ -82,8 +83,9 @@ class Thread:
     model: str | None  # its current setting: the truth only for a thread that cannot switch
     created_at: str | None = None
     updated_at: str | None = None
-    pull_requests: tuple[tuple[str, str | None], ...] = ()  # (owner/name#number, linked at)
-    worktree: str | None = None  # the checkout it works in
+    # (owner/name#number, linked at, the branch it came from)
+    pull_requests: tuple[tuple[str, str | None, str | None], ...] = ()
+    branch: str | None = None  # the branch it works on, as `branch_id` gives it
 
 
 @dataclass
@@ -115,7 +117,8 @@ class Session:
     project_id: str | None
     created_at: str | None
     updated_at: str | None
-    pull_requests: tuple[tuple[str, str | None], ...]
+    pull_requests: tuple[tuple[str, str | None, str | None], ...]
+    branch: str | None = None
 
 
 @dataclass
@@ -200,15 +203,25 @@ def _moment(value: object) -> str | None:
     return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _pull_requests(value: object) -> tuple[tuple[str, str | None], ...]:
+def branch_id(name: object) -> str | None:
+    """What stands for a branch in the record: enough to tell that a session worked on the
+    branch a pull request came from, without keeping the name, which is often a task's title."""
+    return hashlib.sha256(name.encode()).hexdigest()[:12] if _text(name) else None
+
+
+def _pull_requests(value: object) -> tuple[tuple[str, str | None, str | None], ...]:
     """The pull requests T3 Code linked to a thread, as `owner/name#number`, each with when
-    it was linked."""
-    found: list[tuple[str, str | None]] = []
+    it was linked (when the session published the change, or took it over) and the branch it
+    came from."""
+    found: list[tuple[str, str | None, str | None]] = []
     for entry in value if isinstance(value, list) else []:
         entry = _mapping(entry)
         repository, number = _text(entry.get("repository")), entry.get("number")
         if repository and isinstance(number, int):
-            found.append((f"{repository}#{number}", _moment(entry.get("linkedAt"))))
+            head = _mapping(entry.get("snapshot")).get("headBranch")
+            found.append(
+                (f"{repository}#{number}", _moment(entry.get("linkedAt")), branch_id(head))
+            )
     return tuple(found)
 
 
@@ -231,7 +244,7 @@ def _threads(connection: sqlite3.Connection) -> dict[str, Thread]:
             created_at=_text(payload.get("createdAt")),
             updated_at=_text(payload.get("updatedAt")),
             pull_requests=_pull_requests(payload.get("pullRequests")),
-            worktree=_text(payload.get("worktreePath")),
+            branch=branch_id(payload.get("branch")),
         )
     return threads
 
@@ -351,16 +364,6 @@ class _Shapes:
             raise SchemaChanged(missing)
 
 
-def command_of(payload: dict) -> str:
-    """The command a recorded item ran, as text; never its output."""
-    command = payload.get("input")
-    if isinstance(command, dict):
-        command = command.get("command")
-    if isinstance(command, list):
-        command = " ".join(str(part) for part in command)
-    return command if isinstance(command, str) else ""
-
-
 def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     """(skill, path) for each load one recorded item shows, and for each change to a skill's
     files (path `edit`). A tool call, command or change counts only once it completed, and a
@@ -393,7 +396,12 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
                 if name:
                     return [(name, FILE_READ)]
         return []
-    return [(name, SHELL_READ) for name in skills_read_by(command_of(payload))]
+    command = payload.get("input")
+    if isinstance(command, dict):
+        command = command.get("command")
+    if isinstance(command, list):
+        command = " ".join(str(part) for part in command)
+    return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
 
 
 def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
@@ -411,6 +419,7 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
                 created_at=thread.created_at,
                 updated_at=thread.updated_at,
                 pull_requests=thread.pull_requests,
+                branch=thread.branch,
             )
         )
     return sessions

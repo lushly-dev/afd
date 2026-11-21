@@ -112,10 +112,10 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
   that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
   or edit that names the file is not a load, nor a read sent to a file, a count or a search.
-- It also records each session, with the pull requests T3 Code linked to it and when, whether
-  or not it loaded a skill; each change a session made to a skill's files; and each turn that
-  changed a path the project's `[[skills.required]]` names (`loads_added`, `edits_added` and
-  `triggers_added` count the three).
+- It also records each session, whether or not it loaded a skill, with the pull requests T3
+  Code linked to it, when, and the branch it works on (kept as a hash, never the name); and
+  each change a session made to a skill's files (`loads_added` and `edits_added` count the
+  two kinds of event).
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
@@ -158,41 +158,23 @@ first (`NOT_COLLECTED` otherwise).
 
 ## skill_usage_triggers(days=30, repo=None)
 Read-only. For each skill a repository requires, the changes merged to its default branch in
-the last `days` days that touched the skill's paths, and whether the session that made each
-had loaded the skill first. A repository declares them in its botcore configuration:
+the last `days` days that touched the skill's paths, and whether a session that published each
+had loaded the skill by then. A repository declares them in its botcore configuration:
 `[[skills.required]]` with `skill = "<name>"` and `paths = ["<glob>", ...]` (`*` stays in one
-folder, `**` spans folders); several tables for one skill are one rule.
-- `skill_usage_collect` records each turn in which a session changed such a path, in
-  `triggers.jsonl` (the skill required, never the file). An edit a tool made is seen at its
-  own moment. An edit made any other way is seen in the files its turn left changed, which
-  says only that it happened during the turn. A turn in which the session or a subagent of it
-  ran a command that moves the checkout to other commits lists other people's changes, so it
-  is not read: a merge, pull, rebase or cherry-pick, a hard reset, a restore from another
-  commit, a checkout of another commit, `gh pr checkout` or `gh pr merge`, a base sync;
-  directly, through a shell or through a runner (`fnm exec … -- git merge`), and however the
-  command ended.
-- Per rule: `changes`; `loaded` (every session linked to the change's pull request that
-  changed a required path had loaded the skill before its first such change, itself or through
-  a subagent; a load at review time does not count); `missed`, with `misses` naming each
-  change's pull request and the sessions that had not loaded it; `rate` (loaded out of loaded
-  and missed); and `unknown`, with `unknown_why`: `no_pull_request`, `no_session` on a
-  collected machine, `no_link_time` (a session linked several and one has no time),
-  `no_recorded_change` in the linked sessions, `between_pull_requests` (the change was made
-  while the pull request the session linked before was still open, so it may be a fix to that
-  one) and `same_turn` (the skill was loaded in the turn that made the change, so the order
-  is not known).
-- A session linked to several pull requests is judged one at a time: what it changed after
-  linking the one before, up to the next one it linked or the merge, built this one.
-- A skill counts as loaded first only when it was loaded before the earliest moment any of
-  those changes can have happened, and as missed only when it was not loaded by the first
-  moment one is known to have.
-- `sessions_changed`, `sessions_loaded_first` and `sessions_order_unknown` count the sessions
-  that changed a required path in the window, whatever was merged.
+folder, `**` spans folders); several tables for one skill are one rule. Nothing is collected
+for it: a rule declared today judges the record as it stands.
+- It uses three things: which merged changes touched those paths (git); which sessions the
+  harness linked to each change's pull request and when, or that worked on the branch it came
+  from (the record); and when each session loaded the skill, itself or through a subagent
+  (the record). What a session changed turn by turn is not used.
+- Per rule: `changes`; `loaded` (a session of the change had loaded the skill by the time the
+  pull request was linked, and before it merged); `missed` (no session of the change loaded
+  the skill before it merged), with `misses` naming each change's pull request and its
+  sessions; `rate` (loaded out of loaded and missed); and `unknown`, with `unknown_why`:
+  `no_pull_request`, `no_session` on a collected machine, `no_link_time` (a session loaded the
+  skill before the merge, and its link has no time), and `after_publication` (the skill was
+  loaded only after the pull request was linked: at review, or for a later push).
 - `repo`: the repository's checkout; the one holding the working directory when left out.
-- After declaring or changing required skills, run `skill_usage_collect(rebuild=True)`. Until
-  the record's history has been read in full under the rules as they are now (a rebuild, or
-  the weekly full read), changes made before are unknown and `warnings` says so; evidence
-  gathered under other paths is not judged.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),
   `RECORD_DAMAGED` (a line of the record cannot be read: rebuild), `RECORD_UNAVAILABLE`,

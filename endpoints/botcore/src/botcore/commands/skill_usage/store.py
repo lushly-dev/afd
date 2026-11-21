@@ -13,7 +13,7 @@ import platform
 import sys
 from pathlib import Path
 
-from botcore.commands.skill_usage.events import Event, Trigger
+from botcore.commands.skill_usage.events import Event
 
 STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
 T3_STORE_ENV = "BOTCORE_SKILL_USAGE_T3_STORE"
@@ -21,9 +21,6 @@ MACHINE_ENV = "BOTCORE_SKILL_USAGE_MACHINE"
 EVENTS_FILE = "events.jsonl"
 STATE_FILE = "state.json"
 SESSIONS_FILE = "sessions.json"
-# In a file of its own: a botcore that knows nothing of triggers reads events.jsonl and
-# would take any event there for a load.
-TRIGGERS_FILE = "triggers.jsonl"
 LOCK_FILE = "collect.lock"
 
 
@@ -82,67 +79,23 @@ def load_events(directory: Path) -> tuple[list[Event], int]:
     return list(events.values()), unreadable
 
 
-def _append(path: Path, lines: list[str]) -> None:
-    """Add lines to a file of the record. A final line an interrupted write left unfinished
-    is closed first, so the next line is not joined to it and lost with it."""
-    if not lines:
+def append_events(directory: Path, events: list[Event]) -> None:
+    """Add events to the record. A repeated id is harmless: readers keep the first. A final
+    line an interrupted write left unfinished is closed first, so the next event is not
+    joined to it and lost with it."""
+    if not events:
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as handle:
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / EVENTS_FILE).open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
         if handle.tell():
             handle.seek(-1, os.SEEK_END)
             if handle.read(1) != b"\n":
                 handle.write(b"\n")
-        for line in lines:
-            handle.write((line + "\n").encode("utf-8"))
+        for event in events:
+            handle.write((json.dumps(event.to_json(), sort_keys=True) + "\n").encode("utf-8"))
         handle.flush()
         os.fsync(handle.fileno())
-
-
-def append_events(directory: Path, events: list[Event]) -> None:
-    """Add events to the record. A repeated id is harmless: readers keep the first."""
-    _append(
-        directory / EVENTS_FILE, [json.dumps(event.to_json(), sort_keys=True) for event in events]
-    )
-
-
-def load_triggers(directory: Path) -> tuple[list[Trigger], int]:
-    """Every recorded change that required a skill, each id once, and how many lines could
-    not be read."""
-    triggers: dict[str, Trigger] = {}
-    unreadable = 0
-    try:
-        with (directory / TRIGGERS_FILE).open(encoding="utf-8") as handle:
-            for line in handle:
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                except ValueError:
-                    unreadable += 1
-                    continue
-                trigger = Trigger.from_json(data) if isinstance(data, dict) else None
-                if trigger is None:
-                    unreadable += 1
-                elif trigger.id not in triggers:
-                    triggers[trigger.id] = trigger
-    except FileNotFoundError:
-        return [], 0
-    return list(triggers.values()), unreadable
-
-
-def append_triggers(directory: Path, triggers: list[Trigger]) -> None:
-    _append(
-        directory / TRIGGERS_FILE,
-        [json.dumps(trigger.to_json(), sort_keys=True) for trigger in triggers],
-    )
-
-
-def rewrite_triggers(directory: Path, triggers: list[Trigger]) -> None:
-    """Replace the whole file: what a rebuild does, and nothing else."""
-    lines = [json.dumps(trigger.to_json(), sort_keys=True) for trigger in triggers]
-    _replace(directory / TRIGGERS_FILE, "".join(line + "\n" for line in lines))
 
 
 def _replace(path: Path, text: str) -> None:
