@@ -113,7 +113,8 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
   or edit that names the file is not a load, nor a read sent to a file, a count or a search.
 - It also records each session, with the pull requests T3 Code linked to it, whether or not it
-  loaded a skill, and each change a session made to a skill's files.
+  loaded a skill, and each change a session made to a skill's files (`loads_added` and
+  `edits_added` count the two).
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
@@ -139,9 +140,9 @@ first (`NOT_COLLECTED` otherwise).
 - A session is a thread a person started or a task delegated to its own agent; a subagent's
   load counts under the session it works for. A skill read three times in one session is one
   use. A typed request is a load unless a tool then loads the skill within ten minutes.
-- Not counted as use: a session that changed the skill's files (`authoring_sessions`), and a
-  session that loaded 12 or more of a project's skills, which was reading the skills, not
-  working with them (`totals.wide_sessions`).
+- Not counted as use: a session that changed the skill's files (`authoring_sessions`), and an
+  audit, which is one session loading two thirds or more of the skills the project's checkout
+  holds (and at least 12) within 30 minutes (`totals.audit_sessions`).
 - `quiet`: skills a project's checkout holds (`.claude/skills`, `.agents/skills`,
   `.codex/skills`) that nothing used in the window.
 - `project`: `owner/name` or the name alone. `harness`: `claude` or `codex`. `agent`: `main`,

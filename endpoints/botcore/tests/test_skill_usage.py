@@ -621,6 +621,32 @@ def test_a_changed_store_is_reported_not_read_as_no_use(
     assert not (state / store.EVENTS_FILE).exists()
 
 
+def test_a_store_without_its_items_table_is_a_changed_store(state: Path, t3_store: T3Store) -> None:
+    with t3_store.connect() as connection:
+        connection.execute(f"alter table {t3.ITEMS} rename to items_v3")
+
+    changed = fail(skill_usage_collect())
+
+    assert changed.code == "SOURCE_SCHEMA_CHANGED" and t3.ITEMS in changed.message
+
+
+def test_subagents_that_lost_their_parents_are_a_changed_store(
+    state: Path, t3_store: T3Store
+) -> None:
+    main = t3_store.thread("main-1")
+    child = t3_store.thread("thread:subagent:r1", parent=main)
+    t3_store.skill_tool(child, "plant-beds", stamp(1))
+    with t3_store.connect() as connection:
+        connection.execute(
+            f"update {t3.THREADS} set payload_json = replace(payload_json, 'lineage', 'family')"
+        )
+        connection.execute(f"drop table {t3.SUBAGENTS}")
+
+    changed = fail(skill_usage_collect())
+
+    assert changed.code == "SOURCE_SCHEMA_CHANGED" and "lineage" in changed.message
+
+
 def test_an_older_store_without_the_optional_tables_is_read(state: Path, t3_store: T3Store) -> None:
     t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
     with t3_store.connect() as connection:
@@ -666,6 +692,20 @@ def test_a_record_folder_that_cannot_be_used_is_an_error_with_a_way_forward(
 
     assert fail(skill_usage_collect()).code == "RECORD_UNAVAILABLE"
     assert fail(skill_usage_report()).code == "RECORD_UNAVAILABLE"
+
+
+def test_a_damaged_record_file_is_refused_or_survived(state: Path, t3_store: T3Store) -> None:
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+
+    (state / store.STATE_FILE).write_text('{"projects": {"garden": {"roots": 5}}}', "utf-8")
+    assert run(skill_usage_report())["totals"]["sessions"] == 1
+    assert run(skill_usage_collect())["added"] == 0  # the state is rebuilt, nothing is lost
+
+    (state / store.SESSIONS_FILE).write_text("{ half a file", "utf-8")
+    assert fail(skill_usage_collect()).code == "RECORD_UNAVAILABLE"
+    assert fail(skill_usage_report()).code == "RECORD_UNAVAILABLE"
+    assert (state / store.SESSIONS_FILE).read_text("utf-8") == "{ half a file"  # not overwritten
 
 
 # ── naming projects ─────────────────────────────────────────────────────────
@@ -805,33 +845,70 @@ def test_a_session_that_edits_a_skill_is_writing_it_not_using_it(
     t3_store.read_tool(author, "/w/.claude/skills/prune-roses/SKILL.md", stamp(2, 6))
     t3_store.item(author, t3.CHANGE, stamp(2, 7), status="failed",
                   fileName="/w/.claude/skills/prune-roses/SKILL.md")  # fmt: skip
+    t3_store.read_tool(author, "/w/.claude/skills/build-beds/SKILL.md", stamp(2, 8))
+    t3_store.item(
+        author, t3.CHANGE, stamp(2, 9), driver="codex", fileName="/w/notes.md",
+        changes=[{"operation": "update", "path": "/w/notes.md"},
+                 {"operation": "update", "path": "/w/.claude/skills/build-beds/SKILL.md"}],
+    )  # fmt: skip
     t3_store.skill_tool(user, "plant-beds", stamp(1))
-    run(skill_usage_collect())
+    t3_store.skill_tool(user, "build-beds", stamp(1, 1))
+    gathered = run(skill_usage_collect())
+    assert (gathered["loads_added"], gathered["edits_added"]) == (5, 2)
 
     data = run(skill_usage_report())
     found = rows(data)
 
     assert found["plant-beds"]["sessions"] == 1 and found["plant-beds"]["authoring_sessions"] == 1
+    assert found["build-beds"]["authoring_sessions"] == 1  # second file of one Codex patch
     assert found["prune-roses"]["sessions"] == 1  # the edit that failed changed nothing
     assert data["totals"]["authoring_sessions"] == 1
     assert SECRET not in (state / store.EVENTS_FILE).read_text(encoding="utf-8")
 
 
-def test_a_session_that_reads_most_skills_is_an_audit_not_use(
-    state: Path, t3_store: T3Store
+def test_a_burst_of_reads_across_most_skills_is_an_audit_not_use(
+    state: Path, t3_store: T3Store, checkout: Path
 ) -> None:
-    audit, user = t3_store.thread("main-1"), t3_store.thread("main-2")
-    for number in range(12):
+    for number in range(28):  # with the two it has, the checkout holds thirty skills
+        folder = checkout / ".claude" / "skills" / f"skill-{number}"
+        folder.mkdir()
+        (folder / "SKILL.md").write_text(skill_text(f"skill-{number}", "A skill.", 80), "utf-8")
+    audit, user, cell, worker = (t3_store.thread(f"main-{number}") for number in (1, 2, 3, 4))
+    for number in range(20):  # two thirds of them in twenty minutes: reading the skills
         t3_store.read_tool(audit, f"/w/.claude/skills/skill-{number}/SKILL.md", stamp(1, number))
-    t3_store.read_tool(audit, "/w/.claude/skills/prune-roses/SKILL.md", stamp(1, 20))
+    t3_store.skill_tool(audit, "plant-beds", stamp(1, 300))  # hours later: ordinary work
     t3_store.skill_tool(user, "plant-beds", stamp(1))
+    for number in range(15):  # a cell and its reviewers load fifteen in ten minutes: work
+        t3_store.read_tool(cell, f"/w/.claude/skills/skill-{number}/SKILL.md", stamp(3, number))
+    for number in range(20):  # twenty over a working day is work too
+        t3_store.skill_tool(worker, f"skill-{number}", stamp(2, number * 40))
+    run(skill_usage_collect())
+
+    data = run(skill_usage_report())
+    found = rows(data)
+
+    assert found["plant-beds"]["sessions"] == 2
+    assert found["skill-3"]["sessions"] == 2 and found["skill-17"]["sessions"] == 1
+    assert data["totals"]["audit_sessions"] == 1
+    assert "skill-25" in [entry["skill"] for entry in data["quiet"]]
+    # a filter never changes what counts as an audit
+    assert rows(run(skill_usage_report(skill="skill-3")))["skill-3"]["sessions"] == 2
+    assert rows(run(skill_usage_report(skill="skill-17")))["skill-17"]["sessions"] == 1
+    assert rows(run(skill_usage_report(agent="main")))["skill-17"]["sessions"] == 1
+
+
+def test_one_audit_cannot_empty_the_quiet_list(state: Path, t3_store: T3Store) -> None:
+    audit = t3_store.thread("main-1")
+    for number in range(12):
+        t3_store.read_tool(audit, f"/w/.claude/skills/other-{number}/SKILL.md", stamp(1, number))
+    t3_store.read_tool(audit, "/w/.claude/skills/prune-roses/SKILL.md", stamp(1, 12))
+    t3_store.read_tool(audit, "/w/.claude/skills/plant-beds/SKILL.md", stamp(1, 13))
     run(skill_usage_collect())
 
     data = run(skill_usage_report())
 
-    assert list(rows(data)) == ["plant-beds"]
-    assert data["totals"]["wide_sessions"] == 1
-    assert [entry["skill"] for entry in data["quiet"]] == ["prune-roses"]
+    assert data["skills"] == [] and data["totals"]["audit_sessions"] == 1
+    assert [entry["skill"] for entry in data["quiet"]] == ["plant-beds", "prune-roses"]
 
 
 def test_a_rebuild_replaces_what_was_recognised_before(state: Path, t3_store: T3Store) -> None:
@@ -842,14 +919,50 @@ def test_a_rebuild_replaces_what_was_recognised_before(state: Path, t3_store: T3
     gone = event("t3:water-lawn@item-deleted-from-the-store", skill="water-lawn", v=0)
     wrong = event(f"t3:not-a-load@{kept}", skill="not-a-load", v=0)
     store.append_events(state, [gone, wrong])
+    saved = store.load_state(state)
+    saved["recognizer"] = 0  # the record began under an older botcore
+    store.save_state(state, saved)
     assert "older botcore" in run(skill_usage_report())["warnings"][0]
 
     rebuilt = run(skill_usage_collect(rebuild=True))
 
     assert (rebuilt["added"], rebuilt["removed"], rebuilt["events"]) == (0, 1, 3)
+    assert run(skill_usage_report())["warnings"] == []  # what could be read again, was
     assert sorted(found.skill for found in collected(state)) == [
         "plant-beds", "prune-roses", "water-lawn",
     ]  # fmt: skip
+
+
+def test_a_rewrite_is_compared_as_a_share_under_one_name(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename")
+    with t3_store.connect() as connection:  # ten sessions before the rewrite, ten after
+        for number in range(20):
+            days_ago = 45 if number < 10 else 5
+            payload = {"createdAt": stamp(days_ago), "updatedAt": stamp(days_ago)}
+            connection.execute(
+                f"insert into {t3.THREADS} values (?, ?, ?, ?)",
+                (f"main-{number}", "p1", "claudeAgent", json.dumps(payload)),
+            )
+    for number in (0, 1):
+        t3_store.skill_tool(f"main-{number}", "plant-beds", stamp(45))
+    for number in (10, 11, 12, 13, 14, 15):
+        t3_store.skill_tool(f"main-{number}", "build-beds", stamp(5))
+    run(skill_usage_collect())
+
+    after = rows(run(skill_usage_report(days=30, skill="plant-beds")))["build-beds"]
+    before = rows(run(skill_usage_report(days=30, ending_days_ago=30, skill="build-beds")))[
+        "build-beds"
+    ]
+
+    assert (after["sessions"], after["of_sessions"], after["share"]) == (6, 10, 0.6)
+    assert (before["sessions"], before["of_sessions"], before["share"]) == (2, 10, 0.2)
+    assert before["also_loaded_as"] == ["plant-beds"]
 
 
 def test_a_long_report_is_cut_and_says_so(state: Path, t3_store: T3Store) -> None:

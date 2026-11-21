@@ -158,15 +158,15 @@ def check_schema(connection: sqlite3.Connection) -> None:
         have = _columns(connection, table)
         if have:
             missing.extend(f"{table}.{column}" for column in sorted(needed - have))
+    if missing:  # before any query that needs what is missing
+        raise SchemaChanged(missing)
     total = connection.execute(f"select count(*) from {ITEMS}").fetchone()[0]
     kinds = ", ".join(f"'{kind}'" for kind in KINDS)
     known = connection.execute(f"select count(*) from {ITEMS} where type in ({kinds})").fetchone()[
         0
     ]
-    if not missing and total >= MIN_ITEMS_TO_JUDGE_KINDS and not known:
-        missing.append(f"{ITEMS}.type values ({', '.join(KINDS)})")
-    if missing:
-        raise SchemaChanged(missing)
+    if total >= MIN_ITEMS_TO_JUDGE_KINDS and not known:
+        raise SchemaChanged([f"{ITEMS}.type values ({', '.join(KINDS)})"])
 
 
 def _object(text: str | None) -> dict:
@@ -250,7 +250,7 @@ class _Family:
         self.threads = threads
         self.parents = parents
 
-    def _parent(self, thread_id: str) -> str | None:
+    def parent(self, thread_id: str) -> str | None:
         known = self.threads.get(thread_id)
         return (known.parent if known else None) or self.parents.get(thread_id)
 
@@ -265,7 +265,7 @@ class _Family:
     def session(self, thread_id: str) -> str:
         seen = {thread_id}
         while not self._starts_session(thread_id):
-            parent = self._parent(thread_id)
+            parent = self.parent(thread_id)
             if not parent or parent in seen:
                 break
             seen.add(parent)
@@ -282,7 +282,7 @@ class _Family:
                 return thread_id
             if known and known.remote_parent:
                 return known.remote_parent
-            parent = self._parent(thread_id)
+            parent = self.parent(thread_id)
             if not parent or parent in seen:
                 return thread_id
             seen.add(parent)
@@ -346,8 +346,14 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     if payload.get("status") != DONE:
         return []
     if kind == CHANGE:
-        name = skill_of_folder(_text(payload.get("fileName")) or "")
-        return [(name, EDIT)] if name else []
+        changes = payload.get("changes") if isinstance(payload.get("changes"), list) else []
+        files = [payload.get("fileName"), *(_mapping(change).get("path") for change in changes)]
+        names: list[str] = []
+        for file in files:
+            name = skill_of_folder(_text(file) or "")
+            if name and name not in names:
+                names.append(name)
+        return [(name, EDIT) for name in names]
     if kind == TOOL:
         tool = _text(payload.get("toolName")) or ""
         tool_input = _mapping(payload.get("input"))
@@ -403,6 +409,14 @@ def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool =
             result.projects[project_id] = workspace_root
     threads = _threads(connection)
     family = _Family(threads, _parents(connection))
+    children = [
+        thread_id
+        for thread_id in threads
+        if thread_id.startswith((DELEGATED_PREFIX, *SUBAGENT_PREFIXES))
+    ]
+    if children and not any(family.parent(thread_id) for thread_id in children):
+        # every subagent would become a session of its own, and every share would shrink
+        raise SchemaChanged([f"{THREADS}.payload_json lineage.parentThreadId"])
     result.sessions = _sessions(threads, family)
     models = _models(connection)
     if all_items:

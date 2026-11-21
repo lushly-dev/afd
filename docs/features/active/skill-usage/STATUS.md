@@ -30,13 +30,16 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 - **Reviewers load a skill from the base** with `git show <revision>:<path>`, which prints the
   skill as that revision holds it. Counting it took the store's all-time shell reads from 1,896
   to 2,311.
-- **Writing a skill and auditing the skills look like use.** In Lushly's last 30 days, 6
-  sessions changed a skill they had read and 19 loaded twelve or more skills. The report leaves
-  both out of a skill's count.
+- **Writing a skill looks like use, and so does auditing the skills.** In Lushly's last 30
+  days, 6 sessions changed a skill they had read; the report counts them as authoring it.
+- **A dozen skills in a session is ordinary work.** 16 sessions loaded twelve or more
+  different skills within half an hour, up to 20 of the 31 the checkout holds. Every one was a
+  delegated task with its reviewers, none an audit. So an audit is two thirds of a project's
+  skills in half an hour, and no session met that bar.
 - **A session's model is its latest setting**, so it is taken from the run a load happened
   in. A subagent's thread has no runs and cannot switch, so its own setting is used.
-- **The denominator.** The store held 503 sessions; in Lushly's last 30 days 206 of 260
-  loaded at least one skill.
+- **The denominator.** The store held 506 sessions; in Lushly's last 30 days 227 of 260
+  loaded at least one skill, and `review-code-lushly` was used by 147 of them.
 - **A subagent or delegated task is its own thread**, whose `lineage` in the thread's payload
   names its parent and its root.
 - **A first missed-trigger reading, by hand:** 54 merged Lushly pull requests changed a gate

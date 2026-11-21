@@ -133,9 +133,12 @@ T3 Code's store is another program's internal schema, not an interface:
 - **Writing a skill.** A completed change to any file under `…/skills/<name>/` is recorded as
   an `edit` event. A session that changed a skill's files read it as the subject of its work,
   so the report counts that session as authoring the skill, not using it.
-- **Reading the skills.** A session that loads twelve or more of a project's skills is an
-  audit, a rename or a listing. The report leaves it out of every skill's count, so one audit
-  cannot empty the `quiet` list.
+- **Reading the skills.** One session loading two thirds or more of the skills a project's
+  checkout holds, and at least twelve, within thirty minutes is an audit, a rename or a
+  listing. The report leaves those loads out of every skill's count, so one audit cannot empty
+  the `quiet` list. The bar is a share because a working session with its reviewers loads a
+  dozen and more in that time: on the machine first measured, up to 20 of 31. It is decided
+  before any filter, so a filter never changes a skill's count.
 
 ### Sessions
 
@@ -281,8 +284,8 @@ in his words and without the author's conclusions.
 - Every session is recorded with its pull requests from the first collection, whether or not
   it loaded a skill. Without it no share has a denominator, and phase 2 would have had nothing
   to tie a change to once T3 Code dropped the threads.
-- A session that edits a skill, and one that reads most of a project's skills, are not use.
-  The plan guarded against a false zero and not against a false load.
+- A session that edits a skill, and one that reads most of a project's skills in one
+  sitting, are not use. The plan guarded against a false zero and not against a false load.
 - The report gives a share of sessions, splits by model and machine, takes `skill`, `agent`
   and `limit`, and refuses a project, harness or skill the record has never seen.
 - A skill's listing cost sits beside its body cost.
@@ -311,6 +314,9 @@ in his words and without the author's conclusions.
   a command that runs git and writes under the home folder; nothing asks for it yet.
 - *A filter for one root or one run.* The audit rule and the `agent` filter cover the cases
   found. A fleet's cells are sessions of their own, and are counted as such.
+- *Counting twelve skills in a session as an audit.* The first rule built for the walk's
+  finding did that, and on the real record every session it removed was a fleet cell doing
+  ordinary work. The rule is now a share of the project's skills within thirty minutes.
 
 ## Later
 

@@ -3,12 +3,13 @@
 Read-only, from this machine's record (`skill-usage-collect` fills it). The unit is a session
 that used a skill: a skill read three times in one session, in parts, is one use. A skill
 keeps one identity across a rename. A session that changed a skill's files was writing it,
-not using it, and a session that read most of a project's skills was auditing them; neither
-is counted as use.
+not using it, and a burst of loads across most of a project's skills was an audit of them;
+neither is counted as use.
 """
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -42,9 +43,13 @@ MAX_ROWS = 500
 # After a person names a skill, the harness either puts it in context itself or the agent
 # loads it with a tool. A tool load this soon after is that same load, not a second one.
 SAME_LOAD = timedelta(minutes=10)
-# A session that loads this many different skills of one project is reading the skills, not
-# working with them: an audit, a rename, a listing.
-WIDE = 12
+# Most of a project's skills loaded by one session within this long is someone reading the
+# skills, not working with them: an audit, a rename, a listing. A working session, with its
+# reviewers, can load a dozen and more in that time (measured: up to 20 of 31), so the bar is
+# a share of what the checkout holds, and never under a dozen.
+AUDIT_SHARE = 2 / 3
+AUDIT_SKILLS = 12
+AUDIT_SPAN = timedelta(minutes=30)
 AGENTS = (MAIN, DELEGATE, SUBAGENT)
 
 
@@ -119,6 +124,35 @@ def current_name(name: str, renames: dict[str, str], on_disk: dict[str, Held]) -
     return name
 
 
+def audit_bar(held: int) -> int | None:
+    """How many different skills in one span make an audit of a project whose checkout holds
+    `held`; None when the checkout is not known, since "most of them" then has no meaning."""
+    return max(AUDIT_SKILLS, math.ceil(held * AUDIT_SHARE)) if held else None
+
+
+def audit_reads(loads: list[tuple[datetime, str, str]], bar: int | None) -> set[str]:
+    """The ids of the loads that belong to an audit: every load inside a span of AUDIT_SPAN
+    in which one session loaded `bar` or more different skills. `loads` is one session's, as
+    (time, skill, id)."""
+    if bar is None:
+        return set()
+    ordered = sorted(loads)
+    marked: set[str] = set()
+    inside: Counter = Counter()
+    left = 0
+    for right, (moment, skill, _) in enumerate(ordered):
+        inside[skill] += 1
+        while moment - ordered[left][0] > AUDIT_SPAN:
+            gone = ordered[left][1]
+            inside[gone] -= 1
+            if not inside[gone]:
+                del inside[gone]
+            left += 1
+        if len(inside) >= bar:
+            marked.update(identifier for _, _, identifier in ordered[left : right + 1])
+    return marked
+
+
 def _counts(groups: dict[str, set[str]]) -> dict[str, int]:
     return {name: len(members) for name, members in sorted(groups.items())}
 
@@ -161,9 +195,13 @@ def _inventory(projects: dict) -> tuple[dict[str, dict[str, str]], dict[str, dic
     on_disk: dict[str, dict[str, Held]] = {}
     for name, entry in projects.items():
         entry = _mapping(entry)
-        renames[name] = _mapping(entry.get("renames"))
+        renames[name] = {
+            old: new
+            for old, new in _mapping(entry.get("renames")).items()
+            if isinstance(old, str) and isinstance(new, str)
+        }
         held: dict[str, Held] = {}
-        for root in entry.get("roots") or []:
+        for root in entry.get("roots") if isinstance(entry.get("roots"), list) else []:
             if isinstance(root, str):
                 held = skills_on_disk(root)
                 if held:
@@ -248,11 +286,15 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
 
     renames, on_disk = _inventory(_mapping(state.get("projects")))
     known_projects = {event.project for event in events} | set(on_disk)
-    known_projects |= {str(entry.get("project")) for entry in recorded.values()}
+    known_projects |= {
+        entry["project"] for entry in recorded.values() if isinstance(entry.get("project"), str)
+    }
     if project is not None and not any(_is_project(project, name) for name in known_projects):
         return _unknown("project", project, known_projects)
     known_harnesses = {event.harness for event in events}
-    known_harnesses |= {str(entry.get("harness")) for entry in recorded.values()}
+    known_harnesses |= {
+        entry["harness"] for entry in recorded.values() if isinstance(entry.get("harness"), str)
+    }
     if harness is not None and harness not in known_harnesses:
         return _unknown("harness", harness, known_harnesses)
 
@@ -263,11 +305,17 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     # Every event under its skill's current name; when each session loaded a skill by a
     # tool; and which sessions changed a skill's files
     named: list[tuple[tuple[str, str], Event, datetime]] = []
+    by_session: dict[tuple[str, str], list[tuple[datetime, str, str]]] = {}
     tool_loads: dict[tuple[str, str, str], list[datetime]] = {}
     authored: set[tuple[str, str, str]] = set()
     last_ever: dict[tuple[str, str], str] = {}
     known_skills: set[str] = {name for held in on_disk.values() for name in held}
     outdated = 0
+
+    def wanted(in_project: str) -> str:
+        """The skill asked for, under the name it has now in a project."""
+        return current_name(skill or "", renames.get(in_project, {}), on_disk.get(in_project, {}))
+
     for event in events:
         outdated += event.v < RECOGNIZER
         moment = _parse(event.at)
@@ -281,11 +329,13 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         if event.path == EDIT:
             authored.add((*key, event.thread))
             continue
+        # before any filter, so that a filter never changes what counts as an audit
+        by_session.setdefault((event.project, event.thread), []).append((moment, name, event.id))
         if harness is not None and event.harness != harness:
             continue
         if agent is not None and event.agent != agent:
             continue
-        if skill is not None and skill not in (name, event.skill):
+        if skill is not None and name != wanted(event.project):
             continue
         named.append((key, event, moment))
         if event.path != TYPED:
@@ -293,13 +343,17 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     if skill is not None and skill not in known_skills:
         return _unknown("skill", skill, known_skills)
 
-    # A session that changed a skill's files was writing it; one that read most of a project's
-    # skills was auditing them. Neither used the skill.
-    in_window = [entry for entry in named if since <= entry[2] < until]
-    breadth: dict[tuple[str, str], set[str]] = {}
-    for key, event, _ in in_window:
-        breadth.setdefault((key[0], event.thread), set()).add(key[1])
-    wide = {session for session, skills in breadth.items() if len(skills) >= WIDE}
+    # A session that changed a skill's files was writing it, and a burst of loads across
+    # most of a project's skills was an audit of them. Neither is use.
+    audited: set[str] = set()
+    audit_sessions: set[str] = set()
+    for (in_project, session), loads in by_session.items():
+        marked = audit_reads(loads, audit_bar(len(on_disk.get(in_project, {}))))
+        if marked:
+            audited |= marked
+            if any(since <= moment < until for moment, _, identifier in loads
+                   if identifier in marked):  # fmt: skip
+                audit_sessions.add(session)
 
     rows: dict[tuple[str, str], Row] = {}
     users: set[str] = set()
@@ -313,7 +367,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             if since <= moment < until:
                 authoring.setdefault(key, set()).add(event.thread)
             continue
-        if (key[0], event.thread) in wide:
+        if event.id in audited:
             continue
         if event.at > last_ever.get(key, ""):
             last_ever[key] = event.at
@@ -349,9 +403,9 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     # Every session each project had in the window, whether or not it loaded a skill
     seen: dict[str, set[str]] = {}
     for session_id, entry in recorded.items():
-        name = str(entry.get("project"))
+        name = entry.get("project")
         started, ended = _parse(entry.get("created_at")), _parse(entry.get("updated_at"))
-        if started is None or not _is_project(project, name):
+        if started is None or not isinstance(name, str) or not _is_project(project, name):
             continue
         if harness is not None and entry.get("harness") != harness:
             continue
@@ -370,7 +424,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         if not _is_project(project, name):
             continue
         for skill_name, facts in sorted(held.items()):
-            if (name, skill_name) in rows or (skill is not None and skill != skill_name):
+            if (name, skill_name) in rows or (skill is not None and wanted(name) != skill_name):
                 continue
             entry = {
                 "project": name,
@@ -390,7 +444,9 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
     if unreadable:
         warnings.append(f"{unreadable} lines of the record could not be read and were skipped")
-    if outdated:
+    if outdated and not (
+        isinstance(state.get("recognizer"), int) and state["recognizer"] >= RECOGNIZER
+    ):
         warnings.append(
             f"{outdated} events were recognised by an older botcore: run skill-usage-collect "
             "--rebuild to read them again"
@@ -412,7 +468,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             "paths": dict(sorted(by_path.items())),
             "agents": dict(sorted(by_agent.items())),
             "authoring_sessions": len({s for sessions in authoring.values() for s in sessions}),
-            "wide_sessions": len(wide),
+            "audit_sessions": len(audit_sessions),
         },
         "skills": [
             _row_json(row, on_disk.get(row.project, {}).get(row.skill), len(seen[row.project]))

@@ -18,7 +18,7 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.skill_usage import t3
-from botcore.commands.skill_usage.events import TYPED, Event
+from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
     append_events,
@@ -59,6 +59,18 @@ def _parse(stamp: object) -> datetime | None:
 
 def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
+
+
+def _strings(value: object) -> list[str]:
+    return [entry for entry in value if isinstance(entry, str)] if isinstance(value, list) else []
+
+
+def _renames(value: object) -> dict[str, str]:
+    return {
+        old: new
+        for old, new in _mapping(value).items()
+        if isinstance(old, str) and isinstance(new, str)
+    }
 
 
 def skill_on_disk(root: str, name: str) -> bool:
@@ -106,10 +118,16 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
     same on every machine. One with no origin takes its folder's name, and a second folder of
     that name with no origin gets a suffix, so two unrelated projects never share counts.
     """
-    projects = {name: dict(entry) for name, entry in previous.items() if isinstance(entry, dict)}
-    by_root = {
-        root: name for name, entry in projects.items() for root in _mapping(entry).get("roots", [])
+    projects = {
+        name: {
+            "remote": bool(entry.get("remote")),
+            "roots": _strings(entry.get("roots")),
+            "renames": _renames(entry.get("renames")),
+        }
+        for name, entry in previous.items()
+        if isinstance(name, str) and isinstance(entry, dict)
     }
+    by_root = {root: name for name, entry in projects.items() for root in entry["roots"]}
     names: dict[str, str] = {}
     for project_id, root in roots.items():
         name = by_root.get(root)
@@ -119,16 +137,16 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
             name = remote or folder.name or project_id
             if not remote and name in projects and not projects[name].get("remote"):
                 name = f"{name}~{hashlib.sha256(root.encode()).hexdigest()[:6]}"
-            entry = projects.setdefault(name, {"remote": bool(remote), "roots": []})
-            entry["roots"] = [*entry.get("roots", []), root]
+            entry = projects.setdefault(name, {"remote": bool(remote), "roots": [], "renames": {}})
+            entry["roots"] = [*entry["roots"], root]
             by_root[root] = name
         names[project_id] = name
     for entry in projects.values():
-        for root in entry.get("roots", []):
+        for root in entry["roots"]:
             if Path(root).is_dir():
                 renames = skill_renames(Path(root))
                 if renames is not None:
-                    entry["renames"] = {**_mapping(entry.get("renames")), **renames}
+                    entry["renames"] = {**entry["renames"], **renames}
     return projects, names
 
 
@@ -171,7 +189,7 @@ def _events(
     loaded = known | {(event.project, event.skill) for event in events if event.path != TYPED}
 
     def is_skill(event: Event) -> bool:
-        roots = _mapping(projects.get(event.project)).get("roots", [])
+        roots = _strings(_mapping(projects.get(event.project)).get("roots"))
         return (event.project, event.skill) in loaded or any(
             skill_on_disk(root, event.skill) for root in roots
         )
@@ -328,6 +346,9 @@ def _collect(
             "version": STATE_VERSION,
             "machine": machine_name(),
             "collected_at": _stamp(now),
+            # the rules every event still re-readable was recognised by: a rebuild, or a
+            # record that began under them
+            "recognizer": RECOGNIZER if rebuild or not stored else state.get("recognizer", 0),
             "sources": {**sources, t3.SOURCE: {"stores": stores}},
             "projects": projects,
         },
@@ -349,11 +370,16 @@ def _collect(
         "events": total,
         "sessions": len(sessions),
     }
-    reasoning = f"Added {len(added)} skill loads; this machine's record now holds {total}"
+    edits = sum(event.path == EDIT for event in added)
+    data["loads_added"], data["edits_added"] = len(added) - edits, edits
+    reasoning = (
+        f"Added {len(added) - edits} skill loads and {edits} changes to skill files; this "
+        f"machine's record now holds {total} events"
+    )
     if rebuild:
         source["removed"] = data["removed"] = removed
         reasoning = (
-            f"Rebuilt the record: {len(added)} loads added and {removed} no longer recognised "
+            f"Rebuilt the record: {len(added)} events added and {removed} no longer recognised "
             f"removed; it now holds {total}"
         )
     return success(data, reasoning=reasoning)

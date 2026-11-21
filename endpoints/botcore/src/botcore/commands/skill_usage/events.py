@@ -37,18 +37,8 @@ _SKILL_FILE = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+SKILL\.md$")
 _SKILL_FOLDER = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+[^/\\]")
 _TYPED = re.compile(rf"^\s*[$/]({_NAME}(?::{_NAME})?)(?=\s|$)")
 
-_SHELL = r"(?:bash|zsh|sh|dash|ksh|fish|pwsh|powershell|cmd)(?:\.exe)?"
-_WRAPPER = re.compile(
-    rf"""^\s*
-    (?:"[^"]*[/\\]|'[^']*[/\\]|[^\s"']*[/\\])?   # the shell's folder, quoted or not
-    (?:env\s+)?
-    {_SHELL}["']?
-    (?:\s+\S+)*?                                  # its flags, and the values some take
-    \s+(?:-[a-z]*c|-command|/c|/k)                # the flag that introduces the script
-    (?:\s+--)?\s+
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
+_SHELLS = {"bash", "zsh", "sh", "dash", "ksh", "fish", "pwsh", "powershell", "cmd"}
+_SCRIPT_FLAG = re.compile(r"-[a-z]*c|-command|/c|/k", re.IGNORECASE)
 _HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _ESCAPABLE_IN_QUOTES = '"\\$`'
@@ -160,24 +150,6 @@ class _Command:
     words: list[str]
     writes_output: bool  # its output goes to a file, not to the agent
     then: str  # the operator after it: "|", "&&", "||", ";", "&", a newline or ""
-
-
-def _unwrap(command: str) -> str:
-    """The script a shell is asked to run (`zsh -lc "<script>"`), a few layers deep."""
-    for _ in range(3):
-        match = _WRAPPER.match(command)
-        if not match:
-            break
-        script = command[match.end() :].strip()
-        quote = script[:1]
-        if quote in "\"'" and len(script) > 1 and script.endswith(quote):
-            script = script[1:-1]
-            if quote == '"':
-                script = re.sub(r'\\(["\\$`])', r"\1", script)
-            else:
-                script = script.replace("'\\''", "'")
-        command = script
-    return command
 
 
 def _without_here_documents(script: str) -> str:
@@ -306,14 +278,25 @@ def _commands(script: str) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - 
 def _program(words: list[str]) -> tuple[str, list[str]]:
     """A command's program name, lower-cased and without its folder, and its arguments."""
     remaining = list(words)
-    while remaining and (
-        _ASSIGNMENT.match(remaining[0]) or remaining[0].lstrip("({").lower() in _PREFIXES
-    ):
+    while remaining:
+        name = re.split(r"[/\\]", remaining[0].lstrip("({"))[-1].lower().removesuffix(".exe")
+        if not _ASSIGNMENT.match(remaining[0]) and name not in _PREFIXES:
+            return name, [argument.rstrip(")}") for argument in remaining[1:]]
         remaining.pop(0)
-    if not remaining:
-        return "", []
-    name = re.split(r"[/\\]", remaining[0].lstrip("({"))[-1].lower()
-    return name.removesuffix(".exe"), [argument.rstrip(")}") for argument in remaining[1:]]
+    return "", []
+
+
+def _script(name: str, arguments: list[str]) -> str | None:
+    """The script a shell is asked to run (`zsh -lc "<script>"`, `pwsh -Command …`,
+    `cmd /c …`). The command was split as a shell splits it, so a script quoted in pieces
+    (`'…'"'"'…'`, the way a single quote is put inside single quotes) is whole here."""
+    if name not in _SHELLS:
+        return None
+    for position, argument in enumerate(arguments):
+        if _SCRIPT_FLAG.fullmatch(argument):
+            rest = arguments[position + 1 :]
+            return " ".join(rest[1:] if rest[:1] == ["--"] else rest) or None
+    return None
 
 
 def _printed_by_git(arguments: list[str]) -> list[str]:
@@ -336,41 +319,70 @@ def _printed_by_git(arguments: list[str]) -> list[str]:
     ]
 
 
+def _operands(arguments: list[str]) -> list[str]:
+    """A command's file operands: not its options, and not the script file `-f` names."""
+    operands: list[str] = []
+    skip = False
+    for argument in arguments:
+        if skip:
+            skip = False
+        elif argument == "-f":
+            skip = True
+        elif not argument.startswith("-"):
+            operands.append(argument)
+    return operands
+
+
 def _files_read(name: str, arguments: list[str]) -> list[str]:
     if name in _READERS:
-        return [argument for argument in arguments if not argument.startswith("-")]
+        return _operands(arguments)
     if name == "sed":
         in_place = any(
             argument.startswith(("-i", "--in-place"))
             or (re.fullmatch(r"-[A-Za-z]+", argument) and "i" in argument)
             for argument in arguments
         )
-        return [] if in_place else [a for a in arguments if not a.startswith("-")]
+        return [] if in_place else _operands(arguments)
     if name == "git":
         return _printed_by_git(arguments)
     return []
 
 
-def skills_read_by(command: str) -> list[str]:
+def _reaches_agent(commands: list[_Command], position: int) -> bool:
+    """Whether a command's output is shown, not sent to a file or, anywhere down its pipe,
+    into a count, a digest or a search."""
+    while True:
+        if commands[position].writes_output:
+            return False
+        if commands[position].then != "|" or position + 1 >= len(commands):
+            return True
+        position += 1
+        if _program(commands[position].words)[0] in _SINKS:
+            return False
+
+
+def skills_read_by(command: str, depth: int = 0) -> list[str]:
     """The skills whose SKILL.md a shell command shows the agent, in order, each once.
 
     Only a command that prints the file counts: `cat`, `sed`, `head`, `tail`, `nl`, `less`,
     `more`, `bat`, `awk`, `type`, `Get-Content`, and `git show <revision>:<path>`. A search, a
     diff, a listing or an edit that names the file does not count, nor does a read whose
     output goes to a file or into a count, a digest or a search. Quoted text, comments and
-    here-document bodies are data, not commands.
+    here-document bodies are data, not commands. A script handed to a shell is read as that
+    shell reads it.
     """
     found: list[str] = []
-    commands = _commands(_without_here_documents(_unwrap(command)))
+    commands = _commands(_without_here_documents(command))
     for position, simple in enumerate(commands):
-        if simple.writes_output:
+        if not _reaches_agent(commands, position):
             continue
         name, arguments = _program(simple.words)
-        if simple.then == "|" and position + 1 < len(commands):
-            if _program(commands[position + 1].words)[0] in _SINKS:
-                continue
-        for path in _files_read(name, arguments):
-            skill = skill_of_file(path)
+        script = _script(name, arguments)
+        if script is not None:
+            skills = skills_read_by(script, depth + 1) if depth < 3 else []
+        else:
+            skills = [skill_of_file(path) for path in _files_read(name, arguments)]
+        for skill in skills:
             if skill and skill not in found:
                 found.append(skill)
     return found

@@ -129,13 +129,28 @@ def save_state(directory: Path, state: dict) -> None:
     _replace(directory / STATE_FILE, json.dumps(state, indent=2, sort_keys=True) + "\n")
 
 
+class RecordDamaged(OSError):
+    """A file of the record exists and cannot be read as what it should hold."""
+
+
 def load_sessions(directory: Path) -> dict[str, dict]:
-    """Every session a collection saw, by its id, whether or not it loaded a skill."""
-    return {
-        key: value
-        for key, value in _load_json(directory / SESSIONS_FILE).items()
-        if isinstance(value, dict)
-    }
+    """Every session a collection saw, by its id, whether or not it loaded a skill.
+
+    A damaged file is an error, not an empty one: the next collection would write only the
+    sessions the harness still holds over it, and the ones it has dropped would be gone.
+    """
+    path = directory / SESSIONS_FILE
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except ValueError as exc:
+        raise RecordDamaged(
+            f"{path} is not valid JSON ({exc}); move it aside to start it again"
+        ) from exc
+    if not isinstance(data, dict):
+        raise RecordDamaged(f"{path} does not hold sessions; move it aside to start it again")
+    return {key: value for key, value in data.items() if isinstance(value, dict)}
 
 
 def save_sessions(directory: Path, sessions: dict[str, dict]) -> None:
