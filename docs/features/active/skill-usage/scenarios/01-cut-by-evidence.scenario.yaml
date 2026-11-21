@@ -1,0 +1,61 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: See which skills nothing loads and what the loaded ones cost
+description: >-
+  When I decide what to trim or delete, I want to see which skills nothing loaded and what the
+  loaded ones cost in context, so that I cut by evidence.
+job: cut-by-evidence
+tags: [slice]
+steps:
+  - description: The loads the harnesses recorded are added to this machine's record
+    command: skill-usage-collect
+    expect:
+      success: true
+      data:
+        machine: bench
+        added: 6
+        sessions: 4
+        sources:
+          - { source: t3-code, status: read, found: 6, added: 6 }
+  - description: Collecting again adds nothing, so a schedule can run it every hour
+    command: skill-usage-collect
+    expect:
+      success: true
+      data:
+        added: 0
+        events: 6
+  - description: The report says who used each skill, what it can have cost and which were not used
+    command: skill-usage-report
+    input: { days: 30, project: acme/garden }
+    expect:
+      success: true
+      data:
+        totals: { skills: 1, sessions: 2, sessions_seen: 4, loads: 5 }
+        skills:
+          - project: acme/garden
+            skill: plant-beds
+            sessions: 2
+            of_sessions: 4
+            share: 0.5
+            loads: 5
+            typed_sessions: 0
+            harnesses: { claude: 1, codex: 1 }
+            agents: { main: 4, subagent: 1 }
+            paths: { file_read: 1, shell_read: 4 }
+            size_bytes: 200
+            max_context_bytes: 1000
+            listing_chars: 12
+        more: 0
+        quiet:
+          - { project: acme/garden, skill: prune-roses, last_used: { exists: true }, listing_chars: 16 }
+        warnings: { length: 0 }
+  - description: A session that edited a skill wrote it, and is not counted as using it
+    command: skill-usage-report
+    input: { days: 30, skill: prune-roses }
+    expect:
+      success: true
+      data:
+        skills: { length: 0 }
+        quiet:
+          - { skill: prune-roses, authoring_sessions: 1 }

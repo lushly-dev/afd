@@ -448,6 +448,58 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("skill-usage-collect")
+@click.option("--since-days", type=int, default=None,
+              help="Re-read this many days instead of continuing from the last collection")
+@click.option("--t3-store", default=None,
+              help="Read this T3 Code store, not this machine's (needs --machine)")
+@click.option("--machine", default=None, help="The machine a copied store came from")
+@click.option("--rebuild", is_flag=True, default=False,
+              help="Read everything again and replace what an older botcore recognised")
+@_json_option
+@click.pass_context
+def skill_usage_collect_cmd(  # noqa: PLR0913 - the command's options
+    ctx: click.Context, since_days: int | None, t3_store: str | None, machine: str | None,
+    rebuild: bool, **_kwargs: Any,
+) -> None:
+    """Add the skill loads the harnesses recorded to this machine's record."""
+    from botcore.commands.skill_usage import skill_usage_collect
+
+    result = _run_async(
+        skill_usage_collect(
+            since_days=since_days, t3_store=t3_store, machine=machine, rebuild=rebuild
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("skill-usage-report")
+@click.option("--days", type=int, default=30, show_default=True, help="Days to report")
+@click.option("--project", default=None, help="Only this project (owner/name, or its name)")
+@click.option("--harness", default=None, help="Only this harness: claude or codex")
+@click.option("--skill", default=None, help="Only this skill")
+@click.option("--agent", default=None, help="Only loads by main, delegate or subagent")
+@click.option("--ending-days-ago", type=int, default=0, show_default=True,
+              help="End the window this many days ago, to compare two periods")
+@click.option("--limit", type=int, default=50, show_default=True, help="Skills to list")
+@_json_option
+@click.pass_context
+def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
+    ctx: click.Context, days: int, project: str | None, harness: str | None,
+    skill: str | None, agent: str | None, ending_days_ago: int, limit: int, **_kwargs: Any,
+) -> None:
+    """Report which skills were used, how often, and by which harness. Read-only."""
+    from botcore.commands.skill_usage import skill_usage_report
+
+    result = _run_async(
+        skill_usage_report(
+            days=days, project=project, harness=harness, ending_days_ago=ending_days_ago,
+            skill=skill, agent=agent, limit=limit,
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command("disk-report")
 @click.option("--repo", default=None, help="Report one repository instead of the registered ones")
 @click.option(

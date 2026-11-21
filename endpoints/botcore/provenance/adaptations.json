@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "de183cf7f336b5fcc80b33a1e99a1d0c255ea98c815dc466601cacbb2abb5e6a",
+      "current_import_sha256": "b606498c13ac9f7194ba883748f61c578687f3289ca69b21d44a0730c86c48b8",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
     },
     {
       "path": "SETUP.md",
@@ -2120,21 +2120,21 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "000357080d94eb3e1336566ca59f53359172230e63b073b42ef0e2c629e434ca",
+      "current_import_sha256": "d1897f6c8fdf3c1f054f7ecb889cb393f51244b5fdd58bf0f4e166365e5fe577",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
     },
     {
       "path": "src/botcore/commands/__init__.py",
       "upstream_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
       "staged_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
-      "current_import_sha256": "62cb5a6b4689d3d47f20676b1588a449b33218e9e5cbd38aef21c1cb0f48f689",
+      "current_import_sha256": "d3408e1fb4ef0b7d932193051520afcbc0004c5eb0e128774852d7e8485c5ba2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
     },
     {
       "path": "src/botcore/commands/cdp/__init__.py",
@@ -2658,6 +2658,72 @@
       "import_reason": "Lint a path with the shared skill rules; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows"
     },
     {
+      "path": "src/botcore/commands/skill_usage/__init__.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "b57275c1cceac8063eadbe88665cd5b5a25bb2180a332258ff01cdacde82eaaa",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
+      "path": "src/botcore/commands/skill_usage/collect.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "52826569d2b96edb0af954ce38e17d00945e9f6af93bbe4e5c938136408a0827",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
+      "path": "src/botcore/commands/skill_usage/events.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f29a12227205e52c9aac6a2f602f2d6818410fc5471207258dce6e45a3688291",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
+      "path": "src/botcore/commands/skill_usage/report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "476b6046e483cd6cf658c8eca103f5af7b11805a8dd2539580d3f73c7d8c5d91",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
+      "path": "src/botcore/commands/skill_usage/store.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "643febd31756faad4329595e4c2f388e3b6bf0266c0d984dfd8752445da50163",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
+      "path": "src/botcore/commands/skill_usage/t3.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "48183ab8f5baf8d726ca2377ae36caa5d795481407271d9aff595152baf03e30",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
+    },
+    {
       "path": "src/botcore/commands/spec.py",
       "upstream_sha256": "d05e3188ff2e9be82a5453957b38aec49117146337eaf3e601f5aff4360c38d4",
       "staged_sha256": "d05e3188ff2e9be82a5453957b38aec49117146337eaf3e601f5aff4360c38d4",
@@ -2701,11 +2767,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "c62ed8308a7a6422cd604c79dcd82089985736ba6893c9405145e2b72dd581d7",
+      "current_import_sha256": "32fc522350790923224c3a70f716d65ccc12cdbfc86bce0c0fc365289c3f5f55",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
     },
     {
       "path": "src/botcore/host.py",
@@ -6452,6 +6518,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
       "import_reason": "Cover the retired skill status"
+    },
+    {
+      "path": "tests/test_skill_usage.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "b013b5a6b7c252bd72bb6048669dd41b541ab7b3fc5348d84ff511731a2e5c25",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
     },
     {
       "path": "tests/test_spec.py",

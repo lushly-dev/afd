@@ -28,9 +28,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-21 (dates in this file are Pacific time): the rebase-credit test,
-  the variables write, every route from two machines and the runbook's install script, all
-  below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
+- **Last verified:** 2026-11-21 (dates in this file are Pacific time): G0's exit, after a
+  restart of `random`, from all three machines; also the rebase-credit test, the variables write
+  and the runbook's install script, all below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
   `lushly-factory-gateway[bot]` for both repositories with a rate limit of 5000, and `issue-get`
   (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub.
@@ -82,7 +82,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `~/.config/factory-gateway/owner.token` on `random`. Its configuration squashes in both
   repositories (`mergeMethods`, 2026-11-19, since AFD became squash-only; superseded for Lushly
   on 2026-11-21, below). Both mains fetched at startup (the log shows no fetch warning across
-  two starts). Not yet checked: that it survives a restart of `random`.
+  two starts; not read again after the restart of 2026-11-21). It survived that restart
+  (G0's exit, below).
 - **Operating it:** the [runbook](../../../operations/factory-gateway.md), with the install
   script, the launch daemon and an example configuration beside it. On 2026-11-21 its two
   scripts ran on `random` as they stand at commit `8c72670c` of
@@ -103,6 +104,15 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   naming the App and both repositories; a `cell` token was refused on `/lane` (`FORBIDDEN`). The
   four test tokens (actors `g0-check@<route>`, in `~/.config/factory-gateway/g0/` on `random`)
   are to be revoked at G0's exit. Not checked: from `hero`, which `random` cannot reach by SSH.
+  Its open items are superseded by G0's exit, next.
+- **G0's exit, met 2026-11-21:** the owner restarted `random`. The daemon came back by itself
+  (launchd records two runs since boot: the first exited with code 3, the second has run since;
+  the log, readable only as root, was not read). Then `gateway-status` answered on all five
+  routes, naming the App and both repositories: from `random` and from `macbook-air` at about
+  04:28, and from `hero` at 04:32–04:33 (a session there, through T3, fetching each token over SSH
+  without printing it; a call with no token got 401). The four test tokens were then revoked
+  (`token list` shows them revoked and only the owner's active; a revoked one now gets
+  `UNAUTHORIZED`) and their copies on `random` deleted.
 - **G0's test writes (2026-11-20, Lushly, owner route):** issues: `issue-create`, `issue-label`,
   `issue-claim`, `issue-comment` and `issue-release` on
   [lushly#2706](https://github.com/lushly-dev/lushly/issues/2706), all by the bot. Contents and
@@ -137,9 +147,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
   `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).
   Filed as [#1810](https://github.com/lushly-dev/afd/issues/1810).
-- **Next, in order:** G0's exit (a restart of `random`, then `gateway-status` on each route from
-  each machine, `hero` included; `gateway-status` named in Lushly's `SETUP.md`; the test tokens
-  revoked) and the rate-limit replay; AFD's merge queue by rebase
+- **Next, in order:** G0's rate-limit replay; AFD's merge queue by rebase
   ([#1809](https://github.com/lushly-dev/afd/issues/1809)); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
@@ -151,7 +159,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; open: surviving a restart of `random`, `gateway-status` from `hero`, the rate-limit replay | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782)), which does not name `gateway-status` yet |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; exit met 2026-11-21 (`gateway-status` on each route from `random`, `macbook-air` and `hero` after a restart of `random`); open: the rate-limit replay, and the two process checks, which G1 builds, so `process.json` keeps G0 unlanded | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782), [lushly#2809](https://github.com/lushly-dev/lushly/pull/2809), which names `gateway-status`; merged by the gateway by rebase as `482ee117`, the owner its author) |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
