@@ -134,13 +134,17 @@ def parse_header(header: str) -> tuple[str, str]:
     """Parse one ``Name: value`` header.
 
     Raises:
-        ValueError: The name is not an HTTP token, or the value has a line break.
+        ValueError: The name is not an HTTP token, or the value has a line break. The
+            message never contains the header's value.
     """
     colon = header.find(":")
     name = "" if colon == -1 else header[:colon].strip()
     if not name or not _HEADER_NAME.match(name):
+        # The text is not echoed: a mistyped header is often a credential.
         raise ValueError(
-            f'Invalid header "{header}". Use "Name: value", e.g. "Authorization: Bearer <token>".'
+            'Invalid header: use "Name: value" with a name of letters, digits and -, '
+            'e.g. "Authorization: Bearer <token>". The header is not shown, since it may '
+            "hold a credential."
         )
     value = header[colon + 1 :].strip()
     if re.search(r"[\r\n\0]", value):
@@ -155,13 +159,17 @@ def resolve_headers(
     environment header with the same name, compared case-insensitively.
 
     Raises:
-        ValueError: A header is malformed; the message names where it came from.
+        ValueError: A header is malformed; the message names where it came from
+            (``AFD_HEADERS line 2``, ``--header 1``) without its value.
     """
     source_env = os.environ if env is None else env
     lines = [line for line in re.split(r"\r?\n", source_env.get(HEADERS_ENV, "")) if line.strip()]
     by_name: dict[str, tuple[str, str]] = {}
-    for source, header in [*((HEADERS_ENV, line) for line in lines),
-                           *(("--header", flag) for flag in flags)]:
+    sources = [
+        *((f"{HEADERS_ENV} line {n}", line) for n, line in enumerate(lines, 1)),
+        *((f"--header {n}", flag) for n, flag in enumerate(flags, 1)),
+    ]
+    for source, header in sources:
         try:
             name, value = parse_header(header)
         except ValueError as exc:

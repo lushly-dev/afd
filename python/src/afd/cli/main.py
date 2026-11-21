@@ -147,12 +147,14 @@ def _headers_option(func: Any) -> Any:
 
 
 def _resolve_headers(flags: tuple[str, ...]) -> dict[str, str]:
+    """Headers from ``AFD_HEADERS`` and ``-H``; a malformed one exits 1, as in TypeScript."""
     from afd.cli.args import resolve_headers
 
     try:
         return resolve_headers(flags)
     except ValueError as e:
-        raise click.UsageError(str(e)) from e
+        _fail(str(e))
+        sys.exit(1)
 
 
 @click.group()
@@ -179,7 +181,8 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
 
 @cli.command()
 @click.argument("server")
-@click.option("--timeout", "-t", default=30.0, help="Connection timeout in seconds")
+@click.option("--timeout", "-t", type=click.FloatRange(min=0, min_open=True), default=30.0,
+              show_default=True, help="Connection timeout in seconds")
 @_headers_option
 @click.pass_context
 def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str, ...]) -> None:
@@ -205,7 +208,8 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
     quiet = ctx.obj.get("quiet", False)
 
     # Rejects a non-URL target before claiming to connect to it.
-    transport = _get_transport(server, timeout=timeout, headers=_resolve_headers(headers))
+    request_headers = _resolve_headers(headers)
+    transport = _get_transport(server, timeout=timeout, headers=request_headers)
 
     if not quiet:
         print_connecting(server)
@@ -224,6 +228,12 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
                 tools = await transport.list_tools()
                 if tools:
                     print_info(f"Available tools: {len(tools)}")
+            if request_headers:
+                click.echo(
+                    "Request headers are not saved. Pass --header again or set AFD_HEADERS "
+                    "for later commands.",
+                    err=True,
+                )
         finally:
             await transport.disconnect()
     
@@ -389,15 +399,16 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
     Call a tool on the connected server.
 
     TOOL is the name of the tool to call.
-    ARGS is a JSON object or key=value pairs (quote values with spaces);
-    default {}. A value is parsed as JSON when it can be (count=2,
-    done=true) and kept as a string otherwise (title=milk).
+    ARGS is one argument: a JSON object or key=value pairs (quote the whole
+    argument when it holds several pairs or spaces). Empty means {}. A value is
+    parsed as JSON when it can be (count=2, done=true) and kept as a string
+    otherwise (title=milk).
 
     \b
     Examples:
         afd call user.list
         afd call user.create '{"name": "Alice", "email": "alice@example.com"}'
-        afd call user.create name=Alice email=alice@example.com
+        afd call user.create 'name="Alice Smith" email=alice@example.com'
         afd call doc.get id=123 -H "Authorization: Bearer $TOKEN"
     """
     from afd.cli.args import describe_args_error, parse_tool_args
