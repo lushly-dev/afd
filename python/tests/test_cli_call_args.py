@@ -303,3 +303,24 @@ def test_a_long_description_is_cut_after_escape_codes_are_removed(transport):
     outcome = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
     assert visible in outcome.output.replace("\n", "").replace("│", "").replace(" ", "")
     assert "..." not in outcome.output
+
+
+def test_header_parsing_trims_only_spaces_and_tabs():
+    """str.strip would drop a trailing vertical tab or U+2028 before the check, and a
+    no-break space that may be part of the value; only HTTP's OWS is trimmed."""
+    from afd.cli.args import parse_header
+
+    assert parse_header(" \tX-Key \t:  \t v \t ") == ("X-Key", "v")
+    assert parse_header("X: tok\xa0") == ("X", "tok\xa0")
+    assert parse_header("X: tok\x85") == ("X", "tok\x85")  # obs-text, which strip() dropped
+    for bad in ("X: secret\x0b", "X: secret\u2028", "\x0bX: v", "X: secret\n", "X\n: v"):
+        with pytest.raises(ValueError, match="Invalid header"):
+            parse_header(bad)
+
+
+def test_an_afd_headers_line_holding_only_a_control_character_is_reported_by_its_number():
+    from afd.cli.args import resolve_headers
+
+    with pytest.raises(ValueError, match="^AFD_HEADERS line 2: Invalid header"):
+        resolve_headers([], {"AFD_HEADERS": "X: 1\n\x0b"})
+

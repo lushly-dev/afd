@@ -21,7 +21,7 @@ describe('parseHeader', () => {
 		expect(() => parseHeader('Authorization Bearer abc')).toThrow('Use "Name: value"');
 		expect(() => parseHeader(': value')).toThrow('Use "Name: value"');
 		expect(() => parseHeader('Bad Name: value')).toThrow('Use "Name: value"');
-		expect(() => parseHeader('X-Test: a\r\nInjected: b')).toThrow('must not contain line breaks');
+		expect(() => parseHeader('X-Test: a\r\nInjected: b')).toThrow('holds a line break');
 	});
 });
 
@@ -42,9 +42,9 @@ describe('resolveHeaders', () => {
 	it('returns no headers by default and names the source of a malformed one', () => {
 		expect(resolveHeaders(undefined, {})).toEqual({});
 		expect(() => resolveHeaders([], { [HEADERS_ENV]: 'nonsense' })).toThrow(
-			/^AFD_HEADERS: Invalid header "nonsense"/
+			/^AFD_HEADERS line 1: Invalid header/
 		);
-		expect(() => resolveHeaders(['nonsense'], {})).toThrow(/^--header: Invalid header/);
+		expect(() => resolveHeaders(['nonsense'], {})).toThrow(/^--header 1: Invalid header/);
 	});
 });
 
@@ -83,5 +83,62 @@ describe('redactUrl', () => {
 		expect(redactUrl('//alice:pw@host/path')).toBe('//***@host/path');
 		expect(redactUrl('not a url')).toBe('not a url');
 		expect(urlHasCredentials('not a url')).toBe(false);
+	});
+});
+
+describe('a malformed header is never repeated (#1836)', () => {
+	const SECRET = 'sk-SECRET';
+	it.each([
+		[['Authorization Bearer sk-SECRET'], '', '--header 1'],
+		[['X-Ok: 1', 'Bad Name: sk-SECRET'], '', '--header 2'],
+		[[], 'X-Ok: 1\n\nAuthorisation Bearer sk-SECRET', 'AFD_HEADERS line 3'],
+		[['Authorization: Bearer sk-\vSECRET'], '', '--header 1'],
+		[['Authorization: Bearer sk-SECRET\rX: y'], '', '--header 1'],
+		[['sk-SECRET: a\u0000b'], '', '--header 1'],
+		[['X: sk-\u2028SECRET'], '', '--header 1'],
+		[[], 'Authorization: Bearer sk-\vSECRET', 'AFD_HEADERS line 1'],
+	])('%j with AFD_HEADERS %j names %s only', (flags, env, source) => {
+		let message = '';
+		try {
+			resolveHeaders(flags, { [HEADERS_ENV]: env });
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+		expect(message.startsWith(`${source}: Invalid header`)).toBe(true);
+		expect(message).not.toContain(SECRET);
+		expect(message).not.toContain('SECRET');
+	});
+
+	it('accepts tabs and Latin-1 in a value', () => {
+		expect(parseHeader('X-Note: a\tb caf\u00e9')).toEqual(['X-Note', 'a\tb caf\u00e9']);
+	});
+
+	it.each([
+		['\u007f', false],
+		['\u0080', true],
+		['\u00ff', true],
+		['\u0100', false],
+		['\u{1f600}', false],
+		['\ud800', false],
+	])('a value holding %j is accepted: %s', (char, accepted) => {
+		const parse = () => parseHeader(`X: a${char}b`);
+		if (accepted) expect(parse()).toEqual(['X', `a${char}b`]);
+		else expect(parse).toThrow('holds a line break or another character');
+	});
+
+	it('trims only spaces and tabs, so a trailing control character is refused, not dropped', () => {
+		expect(parseHeader(' \tX-Key \t:  \t v \t ')).toEqual(['X-Key', 'v']);
+		expect(() => parseHeader('X: secret\v')).toThrow('holds a line break');
+		expect(() => parseHeader('X: secret\u2028')).toThrow('holds a line break');
+		expect(() => parseHeader('\vX: v')).toThrow('Use "Name: value"');
+		expect(parseHeader('X: tok\u00a0')).toEqual(['X', 'tok\u00a0']);
+		expect(() => parseHeader('X: secret\n')).toThrow('holds a line break');
+		expect(() => parseHeader('X\n: v')).toThrow('Use "Name: value"');
+	});
+
+	it('reports an AFD_HEADERS line holding only a control character by its number', () => {
+		expect(() => resolveHeaders([], { [HEADERS_ENV]: 'X: 1\n\u000b' })).toThrow(
+			/^AFD_HEADERS line 2: Invalid header/
+		);
 	});
 });
