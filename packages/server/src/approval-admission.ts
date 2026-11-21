@@ -48,6 +48,8 @@ interface Admitted {
 interface Admission {
 	command: AdmissionCommand;
 	admitted: Admitted | undefined;
+	/** Set once a dispatch took an admission, so a second dispatch reads as a mismatch. */
+	taken?: boolean;
 }
 
 const KEY = Symbol.for('dev.afd/approval-admission');
@@ -134,23 +136,29 @@ export function gates(policy: ApprovalPolicy<never> | undefined): boolean {
 }
 
 /**
- * Take the admission of the call of `context`, and say whether it admitted `commandName` on
+ * Take the admission of the call of `context`: `admitted` when it admitted `commandName` on
  * `input`: the same name, and the same canonical input (the same value, when the input has no
- * canonical form). Taken whatever the answer, so a second dispatch needs a second admission.
+ * canonical form), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a
+ * second dispatch needs a second admission.
  */
 export function takeAdmission(
 	context: CommandContext,
 	commandName: string,
 	input: unknown
-): boolean {
+): 'admitted' | 'missing' | 'mismatch' {
 	const found = record(context);
 	const admitted = found?.admitted;
-	if (!found || !admitted) return false;
+	if (!found) return 'missing';
+	if (!admitted) return found.taken ? 'mismatch' : 'missing';
 	found.admitted = undefined;
-	if (admitted.name !== commandName) return false;
+	found.taken = true;
+	if (admitted.name !== commandName) return 'mismatch';
 	const canonical = admitted.canonicalize(input);
-	if (admitted.canonical === undefined) return admitted.input === input && canonical === undefined;
-	return canonical === admitted.canonical;
+	const same =
+		admitted.canonical === undefined
+			? admitted.input === input && canonical === undefined
+			: canonical === admitted.canonical;
+	return same ? 'admitted' : 'mismatch';
 }
 
 /**

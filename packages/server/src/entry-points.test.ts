@@ -244,7 +244,9 @@ const HOST_IMPORTS =
  *   53,649 / 76,090 / 115,773 bytes, and 42,951 / 55,365 / 77,375 / 117,482 after, with esbuild
  *   0.28.2. The engine records each call's policy and admission and refuses an unadmitted gated
  *   call; the canonical JSON that binds an admission to its input comes from the approval
- *   middleware, so a host without it does not bundle it.
+ *   middleware, so a host without it does not bundle it. A second refusal reason (an approval step
+ *   ran, but not for this dispatch) took them to 43,305 / 55,719 / 77,729 / 117,836; raised to
+ *   43,700 / 56,100 / 78,100 / 118,200.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -257,19 +259,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 43_300,
+		bytes: 43_700,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 55_700,
+		bytes: 56_100,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 77_700,
+		bytes: 78_100,
 	},
-	{ what: 'every export', imports: undefined, bytes: 117_800 },
+	{ what: 'every export', imports: undefined, bytes: 118_200 },
 ];
 
 /** The modules only the tool surface needs. */

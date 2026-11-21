@@ -219,12 +219,21 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			// policy function is not evaluated here; declaring one needs an approval step.
 			// The admission must name this command and this validated input, and is taken here, so a
 			// second dispatch on the same context (a retry inside the chain) needs a second admission.
-			if (gates(command.approval) && !takeAdmission(context, commandName, data)) {
+			const admission = gates(command.approval)
+				? takeAdmission(context, commandName, data)
+				: 'admitted';
+			if (admission !== 'admitted') {
+				// 'mismatch': an approval step ran, but this dispatch is not the one it admitted (a
+				// retry placed after it, or the input changed after it), so the operator fixes the order.
 				return failure({
 					code: 'APPROVAL_UNAVAILABLE',
 					message: `${commandName} needs a person's approval, and this server cannot ask for it`,
-					suggestion: `Tell the user that ${commandName} needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.`,
+					suggestion:
+						admission === 'missing'
+							? `Tell the user that ${commandName} needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.`
+							: `Do not retry: this call is not the one approved. The operator moves middleware that retries or changes input before the approval middleware.`,
 					retryable: false,
+					details: { reason: admission === 'missing' ? 'no-approval-step' : 'admission-mismatch' },
 				});
 			}
 			const { clock } = context;

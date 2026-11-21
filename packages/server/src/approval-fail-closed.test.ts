@@ -26,14 +26,19 @@ import { createMcpHandler, createMcpServer } from './server.js';
 
 const SECRET = 'test-approval-secret-0123456789abcdef';
 
-function expectUnavailable(result: CommandResult, command: string): void {
+function expectUnavailable(
+	result: CommandResult,
+	command: string,
+	reason: 'no-approval-step' | 'admission-mismatch' = 'no-approval-step'
+): void {
 	expect(result.success).toBe(false);
 	expect(result.error).toMatchObject({
 		code: 'APPROVAL_UNAVAILABLE',
 		message: `${command} needs a person's approval, and this server cannot ask for it`,
 		retryable: false,
+		details: { reason },
 	});
-	expect(result.error?.suggestion).toContain('do not retry');
+	expect(result.error?.suggestion?.toLowerCase()).toContain('do not retry');
 }
 
 /** Commands with each kind of policy, and a record of which handlers ran. */
@@ -282,7 +287,8 @@ describe('one admission runs one handler, on what was approved', () => {
 		const client = createDirectClient(registry, { onApprovalNeeded: async () => true });
 		const result = await client.call('todo-delete', { id: 1 });
 		expect(handled).toHaveBeenCalledOnce();
-		expect(result.error?.code).toBe('APPROVAL_UNAVAILABLE');
+		expectUnavailable(result, 'todo-delete', 'admission-mismatch');
+		expect(result.error?.suggestion).toContain('before the approval middleware');
 	});
 
 	it('refuses an input changed in place after the approval', async () => {
@@ -290,7 +296,11 @@ describe('one admission runs one handler, on what was approved', () => {
 			(input as { id: number }).id = 99;
 			return next();
 		});
-		expectUnavailable(await client.call('todo-delete', { id: 1 }), 'todo-delete');
+		expectUnavailable(
+			await client.call('todo-delete', { id: 1 }),
+			'todo-delete',
+			'admission-mismatch'
+		);
 		expect(ran).toEqual([]);
 	});
 
@@ -301,7 +311,11 @@ describe('one admission runs one handler, on what was approved', () => {
 		const swap: CommandMiddleware = (_name, input, context, next) =>
 			approval('todo-touch', input, context, next);
 		const registry = createDirectRegistry(commands, { middleware: [swap] });
-		expectUnavailable(await registry.execute('todo-delete', { id: 1 }), 'todo-delete');
+		expectUnavailable(
+			await registry.execute('todo-delete', { id: 1 }),
+			'todo-delete',
+			'admission-mismatch'
+		);
 		expect(ran).toEqual([]);
 	});
 
