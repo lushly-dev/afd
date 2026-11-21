@@ -509,7 +509,9 @@ Use the server's `execute` only as a trusted host API when handling tokens out o
 Without an approval middleware, `create_server` and `create_direct_registry` refuse a command whose
 `approval` policy is not `"not-required"` with `APPROVAL_UNAVAILABLE` before its handler runs
 (#1886); place retry middleware, and middleware that changes the input, before the approval
-middleware, since one approval runs one handler on the approved input.
+middleware, since one approval runs one handler on the approved input. Middleware that moves
+`next_fn` to a thread uses `asyncio.to_thread` or `contextvars.copy_context().run`; otherwise a
+call on a context object that overlapping calls share is refused.
 
 ```python
 from afd import DirectClient, DirectClientOptions, create_direct_registry
