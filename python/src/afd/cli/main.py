@@ -17,9 +17,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
+from rich.text import Text
 
 from afd.cli.output import (
     console,
+    plain,
     print_connecting,
     print_disconnecting,
     print_error,
@@ -312,7 +314,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
                 
                 if json_output:
                     import json as json_module
-                    console.print(json_module.dumps({
+                    click.echo(json_module.dumps({
                         "name": matching[0].name,
                         "description": matching[0].description,
                         "input_schema": matching[0].input_schema,
@@ -324,7 +326,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
             # List all tools
             if json_output:
                 import json as json_module
-                console.print(json_module.dumps([
+                click.echo(json_module.dumps([
                     {"name": t.name, "description": t.description}
                     for t in tool_list
                 ], indent=2))
@@ -694,7 +696,7 @@ def status(ctx: click.Context) -> None:
     server = state.get("server")
     
     if json_output:
-        console.print(json.dumps({
+        click.echo(json.dumps({
             "connected": server is not None,
             "server": server,
         }, indent=2))
@@ -776,7 +778,7 @@ def validate(
             failed = strict and bool(warnings)
 
             if json_output:
-                console.print(json.dumps(results, indent=2))
+                click.echo(json.dumps(results, indent=2))
             else:
                 print_success("Connection: OK")
                 print_success(f"Tools listed: {len(tools)}")
@@ -792,7 +794,7 @@ def validate(
         except Exception as e:
             results["errors"].append(str(e))
             if json_output:
-                console.print(json.dumps(results, indent=2))
+                click.echo(json.dumps(results, indent=2))
             else:
                 _fail(f"Validation failed: {e}")
             sys.exit(1)
@@ -818,7 +820,7 @@ def validate(
             )
 
             if json_output:
-                console.print(
+                click.echo(
                     json.dumps(
                         {
                             "valid": result.valid,
@@ -867,12 +869,14 @@ def validate(
                     else:
                         print_info(f"{len(findings)} info finding(s)")
                     for finding in findings:
-                        console.print(f"  [{severity}] {finding.rule}: {finding.message}")
+                        # Findings quote command names and descriptions: print them as text.
+                        console.print(plain(f"  [{severity}] {finding.rule}: {finding.message}"))
                         if verbose:
-                            console.print(f"    Commands: {', '.join(finding.commands)}")
-                            console.print(f"    Fix: {finding.suggestion}")
+                            console.print(plain(f"    Commands: {', '.join(finding.commands)}"))
+                            console.print(plain(f"    Fix: {finding.suggestion}"))
                             if finding.evidence:
-                                console.print(f"    Evidence: {json.dumps(finding.evidence, sort_keys=True)}")
+                                evidence = json.dumps(finding.evidence, sort_keys=True)
+                                console.print(plain(f"    Evidence: {evidence}"))
 
                 if result.summary.suppressed_count:
                     print_info(f"{result.summary.suppressed_count} finding(s) suppressed")
@@ -987,7 +991,7 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
         print_error("No server connected. Use 'afd connect <server>' first.")
         sys.exit(1)
     
-    console.print(f"[bold]AFD Shell[/bold] - Connected to [cyan]{server}[/cyan]")
+    console.print(Text.assemble(("AFD Shell", "bold"), " - Connected to ", plain(server, "cyan")))
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/dim]\n")
     
     async def _shell() -> None:
@@ -1009,34 +1013,45 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
                     break
                 
                 if line == "help":
-                    console.print("""
-[bold]Commands:[/bold]
-  tools              List available tools
-  call <tool> [args] Call a tool with a JSON object or key=value pairs
-  help               Show this help
-  exit               Exit the shell
-""")
+                    console.print()
+                    console.print(Text("Commands:", style="bold"))
+                    console.print(Text(
+                        "  tools              List available tools\n"
+                        "  call <tool> [args] Call a tool with a JSON object or key=value pairs\n"
+                        "  help               Show this help\n"
+                        "  exit               Exit the shell\n"
+                    ))
                     continue
                 
+                # A failed request prints its error and the prompt returns, as in
+                # TypeScript's shell; only exit, quit or Ctrl+D end it.
                 if line == "tools":
-                    tool_list = await transport.list_tools()
-                    print_tools(tool_list)
+                    try:
+                        print_tools(await transport.list_tools())
+                    except Exception as e:
+                        _fail(f"Listing tools failed: {e}")
                     continue
-                
-                if line.startswith("call "):
-                    parts = line[5:].strip().split(maxsplit=1)
+
+                if line.split(maxsplit=1)[0] == "call":
+                    parts = line[4:].strip().split(maxsplit=1)
+                    if not parts:
+                        _fail("Usage: call <name> [args]")
+                        continue
                     tool_name = parts[0]
                     try:
                         tool_args = parse_tool_args(parts[1] if len(parts) > 1 else "")
                     except ValueError as e:
                         _fail(describe_args_error(e))
                         continue
-                    
-                    result = await transport.call_tool(tool_name, tool_args)
-                    print_result(result)
+
+                    try:
+                        result = await transport.call_tool(tool_name, tool_args)
+                        print_result(result)
+                    except Exception as e:
+                        _fail(f"Call failed: {e}")
                     continue
-                
-                console.print(f"[yellow]Unknown command: {line}[/yellow]")
+
+                console.print(plain(f"Unknown command: {line}", "yellow"))
                 
         finally:
             await transport.disconnect()
