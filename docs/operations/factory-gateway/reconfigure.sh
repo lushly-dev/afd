@@ -1,16 +1,36 @@
 #!/bin/bash
 # Installs a changed gateway.json and restarts the daemon. Run with sudo:
 #   sudo bash reconfigure.sh <dir holding the new gateway.json>
-# Prints the daemon's state, the end of its log and each mirror's main.
+# Refuses a file the gateway would not load, before anything changes. Keeps the replaced file
+# as gateway.json.prev, and prints the daemon's state, the end of its log and each mirror's
+# main.
 set -euo pipefail
-STAGE=$1
-install -o root -g _factorygw -m 0640 "$STAGE/gateway.json" /Library/FactoryGateway/etc/gateway.json
-launchctl kickstart -k system/dev.lushly.factory-gateway
+ROOT=/Library/FactoryGateway
+LABEL=dev.lushly.factory-gateway
+NEW=$(mktemp)
+trap 'rm -f "$NEW"' EXIT
+# A copy only root can change, so what is checked is what is installed.
+cat "$1/gateway.json" > "$NEW"
+$ROOT/app/venv/bin/python -I - "$NEW" <<'PYEOF'
+import sys
+from botcore_factory.gateway.config import GatewayConfig
+try:
+    config = GatewayConfig.model_validate_json(open(sys.argv[1], encoding="utf-8").read())
+except ValueError as exc:
+    sys.exit(f"gateway.json is refused: {exc}")
+if config.github_app is None:
+    sys.exit("gateway.json is refused: it has no githubApp")
+PYEOF
+cp -p $ROOT/etc/gateway.json $ROOT/etc/gateway.json.prev
+install -o root -g _factorygw -m 0640 "$NEW" $ROOT/etc/gateway.json
+launchctl kickstart -k system/$LABEL
 sleep 15
-launchctl print system/dev.lushly.factory-gateway | grep -E "^\s*(state|pid) =" | head -2
-echo "--- log"; tail -8 /Library/FactoryGateway/log/gateway.log
+launchctl print system/$LABEL | grep -E "^\s*(state|pid) =" | head -2
+echo "--- log"
+tail -8 $ROOT/log/gateway.log
 echo "--- mirrors"
 cd /var/empty
-for m in /Library/FactoryGateway/data/mirrors/*.git; do
-  echo "$(basename "$m") main at $(sudo -u _factorygw git --git-dir="$m" rev-parse --short refs/heads/main 2>&1)"
+for mirror in "$ROOT"/data/mirrors/*.git; do
+  main=$(sudo -u _factorygw git --git-dir="$mirror" rev-parse --short refs/heads/main 2>&1)
+  echo "$(basename "$mirror") main at $main"
 done

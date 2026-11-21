@@ -12,7 +12,7 @@ topic tells a caller how to use it. What is built and what is not is in the
 |---|---|
 | Host | `random` (macOS), reached over the tailnet at `http://100.82.142.64:8787` |
 | GitHub App | `lushly-factory-gateway`, App ID `5777732`, installation `182417554` on `lushly-dev`, limited to `lushly-dev/afd` and `lushly-dev/lushly`. Its writes appear as `lushly-factory-gateway[bot]` |
-| Service | The launch daemon `dev.lushly.factory-gateway`, which runs `factory-gateway-admin serve` and starts at boot |
+| Service | The launch daemon `dev.lushly.factory-gateway`, which runs `factory-gateway-admin serve` and is set to start at boot ([Restart and boot](#restart-and-boot)) |
 | Account | `_factorygw` (user and group 450): hidden, no login shell, no home |
 | Code | `/Library/FactoryGateway/app`, owned by root so the service cannot change what it runs: the source (`src`), its own Python (`python`), the environment (`venv`) and `REVISION`, the commit of `main` it was built from |
 | State | `/Library/FactoryGateway/data`, the service's alone: `state.json`, the journal, `tokens.json`, uploads and one bare mirror per repository |
@@ -24,6 +24,11 @@ The files beside this page are what is installed:
 [`reconfigure.sh`](factory-gateway/reconfigure.sh),
 [the launch daemon](factory-gateway/dev.lushly.factory-gateway.plist) and
 [an example configuration](factory-gateway/gateway.example.json).
+
+Run the commands on this page from the root of an AFD checkout on `random`. The two scripts run
+as root and trust the account that stages them: root runs the staged `uv` and installs the
+staged launch daemon. So each procedure takes the scripts from `origin/main`, never from a
+branch, and installs straight after staging.
 
 ## Check it
 
@@ -73,7 +78,7 @@ is never printed:
 sudo -u _factorygw /Library/FactoryGateway/app/venv/bin/factory-gateway-admin token issue \
   --data /Library/FactoryGateway/data --route lane --kind service --actor lane@random \
   --label "the lane on random" |
-  (umask 077; python3 -c 'import json,sys; print(json.load(sys.stdin)["token"], end="")' \
+  (umask 077; python3 -I -c 'import json,sys; print(json.load(sys.stdin)["token"], end="")' \
     > ~/.config/factory-gateway/lane.token)
 ```
 
@@ -104,41 +109,56 @@ in them. [The example](factory-gateway/gateway.example.json) shows the fields in
 | `githubApp` | The App's ID and its installation's ID |
 | `allowedVariables` | The repository variables `variable-set` may write; `FACTORY_LANE_HOST` when left out |
 
-To change it, copy the installed file, edit the copy and install it. The script restarts the
-daemon and prints its state, the end of its log and each mirror's `main`:
+To change it, copy the installed file, edit the copy and install it:
 
 ```bash
 CONFIG=$(mktemp -d)
+git fetch origin main
+git show origin/main:docs/operations/factory-gateway/reconfigure.sh > "$CONFIG/reconfigure.sh"
 sudo cat /Library/FactoryGateway/etc/gateway.json > "$CONFIG/gateway.json"
 # edit "$CONFIG/gateway.json"
-sudo bash docs/operations/factory-gateway/reconfigure.sh "$CONFIG"
+sudo bash "$CONFIG/reconfigure.sh" "$CONFIG"
 ```
 
-A configuration the gateway refuses keeps it from starting: the log names what is wrong, and
-launchd starts it again every 30 seconds until a good file is installed.
+The script refuses a file the gateway would not load, naming what is wrong, before anything
+changes. Otherwise it keeps the replaced file as `gateway.json.prev` beside the new one,
+restarts the daemon and prints its state, the end of its log and each mirror's `main`. To go
+back, install `gateway.json.prev` the same way.
 
 ## Update the code
 
 The service runs the commit in `REVISION` until it is rebuilt; merging to `main` changes nothing
-on `random`. Stage the new source as yourself, then install it as root. The daemon is down for
-the minute or two the build takes; callers see `GATEWAY_UNAVAILABLE` and retry.
+on `random`. Stage the new source as yourself:
 
 ```bash
 STAGE=$(mktemp -d)
+FILES=origin/main:docs/operations/factory-gateway
 git fetch origin main
 git archive -o "$STAGE/src.tar" origin/main python endpoints/botcore
 git rev-parse --short origin/main > "$STAGE/src.rev"
+git show $FILES/install.sh > "$STAGE/install.sh"
+git show $FILES/dev.lushly.factory-gateway.plist > "$STAGE/dev.lushly.factory-gateway.plist"
 cp "$(command -v uv)" "$STAGE/uv"
-cp docs/operations/factory-gateway/dev.lushly.factory-gateway.plist "$STAGE/"
-sudo bash docs/operations/factory-gateway/install.sh "$STAGE"
 ```
 
-Without a key file and without a `gateway.json` in the staging directory, the script keeps the
-installed key and configuration. It always keeps `data` (state, journal, tokens, mirrors) and
-the owner's token. Then [check it](#check-it).
+Then install it as root. The daemon is down for the minute or two the build takes; callers see
+`GATEWAY_UNAVAILABLE` and retry.
 
-The script stops the daemon and removes the old code before it builds the new. If the build
-fails (it downloads Python packages), the gateway stays down: fix the cause and run it again.
+```bash
+sudo bash "$STAGE/install.sh" "$STAGE"
+```
+
+The script installs what is staged and keeps the rest: with no key file passed and no
+`gateway.json` staged, the installed key and configuration stay. It always keeps `data` (state,
+journal, tokens, mirrors) and the owner's token. Then [check it](#check-it).
+
+It checks a key or configuration it is given before it stops the daemon, so a bad one changes
+nothing. After that it removes the old code and builds the new: if the build fails (it
+downloads Python packages), the gateway stays down until the script runs again and succeeds.
+
+The launch daemon in the repository carries `random`'s tailnet address. If that address
+changes, change it there first; an edited copy on the machine is replaced by the next update
+that stages the file.
 
 ## Install from nothing
 
@@ -150,25 +170,29 @@ fails (it downloads Python packages), the gateway stays down: fix the cause and 
 2. **The key.** On the App's settings page, under Credentials, then Key pairs, generate a
    private key. GitHub downloads a `.pem` file. It never goes into chat, a pull request or a
    repository: an agent that installs the gateway takes it through its harness's secret prompt.
-3. **The configuration.** Copy [the example](factory-gateway/gateway.example.json) to
-   `gateway.json` in the staging directory and fill in the owner, his commit addresses
-   (`git log --format=%ae | sort -u` in each repository) and the App's two IDs.
-4. **The address.** The launch daemon binds one address, `random`'s on the tailnet (the
-   Tailscale app shows it). On another host, change `--address` in the plist before staging it.
-5. **Stage and install**, as in [Update the code](#update-the-code), with the key file as the
-   second argument:
+3. **Stage** with the first block of [Update the code](#update-the-code), and stop before its
+   `sudo` line.
+4. **The configuration.** Copy [the example](factory-gateway/gateway.example.json) to
+   `"$STAGE/gateway.json"` and fill in the owner, his commit addresses and the App's two IDs.
+   `git log --format=%ae | sort -u` in each repository lists every author's address: keep only
+   the owner's own.
+5. **The address.** The launch daemon binds one address, `random`'s on the tailnet (the
+   Tailscale app shows it). On another host, change `--address` in the staged plist.
+6. **Install** once, from the same staging directory, with the key file as the second argument:
 
    ```bash
-   sudo bash docs/operations/factory-gateway/install.sh "$STAGE" ~/Downloads/<the key>.pem
+   sudo bash "$STAGE/install.sh" "$STAGE" ~/Downloads/<the key>.pem
    ```
 
-   The script creates the account, builds the code, installs the configuration and the key,
-   writes the owner's token and starts the daemon. Delete the downloaded key afterwards.
+   The script creates the account, builds the code, checks and installs the configuration and
+   the key, has the owner's account write the owner's token and starts the daemon. Delete the
+   downloaded key afterwards.
 
 ## Replace the App's key
 
-Generate a second key under Credentials, then Key pairs (an App may hold several), run
-`install.sh` with the new file as in step 5 above, and confirm `gateway-status` answers. Then
+Generate a second key under Credentials, then Key pairs (an App may hold several). Stage as in
+[Update the code](#update-the-code), run `install.sh` with the new file as its second argument,
+and confirm `gateway-status` answers. Then
 delete the old key on the same page and the downloaded file. Do the same at once if the key may
 have left `random`: the old key works until GitHub deletes it.
 
@@ -178,10 +202,12 @@ have left `random`: the old key works until GitHub deletes it.
 sudo launchctl kickstart -k system/dev.lushly.factory-gateway
 ```
 
-The daemon starts at boot, and launchd starts it again after any exit, at most once every 30
-seconds. It binds the tailnet address, which exists only once Tailscale is up: started before
-that, it exits and launchd tries again. After a restart of `random`, run [Check it](#check-it)
-from another machine.
+The daemon is set to start at boot, and launchd starts it again after any exit, at most once
+every 30 seconds. It binds the tailnet address, which exists only once Tailscale is up: started
+before that, it exits and launchd tries again. If Tailscale on `random` starts only when someone
+logs in, the gateway answers only after that. After a restart of `random`, run
+[Check it](#check-it) from another machine; the [status](../features/active/factory-gateway/STATUS.md)
+says whether a restart has been tried yet.
 
 Another service may hold port 8787 on the loopback address (an Umbel server does on `random`);
 the gateway binds only the tailnet address, so the two do not meet.
@@ -195,13 +221,15 @@ did not author, and how it merges decides who authors the commit on `main`.
   with the bot only as committer. The commits are unsigned (GitHub signs no rebase merge) and
   their subjects carry no pull request number. A pull request should hold one commit: every
   commit of the branch lands.
-- **`squash` by the App credits the bot**, with no line for the owner. Do not use it for work
-  the owner should be credited for.
+- **`squash` by the App credits the bot**, with no line for the owner. Do not merge work the
+  owner should be credited for that way.
 - A repository must allow the method (its settings, and any ruleset on `main`), or `pr-merge`
   answers `MERGE_METHOD_NOT_ALLOWED`.
-- Where `main` merges through a merge queue, the queue's own method applies to every pull
-  request and `mergeMethods` does not. AFD's queue squashes, so the gateway must not merge in
-  AFD until [#1809](https://github.com/lushly-dev/afd/issues/1809) changes that.
+- Where `main` merges through a merge queue, the queue merges by its own method, whatever
+  `mergeMethods` says, though GitHub still refuses a `mergeMethods` value the repository does
+  not allow. AFD's queue squashes and AFD allows nothing else, so `mergeMethods` says `squash`
+  for AFD and the gateway must not merge there. Both change to `rebase` with
+  [#1809](https://github.com/lushly-dev/afd/issues/1809).
 
 ## When something is wrong
 
@@ -210,14 +238,16 @@ did not author, and how it merges decides who authors the commit on `main`.
 | `GATEWAY_UNAVAILABLE`, or the connection is refused | The daemon is down, or Tailscale is, on either machine | `launchctl print` and the log on `random`; the Tailscale app on both |
 | `UNAUTHORIZED` (HTTP 401) | No token, or one that was revoked or never issued here | Check the token file; issue a new token |
 | `FORBIDDEN`: "This token opens /cell, not /lane" | A token used on another route | Use the token's own route, or issue one for the route |
-| `GITHUB_UNAVAILABLE` | GitHub did not answer, or the App's rate limit is spent | Retry; `gateway-status` shows the limit and when it resets |
+| `GITHUB_UNAVAILABLE` | GitHub did not answer, or one of the App's rate limits is spent | Retry. `gateway-status` shows the limit for GitHub's REST calls and when it resets; its GraphQL calls have a budget of their own, which nothing here shows |
 | `GITHUB_REFUSED` | GitHub refused the write; the message is GitHub's own | Fix what it names: a permission the App lacks, a rule on the branch |
 | `MERGE_METHOD_NOT_ALLOWED` | `mergeMethods` names a method the repository does not allow | [Merges and credit](#merges-and-credit) |
 | The daemon exits at once, again and again | A configuration it refuses, a key others can read, or the tailnet address is not up | The log names it |
 | An upload is `BUNDLE_INVALID` | The bundle needs commits the gateway's mirror lacks | The caller fetches `main` and bundles again (`git bundle create head.bundle origin/main..<branch>`), or bundles the whole branch |
 
-A mirror is only a copy of GitHub. With the daemon stopped, removing a repository's folder under
-`data/mirrors` makes the next start fetch it whole again, which the first start did for both.
+A mirror holds a copy of GitHub and the commits of uploads not yet pushed. With the daemon
+stopped, removing a repository's folder under `data/mirrors` makes the next start fetch it whole
+again, which the first start did for both. Uploads waiting to be pushed go with it, though
+their ids still read as valid for the hour: their callers upload again.
 
 The journal in `data` records every write with the caller that asked for it. Read it through
 the gateway (`gateway-audit` on the `owner` and `foreman` routes), not from the files.
@@ -230,7 +260,9 @@ sudo rm /Library/LaunchDaemons/dev.lushly.factory-gateway.plist
 sudo rm -rf /Library/FactoryGateway          # the journal, state and tokens go with it
 sudo dscl . -delete /Users/_factorygw
 sudo dscl . -delete /Groups/_factorygw
+rm -rf ~/.config/factory-gateway             # the owner's token and any issued beside it
 ```
 
 Then delete the App's key under Credentials, then Key pairs, and uninstall the App if nothing
-else uses it.
+else uses it. Tokens copied to other machines open nothing once the gateway is gone; delete
+them there too.
