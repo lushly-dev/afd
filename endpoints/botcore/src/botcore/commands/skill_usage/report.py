@@ -25,9 +25,9 @@ from botcore.commands.skill_usage.events import (
     DELEGATE,
     EDIT,
     MAIN,
+    PATHS,
     RECOGNIZER,
     SUBAGENT,
-    TRIGGER,
     TYPED,
     Event,
 )
@@ -325,8 +325,10 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     for event in events:
         outdated += event.v < RECOGNIZER
         moment = _parse(event.at)
-        if moment is None or event.path == TRIGGER or not _is_project(project, event.project):
-            continue  # a change that requires a skill is skill-usage-triggers' business
+        if moment is None or not _is_project(project, event.project):
+            continue
+        if event.path != EDIT and event.path not in PATHS:
+            continue  # a kind of event a newer botcore wrote: not known to be a load
         name = current_name(
             event.skill, renames.get(event.project, {}), on_disk.get(event.project, {})
         )

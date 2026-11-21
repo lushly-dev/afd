@@ -29,7 +29,9 @@ class RequiredSkill(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    skill: str = Field(min_length=1)
+    # A skill's name (or a plugin's `plugin:skill`): it is written to the usage record, so
+    # nothing but a name is accepted
+    skill: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9][A-Za-z0-9._-]*)?$")
     # Globs over repository-relative paths; `*` stays in one folder and `**` spans folders
     paths: list[str] = Field(min_length=1)
 

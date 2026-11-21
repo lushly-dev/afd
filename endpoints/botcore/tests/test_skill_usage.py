@@ -127,8 +127,10 @@ class T3Store:
     ) -> str:
         return self.item(thread_id, t3.TOOL, at, toolName=tool, input={key: file_path})
 
-    def shell(self, thread_id: str, command: str, at: str, driver: str = "codex") -> str:
-        return self.item(thread_id, t3.COMMAND, at, driver=driver, input=command)
+    def shell(
+        self, thread_id: str, command: str, at: str, driver: str = "codex", **more: object
+    ) -> str:
+        return self.item(thread_id, t3.COMMAND, at, driver=driver, input=command, **more)
 
     def message(self, thread_id: str, text: str, at: str, created_by: str = "user") -> str:
         return self.item(thread_id, t3.MESSAGE, at, driver=None, text=text, createdBy=created_by)

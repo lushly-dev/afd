@@ -21,13 +21,9 @@ PATHS = (SKILL_TOOL, FILE_READ, SHELL_READ, TYPED)
 # as the subject of its work, so the report counts it as authoring the skill, not using it.
 EDIT = "edit"
 
-# Not a load either: the session changed a file that its repository says requires the skill
-# (`[[skills.required]]`). The event names the skill, never the file.
-TRIGGER = "trigger"
-
-# The version of the rules that recognised an event. A record holding events of an older
-# version can be rebuilt from what the harness still has. 2 added `trigger` events.
-RECOGNIZER = 2
+# The version of the rules in this module that recognised an event. A record holding events
+# of an older version can be rebuilt from what the harness still has.
+RECOGNIZER = 1
 
 # Who loaded it. A session is a thread a person started or a task delegated to its own
 # agent; a subagent works inside one and reports back to it.
@@ -425,3 +421,100 @@ def skills_read_by(command: str, depth: int = 0) -> list[str]:
             if skill and skill not in found:
                 found.append(skill)
     return found
+
+
+# ── changes that require a skill ────────────────────────────────────────────
+
+# The version of the rules that recognise a change to a path that requires a skill
+TRIGGERS = 1
+
+
+@dataclass(frozen=True)
+class Trigger:
+    """A session changed a path its repository requires a skill for. It names the skill and
+    the declaration that saw it, never the path.
+
+    `at` is when the change is known to have been made by. When only the end of a turn shows
+    it, `since` is the earliest it can have been made: the order of the change and a skill
+    loaded between the two is not known. `rule` identifies the declared paths, so that
+    evidence gathered under paths since changed is told apart."""
+
+    id: str
+    at: str
+    skill: str
+    rule: str
+    thread: str
+    project: str
+    machine: str
+    since: str | None = None
+    v: int = TRIGGERS
+
+    def to_json(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_json(cls, data: dict) -> Trigger | None:
+        """The trigger a stored line holds, or None when the line is not one."""
+        fields = {name: data.get(name) for name in cls.__dataclass_fields__}
+        required = ("id", "at", "skill", "rule", "thread", "project", "machine")
+        if not all(isinstance(fields[name], str) and fields[name] for name in required):
+            return None
+        if not isinstance(fields["since"], str):
+            fields["since"] = None
+        if not isinstance(fields["v"], int):
+            fields["v"] = 0
+        return cls(**fields)
+
+
+_GIT_MOVING = {"merge", "pull", "rebase", "cherry-pick"}
+_GIT_GIVING_UP = {"--abort", "--quit"}
+_GIT_NEW_BRANCH = {"-b", "-B", "-c", "-C", "--create", "--force-create", "--orphan"}
+_SCRIPT_RUNNERS = {"pnpm", "npm", "yarn", "bun", "npx", "node"}
+
+
+def _git_moves(arguments: list[str]) -> bool:
+    rest = list(arguments)
+    while rest and rest[0].startswith("-"):
+        option = rest.pop(0)
+        if option in _GIT_OPTIONS_WITH_VALUE and rest:
+            rest.pop(0)
+    if not rest:
+        return False
+    subcommand, rest = rest[0], rest[1:]
+    if subcommand in _GIT_MOVING:
+        return not _GIT_GIVING_UP & set(rest)
+    if subcommand == "reset":
+        return "--hard" in rest
+    if subcommand in ("checkout", "switch"):
+        if (
+            "--" in rest
+        ):  # `checkout <commit> -- <path>` brings that commit's file; bare `--` restores
+            return any(not word.startswith("-") for word in rest[: rest.index("--")])
+        words = [word for word in rest if not word.startswith("-")]
+        if _GIT_NEW_BRANCH & set(rest):
+            return len(words) > 1  # a start point after the new branch's name
+        return bool(words)
+    return False
+
+
+def moves_checkout(command: str, depth: int = 0) -> bool:
+    """Whether a shell command moves its checkout to other commits: a merge, pull, rebase or
+    cherry-pick, a hard reset, a checkout or switch to another commit (a new branch counts
+    only when it starts somewhere else), `gh pr checkout` or `gh pr merge`, or a base sync.
+    After one, the files a turn left changed include other people's."""
+    for simple in _commands(_without_here_documents(command)):
+        name, arguments = _program(simple.words)
+        script = _script(name, arguments)
+        if script is not None:
+            if depth < 3 and moves_checkout(script, depth + 1):
+                return True
+        elif name == "git":
+            if _git_moves(arguments):
+                return True
+        elif name == "gh":
+            if arguments[:2] in (["pr", "checkout"], ["pr", "merge"]):
+                return True
+        elif name in _SCRIPT_RUNNERS:
+            if any("base:sync" in word or "base-sync" in word for word in arguments):
+                return True
+    return False

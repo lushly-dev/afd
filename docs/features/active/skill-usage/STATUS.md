@@ -21,17 +21,22 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - **A merge looks like a change.** A turn's checkpoint lists every file the turn left changed
   in the checkout, so a session that merged `main` appeared to change each gate file anyone
-  had changed. Of 159 gate-file changes seen that way, 149 were in a turn that moved the
+  had changed. Of 159 checkpoints that listed a gate file, 153 were of a turn that moved the
   checkout to other commits. Those turns are not read.
-- **What is left is small and trustworthy.** 9 sessions changed a gate file themselves, and 5
+- **Making a branch can move the checkout too.** `git switch -C fix origin/main` starts the
+  branch somewhere else. Counting it as harmless let three delegated tasks through as "loaded
+  first"; a new branch now counts as a move when a start point follows its name.
+- **What is left is small and trustworthy.** 6 sessions changed a gate file themselves, and 2
   had loaded the gate skill first.
+- **Gate files are not edited with the edit tools.** No file-edit item in the store touches
+  one, so every one of those six is known only from the end of its turn.
 - **Most merged changes are unknown from one machine.** Of 55 merged changes to a gate file,
-  45 had no session on this machine, 7 had a linked session but no change recorded outside a
-  merging turn, 1 had no pull request number, and 2 could be judged (both had loaded the
-  skill). Collection on every machine is what raises that.
+  45 had no session on this machine, 8 had a linked session but no change recorded outside a
+  turn that moved the checkout, 1 had no pull request number, and 1 could be judged (it had
+  loaded the skill). Collection on every machine is what raises that.
 - **A long-lived thread is linked to many pull requests.** Judged as one, a coordinator that
   changed a gate file once answered for every pull request it had linked. Each link has a
-  time, so a session is judged one pull request at a time.
+  time (all 554 in the store do), so a session is judged one pull request at a time.
 - **Which skill a repository requires is its own decision.** AFD's instructions send a change
   to CI or a hook to `gates.md`, a reference file of another skill, not to `maintain-gates`;
   declaring that skill required here would have reported every session as a miss. AFD declares

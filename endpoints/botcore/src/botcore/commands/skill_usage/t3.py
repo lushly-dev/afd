@@ -10,10 +10,9 @@ reported instead of guessed at.
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
-from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from botcore.commands.skill_usage.events import (
@@ -24,7 +23,6 @@ from botcore.commands.skill_usage.events import (
     SHELL_READ,
     SKILL_TOOL,
     SUBAGENT,
-    TRIGGER,
     TYPED,
     clean_skill_name,
     skill_of_file,
@@ -50,33 +48,12 @@ OPTIONAL: dict[str, set[str]] = {
     RUNS: {"run_id", "payload_json"},
 }
 TOOL, COMMAND, MESSAGE, CHANGE = "dynamic_tool", "command_execution", "user_message", "file_change"
-# What a turn left changed in the session's checkout, with paths inside it: every edit is
-# there, whatever made it, where a `file_change` item exists only for some tools
-CHECKPOINT = "checkpoint"
-KINDS = (TOOL, COMMAND, MESSAGE, CHANGE, CHECKPOINT)
+KINDS = (TOOL, COMMAND, MESSAGE, CHANGE)
 MIN_ITEMS_TO_JUDGE_KINDS = 50
 HARNESSES = {"claudeAgent": "claude", "codex": "codex"}
 READ_TOOLS = {"read", "read_file", "view"}
 FILE_KEYS = ("file_path", "filePath", "path")
 DONE = "completed"
-# Commands that move a checkout to other commits. A checkpoint of a turn that ran one lists
-# files other people changed, so it is not read as this session's changes. Making a branch
-# (`checkout -b`, `switch -c`) or restoring a path (`checkout -- <path>`) moves nothing.
-MOVES_CHECKOUT = re.compile(
-    r"""\bgit\s+(?:-C\s+\S+\s+)?(?:
-            (?:merge|pull|rebase|cherry-pick)(?![\w-])
-          | reset\s+--hard\b
-          | (?:checkout|switch)\s+(?!-[bBcC]\b|--(?:\s|$))[^\s-]
-        )
-      | \bgh\s+pr\s+checkout\b
-      | \bbase[:-]sync\b
-    """,
-    re.VERBOSE,
-)
-_MIGHT_MOVE = (
-    "git merge", "git pull", "git rebase", "git cherry-pick", "git reset", "git checkout",
-    "git switch", "git -C", "gh pr checkout", "base:sync", "base-sync",
-)  # fmt: skip
 PERSON = "user"
 DELEGATED_PREFIX = "thread:delegated-task:"
 SUBAGENT_PREFIXES = ("thread:subagent:", "thread:provider:")
@@ -210,6 +187,19 @@ def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _moment(value: object) -> str | None:
+    """A time as the store wrote it, kept only when it is a time: no other text reaches the
+    record through a field that should hold one."""
+    try:
+        parsed = datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+    if parsed is None:
+        return None
+    parsed = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
 def _pull_requests(value: object) -> tuple[tuple[str, str | None], ...]:
     """The pull requests T3 Code linked to a thread, as `owner/name#number`, each with when
     it was linked."""
@@ -218,7 +208,7 @@ def _pull_requests(value: object) -> tuple[tuple[str, str | None], ...]:
         entry = _mapping(entry)
         repository, number = _text(entry.get("repository")), entry.get("number")
         if repository and isinstance(number, int):
-            found.append((f"{repository}#{number}", _text(entry.get("linkedAt"))))
+            found.append((f"{repository}#{number}", _moment(entry.get("linkedAt"))))
     return tuple(found)
 
 
@@ -341,8 +331,6 @@ class _Shapes:
             ok = "input" in payload and status
         elif kind == CHANGE:
             ok = isinstance(payload.get("fileName"), str) and status
-        elif kind == CHECKPOINT:
-            ok = isinstance(payload.get("files"), list)
         else:
             ok = isinstance(payload.get("text"), str) and isinstance(payload.get("createdBy"), str)
         self.shaped[kind] += ok
@@ -353,7 +341,6 @@ class _Shapes:
             COMMAND: "input, status",
             MESSAGE: "text, createdBy",
             CHANGE: "fileName, status",
-            CHECKPOINT: "files",
         }
         missing = [
             f"{ITEMS}.payload_json of {kind} ({fields[kind]})"
@@ -364,7 +351,7 @@ class _Shapes:
             raise SchemaChanged(missing)
 
 
-def _command(payload: dict) -> str:
+def command_of(payload: dict) -> str:
     """The command a recorded item ran, as text; never its output."""
     command = payload.get("input")
     if isinstance(command, dict):
@@ -378,8 +365,6 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     """(skill, path) for each load one recorded item shows, and for each change to a skill's
     files (path `edit`). A tool call, command or change counts only once it completed, and a
     message only when the person wrote it."""
-    if kind == CHECKPOINT:
-        return []  # read for the paths a project requires a skill for, not for loads
     if kind == MESSAGE:
         if payload.get("createdBy") != PERSON:  # a brief an agent or the system wrote
             return []
@@ -408,7 +393,7 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
                 if name:
                     return [(name, FILE_READ)]
         return []
-    return [(name, SHELL_READ) for name in skills_read_by(_command(payload))]
+    return [(name, SHELL_READ) for name in skills_read_by(command_of(payload))]
 
 
 def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
@@ -431,55 +416,12 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
     return sessions
 
 
-def _changed_files(payload: dict) -> list[str]:
-    """Every file a completed change touched: its `fileName`, and each of a patch's files."""
-    changes = payload.get("changes") if isinstance(payload.get("changes"), list) else []
-    files = [payload.get("fileName"), *(_mapping(change).get("path") for change in changes)]
-    return [file for file in files if _text(file)]
-
-
-def relative_to(file: str, bases: list[str | None]) -> str | None:
-    """A changed file as a forward-slash path inside the checkout that holds it: the longest
-    of the given folders that does."""
-    target = file.replace("\\", "/")
-    prefixes = sorted(
-        {(base or "").replace("\\", "/").rstrip("/") for base in bases} - {""},
-        key=len,
-        reverse=True,
-    )
-    for prefix in prefixes:
-        if target.startswith(prefix + "/"):
-            return target[len(prefix) + 1 :]
-    return None
-
-
-def _required_paths(kind: str, payload: dict, checkouts: list[str | None]) -> list[str]:
-    """The paths, inside the project's checkout, that an item shows a session changed."""
-    if kind == CHECKPOINT:
-        files = payload.get("files") if isinstance(payload.get("files"), list) else []
-        paths = (_text(_mapping(file).get("path")) for file in files)
-        return [path.replace("\\", "/") for path in paths if path]
-    if kind == CHANGE and payload.get("status") == DONE:
-        inside = (relative_to(file, checkouts) for file in _changed_files(payload))
-        return [path for path in inside if path]
-    return []
-
-
-def read(
-    connection: sqlite3.Connection,
-    *,
-    since: str | None,
-    all_items: bool = False,
-    required: Callable[[str, str], list[str]] | None = None,
-) -> T3Read:
+def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool = False) -> T3Read:
     """Every skill load, and change to a skill's files, the store shows at or after `since`
     (an ISO time), oldest first; and every session it holds.
 
     A typed name is returned as a load too; the caller keeps it only when the name is a skill.
     `all_items` also returns the id of every item the store holds, for a rebuild.
-    `required(workspace_root, path)` names the skills a project requires for a change to a
-    path inside its checkout; each such change is returned with path `trigger`. The paths are
-    read here and go no further.
     """
     result = T3Read()
     for project_id, workspace_root in connection.execute(
@@ -509,23 +451,6 @@ def read(
     if since:
         where, arguments = "and updated_at >= ?", [since]
     result.newest = _text(connection.execute(f"select max(updated_at) from {ITEMS}").fetchone()[0])
-    # with required paths to look for, every change is read; otherwise only those to skills
-    only_skill_files = "" if required else "and payload_json like '%skills%'"
-    checkpoints = "" if required else "and 0"
-    worktrees: dict[str, set[str]] = {}  # every checkout a project's threads work in
-    for thread in threads.values():
-        if thread.project_id and thread.worktree:
-            worktrees.setdefault(thread.project_id, set()).add(thread.worktree)
-    moved: set[str] = set()  # the turns that moved their checkout to other commits
-    if required and run_column != "null":
-        might = " or ".join(f"payload_json like '%{text}%'" for text in _MIGHT_MOVE)
-        for run_id, payload_json in connection.execute(
-            f"select run_id, payload_json from {ITEMS} where type = '{COMMAND}' "
-            f"and run_id is not null and ({might}) {where}",
-            arguments,
-        ):
-            if run_id not in moved and MOVES_CHECKOUT.search(_command(_object(payload_json))):
-                moved.add(run_id)
     rows = connection.execute(
         f"""
         select turn_item_id, thread_id, type, updated_at, {run_column}, payload_json from {ITEMS}
@@ -533,8 +458,7 @@ def read(
             (type = '{TOOL}'
                 and (payload_json like '%SKILL.md%' or payload_json like '%"Skill"%'))
             or (type = '{COMMAND}' and payload_json like '%SKILL.md%')
-            or (type = '{CHANGE}' {only_skill_files})
-            or (type = '{CHECKPOINT}' {checkpoints})
+            or (type = '{CHANGE}' and payload_json like '%skills%')
             or type = '{MESSAGE}'
         ) {where}
         order by updated_at
@@ -548,18 +472,10 @@ def read(
         payload = _object(payload_json)
         shapes.note(kind, payload)
         loads = _loads(kind, payload)
-        session = family.session(thread_id)
-        own, top = threads.get(thread_id), threads.get(session)
-        project_id = (top.project_id if top else None) or (own.project_id if own else None)
-        root_folder = result.projects.get(project_id or "")
-        if required and root_folder and not (kind == CHECKPOINT and run_id in moved):
-            checkouts = [*worktrees.get(project_id or "", ()), root_folder]
-            for inside in _required_paths(kind, payload, checkouts):
-                for name in required(root_folder, inside):
-                    if (name, TRIGGER) not in loads:
-                        loads.append((name, TRIGGER))
         if not loads:
             continue
+        session = family.session(thread_id)
+        own, top = threads.get(thread_id), threads.get(session)
         native = _mapping(payload.get("nativeItemRef"))
         driver = _text(native.get("driver")) or (own.provider if own else None) or ""
         harness = HARNESSES.get(driver, driver or "other")
@@ -569,8 +485,7 @@ def read(
                 Load(
                     item=str(item_id),
                     native=f"{harness}:{native_id}" if native_id else None,
-                    at=(_text(payload.get("completedAt")) if kind == CHECKPOINT else None)
-                    or _text(payload.get("startedAt"))
+                    at=_text(payload.get("startedAt"))
                     or _text(payload.get("updatedAt"))
                     or updated_at,
                     skill=name,
@@ -579,7 +494,8 @@ def read(
                     thread=session,
                     root=family.root(thread_id),
                     agent=family.role(thread_id, session),
-                    project_id=project_id,
+                    project_id=(top.project_id if top else None)
+                    or (own.project_id if own else None),
                     model=models.get(run_id)
                     if run_id
                     else (own.model if own and thread_id != session else None),
