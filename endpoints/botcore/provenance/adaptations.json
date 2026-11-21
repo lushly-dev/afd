@@ -2120,7 +2120,7 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "8de374a7cabed3e981a1e85fd92aa882f3b7e1bc18ff593894de82ad65438acc",
+      "current_import_sha256": "000357080d94eb3e1336566ca59f53359172230e63b073b42ef0e2c629e434ca",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
