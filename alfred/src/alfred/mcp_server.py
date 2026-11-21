@@ -11,7 +11,10 @@ from alfred.host import build_alfred_host
 
 def create_server(workspace: str | Path, target=None, *, profile='inspection',
                   raw_python=False, npm_controller=None):
-    """Create an explicit host; raw Python requires trusted-local opt-in."""
+    """Create an explicit host; raw Python requires trusted-local opt-in.
+
+    Run the server over stdio only: no other transport authenticates its caller.
+    """
     host = build_alfred_host(workspace, target, profile=profile, npm_controller=npm_controller)
     return create_host_mcp_server(host, version=__version__, raw_python=raw_python,
                                   description='Alfred unified repository command host')

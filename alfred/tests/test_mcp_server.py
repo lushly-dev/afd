@@ -9,6 +9,7 @@ from alfred import mcp_server
     [],
     ['--raw-python', '--profile', 'trusted-local'],
     ['--profile', 'trusted-local'],
+    ['--raw-python'],
 ])
 def test_sse_is_refused_for_every_profile(flags, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(mcp_server, 'create_server',
