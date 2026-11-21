@@ -765,6 +765,7 @@ try {
 		assert(!names.includes(hostOnly), `${hostOnly} is listed`);
 	const called = await request(3, 'tools/call', { name: 'node.list', arguments: {} });
 	assert(Array.isArray(called.result.content), JSON.stringify(called));
+	assert.notEqual(called.result.isError, true, JSON.stringify(called));
 	passed(
 		`violet-mcp over stdio: initialize (${initialized.result.serverInfo.name}), ${tools.length} tools listed without validate and doctor, node.list called`
 	);
