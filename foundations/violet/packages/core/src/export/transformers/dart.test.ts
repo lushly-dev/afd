@@ -156,4 +156,34 @@ describe('dart transformer', () => {
 		expect(without).not.toContain('// Spacing');
 		expect(without).not.toContain('Default gap');
 	});
+
+	it('neutralizes non-hex colors, reserved/colliding identifiers, decimal units and newline comments (#1878)', () => {
+		const dart = dartTransformer.transform(
+			[
+				token('color.inject', '00); void pwn() {} //', 'line1\n  static const pwn = 1;'),
+				token('spacing.bad-unit', '12; pwn() px'),
+				token('spacing.frac-px', '1.5px'),
+				token('spacing.half-rem', '.5rem'),
+				token('spacing.huge', 1e21),
+				token('class', 'kw'),
+				token('spacing.low-key', '4px'),
+				token('spacing.low_key', '8px'),
+			],
+			{ className: 'class' },
+		);
+
+		expect(dart).not.toContain('Color(0x');
+		expect(dart).toContain("static const String colorInject = '00); void pwn() {} //';");
+		expect(dart).toContain("static const String spacingBadUnit = '12; pwn() px';");
+		expect(declarationOf(dart, 'spacingFracPx')).toBe('static const double spacingFracPx = 1.5;');
+		expect(declarationOf(dart, 'spacingHalfRem')).toBe('static const double spacingHalfRem = 8.0;');
+		expect(declarationOf(dart, 'spacingHuge')).toBe('static const double spacingHuge = 1e+21;');
+		expect(declarationOf(dart, '_class_2')).toBe("static const String _class_2 = 'kw';");
+		expect(declarationOf(dart, 'spacingLowKey')).toBe('static const double spacingLowKey = 4.0;');
+		expect(declarationOf(dart, 'spacingLowKey_2')).toBe(
+			'static const double spacingLowKey_2 = 8.0;',
+		);
+		expect(dart).not.toContain('\n  static const pwn = 1;');
+		expect(dart).toContain('class _class {');
+	});
 });
