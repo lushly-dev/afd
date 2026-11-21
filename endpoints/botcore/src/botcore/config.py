@@ -23,6 +23,30 @@ _TOOL_DEFAULTS: dict[str, dict[str, str]] = {
 # ── Pydantic models ────────────────────────────────────────────────────────
 
 
+class RequiredSkill(BaseModel):
+    """A skill a kind of change requires: `skill-usage-triggers` reports the changes to
+    these paths whose session had not loaded it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # A skill's name (or a plugin's `plugin:skill`), as the usage record holds it
+    skill: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*(:[A-Za-z0-9][A-Za-z0-9._-]*)?$")
+    # Globs over repository-relative paths as git writes them: forward slashes, matched by
+    # case; `*` stays in one folder and `**` spans folders
+    paths: list[str] = Field(min_length=1)
+
+    @field_validator("paths")
+    @classmethod
+    def _as_git_writes_them(cls, paths: list[str]) -> list[str]:
+        for path in paths:
+            if not path or "\\" in path or path.startswith(("/", "./", "../")):
+                raise ValueError(
+                    f"{path!r} is not a repository-relative path: write it as git does, "
+                    "with forward slashes and no leading ./ or /, for example scripts/check-*.mjs"
+                )
+        return paths
+
+
 class SkillsConfig(BaseModel):
     """Skill registry settings."""
 
@@ -34,6 +58,8 @@ class SkillsConfig(BaseModel):
     agent_skills: bool = False
     # Characters of descriptions (plus when_to_use) the host lists; Claude Code's fallback
     listing_budget: int = Field(default=8000, gt=0, strict=True)
+    # [[skills.required]]: the skills that kinds of change require
+    required: list[RequiredSkill] = []
 
 
 class SweepConfig(BaseModel):

@@ -263,7 +263,8 @@ describe('requireClient', () => {
 	it('exits before connecting when AFD_HEADERS is malformed', async () => {
 		vi.stubEnv('AFD_HEADERS', 'not a header');
 		expect(() => headersOrExit(undefined)).toThrow('exit 1');
-		expect(output()).toContain('AFD_HEADERS: Invalid header "not a header"');
+		expect(output()).toContain('AFD_HEADERS line 1: Invalid header');
+		expect(output()).not.toContain('not a header');
 		expect(mocks.createClient).not.toHaveBeenCalled();
 	});
 });

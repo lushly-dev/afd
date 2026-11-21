@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from botcore.commands.skill_usage.events import (
@@ -57,6 +58,7 @@ PERSON = "user"
 DELEGATED_PREFIX = "thread:delegated-task:"
 SUBAGENT_PREFIXES = ("thread:subagent:", "thread:provider:")
 FORK = "fork"
+OPENED = "created"  # the source of a pull request link on the thread that opened it
 
 
 class StoreUnreadable(Exception):
@@ -81,7 +83,8 @@ class Thread:
     model: str | None  # its current setting: the truth only for a thread that cannot switch
     created_at: str | None = None
     updated_at: str | None = None
-    pull_requests: tuple[str, ...] = ()
+    # (owner/name#number, linked at, whether this thread opened it: None when not said)
+    pull_requests: tuple[tuple[str, str | None, bool | None], ...] = ()
 
 
 @dataclass
@@ -104,7 +107,7 @@ class Load:
 @dataclass
 class Session:
     """A session the store holds, whether or not it loaded a skill: the denominator of every
-    rate, and what ties a session to the pull requests it produced."""
+    rate, and what says which pull requests a session opened."""
 
     id: str
     root: str
@@ -113,7 +116,9 @@ class Session:
     project_id: str | None
     created_at: str | None
     updated_at: str | None
-    pull_requests: tuple[str, ...]
+    pull_requests: tuple[tuple[str, str | None, bool | None], ...]
+    # The session it came from: the one that delegated it, or the one it was forked from
+    parent: str | None = None
 
 
 @dataclass
@@ -185,14 +190,33 @@ def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _pull_requests(value: object) -> tuple[str, ...]:
-    """The pull requests T3 Code linked to a thread, as `owner/name#number`."""
-    found: list[str] = []
+def _moment(value: object) -> str | None:
+    """A time as the store wrote it, kept only when it is a time: no other text reaches the
+    record through a field that should hold one."""
+    try:
+        parsed = datetime.fromisoformat(value) if isinstance(value, str) else None
+        if parsed is None:
+            return None
+        parsed = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    except (ValueError, OverflowError):  # not a time, or one at the edge of the calendar
+        return None
+
+
+def _pull_requests(value: object) -> tuple[tuple[str, str | None, bool | None], ...]:
+    """The pull requests T3 Code linked to a thread, as `owner/name#number`, each with when
+    it was linked and whether the thread opened it. T3 Code says which: a link's source is
+    `created` on the thread that opened the pull request, and `agent` on one that attached
+    itself to a pull request that already existed, to repair, review or merge it. A link
+    without a source does not say."""
+    found: list[tuple[str, str | None, bool | None]] = []
     for entry in value if isinstance(value, list) else []:
         entry = _mapping(entry)
         repository, number = _text(entry.get("repository")), entry.get("number")
-        if repository and isinstance(number, int):
-            found.append(f"{repository}#{number}")
+        if repository and isinstance(number, int) and not isinstance(number, bool):
+            source = _text(entry.get("source"))
+            opened = None if source is None else source == OPENED
+            found.append((f"{repository}#{number}", _moment(entry.get("linkedAt")), opened))
     return tuple(found)
 
 
@@ -374,11 +398,28 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
 
 
+def _says_more(link: tuple[str, str | None, bool | None]) -> tuple[int, bool, str]:
+    """Orders two links to one pull request: the one that opened it first, then one that
+    says it did not, then the earlier."""
+    _, linked_at, opened = link
+    return ({True: 0, False: 1}.get(opened, 2), linked_at is None, linked_at or "")
+
+
 def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
+    # A pull request a subagent linked is its session's: the session's own links first
+    links: dict[str, dict[str, tuple[str, str | None, bool | None]]] = {}
+    for thread_id in sorted(threads, key=lambda name: (family.session(name) != name, name)):
+        held = links.setdefault(family.session(thread_id), {})
+        for link in threads[thread_id].pull_requests:
+            if link[0] not in held or _says_more(link) < _says_more(held[link[0]]):
+                held[link[0]] = link
     sessions: list[Session] = []
     for thread_id, thread in threads.items():
         if thread_id.startswith(SUBAGENT_PREFIXES) or family.session(thread_id) != thread_id:
             continue
+        came_from = thread.remote_parent
+        if not came_from and (parent := family.parent(thread_id)):
+            came_from = family.session(parent)
         sessions.append(
             Session(
                 id=thread_id,
@@ -388,7 +429,8 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
                 project_id=thread.project_id,
                 created_at=thread.created_at,
                 updated_at=thread.updated_at,
-                pull_requests=thread.pull_requests,
+                pull_requests=tuple(links.get(thread_id, {}).values()),
+                parent=came_from if came_from != thread_id else None,
             )
         )
     return sessions

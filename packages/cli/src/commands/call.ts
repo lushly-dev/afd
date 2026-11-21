@@ -11,7 +11,7 @@ import ora from 'ora';
 import { approvalDetails, callWithApproval, interactiveApproval } from '../approval.js';
 import { describeArgsError, parseToolArgs } from '../args.js';
 import type { CliTransport } from '../config.js';
-import { type ConnectFlags, requireClient } from '../connection.js';
+import { type ConnectFlags, headersOrExit, requireClient } from '../connection.js';
 import { type OutputFormat, printError, printResult } from '../output.js';
 import { terminalText } from '../terminal.js';
 import { headerOption, transportOption } from './options.js';
@@ -86,6 +86,9 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 					printError('--module and --connect cannot be used together');
 					return process.exit(1);
 				}
+				// --module never reaches requireClient, which checks -H for the MCP branch, so a
+				// malformed header is refused here before the module loads.
+				headersOrExit(options.header);
 				const result = await callInProcess(name, parsedArgs, options);
 				if (!result) return process.exit(1);
 				printResult(result, { format: options.format, verbose: options.verbose });

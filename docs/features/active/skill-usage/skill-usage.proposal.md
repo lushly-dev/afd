@@ -74,8 +74,10 @@ filter to be refused: an empty report reads as nobody using a skill.
 (pytest searches the files for a canary). Refusals and results that need a state of the
 machine, not an input: `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING`, and a
 machine with no T3 Code, which succeeds with nothing collected so that its schedule does not
-fail every hour (pytest makes each state). Scale: a real store of 160,000 items reads in about
-20 seconds, measured, not asserted.
+fail every hour; and for the triggers report, a checkout whose configuration does not parse
+(`CONFIG_INVALID`) or that does not say which branch is its default (`GIT_FAILED`), and a
+record with a damaged line (`RECORD_DAMAGED`) (pytest makes each state). Scale: a
+real store of 160,000 items reads in about 20 seconds, measured, not asserted.
 
 **Walked by.** One reader who did not write the plan took the three seats of the jobs-first
 rule. What it found and what changed is under [The walk](#the-walk).
@@ -145,10 +147,12 @@ T3 Code's store is another program's internal schema, not an interface:
 ### Sessions
 
 Collection also writes `sessions.json`: every session T3 Code holds, whether or not it loaded
-a skill, with its root, agent, harness, project, first and last activity, and the pull
-requests T3 Code linked to it (`owner/name#number`). It holds no title and no branch. It is
-the denominator of every share, and what ties a session to the change it produced. It is
-written from the first collection, since T3 Code does not keep its threads for ever.
+a skill, with its root, the session it came from (the one that delegated it, or the one it
+was forked from), agent, harness, project, first and last activity and the pull requests T3
+Code linked to it or its subagents: `owner/name#number`, when, and whether the session opened
+the pull request or attached itself to one that existed. No title and no branch name is kept.
+It is the denominator of every share, and it says which session opened which pull request. It
+is written from the first collection, since T3 Code does not keep its threads for ever.
 
 ### The event
 
@@ -194,7 +198,7 @@ rename table covers the skills it ships. A name the checkout still holds is neve
 | --- | --- | --- | --- |
 | `skill-usage-collect` | `since_days`, `t3_store` with `machine`, `rebuild` | `machine`, `added`, `events`, `sessions`, and per source `status` (`read`, `absent`, `off`), `since`, `scanned`, `found`, `added` | `INVALID_INPUT`, `SOURCE_NOT_FOUND`, `SOURCE_SCHEMA_CHANGED`, `SOURCE_UNREADABLE`, `RECORD_UNAVAILABLE`, `COLLECT_RUNNING` |
 | `skill-usage-report` | `days`, `ending_days_ago`, `project`, `harness`, `skill`, `agent`, `limit` | `window`, `totals`, `skills` (per skill: `sessions`, `of_sessions`, `share`, `loads`, `typed_sessions`, `harnesses`, `models`, `machines`, `agents`, `paths`, `last_used`, `also_loaded_as`, `authoring_sessions`, `size_bytes`, `max_context_bytes`, `listing_chars`), `more`, `quiet`, `record`, `warnings` | `INVALID_INPUT`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
-| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown`, and `misses` naming each change and its sessions | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `RECORD_UNAVAILABLE` |
+| `skill-usage-triggers` | `days`, `repo` | `project`, and per required skill `changes`, `loaded`, `missed`, `unknown` with `unknown_why`, `rate`, and `misses` naming each change and its sessions | `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`, `GIT_FAILED`, `RECORD_DAMAGED`, `RECORD_UNAVAILABLE`, `INVALID_INPUT` |
 
 The unit of the report is a session that used a skill, out of the sessions the project had. A
 skill read three times in one session, in parts, is one use; `loads` counts the reads.
@@ -217,17 +221,73 @@ skill = "gate-discipline"
 paths = ["lefthook.yml", ".github/workflows/ci.yml", "scripts/check-*.mjs"]
 ```
 
-For each change merged to the default branch in the window whose files match, the report finds
-the session that made it, by the pull request T3 Code linked to it, and says whether that
-session or a subagent of it loaded the skill before the change's first commit. A load at
-review time does not count, nor does a load by another task under the same root: forty cells
-of one fleet are forty sessions. Each miss names its change and its sessions, so that the
-session can be opened. The diff side comes from git, the load side from the record, and the
-tie between them from `sessions.json`. A change with no session on any collected machine is
-reported as unknown, never as a miss.
+The report uses only what is known for certain:
+
+- **Which merged changes touched those paths**, from git: every path a change touched, both
+  sides of a rename, on the branch the checkout says is the default, never the checked-out
+  commit. A path is matched as git writes it, by case, on every system.
+- **Which session opened a change's pull request, and when**, from the record. T3 Code marks
+  the link on the thread that opened a pull request apart from the link on a thread that
+  attached itself to one that existed, to repair, review or merge it. In the store first
+  measured no pull request has two openers.
+- **When that session loaded the skill**, itself or through a subagent, from the record,
+  whichever project the harness filed the session under. A load by another task under the
+  same root does not count: forty cells of one fleet are forty sessions.
+
+A change is **loaded** when the session that opened its pull request had loaded the skill by
+then. `loaded_by_subagent` counts those where only a subagent of the session had: a subagent
+may be the reviewer, not the agent that made the change. A change is **missed** when the
+session never loaded the skill before the change merged, and names the session, so that it
+can be opened. Otherwise it is unknown, never a miss:
+
+- it names no pull request, or one that another change on the branch names too
+  (`no_pull_request`);
+- no session on a collected machine is linked to its pull request (`no_session`);
+- no session linked to it is known to have opened it (`opened_elsewhere`): a script, a person
+  or a session on a machine not collected did, or its link does not say. A change a fleet's
+  merge lane publishes is one of these two
+  ([#1887](https://github.com/lushly-dev/afd/issues/1887));
+- the record does not place the opening before the merge (`no_link_time`);
+- the session loaded the skill only after it opened the pull request (`after_opening`): at
+  review, or for a later push. The record cannot say which;
+- the session never loaded it, but the skill may have reached the change another way
+  (`possibly_loaded`): a task the session delegated loaded it and may have made the change, a
+  fork carries the conversation of the session it came from, which had loaded it or
+  delegated a task that did, or the record holds an event of a kind this botcore does not
+  know. A sibling's load is none of these, nor the load of the session that delegated the
+  opener.
+
+A record with a line it cannot read judges nothing: a lost load would make a miss. Nothing is
+collected for the rules, so a rule declared today judges the record as it stands. A record an
+earlier botcore wrote does not say who opened a pull request: the report says how many links
+do not, and collecting again records it. The report also names the branch it read and that
+branch's newest change, since a checkout that was not fetched ends early.
+
+A load inside an audit of the skills counts here, though the usage report leaves it out: a
+session that read every skill had still read this one.
+
+**What was tried and dropped.** Two ways of tying a session to a change by inference.
+
+*By its turns.* The first design judged each session by its first change to a required path,
+read from what T3 Code records of a turn: the files a turn left changed. A checkout is moved
+under a session by merges, sync scripts and other sessions sharing it, and a moved file looks
+like a changed one. Three rounds of review each found another way: a merge through `fnm exec`,
+a merge that stopped on a conflict, a branch started somewhere else, a repository's own sync
+script, a shared checkout moved between a session's turns. On the machine first measured, 4 of
+the 5 changes that survived every filter were still not the session's own.
+
+*By its branch.* The second design counted every session linked to a pull request, and every
+session on the branch it came from. A thread keeps only the branch it is on now: 267 of the
+293 pull requests that a person's thread opened came from another branch than the one the
+thread is on. The tasks a session sends to review its work share its branch, and they are
+what a branch tied: 58 of them, against 6 tasks with a checkout of their own. And the 171
+tasks with their own checkout that opened no pull request, a fleet's cells among them, have
+no link that names their branch at all. Two of the six misses that design reported named a
+session that had only repaired and merged the change.
 
 The declaration is the one source of which skill a change requires. A repository whose
-instruction file also lists required skills checks that list against it.
+instruction file also lists required skills checks that list against it. Which skills a
+repository requires is that repository's decision: this one declares none yet.
 
 ### Every machine
 
@@ -257,6 +317,17 @@ for the schedule.
   skills, and one of a project whose checkout is not on the machine all count as use.
 - **A thread moved between machines** may be counted on both until phase 3 compares two
   machines' records.
+- **What the triggers report cannot tell.** Whether the skill was still in the agent's
+  context when it made the change: a long session that loaded it days before counts as
+  loaded. Whether the load came before the change or at its review: both come before the
+  pull request is opened, and a reviewer that is a subagent loads for its session. One
+  repository's skill from another's of the same name, for a session the harness filed under
+  another project. Any change whose pull request a script opened
+  ([#1887](https://github.com/lushly-dev/afd/issues/1887)). And who made a change, where the
+  session that opened its pull request did not: a miss says that the opener never loaded the
+  skill. A session that resumed a parked branch, one that published the work of a thread it
+  launched (T3 Code records no tie between the two), and one whose task ran on a machine not
+  collected are each judged as the opener they are.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.
 - **Windows and Linux** are covered by tests of the recognition and paths, and are first
@@ -301,8 +372,8 @@ in his words and without the author's conclusions.
 
 **Accepted, for a later phase.**
 
-- Missed triggers count a load only by the session that made the change, before its first
-  commit, and name the sessions that missed (phase 2).
+- Missed triggers count a load only by the session that opened the change's pull request, by
+  the time it opened it, and name the session that missed (phase 2).
 - The first collection on each machine is run by hand as soon as phase 1 merges, and a lasting
   failure shows in the hourly job's status (phase 3).
 - The shared folder must be private (phase 3).

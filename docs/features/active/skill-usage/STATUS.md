@@ -14,6 +14,60 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Missed triggers, first reading, 2026-11-21 (#1817)
+
+Measured on the MacBook Air over 30 days with the rule Lushly's instructions state (the gate
+skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly declares it.
+
+- **The reading.** 55 merged changes touched a gate file. 45 had no session on this machine,
+  1 had no pull request number, and 3 had only sessions that attached themselves to a pull
+  request something else had opened. Of the 6 that could be judged, the session that opened
+  the pull request had loaded the gate skill in 2 and never loaded it before the merge in 4.
+  Over 90 days it is the same 6, out of 168. Each of the six was checked by hand against the
+  store: the opener's own `gh pr create`, and every thread of its family for a read of the
+  skill.
+- **T3 Code says who opened a pull request.** A link's `source` is `created` on the thread
+  that opened it and `agent` on one that attached itself later: 406 and 151 of the store's
+  557 links. No pull request has two openers, and 48 have none on this machine.
+- **A fleet's changes cannot be judged yet.** Lushly's merge lane, a script, opens a cell's
+  pull request, so no thread opened it: 127 of Lushly's 137 delegated tasks with a checkout of
+  their own opened none, where 73 of AFD's 123 did. Most of Lushly's gate changes come from
+  cells (#1887).
+- **What a session changed cannot be read from its turns.** A turn's checkpoint lists every
+  file the turn left changed in the checkout. A merge of `main` makes a session appear to
+  change each gate file anyone had changed: 29 of the 34 turns that left a gate file changed
+  had moved the checkout. Filtering those turns out by the command that moved them failed
+  three reviews running, each finding another way a checkout moves: `fnm exec … -- git merge`,
+  a merge that stopped on a conflict, `git switch -C fix origin/main`, the merge lane's
+  `handoff --sync`, and a shared checkout that other sessions move between a session's turns.
+  Of the 5 changes that survived every filter, 4 were still not the session's own.
+- **Nor from its branch.** A thread keeps only the branch it is on now: 267 of the 293 pull
+  requests a person's thread opened came from another branch than the thread's. What a branch
+  did tie was the tasks a session sends to review its work, which share its branch: 58 of
+  them, against 6 tasks with their own checkout. Counting every linked session as well made
+  2 of 6 reported misses name a session that had only repaired and merged the change.
+- **So the report uses what is recorded outright:** which session opened a pull request,
+  when, and when it loaded the skill. It judges 6 changes where the turn-by-turn design could
+  honestly judge 1.
+- **Gate files are not edited with the edit tools.** No file-edit item in the store touches
+  one of Lushly's, so the exact moment of such a change is not on record at all.
+- **A long-lived thread is linked to many pull requests,** each with a time (all 557 links in
+  the store carry one), so each is judged by its own.
+- **Which skill a repository requires is its own decision.** AFD's instructions send a change
+  to CI or a hook to `gates.md`, a reference file of another skill, not to `maintain-gates`;
+  declaring that skill required here would have reported every session as a miss. AFD declares
+  none in this pull request.
+- **Lushly cannot declare its rule yet.** Its tooling runs a released botcore, and an older
+  botcore refuses a setting it does not know. It waits for the release (#1692).
+
+### First collections, 2026-11-21 (#1819)
+
+- **MacBook Air:** 3,060 loads, 60 skill edits and 509 sessions from a store that goes back
+  to August.
+- **Random:** 1,335 loads, 105 skill edits and 241 sessions, run from the merge commit with
+  `uvx` so the installed botcore was not replaced. Its record names the machine `mac`, from its
+  hostname: a machine needs a way to name itself before records are read together (#1818).
+
 ### First readings on the MacBook Air, 2026-11-21 (#1815, #1816)
 
 - **Most loads are not the Skill tool.** Over 30 days T3 Code's store showed 2,469 skill loads:
@@ -59,13 +113,13 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Phase 2. Missed triggers
 
-- `skill-usage-triggers` and `[[skills.required]]` (#1817): not started.
+- `skill-usage-triggers` and `[[skills.required]]` (#1817): merged in #1888.
 
 ## Phase 3. Every machine
 
 - Collection with the hourly job, and one report across machines (#1818): not started.
 
-- Rollout to the Air, Random and Hero (#1819): not started.
+- Rollout to the Air, Random and Hero (#1819): first collections run by hand on the Air and Random on 2026-11-21 (see Findings); Hero and the schedule to come.
 
 ## Phase 4. Provider logs
 
@@ -74,6 +128,8 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 ## Later
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
+
+- Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): needs its design first.
 
 - Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.
 
