@@ -21,7 +21,6 @@
  */
 
 import type { ApprovalPolicy, CommandContext } from '@lushly-dev/afd-core';
-import { canonicalJson } from '@lushly-dev/afd-core/internal/canonical-json';
 
 /** The command a call runs, as its admission record keeps it. */
 export interface AdmissionCommand {
@@ -30,12 +29,20 @@ export interface AdmissionCommand {
 	confirmPrompt?: string;
 }
 
+/** The canonical JSON of a value, or undefined when it has none. */
+export type Canonicalize = (value: unknown) => string | undefined;
+
 /** What an approval step admitted: the command and input it decided on. */
 interface Admitted {
 	name: string;
 	/** The canonical JSON of the input, or undefined when it has none (compared by identity). */
 	canonical: string | undefined;
 	input: unknown;
+	/**
+	 * The approval step's own canonical JSON, so a host without the approval middleware does not
+	 * bundle it.
+	 */
+	canonicalize: Canonicalize;
 }
 
 interface Admission {
@@ -100,27 +107,24 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 	});
 }
 
-/** The canonical JSON of `input`, or undefined when it has none (a value canonical JSON refuses). */
-function canonicalOf(input: unknown): string | undefined {
-	try {
-		return canonicalJson(input);
-	} catch {
-		return undefined;
-	}
-}
-
 /**
  * Record that an approval step admitted the call of `context` to run `commandName` on `input`.
- * The input's canonical form is computed only for a command that declares a gating policy. A
- * no-op outside the engine.
+ * The input's canonical form (`canonicalize`) is computed only for a command that declares a
+ * gating policy. A no-op outside the engine.
  */
-export function admitApproval(context: CommandContext, commandName: string, input: unknown): void {
+export function admitApproval(
+	context: CommandContext,
+	commandName: string,
+	input: unknown,
+	canonicalize: Canonicalize
+): void {
 	const found = record(context);
 	if (!found) return;
 	found.admitted = {
 		name: commandName,
-		canonical: gates(found.command.approval) ? canonicalOf(input) : undefined,
+		canonical: gates(found.command.approval) ? canonicalize(input) : undefined,
 		input,
+		canonicalize,
 	};
 }
 
@@ -144,9 +148,9 @@ export function takeAdmission(
 	if (!found || !admitted) return false;
 	found.admitted = undefined;
 	if (admitted.name !== commandName) return false;
-	if (admitted.canonical === undefined)
-		return admitted.input === input && canonicalOf(input) === undefined;
-	return canonicalOf(input) === admitted.canonical;
+	const canonical = admitted.canonicalize(input);
+	if (admitted.canonical === undefined) return admitted.input === input && canonical === undefined;
+	return canonical === admitted.canonical;
 }
 
 /**

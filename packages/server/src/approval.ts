@@ -495,7 +495,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// Every way this middleware lets the call through admits this command on this input, which
 		// the engine checks, and takes, before it dispatches a command that declares an approval policy.
 		const next = () => {
-			admitApproval(context, commandName, input);
+			admitApproval(context, commandName, input, canonicalOrUndefined);
 			return outerNext();
 		};
 		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
@@ -642,6 +642,15 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			},
 		});
 	};
+}
+
+/** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
+function canonicalOrUndefined(value: unknown): string | undefined {
+	try {
+		return canonicalJson(value);
+	} catch {
+		return undefined;
+	}
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {
