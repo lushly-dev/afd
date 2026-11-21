@@ -500,6 +500,22 @@ def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("skill-usage-triggers")
+@click.option("--days", type=int, default=30, show_default=True, help="Days to report")
+@click.option("--repo", default=None,
+              help="The repository's checkout (default: the one holding the working directory)")
+@_json_option
+@click.pass_context
+def skill_usage_triggers_cmd(
+    ctx: click.Context, days: int, repo: str | None, **_kwargs: Any,
+) -> None:
+    """Report the merged changes whose opener had not loaded a required skill. Read-only."""
+    from botcore.commands.skill_usage import skill_usage_triggers
+
+    result = _run_async(skill_usage_triggers(days=days, repo=repo))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command("disk-report")
 @click.option("--repo", default=None, help="Report one repository instead of the registered ones")
 @click.option(

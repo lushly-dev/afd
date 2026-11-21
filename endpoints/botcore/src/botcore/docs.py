@@ -112,9 +112,11 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
   that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
   or edit that names the file is not a load, nor a read sent to a file, a count or a search.
-- It also records each session, with the pull requests T3 Code linked to it, whether or not it
-  loaded a skill, and each change a session made to a skill's files (`loads_added` and
-  `edits_added` count the two).
+- It also records each session, whether or not it loaded a skill, with the session it came
+  from (the one that delegated it, or the one it was forked from) and the pull requests T3
+  Code linked to it or its subagents: when, and whether it opened each or attached itself to
+  one that existed; and each change a session made to a skill's files (`loads_added` and
+  `edits_added` count the two kinds of event). No title and no branch name is kept.
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
@@ -154,6 +156,42 @@ first (`NOT_COLLECTED` otherwise).
 - A project, harness or skill the record has never seen is `INVALID_INPUT` with the known
   values, not an empty report. `warnings` says when the record is over a day old or holds
   events an older botcore recognised. Also `RECORD_UNAVAILABLE`.
+
+## skill_usage_triggers(days=30, repo=None)
+Read-only. For each skill a repository requires, the changes merged to its default branch in
+the last `days` days that touched the skill's paths, and whether the session that opened each
+one's pull request had loaded the skill by then. A repository declares them in its botcore
+configuration: `[[skills.required]]` with `skill = "<name>"` and `paths = ["<glob>", ...]`
+(repository-relative, as git writes them, matched by case; `*` stays in one folder, `**` spans
+folders); several tables for one skill are one rule. Nothing is collected for it: a rule
+declared today judges the record as it stands.
+- It uses three things: which merged changes touched those paths (git); which session opened
+  each change's pull request and when (the harness says which, and the record keeps it); and
+  when that session loaded the skill, itself or through a subagent (the record). A session
+  that attached itself to a pull request to repair, review or merge it is not judged, and
+  neither a session's turns nor its branch tie it to a change.
+- Per rule: `changes`; `loaded` (the session that opened the pull request had loaded the
+  skill by then), of which `loaded_by_subagent` only through a subagent, which may be a
+  reviewer; `missed` (that session never loaded the skill before the change merged), with
+  `misses` naming each change's pull request and that session; `rate` (loaded out of loaded
+  and missed); and `unknown`, with `unknown_why`: `no_pull_request` (the change names none,
+  or names one another change on the branch names too), `no_session` (none on a collected
+  machine is linked to it), `opened_elsewhere` (no session linked to it is known to have
+  opened it: a script, a person or a machine not collected did, or its link does not say),
+  `no_link_time` (the record does not place the opening before the merge), `after_opening`
+  (the skill was loaded only after the pull request was opened: at review, or for a later
+  push) and `possibly_loaded` (the opener
+  never loaded it, but a task it delegated or a session it was forked from did, or the record
+  holds an event of a kind this botcore does not know). A miss says the opener never loaded
+  the skill: an opener that only published another session's work is judged all the same.
+- `merged`: the branch that was read and its newest change; fetch the checkout when that is
+  old. `warnings` says when links in the record do not say who opened them (collect again)
+  and when an older botcore recognised its events (rebuild).
+- `repo`: the repository's checkout; the one holding the working directory when left out.
+- Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
+  `GIT_FAILED` (also when the checkout does not say which branch is the default),
+  `RECORD_DAMAGED` (a line of the record cannot be read: rebuild), `RECORD_UNAVAILABLE`,
+  `INVALID_INPUT`.
 """,
     "docs": """\
 # Docs Commands

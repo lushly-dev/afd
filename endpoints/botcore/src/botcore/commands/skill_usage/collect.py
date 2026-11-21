@@ -326,12 +326,16 @@ def _collect(
     for session in found.sessions:
         sessions[session.id] = {
             "root": session.root,
+            "parent": session.parent,
             "agent": session.agent,
             "harness": session.harness,
             "project": names.get(session.project_id or "", UNKNOWN_PROJECT),
             "created_at": session.created_at,
             "updated_at": session.updated_at,
-            "pull_requests": list(session.pull_requests),
+            "pull_requests": [
+                {"ref": reference, "linked_at": linked_at, "opened": opened}
+                for reference, linked_at, opened in session.pull_requests
+            ],
             "machine": machine,
         }
     save_sessions(directory, sessions)
