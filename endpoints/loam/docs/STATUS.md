@@ -716,6 +716,7 @@ new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | AFD approval admission | `t3/approval-fail-closed`, not merged: afd-server's engines refuse a command whose declared approval policy is not `not-required` unless an approval middleware admitted the call (`APPROVAL_UNAVAILABLE`). D115 against `main` at `02c53db7`: first paint 322,723 to 323,450 and 101,515 to 101,779 gzip (`jsMinified` raised to 324,000, `jsGzip` to 102,000), `kernelMinified` 132,359 to 133,277 (raised to 133,800) |
 
 ### Sessions: to 2026-11-18, every area
 
