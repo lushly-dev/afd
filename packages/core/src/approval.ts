@@ -15,7 +15,8 @@ export type ApprovalDecision = 'not-required' | 'required';
  * call context (for example, "agents need approval, humans do not"). Unset means
  * `'not-required'`. Decided by `createApprovalMiddleware`; without it, the server's engines
  * (`createMcpServer`, `createDirectRegistry`) refuse a policy other than `'not-required'` with
- * `APPROVAL_UNAVAILABLE`, so a declared policy never runs ungated.
+ * `APPROVAL_UNAVAILABLE`, so a declared policy never runs ungated there. This package's
+ * `createCommandRegistry` has no such check.
  */
 export type ApprovalPolicy<TInput = unknown> = ApprovalDecision | ApprovalPolicyFunction<TInput>;
 
