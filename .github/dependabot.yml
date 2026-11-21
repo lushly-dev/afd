@@ -103,7 +103,8 @@ updates:
           - patch
 
   # Loam desktop pins its Tauri transport exactly, after a review of that source
-  # (endpoints/loam/docs/phases/6-hosts/spec.md), so those crates move only by hand.
+  # (endpoints/loam/docs/phases/6-hosts/spec.md), so it and the crates pinned beside it move
+  # only by hand.
   - package-ecosystem: cargo
     directory: /endpoints/loam/packages/desktop/src-tauri
     schedule:
@@ -112,8 +113,9 @@ updates:
       - dependencies
     ignore:
       - dependency-name: 'tauri*'
-      - dependency-name: wry
       - dependency-name: reqwest
+      # Pinned at the version Tauri's own dependencies lock.
+      - dependency-name: windows-sys
     groups:
       cargo-minor-patch:
         update-types:
