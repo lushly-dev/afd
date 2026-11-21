@@ -155,6 +155,10 @@ journal, tokens, mirrors) and the owner's token. Then [check it](#check-it).
 It checks a key or configuration it is given before it stops the daemon, so a bad one changes
 nothing. After that it removes the old code and builds the new: if the build fails (it
 downloads Python packages), the gateway stays down until the script runs again and succeeds.
+The new code checks a staged configuration once more before it is installed. One the new code
+refuses is left out: the daemon starts on the installed file and the script ends as a failure.
+A configuration that needs fields only the new code knows is refused by the first check, so
+update the code first and [change the configuration](#change-the-configuration) after.
 
 The launch daemon in the repository carries `random`'s tailnet address. If that address
 changes, change it there first; an edited copy on the machine is replaced by the next update
@@ -170,8 +174,7 @@ that stages the file.
 2. **The key.** On the App's settings page, under Credentials, then Key pairs, generate a
    private key. GitHub downloads a `.pem` file. It never goes into chat, a pull request or a
    repository: an agent that installs the gateway takes it through its harness's secret prompt.
-3. **Stage** with the first block of [Update the code](#update-the-code), and stop before its
-   `sudo` line.
+3. **Stage** with the first block of [Update the code](#update-the-code).
 4. **The configuration.** Copy [the example](factory-gateway/gateway.example.json) to
    `"$STAGE/gateway.json"` and fill in the owner, his commit addresses and the App's two IDs.
    `git log --format=%ae | sort -u` in each repository lists every author's address: keep only
@@ -185,7 +188,8 @@ that stages the file.
    ```
 
    The script creates the account, builds the code, checks and installs the configuration and
-   the key, has the owner's account write the owner's token and starts the daemon. Delete the
+   the key, starts the daemon and has the owner's account write the owner's token. It refuses
+   to go on if another account holds the service's ID or sits in its group. Delete the
    downloaded key afterwards.
 
 ## Replace the App's key

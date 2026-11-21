@@ -85,14 +85,17 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   two starts). Not yet checked: that it survives a restart of `random`.
 - **Operating it:** the [runbook](../../../operations/factory-gateway.md), with the install
   script, the launch daemon and an example configuration beside it. On 2026-11-21 its two
-  scripts ran on `random` as merged here. `install.sh`, given a configuration the gateway would
-  not load, refused it and left the daemon running; in its update form, with a good
-  configuration staged and no key passed, it rebuilt the service from `main` at `5c9ca135` and
-  kept the key, the tokens and the journal. `reconfigure.sh` refused the same bad file, then
-  installed a good one, kept `gateway.json.prev` and restarted the daemon. Not run in this
-  form: a first install (no account, key or configuration there yet) and a key passed in; the
-  key's check ran only against a throwaway key, off the machine. The service was first built on
-  2026-11-19 by an earlier form of the script.
+  scripts ran on `random` in the form the runbook's pull request merged. Six refusals each left
+  the daemon running under the same process: `install.sh` given a configuration the gateway
+  would not load, a staged configuration that was a link to a file only root reads, a key file
+  holding no key, and a key path that was a link to the installed key; `reconfigure.sh` given
+  the bad configuration and the link. Then `install.sh` in its update form, with a good
+  configuration staged and no key passed, rebuilt the service from `main` at `bc7ae160` and
+  kept the key, the tokens and the journal, and `reconfigure.sh` installed a configuration,
+  kept `gateway.json.prev` and restarted the daemon. Not run in this form: a first install (no
+  account, key or configuration there yet) and a real key passed in; the key's check ran only
+  against a throwaway key, off the machine. The service was first built on 2026-11-19 by an
+  earlier form of the script.
 - **Every route, from two machines (2026-11-21):** `gateway-status` answered on `cell`,
   `session`, `foreman`, `lane` and `owner` from `random` and from `macbook-air` over the tailnet,
   naming the App and both repositories; a `cell` token was refused on `/lane` (`FORBIDDEN`). The
