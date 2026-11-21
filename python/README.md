@@ -511,7 +511,11 @@ Without an approval middleware, `create_server` and `create_direct_registry` ref
 (#1886); place retry middleware, and middleware that changes the input, before the approval
 middleware, since one approval runs one handler on the approved input. Middleware that moves
 `next_fn` to a thread uses `asyncio.to_thread` or `contextvars.copy_context().run`; otherwise a
-call on a context object that overlapping calls share is refused.
+call on a context object that overlapping calls share is refused. An input that changes while
+the middleware decides (in a policy function) is refused with `APPROVAL_UNAVAILABLE`
+(`reason: "admission-mismatch"`), and nobody is asked. Install one approval middleware per
+engine: a second one that no policy of its own gates for a command leaves the first one's
+admission to decide, but two that both gate a command's own policy each ask for it.
 
 ```python
 from afd import DirectClient, DirectClientOptions, create_direct_registry

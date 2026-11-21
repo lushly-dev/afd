@@ -335,11 +335,11 @@ async def test_an_input_changed_in_place_after_the_approval_is_refused():
 
 async def test_an_admission_for_another_command_is_refused():
     fixture = Fixture()
-    approval = create_approval_middleware(secret=SECRET)
+    approval = create_approval_middleware(secret=SECRET, commands=fixture.commands)
 
-    # Asks the middleware about an ungated command, then lets the gated one through.
+    # Asks the middleware about a command its policy lets through, then lets the gated one through.
     async def swap(name, input, context, next_fn):
-        return await approval("todo-touch", input, context, next_fn)
+        return await approval("todo-check", input, context, next_fn)
 
     registry = create_direct_registry(fixture.commands, middleware=[swap])
     expect_unavailable(
@@ -605,6 +605,134 @@ async def test_an_input_changed_after_approval_of_a_list_only_policy_is_refused(
     client = DirectClient(registry, DirectClientOptions(on_approval_needed=_approve))
     expect_unavailable(await client.call("todo-wipe", {"id": 1}), "todo-wipe", "admission-mismatch")
     assert ran == []
+
+
+# ─── A second approval middleware ───────────────────────────────────────────
+
+
+def _wipe_behind(*middleware: Any, fail_first: bool = False) -> tuple[list[int], DirectClient]:
+    """``todo-wipe``, gated only by the first middleware's list, behind ``middleware``."""
+    handled: list[int] = []
+
+    @define_command(
+        name="todo-wipe", description="Wipe; its gate is only in the list", input_schema=IdInput
+    )
+    async def wipe(input: IdInput) -> CommandResult[Any]:
+        handled.append(input.id)
+        if fail_first and len(handled) == 1:
+            return failure(CommandError(code="TRANSIENT_ERROR", message="try again"))
+        return success(None)
+
+    registry = create_direct_registry(
+        [wipe],
+        middleware=[
+            create_approval_middleware(secret=SECRET, commands=[_Listed("todo-wipe", "required")]),
+            *middleware,
+        ],
+    )
+    return handled, DirectClient(registry, DirectClientOptions(on_approval_needed=_approve))
+
+
+OTHER_SECRET = "other-approval-secret-0123456789abcdef"
+
+
+async def test_an_approved_call_runs_behind_a_second_approval_middleware_that_does_not_gate_it():
+    handled, client = _wipe_behind(create_approval_middleware(secret=OTHER_SECRET))
+    assert (await client.call("todo-wipe", {"id": 4})).success
+    assert handled == [4]
+
+
+async def test_a_retry_between_it_and_a_second_approval_middleware_that_does_not_gate_it_is_refused():
+    handled, client = _wipe_behind(
+        create_retry_middleware(max_retries=2, retry_delay=0, jitter=False),
+        create_approval_middleware(secret=OTHER_SECRET),
+        fail_first=True,
+    )
+    result = await client.call("todo-wipe", {"id": 5})
+    assert handled == [5]
+    expect_unavailable(result, "todo-wipe", "admission-mismatch")
+
+
+async def test_an_input_changed_before_a_second_approval_middleware_is_refused():
+    async def change(name, input, context, next_fn):
+        input.id = 99
+        return await next_fn()
+
+    handled, client = _wipe_behind(change, create_approval_middleware(secret=OTHER_SECRET))
+    expect_unavailable(await client.call("todo-wipe", {"id": 1}), "todo-wipe", "admission-mismatch")
+    assert handled == []
+
+
+# ─── An input changed while the middleware decides ──────────────────────────
+
+
+async def test_an_input_its_policy_function_changed_is_refused_without_asking():
+    handled: list[int] = []
+    asked: list[Any] = []
+
+    def policy(input: IdInput, context: Any) -> str:
+        input.id = 9
+        return "required"
+
+    @define_command(
+        name="todo-delete",
+        description="Its policy function changes the input it decides on",
+        input_schema=IdInput,
+        approval=policy,
+    )
+    async def remove(input: IdInput) -> CommandResult[Any]:
+        handled.append(input.id)
+        return success(None)
+
+    registry = create_direct_registry(
+        [remove],
+        middleware=[create_approval_middleware(secret=SECRET, on_approval_required=asked.append)],
+    )
+    result = await registry.execute("todo-delete", {"id": 1})
+    assert result.success is False
+    error = result.error
+    assert error.code == "APPROVAL_UNAVAILABLE"
+    assert error.message == "todo-delete's input changed while its approval was being decided"
+    assert error.suggestion == (
+        "Do not retry: this call is not the one the approval step decided on. The operator fixes "
+        "the policy function or middleware that changes the input."
+    )
+    assert error.retryable is False
+    assert error.details == {"reason": "admission-mismatch"}
+    assert asked == []
+    assert handled == []
+
+
+async def test_an_input_changed_while_a_rejected_token_is_spent_is_refused_without_asking():
+    fixture = Fixture()
+    asked: list[Any] = []
+    seen: list[Any] = []
+
+    async def capture(name, input, context, next_fn):
+        seen.append(input)
+        return await next_fn()
+
+    class Changing:
+        async def consume(self, nonce: str, expires_at: float) -> bool:
+            seen[-1].id = 99
+            return False
+
+    server = fixture.server(
+        middleware=[
+            capture,
+            create_approval_middleware(
+                secret=SECRET, nonce_store=Changing(), on_approval_required=asked.append
+            ),
+        ]
+    )
+    held = await server.execute("todo-delete", {"id": 1})
+    token = held.error.details["approvalToken"]
+    asked.clear()
+    retried = await server.execute("todo-delete", {"id": 1}, CommandContext(approval=token))
+    assert retried.error.code == "APPROVAL_UNAVAILABLE"
+    assert retried.error.details == {"reason": "admission-mismatch"}
+    assert asked == []
+    assert fixture.ran == []
 
 
 # ─── Up-front approval of afd-batch and afd-pipe, with no commands list ─────

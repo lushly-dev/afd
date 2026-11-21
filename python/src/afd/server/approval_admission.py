@@ -2,13 +2,15 @@
 
 The server engine records each dispatch's command (its name, declared approval policy and
 confirmation prompt) before any middleware runs. The approval middleware decides from that record
-and, when it lets the call through, records what it decided on: the command name and the canonical
-JSON of the input it verified, or, for a call whose policy let it through on an input with no
-canonical form, that very input object. The engine dispatches a command whose declared policy is
-neither unset nor ``"not-required"``, or whose call the middleware held under a policy given only
-in its ``commands`` list, only when such an admission matches the command and validated input it
-is about to run. It takes the admission as it dispatches, so one admission runs one handler
-(#1886, spec/command-metadata.md, "Approvals").
+and, when it lets through a call one of its own policies may gate, records what it decided on: the
+command name and the canonical JSON of the input it decided on, or, for a call whose policy let it
+through on an input with no canonical form, that very input object. A call no policy of its own
+gates is not admitted, so an admission from another approval step stands alone. Each approval
+step's admission is kept. The engine dispatches a command whose declared policy is neither unset
+nor ``"not-required"``, or one an approval step admitted under a gating policy given only in its
+``commands`` list, only when every admission matches the command and validated input it is about
+to run. It takes them all as it dispatches, so one admission runs one handler (#1886,
+spec/command-metadata.md, "Approvals").
 
 Every dispatch has its own record, which nothing else can reach. The middleware finds it by the
 identity of the context object the engine passes down the chain: first among the dispatches under
@@ -60,13 +62,17 @@ class Admission:
     def __init__(self, context: Any, command: AdmissionCommand) -> None:
         self.context = context
         self.command = command
-        self.admitted: Optional[_Admitted] = None
+        self.admitted: list[_Admitted] = []
+        """What each approval step admitted, in order. Two approval middlewares on one engine each
+        admit, and the dispatch must match them all, so a later one never replaces or weakens an
+        earlier one's binding."""
         self.taken = False
         """Set once a dispatch took an admission, so a second dispatch reads as a mismatch."""
         self.required = False
-        """Set when the approval step required approval for this call (a policy given only in its
-        ``commands`` list among them), so the dispatch checks the admission whatever the
-        command declares."""
+        """Set when an approval step admitted this call under a gating policy given only in its
+        ``commands`` list (or after an approval), so the dispatch checks the admission whatever
+        the command declares. Never cleared: a later dispatch on the same record is checked
+        too."""
 
 
 _RECORDS: ContextVar[tuple[Admission, ...]] = ContextVar("afd_approval_admissions", default=())
@@ -137,8 +143,8 @@ def admit_approval(
         return
     if required:
         found.required = True
-    found.admitted = _Admitted(
-        name=command_name, canonical=canonical, input=input, canonicalize=canonicalize
+    found.admitted.append(
+        _Admitted(name=command_name, canonical=canonical, input=input, canonicalize=canonicalize)
     )
 
 
@@ -149,20 +155,26 @@ def admission_required(record: Admission, policy: Any) -> bool:
 
 
 def take_admission(record: Admission, command_name: str, input: Any) -> str:
-    """Take this dispatch's admission: ``"admitted"`` when it admitted ``command_name`` on an input
-    with the same canonical JSON as ``input`` (the same object, for an input with none),
-    ``"missing"`` with none, ``"mismatch"`` otherwise. Taken whatever the answer, so a second
-    dispatch needs a second admission."""
+    """Take this dispatch's admissions: ``"admitted"`` when every approval step that admitted it
+    admitted ``command_name`` on an input with the same canonical JSON as ``input`` (the same
+    object, still with none, for an input with none; a change inside it is not seen),
+    ``"missing"`` with none, ``"mismatch"`` otherwise. Taken whatever the answer and never
+    restored, so a second dispatch needs a second admission."""
     admitted = record.admitted
-    if admitted is None:
+    if not admitted:
         return "mismatch" if record.taken else "missing"
-    record.admitted = None
+    record.admitted = []
     record.taken = True
-    if admitted.name != command_name:
-        return "mismatch"
-    if admitted.canonical is None:
-        return "admitted" if admitted.input is input else "mismatch"
-    return "admitted" if admitted.canonicalize(input) == admitted.canonical else "mismatch"
+
+    def same(step: _Admitted) -> bool:
+        if step.name != command_name:
+            return False
+        canonical = step.canonicalize(input)
+        if step.canonical is None:
+            return step.input is input and canonical is None
+        return canonical == step.canonical
+
+    return "admitted" if all(same(step) for step in admitted) else "mismatch"
 
 
 def live_command(context: Any) -> Optional[AdmissionCommand]:
