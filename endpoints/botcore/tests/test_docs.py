@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -65,6 +66,49 @@ async def test_docs_lint_broken_link(tmp_path) -> None:
         result = await docs_lint()
 
     assert_error(result, "BROKEN_LINKS")
+
+
+async def test_docs_lint_never_reads_a_link_target_outside_the_workspace(tmp_path) -> None:
+    """A link out of the workspace is reported, not read or tested for existence."""
+    ws = tmp_path / "ws"
+    docs = ws / "docs"
+    docs.mkdir(parents=True)
+    (tmp_path / "secret.md").write_text("# Hidden\n")
+    (docs / "page.md").write_text(
+        "# Page\n\n[a](../../secret.md#hidden) [b](../../missing.md) [c](/../secret.md)\n"
+    )
+    read = Path.read_text
+
+    def guarded(self, *args, **kwargs):
+        assert self.name != "secret.md", "read a file outside the workspace"
+        return read(self, *args, **kwargs)
+
+    with (
+        patch("botcore.commands.docs.find_workspace", return_value=ws),
+        patch.object(Path, "read_text", guarded),
+    ):
+        result = await docs_lint()
+
+    data = assert_success(result)
+    rules = [issue["rule"] for issue in data["issues"]]
+    assert rules == ["link-outside-workspace"] * 3
+
+
+async def test_docs_lint_skips_a_markdown_symlink_out_of_the_workspace(tmp_path) -> None:
+    """A Markdown file reached through a symlink out of the workspace is not read."""
+    ws = tmp_path / "ws"
+    docs = ws / "docs"
+    docs.mkdir(parents=True)
+    (tmp_path / "outside.md").write_text("[x](./nowhere.md)\n")
+    (docs / "page.md").write_text("# Page\n")
+    (docs / "linked.md").symlink_to(tmp_path / "outside.md")
+
+    with patch("botcore.commands.docs.find_workspace", return_value=ws):
+        result = await docs_lint()
+
+    data = assert_success(result)
+    assert data["files_checked"] == 1
+    assert data["issues"] == []
 
 
 async def test_docs_check_changelog_no_workspace() -> None:

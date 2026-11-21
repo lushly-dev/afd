@@ -130,6 +130,29 @@ def _record_issue(
     issues.append(issue)
 
 
+def _outside_workspace(ws: Path | None, path: Path) -> bool:
+    """Whether ``path`` resolves outside the workspace, through ``..`` or a symlink."""
+    if ws is None:
+        return False
+    return not path.resolve().is_relative_to(ws.resolve())
+
+
+def _record_outside(
+    issues: list[dict], md_file: Path, ws: Path | None, line_num: int, url_path: str,
+    link_text: str,
+) -> None:
+    _record_issue(
+        issues,
+        md_file,
+        ws,
+        line_num,
+        "warning",
+        "link-outside-workspace",
+        f"Link target '{url_path}' is outside the workspace and was not checked",
+        link_text,
+    )
+
+
 def _resolve_target(ws: Path | None, md_file: Path, url_path: str) -> Path:
     if url_path.startswith("/"):
         return ws / url_path[1:] if ws else Path(url_path[1:])
@@ -225,6 +248,10 @@ def _check_link(
     if anchor:
         if url_path:
             target = _resolve_target(ws, md_file, url_path)
+            # Never read or test a file outside the workspace: the link names it, not the caller.
+            if _outside_workspace(ws, target):
+                _record_outside(issues, md_file, ws, line_num, url_path, link_text)
+                return
             if not target.exists():
                 _record_issue(
                     issues,
@@ -247,6 +274,9 @@ def _check_link(
         return
 
     target = _resolve_target(ws, md_file, url_path)
+    if _outside_workspace(ws, target):
+        _record_outside(issues, md_file, ws, line_num, url_path, link_text)
+        return
     if not target.exists():
         _record_issue(
             issues,
@@ -318,6 +348,9 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     anchor_cache: dict[Path, dict[str, int]] = {}
 
     for md_file in _markdown_files(check_path):
+        # A Markdown file reached through a symlink out of the workspace is not read.
+        if _outside_workspace(ws, md_file):
+            continue
         files_checked += 1
         content = md_file.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()
