@@ -308,15 +308,16 @@ def serve(name: str, transport: str) -> None:
     """Start the trusted-local botcore MCP server over stdio.
 
     Its run tool executes any Python its client sends, with your permissions, so it serves only
-    the client that started it, over stdio. To serve commands over HTTP, use a managed host
-    (create_host_mcp_server) with host tokens.
+    the client that started it, over stdio. To serve commands over HTTP, serve a managed host
+    with botcore.host_http (create_host_http_app or serve_hosts) and bearer tokens from
+    `botcore host-token issue` (docs/host-composition.md).
     """
     if transport.lower() != "stdio":
         click.secho(
             "Error: botcore serve runs any Python its client sends, so it serves only over stdio, "
-            "to the client that started it. To serve commands over HTTP, build a managed host "
-            "(botcore.host_surfaces.create_host_mcp_server) with an explicit command policy and "
-            "host tokens (botcore host-token issue).",
+            "to the client that started it. To serve commands over HTTP, serve a managed host "
+            "with botcore.host_http (create_host_http_app or serve_hosts), which checks bearer "
+            "tokens from `botcore host-token issue` (docs/host-composition.md).",
             fg="red", err=True,
         )
         sys.exit(2)

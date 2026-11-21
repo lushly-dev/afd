@@ -114,6 +114,8 @@ def create_mcp_server(
 
     This compatibility API executes unrestricted Python and has no restricted
     profile. New managed hosts use create_host_mcp_server with explicit policy.
+    Run it over stdio only: on any other transport its run tool serves
+    unauthenticated Python execution. `botcore serve` refuses those.
 
     Create a fully-wired FastMCP server driven by the plugin registry.
 

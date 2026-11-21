@@ -334,7 +334,9 @@ def test_serve_refuses_a_network_transport():
     with patch("botcore.server.create_mcp_server") as create:
         result = runner.invoke(cli, ["serve", "--transport", "sse"])
     assert result.exit_code == 2
-    assert "only over stdio" in result.output + str(result.stderr_bytes or b"", "utf-8")
+    message = result.output + str(result.stderr_bytes or b"", "utf-8")
+    assert "only over stdio" in message
+    assert "create_host_http_app" in message
     create.assert_not_called()
 
 

@@ -108,7 +108,7 @@ The agent workflow becomes:
 
 1. **`start`** — Returns version, available functions, and doc topics. The agent orients itself.
 2. **`docs`** — Retrieves topic-based reference docs on demand. No upfront cost.
-3. **`run`** — Executes any command. AST-validated, output-truncated (head + tail preserved within 8KB), safe.
+3. **`run`** — Executes any command. Runs any Python its client sends, with your permissions; its input is AST-checked and its output truncated (head + tail preserved within 8KB).
 
 One line creates the server:
 
@@ -281,7 +281,7 @@ botcore init --non-interactive
 botcore serve
 ```
 
-`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, build a managed host (`create_host_mcp_server`) with an explicit command policy and host tokens.
+`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, serve a managed host with `botcore.host_http` (`create_host_http_app` or `serve_hosts`), which checks bearer tokens from `botcore host-token issue`; see [Serving hosts over HTTP](docs/host-composition.md#serving-hosts-over-http).
 
 For agentic setup with structured output:
 
