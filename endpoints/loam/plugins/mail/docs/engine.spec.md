@@ -704,8 +704,10 @@ says which role.
   those are never shown, so never ended here. The answer is used only when it returned at least
   `EXISTS` messages, since one cut short would end mail still there. A pass whose count agrees
   asks nothing more; a departure hidden by mail that arrived in the same pass is found on the
-  next, and a pass that lists the mailbox in full does not check the count. The answer counts only
-  the UIDs below the next UID the mailbox had when opened, the moment its `EXISTS` describes. On a
+  next, and a pass that lists the mailbox in full does not check the count. The answer is counted
+  only by the UIDs below the next UID the mailbox had when opened, the moment its `EXISTS`
+  describes; a message the mailbox shows at or past that UID, such as a copy the engine made
+  during the pass, is in the answer and is never ended here. On a
   server whose `EXISTS` counts messages it never returns, each such message hides one departure
   for good; iCloud's does not count them.
 - **Flags** are kept as the server gives them, with the system flags written one way whatever
@@ -1730,9 +1732,9 @@ stayed in the store as it was, for good. Both are now read up to the mailbox's n
 mail: in the first run, 491 of 10 000 messages left iCloud's trash while the undo was paused, and
 were in no mailbox after, so the undo reported them `missing`, as it should. What removed them is
 not known: the owner empties the trash by hand, and a message from 2022 put there was still there
-two hours later. Before a copy is removed, its original must also be returned by `FETCH`, not only
-listed by a search, which on iCloud still lists messages that left: a search alone could have
-made the copy the last of its message.
+two hours later. Before a copy is removed, its original must be returned by `FETCH` without `\Deleted`; a
+search's listing is not enough, since on iCloud it still lists messages that left, and the copy
+could then be the last of its message.
 
 ### 9.4 The policy
 

@@ -720,13 +720,16 @@ async fn start(
     // The provider holds fewer messages than the mailbox still shows: some
     // left without being reported, as mail left iCloud's trash. What its
     // messages return is the mailbox, and what the mailbox shows beyond that
-    // has left; but only from an answer that returned at least as many as
-    // the provider holds, since one cut short would end mail still there.
+    // has left; but only from an answer that returned at least as many of
+    // what it held when opened as its count said, since one cut short would
+    // end mail still there. Mail that arrived meanwhile, such as a copy the
+    // engine made during the pass, is in the answer and is not ended.
     let leaving: HashSet<&String> = removed.iter().collect();
     let still_shown = shown.iter().filter(|id| !leaving.contains(id)).count();
     if let Some(held) = held.filter(|held| u64::try_from(still_shown).unwrap_or(u64::MAX) > *held) {
-        let returned: HashSet<String> = provider.returned().await?.into_iter().collect();
-        if u64::try_from(returned.len()).unwrap_or(u64::MAX) >= held {
+        let answer = provider.returned().await?;
+        let returned: HashSet<String> = answer.ids.into_iter().collect();
+        if answer.held_when_opened >= held {
             let unreported: Vec<String> = shown
                 .iter()
                 .filter(|id| !returned.contains(*id) && !leaving.contains(id))

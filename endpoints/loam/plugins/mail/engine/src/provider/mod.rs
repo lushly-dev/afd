@@ -83,6 +83,17 @@ pub struct Opened {
     pub validity: String,
 }
 
+/// The ids a mailbox's messages are returned by, read from the messages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Returned {
+    /// Every id returned, including mail that arrived after the mailbox was
+    /// opened, such as a copy the engine made meanwhile.
+    pub ids: Vec<String>,
+    /// How many of them the mailbox held when it was opened: what its count
+    /// then is compared with.
+    pub held_when_opened: u64,
+}
+
 /// Every id a mailbox holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
@@ -254,13 +265,13 @@ pub trait Provider: Send {
         Err(ProviderError::Refused("changing mail"))
     }
 
-    /// Every id the open mailbox returns its messages by, of those it held
-    /// when it was opened: read from the messages themselves, not a listing. Sync asks for it
-    /// only when the provider holds fewer messages than the store shows, as
-    /// iCloud did when mail left its trash without being reported. Every
-    /// provider answers it from the messages, never from its listing: a
-    /// listing is what fell behind.
-    async fn returned(&mut self) -> Result<Vec<String>, ProviderError>;
+    /// Every id the open mailbox returns its messages by: read from the
+    /// messages themselves, not a listing. Sync asks for it only when the
+    /// provider holds fewer messages than the store shows, as iCloud did when
+    /// mail left its trash without being reported. Every provider answers it
+    /// from the messages, never from its listing: a listing is what fell
+    /// behind.
+    async fn returned(&mut self) -> Result<Returned, ProviderError>;
 
     /// Which of `ids` the open mailbox holds now, by any account the
     /// provider gives of it: a message one account leaves out is still

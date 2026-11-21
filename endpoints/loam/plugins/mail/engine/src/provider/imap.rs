@@ -35,7 +35,7 @@ use tokio::net::TcpStream;
 
 use super::{
     Changes, Connector, Copied, Fetched, FlagsSeen, Gone, Listing, NextId, Opened, OpenedToChange,
-    PartFetched, Provider, ProviderError, RemoteMailbox, Since,
+    PartFetched, Provider, ProviderError, RemoteMailbox, Returned, Since,
 };
 use crate::parts::{self, Leaf, Limit, Node, Structure};
 use crate::store::{AccountRow, HeaderSeen, Role};
@@ -1006,18 +1006,21 @@ impl Provider for Imap {
         Ok(found.iter().map(u32::to_string).collect())
     }
 
-    async fn returned(&mut self) -> Result<Vec<String>, ProviderError> {
+    async fn returned(&mut self) -> Result<Returned, ProviderError> {
         let examined = self.examined()?;
         let mut found = self.fetched("1:*").await?;
-        // Only what the mailbox held when it was opened, which is what its
-        // `EXISTS` counted: mail that arrived since must not make up for an
-        // answer cut short.
-        if let Some(next) = examined.uid_next {
-            found.retain(|uid| *uid < next);
-        }
         found.sort_unstable();
         found.dedup();
-        Ok(found.iter().map(u32::to_string).collect())
+        // What its `EXISTS` counted is what it held when opened: mail that
+        // arrived since is returned, but must not make up for an answer cut
+        // short.
+        let held = examined.uid_next.map_or(found.len(), |next| {
+            found.iter().filter(|uid| **uid < next).count()
+        });
+        Ok(Returned {
+            ids: found.iter().map(u32::to_string).collect(),
+            held_when_opened: u64::try_from(held).unwrap_or(u64::MAX),
+        })
     }
 
     async fn flags_of(&mut self, ids: &[String]) -> Result<Vec<FlagsSeen>, ProviderError> {

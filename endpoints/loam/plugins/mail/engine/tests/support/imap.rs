@@ -109,6 +109,9 @@ pub struct World {
     /// Count in `EXISTS` only the messages a `FETCH` returns, as iCloud
     /// does, rather than every message the mailbox holds.
     pub exists_counts_returned: bool,
+    /// Messages that arrive just after their mailbox is opened: its
+    /// `EXISTS` and `UIDNEXT` leave them out, and everything else sees them.
+    pub arrives_after_opening: Vec<(String, u32)>,
 }
 
 impl World {
@@ -134,6 +137,7 @@ impl World {
             search_lags: Vec::new(),
             search_keeps: Vec::new(),
             exists_counts_returned: false,
+            arrives_after_opening: Vec::new(),
         }
     }
 
@@ -568,21 +572,25 @@ fn examine(
         out,
         "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft)\r\n".to_string(),
     );
-    let exists = if world.exists_counts_returned {
-        mailbox
-            .messages
-            .keys()
-            .filter(|uid| !mailbox.never_return.contains(uid))
-            .count()
-    } else {
-        mailbox.messages.len()
-    };
+    let later: Vec<u32> = world
+        .arrives_after_opening
+        .iter()
+        .filter(|(name, _)| name == &mailbox.name)
+        .map(|(_, uid)| *uid)
+        .collect();
+    let exists = mailbox
+        .messages
+        .keys()
+        .filter(|uid| !later.contains(uid))
+        .filter(|uid| !(world.exists_counts_returned && mailbox.never_return.contains(uid)))
+        .count();
+    let uid_next = later.iter().copied().min().unwrap_or(mailbox.uid_next);
     text(out, format!("* {exists} EXISTS\r\n"));
     text(
         out,
         format!("* OK [UIDVALIDITY {}] ok\r\n", mailbox.validity),
     );
-    text(out, format!("* OK [UIDNEXT {}] ok\r\n", mailbox.uid_next));
+    text(out, format!("* OK [UIDNEXT {uid_next}] ok\r\n"));
     if condstore {
         let highest = mailbox
             .messages

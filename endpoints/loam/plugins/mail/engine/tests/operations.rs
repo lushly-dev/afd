@@ -1089,6 +1089,50 @@ fn undo_keeps_a_copy_whose_original_went_though_a_search_still_lists_it() {
 }
 
 #[test]
+fn a_copy_made_while_a_pass_runs_is_not_ended_by_the_mailboxs_count() {
+    let fixture = Fixture::new(world);
+    let receipts = fixture.mailbox_id("none");
+    let copy = |word: &str| {
+        fixture.changed(
+            "mail-label",
+            json!({ "messages": [fixture.message(word)], "mailbox": receipts, "copy": true }),
+        )
+    };
+    copy("s0");
+    copy("s1");
+    fixture.sync();
+    // One leaves with nothing reported, and a copy the engine makes lands
+    // just after the next pass opens the mailbox: the store shows it at once.
+    let first = fixture.server.world().contents("Receipts")[0].0;
+    fixture.server.world().expunge_quietly("Receipts", first);
+    copy("n0");
+    let made = fixture
+        .server
+        .world()
+        .contents("Receipts")
+        .last()
+        .unwrap()
+        .0;
+    fixture
+        .server
+        .world()
+        .arrives_after_opening
+        .push(("Receipts".to_string(), made));
+    fixture.sync();
+    let receipts_shown: Vec<String> = fixture
+        .shown()
+        .into_iter()
+        .filter(|(role, _)| role == "none")
+        .map(|(_, subject)| subject)
+        .collect();
+    assert_eq!(
+        receipts_shown,
+        ["About n0", "About s1"],
+        "the departure is ended and the new copy kept"
+    );
+}
+
+#[test]
 fn a_move_into_junk_counts_as_trash() {
     let fixture = Fixture::new(world);
     fixture.set_policy(Policy {

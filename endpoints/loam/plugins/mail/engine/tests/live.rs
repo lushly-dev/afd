@@ -34,7 +34,7 @@ use loam_mail::parts::Structure;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, Imap};
 use loam_mail::provider::{
     Connector, Fetched, FlagsSeen, Listing, Opened, PartFetched, Provider, ProviderError,
-    RemoteMailbox, Since,
+    RemoteMailbox, Returned, Since,
 };
 use loam_mail::store::{AccountRow, HeaderSeen, MessageId};
 use loam_mail::sync::{AccountReport, Options, sync_account};
@@ -94,7 +94,7 @@ impl Provider for Sampled {
     async fn list(&mut self) -> Result<Listing, ProviderError> {
         timed(&self.timings, "list", self.inner.list()).await
     }
-    async fn returned(&mut self) -> Result<Vec<String>, ProviderError> {
+    async fn returned(&mut self) -> Result<Returned, ProviderError> {
         timed(&self.timings, "returned", self.inner.returned()).await
     }
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError> {

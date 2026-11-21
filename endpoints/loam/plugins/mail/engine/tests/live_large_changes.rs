@@ -50,7 +50,7 @@ use loam_mail::parts::Structure;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, Imap};
 use loam_mail::provider::{
     Connector, Copied, Fetched, FlagsSeen, Listing, NextId, Opened, OpenedToChange, PartFetched,
-    Provider, ProviderError, RemoteMailbox, Since,
+    Provider, ProviderError, RemoteMailbox, Returned, Since,
 };
 use loam_mail::store::{AccountRow, HeaderSeen};
 use loam_mail::sync::{Options, sync_account};
@@ -95,7 +95,7 @@ impl Provider for Counted {
     async fn list(&mut self) -> Result<Listing, ProviderError> {
         timed(&self.timings, "list", self.inner.list()).await
     }
-    async fn returned(&mut self) -> Result<Vec<String>, ProviderError> {
+    async fn returned(&mut self) -> Result<Returned, ProviderError> {
         timed(&self.timings, "returned", self.inner.returned()).await
     }
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError> {
