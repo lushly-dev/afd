@@ -498,8 +498,12 @@ async def test_a_gated_input_with_no_canonical_form_is_refused():
 
     registry = create_direct_registry([tag], middleware=[create_approval_middleware(secret=SECRET)])
     # An integer past 2**53 that a JavaScript number cannot hold exactly has no canonical JSON.
-    expect_unavailable(
-        await registry.execute("todo-tag", {"count": 2**60 + 1}), "todo-tag", "admission-mismatch"
+    result = await registry.execute("todo-tag", {"count": 2**60 + 1})
+    expect_unavailable(result, "todo-tag", "input-not-canonical")
+    assert result.error.suggestion == (
+        "Do not retry with this input: it has no exact JSON form, so an approval cannot be bound "
+        "to it. Send the input as JSON can represent it (for example, an id above 2^53 as a "
+        "string)."
     )
     assert ran == []
 

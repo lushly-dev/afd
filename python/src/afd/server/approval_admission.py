@@ -128,8 +128,9 @@ def admission_required(context: Any, policy: Any) -> bool:
 def take_admission(context: Any, command_name: str, input: Any) -> str:
     """Take the admission of the call of ``context``: ``"admitted"`` when it admitted
     ``command_name`` on an input with the same canonical JSON as ``input``, ``"missing"`` with
-    none, ``"mismatch"`` otherwise (another command, a changed input, or an input with no
-    canonical form). Taken whatever the answer, so a second dispatch needs a second admission."""
+    none, ``"not-canonical"`` when the input has no canonical form (no approval can be bound to
+    it), ``"mismatch"`` otherwise (another command or a changed input). Taken whatever the answer,
+    so a second dispatch needs a second admission."""
     found = _record(context)
     if found is None:
         return "missing"
@@ -138,9 +139,12 @@ def take_admission(context: Any, command_name: str, input: Any) -> str:
         return "mismatch" if found.taken else "missing"
     found.admitted = None
     found.taken = True
-    if admitted.name != command_name or admitted.canonical is None:
+    if admitted.name != command_name:
         return "mismatch"
-    return "admitted" if admitted.canonicalize(input) == admitted.canonical else "mismatch"
+    current = admitted.canonicalize(input)
+    if current is None or admitted.canonical is None:
+        return "not-canonical"
+    return "admitted" if current == admitted.canonical else "mismatch"
 
 
 def live_command(context: Any) -> Optional[AdmissionCommand]:

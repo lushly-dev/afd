@@ -1595,25 +1595,38 @@ def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
 def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
     """``APPROVAL_UNAVAILABLE`` for a gated dispatch no approval step admitted.
 
-    ``admission`` is ``"missing"`` (no approval step admitted this call) or ``"mismatch"``: an
+    ``admission`` is ``"missing"`` (no approval step admitted this call), ``"not-canonical"``
+    (the input has no exact JSON form, so no approval can be bound to it) or ``"mismatch"``: an
     approval step ran, but this dispatch is not the one it admitted (a retry placed after it, or
     the input changed after it), so the operator fixes the order.
     """
-    missing = admission == "missing"
+    if admission == "missing":
+        reason = "no-approval-step"
+        suggestion = (
+            f"Tell the user that {command_name} needs their approval and this server has no "
+            "approval step; do not retry. The operator adds the approval middleware "
+            "(create_approval_middleware) or removes the command's approval policy."
+        )
+    elif admission == "not-canonical":
+        reason = "input-not-canonical"
+        suggestion = (
+            "Do not retry with this input: it has no exact JSON form, so an approval cannot be "
+            "bound to it. Send the input as JSON can represent it (for example, an id above 2^53 "
+            "as a string)."
+        )
+    else:
+        reason = "admission-mismatch"
+        suggestion = (
+            "Do not retry: this call is not the one approved. The operator moves middleware "
+            "that retries or changes input before the approval middleware."
+        )
     return failure(
         CommandError(
             code=ErrorCodes.APPROVAL_UNAVAILABLE,
             message=f"{command_name} needs a person's approval, and this server cannot ask for it",
-            suggestion=(
-                f"Tell the user that {command_name} needs their approval and this server has no "
-                "approval step; do not retry. The operator adds the approval middleware "
-                "(create_approval_middleware) or removes the command's approval policy."
-                if missing
-                else "Do not retry: this call is not the one approved. The operator moves "
-                "middleware that retries or changes input before the approval middleware."
-            ),
+            suggestion=suggestion,
             retryable=False,
-            details={"reason": "no-approval-step" if missing else "admission-mismatch"},
+            details={"reason": reason},
         )
     )
 
