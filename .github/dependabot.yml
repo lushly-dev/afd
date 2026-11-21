@@ -85,19 +85,57 @@ updates:
       - dependencies
       - area:ci
 
-  # AFD's own Rust and Python roots outside the packages above. Each moves its minor and patch
-  # updates in one pull request a week. The imported families (Botcore, Health, Specimen) are left
-  # out: a lockfile change there needs a provenance record, which Dependabot cannot write. Their
-  # lockfiles still get Dependabot's security alerts.
+  # AFD's own Rust and Python roots outside the packages above, one entry per root, so each root's
+  # minor and patch updates arrive as one pull request a week. The imported families (Botcore,
+  # Health, Specimen) are left out: AGENTS.md has them changed here only with a provenance record of
+  # why. Their lockfiles stay in the dependency graph, so Dependabot's security alerts still cover
+  # the dependencies it reads from them.
   - package-ecosystem: cargo
-    directories:
-      - /endpoints/umbel
-      - /endpoints/loam/packages/desktop/src-tauri
-      - /endpoints/loam/plugins/mail/engine
-      - /packages/examples/todo/backends/rust
+    directory: /endpoints/umbel
     schedule:
       interval: weekly
-    open-pull-requests-limit: 4
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Loam desktop pins its Tauri transport exactly, after a review of that source
+  # (endpoints/loam/docs/phases/6-hosts/spec.md), so those crates move only by hand.
+  - package-ecosystem: cargo
+    directory: /endpoints/loam/packages/desktop/src-tauri
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: 'tauri*'
+      - dependency-name: wry
+      - dependency-name: reqwest
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /endpoints/loam/plugins/mail/engine
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /packages/examples/todo/backends/rust
+    schedule:
+      interval: weekly
     labels:
       - dependencies
     groups:
