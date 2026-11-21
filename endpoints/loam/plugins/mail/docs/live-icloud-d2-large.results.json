@@ -1,0 +1,331 @@
+{
+	"run": "2026-11-21 UTC, the owner's iCloud account, its largest mailbox as the test mailbox; counts, engine ids and times only",
+	"earlierRun": {
+		"note": "The first run, 2026-11-20 UTC, before the fixes: the trash's undo was cancelled at half and resumed; 491 of its 10 000 messages were found missing when resumed, and were gone from the account (in no mailbox on iCloud, the trash holding 40). The store went on showing them in the trash, because iCloud reported no VANISHED for them. A message from 2022 put in the trash afterwards was still there two hours later. Cause not found.",
+		"trashChanged": 10000,
+		"undoChanged": 9509,
+		"undoMissing": 491,
+		"goneFromAccount": 491,
+		"searchListedInTestMailbox": 295924,
+		"existsInTestMailbox": 272682,
+		"unreturnedInTestMailbox": 13232
+	},
+	"connections": 14,
+	"firstPassSeconds": 512.0,
+	"lastPassSeconds": 14.0,
+	"mailboxes": {
+		"after": {
+			"archive": {
+				"headers": 12855,
+				"mailbox": 1,
+				"unreturned": 0
+			},
+			"inbox": {
+				"headers": 2740,
+				"mailbox": 27,
+				"unreturned": 0
+			},
+			"junk": {
+				"headers": 433,
+				"mailbox": 23,
+				"unreturned": 0
+			},
+			"sent": {
+				"headers": 2847,
+				"mailbox": 13,
+				"unreturned": 0
+			},
+			"test": {
+				"headers": 272703,
+				"mailbox": 21,
+				"unreturned": 13232
+			},
+			"trash": {
+				"headers": 41,
+				"mailbox": 30,
+				"unreturned": 0
+			}
+		},
+		"before": {
+			"archive": {
+				"headers": 12855,
+				"mailbox": 1,
+				"unreturned": 0
+			},
+			"inbox": {
+				"headers": 2740,
+				"mailbox": 27,
+				"unreturned": 0
+			},
+			"junk": {
+				"headers": 433,
+				"mailbox": 23,
+				"unreturned": 0
+			},
+			"sent": {
+				"headers": 2847,
+				"mailbox": 13,
+				"unreturned": 0
+			},
+			"test": {
+				"headers": 272698,
+				"mailbox": 21,
+				"unreturned": 13232
+			},
+			"trash": {
+				"headers": 41,
+				"mailbox": 30,
+				"unreturned": 0
+			}
+		}
+	},
+	"requests": {
+		"connect": {
+			"calls": 14,
+			"ms": 11698.0
+		},
+		"copy": {
+			"calls": 205,
+			"ms": 400010.0
+		},
+		"flagsOf": {
+			"calls": 237,
+			"ms": 49746.0
+		},
+		"headers": {
+			"calls": 56,
+			"ms": 17860.0
+		},
+		"mailboxes": {
+			"calls": 2,
+			"ms": 438.0
+		},
+		"nextId": {
+			"calls": 205,
+			"ms": 98222.0
+		},
+		"open": {
+			"calls": 1588,
+			"ms": 468025.0
+		},
+		"openSince": {
+			"calls": 72,
+			"ms": 24487.0
+		},
+		"openToChange": {
+			"calls": 236,
+			"ms": 55050.0
+		},
+		"present": {
+			"calls": 207,
+			"ms": 76758.0
+		},
+		"remove": {
+			"calls": 205,
+			"ms": 247416.0
+		},
+		"setFlags": {
+			"calls": 225,
+			"ms": 398393.0
+		}
+	},
+	"steps": [
+		{
+			"changed": 1000,
+			"command": "mail-mark",
+			"ignored": 0,
+			"messages": 1000,
+			"missing": 0,
+			"msPerChanged": 15.0,
+			"operation": 17,
+			"places": 1000,
+			"seconds": 15.4,
+			"state": "done",
+			"step": "flag",
+			"unchanged": 0
+		},
+		{
+			"changed": 1000,
+			"command": "mail-operation-undo",
+			"ignored": 0,
+			"messages": 1000,
+			"missing": 0,
+			"msPerChanged": 14.0,
+			"operation": 18,
+			"places": 1000,
+			"seconds": 14.0,
+			"state": "done",
+			"step": "undo flag",
+			"unchanged": 0
+		},
+		{
+			"changed": 0,
+			"command": "mail-mark",
+			"ignored": 0,
+			"messages": 1000,
+			"missing": 0,
+			"msPerChanged": null,
+			"operation": 19,
+			"places": 1000,
+			"seconds": 5.7,
+			"state": "done",
+			"step": "mark unread",
+			"unchanged": 1000
+		},
+		{
+			"changed": 0,
+			"command": "mail-operation-undo",
+			"ignored": 0,
+			"messages": 0,
+			"missing": 0,
+			"msPerChanged": null,
+			"operation": 20,
+			"places": 0,
+			"seconds": 0.0,
+			"state": "done",
+			"step": "undo mark unread",
+			"unchanged": 0
+		},
+		{
+			"changed": 50,
+			"command": "mail-label",
+			"ignored": 0,
+			"messages": 50,
+			"missing": 0,
+			"msPerChanged": 164.0,
+			"operation": 21,
+			"places": 50,
+			"seconds": 8.2,
+			"state": "done",
+			"step": "agent copies to junk",
+			"unchanged": 0
+		},
+		{
+			"changed": 50,
+			"command": "mail-operation-undo",
+			"ignored": 0,
+			"messages": 50,
+			"missing": 0,
+			"msPerChanged": 77.0,
+			"operation": 22,
+			"places": 50,
+			"seconds": 3.8,
+			"state": "done",
+			"step": "agent undoes the copy",
+			"unchanged": 0
+		},
+		{
+			"changed": 10,
+			"command": "mail-label",
+			"ignored": 0,
+			"messages": 10,
+			"missing": 0,
+			"msPerChanged": 444.0,
+			"operation": 23,
+			"places": 10,
+			"seconds": 4.4,
+			"state": "done",
+			"step": "move to the inbox",
+			"unchanged": 0
+		},
+		{
+			"changed": 10,
+			"command": "mail-archive",
+			"ignored": 0,
+			"messages": 10,
+			"missing": 0,
+			"msPerChanged": 332.0,
+			"operation": 24,
+			"places": 10,
+			"seconds": 3.3,
+			"state": "done",
+			"step": "archive",
+			"unchanged": 0
+		},
+		{
+			"changed": 10,
+			"command": "mail-operation-undo",
+			"ignored": 0,
+			"messages": 10,
+			"missing": 0,
+			"msPerChanged": 319.0,
+			"operation": 25,
+			"places": 10,
+			"seconds": 3.2,
+			"state": "done",
+			"step": "undo archive",
+			"unchanged": 0
+		},
+		{
+			"changed": 10,
+			"command": "mail-label",
+			"ignored": 0,
+			"messages": 10,
+			"missing": 0,
+			"msPerChanged": 404.0,
+			"operation": 26,
+			"places": 10,
+			"seconds": 4.0,
+			"state": "done",
+			"step": "move back from the inbox",
+			"unchanged": 0
+		},
+		{
+			"changed": 10000,
+			"command": "mail-trash",
+			"ignored": 0,
+			"messages": 10000,
+			"missing": 0,
+			"msPerChanged": 65.0,
+			"operation": 27,
+			"places": 10000,
+			"seconds": 648.3,
+			"state": "done",
+			"step": "approved trash",
+			"unchanged": 0
+		},
+		{
+			"changed": 5100,
+			"changedWhenCancelled": 5000,
+			"operation": 28,
+			"seconds": 344.1,
+			"state": "stopped",
+			"step": "undo trash, cancelled"
+		},
+		{
+			"changed": 10000,
+			"command": "mail-operation-undo",
+			"ignored": 0,
+			"messages": 10000,
+			"missing": 0,
+			"msPerChanged": 30.0,
+			"operation": 28,
+			"places": 10000,
+			"seconds": 296.1,
+			"state": "done",
+			"step": "undo trash, resumed",
+			"unchanged": 0
+		},
+		{
+			"preview": {
+				"approvable": true,
+				"byClass": {
+					"bulk": 10000
+				},
+				"knownSenders": {
+					"messages": 0,
+					"senders": 0
+				},
+				"unreturned": 0
+			},
+			"step": "proposal preview"
+		}
+	],
+	"testMailbox": {
+		"backInIt": 11060,
+		"listedWithDates": 272698,
+		"placesNotAsBefore": 0,
+		"touched": 11060,
+		"withTheirFlags": 11060
+	}
+}

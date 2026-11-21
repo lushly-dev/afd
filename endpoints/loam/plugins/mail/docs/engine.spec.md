@@ -695,6 +695,19 @@ says which role.
   and `UID SEARCH ALL` says what remains: a message the server lists and never returns is missing
   from a `FETCH` and has not left. New mail is the UIDs from the cursor's next UID on. A
   generation that changes between two openings in one pass begins the mailbox again.
+- **Mail that leaves unreported** (step D2's large run). A mailbox whose `EXISTS` is below what the store
+  still shows there has lost messages no `VANISHED` named and a search may still list: 491
+  messages left iCloud's trash that way, and its search went on listing about 10 000 that had
+  left the large mailbox. Then the UIDs a `UID FETCH 1:* (UID)` returns are what the mailbox
+  holds, and a message the mailbox shows, which the server once returned, has left when that
+  answer leaves it out. This is not the rule above, which is about messages never returned:
+  those are never shown, so never ended here. The answer is used only when it returned at least
+  `EXISTS` messages, since one cut short would end mail still there. A pass whose count agrees
+  asks nothing more; a departure hidden by mail that arrived in the same pass is found on the
+  next, and a pass that lists the mailbox in full does not check the count. The answer counts only
+  the UIDs below the next UID the mailbox had when opened, the moment its `EXISTS` describes. On a
+  server whose `EXISTS` counts messages it never returns, each such message hides one departure
+  for good; iCloud's does not count them.
 - **Flags** are kept as the server gives them, with the system flags written one way whatever
   their case. `\Recent` is left out: it belongs to a session, not to the message.
 - **Waiting.** `IDLE` on the inbox where the server offers it; other mailboxes are polled. Step
@@ -1659,6 +1672,17 @@ empties its trash on its own schedule.
   client carries it into the destination too, where that client's next `EXPUNGE` would remove
   it. Not handled: no such message has been seen.
 
+**As step D2's large run tried it** on the owner's iCloud account ([the counts](live-icloud-d2-large.results.json)),
+in its largest mailbox, which the owner keeps for tests: 1 000 messages flagged and undone, 1 000
+marked unread (all were already) and undone, 50 copied into junk by an agent within the policy
+and undone, 10 moved to the inbox, archived, the archive undone and the 10 moved back, and an
+agent's trash of 10 000, proposed, previewed, approved, undone, the undo cancelled at half and
+resumed. Every message came back where it was, with its flags. iCloud offered no `MOVE`, so every
+move was the three steps. A message counts as in its mailbox when either `UID SEARCH` or `FETCH`
+returns it, since iCloud's search lists messages its `FETCH` never returns and messages that
+have left; asking for one that is not there costs nothing. A trash of 10 000 took 11 minutes and
+its undo as long, cancel and resume included, about 65 ms a message; 1 000 flags took 15
+seconds.
 
 ### 9.3 Undo
 
@@ -1701,6 +1725,14 @@ the run on the scripted server that the owner's run repeats on iCloud.
 cursor, before a pass covers it, and a pass with QRESYNC took what vanished, and flags that
 changed, only below the cursor. A copy that another client removed or marked before the next pass
 stayed in the store as it was, for good. Both are now read up to the mailbox's next id, and so are the flags read without QRESYNC.
+
+**Found by the large run** ([the counts](live-icloud-d2-large.results.json)). An undo of a trash on iCloud is only as good as the trash's hold on the
+mail: in the first run, 491 of 10 000 messages left iCloud's trash while the undo was paused, and
+were in no mailbox after, so the undo reported them `missing`, as it should. What removed them is
+not known: the owner empties the trash by hand, and a message from 2022 put there was still there
+two hours later. Before a copy is removed, its original must also be returned by `FETCH`, not only
+listed by a search, which on iCloud still lists messages that left: a search alone could have
+made the copy the last of its message.
 
 ### 9.4 The policy
 
@@ -2154,7 +2186,7 @@ file.
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
 | C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods. Then rule 3 (migration 11): a junk or trash mailbox's history starts no later than when the engine first listed it |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches (migration 13), `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss` (migration 14). The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
-| D2 | The four remote commands on iCloud and Gmail |
+| D2 | The four remote commands on iCloud and Gmail. iCloud: the run the owner makes on a mailbox of 1 to 20 messages he names ([9.3](#93-undo)), and a large run on the account's largest mailbox ([the counts](live-icloud-d2-large.results.json)), with what it found fixed: presence read by search or `FETCH`, an original confirmed by `FETCH` before its copy goes ([9.3](#93-undo)), and mail that leaves unreported found by the mailbox's count ([5.2](#52-imap)). Gmail's half after B0 and B6 |
 | D3 | Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze` |
 | E1 to E3 | Records; proposed stories; reply sets |
 
