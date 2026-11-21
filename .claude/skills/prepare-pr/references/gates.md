@@ -67,6 +67,7 @@ Only what a failing gate will not explain.
 
 ## Dependencies and the lockfile
 
+- Dependabot's security alerts cover every lockfile the dependency graph finds. Its version updates (`.github/dependabot.yml`) cover the root npm workspace, the GitHub Actions pins, and AFD's own Python and Rust roots. They leave out Botcore, Health and Specimen, whose lockfile changes need a provenance record. A new lockfile in AFD's own code gets a `directories` entry there.
 - `pnpm-workspace.yaml` sets a three-day `minimumReleaseAge`, matching Dependabot's, because a lockfile holding a younger version fails every Dependabot npm update. A newly published dependency waits until it is three days old unless `minimumReleaseAgeExclude` lists it.
 - Pull requests that change `pnpm-lock.yaml` go through the merge queue like any other. Two lockfile changes that each pass alone can merge without a conflict and still leave a lockfile `pnpm install --frozen-lockfile` refuses (#937). The queue builds each on top of those ahead of it and `ci.yml` runs that install there, so the second should fail in the queue instead of on `main`; no session has seen that happen yet. Then wait until the one ahead has landed, merge `main` (`pnpm base:sync`), run `pnpm install` to settle the lockfile, confirm `pnpm install --frozen-lockfile` passes, commit and push it, and take the new head through step 8 before enqueueing again. On a Dependabot pull request ask for `@dependabot rebase` and verify its new head the same way.
 

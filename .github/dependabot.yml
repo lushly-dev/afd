@@ -84,3 +84,36 @@ updates:
     labels:
       - dependencies
       - area:ci
+
+  # AFD's own Rust and Python roots outside the packages above. Each moves its minor and patch
+  # updates in one pull request a week. The imported families (Botcore, Health, Specimen) are left
+  # out: a lockfile change there needs a provenance record, which Dependabot cannot write. Their
+  # lockfiles still get Dependabot's security alerts.
+  - package-ecosystem: cargo
+    directories:
+      - /endpoints/umbel
+      - /endpoints/loam/packages/desktop/src-tauri
+      - /endpoints/loam/plugins/mail/engine
+      - /packages/examples/todo/backends/rust
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 4
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: uv
+    directory: /packages/examples/todo/backends/python
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      uv-minor-patch:
+        update-types:
+          - minor
+          - patch
