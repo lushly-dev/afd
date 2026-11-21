@@ -139,7 +139,7 @@ def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     assert judged(found) == (1, 1, 3)
     assert found["unknown_why"] == {
         "no_pull_request": 1, "no_session": 1, "opened_elsewhere": 0, "no_link_time": 0,
-        "after_opening": 1, "possibly_loaded": 0,
+        "after_opening": 1, "possibly_loaded": 0, "incomplete_record": 0,
     }  # fmt: skip
     assert found["misses"] == [{"change": 104, "sessions": ["fourth"]}]
     assert found["rate"] == 0.5 and found["paths"] == ["hooks.yml", "scripts/check-*.mjs"]
@@ -306,14 +306,34 @@ def test_a_load_after_the_change_merged_is_no_load(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
     merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=3)
     late = session(t3_store, "late", (101, stamp(4)))
     t3_store.skill_tool(late, "gate-discipline", stamp(2))  # a day after it merged
+    # two clocks: a load a few minutes after the merge may have come before it
+    close = session(t3_store, "close", (102, stamp(4)))
+    t3_store.skill_tool(close, "gate-discipline", stamp(3, minutes=3))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
-    assert judged(found) == (0, 1, 0)
+    assert judged(found) == (0, 1, 1) and why(found) == {"after_opening": 1}
     assert found["misses"] == [{"change": 101, "sessions": ["late"]}]
+
+
+def test_a_change_merged_since_the_last_collection_is_not_yet_a_miss(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=3)
+    session(t3_store, "main", (101, stamp(4)), (102, stamp(1)))
+    t3_store.skill_tool("main", "plant-beds", stamp(4))
+    run(skill_usage_collect())
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs", days_ago=-1)  # after it
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    # what the session loaded between the collection and the merge is not in the record
+    assert judged(found) == (0, 1, 1) and why(found) == {"incomplete_record": 1}
+    assert found["misses"] == [{"change": 101, "sessions": ["main"]}]
 
 
 def test_an_opening_the_record_puts_after_the_merge_is_not_judged(
@@ -468,7 +488,6 @@ def test_a_merge_commit_is_one_change_and_the_fetched_branch_is_the_one_read(
 ) -> None:
     session(t3_store, "main", (101, stamp(2)), (55, stamp(2)))
     t3_store.skill_tool("main", "plant-beds", stamp(3))
-    run(skill_usage_collect())
     git(repo, "switch", "-q", "-c", "topic")
     merge(repo, "wip: a hook, as its branch named it (#55)", "hooks.yml")
     git(repo, "switch", "-q", "main")
@@ -476,6 +495,7 @@ def test_a_merge_commit_is_one_change_and_the_fetched_branch_is_the_one_read(
     git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
     git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
     git(repo, "reset", "-q", "--hard", "HEAD~1")  # a local main that was not pulled
+    run(skill_usage_collect())
 
     data = run(skill_usage_triggers(repo=str(repo)))
 
@@ -659,7 +679,9 @@ def test_an_odd_or_old_record_does_not_break_the_report(
 
     data = run(skill_usage_triggers(repo=str(repo)))
 
-    assert rule(data)["missed"] == 1 and "Last collected" in data["warnings"][0]
+    # collected three days before the change merged: what the session did since is not here
+    assert judged(rule(data)) == (0, 0, 1) and why(rule(data)) == {"incomplete_record": 1}
+    assert "Last collected" in data["warnings"][0]
     (state / store.SESSIONS_FILE).write_text("{ half a file", "utf-8")
     assert fail(skill_usage_triggers(repo=str(repo))).code == "RECORD_UNAVAILABLE"
 

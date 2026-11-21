@@ -6,6 +6,7 @@ import asyncio
 import json
 import plistlib
 import subprocess
+import threading
 import tomllib
 import xml.etree.ElementTree as ET
 from datetime import timedelta
@@ -44,14 +45,12 @@ def test_settings_toml_round_trips() -> None:
         volume=[{"mount": "/Volumes/Dev", "id": "UUID-1", "low_space_gb": 80}],
         aged=[{"path": "/Volumes/Dev/cache/*", "max_age_days": 7}],
         skill_usage_machine="random",
-        skill_usage_shared="~/Shared Drive/skill-usage",
+        skill_usage_shared="~/Shared Drive/🌱/skill\x7fusage",  # what TOML has no escape for
     )
     assert MachineSettings(**tomllib.loads(setup.settings_toml(settings))) == settings
     assert "skill_usage_collect" not in setup.settings_toml(settings)  # the default is not written
     off = MachineSettings(skill_usage_collect=False)
     assert MachineSettings(**tomllib.loads(setup.settings_toml(off))) == off
-    with pytest.raises(ValueError, match="skill_usage_machine"):
-        MachineSettings(skill_usage_machine="a folder/elsewhere")
 
 
 def test_setup_registers_the_repository_and_its_volumes(
@@ -159,14 +158,18 @@ def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
     assert not any("skill usage" in found for found in status["problems"])  # not yet
 
     long_ago = (setup.datetime.now(setup.UTC) - timedelta(hours=30)).isoformat()
-    write_check(ok_at=long_ago)
+    write_check(ok_at=long_ago)  # it last worked before a long sleep, and failed on waking
     began = usage()["failing_since"]
     run(setup.disk_run())  # still failing an hour later: since when is kept
     assert usage()["failing_since"] == began and usage()["ok_at"] == long_ago
+    assert not any("skill usage" in found for found in run(setup.disk_status())["problems"])
+
+    write_check(failing_since=long_ago)  # failing for over a day is a problem
+    run(setup.disk_run())
+    assert usage()["failing_since"] == long_ago
     problems = run(setup.disk_status())["problems"]
     assert any("skill usage is not being collected" in found for found in problems)
-
-    write_check(ok_at=None, failing_since=long_ago)  # one that never worked, as long
+    write_check(ok_at=None)  # and so is one that never worked, as long
     assert any("skill usage" in found for found in run(setup.disk_status())["problems"])
 
     with repo["settings"].open("a", encoding="utf-8") as handle:
@@ -175,6 +178,85 @@ def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
     status = run(setup.disk_status())
     assert status["skill_usage"] is None
     assert not any("skill usage" in found for found in status["problems"] + status["warnings"])
+
+
+def test_collection_never_holds_or_fails_the_disk_work(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+) -> None:
+    order: list[str] = []
+
+    async def fake_reclaim(**_kwargs):
+        order.append("reclaim")
+        return SimpleNamespace(success=True, data={"still_low": []})
+
+    import botcore.commands.disk.reclaim as reclaim
+    import botcore.commands.skill_usage as usage
+
+    collect = usage.skill_usage_collect
+    monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
+
+    def job() -> dict:
+        order.clear()
+        data = run(setup.disk_run(force=True))
+        assert data["ran"] is True and order[0] == "reclaim"  # the disk work, and first
+        return data["skill_usage"]
+
+    async def raises() -> None:
+        order.append("collect")
+        raise RuntimeError("the store fell over")
+
+    monkeypatch.setattr(usage, "skill_usage_collect", raises)
+    assert job()["error"] == "RuntimeError: the store fell over" and order[1:] == ["collect"]
+
+    release = threading.Event()
+
+    async def hangs() -> None:
+        order.append("collect")
+        release.wait(30)  # as a read of a drive that is away does
+
+    monkeypatch.setattr(usage, "skill_usage_collect", hangs)
+    monkeypatch.setattr(setup, "USAGE_SECONDS", 0.2)
+    waited = job()
+    release.set()
+    assert "did not finish in 0.2 seconds" in waited["error"] and order[1:] == ["collect"]
+    monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
+    monkeypatch.setattr(usage, "skill_usage_collect", collect)
+
+    # a name that cannot be a machine's stops the collection, and never the disk work
+    monkeypatch.delenv(usage_store.MACHINE_ENV)
+    before = repo["settings"].read_text(encoding="utf-8")
+    repo["settings"].write_text(before + 'skill_usage_machine = "my machine"\n', encoding="utf-8")
+    assert "cannot name a machine" in job()["error"]
+    assert run(setup.disk_status())["skill_usage"]["ok"] is False
+    repo["settings"].write_text(before, encoding="utf-8")
+    monkeypatch.setenv(usage_store.MACHINE_ENV, "bench")
+
+    # nor does a shared folder that is away: the status says so, and a success clears it
+    built = T3Store(tmp_path / "t3.sqlite")
+    built.project("p1", repo["main"])
+    built.skill_tool(built.thread("main"), "plant-beds", stamp(1))
+    monkeypatch.setenv(usage_store.T3_STORE_ENV, str(built.path))
+    monkeypatch.setenv(usage_store.SHARED_ENV, str(tmp_path / "away"))
+    assert job()["error"].startswith("the shared folder could not be written")
+    assert any("skill usage" in found for found in run(setup.disk_status())["warnings"])
+    (tmp_path / "away").mkdir()
+    assert job()["ok"] is True
+    status = run(setup.disk_status())
+    assert status["skill_usage"]["ok"] is True
+    assert not any("skill usage" in found for found in status["warnings"] + status["problems"])
+
+
+def test_setup_writes_the_machines_name_down_once(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    monkeypatch.chdir(repo["main"])
+    monkeypatch.setattr(usage_store.platform, "node", lambda: "Shed.local")
+    run(setup.disk_setup(install_schedule=False))
+    assert load_machine_settings()[0].skill_usage_machine == "shed"
+    # a hostname changes with the network: the record keeps the name the machine began with
+    monkeypatch.setattr(usage_store.platform, "node", lambda: "shed-2.guest.network")
+    run(setup.disk_setup(install_schedule=False))
+    assert load_machine_settings()[0].skill_usage_machine == "shed"
 
 
 def test_the_job_notifies_once_while_space_stays_low(

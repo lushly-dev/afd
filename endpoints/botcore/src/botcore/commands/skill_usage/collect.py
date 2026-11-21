@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -139,7 +140,9 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
         if name is None:
             folder = Path(root)
             remote = project_remote(folder) if folder.is_dir() else None
-            name = remote or folder.name or project_id
+            # a store copied from another system writes its folders that system's way: the
+            # last part by either separator, never the whole path
+            name = remote or re.split(r"[\\/]+", root.rstrip("\\/"))[-1] or project_id
             if not remote and name in projects and not projects[name].get("remote"):
                 name = f"{name}~{hashlib.sha256(root.encode()).hexdigest()[:6]}"
             entry = projects.setdefault(name, {"remote": bool(remote), "roots": [], "renames": {}})
@@ -216,8 +219,9 @@ def settings_refused(exc: Exception) -> CommandResult[dict]:
     if isinstance(exc, InvalidMachine):
         return _failure(
             "INVALID_INPUT", str(exc),
-            "Name the machine in the machine settings (skill_usage_machine) or with "
-            "BOTCORE_SKILL_USAGE_MACHINE, for example macbook-air",
+            "Set skill_usage_machine (for example macbook-air) and skill_usage_shared (a "
+            "full path) in the machine settings, or BOTCORE_SKILL_USAGE_MACHINE and "
+            "BOTCORE_SKILL_USAGE_SHARED",
         )  # fmt: skip
     return _failure(
         "MACHINE_SETTINGS_INVALID", f"The machine settings could not be read: {exc}",
@@ -353,6 +357,15 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
         since = _stamp(newest - OVERLAP)
 
     found = _read_t3(path, since, all_items=rebuild)
+    began = _parse(since)
+    if began is not None and any(
+        session.id not in sessions and (_parse(session.created_at) or began) < began
+        for session in found.sessions
+    ):
+        # a thread that is new here and older than the last collection was moved to this
+        # machine: what it did before is in the store, and behind where this read began
+        since = None
+        found = _read_t3(path, since, all_items=rebuild)
     projects, names = _name_projects(_mapping(state.get("projects")), found.projects)
     known_ids = {event.id for event in stored}
     known_skills = {(event.project, event.skill) for event in stored}
@@ -395,6 +408,8 @@ def _collect(  # noqa: PLR0913 - one collection's inputs
         {
             "version": STATE_VERSION,
             "machine": this_machine,
+            # what tells this record from another machine's of the same name
+            "record_id": state.get("record_id") or uuid.uuid4().hex,
             "collected_at": _stamp(now),
             # the rules every event still re-readable was recognised by: a rebuild, or a
             # record that began under them

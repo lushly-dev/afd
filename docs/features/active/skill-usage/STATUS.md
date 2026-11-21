@@ -14,6 +14,26 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Across machines, what review found, 2026-11-21 (#1818)
+
+- **A miss needs the whole record.** With several machines, the session that opened a pull
+  request and the load that answers for it can be on different ones: a thread moved between
+  machines, a task delegated to another. Both first reviewers reproduced a load turning into
+  a miss when one machine's copy was skipped, stale or away. So no change is a miss until
+  every machine still collecting has collected past the change's merge.
+- **A sync delivers files one at a time.** A machine's state names its other files by digest,
+  and a reader parses the bytes it checked: checking and then reading again let a sync land
+  in between.
+- **A moved thread is not read from its start** by a collection that continues from the last
+  one, for up to a week. A thread that is new to a machine and older than the last collection
+  now makes that collection read everything.
+- **Collection must not stand in front of the disk work.** It ran first with no time limit,
+  and a wrong machine name refused the whole settings file. It now runs after the disk work,
+  for at most five minutes, and its settings are checked where they are used.
+- **Two machines can take one name.** The hostname is the default, and a shared drive does
+  not tell `Bench` from `bench`. Names are lower case, each record has an id, and a folder
+  that holds another record is not written over.
+
 ### Missed triggers, first reading, 2026-11-21 (#1817)
 
 Measured on the MacBook Air over 30 days with the rule Lushly's instructions state (the gate

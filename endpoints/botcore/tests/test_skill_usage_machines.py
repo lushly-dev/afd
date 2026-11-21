@@ -6,6 +6,7 @@ and a machine that names itself."""
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -84,8 +85,11 @@ def test_collection_also_writes_the_record_to_the_shared_folder(machines: Machin
         assert (folder / name).read_bytes() == (machines.record("bench") / name).read_bytes()
     # of its state a machine shares what another needs, and none of its folders
     shared_state = json.loads((folder / store.STATE_FILE).read_text("utf-8"))
-    assert sorted(shared_state) == ["collected_at", "files", "machine", "recognizer", "version"]
+    assert sorted(shared_state) == [
+        "collected_at", "files", "machine", "recognizer", "record_id", "unreadable", "version",
+    ]  # fmt: skip
     assert sorted(shared_state["files"]) == [store.EVENTS_FILE, store.SESSIONS_FILE]
+    assert (shared_state["machine"], shared_state["unreadable"]) == ("bench", 0)
     assert str(machines.project) in (machines.record("bench") / store.STATE_FILE).read_text()
     for found in folder.iterdir():
         assert str(machines.project) not in found.read_text("utf-8")
@@ -210,10 +214,10 @@ def test_a_copy_that_a_sync_has_only_half_delivered_is_not_read(
 
     data = run(skill_usage_triggers(repo=str(repo)))
     assert why(rule(data)) == {"no_session": 1} and rule(data)["missed"] == 0
-    assert any("shed's copy in the shared folder is not whole" in w for w in data["warnings"])
+    assert any("shed in the shared folder is not a whole copy" in w for w in data["warnings"])
     report = run(skill_usage_report())
     assert report["record"]["machines"] == ["bench"]
-    assert any("shed's copy in the shared folder is not whole" in w for w in report["warnings"])
+    assert any("shed in the shared folder is not a whole copy" in w for w in report["warnings"])
 
     # nor is one whose state is the older one, or has not arrived at all
     (machines.shared / "shed" / store.EVENTS_FILE).write_bytes(after[store.EVENTS_FILE])
@@ -295,10 +299,302 @@ def test_a_machine_names_itself_and_its_shared_folder_in_its_settings(
     assert copied.code == "INVALID_INPUT"
 
     monkeypatch.delenv(store.MACHINE_ENV)
-    settings.write_text('skill_usage_machine = "../elsewhere"\n', "utf-8")
-    for refused in (
-        skill_usage_collect(),
-        skill_usage_report(),
-        skill_usage_triggers(repo=str(repo)),
+    monkeypatch.delenv(store.SHARED_ENV)
+    for wrong, code in (
+        ('skill_usage_machine = "../elsewhere"\n', "INVALID_INPUT"),
+        ('skill_usage_machine = "nul.txt"\n', "INVALID_INPUT"),  # a device, to Windows
+        ('skill_usage_machine = "bench."\n', "INVALID_INPUT"),  # and `bench` again
+        ('skill_usage_shared = "records/here"\n', "INVALID_INPUT"),  # where a job runs differs
+        ("skill_usage_machine = \n", "MACHINE_SETTINGS_INVALID"),
+        (b"skill_usage_machine = \xff\n", "MACHINE_SETTINGS_INVALID"),  # not text at all
     ):
-        assert fail(refused).code == "MACHINE_SETTINGS_INVALID"
+        settings.write_bytes(wrong if isinstance(wrong, bytes) else wrong.encode())
+        for refused in (
+            skill_usage_collect,
+            skill_usage_report,
+            lambda: skill_usage_triggers(repo=str(repo)),
+        ):
+            assert fail(refused()).code == code, wrong
+    settings.write_text('skill_usage_machine = "Random"\n', "utf-8")
+    assert store.local().machine == "random"  # a shared drive does not tell Random from random
+
+
+# ── what a machine may write to the shared folder ───────────────────────────
+
+
+def test_a_machine_shares_what_it_understood_and_never_a_line_it_could_not_read(
+    machines: Machines,
+) -> None:
+    bench = machines.on("bench")
+    bench.skill_tool(bench.thread("main"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    with (machines.record("bench") / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
+        handle.write('{"id": "half a line of the-private-text\n')
+    sessions = store.load_sessions(machines.record("bench"))
+    sessions["gone"] = {  # a session the harness has dropped, with what a hand added to it
+        "root": "gone",
+        "title": "the-private-text",
+        "pull_requests": [{"ref": "acme/garden#7", "opened": True, "title": "the-private-text"}],
+    }
+    store.save_sessions(machines.record("bench"), sessions)
+
+    run(skill_usage_collect())
+
+    folder = machines.shared / "bench"
+    for found in folder.iterdir():
+        assert "the-private-text" not in found.read_text("utf-8")
+    assert json.loads((folder / store.SESSIONS_FILE).read_text("utf-8"))["gone"] == {
+        "root": "gone", "parent": None, "agent": None, "harness": None, "project": None,
+        "created_at": None, "updated_at": None, "machine": "bench",
+        "pull_requests": [{"ref": "acme/garden#7", "linked_at": None, "opened": True}],
+    }  # fmt: skip
+    assert json.loads((folder / store.STATE_FILE).read_text("utf-8"))["unreadable"] == 1
+    assert "the-private-text" in (machines.record("bench") / store.EVENTS_FILE).read_text()
+
+
+def test_a_store_copied_from_another_system_names_its_projects_by_folder(
+    machines: Machines, tmp_path: Path
+) -> None:
+    bench = machines.on("bench")
+    bench.project("p2", Path(r"C:\Users\somebody\code\orchard"))  # as Windows writes it
+    bench.skill_tool(bench.thread("main", project_id="p2"), "plant-beds", stamp(1))
+
+    run(skill_usage_collect())
+
+    assert [event.project for event in collected(machines.record("bench"))] == ["orchard"]
+    assert "somebody" not in (machines.shared / "bench" / store.EVENTS_FILE).read_text("utf-8")
+
+
+def test_a_machine_writes_no_folder_but_its_own(
+    machines: Machines, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    folder = machines.shared / "shed"
+    (folder / "events.jsonl.999.tmp").write_text("left by a write that was cut short", "utf-8")
+    theirs = (folder / store.SESSIONS_FILE).read_bytes()
+
+    # another machine that took the same name, in whatever case: it would hide the first
+    impostor = machines.on("tower")
+    impostor.skill_tool(impostor.thread("tower-0"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.MACHINE_ENV, "Shed")
+    data = run(skill_usage_collect())
+
+    assert data["machine"] == "shed" and data["shared"]["written"] is False
+    assert "another machine named shed" in data["shared"]["error"]
+    assert (folder / store.SESSIONS_FILE).read_bytes() == theirs
+    assert [found.name.lower() for found in machines.shared.iterdir()] == ["shed"]
+
+    # nor its own record, where the shared folder was pointed at the folder that holds it
+    monkeypatch.setenv(store.MACHINE_ENV, "bench")
+    monkeypatch.setenv(store.STATE_ENV, str(machines.shared / "bench"))
+    bench = machines.stores["bench"] = T3Store(machines.tmp / "bench.sqlite", prefix="bench")
+    bench.project("p1", machines.project)
+    bench.skill_tool(bench.thread("bench-0"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(bench.path))
+    data = run(skill_usage_collect())
+    assert "keeps its own record" in data["shared"]["error"]
+    assert "projects" in store.load_state(machines.shared / "bench")  # its state is whole
+
+    machines.on("shed")  # the machine whose folder it is writes it again, and tidies it
+    assert run(skill_usage_collect())["shared"]["written"] is True
+    assert not list(folder.glob("*.tmp"))
+
+
+def test_a_record_with_no_load_yet_is_a_whole_copy(machines: Machines) -> None:
+    shed = machines.on("shed")
+    session(shed, "opener", (101, stamp(2)))  # a session, and no skill loaded anywhere
+    run(skill_usage_collect())
+    assert (machines.shared / "shed" / store.EVENTS_FILE).read_bytes() == b""
+
+    machines.on("bench")  # a machine that has collected nothing reads it all the same
+    data = run(skill_usage_report())
+
+    assert data["record"]["machines"] == ["shed"] and data["record"]["sessions"] == 1
+    assert any(warning.startswith("Last collected never") for warning in data["warnings"])
+
+
+# ── reading every machine alike ─────────────────────────────────────────────
+
+
+def test_a_copy_is_parsed_from_the_bytes_that_were_checked(
+    machines: Machines, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    machines.on("bench")
+    reads: list[str] = []
+    read_bytes = Path.read_bytes
+
+    def counted(path: Path) -> bytes:
+        if path.parent == machines.shared / "shed":
+            reads.append(path.name)
+        return read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counted)
+
+    record = store.load_record(machines.record("bench"), store.local())
+
+    # once each: a sync that lands between a check and a second read would undo the check
+    assert sorted(reads) == [store.EVENTS_FILE, store.SESSIONS_FILE]
+    assert [event.thread for event in record.events] == ["shed-0"]
+
+
+def test_two_machines_entries_for_one_session_merge_the_same_from_either_side() -> None:
+    earlier = {
+        "root": "main", "parent": "main", "agent": "delegate", "updated_at": stamp(3),
+        "pull_requests": [
+            {"ref": "acme/garden#7", "linked_at": stamp(2), "opened": True},
+            {"ref": "acme/garden#8", "linked_at": stamp(2), "opened": None},
+        ],
+    }  # fmt: skip
+    later = {
+        "root": "main", "parent": None, "agent": "delegate", "updated_at": stamp(1),
+        "pull_requests": [
+            {"ref": "acme/garden#7", "linked_at": stamp(4), "opened": True},  # another time
+            {"ref": "acme/garden#8", "linked_at": stamp(1), "opened": False},
+            "acme/garden#9",
+        ],
+    }  # fmt: skip
+
+    merged = store._merged(earlier, later)
+
+    assert merged == store._merged(later, earlier)
+    assert merged["parent"] == "main"  # what the later entry does not know is kept
+    assert merged["updated_at"] == stamp(1)
+    assert merged["pull_requests"] == [
+        {"ref": "acme/garden#7", "linked_at": stamp(4), "opened": True},  # the earlier opening
+        {"ref": "acme/garden#8", "linked_at": stamp(1), "opened": False},  # the one that says
+        "acme/garden#9",
+    ]
+
+
+def test_every_machine_reads_the_same_record(machines: Machines, repo: Path) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    # one load, as two machines hold it: the shed for the opener, the attic for a worker
+    shed = machines.on("shed")
+    shed.skill_tool(session(shed, "opener", (101, stamp(2))), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    attic = machines.on("attic")
+    attic.prefix = "shed"
+    attic.skill_tool(attic.thread("worker"), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+
+    seen = []
+    for name in ("shed", "attic", "bench"):
+        machines.on(name)
+        found = rule(run(skill_usage_triggers(repo=str(repo))))
+        seen.append((found["loaded"], found["missed"]))
+
+    assert seen == [(1, 0)] * 3  # and never a miss for the load one copy gives the opener
+
+
+def test_a_reader_with_no_record_of_its_own_knows_a_renamed_skill(
+    machines: Machines, repo: Path
+) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(session(shed, "opener", (101, stamp(2))), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    git_mv = ["git", "-C", str(repo), "-c", "user.name=T", "-c", "user.email=t@example.com"]
+    import subprocess
+
+    subprocess.run([*git_mv, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates"],
+                   check=True)  # fmt: skip
+    (repo / "botcore.toml").write_text(
+        '[[skills.required]]\nskill = "gates"\npaths = ["hooks.yml"]\n', "utf-8"
+    )
+    merge(repo, "chore: rename the skill (#100)")
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    run(skill_usage_collect())  # the shed collects again, after the merge
+
+    machines.on("bench")  # it has the checkout and the shared folder, and never collected
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert (found["skill"], found["loaded"], found["missed"]) == ("gates", 1, 0)
+
+
+def test_an_odd_entry_in_the_shared_folder_stops_no_report(machines: Machines) -> None:
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    bench = machines.on("bench")
+    bench.skill_tool(bench.thread("bench-0"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    (machines.shared / "empty").mkdir()
+    (machines.shared / "a-file").write_text("not a folder", "utf-8")
+    (machines.shared / "linked").symlink_to(machines.shared / "shed", target_is_directory=True)
+    (machines.shared / "notes").mkdir()
+    (machines.shared / "notes" / store.STATE_FILE).write_text('{"files": {}}', "utf-8")
+    (machines.shared / "knot").mkdir()
+    (machines.shared / "knot" / store.STATE_FILE).mkdir()  # a folder where a file should be
+    shutil.copytree(machines.shared / "shed", machines.shared / "copied")  # the shed's, twice
+
+    data = run(skill_usage_report())
+
+    assert data["record"]["machines"] == ["bench", "shed"]
+    named = [warning.split(" ")[0] for warning in data["warnings"] if "not a whole copy" in warning]
+    assert named == ["copied", "knot", "notes"]  # each is named, and none is read
+
+
+# ── a miss needs the whole record ───────────────────────────────────────────
+
+
+def test_no_change_is_a_miss_while_a_machines_record_is_not_all_here(
+    machines: Machines, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    # the thread loaded the skill on the shed, was moved to the tower, and opened its pull
+    # request there: the tower knows the opener, and only the shed knows the load
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("moved"), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    tower = machines.on("tower")
+    session(tower, "moved", (101, stamp(2)))
+    tower.skill_tool("moved", "plant-beds", stamp(2))
+    run(skill_usage_collect())  # and the report is read on the tower
+
+    def judged_now() -> tuple[int, int, dict]:
+        found = rule(run(skill_usage_triggers(repo=str(repo))))
+        return found["loaded"], found["missed"], why(found)
+
+    assert judged_now() == (1, 0, {})
+    state_file = machines.shared / "shed" / store.STATE_FILE
+    whole = state_file.read_bytes()
+
+    state_file.unlink()  # the shed's copy is part way through a sync
+    assert judged_now() == (0, 0, {"incomplete_record": 1})
+    state_file.write_bytes(whole)
+
+    machines.monkeypatch.setenv(store.SHARED_ENV, str(machines.tmp / "unmounted"))
+    assert judged_now() == (0, 0, {"incomplete_record": 1})  # the shared drive is away
+    machines.monkeypatch.setenv(store.SHARED_ENV, str(machines.shared))
+
+    # the shed is whole and an hour behind: it collected before the change merged
+    behind = {**json.loads(whole), "collected_at": stamp(0, minutes=-60)}
+    (machines.shared / "shed" / store.EVENTS_FILE).write_bytes(b"")
+    behind["files"][store.EVENTS_FILE] = store._digest(b"")
+    state_file.write_text(json.dumps(behind), "utf-8")
+    assert judged_now() == (0, 0, {"incomplete_record": 1})
+
+    # a machine not heard from for days is away, and is named: it is not waited for
+    state_file.write_text(json.dumps({**behind, "collected_at": stamp(3)}), "utf-8")
+    assert judged_now() == (0, 1, {})
+    warnings = run(skill_usage_triggers(repo=str(repo)))["warnings"]
+    assert any(warning.startswith("shed last collected") for warning in warnings)
+
+
+def test_a_thread_moved_to_this_machine_is_read_from_its_start(machines: Machines) -> None:
+    tower = machines.on("tower")
+    tower.skill_tool(tower.thread("here"), "plant-beds", stamp(0))
+    run(skill_usage_collect())
+    old = {"createdAt": stamp(20), "updatedAt": stamp(0)}
+    tower.skill_tool(tower.thread("moved", extra=old), "prune-roses", stamp(19))
+
+    data = run(skill_usage_collect())  # the load is weeks behind where this read would begin
+
+    assert data["added"] == 1
+    assert sorted(event.skill for event in collected(machines.record("tower"))) == [
+        "plant-beds", "prune-roses",
+    ]  # fmt: skip

@@ -184,8 +184,9 @@ def record_warnings(record: Record, here: Local, now: datetime) -> list[str]:
         warnings.append(f"{record.missing}, so only this machine's record was read")
     for machine in record.partial:
         warnings.append(
-            f"{machine}'s copy in the shared folder is not whole, so it was not read: a sync "
-            "may be part way through. Its next collection writes it again"
+            f"{machine} in the shared folder is not a whole copy of a machine's record, so it "
+            "was not read: a sync may be part way through, and the machine's next collection "
+            "writes it again. Remove the folder if no machine writes it any more"
         )
     return warnings
 
@@ -316,7 +317,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             "BOTCORE_SKILL_USAGE_STATE to the folder that holds the record",
         )
     events, state, recorded = record.events, record.state, record.sessions
-    if not events and not state:
+    if not events and not state and not record.collected:
         return error(
             "NOT_COLLECTED",
             "This machine has no skill usage record yet",
