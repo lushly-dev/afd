@@ -3062,7 +3062,7 @@ to 2026-11-18 and takes no new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-21 | Person-page workspace canaries ([#1536](https://github.com/lushly-dev/afd/issues/1536)) | On `lush/umbel-person-canary-scan`. The OAuth and gateway tests restart the whole workspace scan when a path disappears during it. A complete pass still checks both canaries in every file, including any replacement found on the next pass. Other I/O errors and an exhausted retry limit report the path and fail the test. The old scan failed with Windows error 2 on the merged-tree verification run at `e6395319`. A Windows probe that renames a listed file before reading it passed with clean bytes and failed on the named replacement when it contained the input canary. A planted preview canary and a permission error also failed. Test only |
+| 2026-11-21 | Person-page workspace canaries ([#1536](https://github.com/lushly-dev/afd/issues/1536)) | In [#1827](https://github.com/lushly-dev/afd/pull/1827). The OAuth and gateway tests restart the whole workspace scan when a path disappears during it. A complete pass still checks both canaries in every file, including any replacement found on the next pass. Other I/O errors and an exhausted retry limit report the path and fail the test. The old scan failed with Windows error 2 on the merged-tree verification run at `e6395319`. A Windows probe that renames a listed file before reading it passed with clean bytes and failed on the named replacement when it contained the input canary. A planted preview canary and a permission error also failed. The 64 person-page tests and all 127 local verification steps passed natively on Hero at `532b011a`. Test only |
 
 ### Sessions: phase 6, backends
 
