@@ -209,6 +209,29 @@ class TestShellAllowlist:
         assert _matches_shell_allowlist("ls", ["ls"])
         assert not _matches_shell_allowlist("ls -la", ["ls"])
 
+    def test_vacuous_and_empty_segments_denied(self):
+        for cmd in [";", "&&", "||", "|", "| ; |", "git status;", "; git status", "git status && "]:
+            assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
+
+    def test_shell_injection_metacharacters_denied(self):
+        for cmd in [
+            "git status\nrm -rf /",
+            "git status\r\nwhoami",
+            "git status & whoami",
+            "git status &&& whoami",
+            "git status >(evil)",
+            "git status <(evil)",
+            "git status > /tmp/pwn",
+            "git status < /etc/passwd",
+            "git status (whoami)",
+            "{ git status; }",
+            "git ${IFS}status",
+            "git $IFS status",
+            "git commit -m $SECRET",
+            "git status\x00whoami",
+        ]:
+            assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
+
 
 # ---------------------------------------------------------------------------
 # Filesystem path tests

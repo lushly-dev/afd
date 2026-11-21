@@ -68,17 +68,116 @@ class TestTeamsBot:
 
     async def test_invoke_activity(self, bot_config: TeamsConfig) -> None:
         bot = TeamsBot(bot_config)
-        ctx = MagicMock()
+        ctx = _make_turn_context(tenant_id="tenant-123")
         ctx.activity.value = {"action": "followup", "text": "list tasks"}
-        ctx.activity.from_property.aad_object_id = "user-1"
-        ctx.activity.from_property.id = "user-1"
-        ctx.send_activity = AsyncMock()
 
         # Mock the invoke response creation
-        with patch.object(bot, "_create_invoke_response", return_value=None, create=True):
+        with (
+            patch.object(bot, "_create_invoke_response", return_value=None, create=True),
+            patch(
+                "botcore_teams.bot.teams_handle_card_action",
+                new_callable=AsyncMock,
+                wraps=None,
+            ) as mock_action,
+        ):
+            from afd import success
+
+            mock_action.return_value = success({"ok": True})
             await bot.on_invoke_activity(ctx)
 
+        mock_action.assert_awaited_once_with(
+            "followup", {"action": "followup", "text": "list tasks"}, "user-1"
+        )
         ctx.send_activity.assert_called_once()
+
+    async def test_invoke_wrong_tenant_rejected(self, bot_config: TeamsConfig) -> None:
+        bot = TeamsBot(bot_config)
+        ctx = _make_turn_context(tenant_id="wrong-tenant")
+        ctx.activity.value = {"action": "followup", "text": "list tasks"}
+
+        with (
+            patch.object(bot, "_create_invoke_response", return_value=None, create=True),
+            patch(
+                "botcore_teams.bot.teams_handle_card_action", new_callable=AsyncMock
+            ) as mock_action,
+        ):
+            await bot.on_invoke_activity(ctx)
+
+        mock_action.assert_not_awaited()
+        ctx.send_activity.assert_called_once()
+        card_content = ctx.send_activity.call_args[0][0].attachments[0].content
+        assert card_content["body"][0]["color"] == "Attention"
+        assert "not authorized" in card_content["body"][0]["text"].lower()
+
+    async def test_invoke_disallowed_group_rejected(self) -> None:
+        cfg = TeamsConfig(
+            app_id="test-app",
+            app_password="test-pass",
+            tenant_id="tenant-123",
+            allowed_groups=["grp-allowed"],
+        )
+        bot = TeamsBot(cfg)
+        ctx = _make_turn_context(tenant_id="tenant-123")
+        ctx.activity.channel_data = {"tenant": {"id": "tenant-123"}, "groups": ["grp-other"]}
+        ctx.activity.value = {"action": "followup", "text": "list tasks"}
+
+        with (
+            patch.object(bot, "_create_invoke_response", return_value=None, create=True),
+            patch(
+                "botcore_teams.bot.teams_handle_card_action", new_callable=AsyncMock
+            ) as mock_action,
+        ):
+            await bot.on_invoke_activity(ctx)
+
+        mock_action.assert_not_awaited()
+        ctx.send_activity.assert_called_once()
+        card_content = ctx.send_activity.call_args[0][0].attachments[0].content
+        assert card_content["body"][0]["color"] == "Attention"
+        assert "allowed group" in card_content["body"][0]["text"].lower()
+
+    async def test_invoke_falls_back_to_channel_id_without_aad_id(
+        self, bot_config: TeamsConfig
+    ) -> None:
+        bot = TeamsBot(bot_config)
+        ctx = _make_turn_context(tenant_id="tenant-123")
+        ctx.activity.from_property.aad_object_id = None
+        ctx.activity.from_property.id = "channel-user-42"
+        ctx.activity.value = {"action": "followup", "text": "status"}
+
+        with (
+            patch.object(bot, "_create_invoke_response", return_value=None, create=True),
+            patch(
+                "botcore_teams.bot.teams_handle_card_action", new_callable=AsyncMock
+            ) as mock_action,
+        ):
+            from afd import success
+
+            mock_action.return_value = success({"ok": True})
+            await bot.on_invoke_activity(ctx)
+
+        mock_action.assert_awaited_once_with(
+            "followup", {"action": "followup", "text": "status"}, "channel-user-42"
+        )
+
+    async def test_invoke_null_tenant_allowed_when_unrestricted(self) -> None:
+        cfg = TeamsConfig(app_id="test-app", app_password="test-pass", tenant_id="")
+        bot = TeamsBot(cfg)
+        ctx = _make_turn_context()
+        ctx.activity.channel_data = {"tenant": None}
+        ctx.activity.value = {"action": "followup", "text": "status"}
+
+        with (
+            patch.object(bot, "_create_invoke_response", return_value=None, create=True),
+            patch(
+                "botcore_teams.bot.teams_handle_card_action", new_callable=AsyncMock
+            ) as mock_action,
+        ):
+            from afd import success
+
+            mock_action.return_value = success({"ok": True})
+            await bot.on_invoke_activity(ctx)
+
+        mock_action.assert_awaited_once()
 
 
 class TestCreateApp:

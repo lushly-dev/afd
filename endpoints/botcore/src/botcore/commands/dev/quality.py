@@ -7,7 +7,10 @@ lockfile.py; both are re-exported here.
 from __future__ import annotations
 
 import json
+import math
+import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 from afd import CommandResult, error, success
@@ -179,30 +182,244 @@ async def _check_python_coverage(
         return None
 
 
-async def _check_ts_coverage(ws: Path) -> dict | None:
-    """Run vitest --coverage and return coverage data."""
-    result = await run_external_tool(
-        "npx",
-        ["vitest", "run", "--coverage", "--reporter=json"],
-        install_hint="npm i -D vitest @vitest/coverage-v8",
-        cwd=ws,
-    )
-    if result is None:
+def _valid_pct(value: object) -> float | None:
+    if isinstance(value, bool):
         return None
-    return {"coverage": 0, "raw_output": result.get("output", ""), "tool": "vitest"}
+    if isinstance(value, int):
+        return float(value) if 0 <= value <= 100 else None
+    if isinstance(value, float):
+        return value if math.isfinite(value) and 0.0 <= value <= 100.0 else None
+    return None
+
+
+def _nonneg_number(value: object) -> int | float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        return value if math.isfinite(value) and value >= 0.0 else None
+    return None
+
+
+def _safe_ratio_pct(covered: int | float, total: int | float) -> float | None:
+    if total <= 0 or covered < 0 or covered > total:
+        return None
+    try:
+        return _valid_pct((covered * 100) / total)
+    except OverflowError:
+        return None
+
+
+def _try_parse_json(raw: str) -> tuple[bool, object]:
+    try:
+        return True, json.loads(raw)
+    except Exception:
+        return False, None
+
+
+def _pct_from_ts_summary(data: object) -> float | None:
+    if not isinstance(data, dict):
+        return None
+    total = data.get("total")
+    if isinstance(total, dict):
+        for metric in ("lines", "statements", "branches", "functions"):
+            entry = total.get(metric)
+            pct = _valid_pct(entry.get("pct") if isinstance(entry, dict) else None)
+            if pct is not None:
+                return pct
+    totals = data.get("totals")
+    if isinstance(totals, dict):
+        return _valid_pct(totals.get("percent_covered"))
+    return None
+
+
+def _pct_from_istanbul_final(data: object) -> float | None:
+    if not isinstance(data, dict):
+        return None
+    covered = 0
+    total_stmts = 0
+    for entry in data.values():
+        stmts = entry.get("s") if isinstance(entry, dict) else None
+        if not isinstance(stmts, dict):
+            continue
+        for raw_count in stmts.values():
+            count = _nonneg_number(raw_count)
+            if count is not None:
+                total_stmts += 1
+                if count > 0:
+                    covered += 1
+    return _safe_ratio_pct(covered, total_stmts)
+
+
+def _load_json_safe(path: Path) -> object | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+_VITEST_TABLE_ROW_RE = re.compile(
+    r"[ \t]*All files[ \t]*\|[ \t]*([0-9]+(?:\.[0-9]+)?)[ \t]*\|"
+    r"[ \t]*[0-9]+(?:\.[0-9]+)?[ \t]*\|[ \t]*[0-9]+(?:\.[0-9]+)?[ \t]*\|"
+    r"[ \t]*[0-9]+(?:\.[0-9]+)?[ \t]*(?:\|[ \t]*[0-9,\- \t]*)?"
+)
+_VITEST_TEXT_SUMMARY_RE = re.compile(
+    r"[ \t]*(?:Lines|Statements)[ \t]*:[ \t]*([0-9]+(?:\.[0-9]+)?)%"
+    r"[ \t]*\([ \t]*\d+/\d+[ \t]*\)[ \t]*"
+)
+_TARPAULIN_SUMMARY_RE = re.compile(
+    r"[ \t]*([0-9]+(?:\.[0-9]+)?)%[ \t]+coverage,[ \t]+\d+/\d+[ \t]+lines[ \t]+covered"
+    r"(?:,[ \t]+[+-]?[0-9]+(?:\.[0-9]+)?%[ \t]+change[ \t]+in[ \t]+coverage)?[ \t]*"
+)
+_MISSING_TARPAULIN_RE = re.compile(
+    r"no such (?:sub)?command:[ \t]*(?:`tarpaulin`|tarpaulin(?=$|[\s.,;:!?]))"
+)
+
+
+def _match_line_pct(raw_output: str, patterns: tuple[re.Pattern[str], ...]) -> float | None:
+    for line in raw_output.splitlines():
+        for pattern in patterns:
+            match = pattern.fullmatch(line)
+            if match:
+                pct = _valid_pct(float(match.group(1)))
+                if pct is not None:
+                    return pct
+    return None
+
+
+def _extract_ts_coverage_pct(report_dir: Path, raw_output: str) -> float | None:
+    """Extract a coverage percentage from an isolated Vitest report dir or stdout."""
+    pct = _pct_from_ts_summary(_load_json_safe(report_dir / "coverage-summary.json"))
+    if pct is not None:
+        return pct
+    pct = _pct_from_istanbul_final(_load_json_safe(report_dir / "coverage-final.json"))
+    if pct is not None:
+        return pct
+    if not raw_output:
+        return None
+    is_json, parsed = _try_parse_json(raw_output)
+    if is_json:
+        pct = _pct_from_ts_summary(parsed)
+        return pct if pct is not None else _pct_from_istanbul_final(parsed)
+    return _match_line_pct(raw_output, (_VITEST_TABLE_ROW_RE, _VITEST_TEXT_SUMMARY_RE))
+
+
+def _extract_tarpaulin_pct(data: object) -> float | None:
+    if not isinstance(data, dict):
+        return None
+    pct = _valid_pct(data.get("coverage"))
+    if pct is not None:
+        return pct
+    covered = _nonneg_number(data.get("covered"))
+    coverable = _nonneg_number(data.get("coverable"))
+    if covered is not None and coverable is not None:
+        return _safe_ratio_pct(covered, coverable)
+    files = data.get("files")
+    if isinstance(files, list):
+        total_cov: int | float = 0
+        total_coverable: int | float = 0
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            fc = _nonneg_number(item.get("covered"))
+            ft = _nonneg_number(item.get("coverable"))
+            if fc is not None and ft is not None:
+                try:
+                    total_cov += fc
+                    total_coverable += ft
+                except OverflowError:
+                    return None
+        return _safe_ratio_pct(total_cov, total_coverable)
+    return None
+
+
+def _extract_rust_coverage_pct(report_dir: Path, raw_output: str) -> float | None:
+    """Extract a coverage percentage from an isolated tarpaulin report dir or stdout."""
+    pct = _extract_tarpaulin_pct(_load_json_safe(report_dir / "tarpaulin-report.json"))
+    if pct is not None:
+        return pct
+    if not raw_output:
+        return None
+    is_json, parsed = _try_parse_json(raw_output)
+    if is_json:
+        return _extract_tarpaulin_pct(parsed)
+    return _match_line_pct(raw_output, (_TARPAULIN_SUMMARY_RE,))
+
+
+async def _check_ts_coverage(ws: Path) -> dict | None:
+    """Run vitest --coverage into an isolated report dir and return coverage data."""
+    with tempfile.TemporaryDirectory(prefix="botcore-vitest-cov-") as report_dir:
+        result = await run_external_tool(
+            "npx",
+            [
+                "vitest",
+                "run",
+                "--coverage",
+                "--coverage.reporter=json-summary",
+                "--coverage.reporter=text-summary",
+                f"--coverage.reportsDirectory={report_dir}",
+                "--reporter=json",
+            ],
+            install_hint="npm i -D vitest @vitest/coverage-v8",
+            cwd=ws,
+        )
+        if result is None:
+            return None
+        raw_output = result.get("output", "") or ""
+        if not result.get("success"):
+            return {"error": "run_failed", "raw_output": raw_output, "tool": "vitest"}
+        pct = _extract_ts_coverage_pct(Path(report_dir), raw_output)
+        if pct is None:
+            return {"error": "no_metrics", "raw_output": raw_output, "tool": "vitest"}
+        return {"coverage": pct, "raw_output": raw_output, "tool": "vitest"}
 
 
 async def _check_rust_coverage(ws: Path) -> dict | None:
-    """Run cargo-tarpaulin and return coverage data."""
-    result = await run_external_tool(
-        "cargo",
-        ["tarpaulin", "--out", "Json"],
-        install_hint="cargo install cargo-tarpaulin",
-        cwd=ws,
+    """Run cargo-tarpaulin into an isolated output dir and return coverage data."""
+    with tempfile.TemporaryDirectory(prefix="botcore-tarpaulin-") as report_dir:
+        result = await run_external_tool(
+            "cargo",
+            ["tarpaulin", "--out", "Json", "--output-dir", report_dir],
+            install_hint="cargo install cargo-tarpaulin",
+            cwd=ws,
+        )
+        if result is None:
+            return None
+        raw_output = result.get("output", "") or ""
+        if not result.get("success"):
+            combined = f"{raw_output}\n{result.get('error') or ''}".lower()
+            if _MISSING_TARPAULIN_RE.search(combined):
+                return None
+            return {"error": "run_failed", "raw_output": raw_output, "tool": "tarpaulin"}
+        pct = _extract_rust_coverage_pct(Path(report_dir), raw_output)
+        if pct is None:
+            return {"error": "no_metrics", "raw_output": raw_output, "tool": "tarpaulin"}
+        return {"coverage": pct, "raw_output": raw_output, "tool": "tarpaulin"}
+
+
+def _coverage_tool_error(
+    lang_label: str, install_hint: str, cov: dict | None
+) -> CommandResult[dict]:
+    if cov is None:
+        return error(
+            "NO_COVERAGE_DATA",
+            f"Could not collect {lang_label} coverage",
+            suggestion=f"Install with: {install_hint}",
+        )
+    if cov.get("error") == "run_failed":
+        return error(
+            "NO_COVERAGE_DATA",
+            f"{lang_label} coverage run failed",
+            suggestion="Fix failing tests or coverage tool errors and re-run",
+        )
+    return error(
+        "NO_COVERAGE_DATA",
+        f"{lang_label} coverage run produced no parseable coverage metrics",
+        suggestion="Ensure the coverage reporter is enabled and writes a valid report",
     )
-    if result is None:
-        return None
-    return {"coverage": 0, "raw_output": result.get("output", ""), "tool": "tarpaulin"}
 
 
 async def dev_check_coverage(language: str | None = None) -> CommandResult[dict]:
@@ -229,21 +446,13 @@ async def dev_check_coverage(language: str | None = None) -> CommandResult[dict]
 
     if lang == "typescript":
         cov = await _check_ts_coverage(ws)
-        if cov is None:
-            return error(
-                "NO_COVERAGE_DATA",
-                "Could not collect TypeScript coverage",
-                suggestion="Install with: npm i -D vitest @vitest/coverage-v8",
-            )
+        if cov is None or "error" in cov:
+            return _coverage_tool_error("TypeScript", "npm i -D vitest @vitest/coverage-v8", cov)
         total_coverage = cov.get("coverage", 0)
     elif lang == "rust":
         cov = await _check_rust_coverage(ws)
-        if cov is None:
-            return error(
-                "NO_COVERAGE_DATA",
-                "Could not collect Rust coverage",
-                suggestion="Install with: cargo install cargo-tarpaulin",
-            )
+        if cov is None or "error" in cov:
+            return _coverage_tool_error("Rust", "cargo install cargo-tarpaulin", cov)
         total_coverage = cov.get("coverage", 0)
     else:
         # Default: Python coverage
