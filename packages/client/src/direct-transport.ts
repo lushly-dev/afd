@@ -14,6 +14,7 @@ import {
 	executeBatch,
 	executePipeline,
 	executionFailure,
+	isPipelineResult,
 	type PipelineRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
@@ -274,7 +275,11 @@ export class DirectTransport implements Transport {
 
 		if (this.registry.hasCommand(name)) {
 			const result = await execute(name, args, { signal });
-			return { payload: result, isError: !result.success };
+			const isError =
+				name === 'afd-pipe' && isPipelineResult(result)
+					? result.steps.some((step) => step.status === 'failure')
+					: !result.success;
+			return { payload: result, isError };
 		}
 		if (name === 'afd-batch') {
 			// SAFETY: executeBatch validates the whole envelope with isBatchRequest() before running.

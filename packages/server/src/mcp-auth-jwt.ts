@@ -56,8 +56,9 @@ export type TokenVerification =
 export interface TokenVerifier {
 	verify(token: string, request: TokenRequest): Promise<TokenVerification>;
 	/**
-	 * The claim rules this verifier applies, when it can say: `createMcpHandler` then checks that
-	 * the metadata publishes the same resource and binding requirement.
+	 * The claim rules this verifier applies, when it can say: `createMcpHandler` checks that
+	 * `clockSkewS` is a whole number from 0 to 300 seconds and that the metadata publishes the
+	 * same resource and binding requirement.
 	 */
 	readonly rules?: TokenRules;
 	/**

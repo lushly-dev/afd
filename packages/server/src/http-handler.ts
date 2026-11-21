@@ -514,6 +514,15 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			return;
 		}
 		if (url.pathname === '/sse' && req.method === 'GET') {
+			const scopeDecision = auth?.viewFor(req)?.decideRequest();
+			if (auth && scopeDecision && scopeDecision !== 'proceed') {
+				res.writeHead(403, {
+					'Content-Type': 'application/json',
+					'WWW-Authenticate': auth.protectedResource.forbiddenChallenge(scopeDecision.forbidden),
+				});
+				res.end(JSON.stringify(auth.protectedResource.forbiddenBody(scopeDecision.forbidden)));
+				return;
+			}
 			if (sse.isFull()) {
 				res.setHeader('Retry-After', '5');
 				json(

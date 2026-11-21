@@ -46,8 +46,13 @@ export interface AuthMiddlewareOptions {
 	 * `auth-session-get`) are refused for it with `UNAUTHORIZED`, before the adapter is read. A
 	 * nested call keeps the brand only when it is given the same `credentials` object.
 	 *
+	 * If the predicate answers `false` for `now` but `true` for `Number.MIN_SAFE_INTEGER` (a
+	 * branded token whose admitted expiry has passed), the middleware fails closed with
+	 * `TOKEN_EXPIRED` and never falls through to the local adapter's session, even for `exclude`d
+	 * or session commands.
+	 *
 	 * @param now - the middleware's clock, in milliseconds since the epoch, so credentials past
-	 * their `expiresAt` are not recognised.
+	 * their admitted expiry are not recognised.
 	 */
 	isVerifiedCredentials?: (credentials: unknown, now: number) => boolean;
 
@@ -99,24 +104,33 @@ export function createAuthMiddleware(
 
 	return async (commandName, _input, context, next) => {
 		const now = clock ? clock.now() : Date.now();
-		if (
-			context.credentials !== undefined &&
-			isVerifiedCredentials !== undefined &&
-			isVerifiedCredentials(context.credentials, now) === true
-		) {
-			// The token is the caller: no session decides this call or names its actor.
-			delete context.auth;
-			if (SESSION_COMMANDS.has(commandName)) {
-				// A token has no session to read, sign in to or sign out of.
+		if (context.credentials !== undefined && isVerifiedCredentials !== undefined) {
+			if (isVerifiedCredentials(context.credentials, now) === true) {
+				// The token is the caller: no session decides this call or names its actor.
+				delete context.auth;
+				if (SESSION_COMMANDS.has(commandName)) {
+					// A token has no session to read, sign in to or sign out of.
+					return failure({
+						code: 'UNAUTHORIZED',
+						message: 'Not available to a token',
+						suggestion:
+							'This call is authorized by a token; session commands need a signed-in session',
+						retryable: false,
+					});
+				}
+				return next();
+			}
+			// Branded by afd-server with a finite expiry, but expired by `now`: fail closed and
+			// never fall through to the local adapter's session.
+			if (isVerifiedCredentials(context.credentials, Number.MIN_SAFE_INTEGER) === true) {
+				delete context.auth;
 				return failure({
-					code: 'UNAUTHORIZED',
-					message: 'Not available to a token',
-					suggestion:
-						'This call is authorized by a token; session commands need a signed-in session',
-					retryable: false,
+					code: 'TOKEN_EXPIRED',
+					message: 'Access token has expired',
+					suggestion: 'Obtain a fresh access token and try again',
+					retryable: true,
 				});
 			}
-			return next();
 		}
 
 		const state = adapter.getSession();

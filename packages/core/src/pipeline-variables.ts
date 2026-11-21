@@ -19,6 +19,25 @@ export const MAX_NESTING_DEPTH = 64;
 /** Strings longer than this are literals and are never resolved. */
 export const MAX_REFERENCE_LENGTH = 1024;
 
+/** Maximum total nodes a step input template plus repeated reference expansions may produce. */
+export const MAX_RESOLVED_NODES = 100_000;
+
+/** Maximum total string/key characters repeated reference expansions may produce (16 MiB). */
+export const MAX_RESOLVED_CHARS = 16 * 1024 * 1024;
+
+export type PipelineResolutionLimitKind = 'depth' | 'nodes' | 'chars';
+
+/** Thrown when variable substitution exceeds the nesting or expansion budget. */
+export class PipelineResolutionLimitError extends Error {
+	constructor(
+		message: string,
+		readonly limit: PipelineResolutionLimitKind
+	) {
+		super(message);
+		this.name = 'PipelineResolutionLimitError';
+	}
+}
+
 type Segment = { key: string; index?: number };
 type Source =
 	| { kind: 'prev' | 'first' | 'input' }
@@ -193,28 +212,188 @@ export function resolveVariable(ref: string, context: PipelineContext): unknown 
 /** Marks a reference that could not be resolved, as opposed to a literal `undefined`. */
 const ABSENT: unique symbol = Symbol('absent');
 
-function resolveValue(value: unknown, context: PipelineContext, depth: number): unknown {
-	if (typeof value === 'string') {
-		if (value.startsWith('$$')) return value.slice(1);
-		const parsed = parseReference(value);
-		if (parsed === undefined) return value;
-		const resolved = lookup(parsed, context);
-		return resolved === undefined ? ABSENT : copyPipelineData(resolved);
+interface ResolutionBudget {
+	nodes: number;
+	chars: number;
+	seenSources: Set<unknown>;
+}
+
+function consumeNode(budget: ResolutionBudget, charge: boolean): void {
+	if (!charge) return;
+	if (--budget.nodes < 0) {
+		throw new PipelineResolutionLimitError(
+			`Pipeline variable expansion limit exceeded (more than ${MAX_RESOLVED_NODES} values)`,
+			'nodes'
+		);
 	}
+}
+
+function consumeChars(budget: ResolutionBudget, count: number, charge: boolean): void {
+	if (!charge) return;
+	budget.chars -= count;
+	if (budget.chars < 0) {
+		throw new PipelineResolutionLimitError(
+			`Pipeline variable expansion limit exceeded (more than ${MAX_RESOLVED_CHARS} characters)`,
+			'chars'
+		);
+	}
+}
+
+function accountNonPlain(
+	value: unknown,
+	depth: number,
+	budget: ResolutionBudget,
+	seen: WeakSet<object>
+): void {
+	consumeNode(budget, true);
+	if (typeof value === 'string') {
+		consumeChars(budget, value.length, true);
+		return;
+	}
+	if (typeof value !== 'object' || value === null) return;
+	if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+		consumeChars(budget, value.byteLength, true);
+		return;
+	}
+	if (depth >= MAX_NESTING_DEPTH || seen.has(value)) {
+		throw new PipelineResolutionLimitError(
+			`Pipeline step input is nested deeper than ${MAX_NESTING_DEPTH} levels`,
+			'depth'
+		);
+	}
+	seen.add(value);
+	try {
+		if (value instanceof Map) {
+			for (const [k, v] of value.entries()) {
+				accountNonPlain(k, depth + 1, budget, seen);
+				accountNonPlain(v, depth + 1, budget, seen);
+			}
+		} else if (value instanceof Set || Array.isArray(value)) {
+			for (const item of value) accountNonPlain(item, depth + 1, budget, seen);
+		} else if (isPlainObject(value)) {
+			for (const [key, item] of Object.entries(value)) {
+				consumeChars(budget, key.length, true);
+				accountNonPlain(item, depth + 1, budget, seen);
+			}
+		}
+	} finally {
+		seen.delete(value);
+	}
+}
+
+/**
+ * Copy a resolved value while enforcing its nesting depth (<= 64, capping combined nesting at 128)
+ * and the expansion budget, so repeated references to large `$input` or step outputs cannot
+ * exhaust memory. The first expansion of a referenced value in a step input is not capped for
+ * size, so passing a single large step output through `$prev` keeps working.
+ */
+function cloneBounded(
+	value: unknown,
+	depth: number,
+	budget: ResolutionBudget,
+	charge: boolean,
+	seen: WeakSet<object>
+): unknown {
+	consumeNode(budget, charge);
+	if (typeof value === 'string') {
+		consumeChars(budget, value.length, charge);
+		return value;
+	}
+	if (typeof value !== 'object' || value === null) return value;
+	const isArray = Array.isArray(value);
+	if (!isArray && !isPlainObject(value)) {
+		if (charge) accountNonPlain(value, depth, budget, seen);
+		return copyPipelineData(value);
+	}
+	if (depth >= MAX_NESTING_DEPTH || seen.has(value)) {
+		throw new PipelineResolutionLimitError(
+			`Pipeline step input is nested deeper than ${MAX_NESTING_DEPTH} levels`,
+			'depth'
+		);
+	}
+	seen.add(value);
+	try {
+		if (isArray) {
+			return value.map((item) => {
+				if (typeof item === 'function' || typeof item === 'symbol' || item === undefined) {
+					consumeNode(budget, charge);
+					return null;
+				}
+				return cloneBounded(item, depth + 1, budget, charge, seen);
+			});
+		}
+		const entries: Array<[string, unknown]> = [];
+		for (const [key, item] of Object.entries(value)) {
+			if (typeof item === 'function' || typeof item === 'symbol' || item === undefined) continue;
+			consumeChars(budget, key.length, charge);
+			entries.push([key, cloneBounded(item, depth + 1, budget, charge, seen)]);
+		}
+		return Object.fromEntries(entries);
+	} finally {
+		seen.delete(value);
+	}
+}
+
+function resolveValue(
+	value: unknown,
+	context: PipelineContext,
+	depth: number,
+	budget: ResolutionBudget
+): unknown {
+	if (typeof value === 'string') {
+		if (value.startsWith('$$')) {
+			consumeNode(budget, true);
+			const unescaped = value.slice(1);
+			consumeChars(budget, unescaped.length, true);
+			return unescaped;
+		}
+		const parsed = parseReference(value);
+		if (parsed === undefined) {
+			consumeNode(budget, true);
+			consumeChars(budget, value.length, true);
+			return value;
+		}
+		const resolved = lookup(parsed, context);
+		if (resolved === undefined) return ABSENT;
+		const charge =
+			typeof resolved === 'object' && resolved !== null
+				? budget.seenSources.has(resolved)
+				: typeof resolved === 'string' && resolved.length > 0
+					? budget.seenSources.has(resolved)
+					: true;
+		if (
+			(typeof resolved === 'object' && resolved !== null) ||
+			(typeof resolved === 'string' && resolved.length > 0)
+		) {
+			budget.seenSources.add(resolved);
+		}
+		// Always charge at least 1 node for the reference slot itself, plus the full copy when repeated.
+		consumeNode(budget, true);
+		return cloneBounded(resolved, 0, budget, charge, new WeakSet());
+	}
+	consumeNode(budget, true);
 	const isArray = Array.isArray(value);
 	if (!isArray && !isPlainObject(value)) return value;
 	if (depth >= MAX_NESTING_DEPTH) {
-		throw new Error(`Pipeline step input is nested deeper than ${MAX_NESTING_DEPTH} levels`);
+		throw new PipelineResolutionLimitError(
+			`Pipeline step input is nested deeper than ${MAX_NESTING_DEPTH} levels`,
+			'depth'
+		);
 	}
 	if (isArray) {
 		return value.map((item) => {
-			const resolved = resolveValue(item, context, depth + 1);
-			return resolved === ABSENT ? null : resolved;
+			const resolved = resolveValue(item, context, depth + 1, budget);
+			if (resolved === ABSENT) {
+				consumeNode(budget, true);
+				return null;
+			}
+			return resolved;
 		});
 	}
 	const entries: Array<[string, unknown]> = [];
 	for (const [key, item] of Object.entries(value)) {
-		const resolved = resolveValue(item, context, depth + 1);
+		consumeChars(budget, key.length, true);
+		const resolved = resolveValue(item, context, depth + 1, budget);
 		if (resolved !== ABSENT) entries.push([key, resolved]);
 	}
 	return Object.fromEntries(entries);
@@ -230,11 +409,16 @@ function resolveValue(value: unknown, context: PipelineContext, depth: number): 
  * @param input - Step input potentially containing references
  * @param context - Pipeline execution context
  * @returns The input with all references resolved
- * @throws Error when arrays and objects nest deeper than 64 levels; `executePipeline` rejects
- *   such inputs with `VALIDATION_ERROR` before any step runs
+ * @throws Error when arrays and objects nest deeper than 64 levels or repeated reference
+ *   expansion exceeds the budget; `executePipeline` rejects such inputs with `VALIDATION_ERROR`
  */
 export function resolveVariables(input: unknown, context: PipelineContext): unknown {
-	const resolved = resolveValue(input, context, 0);
+	const budget: ResolutionBudget = {
+		nodes: MAX_RESOLVED_NODES,
+		chars: MAX_RESOLVED_CHARS,
+		seenSources: new Set(),
+	};
+	const resolved = resolveValue(input, context, 0, budget);
 	return resolved === ABSENT ? undefined : resolved;
 }
 
