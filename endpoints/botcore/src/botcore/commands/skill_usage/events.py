@@ -153,20 +153,45 @@ class _Command:
 
 
 def _without_here_documents(script: str) -> str:
-    """Drop the bodies of here-documents and PowerShell here-strings: they are data."""
+    """Drop the bodies of here-documents and PowerShell here-strings: they are data.
+
+    Only an opener outside quotes starts one. A script handed to a shell in quotes keeps its
+    here-documents, which are dropped when that script is read in turn; dropping them here
+    would take the terminator with the body and leave the inner one open.
+    """
     kept: list[str] = []
     until: str | None = None
+    quote: str | None = None
     for line in script.split("\n"):
         if until is not None:
-            if line.strip().rstrip("\"'") == until or line.lstrip().startswith(until):
+            if line.strip() == until or (until.endswith("@") and line.lstrip().startswith(until)):
                 until = None
             continue
         kept.append(line)
-        marker = _HEREDOC.search(line)
-        if marker:
-            until = marker.group(2)
-        elif line.rstrip().endswith(('@"', "@'")):
+        if quote is None and line.rstrip().endswith(('@"', "@'")):
             until = line.rstrip()[-1] + "@"
+            kept[-1] = line.rstrip()[:-2]  # the opener is not a quote left open
+            continue
+        index = 0
+        while index < len(line):
+            char = line[index]
+            if quote:
+                if char == "\\" and quote == '"':
+                    index += 1
+                elif char == quote:
+                    quote = None
+            elif char in "\"'":
+                quote = char
+            elif char == "\\":
+                index += 1
+            elif char == "#" and (index == 0 or line[index - 1].isspace()):
+                break
+            elif until is None and line.startswith("<<", index):
+                marker = _HEREDOC.match(line, index)
+                if marker:
+                    until = marker.group(2)
+                    index = marker.end() - 1
+            index += 1
     return "\n".join(kept)
 
 
@@ -319,14 +344,15 @@ def _printed_by_git(arguments: list[str]) -> list[str]:
     ]
 
 
-def _operands(arguments: list[str]) -> list[str]:
-    """A command's file operands: not its options, and not the script file `-f` names."""
+def _operands(arguments: list[str], script_flag: bool = False) -> list[str]:
+    """A command's file operands: not its options, and for `sed` and `awk` not the script
+    file `-f` names (for `tail` and `less`, `-f` takes no value)."""
     operands: list[str] = []
     skip = False
     for argument in arguments:
         if skip:
             skip = False
-        elif argument == "-f":
+        elif script_flag and argument == "-f":
             skip = True
         elif not argument.startswith("-"):
             operands.append(argument)
@@ -335,14 +361,14 @@ def _operands(arguments: list[str]) -> list[str]:
 
 def _files_read(name: str, arguments: list[str]) -> list[str]:
     if name in _READERS:
-        return _operands(arguments)
+        return _operands(arguments, script_flag=name == "awk")
     if name == "sed":
         in_place = any(
             argument.startswith(("-i", "--in-place"))
             or (re.fullmatch(r"-[A-Za-z]+", argument) and "i" in argument)
             for argument in arguments
         )
-        return [] if in_place else _operands(arguments)
+        return [] if in_place else _operands(arguments, script_flag=True)
     if name == "git":
         return _printed_by_git(arguments)
     return []

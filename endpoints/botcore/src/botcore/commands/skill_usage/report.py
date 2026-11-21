@@ -43,10 +43,11 @@ MAX_ROWS = 500
 # After a person names a skill, the harness either puts it in context itself or the agent
 # loads it with a tool. A tool load this soon after is that same load, not a second one.
 SAME_LOAD = timedelta(minutes=10)
-# Most of a project's skills loaded by one session within this long is someone reading the
-# skills, not working with them: an audit, a rename, a listing. A working session, with its
-# reviewers, can load a dozen and more in that time (measured: up to 20 of 31), so the bar is
-# a share of what the checkout holds, and never under a dozen.
+# Most of the skills a project's checkout holds, loaded by one session within this long, is
+# someone reading the skills, not working with them: an audit, a rename, a listing. A working
+# session, with its reviewers, can load a dozen and more in that time (measured: up to 16 of
+# the 31 a checkout held), so the bar is a share of what the checkout holds, and never under
+# a dozen. A checkout that holds fewer than a dozen skills therefore never has an audit.
 AUDIT_SHARE = 2 / 3
 AUDIT_SKILLS = 12
 AUDIT_SPAN = timedelta(minutes=30)
@@ -125,15 +126,17 @@ def current_name(name: str, renames: dict[str, str], on_disk: dict[str, Held]) -
 
 
 def audit_bar(held: int) -> int | None:
-    """How many different skills in one span make an audit of a project whose checkout holds
-    `held`; None when the checkout is not known, since "most of them" then has no meaning."""
+    """How many of the skills a checkout holds, loaded in one span, make an audit of them;
+    None when the checkout is not known, since "most of them" then has no meaning."""
     return max(AUDIT_SKILLS, math.ceil(held * AUDIT_SHARE)) if held else None
 
 
-def audit_reads(loads: list[tuple[datetime, str, str]], bar: int | None) -> set[str]:
+def audit_reads(loads: list[tuple[datetime, str, str]], held: set[str]) -> set[str]:
     """The ids of the loads that belong to an audit: every load inside a span of AUDIT_SPAN
-    in which one session loaded `bar` or more different skills. `loads` is one session's, as
-    (time, skill, id)."""
+    in which one session loaded most of the skills the checkout holds (`audit_bar`). Only
+    skills the checkout holds count toward the bar: a plugin's skill or another project's is
+    not one of "its skills". `loads` is one session's, as (time, skill, id)."""
+    bar = audit_bar(len(held))
     if bar is None:
         return set()
     ordered = sorted(loads)
@@ -141,12 +144,14 @@ def audit_reads(loads: list[tuple[datetime, str, str]], bar: int | None) -> set[
     inside: Counter = Counter()
     left = 0
     for right, (moment, skill, _) in enumerate(ordered):
-        inside[skill] += 1
+        if skill in held:
+            inside[skill] += 1
         while moment - ordered[left][0] > AUDIT_SPAN:
             gone = ordered[left][1]
-            inside[gone] -= 1
-            if not inside[gone]:
-                del inside[gone]
+            if gone in inside:
+                inside[gone] -= 1
+                if not inside[gone]:
+                    del inside[gone]
             left += 1
         if len(inside) >= bar:
             marked.update(identifier for _, _, identifier in ordered[left : right + 1])
@@ -348,7 +353,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     audited: set[str] = set()
     audit_sessions: set[str] = set()
     for (in_project, session), loads in by_session.items():
-        marked = audit_reads(loads, audit_bar(len(on_disk.get(in_project, {}))))
+        marked = audit_reads(loads, set(on_disk.get(in_project, {})))
         if marked:
             audited |= marked
             if any(since <= moment < until for moment, _, identifier in loads

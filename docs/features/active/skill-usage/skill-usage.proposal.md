@@ -134,11 +134,12 @@ T3 Code's store is another program's internal schema, not an interface:
   an `edit` event. A session that changed a skill's files read it as the subject of its work,
   so the report counts that session as authoring the skill, not using it.
 - **Reading the skills.** One session loading two thirds or more of the skills a project's
-  checkout holds, and at least twelve, within thirty minutes is an audit, a rename or a
-  listing. The report leaves those loads out of every skill's count, so one audit cannot empty
-  the `quiet` list. The bar is a share because a working session with its reviewers loads a
-  dozen and more in that time: on the machine first measured, up to 20 of 31. It is decided
-  before any filter, so a filter never changes a skill's count.
+  checkout holds, and at least twelve of them, within thirty minutes is an audit, a rename or
+  a listing. The report leaves those loads out of every skill's count, so an audit done in one
+  sitting cannot empty the `quiet` list. Only skills the checkout holds count toward the bar.
+  The bar is a share because a working session with its reviewers loads a dozen and more in
+  that time: on the machine first measured, up to 16 of the 31 the checkout held, against a
+  bar of 21. It is decided before any filter, so a filter never changes a skill's count.
 
 ### Sessions
 
@@ -250,6 +251,9 @@ for the schedule.
 - **Reads the parser does not know.** A file printed by a script (`python -c`, `xargs cat`) is
   not counted.
 - **Two skills merged into one** are not a rename: their histories stay apart.
+- **An audit the rule does not see.** One spread over hours, one of a checkout that holds
+  fewer than twelve skills, and one of a project whose checkout is not on the machine all
+  count as use.
 - **A thread moved between machines** may be counted on both until phase 3 compares two
   machines' records.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,

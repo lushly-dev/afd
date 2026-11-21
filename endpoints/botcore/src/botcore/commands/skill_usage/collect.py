@@ -289,6 +289,7 @@ def _collect(
 ) -> CommandResult[dict]:  # fmt: skip
     stored, _ = load_events(directory)
     state = load_state(directory)
+    sessions = load_sessions(directory)  # before anything is written: a damaged file refuses
     now = datetime.now(UTC)
     sources = _mapping(state.get("sources"))
     stores = _mapping(_mapping(sources.get(t3.SOURCE)).get("stores"))
@@ -322,7 +323,6 @@ def _collect(
         append_events(directory, added)
         total = len(known_ids) + len(added)
 
-    sessions = load_sessions(directory)
     for session in found.sessions:
         sessions[session.id] = {
             "root": session.root,

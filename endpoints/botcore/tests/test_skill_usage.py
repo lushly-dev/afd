@@ -231,6 +231,12 @@ POWERSHELL = "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
         f'/usr/bin/env bash -lc "cat {FILE}"',
         f'bash -c -- "cat {FILE}"',
         f"cat {FILE} 2>/dev/null",
+        f"tail -f {FILE}",
+        f"/bin/zsh -lc 'node -e '\"'\"'console.log(1|2)'\"'\"'; cat {FILE}'",
+        f"/bin/zsh -lc \"python3 - <<'PY'\nprint('x')\nPY\ncat {FILE}\"",
+        f"python3 - <<'PY'\nprint('x')\nPY\ncat {FILE}",
+        f'$x = @"\ncat nothing\n"@\nGet-Content {WINDOWS_FILE}',
+        f'zsh -lc "cat {FILE}" && echo done',
         f"cat {FILE} 2>&1 | head -50",
         f"cat {FILE}; cat {FILE}",
         f"git show 2a5fd60:{FILE}",
@@ -268,6 +274,13 @@ def test_a_command_that_shows_the_skill_is_a_load(command: str) -> None:
         f"cat {FILE} > /dev/null",
         f"cat {FILE} | wc -c",
         f"cat {FILE} | Out-Null",
+        f"cat {FILE} | head -5 | grep soil",
+        f"cat {FILE} | head -5 > out.txt",
+        f'zsh -lc "cat {FILE}" | wc -c',
+        f"sed -f {FILE} notes.md",
+        f"awk -f {FILE} notes.md",
+        f"/bin/zsh -lc \"python3 - <<'PY'\nprint('cat {FILE}')\nPY\"",
+        f'$x = @"\ncat {FILE}\n"@\nWrite-Output $x.Length',
         f"sed -n '1,5p' {FILE} | grep soil",
         f"sed -i '' 's/a/b/' {FILE}",
         f"cat /dev/null # {FILE}",
@@ -703,9 +716,13 @@ def test_a_damaged_record_file_is_refused_or_survived(state: Path, t3_store: T3S
     assert run(skill_usage_collect())["added"] == 0  # the state is rebuilt, nothing is lost
 
     (state / store.SESSIONS_FILE).write_text("{ half a file", "utf-8")
+    t3_store.skill_tool(t3_store.thread("main-2"), "prune-roses", stamp(0))
+    before = (state / store.EVENTS_FILE).read_text("utf-8")
     assert fail(skill_usage_collect()).code == "RECORD_UNAVAILABLE"
+    assert fail(skill_usage_collect(rebuild=True)).code == "RECORD_UNAVAILABLE"
     assert fail(skill_usage_report()).code == "RECORD_UNAVAILABLE"
     assert (state / store.SESSIONS_FILE).read_text("utf-8") == "{ half a file"  # not overwritten
+    assert (state / store.EVENTS_FILE).read_text("utf-8") == before  # a refusal writes nothing
 
 
 # ── naming projects ─────────────────────────────────────────────────────────
@@ -795,9 +812,13 @@ def test_a_misspelled_filter_is_refused_not_answered_with_nothing(
     t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
     run(skill_usage_collect())
 
+    sessions = store.load_sessions(state)
+    sessions["odd"] = {"created_at": stamp(1)}  # an entry with no project or harness
+    store.save_sessions(state, sessions)
     for misspelled in ({"harness": "Claude"}, {"project": "gardn"}, {"skill": "plant-bed"}):
         refused = fail(skill_usage_report(**misspelled))
         assert refused.code == "INVALID_INPUT" and "Use one of" in refused.suggestion
+        assert "None" not in refused.suggestion
     assert list(rows(run(skill_usage_report(skill="plant-beds", harness="claude")))) == [
         "plant-beds"
     ]
@@ -876,10 +897,13 @@ def test_a_burst_of_reads_across_most_skills_is_an_audit_not_use(
     audit, user, cell, worker = (t3_store.thread(f"main-{number}") for number in (1, 2, 3, 4))
     for number in range(20):  # two thirds of them in twenty minutes: reading the skills
         t3_store.read_tool(audit, f"/w/.claude/skills/skill-{number}/SKILL.md", stamp(1, number))
+    t3_store.read_tool(audit, "/w/.claude/skills/prune-roses/SKILL.md", stamp(1, 21))
     t3_store.skill_tool(audit, "plant-beds", stamp(1, 300))  # hours later: ordinary work
     t3_store.skill_tool(user, "plant-beds", stamp(1))
     for number in range(15):  # a cell and its reviewers load fifteen in ten minutes: work
         t3_store.read_tool(cell, f"/w/.claude/skills/skill-{number}/SKILL.md", stamp(3, number))
+    for number in range(12):  # with a dozen skills the checkout does not hold, still work
+        t3_store.skill_tool(cell, f"plugin:tool-{number}", stamp(3, number))
     for number in range(20):  # twenty over a working day is work too
         t3_store.skill_tool(worker, f"skill-{number}", stamp(2, number * 40))
     run(skill_usage_collect())
@@ -890,25 +914,13 @@ def test_a_burst_of_reads_across_most_skills_is_an_audit_not_use(
     assert found["plant-beds"]["sessions"] == 2
     assert found["skill-3"]["sessions"] == 2 and found["skill-17"]["sessions"] == 1
     assert data["totals"]["audit_sessions"] == 1
-    assert "skill-25" in [entry["skill"] for entry in data["quiet"]]
+    quiet = [entry["skill"] for entry in data["quiet"]]
+    assert "skill-25" in quiet and "prune-roses" in quiet  # the audit did not empty the list
+    assert found["plugin:tool-3"]["sessions"] == 1
     # a filter never changes what counts as an audit
     assert rows(run(skill_usage_report(skill="skill-3")))["skill-3"]["sessions"] == 2
     assert rows(run(skill_usage_report(skill="skill-17")))["skill-17"]["sessions"] == 1
     assert rows(run(skill_usage_report(agent="main")))["skill-17"]["sessions"] == 1
-
-
-def test_one_audit_cannot_empty_the_quiet_list(state: Path, t3_store: T3Store) -> None:
-    audit = t3_store.thread("main-1")
-    for number in range(12):
-        t3_store.read_tool(audit, f"/w/.claude/skills/other-{number}/SKILL.md", stamp(1, number))
-    t3_store.read_tool(audit, "/w/.claude/skills/prune-roses/SKILL.md", stamp(1, 12))
-    t3_store.read_tool(audit, "/w/.claude/skills/plant-beds/SKILL.md", stamp(1, 13))
-    run(skill_usage_collect())
-
-    data = run(skill_usage_report())
-
-    assert data["skills"] == [] and data["totals"]["audit_sessions"] == 1
-    assert [entry["skill"] for entry in data["quiet"]] == ["plant-beds", "prune-roses"]
 
 
 def test_a_rebuild_replaces_what_was_recognised_before(state: Path, t3_store: T3Store) -> None:

@@ -2674,7 +2674,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "446de2cc769525715dfc3da47a457bf0ae18eb4dff8ba9bf73709c4e619eb6ef",
+      "current_import_sha256": "52826569d2b96edb0af954ce38e17d00945e9f6af93bbe4e5c938136408a0827",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
@@ -2685,7 +2685,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "cc4579dc7f32ea86c26a3147755bac0d201fb86b0a23cd316f03c062cd34cca1",
+      "current_import_sha256": "4233b4fea25146cd7c61f1ddf59b14163d196aee26d184d37ebae6a87cce7bf1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
@@ -2696,7 +2696,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ccf9b9bf4c492eb4cee2c70e9ae4afcfe2a9948907581d5968dcc5a26d4d0fb3",
+      "current_import_sha256": "476b6046e483cd6cf658c8eca103f5af7b11805a8dd2539580d3f73c7d8c5d91",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
@@ -2767,7 +2767,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "9d22905ebeb94f3b32d2f96906f259d638be3c1af54daa1ddcf1bb16c9a802eb",
+      "current_import_sha256": "2365501a81201369f758533d73ea6f6f2ff13967e393a0325f46e8ac7ed51aa2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -6525,7 +6525,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ecaf3deab8683639d9eda0c632d3afaecd2145250b72eb3dba175e6e9ed0ea96",
+      "current_import_sha256": "bd3d8361433dd4b2d7a2cebd18a5bfea9610897953cd91a2ae0d95dc55ca9867",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816)"
