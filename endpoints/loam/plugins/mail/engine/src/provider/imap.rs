@@ -1013,10 +1013,12 @@ impl Provider for Imap {
         found.dedup();
         // What its `EXISTS` counted is what it held when opened: mail that
         // arrived since is returned, but must not make up for an answer cut
-        // short.
-        let held = examined.uid_next.map_or(found.len(), |next| {
-            found.iter().filter(|uid| **uid < next).count()
-        });
+        // short. Without a `UIDNEXT` the two cannot be told apart, so none is
+        // counted, and the answer is taken as complete only for a mailbox
+        // that said it held nothing.
+        let held = examined
+            .uid_next
+            .map_or(0, |next| found.iter().filter(|uid| **uid < next).count());
         Ok(Returned {
             ids: found.iter().map(u32::to_string).collect(),
             held_when_opened: u64::try_from(held).unwrap_or(u64::MAX),
