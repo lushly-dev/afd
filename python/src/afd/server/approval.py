@@ -434,11 +434,26 @@ def create_approval_middleware(
     async def approval_middleware(
         command_name: str, input: Any, context: CommandContext, outer_next: NextFn
     ) -> CommandResult[Any]:
-        # Every way this middleware lets the call through admits this command on this input,
-        # which the engine checks, and takes, before it dispatches a command that declares an
-        # approval policy.
-        async def next_fn() -> CommandResult[Any]:
-            admit_approval(context, command_name, input, _canonical_or_none)
+        # The canonical input this call is decided on, taken before anything here awaits, for a
+        # command any of whose policies may hold it.
+        decided = (
+            _canonical_or_none(input)
+            if any(gates(policy) for policy in policies_for(command_name, context))
+            else None
+        )
+
+        # Every way this middleware lets the call through admits this command on the input it
+        # verified, which the engine checks, and takes, before it dispatches a command that
+        # declares an approval policy or whose call needed approval here.
+        async def next_fn(verified: Any = _UNVERIFIED) -> CommandResult[Any]:
+            approved = verified is not _UNVERIFIED
+            admit_approval(
+                context,
+                command_name,
+                verified if approved else decided,
+                _canonical_or_none,
+                required=approved,
+            )
             return await outer_next()
 
         # Claimed only by the command the tool call routes to, once, gated or not, so a command
@@ -454,7 +469,8 @@ def create_approval_middleware(
             return await next_fn()
 
         now = security_clock.now()
-        input_binding = _canonical_json(_plain_input(input))
+        # Raises for an input with no canonical form: such a call cannot be approved.
+        input_binding = decided if decided is not None else _canonical_json(_plain_input(input))
         actor = getattr(context, "actor", None)
         actor_binding = _actor_json(actor)
 
@@ -465,7 +481,7 @@ def create_approval_middleware(
             verdict = verify(evidence, command_name, input_binding, actor_binding, now)
             if isinstance(verdict, _Accepted):
                 if await spend(verdict.nonce, verdict.expires_at, now):
-                    return await next_fn()
+                    return await next_fn(input_binding)
                 rejected = "already-used"
             else:
                 rejected = verdict
@@ -493,7 +509,7 @@ def create_approval_middleware(
                 and genuine(answer.accepted, bindings, now)
                 and await spend(answer.accepted.nonce, answer.accepted.expires_at, now)
             ):
-                return await next_fn()
+                return await next_fn(input_binding)
             # An expired, spent or invalid approval is asked again, saying why.
             asked = question(bindings, now)
             relay_here.hold(
@@ -610,6 +626,7 @@ class _UpFrontDeps:
         return self.may_require(command, context)
 
     def binding_input(self, input: Any) -> str:
+        # Raises for an input with no canonical form: such a step cannot be approved.
         return _canonical_json(_plain_input(input))
 
     def actor_binding(self, context: CommandContext) -> str:
@@ -673,6 +690,10 @@ def _plain_input(value: Any) -> Any:
         _check_bindable(value)
         return value.model_dump(mode="json", by_alias=True)
     return value
+
+
+_UNVERIFIED = object()
+"""Passed to nothing: a call the approval middleware let through without approval."""
 
 
 def _canonical_or_none(value: Any) -> Optional[str]:

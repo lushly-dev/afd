@@ -418,7 +418,7 @@ class UpFrontApproval:
         command: str,
         input: Any,
         context: CommandContext,
-        next_fn: Callable[[], Awaitable[CommandResult[Any]]],
+        next_fn: Callable[..., Awaitable[CommandResult[Any]]],
     ) -> CommandResult[Any]:
         """Run one step through the up-front gate: nothing runs until the plan is to run, and
         then a gated step runs only on an unused approval of its own binding."""
@@ -434,9 +434,8 @@ class UpFrontApproval:
             return failure(decided.error)
         if not await deps.requires_approval(command, input, context):
             return await _released(next_fn)
-        bindings = deps.bindings(
-            self._call_tags(deps), command, deps.binding_input(input), deps.actor_binding(context)
-        )
+        verified = deps.binding_input(input)
+        bindings = deps.bindings(self._call_tags(deps), command, verified, deps.actor_binding(context))
         # No await between finding and taking it, so concurrent steps cannot take the same one.
         # Its expiry was checked when the call started, as a single command's is.
         approval = next(
@@ -444,7 +443,8 @@ class UpFrontApproval:
         )
         if approval is not None:
             approval.used = True
-            return await _released(next_fn)
+            # The step runs on the input its approval binds.
+            return await _released(lambda: next_fn(verified))
         return failure(_unplanned_error(self.tool, command))
 
     async def _decide(self, deps: UpFrontDeps, context: CommandContext) -> _Plan:

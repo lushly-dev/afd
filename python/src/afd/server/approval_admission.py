@@ -1,23 +1,27 @@
 """Which calls an approval step admitted (internal; mirrors ``packages/server/src/approval-admission.ts``).
 
-The server engine records each call's command (its name, declared approval policy and
-confirmation prompt) before any middleware runs, under the call's own context object. The
-approval middleware decides from that record and, when it lets the call through, records what it
-decided on: the command name and the canonical JSON of the input. The engine dispatches a command
-whose declared policy is neither unset nor ``"not-required"`` only when such an admission matches
-the command and validated input it is about to run, and it takes the admission as it dispatches,
-so one admission runs one handler (#1886, spec/command-metadata.md, "Approvals").
+The server engine records each dispatch's command (its name, declared approval policy and
+confirmation prompt) before any middleware runs. The approval middleware decides from that record
+and, when it lets the call through, records what it decided on: the command name and the canonical
+JSON of the input it verified. The engine dispatches a command whose declared policy is neither
+unset nor ``"not-required"``, or whose call the middleware held under a policy given only in its
+``commands`` list, only when such an admission matches the command and validated input it is
+about to run. It takes the admission as it dispatches, so one admission runs one handler (#1886,
+spec/command-metadata.md, "Approvals").
 
-Every call gets a fresh context object (``with_context_defaults`` copies it), so a batch item, a
-pipeline step or a command run from inside another command's handler has its own record and never
-inherits an outer call's admission. The records live in this module, keyed by the context object's
-identity for the length of the call: no field of a context, and nothing a caller passes, can set
-one. This is not a boundary against code running in the same process.
+Every dispatch has its own record, which nothing else can reach: the records of the dispatches
+under way in a task are a ``ContextVar`` value that each dispatch extends for its own length and
+restores when it ends. Two overlapping calls run in separate tasks, so they never see each other's
+record, even when they were given the same context object, and a call nested in a handler gets a
+record of its own. A record is found by the identity of the context object the engine passes
+through the middleware chain; no field of a context, and nothing a caller passes, can set one.
+This is not a boundary against code running in the same process.
 """
 
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Optional
 
@@ -38,27 +42,35 @@ class AdmissionCommand:
 class _Admitted:
     name: str
     canonical: Optional[str]
-    """The canonical JSON of the input, or ``None`` when it has none (compared by identity)."""
-    input: Any
+    """The canonical JSON of the input the approval step decided on; ``None`` when it has none,
+    which no gated dispatch accepts."""
     canonicalize: Canonicalize
 
 
-@dataclass
 class _Admission:
-    context: Any
-    command: AdmissionCommand
-    admitted: Optional[_Admitted] = None
-    taken: bool = False
-    """Set once a dispatch took an admission, so a second dispatch reads as a mismatch."""
+    __slots__ = ("context", "command", "admitted", "taken", "required")
+
+    def __init__(self, context: Any, command: AdmissionCommand) -> None:
+        self.context = context
+        self.command = command
+        self.admitted: Optional[_Admitted] = None
+        self.taken = False
+        """Set once a dispatch took an admission, so a second dispatch reads as a mismatch."""
+        self.required = False
+        """Set when the approval step required approval for this call (a policy given only in its
+        ``commands`` list among them), so the dispatch checks the admission whatever the
+        command declares."""
 
 
-_RECORDS: dict[int, _Admission] = {}
+_RECORDS: ContextVar[tuple[_Admission, ...]] = ContextVar("afd_approval_admissions", default=())
 
 
 def _record(context: Any) -> Optional[_Admission]:
-    found = _RECORDS.get(id(context))
-    # The identity check keeps a record from answering for another object that reuses the id.
-    return found if found is not None and found.context is context else None
+    """The innermost record of this task's dispatches that runs on ``context``."""
+    for found in reversed(_RECORDS.get()):
+        if found.context is context:
+            return found
+    return None
 
 
 def gates(policy: Any) -> bool:
@@ -68,48 +80,56 @@ def gates(policy: Any) -> bool:
 
 @contextmanager
 def admission_for(context: Any, command: Any) -> Iterator[None]:
-    """Record, for the length of the call, the command the call of ``context`` runs, not yet
-    admitted. A context that already has a record (the engine could not copy it) gets a fresh one,
-    and the earlier one comes back when this call ends."""
-    key = id(context)
-    previous = _RECORDS.get(key)
-    _RECORDS[key] = _Admission(
-        context=context,
-        command=AdmissionCommand(
+    """Give this dispatch of ``command`` on ``context`` its own record, not yet admitted, for the
+    length of the ``with`` block; only this dispatch's record is removed when it ends."""
+    record = _Admission(
+        context,
+        AdmissionCommand(
             name=command.name,
             approval=getattr(command, "approval", None),
             confirm_prompt=getattr(command, "confirm_prompt", None),
         ),
     )
+    token = _RECORDS.set((*_RECORDS.get(), record))
     try:
         yield
     finally:
-        if previous is None:
-            _RECORDS.pop(key, None)
-        else:
-            _RECORDS[key] = previous
+        _RECORDS.reset(token)
 
 
-def admit_approval(context: Any, command_name: str, input: Any, canonicalize: Canonicalize) -> None:
+def admit_approval(
+    context: Any,
+    command_name: str,
+    canonical: Optional[str],
+    canonicalize: Canonicalize,
+    *,
+    required: bool,
+) -> None:
     """Record that an approval step admitted the call of ``context`` to run ``command_name`` on
-    ``input``. The canonical form is computed only for a command that declares a gating policy.
-    A no-op outside the engine."""
+    the input whose canonical JSON is ``canonical`` (the one it verified). ``required`` says the
+    step required approval for this call. A no-op outside the engine."""
     found = _record(context)
     if found is None:
         return
-    found.admitted = _Admitted(
-        name=command_name,
-        canonical=canonicalize(input) if gates(found.command.approval) else None,
-        input=input,
-        canonicalize=canonicalize,
-    )
+    if required:
+        found.required = True
+    found.admitted = _Admitted(name=command_name, canonical=canonical, canonicalize=canonicalize)
+
+
+def admission_required(context: Any, policy: Any) -> bool:
+    """Whether a dispatch on ``context`` needs an admission: the command declares a gating
+    ``policy``, or the approval step required approval for this call."""
+    if gates(policy):
+        return True
+    found = _record(context)
+    return found is not None and found.required
 
 
 def take_admission(context: Any, command_name: str, input: Any) -> str:
     """Take the admission of the call of ``context``: ``"admitted"`` when it admitted
-    ``command_name`` on ``input`` (the same name, and the same canonical input, or the same object
-    when the input has no canonical form), ``"missing"`` with none, ``"mismatch"`` otherwise. Taken
-    whatever the answer, so a second dispatch needs a second admission."""
+    ``command_name`` on an input with the same canonical JSON as ``input``, ``"missing"`` with
+    none, ``"mismatch"`` otherwise (another command, a changed input, or an input with no
+    canonical form). Taken whatever the answer, so a second dispatch needs a second admission."""
     found = _record(context)
     if found is None:
         return "missing"
@@ -118,14 +138,9 @@ def take_admission(context: Any, command_name: str, input: Any) -> str:
         return "mismatch" if found.taken else "missing"
     found.admitted = None
     found.taken = True
-    if admitted.name != command_name:
+    if admitted.name != command_name or admitted.canonical is None:
         return "mismatch"
-    canonical = admitted.canonicalize(input)
-    if admitted.canonical is None:
-        same = admitted.input is input and canonical is None
-    else:
-        same = canonical == admitted.canonical
-    return "admitted" if same else "mismatch"
+    return "admitted" if admitted.canonicalize(input) == admitted.canonical else "mismatch"
 
 
 def live_command(context: Any) -> Optional[AdmissionCommand]:

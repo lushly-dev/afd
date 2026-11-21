@@ -7,7 +7,10 @@ The engine dispatches a gated call only when an approval step admitted it, and a
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
+
+import pytest
 
 from pydantic import BaseModel
 
@@ -15,6 +18,7 @@ from afd import ExposeOptions, success
 from afd.core.commands import CommandContext
 from afd.core.result import CommandError, CommandResult, failure
 from afd.direct import DirectClient, DirectClientOptions, create_direct_registry
+from afd.server.approval_admission import live_command
 from afd.server import (
     create_approval_middleware,
     create_retry_middleware,
@@ -261,21 +265,22 @@ async def test_a_nested_call_does_not_inherit_the_outer_admission():
     assert ran == ["outer"]
 
 
-async def test_a_caller_context_cannot_carry_an_admission():
+async def test_a_context_from_an_admitted_call_admits_nothing_later():
     fixture = Fixture()
-    server = fixture.server(middleware=[create_approval_middleware(secret=SECRET)])
-    # A context reused from an admitted call admits nothing in the next call.
-    seen: list[CommandContext] = []
+    seen: list[Any] = []
 
     async def keep(name, input, context, next_fn):
         seen.append(context)
         return await next_fn()
 
-    reuse = fixture.server(middleware=[keep])
-    await server.execute("todo-touch", {"id": 1})
-    expect_unavailable(await reuse.execute("todo-delete", {"id": 1}), "todo-delete")
-    expect_unavailable(await reuse.execute("todo-delete", {"id": 1}, seen[0]), "todo-delete")
-    assert fixture.ran == ["todo-touch:1"]
+    approved = create_direct_registry(
+        fixture.commands, middleware=[create_approval_middleware(secret=SECRET), keep]
+    )
+    client = DirectClient(approved, DirectClientOptions(on_approval_needed=_approve))
+    assert (await client.call("todo-delete", {"id": 1})).success
+    # The context the admitted gated call ran with, reused on a server with no approval step.
+    expect_unavailable(await fixture.server().execute("todo-delete", {"id": 1}, seen[-1]), "todo-delete")
+    assert fixture.ran == ["todo-delete:1"]
 
 
 # ─── One admission runs one handler, on what was approved ───────────────────
@@ -387,3 +392,227 @@ class _Listed:
         self.name = name
         self.approval = approval
         self.confirm_prompt = confirm_prompt
+
+
+# ─── Every dispatch has its own record ──────────────────────────────────────
+
+
+class SlotContext:
+    """A context the engine cannot copy (it takes no clock or random), so every call that is
+    given it runs with this very object."""
+
+    __slots__ = ("trace_id", "timeout", "extra", "actor", "approval")
+
+    def __init__(self) -> None:
+        self.trace_id = None
+        self.timeout = None
+        self.extra: dict[str, Any] = {}
+        self.actor = None
+        self.approval = None
+
+
+async def test_overlapping_calls_on_one_uncopyable_context_keep_their_own_admission():
+    fixture = Fixture()
+
+    async def interleave(name, input, context, next_fn):
+        await asyncio.sleep(0)
+        return await next_fn()
+
+    server = fixture.server(middleware=[create_approval_middleware(secret=SECRET), interleave])
+    shared = SlotContext()
+    held = await server.execute("todo-delete", {"id": 1}, shared)
+    shared.approval = held.error.details["approvalToken"]
+    gated, ungated = await asyncio.gather(
+        server.execute("todo-delete", {"id": 1}, shared),
+        server.execute("todo-list", {"id": 2}, shared),
+    )
+    assert gated.success, gated.error
+    assert ungated.success, ungated.error
+    assert sorted(fixture.ran) == ["todo-delete:1", "todo-list:2"]
+    # No record outlives its call, and none answers for the shared object afterwards.
+    assert live_command(shared) is None
+    expect_unavailable(await fixture.server().execute("todo-delete", {"id": 1}, shared), "todo-delete")
+
+
+async def test_an_ungated_call_cannot_take_an_overlapping_calls_admission():
+    fixture = Fixture()
+    order: list[str] = []
+
+    async def interleave(name, input, context, next_fn):
+        order.append(name)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return await next_fn()
+
+    server = fixture.server(middleware=[create_approval_middleware(secret=SECRET), interleave])
+    shared = SlotContext()
+    held = await server.execute("todo-delete", {"id": 1}, shared)
+    shared.approval = held.error.details["approvalToken"]
+    results = await asyncio.gather(
+        server.execute("todo-list", {"id": 2}, shared),
+        server.execute("todo-delete", {"id": 1}, shared),
+        server.execute("todo-list", {"id": 3}, shared),
+    )
+    assert [result.success for result in results] == [True, True, True], [r.error for r in results]
+    assert sorted(fixture.ran) == ["todo-delete:1", "todo-list:2", "todo-list:3"]
+
+
+# ─── The admission is bound to what was verified ────────────────────────────
+
+
+async def test_an_input_changed_while_the_token_is_spent_is_refused():
+    fixture = Fixture()
+    seen: list[Any] = []
+
+    async def capture(name, input, context, next_fn):
+        seen.append(input)
+        return await next_fn()
+
+    class ChangingStore:
+        async def consume(self, nonce: str, expires_at: float) -> bool:
+            await asyncio.sleep(0)
+            seen[-1].id = 99
+            return True
+
+    server = fixture.server(
+        middleware=[capture, create_approval_middleware(secret=SECRET, nonce_store=ChangingStore())]
+    )
+    held = await server.execute("todo-delete", {"id": 1})
+    token = held.error.details["approvalToken"]
+    retried = await server.execute("todo-delete", {"id": 1}, CommandContext(approval=token))
+    expect_unavailable(retried, "todo-delete", "admission-mismatch")
+    assert fixture.ran == []
+
+
+async def test_a_gated_input_with_no_canonical_form_is_refused():
+    ran: list[str] = []
+
+    @define_command(
+        name="todo-tag",
+        description="Tag todos",
+        approval=lambda input, context: "not-required",
+    )
+    async def tag(input: Any) -> CommandResult[Any]:
+        ran.append("tag")
+        return success(None)
+
+    registry = create_direct_registry([tag], middleware=[create_approval_middleware(secret=SECRET)])
+    # An integer past 2**53 that a JavaScript number cannot hold exactly has no canonical JSON.
+    expect_unavailable(
+        await registry.execute("todo-tag", {"count": 2**60 + 1}), "todo-tag", "admission-mismatch"
+    )
+    assert ran == []
+
+
+# ─── A policy given only in the list is one-shot too ────────────────────────
+
+
+async def test_a_retry_after_approval_of_a_list_only_policy_is_refused():
+    handled: list[int] = []
+
+    @define_command(name="todo-wipe", description="Fails once", input_schema=IdInput)
+    async def wipe(input: IdInput) -> CommandResult[Any]:
+        handled.append(input.id)
+        if len(handled) == 1:
+            return failure(CommandError(code="TRANSIENT_ERROR", message="try again"))
+        return success(None)
+
+    registry = create_direct_registry(
+        [wipe],
+        middleware=[
+            create_approval_middleware(secret=SECRET, commands=[_Listed("todo-wipe", "required")]),
+            create_retry_middleware(max_retries=2, retry_delay=0, jitter=False),
+        ],
+    )
+    client = DirectClient(registry, DirectClientOptions(on_approval_needed=_approve))
+    result = await client.call("todo-wipe", {"id": 1})
+    assert handled == [1]
+    expect_unavailable(result, "todo-wipe", "admission-mismatch")
+
+
+async def test_an_input_changed_after_approval_of_a_list_only_policy_is_refused():
+    ran: list[int] = []
+
+    @define_command(name="todo-wipe", description="Wipe", input_schema=IdInput)
+    async def wipe(input: IdInput) -> CommandResult[Any]:
+        ran.append(input.id)
+        return success(None)
+
+    async def change(name, input, context, next_fn):
+        input.id = 99
+        return await next_fn()
+
+    registry = create_direct_registry(
+        [wipe],
+        middleware=[
+            create_approval_middleware(secret=SECRET, commands=[_Listed("todo-wipe", "required")]),
+            change,
+        ],
+    )
+    client = DirectClient(registry, DirectClientOptions(on_approval_needed=_approve))
+    expect_unavailable(await client.call("todo-wipe", {"id": 1}), "todo-wipe", "admission-mismatch")
+    assert ran == []
+
+
+# ─── Up-front approval of afd-batch and afd-pipe, with no commands list ─────
+
+
+def _relay_server(ran: list[str]) -> Any:
+    fixture = Fixture()
+    fixture.ran = ran
+    fixture.commands = [fixture.command("todo-delete", "required"), fixture.command("todo-list")]
+    return fixture.server(
+        tool_strategy="individual",
+        middleware=[
+            create_approval_middleware(secret=SECRET, relay="mcp-elicitation", include_token=False)
+        ],
+    )
+
+
+async def _relay_call(server: Any, mode: str, prompts: list[str], tool: str, arguments: Any) -> Any:
+    pytest.importorskip("mcp")
+    import json
+
+    import mcp_types as types
+    from mcp import Client
+
+    async def accept(context: Any, params: Any) -> Any:
+        prompts.append(params.message)
+        schema = params.requested_schema
+        properties = schema.get("properties") if isinstance(schema, dict) else schema.properties
+        return types.ElicitResult(action="accept", content={name: True for name in properties})
+
+    async with Client(server._create_mcp_server(), mode=mode, elicitation_callback=accept) as client:
+        return json.loads((await client.call_tool(tool, arguments)).content[0].text)
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_batch_is_approved_up_front_without_a_commands_list(mode):
+    ran: list[str] = []
+    prompts: list[str] = []
+    request = {
+        "commands": [
+            {"command": "todo-list", "input": {"id": 1}},
+            {"command": "todo-delete", "input": {"id": 2}},
+        ]
+    }
+    result = await _relay_call(_relay_server(ran), mode, prompts, "afd-batch", request)
+    assert result["success"] is True, result
+    assert sorted(ran) == ["todo-delete:2", "todo-list:1"]
+    assert len(prompts) == 1 and "Command: todo-delete" in prompts[0]
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_pipeline_is_approved_up_front_without_a_commands_list(mode):
+    ran: list[str] = []
+    prompts: list[str] = []
+    request = {
+        "steps": [
+            {"command": "todo-list", "input": {"id": 1}},
+            {"command": "todo-delete", "input": {"id": 2}},
+        ]
+    }
+    result = await _relay_call(_relay_server(ran), mode, prompts, "afd-pipe", request)
+    assert [step["status"] for step in result["steps"]] == ["success", "success"], result
+    assert ran == ["todo-list:1", "todo-delete:2"]
+    assert len(prompts) == 1 and "Command: todo-delete" in prompts[0]

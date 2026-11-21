@@ -95,7 +95,7 @@ from afd.server.first_class import check_first_class_tools, normalize_first_clas
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
-from afd.server.approval_admission import admission_for, gates, take_admission
+from afd.server.approval_admission import admission_for, admission_required, take_admission
 from afd.server.approval_relay import bind_approval_relay, current_up_front_approval
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
@@ -636,11 +636,12 @@ class MCPServer:
 
         A declared approval policy holds without the approval middleware (#1886): a command whose
         policy is neither unset nor ``"not-required"`` runs only when an approval step admitted
-        this call, for this command and this validated input. A policy function is not evaluated
-        here; declaring one needs an approval step. The admission is taken here, so a second
-        dispatch on the same call (a retry inside the chain) needs a second admission.
+        this call, for this command and this validated input. So does a call the approval step
+        held under a policy given only in its ``commands`` list. A policy function is not
+        evaluated here; declaring one needs an approval step. The admission is taken here, so a
+        second dispatch on the same call (a retry inside the chain) needs a second admission.
         """
-        if gates(getattr(command, "approval", None)):
+        if admission_required(context, getattr(command, "approval", None)):
             admission = take_admission(context, command.name, data)
             if admission != "admitted":
                 return _approval_unavailable(command.name, admission)
