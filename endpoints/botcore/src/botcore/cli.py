@@ -309,14 +309,14 @@ def serve(name: str, transport: str) -> None:
 
     Its run tool executes any Python its client sends, with your permissions, so it serves only
     the client that started it, over stdio. To serve commands over HTTP, serve a managed host
-    with botcore.host_http (create_host_http_app or serve_hosts) and bearer tokens from
+    with botcore.host_http (create_host_http_app, run with serve_hosts) and bearer tokens from
     `botcore host-token issue` (docs/host-composition.md).
     """
     if transport.lower() != "stdio":
         click.secho(
             "Error: botcore serve runs any Python its client sends, so it serves only over stdio, "
             "to the client that started it. To serve commands over HTTP, serve a managed host "
-            "with botcore.host_http (create_host_http_app or serve_hosts), which checks bearer "
+            "with botcore.host_http (create_host_http_app, run with serve_hosts), which checks bearer "
             "tokens from `botcore host-token issue` (docs/host-composition.md).",
             fg="red", err=True,
         )

@@ -281,7 +281,7 @@ botcore init --non-interactive
 botcore serve
 ```
 
-`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, serve a managed host with `botcore.host_http` (`create_host_http_app` or `serve_hosts`), which checks bearer tokens from `botcore host-token issue`; see [Serving hosts over HTTP](docs/host-composition.md#serving-hosts-over-http).
+`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, serve a managed host with `botcore.host_http` (`create_host_http_app`, run with `serve_hosts`), which checks bearer tokens from `botcore host-token issue`; see [Serving hosts over HTTP](docs/host-composition.md#serving-hosts-over-http).
 
 For agentic setup with structured output:
 
