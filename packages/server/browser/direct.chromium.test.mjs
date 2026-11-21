@@ -65,7 +65,12 @@ window.runScenario = async () => {
 	const declined = await declining.call('sum-compute', { a: 4, b: 5 });
 	const invalid = await approving.call('sum-compute', { a: 'two', b: 3 });
 	const entries = await journal.read();
-	const report = await replayJournal(createDirectRegistry([sum]), entries);
+	// The journaled call already passed the approval, which is not journaled: the replay registry
+	// serves the command without its policy, or the engine refuses it (APPROVAL_UNAVAILABLE).
+	const report = await replayJournal(
+		createDirectRegistry([{ ...sum, approval: 'not-required' }]),
+		entries
+	);
 	return {
 		secureContext: window.isSecureContext,
 		subtle: typeof crypto.subtle?.sign === 'function',
