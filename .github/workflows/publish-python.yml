@@ -5,7 +5,8 @@
 #   - A published GitHub Release whose tag matches 'python-v*'. Releases for the
 #     other implementations (cpp-v*, rust-v*, npm packages) do not run the jobs.
 #
-# Either way, the tag must match `version` in pyproject.toml.
+# Either way, the tag must match `version` in pyproject.toml, and `main` must
+# contain its commit.
 #
 # Publishing a GitHub Release with a new tag also pushes that tag, so both
 # events run this workflow. The upload skips files that are already on PyPI, so
@@ -50,6 +51,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
           persist-credentials: false
+          # The release guard reads main's history to refuse a tag that main does not contain.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -80,6 +83,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
           persist-credentials: false
+          # The release guard reads main's history to refuse a tag that main does not contain.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -133,6 +138,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
           persist-credentials: false
+          # The release guard reads main's history to refuse a tag that main does not contain.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

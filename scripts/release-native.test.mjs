@@ -103,6 +103,8 @@ function fixture(t, track = 'python', change = () => {}, candidateVersion, manif
 	);
 	const tag = `${prefix}${version}`;
 	git('tag', tag);
+	// The publish checkout fetches main; the fixture's main is its one commit.
+	git('update-ref', 'refs/remotes/origin/main', 'HEAD');
 	const source = git('rev-parse', 'HEAD');
 	const artifacts = join(root, 'artifacts');
 	mkdirSync(artifacts);
@@ -492,6 +494,39 @@ for (const track of ['python', 'botcore']) {
 	});
 }
 
+for (const format of Object.keys(tracks)) {
+	/** A commit outside the candidate's history, with `parents` as its parents. */
+	function commitTree(candidate, ...parents) {
+		return candidate.git(
+			'-c',
+			'user.name=Fixture',
+			'-c',
+			'user.email=fixture@example.test',
+			'commit-tree',
+			'HEAD^{tree}',
+			...parents.flatMap((parent) => ['-p', parent]),
+			'-m',
+			'other'
+		);
+	}
+	test(`${format}: a tag whose commit main does not contain is refused`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', 'refs/remotes/origin/main', commitTree(candidate));
+		rejected(candidate.check(), /not on main/);
+	});
+	test(`${format}: a tag behind main's tip is admitted`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', 'refs/remotes/origin/main', commitTree(candidate, 'HEAD'));
+		const result = candidate.check();
+		assert.equal(result.status, 0, result.stderr);
+	});
+	test(`${format}: a checkout without main fails closed`, (t) => {
+		const candidate = fixture(t, format);
+		candidate.git('update-ref', '-d', 'refs/remotes/origin/main');
+		rejected(candidate.check(), /origin\/main is missing/);
+	});
+}
+
 test('Botcore: the inventory admits lushly-botcore alone, on the AFD publisher', () => {
 	const family = inventory.units.filter((unit) => unit.family === 'botcore');
 	const botcore = family.find((unit) => unit.id === 'botcore');
@@ -707,4 +742,11 @@ test('Native publisher workflow contracts preserve events, pins, gates and guard
 			rust.lastIndexOf('          cargo publish')
 	);
 	assert.match(rust, /if: steps.registry.outputs.published == 'false'/);
+	// The guard reads main's history, so every checkout fetches it.
+	for (const workflow of [python, botcore, rust]) {
+		assert.equal(
+			workflow.match(/fetch-depth: 0\n/g)?.length,
+			workflow.match(/uses: actions\/checkout@/g)?.length
+		);
+	}
 });
