@@ -55,6 +55,7 @@ def build_server(
         "fields-fixture",
         tool_strategy=strategy,  # type: ignore[arg-type]
         context_fields=FIELDS if fields is None else fields,
+        bootstrap=True,
         # scope-peek stays off the hybrid list, so it is reached by name.
         **({"first_class_tools": ["scope-echo"]} if strategy == "hybrid" else {}),
     )

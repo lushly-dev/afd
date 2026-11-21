@@ -310,6 +310,7 @@ def _payload_server():
     server = create_server(
         "payload-wire",
         tool_strategy="lazy",
+        bootstrap=True,
         contexts=[ContextConfig(name="editing", description="Edit documents")],
     )
 

@@ -59,8 +59,8 @@ it is in `afd-detail`, not `_meta`.
 | `afd-docs` | `{ command? }` | Markdown documentation generated from the definitions |
 | `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas, or TypeScript input types too |
 
-TypeScript registers them with `bootstrap: true`, Rust with `register_bootstrap_commands`, and
-Python always. They describe only the exposed commands available in the active context.
+TypeScript registers them with `bootstrap: true`, Python with `bootstrap=True`, and Rust with
+`register_bootstrap_commands`. They describe only the exposed commands available in the active context.
 
 ## Contexts
 

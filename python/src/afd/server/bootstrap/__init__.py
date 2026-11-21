@@ -10,8 +10,8 @@ Example:
     >>> from afd.server import create_server
     >>> from afd.server.bootstrap import get_bootstrap_commands
     >>>
-    >>> server = create_server("my-app")
-    >>> # Bootstrap commands are automatically registered
+    >>> server = create_server("my-app", bootstrap=True)
+    >>> # afd-help, afd-docs and afd-schema are registered (off by default)
     >>>
     >>> # Or manually get them:
     >>> commands = get_bootstrap_commands(server.list_commands)

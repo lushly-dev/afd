@@ -25,6 +25,8 @@ def get_bootstrap_commands(
     tool_strategy = options.get("tool_strategy")
     first_class_tools = options.get("first_class_tools")
     context_fields = options.get("context_fields")
+    # afd-help, afd-docs and afd-schema; a server leaves them out unless it opts in (D5).
+    include_discovery = options.get("include_discovery", True)
 
     # The context commands first, then the discovery commands, as TypeScript's server registers
     # them, so grouped and individual lists order them alike (spec/tool-strategies.md, #533).
@@ -37,6 +39,8 @@ def get_bootstrap_commands(
                 create_afd_context_exit_command(context_state),
             ]
         )
+    if not include_discovery:
+        return commands
     commands.extend(
         [
             create_afd_help_command(get_commands, tool_strategy, first_class_tools, context_fields),

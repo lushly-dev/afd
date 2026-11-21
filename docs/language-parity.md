@@ -102,7 +102,7 @@ Limits of these checks:
 | Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: top-level `outputSchema` on `McpServer` tools (see the MCP tool fields row); `returns` not surfaced by `afd-schema` and no `_meta.outputSchema` | No: stored, never emitted |
-| Command to MCP tool with `_meta` | Yes | Partial: no `category` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Yes: `command_to_mcp_tool`, `commands_to_mcp_tools`, `command_tool_meta`, `command_tool_annotations`; `to_json` for afd-detail's shape. `mutation`, `destructive` and `undoable` are plain booleans, so only `true` is reported |
+| Command to MCP tool with `_meta` | Yes | Yes | Partial: `command_to_mcp_tool`, no plural helper | Yes: `command_to_mcp_tool`, `commands_to_mcp_tools`, `command_tool_meta`, `command_tool_annotations`; `to_json` for afd-detail's shape. `mutation`, `destructive` and `undoable` are plain booleans, so only `true` is reported |
 
 ### Single-command execution
 
@@ -190,7 +190,7 @@ Limits of these checks:
 | Output budgets over MCP ([`spec/output-budgets.md`](../spec/output-budgets.md#b2-the-ask)): `_meta["dev.afd/outputBudget"]` on budgeted tools and in `afd-detail`; the per-call ask in `tools/call` `_meta` and the meta-tools' `meta` | Planned | Planned | Yes (step 0b): `_meta["dev.afd/outputBudget"]` on the tool, grouped `_meta.actions` entries, `afd-detail` and `afd-help` (`full`); the per-call ask in `tools/call` `_meta` and the meta-tools' `meta`, both eras over Streamable HTTP and stdio | Planned (after #341) |
 | Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | Yes: definitions equal TypeScript's (`spec/meta-tools.json`) | Yes: definitions equal TypeScript's (`spec/meta-tools.json`, checked by `mcp_tools_test.cpp`) |
 | The meta-tools' `meta` argument: `dev.afd/context` and declared fields for clients that cannot set `_meta` ([`spec/context-fields.md`](../spec/context-fields.md#clients-that-cannot-set-_meta), #466) | Yes: `/mcp` (both eras), stdio, `/message`, and in process through a direct registry's tool surface | Yes: every transport, both eras | Yes: every route, both eras | Partial: `dev.afd/context` only; `afd::mcp_stdio` reads no declared context fields from `_meta` |
-| Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Yes (`register_bootstrap_commands`, `afd/bootstrap.hpp`); `afd-help` reports `toolStrategy` behind `afd::mcp_stdio` |
+| Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Yes, opt-in (`bootstrap=True`, #542) | Yes (`register_bootstrap_commands`) | Yes (`register_bootstrap_commands`, `afd/bootstrap.hpp`); `afd-help` reports `toolStrategy` behind `afd::mcp_stdio` |
 | Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | Yes (`register_context_commands`; `McpServer::with_contexts`) | No |
 | HTTP hardening: Host/Origin checks, body cap | Yes | SDK `transport_security` defaults (foreign `Origin` refused); body cap through `max_request_body_size` | Yes: `HttpOptions` (unlisted origins refused) | N/A |
 | MCP JSON-RPC types and helpers | Yes | Partial: Pythonic names; no notification type or error-code constants | Yes | Deferred |
@@ -265,8 +265,7 @@ Ordered by how much an agent or a security boundary is affected.
 5. **Python `DirectClient` boundary (fixed in #545 candidate).** `create_direct_registry` checks exposure for raw calls and lists only registered exposed commands. `DirectClient` filters discovery and calls through a fail-closed `allow` predicate and wraps each attempt in client middleware, within its positive finite millisecond deadline. Middleware exceptions are redacted. Cancellation remains cooperative: blocking or cancellation-resistant work may still mutate after a deadline.
 6. **Python context state (fixed in the candidate).** Actual MCP SDK transport sessions own independent stacks capped at 16. Caller-supplied session strings never establish identity; stateless HTTP context mutation returns `SESSION_REQUIRED`. Local calls use a deliberate default scope.
 7. **Python `SseDecoder` frame cap (fixed in the candidate).** Decoded UTF-8 frames default to 1 MiB, counting metadata, comments and separators. Upstream reader line allocation remains outside this decoder.
-8. **Python defaults differ from TypeScript.**
-   - The bootstrap tools are always registered and MCP-exposed; in TypeScript they are opt-in.
+8. **Python defaults (fixed).** `grouped` is the default strategy (#1532) and the bootstrap tools are opt-in with `bootstrap=True` (#542), as in TypeScript.
 
 ### Priority 2: shared executors and cross-language tests
 

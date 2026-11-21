@@ -28,7 +28,7 @@ def _tool_names(server) -> set[str]:
 
 class TestToolStrategies:
     def test_individual_strategy_exposes_builtins_bootstrap_and_commands(self):
-        server = create_server("test-app", tool_strategy="individual")
+        server = create_server("test-app", tool_strategy="individual", bootstrap=True)
 
         @server.command(
             name="todo-create",
@@ -45,7 +45,7 @@ class TestToolStrategies:
         assert "todo-create" in tool_names
 
     def test_grouped_strategy_lists_the_meta_tools_then_the_groups(self):
-        server = create_server("test-app", tool_strategy="grouped")
+        server = create_server("test-app", tool_strategy="grouped", bootstrap=True)
 
         @server.command(
             name="todo-create",
@@ -579,6 +579,7 @@ def test_the_bootstrap_group_lists_the_context_tools_first():
     server = create_server(
         "test-app",
         contexts=[ContextConfig(name="reading"), ContextConfig(name="editing")],
+        bootstrap=True,
     )
     bootstrap = next(
         tool for tool in server.get_tool_definitions() if tool["name"] == "bootstrap"
@@ -591,3 +592,66 @@ def test_the_bootstrap_group_lists_the_context_tools_first():
         "docs",
         "schema",
     ]
+
+
+BOOTSTRAP_TOOLS = {"afd-help", "afd-docs", "afd-schema"}
+
+
+@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
+def test_bootstrap_tools_are_opt_in(strategy):
+    """Parity decision D5: as TypeScript's ``bootstrap`` option, off by default."""
+    default = create_server("test-app", tool_strategy=strategy)
+    assert not BOOTSTRAP_TOOLS & set(default._get_command_index())
+    assert not BOOTSTRAP_TOOLS & _tool_names(default)
+
+    opted_in = create_server("test-app", tool_strategy=strategy, bootstrap=True)
+    assert BOOTSTRAP_TOOLS <= set(opted_in._get_command_index())
+
+
+@pytest.mark.asyncio
+async def test_afd_help_is_not_found_without_bootstrap():
+    server = create_server("test-app", tool_strategy="individual")
+
+    result = await server.call_tool("afd-help", {})
+
+    assert result.success is False
+    assert result.error.code == "COMMAND_NOT_FOUND"
+
+
+def test_context_tools_do_not_need_bootstrap():
+    server = create_server(
+        "test-app", contexts=[ContextConfig(name="reading")], tool_strategy="individual"
+    )
+
+    names = _tool_names(server)
+    assert {"afd-context-list", "afd-context-enter", "afd-context-exit"} <= names
+    assert not BOOTSTRAP_TOOLS & names
+
+
+def test_default_instructions_name_the_bootstrap_tools_only_when_registered():
+    from afd.server.factory import default_instructions
+
+    sentence = "afd-help, afd-docs and afd-schema describe this server."
+    assert sentence not in default_instructions("srv", "grouped", [])
+    with_bootstrap = default_instructions("srv", "grouped", [ContextConfig(name="a")], True)
+    # spec/tool-strategies.md: the bootstrap sentence comes before the contexts sentence.
+    assert sentence in with_bootstrap
+    assert with_bootstrap.index(sentence) < with_bootstrap.index("Commands are scoped by context")
+
+
+def test_command_tools_carry_the_category_in_meta():
+    server = create_server("test-app", tool_strategy="individual")
+
+    @server.command(
+        name="todo-create",
+        description="Create a todo item",
+        category="todo",
+        input_schema=MathInput,
+        expose=ExposeOptions(mcp=True),
+    )
+    async def todo_create(input: MathInput):
+        return success({"total": input.value})
+
+    tool = next(tool for tool in server.get_mcp_tools() if tool["name"] == "todo-create")
+    assert tool["_meta"]["category"] == "todo"
+    assert next(iter(tool["_meta"])) == "category"

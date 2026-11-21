@@ -122,7 +122,7 @@ def test_define_command_rejects_an_invalid_policy():
 
 
 async def test_server_reports_approval_and_version_in_meta_detail_and_docs():
-    server = create_server("approval-meta", tool_strategy="individual")
+    server = create_server("approval-meta", tool_strategy="individual", bootstrap=True)
 
     @server.command(
         name="todo-delete",

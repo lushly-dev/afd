@@ -85,7 +85,7 @@ async def test_afd_detail_reports_the_title_when_set():
 
 @pytest.mark.asyncio
 async def test_afd_help_reports_the_title_in_the_full_format_only():
-    server = _server()
+    server = _server(bootstrap=True)
     full = to_wire(await server.call_tool("afd-help", {"format": "full"}))
     commands = {command["name"]: command for command in full["data"]["commands"]}
     assert commands["todo-create"]["title"] == "New todo"

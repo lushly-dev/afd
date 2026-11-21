@@ -220,7 +220,7 @@ async def test_a_call_without_a_required_field_fails():
 
 @pytest.mark.asyncio
 async def test_required_is_not_enforced_for_afd_commands_but_present_values_are_validated():
-    server = _server([_field(required=True)])
+    server = _server([_field(required=True)], bootstrap=True)
     help_result = await server.execute("afd-help", {})
     assert help_result.success
     result = await server.execute("scope-echo", {})
