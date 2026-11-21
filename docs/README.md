@@ -63,3 +63,4 @@ The [feature index](./features/README.md) lists every feature and its state.
 | [hosted-verification.md](./operations/hosted-verification.md), [hosted-verification-round.md](./operations/hosted-verification-round.md), [hosted-render.md](./operations/hosted-render.md) | Checking auth and durable persistence against hosted providers |
 | [model-routing.md](./operations/model-routing.md) | Which model and effort a development agent uses for which task |
 | [skills-audit-2026-11.md](./operations/skills-audit-2026-11.md) | The November 2026 audit of the repository's skills |
+| [factory-gateway.md](./operations/factory-gateway.md) | Running the Factory Gateway: checking it, tokens, configuration, updates, the App's key and recovery |
