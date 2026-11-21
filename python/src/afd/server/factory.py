@@ -723,13 +723,13 @@ class MCPServer:
         # (#1414): what the person was shown, not what this second validation gave (a default
         # that is random or reads the clock differs, and the step would then match no approval
         # after earlier steps ran). The step was still validated as sent just above, since a
-        # schema may check state an earlier step changed; only the value is kept. Only a command
-        # that may need approval: any other runs as it does on its own.
-        if getattr(command, "approval", None) not in (None, "not-required"):
-            up_front = current_up_front_approval()
-            approved = None if up_front is None else await up_front.validated(name, input)
-            if approved is not None:
-                data = approved[0]
+        # schema may check state an earlier step changed; only the value is kept. Every step, not
+        # only one whose command declares a policy: a gate given only in the approval middleware's
+        # list binds the input validated up front too. A step no approval covers runs as validated.
+        up_front = current_up_front_approval()
+        approved = None if up_front is None else await up_front.validated(name, input)
+        if approved is not None:
+            data = approved[0]
 
         # Declared context fields, validated in context.extra before any middleware runs.
         invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
