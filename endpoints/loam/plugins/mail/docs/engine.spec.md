@@ -708,7 +708,8 @@ says which role.
   only by the UIDs below the next UID the mailbox had when opened, the moment its `EXISTS`
   describes; a message the mailbox shows at or past that UID, such as a copy the engine made
   during the pass, is in the answer and is never ended here. A server that gives no `UIDNEXT` is
-  not checked this way at all, since new mail could not be told from old. On a
+  checked this way only when its `EXISTS` said the mailbox was empty, since new mail could not be
+  told from old. On a
   server whose `EXISTS` counts messages it never returns, each such message hides one departure
   for good; iCloud's does not count them.
 - **Flags** are kept as the server gives them, with the system flags written one way whatever
