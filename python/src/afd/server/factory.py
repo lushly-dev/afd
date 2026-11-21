@@ -248,6 +248,7 @@ class MCPServer:
         self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state = SessionContextState()
         self._bootstrap_commands: list[CommandDefinition] | None = None
+        self._names_key: tuple[Any, ...] | None = None
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
@@ -398,15 +399,27 @@ class MCPServer:
     def _check_reserved_names(self) -> None:
         """Refuse a registered command that has the name of a built-in that is on.
 
-        ``register`` refuses one at once. This check, run before each request, also
-        catches a command added through ``server.registry`` directly, a built-in turned
-        on (``config.bootstrap``, ``config.contexts``) after registration, and a
-        definition renamed after registration. It is not cached, so each of those is
-        caught on the next request.
+        ``register`` refuses one at once. This check, run before each tools/list and
+        command call, also catches a command added through ``server.registry`` directly,
+        a built-in turned on (``config.bootstrap``, ``config.contexts``) after
+        registration, and a definition renamed after registration. When the options or
+        the registered names have changed since the last request, the built-ins, the
+        command index and the router are rebuilt, so no lookup uses a stale name.
         """
+        commands = self._registry.list()
+        key = (
+            self.config.bootstrap,
+            tuple(context.name for context in self.config.contexts or ()),
+            tuple(id(command) for command in commands),
+            tuple(command.name for command in commands),
+        )
+        if key != self._names_key:
+            self._bootstrap_commands = None
+            self._invalidate_caches()
+            self._names_key = key
         if not (self.config.bootstrap or self.config.contexts):
             return
-        for command in self._registry.list():
+        for command in commands:
             reserved = self._reserved_name_error(command.name)
             if reserved is not None:
                 raise ValueError(reserved)

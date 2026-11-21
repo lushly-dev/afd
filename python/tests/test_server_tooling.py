@@ -784,3 +784,23 @@ async def test_a_definition_renamed_after_registration_is_refused_before_a_reque
     server.registry.get("app-help").name = "afd-help"
     with pytest.raises(ValueError, match="'afd-help' is reserved"):
         await server.execute("afd-help", {})
+
+
+@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
+async def test_renaming_after_a_refusal_leaves_no_stale_dispatch_key(strategy):
+    """Following the error's advice (rename) must not leave the old name reaching the
+    application: the built-ins, index and router are rebuilt when names change."""
+    server = create_server("test-app", tool_strategy=strategy)
+    _register(server, "afd-help")
+    assert (await server.execute("afd-help", {})).data == {"mine": True}  # caches built
+
+    server.config.bootstrap = True
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
+    server.registry.get("afd-help").name = "app-help"
+
+    builtin = await server.execute("afd-help", {})
+    assert builtin.success is True
+    assert builtin.data != {"mine": True}
+    routed = await server.call_tool("afd-call", {"command": "afd-help", "input": {}})
+    assert getattr(routed, "data", None) != {"mine": True}
