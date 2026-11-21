@@ -166,7 +166,9 @@ A folder's own modification time does not change when files deeper inside it cha
 not used. A worktree's last activity is the newest of:
 
 - git's record for that worktree (`HEAD`, `index` and `logs/HEAD` in the repository's
-  `worktrees/<id>` folder), which changes on checkout, commit and staging;
+  `worktrees/<id>` folder), which changes on checkout, commit and staging. For `logs/HEAD` it is
+  the earlier of the file's time and its last entry's timestamp: `git gc` rewrites every
+  worktree's reflog without adding an entry (#1814);
 - the modification time of any file git reports as changed or untracked;
 - the top level of each declared build-output folder.
 

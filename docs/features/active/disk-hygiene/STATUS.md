@@ -14,6 +14,28 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### After prevention, 2026-11-21 (#1693, #1687, #1814)
+
+- **Upgrade.** All three machines run main `cf8d067c5` (still reported as 0.7.0 until the release, #1692),
+  all healthy, with tier 2 off. Idle worktrees: Air Lushly 120 (118 T3 Code's) and afd 29;
+  Random Lushly 38 and afd 20; Hero Lushly 9 and afd 20. The warning fires on the Air for both
+  and on Random for Lushly, until #1686's rules are on. Hero's dry run planned 216 GB in 546
+  strips for its next daily run. No Cargo warning anywhere.
+- **`git gc` made every worktree look active.** A gc in the Air's Lushly repository rewrote all
+  154 worktrees' `logs/HEAD` (`git reflog expire --all` does that even when nothing expires), and
+  the idle count dropped from 120 to 0. Their `HEAD` and `index` were untouched. The same reset
+  held back tier 1 and tier 2 wherever gc runs more often than their limits. A reflog's time is
+  now the earlier of the file's time and its last entry's timestamp (#1814).
+- **The old cleanup agent's archives (#1687).** Deleted 23 full payload tars from
+  `20261120T082739Z-air-refresh` (140 GiB freed; `/Volumes/Dev` at 719 GiB free): 4 whose
+  verified compact archives exist, and 19 whose original worktrees are still on disk, so the
+  tar was a second copy. Kept `t3-d567fd3e`'s full tar (0.9 GiB; its original is gone and it has
+  no compact archive), all manifests, receipts and git-admin tars, and both bundles (verified
+  with `git bundle verify`). `DELETION-20261121.json` in that folder lists each deleted tar and its
+  SHA-256. The three 2026-11-20 run folders are `[[aged]]` folders on the Air at 30 days, so the
+  hourly job clears them around 2026-12-21. The 2026-11-13 and 2026-11-16 runs (~53 GiB) wait
+  for the owner.
+
 ### The machines before prevention, 2026-11-20 (#1695)
 
 - **T3 Code's worktree folder** is the same on both Macs, since its settings match: `~/dev` on
@@ -91,7 +113,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - T3 Code's storage cleanup on each machine (#1686): waiting for the owner.
 
-- The old cleanup agent's archives (#1687): waiting for the owner's decision.
+- The old cleanup agent's archives (#1687): the full payloads deleted 2026-11-21, the rest
+  kept 30 days (see Findings); the two older runs wait for the owner.
 
 ## Phase 1. Report and the safe tiers
 
@@ -117,4 +140,6 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 4. Prevention
 
-- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): in PR #1728.
+- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): merged in #1728 on 2026-11-21.
+
+- `git gc` no longer makes every worktree look active (#1814): in this pull request.

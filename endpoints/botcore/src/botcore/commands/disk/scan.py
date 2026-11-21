@@ -25,6 +25,8 @@ DAY = 86400.0
 NEVER_ENTER = {".git", "node_modules", ".venv", "venv", "__pycache__"}
 # How deep a `**` pattern is searched. afd's main checkout passes 12 inside CMake-fetched sources.
 MAX_DEPTH = 32
+# How much of a reflog's end is read to find its last entry; one entry is a line.
+REFLOG_TAIL = 64 * 1024
 
 
 def long_path(path: Path | str) -> str:
@@ -313,6 +315,33 @@ def _mtime(path: Path) -> float | None:
         return None
 
 
+def reflog_time(path: Path) -> float | None:
+    """When a reflog last moved: the earlier of the file's time and its last entry's timestamp.
+
+    `git gc` runs `git reflog expire --all`, which rewrites every worktree's reflog without
+    adding an entry, so the file's time alone makes every worktree look just used. An entry
+    dated in the past by `GIT_COMMITTER_DATE` still leaves `HEAD` or `index` recent.
+    """
+    modified = _mtime(path)
+    if modified is None:
+        return None
+    try:
+        with open(long_path(path), "rb") as handle:
+            handle.seek(max(0, handle.seek(0, os.SEEK_END) - REFLOG_TAIL))
+            tail = handle.read()
+    except OSError:
+        return modified
+    lines = [line for line in tail.split(b"\n") if line.strip()]
+    if not lines:
+        return modified
+    # `<old> <new> <name> <email> <seconds> <zone>\t<message>`
+    fields = lines[-1].split(b"\t", 1)[0].rsplit(b" ", 2)
+    try:
+        return min(modified, float(int(fields[-2])))
+    except (IndexError, ValueError):
+        return modified
+
+
 def last_activity(
     worktree: Path, admin: Path | None, changed: list[str], build_dirs: list[Path],
 ) -> float | None:
@@ -320,7 +349,8 @@ def last_activity(
     times: list[float] = []
     if admin is not None:
         for name in ("HEAD", "index", "logs/HEAD", "ORIG_HEAD", "FETCH_HEAD"):
-            value = _mtime(admin / name)
+            path = admin / name
+            value = reflog_time(path) if name == "logs/HEAD" else _mtime(path)
             if value is not None:
                 times.append(value)
     for rel in changed:

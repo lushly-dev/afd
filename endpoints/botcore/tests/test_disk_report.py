@@ -15,7 +15,7 @@ import pytest
 from click.testing import CliRunner
 from pydantic import ValidationError
 
-from botcore.commands.disk import caches, report
+from botcore.commands.disk import caches, report, scan
 from botcore.commands.disk.git import parse_worktree_list
 from botcore.commands.disk.scan import Processes, busy_reason, compile_pattern
 from botcore.config import DiskConfig
@@ -156,6 +156,43 @@ def test_idle_worktree_is_tier_1_and_fresh_one_waits(repo: dict[str, Path]) -> N
     assert by["main"]["tier"] == 3 and "main checkout" in by["main"]["reasons"]
     assert not any(s["ready"] for s in by["main"]["strip"])
     assert data["totals"]["tier1_worktrees"] == 1
+
+
+def date_reflog(reflog: Path, when: float) -> None:
+    """Give every entry of a reflog the timestamp `when`, as if each was written then."""
+    lines = []
+    for line in reflog.read_text(encoding="utf-8").splitlines():
+        head, tab, message = line.partition("\t")  # an entry without a message may have no tab
+        prefix, _, zone = head.rsplit(" ", 2)
+        lines.append(f"{prefix} {int(when)} {zone}{tab}{message}\n")
+    reflog.write_text("".join(lines), encoding="utf-8")
+
+
+def test_git_gc_rewriting_reflogs_leaves_an_idle_worktree_idle(repo: dict[str, Path]) -> None:
+    old = repo["old"]
+    reflog = Path(git(old, "rev-parse", "--absolute-git-dir").strip()) / "logs" / "HEAD"
+    date_reflog(reflog, OLD)
+    age_worktree(repo["main"], old)
+    # What `git gc` runs: it rewrites every worktree's reflog, adding no entry. Set the file's
+    # time to now as well, so the test does not depend on the installed git rewriting it.
+    git(repo["main"], "reflog", "expire", "--all")
+    os.utime(reflog, None)
+    by = rows(run_report())
+    assert by["old"]["tier"] == 1 and by["old"]["idle_days"] >= 9
+
+
+def test_reflog_time_is_the_earlier_of_file_and_last_entry(tmp_path: Path) -> None:
+    reflog = tmp_path / "HEAD"
+    entry = "{} {} t <t@example.com> {} -0800\tcommit: x\n"
+    reflog.write_text(entry.format("0" * 40, "1" * 40, int(OLD)), encoding="utf-8")
+    assert scan.reflog_time(reflog) == pytest.approx(OLD, abs=1)  # rewritten now, entry old
+    os.utime(reflog, (OLD - 86400, OLD - 86400))
+    assert scan.reflog_time(reflog) == pytest.approx(OLD - 86400, abs=1)  # entry newer than file
+    reflog.write_text("not a reflog\n", encoding="utf-8")
+    assert scan.reflog_time(reflog) == pytest.approx(time.time(), abs=60)  # unreadable: file time
+    reflog.write_text("", encoding="utf-8")
+    assert scan.reflog_time(reflog) == pytest.approx(time.time(), abs=60)
+    assert scan.reflog_time(tmp_path / "missing") is None
 
 
 def test_tracked_and_unignored_paths_are_refused(repo: dict[str, Path]) -> None:
