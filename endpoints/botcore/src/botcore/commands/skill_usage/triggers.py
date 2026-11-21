@@ -26,17 +26,25 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
-from botcore.commands.skill_usage.collect import GIT_SECONDS, _strings, project_remote
+from botcore.commands.disk.settings import SettingsError
+from botcore.commands.skill_usage.collect import (
+    GIT_SECONDS,
+    _strings,
+    project_remote,
+    settings_refused,
+    skill_renames,
+)
 from botcore.commands.skill_usage.events import DELEGATE, EDIT, MAIN, PATHS, RECOGNIZER, SUBAGENT
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
-    STALE_AFTER,
     _inventory,
     _mapping,
     _parse,
     current_name,
+    record_warnings,
+    skills_on_disk,
 )
-from botcore.commands.skill_usage.store import load_events, load_sessions, load_state, state_dir
+from botcore.commands.skill_usage.store import InvalidMachine, load_record, local, state_dir
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
 
@@ -61,8 +69,12 @@ _UNKNOWN = (
     "no_link_time",
     "after_opening",
     "possibly_loaded",
+    "incomplete_record",
 )
 LOADED, MISSED = "loaded", "missed"
+# A load's time is its machine's and a merge's is the forge's: a load this soon after the
+# merge may have come before it, and is no ground for a miss
+CLOCKS = timedelta(minutes=5)
 
 
 @dataclass
@@ -226,8 +238,9 @@ def _judge(
     `missed` or the reason it is unknown; and, when loaded, whether only by a subagent."""
     verdicts: set[str] = set()
     own_agent = False
+    merged_by = change.at + CLOCKS
     for session_id, opened_at in openers.items():
-        before_merge = [load for load in loads.known.get(session_id, []) if load[0] <= change.at]
+        before_merge = [load for load in loads.known.get(session_id, []) if load[0] <= merged_by]
         by_opening = [load for load in before_merge if opened_at and load[0] <= opened_at]
         if opened_at is None or opened_at > change.at:
             verdicts.add("no_link_time")  # the record does not place the opening before the merge
@@ -237,7 +250,7 @@ def _judge(
         elif before_merge:
             verdicts.add("after_opening")  # at a review or a repair: after the change was made
         elif any(
-            moment <= change.at
+            moment <= merged_by
             for near in (session_id, *sorted(_near(sessions, session_id)))
             for moment in (
                 *loads.unsure.get(near, []),
@@ -267,7 +280,8 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     and `unknown_why` gives the reason: the change has no pull request of its own, no session
     in the record is linked to it, no session linked to it is known to have opened it, the
     record does not place the opening before the merge, the session loaded the skill only
-    after opening it, or the skill may have been loaded where the record cannot be sure.
+    after opening it, the skill may have been loaded where the record cannot be sure, or the
+    record does not yet reach the change's merge on every machine.
 
     Args:
         days: Length of the window in days.
@@ -303,9 +317,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         )
     directory = state_dir()
     try:
-        events, unreadable = load_events(directory)
-        state = load_state(directory)
-        sessions = load_sessions(directory)
+        here = local()
+        record = load_record(directory, here)
+    except (SettingsError, InvalidMachine) as exc:
+        return settings_refused(exc)
     except OSError as exc:
         return _fail(
             "RECORD_UNAVAILABLE",
@@ -313,19 +328,25 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "Check that it is a folder this user can read, or set BOTCORE_SKILL_USAGE_STATE to "
             "the folder that holds the record",
         )
-    if not events and not state:
+    events, state, sessions = record.events, record.state, record.sessions
+    if not events and not state and not record.collected:
         return _fail(
             "NOT_COLLECTED",
             "This machine has no skill usage record yet",
             "Run skill-usage-collect first; it reads what the harnesses recorded",
         )
-    if unreadable:
-        return _fail(  # a lost load would turn a change into a miss
+    if record.damaged:  # a lost load would turn a change into a miss
+        whose = ", ".join(
+            "this machine" if machine == here.machine else machine
+            for machine in sorted(record.unreadable)
+        )
+        return _fail(
             "RECORD_DAMAGED",
-            f"{unreadable} lines of the skill usage record cannot be read, so no change can be "
-            "judged from it",
-            "Run skill-usage-collect --rebuild: it reads the store again and writes the record "
-            "without the damaged lines",
+            f"{record.damaged} lines of the skill usage record cannot be read ({whose}), so "
+            "no change can be judged from it",
+            "Run skill-usage-collect --rebuild on that machine: it reads the store again and "
+            "writes the record without the damaged lines. Another machine's copy in the "
+            "shared folder may only be half synced: try again once it is",
         )
 
     projects = _mapping(state.get("projects"))
@@ -355,8 +376,30 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "Check that it is a git checkout this user can read, and run it again",
         )
 
+    # The checkout in hand says what its skills are called now, whether or not this machine
+    # ever collected in it; then this machine's collection; then the other machines'
     renames, on_disk = _inventory(projects)
-    project_renames, held = renames.get(project, {}), on_disk.get(project, {})
+    project_renames = {
+        **record.renames.get(project, {}),
+        **renames.get(project, {}),
+        **(skill_renames(root) or {}),
+    }
+    held = skills_on_disk(str(root)) or on_disk.get(project, {})
+
+    # A miss needs every machine's record up to the change's merge: a load made on another
+    # machine, or after this one last collected, is a load all the same. Every machine is
+    # waited for but those the owner names as away; this machine always is.
+    waits = {
+        machine: _parse(when)
+        for machine, when in record.collected.items()
+        if machine == here.machine or machine not in here.away
+    }
+    awaited: set[str] = set()  # the machines a change that would be a miss is waiting for
+
+    def certain(change: Change) -> bool:
+        late = {name for name, moment in waits.items() if moment is None or moment < change.at}
+        awaited.update(late)
+        return record.whole and not late
 
     def named(skill: str) -> str:
         return current_name(skill, project_renames, held)
@@ -406,6 +449,8 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
                     change, openers, loads.get(skill, _Loads({}, {})), sessions
                 )
                 by_subagent += only_subagent
+                if verdict == MISSED and not certain(change):
+                    verdict = "incomplete_record"
             else:
                 attached = change.number in links.attached
                 verdict = "opened_elsewhere" if attached else "no_session"
@@ -431,17 +476,18 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             }
         )
 
-    warnings: list[str] = []
-    collected = _parse(state.get("collected_at"))
-    if collected is None or now - collected > STALE_AFTER:
-        when = state.get("collected_at") or "never"
-        warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
-    if outdated and not (
-        isinstance(state.get("recognizer"), int) and state["recognizer"] >= RECOGNIZER
-    ):
+    warnings = record_warnings(record, here, now)
+    if outdated and not (record.recognizer is not None and record.recognizer >= RECOGNIZER):
         warnings.append(  # a load an older botcore did not know reads as a miss
             f"{outdated} events were recognised by an older botcore, which may have missed "
             "loads: run skill-usage-collect --rebuild to read them again"
+        )
+    if awaited:
+        warnings.append(
+            f"No change is called missed until every machine has collected since it merged, "
+            f"and {', '.join(sorted(awaited))} had not for some: run skill-usage-collect "
+            "there. A machine that is switched off can be named in skill_usage_away in this "
+            "machine's settings, and is then not waited for"
         )
     if links.unsaid:
         warnings.append(
@@ -474,8 +520,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "rules": report,
             "record": {
                 "state_dir": str(directory),
-                "machines": sorted({event.machine for event in events}),
+                "shared": str(record.shared) if record.shared else None,
+                "machines": sorted({event.machine for event in events} | set(record.collected)),
                 "collected_at": state.get("collected_at"),
+                "collected": dict(sorted(record.collected.items())),
             },
             "warnings": warnings,
         },

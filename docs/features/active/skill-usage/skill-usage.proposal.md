@@ -255,7 +255,19 @@ can be opened. Otherwise it is unknown, never a miss:
   fork carries the conversation of the session it came from, which had loaded it or
   delegated a task that did, or the record holds an event of a kind this botcore does not
   know. A sibling's load is none of these, nor the load of the session that delegated the
-  opener.
+  opener;
+- the record does not reach the change's merge on every machine (`incomplete_record`): a
+  machine last collected before the change merged, a machine's copy in the shared folder is
+  not whole, or the shared folder was not there. A load made on another machine, or since
+  this one last collected, is a load all the same, so until every machine has collected past
+  the merge the change waits, and the report names the machines it waits for. Every machine
+  with a record is waited for, however long it has been silent: it may have been working
+  all the while with its collection stopped. A machine the owner knows is switched off is
+  named in `skill_usage_away`, in the settings of the machine the report is read on, and is
+  then not waited for. This machine is always waited for: it can collect.
+
+A load's time is its machine's and a merge's is the forge's. A load up to five minutes after
+the merge may have come before it, and is no ground for a miss.
 
 A record with a line it cannot read judges nothing: a lost load would make a miss. Nothing is
 collected for the rules, so a rule declared today judges the record as it stands. A record an
@@ -291,12 +303,75 @@ repository requires is that repository's decision: this one declares none yet.
 
 ### Every machine
 
-Collection runs with botcore's hourly job, and a failure that lasts shows in that job's
-status, where a session's preflight reads it: the record cannot be refilled once T3 Code has
-dropped the threads. A machine may name a shared folder, any folder every machine can see,
-whether a synced drive or a checkout; collection then also writes its record there under the
-machine's name, and a report reads every machine's. The folder holds session ids, project
-names and pull request numbers, so it must be private. Botcore does not sync it.
+Collection runs inside botcore's hourly job, the one `disk-setup` installs, every hour
+whether or not a reclaim is due. It runs after the disk work, in a thread the job leaves
+behind after five minutes, so that nothing a harness's store or a shared drive does can fail,
+delay or hold the disk work. The job keeps when collection last worked and since when it has
+not. `disk-status`, which a session's preflight reads, warns of a failure at once and calls
+it a problem once it has failed for a day: the record cannot be refilled once T3 Code has
+dropped the threads.
+
+A machine says three things in its machine settings (`disk.toml`):
+
+```toml
+skill_usage_machine = "random"              # its name in the record
+skill_usage_shared = "~/Shared/skill-usage"  # a folder every machine can see, as a full path
+skill_usage_collect = false                 # only to turn the hourly collection off
+skill_usage_away = ["hero"]                 # machines a triggers report read here does not wait for
+```
+
+A name is a folder's name on every system: lower case (a shared drive does not tell `Bench`
+from `bench`), with no name Windows keeps for a device. `disk-setup` writes the machine's
+hostname down as its name once, since a hostname changes with the network. A name or a folder
+that cannot be used stops the collection and never the disk work.
+
+The shared folder is any folder every machine can see, whether a synced drive or a checkout.
+After each collection a machine writes its record to a folder of its own name there:
+
+- **What it understood, not its files as they lie.** Its events and sessions are written
+  again from what was read, with the fields this module writes and no other. A line that
+  could not be read stays on the machine, and the state says how many there are. Of its
+  state it shares when it collected, under which rules, and each project's renamed skills,
+  so that a reader with no checkout of a project still knows a skill by its name now. Never
+  its folders.
+- **Only what changed**, so a sync has little to send, and the state last. The state names
+  the other two files by their digests.
+- **Only its own folder.** Each record has an id. A folder that holds another record under
+  the same name is not written over: two machines that took one name would each hide the
+  other. Nor is the machine's own record, where the shared folder was pointed at it.
+
+The usage report and the triggers report read this machine's record and every other machine's
+folder, each event and session once, and the same whichever machine reads. A thread moved
+between machines is one session: the later entry's fields, each kept from the earlier where
+the later does not know it, every pull request either saw, and of two times for one opening
+the earlier. A thread moved to a machine is read there from its start.
+
+Both reports name a machine whose collection is over a day old. A sync delivers files one at
+a time, and a machine's new sessions read with its old events would show a session that
+opened a pull request and loaded nothing. So a copy is parsed from the very bytes whose
+digests were checked, and one whose files are not those its state names is not read, and is
+named. So is a folder that cannot be read or is not a machine's, and an empty one that
+bears a machine's name: a sync makes a folder before it fills it. While any is named, and
+while the shared folder is not there, the triggers report calls no change a miss. A
+machine's record with a line that cannot be read is named too, and the triggers report then
+judges nothing, as it does for this machine's.
+
+The folder holds session ids, project names and pull request numbers, so it must be private.
+Botcore does not sync it and never creates it: a folder that is not there is a drive or a
+sync that is away, so the collection says so and the record stays whole on the machine.
+
+A machine renamed after it has collected keeps its old name on the events it wrote. Run
+`skill-usage-collect --rebuild` on it and remove its old folder from the shared one; events
+whose threads T3 Code has dropped keep the old name. A machine whose state was lost begins a
+new id and still writes its folder, since everything in the folder is in its record. One
+whose record was started again from less is a new record: remove its old folder from the
+shared one, which it will not write over.
+
+A collection cut short leaves its last line unfinished. The next one sees to it before it
+writes. A line that stops part way through an event is taken off: the collection that died
+never saved how far it had got, so that event is read again, and no report meets a line it
+cannot read. A line that holds a whole event and lacks only its end is closed, since that
+event is known already and would not be collected again.
 
 The first collection on each machine is run by hand as soon as phase 1 merges, without waiting
 for the schedule.
@@ -315,8 +390,16 @@ for the schedule.
 - **An audit the rule does not see.** One that takes longer than about 45 minutes (so that
   no half hour holds two thirds of the skills), one of a checkout that holds fewer than twelve
   skills, and one of a project whose checkout is not on the machine all count as use.
-- **A thread moved between machines** may be counted on both until phase 3 compares two
-  machines' records.
+- **A machine that has not synced.** Each machine's numbers end at its last collection that
+  reached the shared folder; the report gives that time for every machine.
+- **A machine named as away.** `skill_usage_away` is the owner's word that a machine was
+  switched off. If it was working, a load it holds is not in the record, and a change may be
+  called a miss until its record arrives.
+- **A machine that has never shared.** One with no folder in the shared one, because it
+  never collected or names no shared folder, is not known to the others and is not waited
+  for. A load only it holds is not in the record.
+- **A load two machines give to different sessions** is counted for both: once more than it
+  happened in the usage report, and never as a miss.
 - **What the triggers report cannot tell.** Whether the skill was still in the agent's
   context when it made the change: a long session that loaded it days before counts as
   loaded. Whether the load came before the change or at its review: both come before the

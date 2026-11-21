@@ -120,19 +120,35 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
-- It continues from the last collection and reads everything again once a week.
+- It continues from the last collection and reads everything again once a week. The hourly
+  job `disk-setup` installs runs it, so it is run by hand only for a first collection.
+- Several machines: each names itself and one shared folder in its machine settings
+  (`disk.toml`: `skill_usage_machine = "<name>"`, its hostname when left out, and
+  `skill_usage_shared = "<folder every machine can see>"`; `BOTCORE_SKILL_USAGE_MACHINE` and
+  `BOTCORE_SKILL_USAGE_SHARED` override them). Collection then also writes this machine's
+  record to `<shared>/<machine>/`, and the reports read every machine's. `shared` in the
+  result says whether the folder `exists` and was `written`; a folder that is not there, or
+  a machine's folder that holds another record of the same name (`error`), does not undo the
+  collection, and botcore never creates or syncs the shared folder. What is shared is what
+  was read, with this module's fields only: session ids, project names and pull request
+  numbers, and each project's renamed skills; never a folder of the machine or a line it
+  could not read. Keep it private. A name is lower case and fit for a folder on any system;
+  the shared folder is a full path.
 - `since_days`: re-read that many days instead
 - `t3_store`, `machine`: read a store copied from another machine, named by `machine`
-- `rebuild`: read everything and replace what an older botcore recognised
+- `rebuild`: read everything and replace what an older botcore recognised, or the name a
+  machine had before it was renamed
 - Errors: `SOURCE_SCHEMA_CHANGED` (this botcore cannot read this T3 Code release's store;
   nothing collected before is lost), `SOURCE_UNREADABLE`, `SOURCE_NOT_FOUND`,
-  `RECORD_UNAVAILABLE`, `COLLECT_RUNNING`, `INVALID_INPUT`. A machine with no T3 Code store
-  succeeds with `status: absent`.
+  `RECORD_UNAVAILABLE`, `COLLECT_RUNNING`, `MACHINE_SETTINGS_INVALID`, `INVALID_INPUT` (also a
+  machine's name that cannot name a folder). A machine with no T3 Code store succeeds with
+  `status: absent`.
 
 ## skill_usage_report(days=30, project=None, harness=None, ending_days_ago=0, skill=None,
 ##   agent=None, limit=50)
-Read-only. Skill use over `days` days from this machine's record; run `skill_usage_collect`
-first (`NOT_COLLECTED` otherwise).
+Read-only. Skill use over `days` days from this machine's record and, where its settings name
+a shared folder, every other machine's, each session once; run `skill_usage_collect` first
+(`NOT_COLLECTED` otherwise). `record.collected` says when each machine last collected.
 - Per skill: `sessions` that used it, `of_sessions` the project had and the `share`; `loads`;
   `typed_sessions` (the person asked for it); `harnesses`, `models`, `machines` (sessions by
   each); `agents` and `paths` (loads by `main`, `delegate` or `subagent`, and by `skill_tool`,
@@ -154,8 +170,11 @@ first (`NOT_COLLECTED` otherwise).
   `delegate` or `subagent`. `skill`: one skill. `ending_days_ago`: move the window back, to
   compare two periods. `limit`: skills listed, most used first; `more` counts the rest.
 - A project, harness or skill the record has never seen is `INVALID_INPUT` with the known
-  values, not an empty report. `warnings` says when the record is over a day old or holds
-  events an older botcore recognised. Also `RECORD_UNAVAILABLE`.
+  values, not an empty report. `warnings` says when a machine's record is over a day old,
+  when lines of one could not be read, when a folder in the shared one is not a whole copy
+  of a machine's record and was not read (a sync part way through, or not a machine's), when
+  the shared folder was not there, and when an older botcore recognised events. Also
+  `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`.
 
 ## skill_usage_triggers(days=30, repo=None)
 Read-only. For each skill a repository requires, the changes merged to its default branch in
@@ -180,17 +199,29 @@ declared today judges the record as it stands.
   opened it: a script, a person or a machine not collected did, or its link does not say),
   `no_link_time` (the record does not place the opening before the merge), `after_opening`
   (the skill was loaded only after the pull request was opened: at review, or for a later
-  push) and `possibly_loaded` (the opener
-  never loaded it, but a task it delegated or a session it was forked from did, or the record
-  holds an event of a kind this botcore does not know). A miss says the opener never loaded
-  the skill: an opener that only published another session's work is judged all the same.
+  push), `possibly_loaded` (the opener never loaded it, but a task it delegated or a session
+  it was forked from did, or the record holds an event of a kind this botcore does not know)
+  and `incomplete_record` (nothing on record says the opener loaded it, but the record does
+  not reach the merge on every machine: one last collected before it, a copy in the shared
+  folder is not whole, or the shared folder was not there; collect, or wait for the sync). A
+  load up to five minutes after the merge is no ground for a miss: two clocks. A miss says
+  the opener never loaded the skill: an opener that only published another session's work is
+  judged all the same.
 - `merged`: the branch that was read and its newest change; fetch the checkout when that is
   old. `warnings` says when links in the record do not say who opened them (collect again)
   and when an older botcore recognised its events (rebuild).
 - `repo`: the repository's checkout; the one holding the working directory when left out.
+- It reads every machine's record, as the usage report does, so a change opened on another
+  machine is judged here. A machine's copy that is not whole is not read, and is named in
+  `warnings`; while one is, no change is `missed`. Every machine with a record is waited for,
+  however long silent, and `warnings` names those a change waits for; a machine the owner
+  knows is switched off is named in `skill_usage_away` in this machine's settings
+  (`BOTCORE_SKILL_USAGE_AWAY`, comma-separated, overrides it) and is then not waited for.
+  This machine always is.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),
-  `RECORD_DAMAGED` (a line of the record cannot be read: rebuild), `RECORD_UNAVAILABLE`,
+  `RECORD_DAMAGED` (a line of a machine's record cannot be read: rebuild on that machine, or
+  wait for its copy to finish syncing), `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`,
   `INVALID_INPUT`.
 """,
     "docs": """\
@@ -318,11 +349,14 @@ needs a `max_gb` cap.
 
 ## disk_status()
 The job's state, the last applied run and its age, free space on watched volumes, and
-`problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
-when there are none. Session preflights read this. `warnings` do not affect `healthy`: each
-registered repository's idle-worktree warning from the last reclaim that counted it fully
-(older than 48 hours, it says when), and Cargo output no `[[aged]]` folder clears. Botcore
-Factory's `lane_status` shows them to the foreman as `diskWarnings`.
+`problems` (stale for over 48 hours, failures, low or unverified volumes, skill usage whose
+collection has failed for over a day). `healthy` is true when there are none. Session
+preflights read this. `warnings` do not affect `healthy`: each registered repository's
+idle-worktree warning from the last reclaim that counted it fully (older than 48 hours, it
+says when) and Cargo output no `[[aged]]` folder clears, both of which Botcore Factory's
+`lane_status` shows to the foreman as `diskWarnings`; and a skill usage collection that has
+failed for less than a day. `skill_usage` is the job's last collection: `ok`, `ok_at`, and
+when it failed `error` and `failing_since`.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
@@ -336,7 +370,9 @@ branch still points there, on a recreated branch if it was deleted, else detache
 ## disk_run(force=False)
 What the job runs: checks free space and exits, unless a watched volume is low or the last
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
-low.
+low. After the disk work it collects skill usage (`skill_usage_collect`), for at most five
+minutes: a failure, a wrong machine name or a collection that does not come back never fails
+or holds the job. `skill_usage_collect = false` in the machine settings turns it off.
 
 Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
 origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the

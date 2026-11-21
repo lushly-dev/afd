@@ -129,6 +129,8 @@ class T3Read:
     items: set[str] | None = None  # every item the store holds, when asked for
     scanned: int = 0
     newest: str | None = None
+    # The sessions with items older than where this read began: none of theirs was read
+    behind: set[str] = field(default_factory=set)
 
 
 def open_store(path: Path) -> sqlite3.Connection:
@@ -470,6 +472,10 @@ def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool =
     where, arguments = "", []
     if since:
         where, arguments = "and updated_at >= ?", [since]
+        older = connection.execute(
+            f"select distinct thread_id from {ITEMS} where updated_at < ?", [since]
+        )
+        result.behind = {family.session(str(row[0])) for row in older}
     result.newest = _text(connection.execute(f"select max(updated_at) from {ITEMS}").fetchone()[0])
     rows = connection.execute(
         f"""

@@ -66,6 +66,17 @@ class MachineSettings(BaseModel):
     # Absolute paths of the tools the scheduled job runs (git, pnpm, uv, gh, node), recorded
     # by setup because a scheduler does not start jobs with the user's shell PATH
     tools: dict[str, str] = {}
+    # Skill usage (the skill-usage commands): whether the scheduled job collects it; this
+    # machine's name in the record, its hostname when left out; and a folder every machine
+    # can see, where each also writes its record so that a report reads them all. The name
+    # and the folder are checked where they are used: a wrong one stops the collection, and
+    # never the disk work
+    skill_usage_collect: bool = True
+    skill_usage_machine: str | None = None
+    skill_usage_shared: str | None = None
+    # Machines the triggers report read here does not wait for before it calls a change a
+    # miss: ones the owner knows are switched off. It waits for every other machine
+    skill_usage_away: list[str] = []
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 
@@ -119,7 +130,7 @@ def load_machine_settings() -> tuple[MachineSettings, Path, bool]:
         return MachineSettings(), path, False
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
         raise SettingsError(f"{path}: {exc}") from exc
     try:
         return MachineSettings(**raw), path, True

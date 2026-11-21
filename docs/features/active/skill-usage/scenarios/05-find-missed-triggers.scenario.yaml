@@ -22,7 +22,7 @@ steps:
             loaded_by_subagent: 1
             missed: 3
             unknown: 2
-            unknown_why: { no_pull_request: 0, no_session: 1, opened_elsewhere: 1, no_link_time: 0, after_opening: 0, possibly_loaded: 0 }
+            unknown_why: { no_pull_request: 0, no_session: 1, opened_elsewhere: 1, no_link_time: 0, after_opening: 0, possibly_loaded: 0, incomplete_record: 0 }
             rate: 0.4
             misses:
               - { change: 101, sessions: [session-a] }

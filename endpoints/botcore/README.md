@@ -351,6 +351,15 @@ botcore skill-usage-triggers --days 30
 The loads are read from T3 Code's store, so nothing is added to a skill and no agent reports
 anything. The record never holds a prompt, a command or file contents.
 
+The hourly job that `botcore disk-setup` installs collects on its own. To read several
+machines as one, name each machine and one folder they all see (a synced drive, kept private)
+in each machine's settings, `disk.toml`:
+
+```toml
+skill_usage_machine = "laptop"
+skill_usage_shared = "~/Shared/skill-usage"
+```
+
 ## Development
 
 ```bash

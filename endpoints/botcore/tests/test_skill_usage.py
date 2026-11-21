@@ -37,8 +37,9 @@ def stamp(days_ago: float = 0.0, minutes: float = 0.0) -> str:
 class T3Store:
     """A store with the tables and columns the reader uses, filled a row at a time."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, prefix: str = "item") -> None:
         self.path = path
+        self.prefix = prefix  # T3 Code's ids are unique across machines; a test's must be too
         self.count = 0
         with self.connect() as connection:
             connection.executescript(
@@ -106,7 +107,7 @@ class T3Store:
         **payload: object,
     ) -> str:
         self.count += 1
-        item_id = f"item-{self.count}"
+        item_id = f"{self.prefix}-{self.count}"
         body = {"startedAt": at, "updatedAt": at, "status": "completed", **payload}
         if driver:
             body["nativeItemRef"] = {"driver": driver, "nativeId": native_id or f"n-{self.count}"}
@@ -799,7 +800,22 @@ def test_an_append_after_an_interrupted_write_loses_nothing(state: Path) -> None
     store.append_events(state, [event("b")])
     events, unreadable = store.load_events(state)
 
-    assert [found.id for found in events] == ["a", "b"] and unreadable == 1
+    # the half line is taken off: the collection that died never saved how far it had got,
+    # so the next one reads its events again, and no report meets a line it cannot read
+    assert [found.id for found in events] == ["a", "b"] and unreadable == 0
+    lines = (state / store.EVENTS_FILE).read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2 and "half-writ" not in "".join(lines)
+
+    (state / store.EVENTS_FILE).write_text('{"id": "only half a li', encoding="utf-8")
+    store.append_events(state, [event("c")])  # a file that is nothing but the half line
+    assert [found.id for found in store.load_events(state)[0]] == ["c"]
+
+    # a whole event that lacks only its line ending is known already, and is kept
+    whole = (state / store.EVENTS_FILE).read_text(encoding="utf-8").rstrip("\n")
+    (state / store.EVENTS_FILE).write_text(whole, encoding="utf-8")
+    store.append_events(state, [event("d")])
+    assert store.load_events(state) == (store.load_events(state)[0], 0)
+    assert [found.id for found in store.load_events(state)[0]] == ["c", "d"]
 
 
 # ── reporting ───────────────────────────────────────────────────────────────

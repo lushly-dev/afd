@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -17,15 +18,20 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.settings import SettingsError
 from botcore.commands.skill_usage import t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
+    InvalidMachine,
+    Local,
     append_events,
+    checked_machine,
     load_events,
     load_sessions,
     load_state,
-    machine_name,
+    local,
+    publish,
     rewrite_events,
     save_sessions,
     save_state,
@@ -134,7 +140,9 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
         if name is None:
             folder = Path(root)
             remote = project_remote(folder) if folder.is_dir() else None
-            name = remote or folder.name or project_id
+            # a store copied from another system writes its folders that system's way: the
+            # last part by either separator, never the whole path
+            name = remote or re.split(r"[\\/]+", root.rstrip("\\/"))[-1] or project_id
             if not remote and name in projects and not projects[name].get("remote"):
                 name = f"{name}~{hashlib.sha256(root.encode()).hexdigest()[:6]}"
             entry = projects.setdefault(name, {"remote": bool(remote), "roots": [], "renames": {}})
@@ -206,6 +214,41 @@ def _item(event: Event) -> str | None:
     return event.id.partition("@")[2] or None
 
 
+def settings_refused(exc: Exception) -> CommandResult[dict]:
+    """The refusal for machine settings that cannot say this machine's name or shared folder."""
+    if isinstance(exc, InvalidMachine):
+        return _failure(
+            "INVALID_INPUT", str(exc),
+            "Set skill_usage_machine (for example macbook-air) and skill_usage_shared (a "
+            "full path) in the machine settings, or BOTCORE_SKILL_USAGE_MACHINE and "
+            "BOTCORE_SKILL_USAGE_SHARED",
+        )  # fmt: skip
+    return _failure(
+        "MACHINE_SETTINGS_INVALID", f"The machine settings could not be read: {exc}",
+        "Fix the file it names, or move it aside: they say this machine's name and its "
+        "shared folder",
+    )  # fmt: skip
+
+
+def _published(result: CommandResult[dict], directory: Path, here: Local) -> CommandResult[dict]:
+    """A collection's result, after this machine's record went to the shared folder. A
+    shared folder that cannot be written does not undo the collection: the record here is
+    whole, and the next collection writes it there."""
+    if not result.success or here.shared is None or result.data is None:
+        return result
+    shared: dict = {"path": str(here.shared), "exists": here.shared.is_dir()}
+    try:
+        shared["written"] = publish(directory, here.shared, here.machine)
+    except OSError as exc:
+        shared["written"], shared["error"] = False, str(exc)
+        result.reasoning = (
+            f"{result.reasoning}. The shared folder could not be written ({exc}), so other "
+            "machines do not see this collection yet"
+        )
+    result.data["shared"] = shared
+    return result
+
+
 async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source can fail
     since_days: int | None = None, t3_store: str | None = None, machine: str | None = None,
     rebuild: bool = False,
@@ -236,11 +279,16 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
             "Pass machine with the name of the machine the store was copied from, or leave "
             "t3_store out to read this machine's own store",
         )  # fmt: skip
+    try:
+        here = local()
+        machine = checked_machine(machine) if machine else here.machine
+    except (SettingsError, InvalidMachine) as exc:
+        return settings_refused(exc)
     directory = state_dir()
     path = Path(t3_store).expanduser() if t3_store is not None else t3_store_path()
     if path is None:
         return success(
-            {"machine": machine or machine_name(), "state_dir": str(directory), "added": 0,
+            {"machine": machine, "state_dir": str(directory), "added": 0,
              "sources": [{"source": t3.SOURCE, "status": "off"}]},
             reasoning="T3 Code's store is turned off for this machine; nothing was read",
         )  # fmt: skip
@@ -252,13 +300,14 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
                 "t3_store out to read this machine's",
             )  # fmt: skip
         return success(
-            {"machine": machine or machine_name(), "state_dir": str(directory), "added": 0,
+            {"machine": machine, "state_dir": str(directory), "added": 0,
              "sources": [{"source": t3.SOURCE, "status": "absent", "path": str(path)}]},
             reasoning=f"This machine has no T3 Code store at {path}; nothing was read",
         )  # fmt: skip
     try:
         with RunLock(directory / LOCK_FILE):
-            return _collect(directory, path, since_days, machine or machine_name(), rebuild)
+            result = _collect(directory, path, since_days, machine, rebuild, here.machine)
+            return _published(result, directory, here)
     except LockHeld:
         return _failure(
             "COLLECT_RUNNING", "Another skill-usage-collect is running on this machine",
@@ -284,8 +333,9 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
         )  # fmt: skip
 
 
-def _collect(
+def _collect(  # noqa: PLR0913 - one collection's inputs
     directory: Path, path: Path, since_days: int | None, machine: str, rebuild: bool,
+    this_machine: str,
 ) -> CommandResult[dict]:  # fmt: skip
     stored, _ = load_events(directory)
     state = load_state(directory)
@@ -307,6 +357,11 @@ def _collect(
         since = _stamp(newest - OVERLAP)
 
     found = _read_t3(path, since, all_items=rebuild)
+    if since is not None and any(session_id not in sessions for session_id in found.behind):
+        # a session this record has never seen, with work older than the last collection,
+        # was moved to this machine: what it did before is behind where this read began
+        since = None
+        found = _read_t3(path, since, all_items=rebuild)
     projects, names = _name_projects(_mapping(state.get("projects")), found.projects)
     known_ids = {event.id for event in stored}
     known_skills = {(event.project, event.skill) for event in stored}
@@ -348,7 +403,9 @@ def _collect(
         directory,
         {
             "version": STATE_VERSION,
-            "machine": machine_name(),
+            "machine": this_machine,
+            # what tells this record from another machine's of the same name
+            "record_id": state.get("record_id") or uuid.uuid4().hex,
             "collected_at": _stamp(now),
             # the rules every event still re-readable was recognised by: a rebuild, or a
             # record that began under them

@@ -11,6 +11,17 @@ from pydantic import BaseModel, ConfigDict
 from botcore.plugin import PluginRegistry
 
 
+@pytest.fixture(autouse=True)
+def _no_real_skill_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test reads this machine's T3 Code store or writes its skill usage record, its
+    shared folder least of all: the scheduled job collects, and several tests run that job."""
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_T3_STORE", "")
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_STATE", str(tmp_path / "skill-usage-record"))
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_SHARED", "")
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_AWAY", "")
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_MACHINE", "bench")
+
+
 @pytest.fixture()
 def tmp_workspace(tmp_path: Path) -> Path:
     """Create a temp workspace with a valid pyproject.toml [tool.botcore] section."""
