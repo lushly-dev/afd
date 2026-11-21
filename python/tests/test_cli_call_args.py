@@ -2,6 +2,7 @@
 ``key=value`` arguments and ``-H``/``AFD_HEADERS`` request headers (#1822), as
 ``packages/cli/src/args.ts`` and ``credentials.ts``."""
 
+import json
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
@@ -266,3 +267,39 @@ def test_call_followed_by_a_tab_is_a_call(transport, monkeypatch):
 def test_an_unknown_command_keeps_emoji_codes_literal(transport, monkeypatch):
     outcome = _shell(transport, monkeypatch, "unknown :smile:")
     assert "Unknown command: unknown :smile:" in outcome.output
+
+
+@pytest.mark.parametrize("command", [["--json", "tools"], ["--json", "tools", "--detail", "todo-[x]"]])
+def test_json_output_keeps_server_text_exact(transport, command):
+    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    outcome = CliRunner().invoke(cli, [*command, "-s", "http://x/mcp"])
+    assert outcome.exit_code == 0, outcome.output
+    assert "See [/example] :smile:" in json.loads(outcome.output).__repr__()
+
+
+def test_status_json_keeps_the_saved_server_exact(transport):
+    _cli_main._save_state({"server": "http://x/mcp?q=:smile:"})
+    outcome = CliRunner().invoke(cli, ["--json", "status"])
+    assert json.loads(outcome.output)["server"] == "http://x/mcp?q=:smile:"
+
+
+def test_surface_findings_print_command_names_as_written(transport):
+    transport.list_tools.return_value = [
+        ToolInfo(name="foo[/x]", description="x", input_schema={"type": "object"}, meta={"mutation": False}),
+    ]
+    outcome = CliRunner().invoke(cli, ["validate", "--surface", "--verbose", "-s", "http://x/mcp"])
+    assert "closing tag" not in outcome.output
+    assert "foo[/x]" in outcome.output
+
+
+def test_the_shell_help_shows_the_args_placeholder(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "help")
+    assert "call <tool> [args]" in outcome.output
+
+
+def test_a_long_description_is_cut_after_escape_codes_are_removed(transport):
+    visible = "d" * 57
+    transport.list_tools.return_value = [ToolInfo(name="t", description=f"\x1b[31m{visible}\x1b[0m")]
+    outcome = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
+    assert visible in outcome.output.replace("\n", "").replace("│", "").replace(" ", "")
+    assert "..." not in outcome.output

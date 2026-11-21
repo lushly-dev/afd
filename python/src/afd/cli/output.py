@@ -220,8 +220,8 @@ def print_tools(tools: list[ToolInfo]) -> None:
     table.add_column("Description", style="dim")
 
     for tool in sorted(tools, key=lambda t: t.name):
-        description = tool.description or ""
-        # Truncate long descriptions
+        # Sanitize before truncating, so invisible escape codes do not count.
+        description = terminal_text(tool.description or "")
         if len(description) > 60:
             description = description[:57] + "..."
         cell = plain(description) if description else Text("No description", style="dim")
