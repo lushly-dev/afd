@@ -1818,10 +1818,19 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
                                   "afd::register_context_commands(registry, contexts) first");
             }
         }
-        // The server and the context tools must serve the same contexts.
+        // The server and the context tools must serve the same contexts. The handler is read
+        // directly, outside the registry, so only one that needs no approval is: the registry
+        // would refuse a gated one that no approval step admitted.
+        const auto context_list = registry.get("afd-context-list");
+        const auto mode = approval_mode(context_list->definition.approval);
+        if (mode && *mode != ApprovalMode::not_required) {
+            return unexpected(std::string(
+                "afd-context-list declares an approval policy, so the server cannot read the "
+                "contexts it serves: register the context commands without one "
+                "(afd::register_context_commands)"));
+        }
         CommandContext probe;
-        const Json listed(
-            registry.get("afd-context-list")->definition.handler(Json::object(), probe));
+        const Json listed(context_list->definition.handler(Json::object(), probe));
         std::set<std::string> registered;
         if (listed.contains("data") && listed["data"].contains("contexts")) {
             for (const auto& entry : listed["data"]["contexts"]) {
