@@ -277,9 +277,11 @@ botcore init
 # Non-interactive (agent-safe) — accepts all defaults
 botcore init --non-interactive
 
-# Start the MCP server
+# Start the MCP server over stdio
 botcore serve
 ```
+
+`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, build a managed host (`create_host_mcp_server`) with an explicit command policy and host tokens.
 
 For agentic setup with structured output:
 

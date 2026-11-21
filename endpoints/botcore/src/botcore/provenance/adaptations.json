@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "3559cf87cea0e8336211d74306af4431972cebf648987ddc367b3c02dd080fcb",
+      "current_import_sha256": "111dceb1236f378e5c8500319cb564835f69b7225c95c15d442734576fea4fe6",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so"
     },
     {
       "path": "SETUP.md",
@@ -2120,11 +2120,11 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "4f4e4554f309e040d5b84d5ce6bd76c1bb45e1bfc8869a52b9293ad93e7cc56f",
+      "current_import_sha256": "38f566e17956d4e502753e39100d879febe2d3242becbcbf4d60ab6560c4da12",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so"
     },
     {
       "path": "src/botcore/commands/__init__.py",
@@ -6029,11 +6029,11 @@
       "path": "tests/test_cli.py",
       "upstream_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
       "staged_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
-      "current_import_sha256": "0ed63e97a223bfba1b694c47efa6417e686e391f301e84f6cb9031c838ab52e5",
+      "current_import_sha256": "b8d0a6acc37b90e007d48708e8de2c98722c1053abb1974df2d1e40ab933da95",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes"
+      "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes; botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so"
     },
     {
       "path": "tests/test_config.py",

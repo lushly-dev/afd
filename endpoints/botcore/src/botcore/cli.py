@@ -302,10 +302,24 @@ def init(
     "--transport",
     default="stdio",
     type=click.Choice(["stdio", "sse"], case_sensitive=False),
-    help="Transport type",
+    help="Transport: stdio. sse is refused, since the server runs any Python its client sends",
 )
 def serve(name: str, transport: str) -> None:
-    """Start the botcore MCP server."""
+    """Start the trusted-local botcore MCP server over stdio.
+
+    Its run tool executes any Python its client sends, with your permissions, so it serves only
+    the client that started it, over stdio. To serve commands over HTTP, use a managed host
+    (create_host_mcp_server) with host tokens.
+    """
+    if transport.lower() != "stdio":
+        click.secho(
+            "Error: botcore serve runs any Python its client sends, so it serves only over stdio, "
+            "to the client that started it. To serve commands over HTTP, build a managed host "
+            "(botcore.host_surfaces.create_host_mcp_server) with an explicit command policy and "
+            "host tokens (botcore host-token issue).",
+            fg="red", err=True,
+        )
+        sys.exit(2)
     try:
         from botcore.server import create_mcp_server
 
