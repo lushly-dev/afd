@@ -16,6 +16,7 @@
 #include "afd/json.hpp"
 
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,15 +27,16 @@ namespace afd::detail {
 struct AdmittedCall {
     std::string name;
     /// The canonical JSON of the input; unset when the command declares no gating policy or the
-    /// input has none (it is then compared by identity).
+    /// input has none, which a gated dispatch never accepts.
     std::optional<std::string> canonical;
-    const Json* input = nullptr;
 };
 
-/// One call's admission record. Opaque outside the library.
+/// One call's admission record. Opaque outside the library. `admitted` and `taken` are read and
+/// written under `mutex`, since middleware may call `next` from several threads at once.
 struct ApprovalAdmission {
     /// The command the call runs, as registered.
     std::shared_ptr<const CommandDefinition> command;
+    std::mutex mutex;
     std::optional<AdmittedCall> admitted;
     /// Set once a dispatch took an admission, so a second dispatch reads as a mismatch.
     bool taken = false;
@@ -50,10 +52,13 @@ void admit_approval(CommandContext& context, std::string_view name, const Json& 
 
 enum class AdmissionCheck { admitted, missing, mismatch };
 
-/// Takes the admission of the call of `context`: `admitted` when it names `name` and the same
-/// canonical `input` (the same object, when the input has no canonical form), `missing` when no
-/// approval step admitted the call, `mismatch` otherwise. Taken whatever the answer, so a second
-/// dispatch needs a second admission.
-AdmissionCheck take_admission(CommandContext& context, std::string_view name, const Json& input);
+/// Takes the admission of `record`, the one the registry made for this dispatch: `admitted` when
+/// `context` still carries that record and its admission names `name` and the same canonical
+/// `input`, `missing` when no approval step admitted the call, `mismatch` otherwise (another
+/// record, another command or input, or an input with no canonical form). Taken whatever the
+/// answer, in one step under the record's mutex, so a second or concurrent dispatch needs a
+/// second admission.
+AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
+                              std::string_view name, const Json& input);
 
 } // namespace afd::detail

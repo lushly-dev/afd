@@ -400,17 +400,16 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     context.journaled_fields = journaled_fields_;
     // This call's own admission record (approval_admission.hpp), replacing any the caller passed:
     // the command it runs, for the approval middleware to decide from, not yet admitted.
-    context.approval_admission =
-        std::make_shared<detail::ApprovalAdmission>(detail::ApprovalAdmission{
-            .command = std::shared_ptr<const CommandDefinition>(command, &command->definition),
-            .admitted = std::nullopt,
-            .taken = false});
+    auto admission = std::make_shared<detail::ApprovalAdmission>();
+    admission->command = std::shared_ptr<const CommandDefinition>(command, &command->definition);
+    // run_chain keeps it, so a dispatch takes only this record's admission.
+    context.approval_admission = admission;
 
     // 5-6. Middleware and handler.
     CommandResult result;
 #if AFD_HAS_EXCEPTIONS
     try {
-        result = run_chain(*command, *validated, context);
+        result = run_chain(*command, *validated, context, *admission);
     } catch (const std::exception& error) {
         report_error(error.what());
         return execution_failure(error.what(), options_.dev_mode);
@@ -419,7 +418,7 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
         return execution_failure("unknown exception", options_.dev_mode);
     }
 #else
-    result = run_chain(*command, *validated, context);
+    result = run_chain(*command, *validated, context, *admission);
 #endif
 
     // 7. on_command, which never changes the result.
@@ -440,7 +439,8 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 }
 
 CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const Json& input,
-                                         CommandContext& context) const {
+                                         CommandContext& context,
+                                         detail::ApprovalAdmission& admission) const {
     std::vector<CommandMiddleware> middleware;
     {
         const std::shared_lock lock(mutex_);
@@ -453,13 +453,14 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
         // A declared approval policy holds without the approval middleware: a command whose
         // policy is neither unset nor not_required runs only when an approval step admitted this
         // dispatch, of this command on this validated input. A policy function is not evaluated
-        // here. The admission is taken, so a second dispatch (a retry inside the chain) needs a
-        // second one.
+        // here. The admission is taken from the record `execute` made for this call, so a
+        // second dispatch (a retry inside the chain) needs a second one, and a record a middleware
+        // put on the context from another call is not honoured.
         if (detail::gates(definition.approval)) {
-            const auto admission = detail::take_admission(context, definition.name, input);
-            if (admission != detail::AdmissionCheck::admitted) {
+            const auto check = detail::take_admission(admission, context, definition.name, input);
+            if (check != detail::AdmissionCheck::admitted) {
                 return approval_unavailable(definition.name,
-                                            admission == detail::AdmissionCheck::missing);
+                                            check == detail::AdmissionCheck::missing);
             }
         }
         // The context's clock (the registry's unless the caller set one), read again here

@@ -2,6 +2,11 @@
 // (packages/server/src/approval-fail-closed.test.ts; spec/command-metadata.md "Approvals", #1886).
 #include "afd/afd.hpp"
 
+#include <atomic>
+#if AFD_ENABLE_THREADS
+#include <barrier>
+#include <thread>
+#endif
 #include <memory>
 #include <optional>
 #include <string>
@@ -152,8 +157,8 @@ TEST_CASE("a gated command without the approval middleware is refused before its
         afd::CommandContext context = as_agent();
         const Json input{{"id", 1}};
         context.approval_admission = std::make_shared<afd::detail::ApprovalAdmission>();
-        context.approval_admission->admitted = afd::detail::AdmittedCall{
-            .name = "todo-delete", .canonical = R"({"id":1})", .input = &input};
+        context.approval_admission->admitted =
+            afd::detail::AdmittedCall{.name = "todo-delete", .canonical = R"({"id":1})"};
         check_unavailable(registry->execute("todo-delete", input, context), "todo-delete",
                           "no-approval-step");
         CHECK(commands.ran->empty());
@@ -368,3 +373,86 @@ TEST_CASE("one admission runs one handler, on what was approved") {
         CHECK(*commands.ran == std::vector<std::string>{"todo-delete:2"});
     }
 }
+
+TEST_CASE("an admission belongs to the record the registry made for that dispatch") {
+    Commands commands;
+    // Held only when the call asks for it (`extra.ask`), so a second call is admitted without a
+    // token.
+    afd::CommandDefinition remove =
+        commands.remove(afd::ApprovalPolicy([](const Json&, const afd::CommandContext& context) {
+            return context.extra.value("ask", false) ? afd::ApprovalDecision::required
+                                                     : afd::ApprovalDecision::not_required;
+        }));
+    std::shared_ptr<afd::detail::ApprovalAdmission> saved;
+    // After the approval middleware: the first call's admitted record is kept and that call
+    // stops; the second call dispatches on the kept record instead of its own.
+    const afd::CommandMiddleware swap = [&saved](std::string_view, const Json&,
+                                                 afd::CommandContext& context,
+                                                 const afd::Next& next) {
+        if (!saved) {
+            saved = context.approval_admission;
+            return afd::error("STOPPED", "kept the admission");
+        }
+        context.approval_admission = saved;
+        return next();
+    };
+    auto registry = registry_of({remove}, {approval_middleware(), swap});
+    afd::CommandContext asking = as_agent();
+    asking.extra["ask"] = true;
+    const std::string token = token_of(registry->execute("todo-delete", {{"id", 1}}, asking));
+    asking.approval = token;
+    CHECK(registry->execute("todo-delete", {{"id", 1}}, asking).error->code == "STOPPED");
+    check_unavailable(registry->execute("todo-delete", {{"id", 1}}, as_agent()), "todo-delete",
+                      "admission-mismatch");
+    CHECK(commands.ran->empty());
+}
+
+TEST_CASE("a gated command whose input has no canonical form is not admitted") {
+    Commands commands;
+    afd::CommandDefinition remove =
+        commands.remove(afd::ApprovalPolicy([](const Json&, const afd::CommandContext&) {
+            return afd::ApprovalDecision::not_required;
+        }));
+    auto registry = registry_of({remove}, {approval_middleware()});
+    // Beyond 2^53 - 1 and not spelled as JavaScript writes its double: canonical_json refuses it.
+    const Json input = Json::parse(R"({"id": 9007199254740993})");
+    check_unavailable(registry->execute("todo-delete", input, as_agent()), "todo-delete",
+                      "admission-mismatch");
+    CHECK(commands.ran->empty());
+    // A safe integer is admitted as before.
+    CHECK(registry->execute("todo-delete", {{"id", 1}}, as_agent()).success);
+}
+
+#if AFD_ENABLE_THREADS
+TEST_CASE("two overlapping dispatches of one admission run the handler once") {
+    auto runs = std::make_shared<std::atomic<int>>(0);
+    afd::CommandDefinition remove = Commands{}.remove();
+    remove.handler = [runs](const Json& input, afd::CommandContext&) {
+        ++*runs;
+        return afd::success(input);
+    };
+    // After the approval middleware: dispatch twice at once.
+    const afd::CommandMiddleware twice = [](std::string_view, const Json&, afd::CommandContext&,
+                                            const afd::Next& next) {
+        std::barrier start(2);
+        afd::CommandResult first;
+        afd::CommandResult second;
+        std::thread other([&] {
+            start.arrive_and_wait();
+            second = next();
+        });
+        start.arrive_and_wait();
+        first = next();
+        other.join();
+        return first.success ? first : second;
+    };
+    auto registry = registry_of({remove}, {approval_middleware(), twice});
+    constexpr int calls = 300;
+    for (int i = 0; i < calls; ++i) {
+        const std::string token =
+            token_of(registry->execute("todo-delete", {{"id", i}}, as_agent()));
+        CHECK(registry->execute("todo-delete", {{"id", i}}, as_agent(token)).success);
+    }
+    CHECK(runs->load() == calls);
+}
+#endif

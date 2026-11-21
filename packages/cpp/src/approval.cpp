@@ -1037,28 +1037,31 @@ void admit_approval(CommandContext& context, std::string_view name, const Json& 
             canonical = std::move(*encoded);
         }
     }
-    record->admitted =
-        AdmittedCall{.name = std::string(name), .canonical = std::move(canonical), .input = &input};
+    const std::lock_guard lock(record->mutex);
+    record->admitted = AdmittedCall{.name = std::string(name), .canonical = std::move(canonical)};
 }
 
-AdmissionCheck take_admission(CommandContext& context, std::string_view name, const Json& input) {
-    ApprovalAdmission* record = context.approval_admission.get();
-    if (!record) {
-        return AdmissionCheck::missing;
+AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
+                              std::string_view name, const Json& input) {
+    std::optional<AdmittedCall> admitted;
+    {
+        const std::lock_guard lock(record.mutex);
+        if (!record.admitted) {
+            return record.taken ? AdmissionCheck::mismatch : AdmissionCheck::missing;
+        }
+        admitted = std::move(record.admitted);
+        record.admitted.reset();
+        record.taken = true;
     }
-    if (!record->admitted) {
-        return record->taken ? AdmissionCheck::mismatch : AdmissionCheck::missing;
-    }
-    const AdmittedCall admitted = std::move(*record->admitted);
-    record->admitted.reset();
-    record->taken = true;
-    if (admitted.name != name) {
+    // A middleware may have put another call's record on the context: the admission must be on
+    // the record the registry made for this dispatch, and that record must still be the call's.
+    if (context.approval_admission.get() != &record || admitted->name != name ||
+        !admitted->canonical) {
         return AdmissionCheck::mismatch;
     }
     const auto canonical = canonical_json(input);
-    const bool same = admitted.canonical ? canonical && *canonical == *admitted.canonical
-                                         : admitted.input == &input && !canonical;
-    return same ? AdmissionCheck::admitted : AdmissionCheck::mismatch;
+    return canonical && *canonical == *admitted->canonical ? AdmissionCheck::admitted
+                                                           : AdmissionCheck::mismatch;
 }
 
 Expected<std::string> canonical_json_as_read(const Json& value) {
