@@ -213,6 +213,8 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 			return process.exit(1);
 		}
 
+		// Checked before the spinner starts, so its error is not printed under a live frame.
+		const headers = headersOrExit(options.header);
 		const connectSpinner = ora('Connecting to server...').start();
 		let client: McpClient;
 
@@ -222,7 +224,7 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 				transport: options.transport ?? inferTransport(options.server),
 				timeout: Number.parseInt(options.timeout, 10),
 				autoReconnect: false,
-				headers: headersOrExit(options.header),
+				headers,
 			});
 			// Registered so the CLI entry point disconnects it on every exit path.
 			setClient(client);

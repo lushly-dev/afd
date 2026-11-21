@@ -8,7 +8,11 @@ const mocks = vi.hoisted(() => ({
 	setClient: vi.fn(),
 }));
 
-vi.mock('../connection.js', () => mocks);
+// The real headersOrExit, so a malformed -H is refused as it is in use.
+vi.mock('../connection.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../connection.js')>()),
+	...mocks,
+}));
 
 import { createCli } from '../cli.js';
 
@@ -74,13 +78,18 @@ describe('afd call invocation', () => {
 		expect(errors.join('')).toContain('Allowed choices are streamable-http, sse, http');
 
 		// Commander's InvalidArgumentError repeats the argument, which may hold a credential,
-		// so a malformed header is refused by headersOrExit (see e2e.test.ts), not while parsing.
+		// so a malformed header is refused by headersOrExit, not while parsing.
 		errors.length = 0;
-		await parse('--header', 'Authorization Bearer sk-SECRET');
-		expect(errors.join('')).not.toContain('SECRET');
-		expect(mocks.requireClient.mock.lastCall?.[0]).toMatchObject({
-			header: ['Authorization Bearer sk-SECRET'],
-		});
+		mocks.requireClient.mockClear();
+		const printed: string[] = [];
+		vi.spyOn(console, 'error').mockImplementation((...parts) => void printed.push(parts.join(' ')));
+		vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+			throw new Error(`exit ${code}`);
+		}) as never);
+		await expect(parse('--header', 'Authorization Bearer sk-SECRET')).rejects.toThrow('exit 1');
+		expect(`${errors.join('')}${printed.join('')}`).not.toContain('SECRET');
+		expect(printed.join('')).toContain('--header 1: Invalid header');
+		expect(mocks.requireClient).not.toHaveBeenCalled();
 	});
 });
 
@@ -160,6 +169,24 @@ describe('afd call approvals (#417)', () => {
 		expect(deleted).toEqual([42]);
 		// JSON output keeps stderr quiet when nobody is asked.
 		expect(stderr).not.toContain('needs approval');
+	});
+
+	it('a malformed -H stops an in-process --module call before it runs', async () => {
+		const { deleted } = await fixture();
+		deleted.length = 0;
+		const { code, stdout, stderr } = await run(
+			'todo-delete',
+			'{"id":42}',
+			'--module',
+			MODULE,
+			'--approve',
+			'-H',
+			'Authorization Bearer sk-SECRET'
+		);
+		expect(code).toBe(1);
+		expect(deleted).toEqual([]);
+		expect(stderr).toContain('--header 1: Invalid header');
+		expect(`${stdout}${stderr}`).not.toContain('SECRET');
 	});
 
 	it('shows the summary and expiry on stderr in text format', async () => {

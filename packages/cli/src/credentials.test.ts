@@ -112,4 +112,25 @@ describe('a malformed header is never repeated (#1836)', () => {
 	it('accepts tabs and Latin-1 in a value', () => {
 		expect(parseHeader('X-Note: a\tb caf\u00e9')).toEqual(['X-Note', 'a\tb caf\u00e9']);
 	});
+
+	it.each([
+		['\u007f', false],
+		['\u0080', true],
+		['\u00ff', true],
+		['\u0100', false],
+		['\u{1f600}', false],
+		['\ud800', false],
+	])('a value holding %j is accepted: %s', (char, accepted) => {
+		const parse = () => parseHeader(`X: a${char}b`);
+		if (accepted) expect(parse()).toEqual(['X', `a${char}b`]);
+		else expect(parse).toThrow('holds a line break or another character');
+	});
+
+	it('trims only spaces and tabs, so a trailing control character is refused, not dropped', () => {
+		expect(parseHeader(' \tX-Key \t:  \t v \t ')).toEqual(['X-Key', 'v']);
+		expect(() => parseHeader('X: secret\v')).toThrow('holds a line break');
+		expect(() => parseHeader('X: secret\u2028')).toThrow('holds a line break');
+		expect(() => parseHeader('\vX: v')).toThrow('Use "Name: value"');
+		expect(parseHeader('X: tok\u00a0')).toEqual(['X', 'tok\u00a0']);
+	});
 });

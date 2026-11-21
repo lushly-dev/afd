@@ -15,10 +15,16 @@ const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 
 /**
  * RFC 9110 field-value characters: tab, visible ASCII and space, and obs-text
- * (0x80-0xFF). Anything else, a vertical tab say, fails in the HTTP layer, whose
- * error (undici's `Headers`) repeats the value.
+ * (0x80-0xFF). Anything else is refused before the request, with a message that
+ * does not repeat it. (Undici refuses some such values itself, and its errors for
+ * CR, LF and NUL repeat the value; it accepts others, such as a vertical tab.)
  */
 const HEADER_VALUE = /^[\t\x20-\x7e\x80-\xff]*$/;
+
+/** HTTP's optional whitespace (RFC 9110 OWS): only space and tab are trimmed. */
+function trimOws(text: string): string {
+	return text.replace(/^[ \t]+|[ \t]+$/g, '');
+}
 
 /** Query/fragment parameter names whose values are redacted when a URL is printed. */
 const SENSITIVE_PARAM = /token|key|secret|auth|pass(word)?|signature|credential/i;
@@ -34,13 +40,16 @@ const REDACTED = '***';
  */
 export function parseHeader(header: string): [name: string, value: string] {
 	const colon = header.indexOf(':');
-	const name = colon === -1 ? '' : header.slice(0, colon).trim();
+	// Only space and tab are trimmed: String.prototype.trim would also drop a vertical
+	// tab or U+2028 before the check, and a no-break space (0xA0) that may be part of
+	// the value.
+	const name = colon === -1 ? '' : trimOws(header.slice(0, colon));
 	if (!name || !HEADER_NAME.test(name)) {
 		throw new Error(
 			'Invalid header. Use "Name: value" with a name of letters, digits and -, e.g. "Authorization: Bearer <token>". The header is not shown, since it may hold a credential.'
 		);
 	}
-	const value = header.slice(colon + 1).trim();
+	const value = trimOws(header.slice(colon + 1));
 	if (!HEADER_VALUE.test(value)) {
 		throw new Error(
 			'Invalid header: the value holds a line break or another character HTTP does not allow. The header is not shown, since it may hold a credential.'

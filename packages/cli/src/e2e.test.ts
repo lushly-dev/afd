@@ -536,6 +536,17 @@ describe('afd CLI against a real server', { timeout: 180_000 }, () => {
 			expectExit(leaky, 1);
 			expect(leaky.stderr).toContain('--header 1: Invalid header');
 			expect(`${leaky.stdout}${leaky.stderr}`).not.toContain('SECRET');
+
+			// connect resolves headers itself, outside requireClient.
+			const connecting = await runCli([
+				'connect',
+				baseUrl,
+				'-H',
+				'Authorization Bearer sk-e2e-SECRET',
+			]);
+			expectExit(connecting, 1);
+			expect(connecting.stderr).toContain('--header 1: Invalid header');
+			expect(`${connecting.stdout}${connecting.stderr}`).not.toContain('SECRET');
 			expect(calls.ping).toEqual([]);
 		});
 

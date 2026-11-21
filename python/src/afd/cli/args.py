@@ -143,7 +143,10 @@ def parse_header(header: str) -> tuple[str, str]:
             never contains any of the header, since it may hold a credential.
     """
     colon = header.find(":")
-    name = "" if colon == -1 else header[:colon].strip()
+    # Only HTTP's optional whitespace (space and tab) is trimmed: str.strip would also
+    # drop a vertical tab or U+2028 before the check, and a no-break space (0xA0) that
+    # may be part of the value.
+    name = "" if colon == -1 else header[:colon].strip(" \t")
     if not name or not _HEADER_NAME.match(name):
         # The text is not echoed: a mistyped header is often a credential.
         raise ValueError(
@@ -151,7 +154,7 @@ def parse_header(header: str) -> tuple[str, str]:
             'e.g. "Authorization: Bearer <token>". The header is not shown, since it may '
             "hold a credential."
         )
-    value = header[colon + 1 :].strip()
+    value = header[colon + 1 :].strip(" \t")
     if not _HEADER_VALUE.match(value):
         raise ValueError(
             "Invalid header: the value holds a line break or another character HTTP does not "

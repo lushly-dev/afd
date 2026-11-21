@@ -11,7 +11,7 @@ import ora from 'ora';
 import { approvalDetails, callWithApproval, interactiveApproval } from '../approval.js';
 import { describeArgsError, parseToolArgs } from '../args.js';
 import type { CliTransport } from '../config.js';
-import { type ConnectFlags, requireClient } from '../connection.js';
+import { type ConnectFlags, headersOrExit, requireClient } from '../connection.js';
 import { type OutputFormat, printError, printResult } from '../output.js';
 import { terminalText } from '../terminal.js';
 import { headerOption, transportOption } from './options.js';
@@ -80,6 +80,11 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 				printError(describeArgsError(error));
 				return process.exit(1);
 			}
+
+			// Check -H before either branch: --module never reaches requireClient, which checks
+			// it for the MCP branch, and a malformed header must stop the call in both.
+			// headersOrExit exits on a malformed header; returning covers a mocked exit too.
+			if (headersOrExit(options.header) === undefined) return;
 
 			if (options.module !== undefined) {
 				if (options.connect !== undefined) {
