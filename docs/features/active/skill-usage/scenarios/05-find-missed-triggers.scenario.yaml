@@ -1,0 +1,35 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: See the merged changes that needed a skill nobody loaded
+description: >-
+  When a repository says a skill is required for a kind of change, I want to see the merged
+  changes of that kind that no session loaded the skill for, so that I can fix the trigger.
+job: find-missed-triggers
+tags: [triggers]
+steps:
+  - description: Each required skill, the changes that matched its paths and what the session that made each loaded
+    command: skill-usage-triggers
+    input: { days: 30 }
+    expect:
+      success: true
+      data:
+        project: acme/garden
+        rules:
+          - skill: gate-discipline
+            changes: 6
+            loaded: 2
+            missed: 3
+            unknown: 1
+            misses:
+              - { change: 101, sessions: [session-a] }
+              - { change: 104, sessions: [session-b] }
+              - { change: 109, sessions: [session-c, session-d] }
+  - description: A repository that declares no required skill is told how to declare one
+    command: skill-usage-triggers
+    input: { days: 30, repo: /work/shed }
+    expect:
+      success: false
+      error:
+        code: NO_REQUIRED_SKILLS
+        suggestion: { contains: skills.required }

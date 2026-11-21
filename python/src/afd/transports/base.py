@@ -147,6 +147,24 @@ class ToolNotFoundError(TransportError):
         self.tool_name = tool_name
 
 
+class HttpStatusError(TransportError):
+    """Raised when the server answers a request with an HTTP error status."""
+
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
+class JsonRpcError(TransportError):
+    """Raised when the server answers a request with a JSON-RPC error."""
+
+    def __init__(self, code: int, message: str, data: Any = None):
+        super().__init__(f"JSON-RPC error {code}: {message}")
+        self.code = code
+        self.rpc_message = message
+        self.data = data
+
+
 class ToolExecutionError(TransportError):
     """Raised when a tool returns isError (business logic error, not transport)."""
 

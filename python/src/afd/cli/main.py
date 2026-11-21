@@ -17,9 +17,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
+from rich.text import Text
 
 from afd.cli.output import (
     console,
+    plain,
     print_connecting,
     print_disconnecting,
     print_error,
@@ -31,6 +33,7 @@ from afd.cli.output import (
     print_warning,
 )
 from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
+from afd.cli.terminal import terminal_text
 from afd.core.builtin_names import is_afd_builtin_name
 from afd.cli.elicitation import interactive_elicitation
 from afd.transports import (
@@ -74,7 +77,11 @@ def _save_state(state: dict[str, Any]) -> None:
 
 
 def _get_transport(
-    server: str | None = None, *, on_elicitation: ElicitationHandler | None = None
+    server: str | None = None,
+    *,
+    on_elicitation: ElicitationHandler | None = None,
+    timeout: float | None = None,
+    headers: dict[str, str] | None = None,
 ) -> Transport:
     """
     Get a transport instance.
@@ -86,6 +93,8 @@ def _get_transport(
             - an http(s) URL ending in /message or /messages for HttpTransport (deprecated)
             - any other http(s) URL (such as /mcp) for StreamableHttpTransport
         on_elicitation: Answers server elicitations on a Streamable HTTP transport.
+        timeout: Request timeout in seconds; the transport's default when omitted.
+        headers: Request headers sent with every request.
 
     Returns:
         Configured transport instance
@@ -110,18 +119,44 @@ def _get_transport(
 
     parsed = urlparse(server)
     if parsed.scheme in {"http", "https"} and parsed.netloc:
+        options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
+        if headers:
+            options["headers"] = headers
         normalized_path = parsed.path.rstrip("/")
         if normalized_path.endswith("/message") or normalized_path.endswith("/messages"):
-            return HttpTransport(server)
+            return HttpTransport(server, **options)
         if normalized_path.endswith("/sse"):
-            return SseTransport(server)
-        return StreamableHttpTransport(server, on_elicitation=on_elicitation)
+            return SseTransport(server, **options)
+        return StreamableHttpTransport(server, on_elicitation=on_elicitation, **options)
 
     raise click.ClickException(
         f"'{server}' is not a server URL. Connect to a running server by URL, for example "
         "'afd connect http://localhost:3100/mcp' (MCP Streamable HTTP), or use 'afd connect mock' "
         "for testing. Named and stdio servers are not supported by the CLI."
     )
+
+
+def _fail(message: str) -> None:
+    """Print an error that may carry server text: escapes stripped, no Rich markup."""
+    click.echo(f"{click.style('✗ Error:', fg='red')} {terminal_text(message)}", err=True)
+
+
+def _headers_option(func: Any) -> Any:
+    return click.option(
+        "--header", "-H", "headers", multiple=True,
+        help="Request header 'Name: value', repeatable (never saved; also read from AFD_HEADERS)",
+    )(func)
+
+
+def _resolve_headers(flags: tuple[str, ...]) -> dict[str, str]:
+    """Headers from ``AFD_HEADERS`` and ``-H``; a malformed one exits 1, as in TypeScript."""
+    from afd.cli.args import resolve_headers
+
+    try:
+        return resolve_headers(flags)
+    except ValueError as e:
+        _fail(str(e))
+        sys.exit(1)
 
 
 @click.group()
@@ -148,9 +183,11 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
 
 @cli.command()
 @click.argument("server")
-@click.option("--timeout", "-t", default=30.0, help="Connection timeout in seconds")
+@click.option("--timeout", "-t", type=click.FloatRange(min=0, min_open=True), default=30.0,
+              show_default=True, help="Connection timeout in seconds")
+@_headers_option
 @click.pass_context
-def connect(ctx: click.Context, server: str, timeout: float) -> None:
+def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str, ...]) -> None:
     """
     Connect to an MCP server.
 
@@ -161,15 +198,22 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
     - http(s)://host/message   Deprecated HTTP message endpoint
     - mock                     Use mock transport for testing
     
+    Headers from -H and AFD_HEADERS are sent to check the connection and are
+    never saved; give them again to each later command.
+
     \b
     Examples:
         afd connect http://localhost:3100/mcp
+        afd connect http://localhost:3100/mcp -H "Authorization: Bearer $TOKEN"
         afd connect mock
     """
     quiet = ctx.obj.get("quiet", False)
+    if not math.isfinite(timeout):
+        raise click.UsageError("--timeout must be finite")
 
     # Rejects a non-URL target before claiming to connect to it.
-    transport = _get_transport(server)
+    request_headers = _resolve_headers(headers)
+    transport = _get_transport(server, timeout=timeout, headers=request_headers)
 
     if not quiet:
         print_connecting(server)
@@ -188,13 +232,19 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
                 tools = await transport.list_tools()
                 if tools:
                     print_info(f"Available tools: {len(tools)}")
+            if request_headers:
+                click.echo(
+                    "Request headers are not saved. Pass --header again or set AFD_HEADERS "
+                    "for later commands.",
+                    err=True,
+                )
         finally:
             await transport.disconnect()
     
     try:
         asyncio.run(_connect())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -230,8 +280,10 @@ def disconnect(ctx: click.Context) -> None:
 @click.option("--server", "-s", help="Server to query (uses saved connection if omitted)")
 @click.option("--filter", "-f", "pattern", help="Filter tools by name pattern")
 @click.option("--detail", "-d", "tool_name", help="Show detailed info for a specific tool")
+@_headers_option
 @click.pass_context
-def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name: str | None) -> None:
+def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name: str | None,
+          headers: tuple[str, ...]) -> None:
     """
     List available tools from the connected server.
 
@@ -242,9 +294,10 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
         afd tools --detail user.create
     """
     json_output = ctx.obj.get("json_output", False)
-    
+    request_headers = _resolve_headers(headers)
+
     async def _list_tools() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         try:
             await transport.connect()
             tool_list = await transport.list_tools()
@@ -261,7 +314,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
                 
                 if json_output:
                     import json as json_module
-                    console.print(json_module.dumps({
+                    click.echo(json_module.dumps({
                         "name": matching[0].name,
                         "description": matching[0].description,
                         "input_schema": matching[0].input_schema,
@@ -273,7 +326,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
             # List all tools
             if json_output:
                 import json as json_module
-                console.print(json_module.dumps([
+                click.echo(json_module.dumps([
                     {"name": t.name, "description": t.description}
                     for t in tool_list
                 ], indent=2))
@@ -287,7 +340,7 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
     except click.ClickException:
         raise
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -335,44 +388,52 @@ async def _terminal_yes(prompt: str) -> bool:
 
 @cli.command()
 @click.argument("tool")
-@click.argument("args", required=False, default="{}")
+@click.argument("args", required=False, default="")
 @click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
 @click.option("--module", "module_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
               help="Load a Python file exporting registry for an in-process call")
 @click.option("--approve", is_flag=True, help="Explicitly approve one in-process retry")
 @click.option("--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms")
+@_headers_option
 @click.pass_context
 def call(ctx: click.Context, tool: str, args: str, server: str | None,
-         module_path: Path | None, approve: bool, timeout: float | None) -> None:
+         module_path: Path | None, approve: bool, timeout: float | None,
+         headers: tuple[str, ...]) -> None:
     """
     Call a tool on the connected server.
 
     TOOL is the name of the tool to call.
-    ARGS is a JSON string of arguments (default: {}).
+    ARGS is one argument: a JSON object or key=value pairs (quote the whole
+    argument when it holds several pairs or spaces). Empty means {}. A value is
+    parsed as JSON when it can be (count=2, done=true) and kept as a string
+    otherwise (title=milk).
 
     \b
     Examples:
         afd call user.list
         afd call user.create '{"name": "Alice", "email": "alice@example.com"}'
-        afd call doc.get '{"id": "123"}'
+        afd call user.create 'name="Alice Smith" email=alice@example.com'
+        afd call doc.get id=123 -H "Authorization: Bearer $TOKEN"
     """
+    from afd.cli.args import describe_args_error, parse_tool_args
+
     json_output = ctx.obj.get("json_output", False)
-    
-    # Parse args
+
     try:
-        parsed_args = json.loads(args)
-    except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON arguments: {e}")
+        parsed_args = parse_tool_args(args)
+    except ValueError as e:
+        _fail(describe_args_error(e))
         sys.exit(1)
-    
+
     if module_path is not None and server is not None:
         raise click.UsageError("--module and --server cannot be combined")
+    if module_path is not None and headers:
+        raise click.UsageError("--header needs a server; --module calls run in process")
     if module_path is None and (approve or timeout is not None):
         raise click.UsageError("--approve and --timeout require --module; remote approval belongs to the server")
     if timeout is not None and not math.isfinite(timeout):
         raise click.UsageError("--timeout must be finite")
-    if not isinstance(parsed_args, dict):
-        raise click.UsageError("Arguments must be a JSON object")
+    request_headers = _resolve_headers(headers) if module_path is None else {}
 
     async def _call_module() -> None:
         from afd.direct import DirectClient, DirectClientOptions, DirectCallContext
@@ -409,7 +470,7 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
 
     async def _call_tool() -> None:
         transport = _get_transport(
-            server, on_elicitation=interactive_elicitation(_terminal_yes)
+            server, on_elicitation=interactive_elicitation(_terminal_yes), headers=request_headers
         )
         try:
             await transport.connect()
@@ -421,7 +482,203 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
     try:
         asyncio.run(_call_module() if module_path is not None else _call_tool())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("commands")
+@click.option("--server", help="Server to use (uses saved connection if omitted)")
+@click.option("--stop-on-error", "-s", is_flag=True, help="Stop execution on first error")
+@click.option("--timeout", "-t", type=click.IntRange(min=0), default=30000, show_default=True,
+              help="Timeout for the entire batch in milliseconds")
+@click.option("--parallel", "-p", type=click.IntRange(min=1), default=1, show_default=True,
+              help="Maximum parallel commands (1 = sequential)")
+@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
+              default="text", show_default=True, help="Output format (--json also selects json)")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output for each command")
+@_headers_option
+@click.pass_context
+def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: bool,
+          timeout: int, parallel: int, output_format: str, verbose: bool,
+          headers: tuple[str, ...]) -> None:
+    """
+    Execute multiple commands in a single batch request.
+
+    COMMANDS is a JSON array, [{"command":"name","input":{}},...], or the path
+    of a .json file holding one. Exits 1 when the batch fails and 2 when some
+    of its commands fail.
+
+    \b
+    Examples:
+        afd batch '[{"command":"todo-create","input":{"title":"Task 1"}}]'
+        afd batch ./commands.json --stop-on-error --verbose
+    """
+    from afd.cli.batch_stream import (
+        SERVER_DEADLINE_MARGIN_S,
+        batch_exit_code,
+        batch_text,
+        parse_batch_commands,
+        run_batch,
+    )
+
+    json_output = ctx.obj.get("json_output", False) or output_format == "json"
+    request_headers = _resolve_headers(headers)
+    try:
+        parsed = parse_batch_commands(commands)
+    except (ValueError, OSError) as e:
+        _fail(f"Invalid commands format: {e}")
+        click.echo("\nExpected format:\n  [{\"command\":\"todo-create\",\"input\":{\"title\":\"Task 1\"}},...]"
+                   "\n\nOr provide a JSON file path:\n  afd batch ./commands.json", err=True)
+        sys.exit(1)
+
+    # The batch deadline runs on the server: wait a margin past it for the answer, and
+    # never less than the default request timeout, as TypeScript's client does.
+    transport = _get_transport(
+        server,
+        on_elicitation=interactive_elicitation(_terminal_yes),
+        timeout=max(30.0, timeout / 1000 + SERVER_DEADLINE_MARGIN_S),
+        headers=request_headers,
+    )
+
+    async def _batch() -> dict[str, Any]:
+        await transport.connect()
+        try:
+            return await run_batch(transport.call_tool, parsed, {
+                "stopOnError": stop_on_error,
+                "timeout": timeout,
+                "parallelism": parallel,
+            })
+        finally:
+            await transport.disconnect()
+
+    try:
+        result = asyncio.run(_batch())
+    except Exception as e:
+        _fail(f"Batch execution error: {e}")
+        sys.exit(1)
+
+    if json_output:
+        click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        click.echo("\n".join(batch_text(result, verbose=verbose)))
+    code = batch_exit_code(result)
+    if code:
+        sys.exit(code)
+
+
+@cli.command()
+@click.argument("name")
+@click.argument("args", required=False, default="")
+@click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
+@click.option("--timeout", "-t", type=click.IntRange(min=0), default=60000, show_default=True,
+              help="Timeout in milliseconds (0: no deadline)")
+@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
+              default="text", show_default=True,
+              help="Output format: json prints one chunk per line (--json also selects it)")
+@click.option("--progress/--no-progress", default=True, help="Show or hide progress updates")
+@_headers_option
+@click.pass_context
+def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout: int,
+           output_format: str, progress: bool, headers: tuple[str, ...]) -> None:
+    """
+    Execute a command with streaming results (Ctrl+C to cancel).
+
+    NAME is the command; ARGS is a JSON object or key=value pairs (quote values
+    with spaces). The server must serve AFD's POST /stream/<command> next to its
+    MCP endpoint, as the TypeScript server does. Exits 1 on an error chunk and
+    130 when cancelled with Ctrl+C or SIGTERM.
+
+    \b
+    Examples:
+        afd stream export-run format=csv
+        afd stream export-run '{"format": "csv"}' --format json --no-progress
+    """
+    import signal
+
+    from afd.cli.args import describe_args_error, parse_tool_args
+    from afd.cli.batch_stream import EXIT_CANCELLED, StreamPrinter
+    from afd.client import McpClient, McpClientConfig
+    from afd.client_stream import stream_error_chunk
+
+    json_output = ctx.obj.get("json_output", False) or output_format == "json"
+    try:
+        parsed_args = parse_tool_args(args)
+    except ValueError as e:
+        _fail(describe_args_error(e))
+        sys.exit(1)
+    request_headers = _resolve_headers(headers)
+
+    url = server or _load_state().get("server")
+    if url and (url == "mock" or url.startswith("mock:")):
+        raise click.ClickException(
+            "Streaming needs an HTTP server URL; the mock transport has no stream endpoint."
+        )
+    transport = _get_transport(url, headers=request_headers)
+
+    def dump(chunk: dict[str, Any]) -> None:
+        click.echo(json.dumps(chunk, ensure_ascii=False, separators=(",", ":")))
+
+    printer = StreamPrinter(show_progress=progress, write=lambda text: click.echo(text, nl=False))
+    failed = False
+    cancel: asyncio.Event | None = None
+
+    async def _stream() -> None:
+        nonlocal failed, cancel
+        cancel = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        handled = []
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(signum, cancel.set)
+                handled.append(signum)
+            except (NotImplementedError, RuntimeError, ValueError):
+                pass  # Windows: Ctrl+C arrives as KeyboardInterrupt instead.
+        client = McpClient(
+            McpClientConfig(url=url, auto_reconnect=False, headers=request_headers),
+            transport=transport,
+        )
+        try:
+            await client.connect()
+            if not json_output and progress:
+                click.echo(click.style(f"Streaming {terminal_text(name)}... (Ctrl+C to cancel)", dim=True))
+                click.echo()
+            async for chunk in client.stream(
+                name, parsed_args, timeout=timeout / 1000 if timeout else None, cancel=cancel,
+                idle_timeout=None,  # -t bounds the stream, and -t 0 means no limit, as in TypeScript
+            ):
+                if json_output:
+                    dump(chunk)
+                    failed = failed or chunk.get("type") == "error"
+                elif printer.handle(chunk):
+                    failed = True
+        finally:
+            for signum in handled:
+                loop.remove_signal_handler(signum)
+            await client.disconnect()
+
+    interrupted = False
+    try:
+        asyncio.run(_stream())
+    except KeyboardInterrupt:
+        interrupted = True
+    except Exception as e:
+        if json_output:
+            dump(stream_error_chunk({
+                "code": "STREAM_FAILED",
+                "message": str(e),
+                "suggestion": "Check the connection and retry the stream",
+            }, 0, True))
+        else:
+            _fail(f"Stream failed: {e}")
+        sys.exit(1)
+    if interrupted or (cancel is not None and cancel.is_set()):
+        printer.clear_progress()
+        if not json_output:
+            click.echo()
+            click.echo(click.style("⚠ Stream cancelled by user", fg="yellow"))
+        sys.exit(EXIT_CANCELLED)
+    if failed:
         sys.exit(1)
 
 
@@ -439,7 +696,7 @@ def status(ctx: click.Context) -> None:
     server = state.get("server")
     
     if json_output:
-        console.print(json.dumps({
+        click.echo(json.dumps({
             "connected": server is not None,
             "server": server,
         }, indent=2))
@@ -474,6 +731,7 @@ def status(ctx: click.Context) -> None:
 )
 @click.option("--strict", is_flag=True, help="Treat warnings as errors in validation")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed validation output")
+@_headers_option
 @click.pass_context
 def validate(
     ctx: click.Context,
@@ -484,6 +742,7 @@ def validate(
     suppress: tuple[str, ...],
     strict: bool,
     verbose: bool,
+    headers: tuple[str, ...],
 ) -> None:
     """
     Validate server connection/tools, or run cross-command surface validation.
@@ -492,9 +751,10 @@ def validate(
     MISSING_APPROVAL_POLICY warning (an error with --strict).
     """
     json_output = ctx.obj.get("json_output", False)
-    
+    request_headers = _resolve_headers(headers)
+
     async def _validate_connection() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         results: dict[str, Any] = {
             "connection": False,
             "tools_listed": False,
@@ -518,7 +778,7 @@ def validate(
             failed = strict and bool(warnings)
 
             if json_output:
-                console.print(json.dumps(results, indent=2))
+                click.echo(json.dumps(results, indent=2))
             else:
                 print_success("Connection: OK")
                 print_success(f"Tools listed: {len(tools)}")
@@ -534,9 +794,9 @@ def validate(
         except Exception as e:
             results["errors"].append(str(e))
             if json_output:
-                console.print(json.dumps(results, indent=2))
+                click.echo(json.dumps(results, indent=2))
             else:
-                print_error(f"Validation failed: {e}")
+                _fail(f"Validation failed: {e}")
             sys.exit(1)
         finally:
             await transport.disconnect()
@@ -544,7 +804,7 @@ def validate(
     async def _validate_surface() -> None:
         from afd.testing.surface.types import SurfaceValidationOptions
 
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         try:
             await transport.connect()
             commands, configured_contexts, source_warnings = await _load_surface_commands(transport)
@@ -560,7 +820,7 @@ def validate(
             )
 
             if json_output:
-                console.print(
+                click.echo(
                     json.dumps(
                         {
                             "valid": result.valid,
@@ -609,12 +869,14 @@ def validate(
                     else:
                         print_info(f"{len(findings)} info finding(s)")
                     for finding in findings:
-                        console.print(f"  [{severity}] {finding.rule}: {finding.message}")
+                        # Findings quote command names and descriptions: print them as text.
+                        console.print(plain(f"  [{severity}] {finding.rule}: {finding.message}"))
                         if verbose:
-                            console.print(f"    Commands: {', '.join(finding.commands)}")
-                            console.print(f"    Fix: {finding.suggestion}")
+                            console.print(plain(f"    Commands: {', '.join(finding.commands)}"))
+                            console.print(plain(f"    Fix: {finding.suggestion}"))
                             if finding.evidence:
-                                console.print(f"    Evidence: {json.dumps(finding.evidence, sort_keys=True)}")
+                                evidence = json.dumps(finding.evidence, sort_keys=True)
+                                console.print(plain(f"    Evidence: {evidence}"))
 
                 if result.summary.suppressed_count:
                     print_info(f"{result.summary.suppressed_count} finding(s) suppressed")
@@ -627,7 +889,7 @@ def validate(
                     print_error("Surface validation failed")
                     sys.exit(1)
         except Exception as e:
-            print_error(f"Surface validation failed: {e}")
+            _fail(f"Surface validation failed: {e}")
             sys.exit(1)
         finally:
             await transport.disconnect()
@@ -635,7 +897,7 @@ def validate(
     try:
         asyncio.run(_validate_surface() if surface else _validate_connection())
     except Exception as e:
-        print_error(str(e))
+        _fail(str(e))
         sys.exit(1)
 
 
@@ -707,15 +969,20 @@ async def _load_surface_commands(
 
 
 @cli.command()
+@_headers_option
 @click.pass_context
-def shell(ctx: click.Context) -> None:
+def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
     """
     Start an interactive shell.
 
-    Provides a REPL for calling tools interactively.
-    Use 'exit' or Ctrl+D to quit.
+    Provides a REPL for calling tools interactively. A call's arguments are a
+    JSON object or key=value pairs. Use 'exit' or Ctrl+D to quit.
     """
     from rich.prompt import Prompt
+
+    from afd.cli.args import describe_args_error, parse_tool_args
+
+    request_headers = _resolve_headers(headers)
     
     state = _load_state()
     server = state.get("server")
@@ -724,11 +991,11 @@ def shell(ctx: click.Context) -> None:
         print_error("No server connected. Use 'afd connect <server>' first.")
         sys.exit(1)
     
-    console.print(f"[bold]AFD Shell[/bold] - Connected to [cyan]{server}[/cyan]")
+    console.print(Text.assemble(("AFD Shell", "bold"), " - Connected to ", plain(server, "cyan")))
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/dim]\n")
     
     async def _shell() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(server, headers=request_headers)
         await transport.connect()
         
         try:
@@ -746,30 +1013,45 @@ def shell(ctx: click.Context) -> None:
                     break
                 
                 if line == "help":
-                    console.print("""
-[bold]Commands:[/bold]
-  tools              List available tools
-  call <tool> [args] Call a tool with optional JSON args
-  help               Show this help
-  exit               Exit the shell
-""")
+                    console.print()
+                    console.print(Text("Commands:", style="bold"))
+                    console.print(Text(
+                        "  tools              List available tools\n"
+                        "  call <tool> [args] Call a tool with a JSON object or key=value pairs\n"
+                        "  help               Show this help\n"
+                        "  exit               Exit the shell\n"
+                    ))
                     continue
                 
+                # A failed request prints its error and the prompt returns, as in
+                # TypeScript's shell; only exit, quit or Ctrl+D end it.
                 if line == "tools":
-                    tool_list = await transport.list_tools()
-                    print_tools(tool_list)
+                    try:
+                        print_tools(await transport.list_tools())
+                    except Exception as e:
+                        _fail(f"Listing tools failed: {e}")
                     continue
-                
-                if line.startswith("call "):
-                    parts = line[5:].strip().split(maxsplit=1)
+
+                if line.split(maxsplit=1)[0] == "call":
+                    parts = line[4:].strip().split(maxsplit=1)
+                    if not parts:
+                        _fail("Usage: call <name> [args]")
+                        continue
                     tool_name = parts[0]
-                    tool_args = json.loads(parts[1]) if len(parts) > 1 else {}
-                    
-                    result = await transport.call_tool(tool_name, tool_args)
-                    print_result(result)
+                    try:
+                        tool_args = parse_tool_args(parts[1] if len(parts) > 1 else "")
+                    except ValueError as e:
+                        _fail(describe_args_error(e))
+                        continue
+
+                    try:
+                        result = await transport.call_tool(tool_name, tool_args)
+                        print_result(result)
+                    except Exception as e:
+                        _fail(f"Call failed: {e}")
                     continue
-                
-                console.print(f"[yellow]Unknown command: {line}[/yellow]")
+
+                console.print(plain(f"Unknown command: {line}", "yellow"))
                 
         finally:
             await transport.disconnect()

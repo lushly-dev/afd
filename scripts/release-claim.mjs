@@ -5,15 +5,28 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
+import { validateSupersedes } from './release-operations/intent.mjs';
 import { validatePlan } from './release-operations/publish.mjs';
 import { reconcilePublication } from './release-operations/recovery.mjs';
 import { hash, json, run } from './release-operations/shared.mjs';
 
 const intentPath = '.release/npm-intent.json';
 const repository = 'lushly-dev/afd';
+/**
+ * GitHub's commit statuses API is eventually consistent: a GET right after POST can miss the
+ * status just created and hold a release before any upload (#1590 / run 44827924550). Retry only
+ * exact replication lag (empty on acquire, or the prior status ID on complete/fail/reconcile)
+ * within a short deadline that bounds every readback request; fail immediately on any unexpected
+ * or conflicting status, a mismatched field or context on the written ID, a malformed status
+ * response, or an API error.
+ */
+export const CLAIM_READBACK_DEADLINE_MS = 30_000;
+export const CLAIM_READBACK_MAX_ATTEMPTS = 6;
+const firstReadbackWaitMs = 1000;
+const longestReadbackWaitMs = 8_000;
 const held = (message) =>
 	new Error(`Publication held: ${message}; explicit operator reconciliation required`);
-export function githubApi({ root, endpoint, body }) {
+export function githubApi({ root, endpoint, body, timeoutMs }) {
 	return JSON.parse(
 		execFileSync(
 			'gh',
@@ -31,6 +44,7 @@ export function githubApi({ root, endpoint, body }) {
 				encoding: 'utf8',
 				input: body ? JSON.stringify(body) : undefined,
 				stdio: ['pipe', 'pipe', 'pipe'],
+				...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
 			}
 		)
 	);
@@ -71,6 +85,11 @@ function identity({ root, environment, command }) {
 	if (command('git', ['rev-parse', '--is-shallow-repository'], root).trim() !== 'false')
 		throw held('full git history is required');
 	const intentDigest = hash(bytes);
+	try {
+		validateSupersedes(record, intentDigest);
+	} catch {
+		throw held('intent supersedes record is invalid');
+	}
 	if (hash(command('git', ['show', `HEAD:${intentPath}`], root)) !== intentDigest)
 		throw held('current intent is not committed');
 	const history = command(
@@ -103,13 +122,20 @@ function identity({ root, environment, command }) {
 	if (!commit) throw held('current intent has no committed origin');
 	return { repository, commit, context: `release/npm/${intentDigest}`, intentDigest };
 }
-function statuses(options, key) {
+function statuses(options, key, { deadline, expectedId } = {}) {
 	const matching = [];
 	const seen = new Set();
 	for (let page = 1; page <= 100; page++) {
+		let timeoutMs;
+		if (deadline !== undefined) {
+			const remaining = deadline - options.now();
+			if (remaining <= 0) throw held('durable claim readback differs');
+			timeoutMs = Math.max(1, Math.ceil(remaining));
+		}
 		const result = options.api({
 			root: options.root,
 			endpoint: `repos/${repository}/commits/${key.commit}/statuses?per_page=100&page=${page}`,
+			...(timeoutMs !== undefined ? { timeoutMs } : {}),
 		});
 		if (!Array.isArray(result) || result.length > 100) throw held('unknown GitHub status response');
 		for (const entry of result) {
@@ -122,6 +148,10 @@ function statuses(options, key) {
 			)
 				throw held('malformed or repeated GitHub status');
 			seen.add(entry.id);
+			// A written status ID reported under a different context contradicts the POST response;
+			// fail closed at once instead of filtering it out and treating the readback as lag.
+			if (expectedId !== undefined && entry.id === expectedId && entry.context !== key.context)
+				throw held('durable claim readback differs');
 			if (entry.context === key.context) {
 				if (
 					!['pending', 'success', 'failure', 'error'].includes(entry.state) ||
@@ -157,7 +187,7 @@ function verifyOwn(key, current, claim, targetUrl) {
 	)
 		throw held('pending claim is not owned by this run attempt');
 }
-function post(options, key, state, targetUrl, recoveryStatusId) {
+function post(options, key, state, targetUrl, { recoveryStatusId, expectedPriorId = null } = {}) {
 	const result = options.api({
 		root: options.root,
 		endpoint: `repos/${repository}/statuses/${key.commit}`,
@@ -178,18 +208,40 @@ function post(options, key, state, targetUrl, recoveryStatusId) {
 		result.id <= 0 ||
 		result.state !== state ||
 		result.context !== key.context ||
-		result.target_url !== targetUrl
+		result.target_url !== targetUrl ||
+		(expectedPriorId !== null && result.id <= expectedPriorId)
 	)
 		throw held('GitHub did not confirm durable claim write');
-	const current = statuses(options, key)[0];
-	if (current?.id !== result.id || current.state !== state || current.target_url !== targetUrl)
-		throw held('durable claim readback differs');
-	return {
-		...key,
-		state: state === 'success' ? 'succeeded' : state,
-		statusId: result.id,
-		targetUrl,
-	};
+	const deadline = options.now() + CLAIM_READBACK_DEADLINE_MS;
+	let pause = firstReadbackWaitMs;
+	for (let attempt = 0; attempt < CLAIM_READBACK_MAX_ATTEMPTS; attempt++) {
+		if (deadline - options.now() <= 0) break;
+		const entries = statuses(options, key, { deadline, expectedId: result.id });
+		const current = entries[0];
+		if (current?.id === result.id) {
+			if (
+				(expectedPriorId === null ? entries.length !== 1 : entries[1]?.id !== expectedPriorId) ||
+				current.state !== state ||
+				current.target_url !== targetUrl
+			)
+				throw held('durable claim readback differs');
+			return {
+				...key,
+				state: state === 'success' ? 'succeeded' : state,
+				statusId: result.id,
+				targetUrl,
+			};
+		}
+		// Only exact replication lag may retry: empty on acquire, or still showing the exact prior
+		// status ID on complete/fail/reconcile. Any other status ID is a concurrent write.
+		const stale = expectedPriorId === null ? entries.length === 0 : current?.id === expectedPriorId;
+		if (!stale) throw held('durable claim readback differs');
+		const remaining = deadline - options.now();
+		if (attempt >= CLAIM_READBACK_MAX_ATTEMPTS - 1 || remaining <= pause) break;
+		options.wait(pause);
+		pause = Math.min(pause * 2, longestReadbackWaitMs);
+	}
+	throw held('durable claim readback differs');
 }
 /** Injected transports are used by tests; the CLI always uses GitHub's authenticated API. */
 export function releaseClaim({
@@ -203,10 +255,13 @@ export function releaseClaim({
 	api = githubApi,
 	validate = validatePlan,
 	reconcile = reconcilePublication,
+	now = () => performance.now(),
+	wait = (milliseconds) =>
+		Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds),
 }) {
 	if (!['inspect', 'acquire', 'complete', 'fail', 'reconcile'].includes(action))
 		throw new Error('Unknown claim action');
-	const options = { root, environment, command, api };
+	const options = { root, environment, command, api, now, wait };
 	const key = identity(options);
 	if (!key) {
 		if (action !== 'inspect') throw held('release intent is missing');
@@ -242,14 +297,17 @@ export function releaseClaim({
 		if (statuses(options, key)[0]?.id !== current.id)
 			throw held('failed claim changed during reconciliation');
 		return {
-			...post(options, key, 'pending', targetUrl, current.id),
+			...post(options, key, 'pending', targetUrl, {
+				recoveryStatusId: current.id,
+				expectedPriorId: current.id,
+			}),
 			recoveredFrom: { statusId: current.id, targetUrl: current.target_url },
 			reconciliation,
 		};
 	}
 	if (action === 'acquire') {
 		if (current) throw held(`existing release claim is ${current.state}`);
-		return post(options, key, 'pending', targetUrl);
+		return post(options, key, 'pending', targetUrl, { expectedPriorId: null });
 	}
 	verifyOwn(key, current, claim, targetUrl);
 	if (action === 'complete') {
@@ -282,7 +340,9 @@ export function releaseClaim({
 			throw held('publication, finalization, or current intent binding is incomplete');
 		validate(root, plan, plan.core.registryEvidence);
 	}
-	return post(options, key, action === 'complete' ? 'success' : 'failure', targetUrl);
+	return post(options, key, action === 'complete' ? 'success' : 'failure', targetUrl, {
+		expectedPriorId: current.id,
+	});
 }
 export function main(args = process.argv.slice(2)) {
 	const action = args.shift();

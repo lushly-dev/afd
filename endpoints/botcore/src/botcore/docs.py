@@ -47,7 +47,7 @@ Detect hardcoded/non-portable paths.
 Run skill_lint over the configured skills directory.
 """,
     "skill": """\
-# Skill Registry Commands
+# Skill Commands: registry, lint and usage
 
 Ownership lives in the frontmatter's `metadata:` map (`metadata.source`,
 `metadata.version`, `metadata.portable`). A skill without a source is locally owned;
@@ -102,6 +102,58 @@ Remove `metadata.source` (or a top-level `source:`) from a skill.
 ## skill_index(write=True)
 Generate `_index.md` table of all installed skills.
 - `write`: Write file (default: True). False for preview.
+
+## skill_usage_collect(since_days=None, t3_store=None, machine=None, rebuild=False)
+Add the skill loads recorded since the last collection to this machine's skill usage record.
+Nothing is added to a skill and no agent reports anything: the loads are read, read-only and
+from one snapshot, from T3 Code's store, which covers its Claude and Codex threads alike.
+- A load is: the Skill tool; a file tool that reads `…/skills/<name>/SKILL.md`; a shell command
+  that shows the agent that file (`cat`, `sed`, `head`, `tail`, `nl`, `less`, `more`, `bat`,
+  `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
+  that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
+  or edit that names the file is not a load, nor a read sent to a file, a count or a search.
+- It also records each session, with the pull requests T3 Code linked to it, whether or not it
+  loaded a skill, and each change a session made to a skill's files (`loads_added` and
+  `edits_added` count the two).
+- The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
+  time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
+  It never holds a prompt, a command, arguments, a title or file contents.
+- It continues from the last collection and reads everything again once a week.
+- `since_days`: re-read that many days instead
+- `t3_store`, `machine`: read a store copied from another machine, named by `machine`
+- `rebuild`: read everything and replace what an older botcore recognised
+- Errors: `SOURCE_SCHEMA_CHANGED` (this botcore cannot read this T3 Code release's store;
+  nothing collected before is lost), `SOURCE_UNREADABLE`, `SOURCE_NOT_FOUND`,
+  `RECORD_UNAVAILABLE`, `COLLECT_RUNNING`, `INVALID_INPUT`. A machine with no T3 Code store
+  succeeds with `status: absent`.
+
+## skill_usage_report(days=30, project=None, harness=None, ending_days_ago=0, skill=None,
+##   agent=None, limit=50)
+Read-only. Skill use over `days` days from this machine's record; run `skill_usage_collect`
+first (`NOT_COLLECTED` otherwise).
+- Per skill: `sessions` that used it, `of_sessions` the project had and the `share`; `loads`;
+  `typed_sessions` (the person asked for it); `harnesses`, `models`, `machines` (sessions by
+  each); `agents` and `paths` (loads by `main`, `delegate` or `subagent`, and by `skill_tool`,
+  `file_read`, `shell_read` or `typed`); `last_used`; `also_loaded_as` (earlier names);
+  `size_bytes`, `max_context_bytes` (size times loads: a ceiling, since a skill read in parts
+  counts whole) and `listing_chars` (what it adds to every session's skill listing).
+- A session is a thread a person started or a task delegated to its own agent; a subagent's
+  load counts under the session it works for. A skill read three times in one session is one
+  use. A typed request is a load unless a tool then loads the skill within ten minutes.
+- Not counted as use: a session that changed the skill's files (`authoring_sessions`), and an
+  audit, which is one session loading two thirds or more of the skills the project's checkout
+  holds (and at least 12 of them) within 30 minutes (`totals.audit_sessions`). Only skills the
+  checkout holds count toward that; a checkout that holds fewer than 12, or is not on this
+  machine, never has an audit, and an audit that takes longer than about 45 minutes is not
+  seen as one.
+- `quiet`: skills a project's checkout holds (`.claude/skills`, `.agents/skills`,
+  `.codex/skills`) that nothing used in the window.
+- `project`: `owner/name` or the name alone. `harness`: `claude` or `codex`. `agent`: `main`,
+  `delegate` or `subagent`. `skill`: one skill. `ending_days_ago`: move the window back, to
+  compare two periods. `limit`: skills listed, most used first; `more` counts the rest.
+- A project, harness or skill the record has never seen is `INVALID_INPUT` with the known
+  values, not an empty report. `warnings` says when the record is over a day old or holds
+  events an older botcore recognised. Also `RECORD_UNAVAILABLE`.
 """,
     "docs": """\
 # Docs Commands

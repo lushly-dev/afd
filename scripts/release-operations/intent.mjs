@@ -5,6 +5,32 @@ import { assertAdmission, loadInventory, releaseChannel, safePath } from '../rel
 import { hash, readRegistry, run, sourceDigest } from './shared.mjs';
 export const intentFile = '.release/npm-intent.json';
 
+/** Optional record pointing to a held, never-uploaded intent that this reviewed intent replaces. */
+export function validateSupersedes(record, intentDigest) {
+	if (record.supersedes === undefined) return;
+	const prior = record.supersedes;
+	const keys =
+		prior && typeof prior === 'object' && !Array.isArray(prior) ? Object.keys(prior) : [];
+	if (
+		!prior ||
+		typeof prior !== 'object' ||
+		Array.isArray(prior) ||
+		keys.some((key) => !['intentDigest', 'statusId', 'runId', 'attempt', 'reason'].includes(key)) ||
+		typeof prior.intentDigest !== 'string' ||
+		!/^[a-f0-9]{64}$/.test(prior.intentDigest) ||
+		prior.intentDigest === intentDigest ||
+		!Number.isSafeInteger(prior.statusId) ||
+		prior.statusId < 1 ||
+		typeof prior.runId !== 'string' ||
+		!/^[1-9]\d*$/.test(prior.runId) ||
+		typeof prior.attempt !== 'string' ||
+		!/^[1-9]\d*$/.test(prior.attempt) ||
+		typeof prior.reason !== 'string' ||
+		!prior.reason.trim()
+	)
+		throw new Error('Release intent supersedes record is invalid');
+}
+
 export function committedIntent(root, path = intentFile) {
 	const absolute = safePath(root, path);
 	if (!existsSync(absolute)) throw new Error('Missing reviewed release intent');
@@ -17,9 +43,12 @@ export function committedIntent(root, path = intentFile) {
 	}
 	if (committed !== bytes.toString('utf8'))
 		throw new Error('Release intent has uncommitted changes');
+	const record = JSON.parse(bytes.toString('utf8'));
+	const intentDigest = hash(bytes);
+	validateSupersedes(record, intentDigest);
 	return {
-		record: JSON.parse(bytes.toString('utf8')),
-		intentDigest: hash(bytes),
+		record,
+		intentDigest,
 		intentPath: path,
 	};
 }

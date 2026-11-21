@@ -1,0 +1,30 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: Count a session on any machine, once
+description: >-
+  When I work on three machines with two harnesses, I want a session on any of them counted
+  once in what I read, so that a session on another machine is not invisible.
+job: one-report-across-machines
+tags: [machines]
+steps:
+  - description: Collection also writes this machine's record to the shared folder
+    command: skill-usage-collect
+    expect:
+      success: true
+      data:
+        machine: bench
+        shared: { exists: true }
+  - description: The report counts the sessions of every machine that shares the folder
+    command: skill-usage-report
+    input: { days: 30, project: acme/garden }
+    expect:
+      success: true
+      data:
+        record:
+          machines: [bench, shed, tower]
+        skills:
+          - skill: plant-beds
+            sessions: 7
+            harnesses: { claude: 4, codex: 3 }
+            machines: { bench: 3, shed: 2, tower: 2 }

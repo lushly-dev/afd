@@ -29,8 +29,10 @@ import {
 	isProgressChunk,
 	success,
 } from '@lushly-dev/afd-core';
+import { InsufficientScopeError, SdkHttpError } from '@modelcontextprotocol/client';
 import { backoffDelay, CancellableDelay } from './backoff.js';
 import {
+	HttpStatusError,
 	isOutcomeUnknown,
 	JsonRpcResponseError,
 	NotConnectedError,
@@ -719,6 +721,14 @@ export class McpClient extends McpClientEventEmitter {
 		} catch (error) {
 			if (controller.signal.aborted && controller.signal.reason instanceof Error) {
 				throw controller.signal.reason;
+			}
+			if (error instanceof SdkHttpError) {
+				throw new HttpStatusError(error.status, error.statusText || error.message, {
+					cause: error,
+				});
+			}
+			if (error instanceof InsufficientScopeError) {
+				throw new HttpStatusError(403, error.message || 'Forbidden', { cause: error });
 			}
 			throw error;
 		} finally {

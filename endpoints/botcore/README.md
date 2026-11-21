@@ -108,7 +108,7 @@ The agent workflow becomes:
 
 1. **`start`** — Returns version, available functions, and doc topics. The agent orients itself.
 2. **`docs`** — Retrieves topic-based reference docs on demand. No upfront cost.
-3. **`run`** — Executes any command. AST-validated, output-truncated (head + tail preserved within 8KB), safe.
+3. **`run`** — Executes any command. Runs any Python its client sends, with your permissions; its input is AST-checked and its output truncated (head + tail preserved within 8KB).
 
 One line creates the server:
 
@@ -159,7 +159,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | Domain | Commands | What they do |
 |--------|----------|-------------|
 | **Dev** | `dev_lint`, `dev_test`, `dev_build` + 9 more | Language-aware linting, testing, building, quality gates, static analysis |
-| **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index` | Seed, track, lint, and manage skill ownership across repos |
+| **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index`, `skill_usage_collect`, `skill_usage_report` | Seed, track, lint, and manage skill ownership across repos; report which skills agents load |
 | **CDP** | 33 `cdp_*` functions | Browser automation from Python (`botcore.commands.cdp`; not registered on the MCP server or CLI): launch, navigate, click, screenshot, forms, console, traces |
 | **Docs** | `docs_lint`, `docs_check_changelog`, `docs_check_agents` | Documentation quality checks |
 | **Info** | `info_workspace`, `info_env`, `info_scripts` | Workspace discovery and environment inspection |
@@ -277,9 +277,11 @@ botcore init
 # Non-interactive (agent-safe) — accepts all defaults
 botcore init --non-interactive
 
-# Start the MCP server
+# Start the MCP server over stdio
 botcore serve
 ```
+
+`botcore serve` is a trusted-local server: its `botcore-run` tool executes any Python its client sends, with your permissions. It serves only the client that started it, over stdio, and refuses `--transport sse`. To serve commands over HTTP, serve a managed host with `botcore.host_http` (`create_host_http_app`, run with `serve_hosts`), which checks bearer tokens from `botcore host-token issue`; see [Serving hosts over HTTP](docs/host-composition.md#serving-hosts-over-http).
 
 For agentic setup with structured output:
 
@@ -325,6 +327,22 @@ botcore skill-status
 # List all skills
 botcore skill-list
 ```
+
+### Measure Skill Use
+
+```bash
+# Add the skill loads the harnesses recorded to this machine's record
+botcore skill-usage-collect
+
+# Which skills were used in the last 30 days, by which harness, model and agent
+botcore skill-usage-report --days 30 --project my-repo
+
+# The 30 days before that, to compare
+botcore skill-usage-report --days 30 --ending-days-ago 30 --skill my-skill
+```
+
+The loads are read from T3 Code's store, so nothing is added to a skill and no agent reports
+anything. The record never holds a prompt, a command or file contents.
 
 ## Development
 

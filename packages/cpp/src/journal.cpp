@@ -91,7 +91,7 @@ private:
 };
 
 bool read_numbers(const Json& value, const std::string& path, std::vector<double>& out,
-                  std::string& error) {
+                  std::string& error, bool unit_range = false) {
     if (!value.is_array()) {
         detail::record(error, path, "expected an array of finite numbers");
         return false;
@@ -102,7 +102,12 @@ bool read_numbers(const Json& value, const std::string& path, std::vector<double
             detail::record(error, path, "expected an array of finite numbers");
             return false;
         }
-        out.push_back(item.get<double>());
+        const double number = item.get<double>();
+        if (unit_range && (number < 0.0 || number >= 1.0)) {
+            detail::record(error, path, "expected an array of numbers in [0, 1)");
+            return false;
+        }
+        out.push_back(number);
     }
     return true;
 }
@@ -113,7 +118,7 @@ bool read_tape(const Json& value, const std::string& path, JournalTape& out, std
         read_numbers(*clock, reader.at("clock"), out.clock, error);
     }
     if (const Json* random = reader.get("random", true)) {
-        read_numbers(*random, reader.at("random"), out.random, error);
+        read_numbers(*random, reader.at("random"), out.random, error, true);
     }
     if (const Json* truncated = reader.get("truncated", false)) {
         detail::read_value(*truncated, reader.at("truncated"), out.truncated, error);

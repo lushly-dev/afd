@@ -215,13 +215,15 @@ class TestExecute:
 			call_args = mock_exec.call_args[0]
 			# First arg is cli_path
 			assert call_args[0] == "afd"
-			# Remaining args include call, command, --connect, url, --json, --input, json
-			assert "call" in call_args
-			assert "todo-list" in call_args
-			assert "--connect" in call_args
-			assert "http://localhost:3000/mcp" in call_args
-			assert "--json" in call_args
-			assert "--input" in call_args
+			# Remaining args match `afd --json call <tool> <json-args> --server <url>`
+			assert call_args[1:] == (
+				"--json",
+				"call",
+				"todo-list",
+				'{"filter": "active"}',
+				"--server",
+				"http://localhost:3000/mcp",
+			)
 
 	@pytest.mark.asyncio
 	async def test_execute_with_json_command_result_failure(self, wrapper):

@@ -8,11 +8,13 @@ Port of packages/testing/src/commands/suggest.ts
 
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
-from afd.testing.commands._files import find_scenario_files
+from afd.testing.commands._files import find_scenario_files, project_root, resolve_inside
 from afd.testing.scenarios.parser import parse_scenario_file
 
 
@@ -62,8 +64,16 @@ def _generate_skeleton(
 	}
 
 
-def scenario_suggest(input: dict[str, Any] | None = None) -> CommandResult[Any]:
+def scenario_suggest(
+	input: dict[str, Any] | None = None,
+	*,
+	root: str | os.PathLike[str] | None = None,
+) -> CommandResult[Any]:
 	"""Get scenario suggestions based on context.
+
+	``directory`` must stay inside ``root`` (default: the current working
+	directory). ``..`` segments, absolute paths and symlinks that leave
+	``root`` are refused.
 
 	Input:
 		context: str - Context type (changed-files, uncovered, failed, command, natural)
@@ -95,14 +105,30 @@ def scenario_suggest(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 			suggestion="Provide a context type: changed-files, uncovered, failed, command, natural",
 		)
 
+	base = project_root(root)
+	scenario_dir = (
+		resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
+	)
+	if scenario_dir is None:
+		return error(
+			"VALIDATION_ERROR",
+			f"Scenario directory is outside the project root: {str(directory)[:200]}",
+			suggestion="Use a directory inside the project, such as ./scenarios.",
+			details={"field": "directory"},
+		)
+
 	suggestions: list[dict[str, Any]] = []
 
 	if context == "changed-files":
-		suggestions = _suggest_from_changed_files(files, directory, known_commands, include_skeleton)
+		suggestions = _suggest_from_changed_files(
+			files, str(scenario_dir), known_commands, include_skeleton
+		)
 	elif context == "uncovered":
-		suggestions = _suggest_from_uncovered(directory, known_commands, include_skeleton)
+		suggestions = _suggest_from_uncovered(
+			str(scenario_dir), base, known_commands, include_skeleton
+		)
 	elif context == "failed":
-		suggestions = _suggest_from_failed(directory)
+		suggestions = _suggest_from_failed(str(scenario_dir), base)
 	elif context == "command":
 		if not command:
 			return error(
@@ -110,7 +136,7 @@ def scenario_suggest(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 				"Missing required field: command (for 'command' context)",
 				suggestion="Provide the 'command' name to suggest scenarios for.",
 			)
-		suggestions = _suggest_for_command(command, directory, include_skeleton)
+		suggestions = _suggest_for_command(command, str(scenario_dir), include_skeleton)
 	elif context == "natural":
 		if not query:
 			return error(
@@ -178,6 +204,7 @@ def _suggest_from_changed_files(
 
 def _suggest_from_uncovered(
 	directory: str,
+	base: Path,
 	known_commands: list[str],
 	include_skeleton: bool,
 ) -> list[dict[str, Any]]:
@@ -185,7 +212,11 @@ def _suggest_from_uncovered(
 
 	# Find commands already covered
 	covered: set[str] = set()
-	files = find_scenario_files(directory)
+	files = [
+		str(resolved)
+		for path in find_scenario_files(directory)
+		if (resolved := resolve_inside(path, base)) is not None
+	]
 	for filepath in files:
 		result = parse_scenario_file(filepath)
 		if result.success:
@@ -214,10 +245,14 @@ def _suggest_from_uncovered(
 	return suggestions
 
 
-def _suggest_from_failed(directory: str) -> list[dict[str, Any]]:
+def _suggest_from_failed(directory: str, base: Path) -> list[dict[str, Any]]:
 	suggestions: list[dict[str, Any]] = []
 
-	files = find_scenario_files(directory)
+	files = [
+		str(resolved)
+		for path in find_scenario_files(directory)
+		if (resolved := resolve_inside(path, base)) is not None
+	]
 	for filepath in files:
 		result = parse_scenario_file(filepath)
 		if result.success:

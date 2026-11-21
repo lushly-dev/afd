@@ -108,11 +108,10 @@ async def scenario_evaluate(
 				"'scenarios' must be a list of file paths",
 				suggestion="Pass scenario file paths relative to the project root.",
 			)
+		resolved_files: list[str] = []
 		for scenario_file in scenario_files:
-			if (
-				not scenario_file.endswith(SCENARIO_SUFFIXES)
-				or resolve_inside(scenario_file, base) is None
-			):
+			resolved = resolve_inside(scenario_file, base)
+			if not scenario_file.endswith(SCENARIO_SUFFIXES) or resolved is None:
 				return error(
 					"VALIDATION_ERROR",
 					f"Not a scenario file inside the project root: {scenario_file[:200]}",
@@ -122,9 +121,14 @@ async def scenario_evaluate(
 					),
 					details={"field": "scenarios"},
 				)
-		files = scenario_files
+			resolved_files.append(str(resolved))
+		files = resolved_files
 	else:
-		scenario_dir = resolve_inside(str(directory), base)
+		scenario_dir = (
+			resolve_inside(directory, base)
+			if isinstance(directory, (str, os.PathLike))
+			else None
+		)
 		if scenario_dir is None:
 			return error(
 				"VALIDATION_ERROR",
@@ -132,7 +136,11 @@ async def scenario_evaluate(
 				suggestion="Use a directory inside the project, such as ./scenarios.",
 				details={"field": "directory"},
 			)
-		files = find_scenario_files(str(scenario_dir))
+		files = [
+			str(resolved)
+			for path in find_scenario_files(str(scenario_dir))
+			if (resolved := resolve_inside(path, base)) is not None
+		]
 
 	if not files:
 		return error(

@@ -302,10 +302,25 @@ def init(
     "--transport",
     default="stdio",
     type=click.Choice(["stdio", "sse"], case_sensitive=False),
-    help="Transport type",
+    help="Transport: stdio. sse is refused, since the server runs any Python its client sends",
 )
 def serve(name: str, transport: str) -> None:
-    """Start the botcore MCP server."""
+    """Start the trusted-local botcore MCP server over stdio.
+
+    Its run tool executes any Python its client sends, with your permissions, so it serves only
+    the client that started it, over stdio. To serve commands over HTTP, serve a managed host
+    with botcore.host_http (create_host_http_app, run with serve_hosts) and bearer tokens from
+    `botcore host-token issue` (docs/host-composition.md).
+    """
+    if transport.lower() != "stdio":
+        click.secho(
+            "Error: botcore serve runs any Python its client sends, so it serves only over stdio, "
+            "to the client that started it. To serve commands over HTTP, serve a managed "
+            "host with botcore.host_http (create_host_http_app, run with serve_hosts), which "
+            "checks bearer tokens from `botcore host-token issue` (docs/host-composition.md).",
+            fg="red", err=True,
+        )
+        sys.exit(2)
     try:
         from botcore.server import create_mcp_server
 
@@ -430,6 +445,58 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
     from botcore.commands.skill_lint import skill_lint_spec
 
     result = _run_async(skill_lint_spec(path=path))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("skill-usage-collect")
+@click.option("--since-days", type=int, default=None,
+              help="Re-read this many days instead of continuing from the last collection")
+@click.option("--t3-store", default=None,
+              help="Read this T3 Code store, not this machine's (needs --machine)")
+@click.option("--machine", default=None, help="The machine a copied store came from")
+@click.option("--rebuild", is_flag=True, default=False,
+              help="Read everything again and replace what an older botcore recognised")
+@_json_option
+@click.pass_context
+def skill_usage_collect_cmd(  # noqa: PLR0913 - the command's options
+    ctx: click.Context, since_days: int | None, t3_store: str | None, machine: str | None,
+    rebuild: bool, **_kwargs: Any,
+) -> None:
+    """Add the skill loads the harnesses recorded to this machine's record."""
+    from botcore.commands.skill_usage import skill_usage_collect
+
+    result = _run_async(
+        skill_usage_collect(
+            since_days=since_days, t3_store=t3_store, machine=machine, rebuild=rebuild
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("skill-usage-report")
+@click.option("--days", type=int, default=30, show_default=True, help="Days to report")
+@click.option("--project", default=None, help="Only this project (owner/name, or its name)")
+@click.option("--harness", default=None, help="Only this harness: claude or codex")
+@click.option("--skill", default=None, help="Only this skill")
+@click.option("--agent", default=None, help="Only loads by main, delegate or subagent")
+@click.option("--ending-days-ago", type=int, default=0, show_default=True,
+              help="End the window this many days ago, to compare two periods")
+@click.option("--limit", type=int, default=50, show_default=True, help="Skills to list")
+@_json_option
+@click.pass_context
+def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
+    ctx: click.Context, days: int, project: str | None, harness: str | None,
+    skill: str | None, agent: str | None, ending_days_ago: int, limit: int, **_kwargs: Any,
+) -> None:
+    """Report which skills were used, how often, and by which harness. Read-only."""
+    from botcore.commands.skill_usage import skill_usage_report
+
+    result = _run_async(
+        skill_usage_report(
+            days=days, project=project, harness=harness, ending_days_ago=ending_days_ago,
+            skill=skill, agent=agent, limit=limit,
+        )
+    )
     _format_result(result, _is_json(ctx))
 
 

@@ -84,3 +84,76 @@ updates:
     labels:
       - dependencies
       - area:ci
+
+  # AFD's own Rust and Python roots outside the packages above, one entry per root, so each root's
+  # minor and patch updates arrive as one pull request a week. The imported families (Botcore,
+  # Health, Specimen) are left out: AGENTS.md has them changed here only with a provenance record of
+  # why. Their lockfiles stay in the dependency graph, so Dependabot's security alerts still cover
+  # the dependencies it reads from them.
+  - package-ecosystem: cargo
+    directory: /endpoints/umbel
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Loam desktop pins its Tauri transport exactly, after a review of that source
+  # (endpoints/loam/docs/phases/6-hosts/spec.md), so it and the crates pinned beside it move
+  # only by hand.
+  - package-ecosystem: cargo
+    directory: /endpoints/loam/packages/desktop/src-tauri
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: 'tauri*'
+      - dependency-name: reqwest
+      # Pinned at the version Tauri's own dependencies lock.
+      - dependency-name: windows-sys
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /endpoints/loam/plugins/mail/engine
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /packages/examples/todo/backends/rust
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: uv
+    directory: /packages/examples/todo/backends/python
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    groups:
+      uv-minor-patch:
+        update-types:
+          - minor
+          - patch

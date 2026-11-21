@@ -15,6 +15,7 @@
 import { ProtocolError, ProtocolErrorCode, type Server } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { checkMetaEntry } from './meta-keys.js';
+import type { ScopeView } from './scope-view.js';
 import { DIGEST_META_KEY, SKILLS_EXTENSION_ID, type SkillCatalog, sha256Digest } from './skills.js';
 
 /** The MIME type MCP Apps requires of a `ui://` resource. */
@@ -221,6 +222,8 @@ export interface ResourceServing {
 	modern: boolean;
 	/** The error a failure while serving becomes (`-32603`, reported to `onError`). */
 	internalError(error: unknown): ProtocolError;
+	/** The current request's scope view, when MCP authorization is configured. */
+	requestView?: () => ScopeView | undefined;
 }
 
 /** Look up the provider's entries, checked again each time because a provider may change them. */
@@ -296,9 +299,22 @@ export function createResourceService(
 				},
 			}),
 		},
-		install(server, { modern, internalError }) {
+		install(server, { modern, internalError, requestView }) {
+			const checkRequestScope = (): void => {
+				const view = requestView?.();
+				const decision = view?.decideRequest();
+				if (view && decision && decision !== 'proceed') {
+					const error = view.insufficientScope(decision.forbidden);
+					throw new ProtocolError(ProtocolErrorCode.InvalidRequest, error.message, {
+						code: error.code,
+						suggestion: error.suggestion,
+						scopes: decision.forbidden,
+					});
+				}
+			};
 			const guarded = async <T>(work: () => T | Promise<T>): Promise<T> => {
 				try {
+					checkRequestScope();
 					return await work();
 				} catch (error) {
 					throw error instanceof ProtocolError ? error : internalError(error);

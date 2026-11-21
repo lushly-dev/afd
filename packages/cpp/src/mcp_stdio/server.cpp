@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -26,6 +27,7 @@
 
 #include "detail/approval_relay.hpp"
 #include "detail/canonical_json.hpp"
+#include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
 #include "detail/sha256.hpp"
 #include "tools.hpp"
@@ -1587,78 +1589,92 @@ struct StdioServer::State {
         const Json& id = *id_it;
         const Json params = message.contains("params") ? message["params"] : Json::object();
 
-        // A modern request names its protocol version in _meta; a legacy one relies on initialize.
-        const Json meta = object_member(params, "_meta");
-        const auto version = meta.find(std::string(protocol_version_key));
-        const bool modern = version != meta.end() && version->is_string();
-        RequestInfo info;
-        info.meta = meta;
-        if (modern) {
-            const auto& requested = version->get_ref<const std::string&>();
-            if (requested != modern_version) {
-                return error_response(id, unsupported_protocol_version,
-                                      "Unsupported protocol version",
-                                      {{"supported", Json::array({std::string(modern_version)})},
-                                       {"requested", requested}});
+        const auto dispatch = [&]() -> std::optional<std::string> {
+            // A modern request names its protocol version in _meta; a legacy one relies on
+            // initialize.
+            const Json meta = object_member(params, "_meta");
+            const auto version = meta.find(std::string(protocol_version_key));
+            const bool modern = version != meta.end() && version->is_string();
+            RequestInfo info;
+            info.meta = meta;
+            if (modern) {
+                const auto& requested = version->get_ref<const std::string&>();
+                if (requested != modern_version) {
+                    return error_response(
+                        id, unsupported_protocol_version, "Unsupported protocol version",
+                        {{"supported", Json::array({std::string(modern_version)})},
+                         {"requested", requested}});
+                }
+                const auto capabilities = meta.find(std::string(client_capabilities_key));
+                if (capabilities == meta.end() || !capabilities->is_object()) {
+                    return error_response(
+                        id, -32602,
+                        "Missing _meta[\"io.modelcontextprotocol/clientCapabilities\"]");
+                }
+                info.modern = true;
+                info.protocol_version = requested;
+                info.client_capabilities = *capabilities;
+            } else {
+                info.protocol_version = legacy_version;
+                info.client_capabilities = legacy_capabilities;
             }
-            const auto capabilities = meta.find(std::string(client_capabilities_key));
-            if (capabilities == meta.end() || !capabilities->is_object()) {
-                return error_response(
-                    id, -32602, "Missing _meta[\"io.modelcontextprotocol/clientCapabilities\"]");
-            }
-            info.modern = true;
-            info.protocol_version = requested;
-            info.client_capabilities = *capabilities;
-        } else {
-            info.protocol_version = legacy_version;
-            info.client_capabilities = legacy_capabilities;
-        }
 
-        if (method == "server/discover") {
-            return response(id, discover_result());
-        }
-        if (method == "initialize") {
-            return response(id, initialize_result(params));
-        }
-        if (method == "ping" && !modern) {
-            return response(id, Json::object()); // removed in 2026-07-28
-        }
-        // A meta-tool's `meta` argument counts as `_meta` from here on (TypeScript's
-        // `liftMetaArgument`), so it can name the active context.
-        Json routed = params;
-        if (method == "tools/call") {
-            if (auto refused = lift_meta_argument(routed, info)) {
-                Json result = tool_result(*refused);
+            if (method == "server/discover") {
+                return response(id, discover_result());
+            }
+            if (method == "initialize") {
+                return response(id, initialize_result(params));
+            }
+            if (method == "ping" && !modern) {
+                return response(id, Json::object()); // removed in 2026-07-28
+            }
+            // A meta-tool's `meta` argument counts as `_meta` from here on (TypeScript's
+            // `liftMetaArgument`), so it can name the active context.
+            Json routed = params;
+            if (method == "tools/call") {
+                if (auto refused = lift_meta_argument(routed, info)) {
+                    Json result = tool_result(*refused);
+                    return response(id,
+                                    modern ? modern_result(std::move(result)) : std::move(result));
+                }
+            }
+            std::shared_ptr<const ContextScope> scope;
+            if (method == "tools/list" || method == "tools/call") {
+                auto requested = request_scope(info);
+                if (!requested) {
+                    return error_response(id, -32602, requested.error(),
+                                          {{"suggestion", "Use one of: " + known_contexts()}});
+                }
+                scope = std::move(*requested);
+                if (scope) {
+                    info.active_context = scope->active();
+                }
+            }
+            if (method == "tools/list") {
+                Json result{{"tools", tools(info.active_context)}};
+                if (!modern) {
+                    return response(id, std::move(result));
+                }
+                result["ttlMs"] = ttl_ms();
+                result["cacheScope"] = "public";
+                return response(id, modern_result(std::move(result)));
+            }
+            if (method == "tools/call") {
+                Json result =
+                    call_tool(routed, info, modern ? ClientRequester{} : ask, cancellation, scope);
                 return response(id, modern ? modern_result(std::move(result)) : std::move(result));
             }
+            return error_response(id, -32601, "Method not found: " + method);
+        };
+#if AFD_HAS_EXCEPTIONS
+        try {
+            return dispatch();
+        } catch (...) {
+            return error_response(id, -32603, "Internal error");
         }
-        std::shared_ptr<const ContextScope> scope;
-        if (method == "tools/list" || method == "tools/call") {
-            auto requested = request_scope(info);
-            if (!requested) {
-                return error_response(id, -32602, requested.error(),
-                                      {{"suggestion", "Use one of: " + known_contexts()}});
-            }
-            scope = std::move(*requested);
-            if (scope) {
-                info.active_context = scope->active();
-            }
-        }
-        if (method == "tools/list") {
-            Json result{{"tools", tools(info.active_context)}};
-            if (!modern) {
-                return response(id, std::move(result));
-            }
-            result["ttlMs"] = ttl_ms();
-            result["cacheScope"] = "public";
-            return response(id, modern_result(std::move(result)));
-        }
-        if (method == "tools/call") {
-            Json result =
-                call_tool(routed, info, modern ? ClientRequester{} : ask, cancellation, scope);
-            return response(id, modern ? modern_result(std::move(result)) : std::move(result));
-        }
-        return error_response(id, -32601, "Method not found: " + method);
+#else
+        return dispatch();
+#endif
     }
 };
 
@@ -1842,6 +1858,7 @@ struct Connection {
     std::condition_variable changed;
     std::deque<Line> queue;
     bool eof = false;
+    std::atomic<bool> stop{false};
     // The request being handled, so `notifications/cancelled` can reach it.
     std::optional<Json> current_id;
     std::shared_ptr<CancellationSource> current_cancel;
@@ -1850,12 +1867,12 @@ struct Connection {
     std::optional<Json> answer;
 };
 
-/// Reads one line of at most `limit` bytes from `in`; `std::nullopt` at EOF.
-std::optional<Line> read_line(std::istream& in, std::size_t limit) {
+/// Reads one line of at most `limit` bytes from `in`; `std::nullopt` at EOF or stop.
+std::optional<Line> read_line(std::istream& in, std::size_t limit, const std::atomic<bool>& stop) {
     Line line;
     char c = 0;
     bool got_any = false;
-    while (in.get(c)) {
+    while (!stop.load(std::memory_order_acquire) && in.get(c)) {
         got_any = true;
         if (c == '\n') {
             break;
@@ -1866,7 +1883,7 @@ std::optional<Line> read_line(std::istream& in, std::size_t limit) {
             line.too_long = true; // keep reading to the end of the line, but store nothing more
         }
     }
-    if (!got_any) {
+    if (!got_any || stop.load(std::memory_order_acquire)) {
         return std::nullopt;
     }
     if (!line.text.empty() && line.text.back() == '\r') {
@@ -1929,23 +1946,69 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
     // Writes are serialized on their own lock, never under `connection.mutex`: a client that
     // stops reading must not stop the reader thread from draining its input.
     std::mutex write_mutex;
-    const auto write = [&](const std::string& text) {
+    const auto write = [&](const std::string& text) -> bool {
         const std::lock_guard lock(write_mutex);
         out << text << '\n';
         out.flush();
+        return static_cast<bool>(out);
     };
     const std::size_t limit = state_->options.max_line_bytes;
-    std::thread reader([&connection, &in, limit] {
-        while (auto line = read_line(in, limit)) {
-            if (line->text.empty() && !line->too_long) {
-                continue;
+    // Joins the reader on normal exit and on exception unwind (never std::terminate), without
+    // relying on std::jthread (missing from Apple Clang 15/16 libc++). Declared after `connection`
+    // so it joins before `connection` is destroyed.
+    struct ReaderGuard {
+        Connection& connection;
+        const std::function<void()>& on_shutdown;
+        std::thread thread;
+        ~ReaderGuard() {
+            connection.stop.store(true, std::memory_order_release);
+            bool at_eof = false;
+            {
+                const std::lock_guard lock(connection.mutex);
+                at_eof = connection.eof;
             }
-            route(connection, std::move(*line));
+            if (!at_eof && on_shutdown) {
+#if AFD_HAS_EXCEPTIONS
+                try {
+                    on_shutdown();
+                } catch (...) { // never throw from a destructor
+                }
+#else
+                on_shutdown();
+#endif
+            }
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
-        const std::lock_guard lock(connection.mutex);
-        connection.eof = true;
-        connection.changed.notify_all();
-    });
+    };
+    ReaderGuard reader{connection, state_->options.on_shutdown,
+                       std::thread([&connection, &in, limit] {
+                           struct NotifyEof {
+                               Connection& conn;
+                               ~NotifyEof() {
+                                   const std::lock_guard lock(conn.mutex);
+                                   conn.eof = true;
+                                   conn.changed.notify_all();
+                               }
+                           };
+                           const NotifyEof notify{connection};
+#if AFD_HAS_EXCEPTIONS
+                           try {
+#endif
+                               while (auto line = read_line(in, limit, connection.stop)) {
+                                   if (line->text.empty() && !line->too_long) {
+                                       continue;
+                                   }
+                                   route(connection, std::move(*line));
+                               }
+#if AFD_HAS_EXCEPTIONS
+                           } catch (...) {
+                               // Stream failure or parse error ends the input side cleanly;
+                               // NotifyEof wakes serve().
+                           }
+#endif
+                       })};
 
     std::uint64_t asked = 0;
     const auto timeout = std::chrono::milliseconds(state_->options.elicitation_timeout_ms);
@@ -1958,10 +2021,20 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
             connection.answer.reset();
             cancelled = connection.current_cancel->token();
         }
+        struct WaitingReset {
+            Connection& conn;
+            ~WaitingReset() {
+                const std::lock_guard lock(conn.mutex);
+                conn.waiting_for.reset();
+            }
+        };
+        const WaitingReset reset{connection};
         Json message = request;
         message["jsonrpc"] = "2.0";
         message["id"] = request_id;
-        write(wire::serialize(message));
+        if (!write(wire::serialize(message))) {
+            return std::nullopt;
+        }
         std::unique_lock lock(connection.mutex);
         // Cancellation sets no condition the wait can see without a notify, so poll it too.
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -1971,7 +2044,6 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
                                           (std::min)(deadline, std::chrono::steady_clock::now() +
                                                                    std::chrono::milliseconds(100)));
         }
-        connection.waiting_for.reset();
         auto answer = std::move(connection.answer);
         connection.answer.reset();
         if (!answer || !answer->contains("result")) {
@@ -2009,10 +2081,11 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
         }
         // A cancelled request gets no response (MCP, cancellation).
         if (reply && !(line.id && token.is_cancelled())) {
-            write(*reply);
+            if (!write(*reply)) {
+                break;
+            }
         }
     }
-    reader.join();
 }
 
 } // namespace afd::mcp

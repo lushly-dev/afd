@@ -37,8 +37,9 @@ constexpr std::array<std::string_view, 17> validation_keywords{"type",
 constexpr std::array<std::string_view, 7> type_names{"string", "number", "integer", "boolean",
                                                      "object", "array",  "null"};
 
-// Bounds schema nesting at compile time and $ref chains at any time.
+// Bounds schema nesting at compile time, validation recursion at runtime, and $ref chains.
 constexpr int max_schema_depth = 64;
+constexpr int max_validation_depth = 128;
 constexpr int max_ref_chain = 32;
 
 template <std::size_t N>
@@ -371,13 +372,23 @@ public:
         : root_(root), issues_(issues) {}
 
     Json run(const Json& raw_schema, const Json& value, const std::string& path,
-             bool absent = false) {
+             bool absent = false, int depth = 0) {
+        if (depth > max_validation_depth) {
+            add(path,
+                "Too deep: input exceeds maximum validation depth of " +
+                    std::to_string(max_validation_depth),
+                "too_deep");
+            return nullptr;
+        }
         const Json* schema = follow_refs(root_, raw_schema);
         if (schema == nullptr || schema->is_boolean()) {
             if (schema != nullptr && !schema->get<bool>()) {
                 add(path, "Invalid input", "invalid_value");
-            } else if (absent) {
+                return nullptr;
+            }
+            if (absent) {
                 add_missing_required(path);
+                return nullptr;
             }
             return value;
         }
@@ -394,7 +405,7 @@ public:
                                           : "Invalid option: expected one of ") +
                         listed,
                     "invalid_value");
-                return value;
+                return nullptr;
             }
         }
 
@@ -429,12 +440,12 @@ public:
                     add(path, "Invalid input: expected " + expected + ", received " + received,
                         "invalid_type", expected);
                 }
-                return value;
+                return nullptr;
             }
         }
         if (absent) {
             add_missing_required(path);
-            return value;
+            return nullptr;
         }
 
         if (value.is_string()) {
@@ -446,10 +457,10 @@ public:
             return value;
         }
         if (value.is_array()) {
-            return check_array(*schema, value, path);
+            return check_array(*schema, value, path, depth);
         }
         if (value.is_object()) {
-            return check_object(*schema, value, path);
+            return check_object(*schema, value, path, depth);
         }
         return value;
     }
@@ -503,12 +514,13 @@ private:
         bound("exclusiveMaximum", false, true, "too_big", "Too big", "<");
     }
 
-    Json check_array(const Json& schema, const Json& value, const std::string& path) {
+    Json check_array(const Json& schema, const Json& value, const std::string& path, int depth) {
         const auto items = schema.find("items");
         Json parsed = items == schema.end() ? value : Json::array();
         if (items != schema.end()) {
             for (std::size_t i = 0; i < value.size(); ++i) {
-                parsed.push_back(run(*items, value[i], join_path(path, std::to_string(i))));
+                parsed.push_back(
+                    run(*items, value[i], join_path(path, std::to_string(i)), false, depth + 1));
             }
         }
         if (const auto min = schema.find("minItems");
@@ -525,7 +537,7 @@ private:
         return parsed;
     }
 
-    Json check_object(const Json& schema, const Json& value, const std::string& path) {
+    Json check_object(const Json& schema, const Json& value, const std::string& path, int depth) {
         const auto properties = schema.find("properties");
         const auto required = schema.find("required");
         const auto additional = schema.find("additionalProperties");
@@ -536,7 +548,8 @@ private:
             for (auto it = properties->begin(); it != properties->end(); ++it) {
                 const auto present = value.find(it.key());
                 if (present != value.end()) {
-                    parsed[it.key()] = run(it.value(), *present, join_path(path, it.key()));
+                    parsed[it.key()] =
+                        run(it.value(), *present, join_path(path, it.key()), false, depth + 1);
                     continue;
                 }
                 if (const Json* fallback = default_of(root_, it.value())) {
@@ -553,7 +566,7 @@ private:
                 }
                 const auto declared = has_properties ? properties->find(name) : schema.end();
                 if (has_properties && declared != properties->end()) {
-                    run(*declared, nullptr, join_path(path, name), true);
+                    run(*declared, nullptr, join_path(path, name), true, depth + 1);
                 } else {
                     add_missing_required(join_path(path, name));
                 }
@@ -579,7 +592,8 @@ private:
                 }
                 continue;
             }
-            parsed[it.key()] = run(*additional, it.value(), join_path(path, it.key()));
+            parsed[it.key()] =
+                run(*additional, it.value(), join_path(path, it.key()), false, depth + 1);
         }
         if (!unknown.empty()) {
             std::string listed;
