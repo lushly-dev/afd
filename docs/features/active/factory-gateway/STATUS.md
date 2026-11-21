@@ -85,8 +85,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   two starts). Not yet checked: that it survives a restart of `random`.
 - **Operating it:** the [runbook](../../../operations/factory-gateway.md), with the install
   script, the launch daemon and an example configuration beside it. On 2026-11-21 its two
-  scripts ran on `random` as they stand at commit `8c72670c` of the runbook's pull request;
-  what changed in them after that run is listed in the pull request. Six refusals each left
+  scripts ran on `random` as they stand at commit `8c72670c` of
+  [#1834](https://github.com/lushly-dev/afd/pull/1834), which lists what changed in them after that run. Six refusals each left
   the daemon running under the same process: `install.sh` given a configuration the gateway
   would not load, a staged configuration that was a link to a file only root reads, a key file
   holding no key, and a key path that was a link to the installed key; `reconfigure.sh` given
@@ -151,7 +151,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; open: surviving a restart of `random`, `gateway-status` from `hero`, the rate-limit replay | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` (the runbook's pull request). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782)), which does not name `gateway-status` yet |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; open: surviving a restart of `random`, `gateway-status` from `hero`, the rate-limit replay | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782)), which does not name `gateway-status` yet |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
