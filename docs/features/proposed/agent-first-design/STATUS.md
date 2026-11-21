@@ -72,10 +72,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
 - **Blocked on:** the owner confirming the bench's rules for "go", due before the first run of
-  step 0.1, and a reading of the weekly usage figure before step 0.1's first fifteen builds.
-  The pilots gave no share of the allowance, so those fifteen builds measure it, and the runs
-  pause after them for the owner ([The pilots](#the-pilots)). Every session needs the owner's word, since it spends the
-  owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and block nothing yet.
+  step 0.1, and a reading of the weekly usage figure before step 0.1's first fifteen builds. The
+  pilots gave no share of the allowance, so those fifteen builds measure it, and the runs pause
+  after them for the owner ([The pilots](#the-pilots)). Every session needs the owner's word,
+  since it spends the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and
+  block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
@@ -109,7 +110,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | The bench: the held material | Done. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, frozen 2026-11-15, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults with their proofs, five persona cards and four walk scripts, settled against the reference build after the owner's look, reviewed once more and frozen 2026-11-18, its manifest's SHA-256 `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4` | [`bench.md`](bench.md#status) |
 | The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Recorded in #1253. Walks, the reading of a path and the readers written 2026-11-18 and tested without a model session. Not written: the report of steps 0.3 and 0.4 across walks, and step 0.2's statistics | [The runner](#the-runner) |
 | The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds. On 2026-11-21, by the owner's decision after a pilot walk, a refusal's feedback was corrected in both builds, with every proof and check run again ([The pilots](#the-pilots)) | [The reference build](#the-reference-build) |
-| The bench: the pilots | Ran 2026-11-20, at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. They did not give the share of the allowance a session takes, which bench.md asks of them: the weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
+| The bench: the pilots | Done 2026-11-20, except the conversion, which step 0.1's first fifteen builds give. Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. They did not give the share of the allowance a session takes, which bench.md asks of them: the weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built and the owner confirming the rules for "go"; step 0.1's first fifteen builds also wait on a reading of the weekly figure ([The pilots](#the-pilots)) | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -120,11 +121,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
 - **The bench is built but for the runner's reports and statistics, and only its pilots have
-  run.** Its application is built and merged in #1239 (2026-11-15). Outside the repository, its held material is written and frozen, its
-  reference build is approved and a copy of it holds the faults, and its runner is written
-  without the report of steps 0.3 and 0.4 or step 0.2's statistics. The pilots measured what a
-  build and a walk cost at list prices, not what share of the allowance that is. Its rules for
-  "go" are proposed and not confirmed.
+  run.** Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
+  held material is written and frozen, its reference build is approved and a copy of it holds
+  the faults, and its runner is written without the report of steps 0.3 and 0.4 or step 0.2's
+  statistics. The pilots measured what a build and a walk cost at list prices, not what share of
+  the allowance that is. Its rules for "go" are proposed and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
   once.
@@ -427,16 +428,16 @@ the last run of phase 0. What it does, without its check matching:
   and every file path, shell path and path in written content for one outside the session's
   tree and its own material. A run with one is thrown out, its cost kept in the ledger, and run
   again, at most twice; a third stops the runs.
-- **The budget** enters each session in a ledger at its most, twice its line, before it
-  starts, and at its reported cost at list prices when it ends; a session that reports no cost
-  stays at its most. No session starts that could take the week's spend past the cap, a
-  dollar figure set from the pilots, which has no default. On 2026-11-21 the owner set it at
-  $50 at list prices for step 0.1's first fifteen builds, which stands until they give the
-  share of the allowance that the fifth is converted from. A session that reports more than
-  twice its line, or no cost, stops the runs. One runner runs at a time. The week starts at
-  the allowance's own reset, read from the owner's screenshot on 2026-11-15; whether the weekly
-  figure in it is the share left or the share used is confirmed with the owner before step
-  0.1's first fifteen builds, which read it before and after (the pilots did not).
+- **The budget** enters each session in a ledger at its most, twice its line, before it starts,
+  and at its reported cost at list prices when it ends; a session that reports no cost stays at
+  its most. No session starts that could take the week's spend past the cap, a dollar figure set
+  from the pilots, which has no default. On 2026-11-21 the owner set it at $50 at list prices in
+  all for step 0.1's first fifteen builds. Once they give the share of the allowance a dollar
+  takes, the cap becomes the fifth of a week, converted. A session that reports more than twice
+  its line, or no cost, stops the runs. One runner runs at a time. The week starts at the
+  allowance's own reset, read from the owner's screenshot on 2026-11-15; whether the weekly
+  figure in it is the share left or the share used is confirmed with the owner before step 0.1's
+  first fifteen builds, which read it before and after (the pilots did not).
 - **Scoring** loads the checks only after stage 1's manifest verifies, refuses a control
   character and compiles every pattern. A story's mount, console and settled accessibility
   check come from Specimen's own run. What Specimen's capture does not carry, the runner
@@ -492,18 +493,19 @@ the last run of phase 0. What it does, without its check matching:
   the brief directly, had its read of a planted file in another session's folder refused and
   found by the leak check, and reported $0.119 at list prices.
 - **Walks and readers,** written 2026-11-18 with no model session. A walk's only tools are an
-  MCP server of the runner's on Playwright, not Botcore's `cdp_*` commands, which keep no
-  window size from one call to the next and cannot click without naming an element. Each modality perceives
-  and acts as its card says; the screen reader keeps a reading cursor over the accessibility
-  tree, with browse and forms modes, and hears live regions as they change. Looking, a screen
-  reader's reading moves among it, is free and acting counts toward the cap. The reading of a path for step 0.4 counts each command once. The
-  readers have no tools and answer in JSON. A script did every walked job through every
-  modality's tools: on the clean build all 16 finish with a clean path, in at most 19 actions of
-  60; on the seeded build each fault stops only its own modality's script. Before walking, the
-  runner proves each build with the faults' proofs. An independent reviewer on Claude Opus 5.5
-  found one blocker (typing could carry a key press a pointer persona does not have) and seven
-  improvements; all were fixed and a focused pass confirmed them. Where the tools depart from
-  the frozen cards is recorded beside them in the held folder.
+  MCP server of the runner's on Playwright, not Botcore's `cdp_*` commands, which keep no window
+  size from one call to the next and cannot click without naming an element. Each modality
+  perceives and acts as its card says; the screen reader keeps a reading cursor over the
+  accessibility tree, with browse and forms modes, and hears live regions as they change, in the
+  page and, since 2026-11-21, inside components' shadow roots. Looking is free, a screen
+  reader's reading moves included; acting counts toward the cap. The reading of a path for step
+  0.4 counts each command once. The readers have no tools and answer in JSON. A script did every
+  walked job through every modality's tools: on the clean build all 16 finish with a clean path,
+  in at most 19 actions of 60; on the seeded build each fault stops only its own modality's
+  script. Before walking, the runner proves each build with the faults' proofs. An independent
+  reviewer on Claude Opus 5.5 found one blocker (typing could carry a key press a pointer
+  persona does not have) and seven improvements; all were fixed and a focused pass confirmed
+  them. Where the tools depart from the frozen cards is recorded beside them in the held folder.
 - **Not written:** the report of steps 0.3 and 0.4 across walks; step 0.2's statistics; arm 2's
   statements and their wiring into the brief, which Umbel can now serve (#1394); and arm 3's
   skill.
@@ -549,7 +551,7 @@ result. Costs are at list prices, as each session reports them.
 - **Found outside the runner:** the scoring checkout's two Rust builds at `f4eeba0c`,
   Specimen's host and Umbel's components server, were deleted on 2026-11-20 after the pilots,
   by something other than the runner, and were rebuilt from the locked sources on 2026-11-21.
-  The runner now refuses to start sessions or score when either is missing.
+  The runner now refuses to start build sessions or score when either is missing.
 - **Issue [#1699](https://github.com/lushly-dev/afd/issues/1699),** filed at the owner's word on
   2026-11-20: a browser app with AFD's approval middleware is blank when opened over plain HTTP
   from another device on the network. The owner's look at the reference build from a phone met
@@ -676,7 +678,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft | A newcomer copies skills with `npx degit` (`README.md:457`), which records no version and gives no notice of changes. Botcore's seeded skills carry both | Open; proposal sections 2 and 5.6 |
 | 2026-11-14 | First draft | Specimen does not observe animation, so no motion rule can be a gate. A rule about duration or easing stays `authored` | Open |
 | 2026-11-14 | Bench specification | No forced-colours emulation exists in Specimen or in Botcore's `cdp_emulate`, so no persona can be held to that modality | Open. Since 2026-11-18 the walks run on Playwright, which can emulate them in Chromium; scoring through Specimen still cannot |
-| 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Superseded 2026-11-18: the walks hear live regions by watching them change, still an approximation, and miss a region inside a component's shadow root ([The runner](#the-runner)) |
+| 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Superseded 2026-11-18: the walks hear live regions by watching them change, still an approximation; since 2026-11-21 inside components' shadow roots too ([The runner](#the-runner)) |
 | 2026-11-15 | The seed library's jobs | The approval middleware caps a hold at 24 hours (`packages/server/src/approval.ts:234`). An application whose approver answers later has to let its own record outlive the hold, and then the `expiresAt` in the refusal is not the one that matters. The bench ties the two and accepts a day | Open |
 | 2026-11-15 | Specimen's host on the second machine | Specimen's `build:host` script runs `cargo build --release --locked --target-dir target`, which overrides `CARGO_TARGET_DIR`, so the host cannot be built onto another drive through the documented command. `--target-dir "${CARGO_TARGET_DIR:-target}"` would honour it. Specimen is an imported unit, so the change needs a provenance record | Closed 2026-11-15, not changed. A fix was written and worked on the second machine, and review withdrew it: the pin is deliberate (`3ee8c66b`), worktrees often share one `CARGO_TARGET_DIR`, where the last host built would serve every worktree, and Loam's status says not to set it for Specimen's host. Cargo's `build-dir` already puts the intermediate files on the external drive there; the binary in the checkout is 13 MB |
 | 2026-11-15 | Specimen's host on the second machine | On a fresh install Specimen's suite fails in `src/bench-worker.test.ts` until `pnpm -F "@lushly-dev/specimen-cli..." build` has run. CI builds first; the README's paragraph on `test:browser` does not say so | Closed 2026-11-15: the paragraph says so (#1237) |
@@ -692,7 +694,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's reference build | `violet-alert` registers its tone icons in `connectedCallback` after `super.connectedCallback()` has rendered its template, so the first alert of each tone shows the icon registry's fallback, a cross (`foundations/fast-af/packages/violet-elements/src/alert/violet-alert.ts`). Registering before rendering fixes it. Violet is an imported unit, so the change needs a provenance record | Open; worth an issue |
 | 2026-11-15 | The bench's reference build | Specimen's settled accessibility check can run while a component's entry animation inside a shadow root is still under way, and report a colour-contrast violation that is gone once it ends: a story of a dialog failed it three times in three and passed three times in three with `motion: 'settled'`. Either the settled check should wait for animations in shadow roots, or settledAccessibility should imply settled motion | Open; worth an issue |
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
-| 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start or score without them | Open |
+| 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Open |
 
 ## Session log
 

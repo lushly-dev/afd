@@ -7,9 +7,9 @@ owner to approve the domain and the budget before any session runs. Read
 
 ## Status
 
-- **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the
-  held material is written and frozen, the runner is written without its report of steps 0.3
-  and 0.4 and its statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
+- **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the held
+  material is written and frozen, the runner is written without its report of steps 0.3 and 0.4
+  and its statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
   reviewed and approved by the owner, and a copy of it holds the faults
   ([STATUS.md](STATUS.md#the-reference-build)). Only the pilots have run
   ([STATUS.md](STATUS.md#the-pilots)).
@@ -23,10 +23,10 @@ owner to approve the domain and the budget before any session runs. Read
   [rules for "go"](#rules-for-go), which the owner confirms before the first run of step 0.1.
   The owner was asked three questions, which cover the points above, and later ruled on the
   runner's points named there; nothing else here is the owner's.
-- **Measured:** the cost and size of a page-building session, from the
-  [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
-  in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
-  measured a build and a walk on 2026-11-20, and one reader, of the bare pilot build, a reader
+- **Measured:** the cost and size of a page-building session, from the [Component Briefs
+  prototype](../../complete/component-briefs/prototype.md). Everything else in [Budget](#budget)
+  is an assumption, marked as one. Two pilot builds and two pilot walks measured a build and a
+  walk on 2026-11-20, and a reader of the bare pilot build measured a reader
   ([STATUS.md](STATUS.md#the-pilots)). The Budget's lines stand as written, as first estimated,
   until step 0.1's first fifteen builds give the share of the allowance.
 - **Deliberately not in this file:** the planted faults, the checks, the persona cards, the
@@ -203,13 +203,12 @@ else.
 - **Five persona cards,** the panel size the owner agreed. One for each modality in the
   proposal's table and a second sighted persona with a different stance, so that overlap
   between two reviewers of one modality is measured.
-- **The runner enforces the modality** by the tools it exposes, through an MCP server of its
-  own on Playwright; Botcore's `cdp_*` commands, first named here, keep no window size between
-  calls and cannot click without naming an element. The screen-reader persona reads the accessibility tree
-  with a reading cursor and hears what it says after each key press. Live announcements are
-  heard by watching the page's live regions change, which is an approximation; a region inside
-  a component's shadow root is not heard. The reference build has none: it uses no toast or
-  snackbar and sets no alert's announcement, Violet's three live regions in a shadow root.
+- **The runner enforces the modality** by the tools it exposes, through an MCP server of its own
+  on Playwright; Botcore's `cdp_*` commands, first named here, keep no window size between calls
+  and cannot click without naming an element. The screen-reader persona reads the accessibility
+  tree with a reading cursor and hears what it says after each key press. Live announcements are
+  heard by watching live regions change, in the page and inside components' shadow roots, which
+  is an approximation of how a screen reader speaks them.
 - **One model family in phase 0,** by choice. The five personas are Claude sessions, so that
   how many faults a panel finds is measured without a second thing varying. The overlap it
   reports is therefore within one family, and the proposal's point about reviewers of
@@ -240,9 +239,10 @@ phase 0 has no step for it.
   with each arm's material in a directory of its own. The tree is a plain export with a fresh
   one-commit history and none of the repository's, not a worktree, since `git show` in a
   worktree reads what the export leaves out; the owner approved this on 2026-11-15. A session
-  has six built-in tools and a strict MCP configuration with the components brief alone (a build; a walk has only its persona's tools and a reader none): by
+  has six built-in tools and a strict MCP configuration with the components brief alone: by
   default a headless session also has messaging to other sessions on the machine and the skills
-  built into Claude Code.
+  built into Claude Code. That is a build session; a walk has only its persona's tools, and a
+  reader none.
 - **A wall, and a check behind it.** Component Briefs recorded that a session can read any
   path on the machine. The held material is on the same machine, because scoring runs there.
   So each session runs inside a sandbox profile that refuses reads of the held material, the
@@ -314,7 +314,7 @@ a list of the scenario's steps, and the journal is read against it:
 | Line | Basis | Estimate |
 | --- | --- | --- |
 | A build session | Component Briefs measured about $0.25 a session on Sonnet 5.5 at `medium`, with a median of 309 000 to 517 000 tokens. Opus 5.5 lists at twice Sonnet 5.5's price for input, output and cache reads (list prices as of 2026-11-03), so about $0.50 for the same tokens. **Assumed:** Opus 5.5 at `medium` uses as many tokens as Sonnet 5.5 at `medium` did, and a screen with its states is three times a Component Briefs page | $1.50 |
-| A walk | **Assumed** equal to a build. Nothing in this repository measures one, and screenshots add tokens. The pilots measured two, on 2026-11-20, far below it ([STATUS.md](STATUS.md#the-pilots)); the line is kept until the conversion is known | $1.50 |
+| A walk | **Assumed** equal to a build. Nothing in this repository measured one when this was written, and screenshots add tokens. The pilots measured two, on 2026-11-20, far below it ([STATUS.md](STATUS.md#the-pilots)); the line is kept until the conversion is known | $1.50 |
 | A reader | **Assumed** the size of a Component Briefs session | $0.50 |
 
 | | Count | Cost |
@@ -339,8 +339,9 @@ a list of the scenario's steps, and the journal is read against it:
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
   recorded. No command prints the weekly figure, so a person reads it. (Not met: on 2026-11-20
-  it was not read before the pilots, and the fallback below was applied by the owner's word;
-  see [STATUS.md](STATUS.md#the-pilots).) A session's result
+  it was not read before the pilots, and the fallback below was applied by the owner's word,
+  under a cap of $50 at list prices in all for those fifteen builds; see
+  [STATUS.md](STATUS.md#the-pilots).) A session's result
   does carry its cost at list prices. That gives the share a dollar at list price takes, and
   from it the share each step will take, which comes back to the owner before step 0.1. If
   four pilots do not move a figure shown in whole percents, the runs pause after the first
