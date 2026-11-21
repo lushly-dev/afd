@@ -60,7 +60,7 @@ Keep `workspace:^` on internal peer dependencies and `onlyUpdatePeerDependentsWh
 
 **When an npm publish fails,** read the exact failed run and error before changing anything. Trusted publishing is the only upload path: npm 11.5.1 or later, Node 22.14.0 or later, a GitHub-hosted runner, `id-token: write`, and npm's publisher entry as [recorded](../../../docs/operations/stabilization-release.md#npm-publication-outcome). Never add an npm token as a fallback. A failed or uncertain upload stays held until the reviewed recovery under "Holds and recovery" in platform release controls.
 
-A native tag publishes only a commit on `main`: `scripts/release-native.py` refuses any other, and published tags cannot be moved or deleted ([platform release controls](../../../docs/operations/platform-releases.md#native-routes)).
+A native tag publishes only a commit on `main`, and a release tag cannot be moved or deleted once pushed: a tag on the wrong commit uses up its version, so release the next one. Each publish job, a GitHub Release's rerun included, waits for the maintainer to approve its environment's deployment; approve it only after `git merge-base --is-ancestor <tag> origin/main` succeeds, since the guard runs from the tagged commit ([platform release controls](../../../docs/operations/platform-releases.md#native-routes)).
 
 ## Python (PyPI)
 

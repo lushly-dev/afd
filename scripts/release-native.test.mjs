@@ -520,6 +520,11 @@ for (const format of Object.keys(tracks)) {
 		const result = candidate.check();
 		assert.equal(result.status, 0, result.stderr);
 	});
+	test(`${format}: a shallow checkout fails closed`, (t) => {
+		const candidate = fixture(t, format);
+		writeFileSync(join(candidate.root, '.git/shallow'), `${candidate.source}\n`);
+		rejected(candidate.check(), /shallow/);
+	});
 	test(`${format}: a checkout without main fails closed`, (t) => {
 		const candidate = fixture(t, format);
 		candidate.git('update-ref', '-d', 'refs/remotes/origin/main');
@@ -742,11 +747,15 @@ test('Native publisher workflow contracts preserve events, pins, gates and guard
 			rust.lastIndexOf('          cargo publish')
 	);
 	assert.match(rust, /if: steps.registry.outputs.published == 'false'/);
-	// The guard reads main's history, so every checkout fetches it.
+	// Every checkout takes the exact tag ref, never a same-named branch, with main's history for
+	// the guard. Each step runs from its `uses:` line to the next step.
 	for (const workflow of [python, botcore, rust]) {
-		assert.equal(
-			workflow.match(/fetch-depth: 0\n/g)?.length,
-			workflow.match(/uses: actions\/checkout@/g)?.length
-		);
+		const steps = workflow.split('uses: actions/checkout@').slice(1);
+		assert.ok(steps.length >= 2);
+		for (const step of steps) {
+			const block = step.split(/\n {6}- /)[0];
+			assert.match(block, /^ {10}ref: \$\{\{ github\.ref \}\}$/m);
+			assert.match(block, /^ {10}fetch-depth: 0$/m);
+		}
 	}
 });
