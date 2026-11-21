@@ -36,6 +36,9 @@ from botcore.commands.disk.settings import (
 FULL_RUN_SECONDS = 23 * 3600
 STALE_SECONDS = 48 * 3600
 NOTIFY_SECONDS = 24 * 3600
+# How long skill usage may go uncollected before the status calls it a problem. What a
+# harness drops in the meantime cannot be collected later.
+USAGE_STALE_SECONDS = 24 * 3600
 # Space that must disappear before a still-low volume is worth another full run that day
 NEW_LOSS_BYTES = 1024**3
 TOOLS = ("git", "pnpm", "uv", "gh", "node")
@@ -49,7 +52,7 @@ SESSION_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/fol
 SESSION_PART = "fnm_multishells"
 # Keys newer than the first release, left out of the file while at their defaults, so a botcore
 # from before them (which refuses unknown keys) still reads a file this one wrote
-OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit")
+OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit", "skill_usage_collect")
 
 
 # ── The settings file ───────────────────────────────────────────────────────
@@ -419,17 +422,29 @@ async def disk_status() -> CommandResult[dict]:
                  if v["below_threshold"]]
     problems += [f"{v['mount']} is not mounted or not the recorded volume" for v in volumes
                  if not v["verified"]]
+    check = _read_json("check.json")
+    usage = check.get("skill_usage") if settings.skill_usage_collect else None
+    usage = usage if isinstance(usage, dict) else None
+    warnings = disk_warnings(settings, status)
+    if usage and not usage.get("ok"):
+        failing = f"skill usage is not being collected: {usage.get('error') or 'it failed'}"
+        since = _age_hours(usage.get("ok_at") or usage.get("failing_since"))
+        if since is not None and since * 3600 > USAGE_STALE_SECONDS:
+            problems.append(f"{failing} (for {since:.0f} hours)")
+        else:
+            warnings.append(failing)
     data = {
         "settings": {"path": str(path), "found": found},
         "state": str(state_path()),
         "schedule": sched.as_dict(),
         "last_apply": last_apply or None,
         "last_apply_hours_ago": age,
-        "last_check": _read_json("check.json").get("last_check"),
+        "last_check": check.get("last_check"),
+        "skill_usage": usage,
         "volumes": volumes,
         "healthy": not problems,
         "problems": problems,
-        "warnings": disk_warnings(settings, status),
+        "warnings": warnings,
     }
     return success(data=data,
                    suggestions=problems[:1] or data["warnings"][:1] or ["Nothing to do"])
@@ -494,8 +509,43 @@ def _newly_low(volumes: list[dict], last_apply: dict) -> list[str]:
     return out
 
 
+async def _collect_skill_usage(settings: MachineSettings) -> dict | None:
+    """The hourly collection of skill usage, and what the status needs of it: whether it
+    worked, when it last did, and since when it has not. It never fails the job: the disk
+    work goes on whatever a harness's store looks like."""
+    if not settings.skill_usage_collect:
+        return None
+    from botcore.commands.skill_usage import skill_usage_collect
+
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    previous = _read_json("check.json").get("skill_usage")
+    previous = previous if isinstance(previous, dict) else {}
+    try:
+        result = await skill_usage_collect()
+        data = result.data or {}
+        shared = data.get("shared") if isinstance(data.get("shared"), dict) else {}
+        failure = None
+        if not result.success:
+            failure = result.error.message if result.error else "the collection failed"
+        elif shared.get("error"):
+            failure = f"the shared folder could not be written: {shared['error']}"
+    except Exception as exc:  # noqa: BLE001 - the disk job must run whatever this raises
+        data, failure = {}, f"{type(exc).__name__}: {exc}"
+    if failure is None:
+        return {"at": now, "ok": True, "ok_at": now, "added": data.get("added", 0)}
+    return {
+        "at": now,
+        "ok": False,
+        "ok_at": previous.get("ok_at"),
+        "failing_since": (previous.get("failing_since") if previous.get("ok") is False else None)
+        or now,
+        "error": failure,
+    }
+
+
 async def disk_run(force: bool = False) -> CommandResult[dict]:
-    """What the schedule runs: a free-space check, and a reclaim when it is due or space is low."""
+    """What the schedule runs: a free-space check, a reclaim when it is due or space is low,
+    and the hourly collection of skill usage."""
     from botcore.commands.disk.reclaim import disk_reclaim
 
     try:
@@ -504,6 +554,8 @@ async def disk_run(force: bool = False) -> CommandResult[dict]:
         return error("DISK_SETTINGS_INVALID", str(exc),
                      suggestion="Fix the machine settings file; the job will retry next hour")
     apply_tool_path(settings)
+    usage = await _collect_skill_usage(settings)
+    collected = {"skill_usage": usage} if usage is not None else {}
     volumes = _volumes_now(settings)
     low = [v["mount"] for v in volumes if v["below_threshold"]]
     last_apply = _read_status().get("last_apply") or {}
@@ -511,19 +563,21 @@ async def disk_run(force: bool = False) -> CommandResult[dict]:
     newly_low = _newly_low(volumes, last_apply)
     due = force or bool(newly_low) or age is None or age * 3600 >= FULL_RUN_SECONDS
     if not due:
-        _write_check({})
-        return success(data={"ran": False, "low": low, "last_apply_hours_ago": age})
+        _write_check(collected)
+        return success(data={"ran": False, "low": low, "last_apply_hours_ago": age, **collected})
     result = await disk_reclaim(tier=2 if settings.remove_landed else 1, apply=True,
                                 pressure=False)
     if not result.success:
-        _write_check({"last_error": result.error.message if result.error else "failed"})
+        _write_check(
+            {"last_error": result.error.message if result.error else "failed", **collected}
+        )
         code = result.error.code if result.error else "DISK_RECLAIM_FAILED"
         return error(code, result.error.message if result.error else "the reclaim failed",
                      suggestion="disk-status shows the state; the job will try again next hour")
     data = result.data or {}
     still_low = data.get("still_low", [])
     check = _read_json("check.json")
-    update: dict = {"last_error": None}
+    update: dict = {"last_error": None, **collected}
     if still_low and time.time() - float(check.get("notified_at") or 0) > NOTIFY_SECONDS:
         notify("Disk space is still low", ", ".join(still_low) + ": run botcore disk-report")
         update["notified_at"] = time.time()
@@ -531,5 +585,5 @@ async def disk_run(force: bool = False) -> CommandResult[dict]:
     return success(data={
         "ran": True, "low": low, "still_low": still_low,
         "reclaim_ok": not data.get("failures"), "failures": len(data.get("failures", [])),
-        "receipt": data.get("receipt"),
+        "receipt": data.get("receipt"), **collected,
     })

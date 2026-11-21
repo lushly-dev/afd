@@ -5,7 +5,7 @@ description: >
   full, a build fails for space, or a worktree, cache or build folder needs removing.
 metadata:
   source: botcore
-  version: 1.1.0
+  version: 1.2.0
   portable: true
 ---
 
@@ -75,7 +75,9 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
   effect once it merges, never from a branch under review.
 - **Machine**: `disk.toml` in the user config folder (`disk-status` prints its path), written
   by `disk-setup`: the repositories, watched volumes with their identifier and low-space
-  threshold, and aged cache folders outside worktrees (`[[aged]] path = ".../*"`).
+  threshold, and aged cache folders outside worktrees (`[[aged]] path = ".../*"`). The same
+  file names the machine for skill usage (`skill_usage_machine`, `skill_usage_shared`), which
+  the hourly job also collects: `botcore docs skill`.
 - **Rust**: Cargo's default keeps `target/` inside each worktree, where tier 1 and worktree
   removal reach it. A machine that moves it (`CARGO_TARGET_DIR`, or Cargo's `build-dir` on a
   bigger drive) needs an `[[aged]]` folder covering it; `disk-setup` names the entry to add.

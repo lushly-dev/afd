@@ -22,6 +22,8 @@ from botcore.config import DiskConfig
 
 SETTINGS_ENV = "BOTCORE_DISK_SETTINGS"
 STATE_ENV = "BOTCORE_DISK_STATE"
+# A machine's name in the skill usage record: it is also a folder's name
+MACHINE_NAME = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
 T3_SETTINGS_ENV = "BOTCORE_DISK_T3_SETTINGS"
 
 
@@ -66,6 +68,12 @@ class MachineSettings(BaseModel):
     # Absolute paths of the tools the scheduled job runs (git, pnpm, uv, gh, node), recorded
     # by setup because a scheduler does not start jobs with the user's shell PATH
     tools: dict[str, str] = {}
+    # Skill usage (the skill-usage commands): whether the scheduled job collects it; this
+    # machine's name in the record, its hostname when left out; and a folder every machine
+    # can see, where each also writes its record so that a report reads them all
+    skill_usage_collect: bool = True
+    skill_usage_machine: str | None = Field(default=None, pattern=MACHINE_NAME)
+    skill_usage_shared: str | None = None
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 

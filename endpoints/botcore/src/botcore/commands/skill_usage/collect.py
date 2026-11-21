@@ -17,15 +17,20 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.settings import SettingsError
 from botcore.commands.skill_usage import t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
+    InvalidMachine,
+    Local,
     append_events,
+    checked_machine,
     load_events,
     load_sessions,
     load_state,
-    machine_name,
+    local,
+    publish,
     rewrite_events,
     save_sessions,
     save_state,
@@ -206,6 +211,40 @@ def _item(event: Event) -> str | None:
     return event.id.partition("@")[2] or None
 
 
+def settings_refused(exc: Exception) -> CommandResult[dict]:
+    """The refusal for machine settings that cannot say this machine's name or shared folder."""
+    if isinstance(exc, InvalidMachine):
+        return _failure(
+            "INVALID_INPUT", str(exc),
+            "Name the machine in the machine settings (skill_usage_machine) or with "
+            "BOTCORE_SKILL_USAGE_MACHINE, for example macbook-air",
+        )  # fmt: skip
+    return _failure(
+        "MACHINE_SETTINGS_INVALID", f"The machine settings could not be read: {exc}",
+        "Fix the file it names, or move it aside: they say this machine's name and its "
+        "shared folder",
+    )  # fmt: skip
+
+
+def _published(result: CommandResult[dict], directory: Path, here: Local) -> CommandResult[dict]:
+    """A collection's result, after this machine's record went to the shared folder. A
+    shared folder that cannot be written does not undo the collection: the record here is
+    whole, and the next collection writes it there."""
+    if not result.success or here.shared is None or result.data is None:
+        return result
+    shared: dict = {"path": str(here.shared), "exists": here.shared.is_dir()}
+    try:
+        shared["written"] = publish(directory, here.shared, here.machine)
+    except OSError as exc:
+        shared["written"], shared["error"] = False, str(exc)
+        result.reasoning = (
+            f"{result.reasoning}. The shared folder could not be written ({exc}), so other "
+            "machines do not see this collection yet"
+        )
+    result.data["shared"] = shared
+    return result
+
+
 async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source can fail
     since_days: int | None = None, t3_store: str | None = None, machine: str | None = None,
     rebuild: bool = False,
@@ -236,11 +275,16 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
             "Pass machine with the name of the machine the store was copied from, or leave "
             "t3_store out to read this machine's own store",
         )  # fmt: skip
+    try:
+        here = local()
+        machine = checked_machine(machine) if machine else here.machine
+    except (SettingsError, InvalidMachine) as exc:
+        return settings_refused(exc)
     directory = state_dir()
     path = Path(t3_store).expanduser() if t3_store is not None else t3_store_path()
     if path is None:
         return success(
-            {"machine": machine or machine_name(), "state_dir": str(directory), "added": 0,
+            {"machine": machine, "state_dir": str(directory), "added": 0,
              "sources": [{"source": t3.SOURCE, "status": "off"}]},
             reasoning="T3 Code's store is turned off for this machine; nothing was read",
         )  # fmt: skip
@@ -252,13 +296,14 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
                 "t3_store out to read this machine's",
             )  # fmt: skip
         return success(
-            {"machine": machine or machine_name(), "state_dir": str(directory), "added": 0,
+            {"machine": machine, "state_dir": str(directory), "added": 0,
              "sources": [{"source": t3.SOURCE, "status": "absent", "path": str(path)}]},
             reasoning=f"This machine has no T3 Code store at {path}; nothing was read",
         )  # fmt: skip
     try:
         with RunLock(directory / LOCK_FILE):
-            return _collect(directory, path, since_days, machine or machine_name(), rebuild)
+            result = _collect(directory, path, since_days, machine, rebuild, here.machine)
+            return _published(result, directory, here)
     except LockHeld:
         return _failure(
             "COLLECT_RUNNING", "Another skill-usage-collect is running on this machine",
@@ -284,8 +329,9 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
         )  # fmt: skip
 
 
-def _collect(
+def _collect(  # noqa: PLR0913 - one collection's inputs
     directory: Path, path: Path, since_days: int | None, machine: str, rebuild: bool,
+    this_machine: str,
 ) -> CommandResult[dict]:  # fmt: skip
     stored, _ = load_events(directory)
     state = load_state(directory)
@@ -348,7 +394,7 @@ def _collect(
         directory,
         {
             "version": STATE_VERSION,
-            "machine": machine_name(),
+            "machine": this_machine,
             "collected_at": _stamp(now),
             # the rules every event still re-readable was recognised by: a rebuild, or a
             # record that began under them

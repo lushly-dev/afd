@@ -17,10 +17,11 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
+from botcore.commands.disk.settings import SettingsError
 from botcore.commands.skill.frontmatter import split_frontmatter
 from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill.renames import SKILL_RENAMES
-from botcore.commands.skill_usage.collect import SKILL_DIRS
+from botcore.commands.skill_usage.collect import SKILL_DIRS, settings_refused
 from botcore.commands.skill_usage.events import (
     DELEGATE,
     EDIT,
@@ -32,9 +33,11 @@ from botcore.commands.skill_usage.events import (
     Event,
 )
 from botcore.commands.skill_usage.store import (
-    load_events,
-    load_sessions,
-    load_state,
+    InvalidMachine,
+    Local,
+    Record,
+    load_record,
+    local,
     state_dir,
 )
 
@@ -159,6 +162,29 @@ def audit_reads(loads: list[tuple[datetime, str, str]], held: set[str]) -> set[s
     return marked
 
 
+def record_warnings(record: Record, here: Local, now: datetime) -> list[str]:
+    """What a reader must know of the record's reach: a machine whose collection is old,
+    and a shared folder that was not there to read."""
+    warnings: list[str] = []
+    for machine in sorted({here.machine, *record.collected}):
+        when = record.collected.get(machine)
+        moment = _parse(when)
+        if moment is not None and now - moment <= STALE_AFTER:
+            continue
+        if machine == here.machine:
+            warnings.append(
+                f"Last collected {when or 'never'}: run skill-usage-collect for current numbers"
+            )
+        else:
+            warnings.append(
+                f"{machine} last collected {when or 'never'}: its numbers end there. Run "
+                "disk-status on it to see whether its scheduled collection stopped"
+            )
+    if record.missing:
+        warnings.append(f"{record.missing}, so only this machine's record was read")
+    return warnings
+
+
 def _counts(groups: dict[str, set[str]]) -> dict[str, int]:
     return {name: len(members) for name, members in sorted(groups.items())}
 
@@ -273,9 +299,10 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         return _unknown("agent", agent, set(AGENTS))
     directory = state_dir()
     try:
-        events, unreadable = load_events(directory)
-        state = load_state(directory)
-        recorded = load_sessions(directory)
+        here = local()
+        record = load_record(directory, here)
+    except (SettingsError, InvalidMachine) as exc:
+        return settings_refused(exc)
     except OSError as exc:
         return error(
             "RECORD_UNAVAILABLE",
@@ -283,6 +310,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             suggestion="Check that it is a folder this user can read, or set "
             "BOTCORE_SKILL_USAGE_STATE to the folder that holds the record",
         )
+    events, state, recorded = record.events, record.state, record.sessions
     if not events and not state:
         return error(
             "NOT_COLLECTED",
@@ -445,16 +473,11 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
                 entry["authoring_sessions"] = len(authoring[(name, skill_name)])
             quiet.append(entry)
 
-    warnings: list[str] = []
-    collected = _parse(state.get("collected_at"))
-    if collected is None or now - collected > STALE_AFTER:
-        when = state.get("collected_at") or "never"
-        warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
-    if unreadable:
-        warnings.append(f"{unreadable} lines of the record could not be read and were skipped")
-    if outdated and not (
-        isinstance(state.get("recognizer"), int) and state["recognizer"] >= RECOGNIZER
-    ):
+    warnings = record_warnings(record, here, now)
+    for machine, lines in sorted(record.unreadable.items()):
+        whose = "the record" if machine == here.machine else f"{machine}'s record"
+        warnings.append(f"{lines} lines of {whose} could not be read and were skipped")
+    if outdated and not (record.recognizer is not None and record.recognizer >= RECOGNIZER):
         warnings.append(
             f"{outdated} events were recognised by an older botcore: run skill-usage-collect "
             "--rebuild to read them again"
@@ -486,10 +509,12 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         "quiet": quiet,
         "record": {
             "state_dir": str(directory),
-            "machines": sorted(machines),
+            "shared": str(record.shared) if record.shared else None,
+            "machines": sorted(machines | set(record.collected)),
             "events": len(events),
             "sessions": len(recorded),
             "collected_at": state.get("collected_at"),
+            "collected": dict(sorted(record.collected.items())),
         },
         "warnings": warnings,
     }

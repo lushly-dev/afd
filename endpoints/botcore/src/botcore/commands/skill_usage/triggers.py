@@ -26,17 +26,23 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
-from botcore.commands.skill_usage.collect import GIT_SECONDS, _strings, project_remote
+from botcore.commands.disk.settings import SettingsError
+from botcore.commands.skill_usage.collect import (
+    GIT_SECONDS,
+    _strings,
+    project_remote,
+    settings_refused,
+)
 from botcore.commands.skill_usage.events import DELEGATE, EDIT, MAIN, PATHS, RECOGNIZER, SUBAGENT
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
-    STALE_AFTER,
     _inventory,
     _mapping,
     _parse,
     current_name,
+    record_warnings,
 )
-from botcore.commands.skill_usage.store import load_events, load_sessions, load_state, state_dir
+from botcore.commands.skill_usage.store import InvalidMachine, load_record, local, state_dir
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
 
@@ -303,9 +309,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         )
     directory = state_dir()
     try:
-        events, unreadable = load_events(directory)
-        state = load_state(directory)
-        sessions = load_sessions(directory)
+        here = local()
+        record = load_record(directory, here)
+    except (SettingsError, InvalidMachine) as exc:
+        return settings_refused(exc)
     except OSError as exc:
         return _fail(
             "RECORD_UNAVAILABLE",
@@ -313,19 +320,25 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "Check that it is a folder this user can read, or set BOTCORE_SKILL_USAGE_STATE to "
             "the folder that holds the record",
         )
+    events, state, sessions = record.events, record.state, record.sessions
     if not events and not state:
         return _fail(
             "NOT_COLLECTED",
             "This machine has no skill usage record yet",
             "Run skill-usage-collect first; it reads what the harnesses recorded",
         )
-    if unreadable:
-        return _fail(  # a lost load would turn a change into a miss
+    if record.damaged:  # a lost load would turn a change into a miss
+        whose = ", ".join(
+            "this machine" if machine == here.machine else machine
+            for machine in sorted(record.unreadable)
+        )
+        return _fail(
             "RECORD_DAMAGED",
-            f"{unreadable} lines of the skill usage record cannot be read, so no change can be "
-            "judged from it",
-            "Run skill-usage-collect --rebuild: it reads the store again and writes the record "
-            "without the damaged lines",
+            f"{record.damaged} lines of the skill usage record cannot be read ({whose}), so "
+            "no change can be judged from it",
+            "Run skill-usage-collect --rebuild on that machine: it reads the store again and "
+            "writes the record without the damaged lines. Another machine's copy in the "
+            "shared folder may only be half synced: try again once it is",
         )
 
     projects = _mapping(state.get("projects"))
@@ -431,14 +444,8 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             }
         )
 
-    warnings: list[str] = []
-    collected = _parse(state.get("collected_at"))
-    if collected is None or now - collected > STALE_AFTER:
-        when = state.get("collected_at") or "never"
-        warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
-    if outdated and not (
-        isinstance(state.get("recognizer"), int) and state["recognizer"] >= RECOGNIZER
-    ):
+    warnings = record_warnings(record, here, now)
+    if outdated and not (record.recognizer is not None and record.recognizer >= RECOGNIZER):
         warnings.append(  # a load an older botcore did not know reads as a miss
             f"{outdated} events were recognised by an older botcore, which may have missed "
             "loads: run skill-usage-collect --rebuild to read them again"
@@ -474,8 +481,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "rules": report,
             "record": {
                 "state_dir": str(directory),
-                "machines": sorted({event.machine for event in events}),
+                "shared": str(record.shared) if record.shared else None,
+                "machines": sorted({event.machine for event in events} | set(record.collected)),
                 "collected_at": state.get("collected_at"),
+                "collected": dict(sorted(record.collected.items())),
             },
             "warnings": warnings,
         },

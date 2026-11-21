@@ -8,6 +8,7 @@ import plistlib
 import subprocess
 import tomllib
 import xml.etree.ElementTree as ET
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +16,9 @@ import pytest
 
 from botcore.commands.disk import schedule, setup
 from botcore.commands.disk.settings import MachineSettings, load_machine_settings
+from botcore.commands.skill_usage import store as usage_store
 from tests.test_disk_report import repo  # noqa: F401
+from tests.test_skill_usage import T3Store, stamp
 
 TASK_NS = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 
@@ -40,8 +43,15 @@ def test_settings_toml_round_trips() -> None:
         tools={"git": "/usr/bin/git", "pnpm": "C:\\Program Files\\pnpm.cmd"},
         volume=[{"mount": "/Volumes/Dev", "id": "UUID-1", "low_space_gb": 80}],
         aged=[{"path": "/Volumes/Dev/cache/*", "max_age_days": 7}],
+        skill_usage_machine="random",
+        skill_usage_shared="~/Shared Drive/skill-usage",
     )
     assert MachineSettings(**tomllib.loads(setup.settings_toml(settings))) == settings
+    assert "skill_usage_collect" not in setup.settings_toml(settings)  # the default is not written
+    off = MachineSettings(skill_usage_collect=False)
+    assert MachineSettings(**tomllib.loads(setup.settings_toml(off))) == off
+    with pytest.raises(ValueError, match="skill_usage_machine"):
+        MachineSettings(skill_usage_machine="a folder/elsewhere")
 
 
 def test_setup_registers_the_repository_and_its_volumes(
@@ -109,6 +119,62 @@ def test_the_job_only_reclaims_when_due(
     assert [c["apply"] for c in calls] == [True, True]
     assert json.loads((state / "check.json").read_text())["last_check"]
     assert "last_check" not in json.loads((state / "status.json").read_text())
+
+
+def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+) -> None:
+    async def fake_reclaim(**_kwargs):
+        now = setup.datetime.now(setup.UTC).isoformat(timespec="seconds")
+        state.mkdir(parents=True, exist_ok=True)
+        (state / "status.json").write_text(json.dumps({"last_apply": {"at": now, "ok": True}}))
+        return SimpleNamespace(success=True, data={"still_low": []})
+
+    import botcore.commands.disk.reclaim as reclaim
+
+    monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
+    built = T3Store(tmp_path / "t3.sqlite")
+    built.project("p1", repo["main"])
+    built.skill_tool(built.thread("main"), "plant-beds", stamp(1))
+    monkeypatch.setenv(usage_store.T3_STORE_ENV, str(built.path))
+
+    def usage() -> dict:
+        return run(setup.disk_status())["skill_usage"]
+
+    def write_check(**changed: object) -> None:
+        check = json.loads((state / "check.json").read_text())
+        check["skill_usage"].update(changed)
+        (state / "check.json").write_text(json.dumps(check))
+
+    first = run(setup.disk_run())["skill_usage"]
+    assert first["ok"] and first["added"] == 1
+    assert len(usage_store.load_events(usage_store.state_dir())[0]) == 1
+    assert run(setup.disk_run())["ran"] is False and usage()["ok"]  # every hour, due or not
+
+    built.path.write_text("not a database")  # the harness's store stops being readable
+    assert run(setup.disk_run())["skill_usage"]["ok"] is False  # and the disk job still runs
+    status = run(setup.disk_status())
+    assert (status["skill_usage"]["ok"], status["skill_usage"]["ok_at"]) == (False, first["at"])
+    assert any("skill usage is not being collected" in found for found in status["warnings"])
+    assert not any("skill usage" in found for found in status["problems"])  # not yet
+
+    long_ago = (setup.datetime.now(setup.UTC) - timedelta(hours=30)).isoformat()
+    write_check(ok_at=long_ago)
+    began = usage()["failing_since"]
+    run(setup.disk_run())  # still failing an hour later: since when is kept
+    assert usage()["failing_since"] == began and usage()["ok_at"] == long_ago
+    problems = run(setup.disk_status())["problems"]
+    assert any("skill usage is not being collected" in found for found in problems)
+
+    write_check(ok_at=None, failing_since=long_ago)  # one that never worked, as long
+    assert any("skill usage" in found for found in run(setup.disk_status())["problems"])
+
+    with repo["settings"].open("a", encoding="utf-8") as handle:
+        handle.write("skill_usage_collect = false\n")  # a machine may turn it off
+    assert "skill_usage" not in run(setup.disk_run())
+    status = run(setup.disk_status())
+    assert status["skill_usage"] is None
+    assert not any("skill usage" in found for found in status["problems"] + status["warnings"])
 
 
 def test_the_job_notifies_once_while_space_stays_low(

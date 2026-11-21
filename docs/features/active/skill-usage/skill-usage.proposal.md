@@ -291,12 +291,38 @@ repository requires is that repository's decision: this one declares none yet.
 
 ### Every machine
 
-Collection runs with botcore's hourly job, and a failure that lasts shows in that job's
-status, where a session's preflight reads it: the record cannot be refilled once T3 Code has
-dropped the threads. A machine may name a shared folder, any folder every machine can see,
-whether a synced drive or a checkout; collection then also writes its record there under the
-machine's name, and a report reads every machine's. The folder holds session ids, project
-names and pull request numbers, so it must be private. Botcore does not sync it.
+Collection runs inside botcore's hourly job, the one `disk-setup` installs, every hour
+whether or not a reclaim is due, and never fails that job. The job keeps when collection last
+worked and since when it has not. `disk-status`, which a session's preflight reads, warns of a
+failure at once and calls it a problem after a day: the record cannot be refilled once T3 Code
+has dropped the threads.
+
+A machine says three things in its machine settings (`disk.toml`):
+
+```toml
+skill_usage_machine = "random"              # its name in the record; its hostname when left out
+skill_usage_shared = "~/Shared/skill-usage"  # a folder every machine can see
+skill_usage_collect = false                 # only to turn the hourly collection off
+```
+
+The shared folder is any folder every machine can see, whether a synced drive or a checkout.
+After each collection a machine writes its record to a folder of its own name there: its
+events and sessions, and of its state only when it collected and under which rules, never its
+folders. A file that did not change is not written again, so a sync has little to send.
+
+The usage report and the triggers report read this machine's record and every other machine's
+folder, each event and session once. A thread moved between machines is one session, with the
+pull requests either machine saw. Both name a machine whose collection is over a day old, and
+one whose copy cannot be read whole; the triggers report then judges nothing, since a lost
+load would make a miss.
+
+The folder holds session ids, project names and pull request numbers, so it must be private.
+Botcore does not sync it and never creates it: a folder that is not there is a drive or a
+sync that is away, so the collection says so and the record stays whole on the machine.
+
+A machine renamed after it has collected keeps its old name on the events it wrote. Run
+`skill-usage-collect --rebuild` on it and remove its old folder from the shared one; events
+whose threads T3 Code has dropped keep the old name.
 
 The first collection on each machine is run by hand as soon as phase 1 merges, without waiting
 for the schedule.
@@ -315,8 +341,8 @@ for the schedule.
 - **An audit the rule does not see.** One that takes longer than about 45 minutes (so that
   no half hour holds two thirds of the skills), one of a checkout that holds fewer than twelve
   skills, and one of a project whose checkout is not on the machine all count as use.
-- **A thread moved between machines** may be counted on both until phase 3 compares two
-  machines' records.
+- **A machine that has not synced.** Each machine's numbers end at its last collection that
+  reached the shared folder; the report gives that time for every machine.
 - **What the triggers report cannot tell.** Whether the skill was still in the agent's
   context when it made the change: a long session that loaded it days before counts as
   loaded. Whether the load came before the change or at its review: both come before the
