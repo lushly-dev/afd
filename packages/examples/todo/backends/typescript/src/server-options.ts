@@ -11,6 +11,7 @@ import {
 	createJournalMiddleware,
 	defaultMiddleware,
 	type McpHandlerOptions,
+	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server';
 import { createClearCountsMiddleware, summarizeClear } from './commands/clear.js';
 import { allCommands } from './commands/index.js';
@@ -66,8 +67,9 @@ export function resolveConfirmations(env: Env): 'off' | 'enforce' | 'require-hum
 
 /**
  * Whether calls are held for approval, from `APPROVALS` (default `agents`): `agents` holds
- * `todo-clear` for any caller that is not a person; `off` holds nothing. The shared conformance
- * suites run with `off`, as they set `CONFIRMATIONS`.
+ * `todo-clear` for any caller that is not a person; `off` holds nothing, because
+ * {@link createTodoCommands} then serves `todo-clear` with no approval policy. The shared
+ * conformance suites run with `off`, as they set `CONFIRMATIONS`.
  */
 export function resolveApprovals(env: Env): 'agents' | 'off' {
 	const value = env.APPROVALS ?? 'agents';
@@ -86,6 +88,21 @@ export function resolveApprovalSecret(env: Env): string | Uint8Array {
 		throw new Error('TODO_APPROVAL_SECRET must be at least 32 bytes');
 	}
 	return secret;
+}
+
+/**
+ * The commands the server serves. With `APPROVALS=off` there is no approval middleware, and the
+ * engine refuses a command that declares an approval policy without one (`APPROVAL_UNAVAILABLE`),
+ * so `todo-clear` is served without its policy: it runs for every caller, and `_meta.approval`
+ * does not advertise a hold the server does not make.
+ */
+export function createTodoCommands(env: Env): ZodCommandDefinition[] {
+	if (resolveApprovals(env) === 'agents') return allCommands;
+	return allCommands.map((command) => {
+		if (command.approval === undefined) return command;
+		const { approval: _approval, ...ungated } = command;
+		return ungated as ZodCommandDefinition;
+	});
 }
 
 /** What the server is built with besides the environment, for tests and the replay module. */
@@ -124,7 +141,6 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 		middleware.push(
 			createApprovalMiddleware({
 				secret: resolveApprovalSecret(env),
-				commands: allCommands,
 				// An MCP client that declares form elicitation asks its person; any other caller
 				// gets APPROVAL_REQUIRED with a suggestion to ask the person.
 				relay: 'mcp-elicitation',
@@ -161,7 +177,7 @@ export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): Mc
 	return {
 		name: 'todo-app',
 		version: '1.0.0',
-		commands: allCommands,
+		commands: createTodoCommands(env),
 		// Adds the afd-help, afd-docs and afd-schema bootstrap tools
 		bootstrap: true,
 		port: Number.parseInt(env.PORT ?? '3100', 10),

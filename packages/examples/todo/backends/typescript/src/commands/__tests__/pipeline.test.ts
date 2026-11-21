@@ -10,8 +10,8 @@
 import type { PipelineRequest } from '@lushly-dev/afd-core';
 import { createMcpServer, type McpServer } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createTodoCommands } from '../../server-options.js';
 import { store } from '../../store/index.js';
-import { allCommands } from '../index.js';
 
 describe('Todo Pipeline Integration', () => {
 	let server: McpServer;
@@ -21,7 +21,8 @@ describe('Todo Pipeline Integration', () => {
 		server = createMcpServer({
 			name: 'todo-pipeline-test',
 			version: '1.0.0',
-			commands: allCommands,
+			// No approval middleware here, so todo-clear is served without its approval policy.
+			commands: createTodoCommands({ APPROVALS: 'off' }),
 			transport: 'stdio',
 		});
 		await server.start();
