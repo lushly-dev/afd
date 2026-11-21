@@ -20,12 +20,23 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
   Codex shell reads 1,226, Claude shell reads 628, Claude file-tool reads 478, the Skill tool
   137. A hook declared in a skill would have seen the last group only.
 - **The session is the unit.** Counted by top-level thread, one fleet foreman hid forty cells.
-  Counted by session (a thread a person started, or a delegated task), Lushly had 199 sessions
-  and 1,948 loads in 30 days.
+  A session is a thread a person started or a task delegated to its own agent.
 - **Renames are in git.** `git log --diff-filter=R` over the skill files found every rename of
   a skill folder in Lushly and AFD (`do-prepare-pr` to `prepare-pr` and the rest), so the report
   needs no rename table for a repository's own skills.
-- **A typed skill is `$name` in T3 Code**, not `/name`.
+- **A typed skill is `$name` in T3 Code**, not `/name`. In 45 of 52 typed requests no tool or
+  shell load of the skill followed: the harness had put the skill in context itself. So a
+  typed request is a load unless a tool load follows within ten minutes.
+- **Reviewers load a skill from the base** with `git show <revision>:<path>`, which prints the
+  skill as that revision holds it. Counting it took the store's all-time shell reads from 1,896
+  to 2,311.
+- **Writing a skill and auditing the skills look like use.** In Lushly's last 30 days, 6
+  sessions changed a skill they had read and 19 loaded twelve or more skills. The report leaves
+  both out of a skill's count.
+- **A session's model is its latest setting**, so it is taken from the run a load happened
+  in. A subagent's thread has no runs and cannot switch, so its own setting is used.
+- **The denominator.** The store held 503 sessions; in Lushly's last 30 days 206 of 260
+  loaded at least one skill.
 - **A subagent or delegated task is its own thread**, whose `lineage` in the thread's payload
   names its parent and its root.
 - **A first missed-trigger reading, by hand:** 54 merged Lushly pull requests changed a gate
@@ -52,3 +63,9 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 ## Phase 4. Provider logs
 
 - Claude Code transcripts and Codex rollouts as sources (#1820): not started.
+
+## Later
+
+- Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
+
+- Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.

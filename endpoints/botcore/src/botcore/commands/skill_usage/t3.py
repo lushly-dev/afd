@@ -2,28 +2,30 @@
 
 T3 Code records every tool call, shell command and message of the threads it runs, for each
 provider it drives, so one read covers Claude and Codex alike. The store is another program's
-internal schema, not an interface: it is opened read-only, the tables and columns used here are
-checked first, and a change is reported instead of guessed at.
+internal schema, not an interface: it is opened read-only, everything is read from one
+snapshot, the tables, columns and payload fields used here are checked, and a change is
+reported instead of guessed at.
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.skill_usage.events import (
     DELEGATE,
+    EDIT,
     FILE_READ,
     MAIN,
     SHELL_READ,
     SKILL_TOOL,
     SUBAGENT,
     TYPED,
-    Event,
+    clean_skill_name,
     skill_of_file,
+    skill_of_folder,
     skills_read_by,
     typed_skill,
 )
@@ -32,18 +34,29 @@ SOURCE = "t3-code"
 ITEMS = "orchestration_v2_projection_turn_items"
 THREADS = "orchestration_v2_projection_threads"
 SUBAGENTS = "orchestration_v2_projection_subagents"
+RUNS = "orchestration_v2_projection_runs"
 PROJECTS = "projection_projects"
 REQUIRED: dict[str, set[str]] = {
-    ITEMS: {"thread_id", "type", "updated_at", "payload_json"},
+    ITEMS: {"turn_item_id", "thread_id", "type", "updated_at", "payload_json"},
     THREADS: {"thread_id", "project_id", "payload_json"},
     PROJECTS: {"project_id", "workspace_root"},
 }
+# Tables an older store may lack. One that is present must have these columns.
+OPTIONAL: dict[str, set[str]] = {
+    SUBAGENTS: {"thread_id", "child_thread_id"},
+    RUNS: {"run_id", "payload_json"},
+}
+TOOL, COMMAND, MESSAGE, CHANGE = "dynamic_tool", "command_execution", "user_message", "file_change"
+KINDS = (TOOL, COMMAND, MESSAGE, CHANGE)
+MIN_ITEMS_TO_JUDGE_KINDS = 50
 HARNESSES = {"claudeAgent": "claude", "codex": "codex"}
 READ_TOOLS = {"read", "read_file", "view"}
-SKILL_DIRS = (".claude/skills", ".agents/skills", ".codex/skills")
+FILE_KEYS = ("file_path", "filePath", "path")
+DONE = "completed"
+PERSON = "user"
 DELEGATED_PREFIX = "thread:delegated-task:"
 SUBAGENT_PREFIXES = ("thread:subagent:", "thread:provider:")
-UNKNOWN_PROJECT = "unknown"
+FORK = "fork"
 
 
 class StoreUnreadable(Exception):
@@ -51,7 +64,7 @@ class StoreUnreadable(Exception):
 
 
 class SchemaChanged(Exception):
-    """A table or column this reader needs is gone."""
+    """A table, column or payload field this reader needs is gone."""
 
     def __init__(self, missing: list[str]) -> None:
         super().__init__(", ".join(missing))
@@ -62,27 +75,69 @@ class SchemaChanged(Exception):
 class Thread:
     project_id: str | None
     parent: str | None
-    root: str | None
-    model: str | None
+    relationship: str | None
+    remote_parent: str | None  # the thread, on another machine, that delegated this one
     provider: str | None
+    model: str | None  # its current setting: the truth only for a thread that cannot switch
+    created_at: str | None = None
+    updated_at: str | None = None
+    pull_requests: tuple[str, ...] = ()
+
+
+@dataclass
+class Load:
+    """One load as the store shows it, before its project is named."""
+
+    item: str  # the store's own id for the recorded item
+    native: str | None
+    at: str
+    skill: str
+    path: str
+    harness: str
+    thread: str
+    root: str
+    agent: str
+    project_id: str | None
+    model: str | None
+
+
+@dataclass
+class Session:
+    """A session the store holds, whether or not it loaded a skill: the denominator of every
+    rate, and what ties a session to the pull requests it produced."""
+
+    id: str
+    root: str
+    agent: str
+    harness: str
+    project_id: str | None
+    created_at: str | None
+    updated_at: str | None
+    pull_requests: tuple[str, ...]
 
 
 @dataclass
 class T3Read:
-    events: list[Event] = field(default_factory=list)
-    projects: dict[str, str] = field(default_factory=dict)  # project name -> workspace root
+    loads: list[Load] = field(default_factory=list)
+    sessions: list[Session] = field(default_factory=list)
+    projects: dict[str, str] = field(default_factory=dict)  # project id -> workspace root
+    items: set[str] | None = None  # every item the store holds, when asked for
     scanned: int = 0
     newest: str | None = None
 
 
 def open_store(path: Path) -> sqlite3.Connection:
-    """Open the store without being able to change it."""
+    """Open the store without being able to change it, and hold one snapshot of it: every
+    query on the connection then sees the same committed state, however long the read takes
+    and whatever T3 Code writes meanwhile."""
     try:
-        connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10)
+        connection = sqlite3.connect(
+            f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10, isolation_level=None
+        )
+        connection.execute("begin")
         connection.execute("select 1 from sqlite_master limit 1").fetchall()
     except sqlite3.Error as exc:
         raise StoreUnreadable(str(exc)) from exc
-    connection.row_factory = sqlite3.Row
     return connection
 
 
@@ -99,6 +154,17 @@ def check_schema(connection: sqlite3.Connection) -> None:
             missing.append(table)
         else:
             missing.extend(f"{table}.{column}" for column in sorted(needed - have))
+    for table, needed in OPTIONAL.items():
+        have = _columns(connection, table)
+        if have:
+            missing.extend(f"{table}.{column}" for column in sorted(needed - have))
+    total = connection.execute(f"select count(*) from {ITEMS}").fetchone()[0]
+    kinds = ", ".join(f"'{kind}'" for kind in KINDS)
+    known = connection.execute(f"select count(*) from {ITEMS} where type in ({kinds})").fetchone()[
+        0
+    ]
+    if not missing and total >= MIN_ITEMS_TO_JUDGE_KINDS and not known:
+        missing.append(f"{ITEMS}.type values ({', '.join(KINDS)})")
     if missing:
         raise SchemaChanged(missing)
 
@@ -119,6 +185,17 @@ def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _pull_requests(value: object) -> tuple[str, ...]:
+    """The pull requests T3 Code linked to a thread, as `owner/name#number`."""
+    found: list[str] = []
+    for entry in value if isinstance(value, list) else []:
+        entry = _mapping(entry)
+        repository, number = _text(entry.get("repository")), entry.get("number")
+        if repository and isinstance(number, int):
+            found.append(f"{repository}#{number}")
+    return tuple(found)
+
+
 def _threads(connection: sqlite3.Connection) -> dict[str, Thread]:
     provider = "default_provider" if "default_provider" in _columns(connection, THREADS) else "null"
     threads: dict[str, Thread] = {}
@@ -131,16 +208,20 @@ def _threads(connection: sqlite3.Connection) -> dict[str, Thread]:
         threads[thread_id] = Thread(
             project_id=_text(project_id),
             parent=_text(lineage.get("parentThreadId")),
-            root=_text(lineage.get("rootThreadId")),
-            model=_text(_mapping(payload.get("modelSelection")).get("model")),
+            relationship=_text(lineage.get("relationshipToParent")),
+            remote_parent=_text(_mapping(payload.get("delegatedFrom")).get("threadId")),
             provider=_text(default_provider),
+            model=_text(_mapping(payload.get("modelSelection")).get("model")),
+            created_at=_text(payload.get("createdAt")),
+            updated_at=_text(payload.get("updatedAt")),
+            pull_requests=_pull_requests(payload.get("pullRequests")),
         )
     return threads
 
 
 def _parents(connection: sqlite3.Connection) -> dict[str, str]:
     """Child thread to the thread that started it, where the store keeps that table."""
-    if not {"thread_id", "child_thread_id"} <= _columns(connection, SUBAGENTS):
+    if not _columns(connection, SUBAGENTS):
         return {}
     rows = connection.execute(
         f"select child_thread_id, thread_id from {SUBAGENTS} where child_thread_id is not null"
@@ -148,175 +229,242 @@ def _parents(connection: sqlite3.Connection) -> dict[str, str]:
     return {child: parent for child, parent in rows if parent}
 
 
-def _parent(thread_id: str, threads: dict[str, Thread], parents: dict[str, str]) -> str | None:
-    known = threads.get(thread_id)
-    return (known.parent if known else None) or parents.get(thread_id)
+def _models(connection: sqlite3.Connection) -> dict[str, str]:
+    """Run to the model it ran on. A session's own model setting is its latest, so it would
+    relabel an earlier run after a switch. A subagent's thread has no runs and cannot switch,
+    so its setting is used for it."""
+    if not _columns(connection, RUNS):
+        return {}
+    models: dict[str, str] = {}
+    for run_id, payload_json in connection.execute(f"select run_id, payload_json from {RUNS}"):
+        model = _text(_mapping(_object(payload_json).get("modelSelection")).get("model"))
+        if model:
+            models[run_id] = model
+    return models
 
 
-def _session(thread_id: str, threads: dict[str, Thread], parents: dict[str, str]) -> str:
-    """The session a thread works for: itself when a person started it or it is a delegated
-    task, otherwise the nearest such thread above it."""
-    seen = {thread_id}
-    while not thread_id.startswith(DELEGATED_PREFIX):
-        parent = _parent(thread_id, threads, parents)
-        if not parent or parent in seen:
-            break
-        seen.add(parent)
-        thread_id = parent
-    return thread_id
+class _Family:
+    """Which session and which person-started thread a thread belongs to."""
+
+    def __init__(self, threads: dict[str, Thread], parents: dict[str, str]) -> None:
+        self.threads = threads
+        self.parents = parents
+
+    def _parent(self, thread_id: str) -> str | None:
+        known = self.threads.get(thread_id)
+        return (known.parent if known else None) or self.parents.get(thread_id)
+
+    def _starts_session(self, thread_id: str) -> bool:
+        """A delegated task, here or from another machine, and a fork a person continued are
+        sessions of their own."""
+        known = self.threads.get(thread_id)
+        return thread_id.startswith(DELEGATED_PREFIX) or bool(
+            known and (known.remote_parent or known.relationship == FORK)
+        )
+
+    def session(self, thread_id: str) -> str:
+        seen = {thread_id}
+        while not self._starts_session(thread_id):
+            parent = self._parent(thread_id)
+            if not parent or parent in seen:
+                break
+            seen.add(parent)
+            thread_id = parent
+        return thread_id
+
+    def root(self, thread_id: str) -> str:
+        """The thread a person started. For a task delegated from another machine that is
+        the delegating thread's id there, which that machine's record uses too."""
+        seen = {thread_id}
+        while True:
+            known = self.threads.get(thread_id)
+            if known and known.relationship == FORK:
+                return thread_id
+            if known and known.remote_parent:
+                return known.remote_parent
+            parent = self._parent(thread_id)
+            if not parent or parent in seen:
+                return thread_id
+            seen.add(parent)
+            thread_id = parent
+
+    def role(self, thread_id: str, session: str) -> str:
+        if thread_id != session or thread_id.startswith(SUBAGENT_PREFIXES):
+            return SUBAGENT
+        known = self.threads.get(session)
+        delegated = session.startswith(DELEGATED_PREFIX) or bool(known and known.remote_parent)
+        return DELEGATE if delegated else MAIN
 
 
-def _root(thread_id: str, threads: dict[str, Thread], parents: dict[str, str]) -> str:
-    """The thread a person started, above this one."""
-    known = threads.get(thread_id)
-    if known and known.root:
-        return known.root
-    seen = {thread_id}
-    while True:
-        parent = _parent(thread_id, threads, parents)
-        if not parent or parent in seen:
-            return thread_id
-        seen.add(parent)
-        thread_id = parent
+@dataclass
+class _Shapes:
+    """Whether the recorded items still look as this reader expects. Rows that match the
+    query but none of which carries the fields read here mean the payload changed, which
+    would otherwise read as nobody loading a skill."""
 
+    seen: dict[str, int] = field(default_factory=lambda: dict.fromkeys(KINDS, 0))
+    shaped: dict[str, int] = field(default_factory=lambda: dict.fromkeys(KINDS, 0))
 
-def _role(thread_id: str, session: str, root: str) -> str:
-    if thread_id != session or thread_id.startswith(SUBAGENT_PREFIXES):
-        return SUBAGENT
-    return MAIN if session == root else DELEGATE
+    def note(self, kind: str, payload: dict) -> None:
+        self.seen[kind] += 1
+        status = isinstance(payload.get("status"), str)
+        if kind == TOOL:
+            ok = isinstance(payload.get("toolName"), str) and status
+        elif kind == COMMAND:
+            ok = "input" in payload and status
+        elif kind == CHANGE:
+            ok = isinstance(payload.get("fileName"), str) and status
+        else:
+            ok = isinstance(payload.get("text"), str) and isinstance(payload.get("createdBy"), str)
+        self.shaped[kind] += ok
 
-
-def skill_on_disk(root: str, name: str) -> bool:
-    """Whether a checkout holds a skill of this name."""
-    return any((Path(root) / folder / name / "SKILL.md").is_file() for folder in SKILL_DIRS)
+    def check(self) -> None:
+        fields = {
+            TOOL: "toolName, status",
+            COMMAND: "input, status",
+            MESSAGE: "text, createdBy",
+            CHANGE: "fileName, status",
+        }
+        missing = [
+            f"{ITEMS}.payload_json of {kind} ({fields[kind]})"
+            for kind in KINDS
+            if self.seen[kind] and not self.shaped[kind]
+        ]
+        if missing:
+            raise SchemaChanged(missing)
 
 
 def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
-    """(skill, path) for each load one recorded item shows, typed names included."""
-    if kind == "dynamic_tool":
-        tool = _text(payload.get("toolName")) or ""
-        tool_input = _mapping(payload.get("input"))
-        if tool == "Skill":
-            name = _text(tool_input.get("skill"))
-            return [(name, SKILL_TOOL)] if name else []
-        if tool.lower() in READ_TOOLS:
-            target = _text(tool_input.get("file_path")) or _text(tool_input.get("path")) or ""
-            name = skill_of_file(target)
-            return [(name, FILE_READ)] if name else []
-        return []
-    if kind == "command_execution":
-        command = payload.get("input")
-        if isinstance(command, dict):
-            command = command.get("command")
-        if isinstance(command, list):
-            command = " ".join(str(part) for part in command)
-        return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
-    if kind == "user_message":
-        if payload.get("createdBy") == "agent":  # a brief one agent wrote for another
+    """(skill, path) for each load one recorded item shows, and for each change to a skill's
+    files (path `edit`). A tool call, command or change counts only once it completed, and a
+    message only when the person wrote it."""
+    if kind == MESSAGE:
+        if payload.get("createdBy") != PERSON:  # a brief an agent or the system wrote
             return []
         name = typed_skill(_text(payload.get("text")) or "")
         return [(name, TYPED)] if name else []
-    return []
+    if payload.get("status") != DONE:
+        return []
+    if kind == CHANGE:
+        name = skill_of_folder(_text(payload.get("fileName")) or "")
+        return [(name, EDIT)] if name else []
+    if kind == TOOL:
+        tool = _text(payload.get("toolName")) or ""
+        tool_input = _mapping(payload.get("input"))
+        if tool == "Skill":
+            name = clean_skill_name(_text(tool_input.get("skill")) or "")
+            return [(name, SKILL_TOOL)] if name else []
+        if tool.lower() in READ_TOOLS:
+            for key in FILE_KEYS:
+                name = skill_of_file(_text(tool_input.get(key)) or "")
+                if name:
+                    return [(name, FILE_READ)]
+        return []
+    command = payload.get("input")
+    if isinstance(command, dict):
+        command = command.get("command")
+    if isinstance(command, list):
+        command = " ".join(str(part) for part in command)
+    return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
 
 
-def read(
-    connection: sqlite3.Connection,
-    *,
-    since: str | None,
-    machine: str,
-    known_skill: Callable[[str, str], bool],
-) -> T3Read:
-    """Every skill load the store shows at or after `since` (an ISO time), oldest first.
+def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
+    sessions: list[Session] = []
+    for thread_id, thread in threads.items():
+        if thread_id.startswith(SUBAGENT_PREFIXES) or family.session(thread_id) != thread_id:
+            continue
+        sessions.append(
+            Session(
+                id=thread_id,
+                root=family.root(thread_id),
+                agent=family.role(thread_id, thread_id),
+                harness=HARNESSES.get(thread.provider or "", thread.provider or "other"),
+                project_id=thread.project_id,
+                created_at=thread.created_at,
+                updated_at=thread.updated_at,
+                pull_requests=thread.pull_requests,
+            )
+        )
+    return sessions
 
-    `known_skill(project, name)` says whether a name is already known as a skill there; a
-    typed name counts only when it is, when this read shows the skill loaded another way, or
-    when the project's checkout holds it.
+
+def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool = False) -> T3Read:
+    """Every skill load, and change to a skill's files, the store shows at or after `since`
+    (an ISO time), oldest first; and every session it holds.
+
+    A typed name is returned as a load too; the caller keeps it only when the name is a skill.
+    `all_items` also returns the id of every item the store holds, for a rebuild.
     """
     result = T3Read()
-    projects: dict[str, tuple[str, str]] = {}  # project id -> (name, workspace root)
     for project_id, workspace_root in connection.execute(
         f"select project_id, workspace_root from {PROJECTS}"
     ):
         if _text(workspace_root):
-            name = Path(workspace_root).name or project_id
-            projects[project_id] = (name, workspace_root)
-            result.projects[name] = workspace_root
+            result.projects[project_id] = workspace_root
     threads = _threads(connection)
-    parents = _parents(connection)
+    family = _Family(threads, _parents(connection))
+    result.sessions = _sessions(threads, family)
+    models = _models(connection)
+    if all_items:
+        result.items = {
+            str(row[0]) for row in connection.execute(f"select turn_item_id from {ITEMS}")
+        }
+    run_column = "run_id" if "run_id" in _columns(connection, ITEMS) else "null"
 
     where, arguments = "", []
     if since:
         where, arguments = "and updated_at >= ?", [since]
-    newest = connection.execute(f"select max(updated_at) from {ITEMS}").fetchone()[0]
-    result.newest = _text(newest)
+    result.newest = _text(connection.execute(f"select max(updated_at) from {ITEMS}").fetchone()[0])
     rows = connection.execute(
         f"""
-        select thread_id, type, updated_at, payload_json from {ITEMS}
+        select turn_item_id, thread_id, type, updated_at, {run_column}, payload_json from {ITEMS}
         where (
-            (type = 'dynamic_tool'
+            (type = '{TOOL}'
                 and (payload_json like '%SKILL.md%' or payload_json like '%"Skill"%'))
-            or (type = 'command_execution' and payload_json like '%SKILL.md%')
-            or type = 'user_message'
+            or (type = '{COMMAND}' and payload_json like '%SKILL.md%')
+            or (type = '{CHANGE}' and payload_json like '%skills%')
+            or type = '{MESSAGE}'
         ) {where}
         order by updated_at
         """,
         arguments,
     )
 
-    typed: list[Event] = []
-    seen: set[tuple[str, str]] = set()  # (project, skill) loaded some other way in this read
-    for thread_id, kind, updated_at, payload_json in rows:
+    shapes = _Shapes()
+    for item_id, thread_id, kind, updated_at, run_id, payload_json in rows:
         result.scanned += 1
         payload = _object(payload_json)
+        shapes.note(kind, payload)
         loads = _loads(kind, payload)
         if not loads:
             continue
-        root = _root(thread_id, threads, parents)
-        session = _session(thread_id, threads, parents)
-        own, top = threads.get(thread_id), threads.get(root)
-        project_id = (top.project_id if top else None) or (own.project_id if own else None)
-        project = projects.get(project_id or "", (UNKNOWN_PROJECT, ""))[0]
+        session = family.session(thread_id)
+        own, top = threads.get(thread_id), threads.get(session)
         native = _mapping(payload.get("nativeItemRef"))
         driver = _text(native.get("driver")) or (own.provider if own else None) or ""
         harness = HARNESSES.get(driver, driver or "other")
-        # The harness's own id for the item, where it has one, so that the same load read from
-        # another source of that harness is the same event
         native_id = _text(native.get("nativeId"))
-        item = (
-            f"{harness}:{native_id}"
-            if native_id
-            else f"t3:{_text(payload.get('id')) or f'{thread_id}@{updated_at}'}"
-        )
         for name, path in loads:
-            event = Event(
-                id=f"{item}:{name}",
-                at=_text(payload.get("startedAt")) or _text(payload.get("updatedAt")) or updated_at,
-                skill=name,
-                path=path,
-                harness=harness,
-                source=SOURCE,
-                thread=session,
-                root=root,
-                agent=_role(thread_id, session, root),
-                project=project,
-                machine=machine,
-                model=(own.model if own else None) or (top.model if top else None),
+            result.loads.append(
+                Load(
+                    item=str(item_id),
+                    native=f"{harness}:{native_id}" if native_id else None,
+                    at=_text(payload.get("startedAt"))
+                    or _text(payload.get("updatedAt"))
+                    or updated_at,
+                    skill=name,
+                    path=path,
+                    harness=harness,
+                    thread=session,
+                    root=family.root(thread_id),
+                    agent=family.role(thread_id, session),
+                    project_id=(top.project_id if top else None)
+                    or (own.project_id if own else None),
+                    model=models.get(run_id)
+                    if run_id
+                    else (own.model if own and thread_id != session else None),
+                )
             )
-            if path == TYPED:
-                typed.append(event)
-            else:
-                seen.add((project, name))
-                result.events.append(event)
-
-    roots = dict(projects.values())
-    for event in typed:
-        key = (event.project, event.skill)
-        root_folder = roots.get(event.project)
-        if (
-            key in seen
-            or known_skill(*key)
-            or (root_folder and skill_on_disk(root_folder, event.skill))
-        ):
-            result.events.append(event)
-    result.events.sort(key=lambda event: event.at)
+    shapes.check()
+    result.loads.sort(key=lambda load: load.at)
     return result

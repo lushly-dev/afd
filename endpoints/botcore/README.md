@@ -332,8 +332,11 @@ botcore skill-list
 # Add the skill loads the harnesses recorded to this machine's record
 botcore skill-usage-collect
 
-# Which skills were used in the last 30 days, by which harness and agent
+# Which skills were used in the last 30 days, by which harness, model and agent
 botcore skill-usage-report --days 30 --project my-repo
+
+# The 30 days before that, to compare
+botcore skill-usage-report --days 30 --ending-days-ago 30 --skill my-skill
 ```
 
 The loads are read from T3 Code's store, so nothing is added to a skill and no agent reports

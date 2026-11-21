@@ -1,8 +1,10 @@
 """`skill-usage-report`: which skills were used, how often, and by which harness and agent.
 
-Read-only, from this machine's record (`skill-usage-collect` fills it). The unit is a thread
-that used a skill: a skill read three times in one thread, in parts, is one use. A skill keeps
-one identity across a rename.
+Read-only, from this machine's record (`skill-usage-collect` fills it). The unit is a session
+that used a skill: a skill read three times in one session, in parts, is one use. A skill
+keeps one identity across a rename. A session that changed a skill's files was writing it,
+not using it, and a session that read most of a project's skills was auditing them; neither
+is counted as use.
 """
 
 from __future__ import annotations
@@ -14,21 +16,57 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
+from botcore.commands.skill.frontmatter import split_frontmatter
+from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill.renames import SKILL_RENAMES
-from botcore.commands.skill_usage.events import TYPED, Event
-from botcore.commands.skill_usage.store import load_events, load_state, state_dir
-from botcore.commands.skill_usage.t3 import SKILL_DIRS
+from botcore.commands.skill_usage.collect import SKILL_DIRS
+from botcore.commands.skill_usage.events import (
+    DELEGATE,
+    EDIT,
+    MAIN,
+    RECOGNIZER,
+    SUBAGENT,
+    TYPED,
+    Event,
+)
+from botcore.commands.skill_usage.store import (
+    load_events,
+    load_sessions,
+    load_state,
+    state_dir,
+)
 
 STALE_AFTER = timedelta(hours=26)
+MAX_DAYS = 3660
+MAX_ROWS = 500
+# After a person names a skill, the harness either puts it in context itself or the agent
+# loads it with a tool. A tool load this soon after is that same load, not a second one.
+SAME_LOAD = timedelta(minutes=10)
+# A session that loads this many different skills of one project is reading the skills, not
+# working with them: an audit, a rename, a listing.
+WIDE = 12
+AGENTS = (MAIN, DELEGATE, SUBAGENT)
+
+
+@dataclass
+class Held:
+    """A skill a checkout holds: its SKILL.md size and what it adds to every session's
+    skill listing."""
+
+    size: int
+    listing: int
 
 
 @dataclass
 class Row:
     project: str
     skill: str
-    threads: set[str] = field(default_factory=set)
-    typed_threads: set[str] = field(default_factory=set)
+    sessions: set[str] = field(default_factory=set)
+    typed_sessions: set[str] = field(default_factory=set)
+    authoring: set[str] = field(default_factory=set)
     by_harness: dict[str, set[str]] = field(default_factory=dict)
+    by_model: dict[str, set[str]] = field(default_factory=dict)
+    by_machine: dict[str, set[str]] = field(default_factory=dict)
     loads: int = 0
     agents: Counter = field(default_factory=Counter)
     paths: Counter = field(default_factory=Counter)
@@ -36,9 +74,9 @@ class Row:
     last_used: str = ""
 
 
-def _parse(stamp: str | None) -> datetime | None:
+def _parse(stamp: object) -> datetime | None:
     try:
-        moment = datetime.fromisoformat(stamp) if stamp else None
+        moment = datetime.fromisoformat(stamp) if isinstance(stamp, str) else None
     except ValueError:
         return None
     if moment is None:
@@ -46,9 +84,13 @@ def _parse(stamp: str | None) -> datetime | None:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
-def skills_on_disk(root: str) -> dict[str, int]:
-    """Each skill a checkout holds, with the size of its SKILL.md in bytes."""
-    found: dict[str, int] = {}
+def _mapping(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def skills_on_disk(root: str) -> dict[str, Held]:
+    """Each skill a checkout holds."""
+    found: dict[str, Held] = {}
     for folder in SKILL_DIRS:
         try:
             children = sorted(Path(root, folder).iterdir())
@@ -56,14 +98,15 @@ def skills_on_disk(root: str) -> dict[str, int]:
             continue
         for child in children:
             try:
-                size = (child / "SKILL.md").stat().st_size
+                text = (child / "SKILL.md").read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            found.setdefault(child.name, size)
+            listing = listing_characters(text, split_frontmatter(text)[0])
+            found.setdefault(child.name, Held(len(text.encode("utf-8")), listing))
     return found
 
 
-def current_name(name: str, renames: dict[str, str], on_disk: dict[str, int]) -> str:
+def current_name(name: str, renames: dict[str, str], on_disk: dict[str, Held]) -> str:
     """The name a skill has now. The project's own renames come first, then botcore's for the
     skills it ships; a name the checkout still holds is never renamed."""
     seen = {name}
@@ -76,14 +119,22 @@ def current_name(name: str, renames: dict[str, str], on_disk: dict[str, int]) ->
     return name
 
 
-def _row_json(row: Row, sizes: dict[str, int]) -> dict:
+def _counts(groups: dict[str, set[str]]) -> dict[str, int]:
+    return {name: len(members) for name, members in sorted(groups.items())}
+
+
+def _row_json(row: Row, held: Held | None, of_sessions: int) -> dict:
     data: dict = {
         "project": row.project,
         "skill": row.skill,
-        "threads": len(row.threads),
+        "sessions": len(row.sessions),
+        "of_sessions": of_sessions,
+        "share": round(len(row.sessions) / of_sessions, 3) if of_sessions else None,
         "loads": row.loads,
-        "typed_threads": len(row.typed_threads),
-        "harnesses": {name: len(threads) for name, threads in sorted(row.by_harness.items())},
+        "typed_sessions": len(row.typed_sessions),
+        "harnesses": _counts(row.by_harness),
+        "models": _counts(row.by_model),
+        "machines": _counts(row.by_machine),
         "agents": dict(sorted(row.agents.items())),
         "paths": dict(sorted(row.paths.items())),
         "last_used": row.last_used,
@@ -91,34 +142,103 @@ def _row_json(row: Row, sizes: dict[str, int]) -> dict:
     earlier = sorted(row.names - {row.skill})
     if earlier:
         data["also_loaded_as"] = earlier
-    size = sizes.get(row.skill)
-    if size is not None:
-        data["size_bytes"] = size
-        data["context_bytes"] = size * row.loads
+    if row.authoring:
+        data["authoring_sessions"] = len(row.authoring)
+    if held is not None:
+        data["size_bytes"] = held.size
+        data["max_context_bytes"] = held.size * row.loads
+        data["listing_chars"] = held.listing
     return data
 
 
-async def skill_usage_report(  # noqa: PLR0912, PLR0915 - one pass over the record
+def _is_project(project: str | None, name: str) -> bool:
+    return project is None or project in (name, name.rpartition("/")[2])
+
+
+def _inventory(projects: dict) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, Held]]]:
+    """Per project: its renames, and the skills its checkout holds."""
+    renames: dict[str, dict[str, str]] = {}
+    on_disk: dict[str, dict[str, Held]] = {}
+    for name, entry in projects.items():
+        entry = _mapping(entry)
+        renames[name] = _mapping(entry.get("renames"))
+        held: dict[str, Held] = {}
+        for root in entry.get("roots") or []:
+            if isinstance(root, str):
+                held = skills_on_disk(root)
+                if held:
+                    break
+        on_disk[name] = held
+    return renames, on_disk
+
+
+def _invalid(message: str, suggestion: str) -> CommandResult[dict]:
+    return error("INVALID_INPUT", message, suggestion=suggestion)
+
+
+def _unknown(what: str, value: str, known: set[str]) -> CommandResult[dict]:
+    """A filter value the record has never seen is refused: an empty report would read as
+    nobody using a skill, when the truth is a misspelling."""
+    listed = ", ".join(sorted(known)[:20]) or "none yet"
+    return _invalid(f"The record has no {what} '{value}'", f"Use one of: {listed}")
+
+
+async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 - one pass
     days: int = 30,
     project: str | None = None,
     harness: str | None = None,
+    ending_days_ago: int = 0,
+    skill: str | None = None,
+    agent: str | None = None,
+    limit: int = 50,
 ) -> CommandResult[dict]:
-    """Report skill use over the last `days` days from this machine's record.
+    """Report skill use over `days` days from this machine's record.
 
-    Per skill: the threads that used it, loads, which harness and which agent (main, subagent
-    or delegate) loaded it, how it was loaded, how many threads the person asked for it in, and
-    its context cost (SKILL.md size times loads). `quiet` lists skills a project's checkout
-    holds that nothing loaded in the window. `project` and `harness` narrow the report.
+    Per skill: the sessions that used it, out of how many sessions the project had; loads;
+    which harness, model, machine and agent loaded it and how; the sessions where the person
+    asked for it; the most context it can have cost (SKILL.md size times loads) and what it
+    adds to every session's skill listing. `quiet` lists skills a project's checkout holds
+    that nothing used in the window.
+
+    Args:
+        days: Length of the window in days.
+        project: Only this project: `owner/name`, or the name alone.
+        harness: Only loads by this harness, as the record names it (`claude`, `codex`).
+        ending_days_ago: End the window this many days ago, to compare two periods.
+        skill: Only this skill, by its current name or one it was loaded as.
+        agent: Only loads by this agent: `main`, `delegate` or `subagent`.
+        limit: At most this many skills, most used first; `more` says how many were cut.
     """
-    if days < 1:
-        return error(
-            "INVALID_INPUT",
-            "days must be at least 1",
-            suggestion="Pass the number of days to report, for example 30",
+    if not 1 <= days <= MAX_DAYS:
+        return _invalid(
+            f"days must be between 1 and {MAX_DAYS}",
+            "Pass the number of days to report, for example 30",
         )
+    if not 0 <= ending_days_ago <= MAX_DAYS:
+        return _invalid(
+            f"ending_days_ago must be between 0 and {MAX_DAYS}",
+            "Pass how many days ago the window ends, for example 30 for the period before "
+            "the last 30 days",
+        )
+    if not 1 <= limit <= MAX_ROWS:
+        return _invalid(
+            f"limit must be between 1 and {MAX_ROWS}",
+            "Pass how many skills to list, for example 50",
+        )
+    if agent is not None and agent not in AGENTS:
+        return _unknown("agent", agent, set(AGENTS))
     directory = state_dir()
-    events, unreadable = load_events(directory)
-    state = load_state(directory)
+    try:
+        events, unreadable = load_events(directory)
+        state = load_state(directory)
+        recorded = load_sessions(directory)
+    except OSError as exc:
+        return error(
+            "RECORD_UNAVAILABLE",
+            f"The skill usage record in {directory} could not be read: {exc}",
+            suggestion="Check that it is a folder this user can read, or set "
+            "BOTCORE_SKILL_USAGE_STATE to the folder that holds the record",
+        )
     if not events and not state:
         return error(
             "NOT_COLLECTED",
@@ -126,106 +246,192 @@ async def skill_usage_report(  # noqa: PLR0912, PLR0915 - one pass over the reco
             suggestion="Run skill-usage-collect first; it reads what the harnesses recorded",
         )
 
-    projects = state.get("projects") if isinstance(state.get("projects"), dict) else {}
-    renames: dict[str, dict[str, str]] = {}
-    on_disk: dict[str, dict[str, int]] = {}
-    for name, entry in projects.items():
-        entry = entry if isinstance(entry, dict) else {}
-        renames[name] = entry.get("renames") if isinstance(entry.get("renames"), dict) else {}
-        root = entry.get("root")
-        on_disk[name] = skills_on_disk(root) if isinstance(root, str) else {}
+    renames, on_disk = _inventory(_mapping(state.get("projects")))
+    known_projects = {event.project for event in events} | set(on_disk)
+    known_projects |= {str(entry.get("project")) for entry in recorded.values()}
+    if project is not None and not any(_is_project(project, name) for name in known_projects):
+        return _unknown("project", project, known_projects)
+    known_harnesses = {event.harness for event in events}
+    known_harnesses |= {str(entry.get("harness")) for entry in recorded.values()}
+    if harness is not None and harness not in known_harnesses:
+        return _unknown("harness", harness, known_harnesses)
 
     now = datetime.now(UTC)
-    since = now - timedelta(days=days)
-    rows: dict[tuple[str, str], Row] = {}
+    until = now - timedelta(days=ending_days_ago)
+    since = until - timedelta(days=days)
+
+    # Every event under its skill's current name; when each session loaded a skill by a
+    # tool; and which sessions changed a skill's files
+    named: list[tuple[tuple[str, str], Event, datetime]] = []
+    tool_loads: dict[tuple[str, str, str], list[datetime]] = {}
+    authored: set[tuple[str, str, str]] = set()
     last_ever: dict[tuple[str, str], str] = {}
-    totals_threads: set[str] = set()
-    by_harness: Counter = Counter()
-    by_path: Counter = Counter()
-    by_agent: Counter = Counter()
-    machines: set[str] = set()
-
-    def matches(event: Event) -> bool:
-        return (project is None or event.project == project) and (
-            harness is None or event.harness == harness
-        )
-
+    known_skills: set[str] = {name for held in on_disk.values() for name in held}
+    outdated = 0
     for event in events:
-        if not matches(event):
+        outdated += event.v < RECOGNIZER
+        moment = _parse(event.at)
+        if moment is None or not _is_project(project, event.project):
             continue
-        machines.add(event.machine)
         name = current_name(
             event.skill, renames.get(event.project, {}), on_disk.get(event.project, {})
         )
         key = (event.project, name)
+        known_skills |= {name, event.skill}
+        if event.path == EDIT:
+            authored.add((*key, event.thread))
+            continue
+        if harness is not None and event.harness != harness:
+            continue
+        if agent is not None and event.agent != agent:
+            continue
+        if skill is not None and skill not in (name, event.skill):
+            continue
+        named.append((key, event, moment))
+        if event.path != TYPED:
+            tool_loads.setdefault((*key, event.thread), []).append(moment)
+    if skill is not None and skill not in known_skills:
+        return _unknown("skill", skill, known_skills)
+
+    # A session that changed a skill's files was writing it; one that read most of a project's
+    # skills was auditing them. Neither used the skill.
+    in_window = [entry for entry in named if since <= entry[2] < until]
+    breadth: dict[tuple[str, str], set[str]] = {}
+    for key, event, _ in in_window:
+        breadth.setdefault((key[0], event.thread), set()).add(key[1])
+    wide = {session for session, skills in breadth.items() if len(skills) >= WIDE}
+
+    rows: dict[tuple[str, str], Row] = {}
+    users: set[str] = set()
+    by_harness: Counter = Counter()
+    by_path: Counter = Counter()
+    by_agent: Counter = Counter()
+    machines: set[str] = {event.machine for event in events}
+    authoring: dict[tuple[str, str], set[str]] = {}
+    for key, event, moment in named:
+        if (*key, event.thread) in authored:
+            if since <= moment < until:
+                authoring.setdefault(key, set()).add(event.thread)
+            continue
+        if (key[0], event.thread) in wide:
+            continue
         if event.at > last_ever.get(key, ""):
             last_ever[key] = event.at
-        moment = _parse(event.at)
-        if moment is None or moment < since:
+        if not since <= moment < until:
             continue
-        row = rows.setdefault(key, Row(project=event.project, skill=name))
-        row.threads.add(event.thread)
+        row = rows.setdefault(key, Row(project=key[0], skill=key[1]))
+        row.sessions.add(event.thread)
         row.names.add(event.skill)
         row.by_harness.setdefault(event.harness, set()).add(event.thread)
+        row.by_machine.setdefault(event.machine, set()).add(event.thread)
+        if event.model:
+            row.by_model.setdefault(event.model, set()).add(event.thread)
         row.last_used = max(row.last_used, event.at)
-        totals_threads.add(event.thread)
+        users.add(event.thread)
         if event.path == TYPED:
-            row.typed_threads.add(event.thread)
-            continue
+            row.typed_sessions.add(event.thread)
+            followed = any(
+                timedelta(0) <= other - moment <= SAME_LOAD
+                for other in tool_loads.get((*key, event.thread), ())
+            )
+            if followed:  # the agent loaded it with a tool: that event is the load
+                continue
         row.loads += 1
         row.agents[event.agent] += 1
         row.paths[event.path] += 1
         by_harness[event.harness] += 1
         by_path[event.path] += 1
         by_agent[event.agent] += 1
+    for key, sessions in authoring.items():
+        if key in rows:
+            rows[key].authoring = sessions
+
+    # Every session each project had in the window, whether or not it loaded a skill
+    seen: dict[str, set[str]] = {}
+    for session_id, entry in recorded.items():
+        name = str(entry.get("project"))
+        started, ended = _parse(entry.get("created_at")), _parse(entry.get("updated_at"))
+        if started is None or not _is_project(project, name):
+            continue
+        if harness is not None and entry.get("harness") != harness:
+            continue
+        if agent in (MAIN, DELEGATE) and entry.get("agent") != agent:
+            continue
+        if started < until and (ended or started) >= since:
+            seen.setdefault(name, set()).add(session_id)
+    for key, row in rows.items():
+        seen.setdefault(key[0], set()).update(row.sessions)
 
     ordered = sorted(
-        rows.values(), key=lambda row: (-len(row.threads), -row.loads, row.project, row.skill)
+        rows.values(), key=lambda row: (-len(row.sessions), -row.loads, row.project, row.skill)
     )
-    quiet = [
-        {"project": name, "skill": skill, "last_used": last_ever.get((name, skill))}
-        for name, skills in sorted(on_disk.items())
-        if project is None or name == project
-        for skill in sorted(skills)
-        if (name, skill) not in rows
-    ]
+    quiet: list[dict] = []
+    for name, held in sorted(on_disk.items()):
+        if not _is_project(project, name):
+            continue
+        for skill_name, facts in sorted(held.items()):
+            if (name, skill_name) in rows or (skill is not None and skill != skill_name):
+                continue
+            entry = {
+                "project": name,
+                "skill": skill_name,
+                "last_used": last_ever.get((name, skill_name)),
+                "size_bytes": facts.size,
+                "listing_chars": facts.listing,
+            }
+            if (name, skill_name) in authoring:
+                entry["authoring_sessions"] = len(authoring[(name, skill_name)])
+            quiet.append(entry)
 
     warnings: list[str] = []
-    collected = _parse(
-        state.get("collected_at") if isinstance(state.get("collected_at"), str) else None
-    )
+    collected = _parse(state.get("collected_at"))
     if collected is None or now - collected > STALE_AFTER:
         when = state.get("collected_at") or "never"
         warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
     if unreadable:
         warnings.append(f"{unreadable} lines of the record could not be read and were skipped")
+    if outdated:
+        warnings.append(
+            f"{outdated} events were recognised by an older botcore: run skill-usage-collect "
+            "--rebuild to read them again"
+        )
 
+    shown = ordered[:limit]
     data = {
         "window": {
             "days": days,
             "since": since.isoformat(timespec="seconds"),
-            "until": now.isoformat(timespec="seconds"),
+            "until": until.isoformat(timespec="seconds"),
         },
         "totals": {
             "skills": len(ordered),
-            "threads": len(totals_threads),
+            "sessions": len(users),
+            "sessions_seen": sum(len(sessions) for sessions in seen.values()),
             "loads": sum(row.loads for row in ordered),
             "harnesses": dict(sorted(by_harness.items())),
             "paths": dict(sorted(by_path.items())),
             "agents": dict(sorted(by_agent.items())),
+            "authoring_sessions": len({s for sessions in authoring.values() for s in sessions}),
+            "wide_sessions": len(wide),
         },
-        "skills": [_row_json(row, on_disk.get(row.project, {})) for row in ordered],
+        "skills": [
+            _row_json(row, on_disk.get(row.project, {}).get(row.skill), len(seen[row.project]))
+            for row in shown
+        ],
+        "more": len(ordered) - len(shown),
         "quiet": quiet,
         "record": {
             "state_dir": str(directory),
             "machines": sorted(machines),
             "events": len(events),
+            "sessions": len(recorded),
             "collected_at": state.get("collected_at"),
         },
         "warnings": warnings,
     }
     return success(
         data,
-        reasoning=f"{len(ordered)} skills were used in {len(totals_threads)} threads over the "
-        f"last {days} days; {len(quiet)} held by a checkout were not",
+        reasoning=f"{len(ordered)} skills were used in {len(users)} of "
+        f"{data['totals']['sessions_seen']} sessions over {days} days; {len(quiet)} held by a "
+        "checkout were not",
     )

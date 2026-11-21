@@ -2,7 +2,8 @@
 
 An event says that a skill was loaded: which one, when, by which harness and agent, in which
 project, and how it was loaded. It never holds a prompt, a command, arguments or file contents;
-the text a load is recognised in is read and discarded.
+the text a load is recognised in is read and discarded, and a name that is not shaped like a
+skill's is dropped rather than stored.
 """
 
 from __future__ import annotations
@@ -16,6 +17,13 @@ FILE_READ = "file_read"  # a file tool read SKILL.md
 SHELL_READ = "shell_read"  # a shell command printed SKILL.md
 TYPED = "typed"  # the person named the skill in their message
 PATHS = (SKILL_TOOL, FILE_READ, SHELL_READ, TYPED)
+# Not a load: the session changed a file of the skill. A session that edits a skill reads it
+# as the subject of its work, so the report counts it as authoring the skill, not using it.
+EDIT = "edit"
+
+# The version of the rules in this module that recognised an event. A record holding events
+# of an older version can be rebuilt from what the harness still has.
+RECOGNIZER = 1
 
 # Who loaded it. A session is a thread a person started or a task delegated to its own
 # agent; a subagent works inside one and reports back to it.
@@ -24,29 +32,49 @@ DELEGATE = "delegate"  # the agent of a delegated task
 SUBAGENT = "subagent"  # a subagent inside either
 
 _NAME = r"[A-Za-z0-9][A-Za-z0-9._-]*"
-_SKILL_FILE = re.compile(rf"skills[/\\]+({_NAME})[/\\]+SKILL\.md")
-_SKILL_FILE_AT_END = re.compile(rf"skills[/\\]+({_NAME})[/\\]+SKILL\.md$")
-_SEGMENT = re.compile(r"&&|\|\||[;|\n]")
+_SKILL_NAME = re.compile(rf"{_NAME}(?::{_NAME})?")  # a skill, or a plugin's `plugin:skill`
+_SKILL_FILE = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+SKILL\.md$")
+_SKILL_FOLDER = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+[^/\\]")
+_TYPED = re.compile(rf"^\s*[$/]({_NAME}(?::{_NAME})?)(?=\s|$)")
+
+_SHELL = r"(?:bash|zsh|sh|dash|ksh|fish|pwsh|powershell|cmd)(?:\.exe)?"
 _WRAPPER = re.compile(
-    r"^\s*(?:(?:/usr)?/bin/)?(?:bash|zsh|sh|pwsh|powershell)(?:\.exe)?\s+(?:-\w+\s+)*[\"']?",
-    re.IGNORECASE,
+    rf"""^\s*
+    (?:"[^"]*[/\\]|'[^']*[/\\]|[^\s"']*[/\\])?   # the shell's folder, quoted or not
+    (?:env\s+)?
+    {_SHELL}["']?
+    (?:\s+\S+)*?                                  # its flags, and the values some take
+    \s+(?:-[a-z]*c|-command|/c|/k)                # the flag that introduces the script
+    (?:\s+--)?\s+
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
-_READ_VERB = re.compile(
-    r"^(?:cat|bat|less|more|head|tail|nl|type|gc|get-content|sed\s+-n)(?=\s)", re.IGNORECASE
-)
-_REDIRECT = re.compile(r"\d*>>?\s*\S+")
-# `git show <revision>:<path>` prints a file as a revision holds it, which is how a reviewer
-# loads a skill from the base instead of the branch; with `-- <path>` it prints a diff
-_GIT_PRINT = re.compile(r"^git\s+(?:\S+\s+)*?(?:show|cat-file\s+-p)\s", re.IGNORECASE)
-_SKILL_FILE_AT_REVISION = re.compile(rf"[^\s:]+:[^\s:]*skills[/\\]+({_NAME})[/\\]+SKILL\.md")
-_TYPED = re.compile(r"^\s*[$/]([a-z0-9][a-z0-9:._-]*)(?=\s|$)")
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_ESCAPABLE_IN_QUOTES = '"\\$`'
+_ESCAPABLE = " \t\n\"';|&<>#"
+_PREFIXES = {"command", "exec", "sudo", "time", "noglob", "nocorrect", "builtin", "env"}
+_READERS = {
+    "cat", "bat", "batcat", "less", "more", "head", "tail", "nl", "awk", "type", "gc",
+    "get-content",
+}  # fmt: skip
+# A command the read is piped into that shows the agent a count, a digest or a search result,
+# not the skill
+_SINKS = {
+    "wc", "grep", "egrep", "fgrep", "rg", "ag", "ack", "shasum", "sha1sum", "sha256sum", "md5",
+    "md5sum", "cksum", "diff", "cmp", "findstr", "out-null", "measure-object", "select-string",
+    "sls",
+}  # fmt: skip
+_GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+_GIT_NOT_CONTENT = {"--stat", "--name-only", "--name-status", "--numstat", "--shortstat", "--"}
 
 
 @dataclass(frozen=True)
 class Event:
     """A skill load. `thread` is the session it happened in (a subagent's load counts under
     the session it works for) and `root` the thread a person started, which a delegated
-    task's session differs from."""
+    task's session differs from. `native` is the harness's own id for the recorded item,
+    where it has one: the same load read from another source of that harness carries it too."""
 
     id: str
     at: str
@@ -60,6 +88,8 @@ class Event:
     project: str
     machine: str
     model: str | None = None
+    native: str | None = None
+    v: int = RECOGNIZER
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -67,42 +97,49 @@ class Event:
     @classmethod
     def from_json(cls, data: dict) -> Event | None:
         """The event a stored line holds, or None when the line is not one."""
-        try:
-            event = cls(**{name: data.get(name) for name in cls.__dataclass_fields__})
-        except TypeError:
+        fields = {name: data.get(name) for name in cls.__dataclass_fields__}
+        required = ("id", "at", "skill", "path", "thread")
+        if not all(isinstance(fields[name], str) and fields[name] for name in required):
             return None
-        required = (event.id, event.at, event.skill, event.path, event.thread)
-        if not all(isinstance(value, str) and value for value in required):
-            return None
-        return event
+        fallbacks = {
+            "harness": "other", "source": "unknown", "root": fields["thread"], "agent": MAIN,
+            "project": "unknown", "machine": "unknown",
+        }  # fmt: skip
+        for name, fallback in fallbacks.items():
+            if not isinstance(fields[name], str) or not fields[name]:
+                fields[name] = fallback
+        for name in ("model", "native"):
+            if not isinstance(fields[name], str):
+                fields[name] = None
+        if not isinstance(fields["v"], int):
+            fields["v"] = 0
+        return cls(**fields)
+
+
+def clean_skill_name(raw: str) -> str | None:
+    """The skill a tool's `skill` input names, or None when it is not a skill's name.
+
+    Claude Code scopes a skill to a folder as `<folder>:<skill>`; the folder is dropped, so
+    one skill keeps one name. A plugin's `plugin:skill` is kept. Anything else is refused, so
+    a malformed input can never put other text in the record.
+    """
+    name = raw.strip()
+    scope, separator, rest = name.rpartition(":")
+    if separator and (scope.startswith(".") or "/" in scope or "\\" in scope):
+        name = rest
+    return name if _SKILL_NAME.fullmatch(name) else None
 
 
 def skill_of_file(path: str) -> str | None:
-    """The skill whose SKILL.md this file path names."""
-    match = _SKILL_FILE_AT_END.search(path.strip().strip("\"'"))
+    """The skill whose SKILL.md this file path names: `…/skills/<name>/SKILL.md` exactly."""
+    match = _SKILL_FILE.search(path.strip())
     return match.group(1) if match else None
 
 
-def skills_read_by(command: str) -> list[str]:
-    """The skills whose SKILL.md a shell command prints, in order and without repeats.
-
-    Only a command that reads the file counts, `git show <revision>:<path>` included: a
-    search, a diff, a listing or a write that merely names it does not. A redirect's target
-    is a write, so it is left out.
-    """
-    found: list[str] = []
-    for segment in _SEGMENT.split(command):
-        segment = _WRAPPER.sub("", segment).lstrip(" \t\"'(")
-        if _READ_VERB.match(segment):
-            pattern = _SKILL_FILE
-        elif _GIT_PRINT.match(segment):
-            pattern = _SKILL_FILE_AT_REVISION
-        else:
-            continue
-        for name in pattern.findall(_REDIRECT.sub(" ", segment)):
-            if name not in found:
-                found.append(name)
-    return found
+def skill_of_folder(path: str) -> str | None:
+    """The skill a file belongs to: any file under `…/skills/<name>/`."""
+    match = _SKILL_FOLDER.search(path.strip())
+    return match.group(1) if match else None
 
 
 def typed_skill(text: str) -> str | None:
@@ -113,3 +150,227 @@ def typed_skill(text: str) -> str | None:
     """
     match = _TYPED.match(text)
     return match.group(1) if match else None
+
+
+# ── shell commands ──────────────────────────────────────────────────────────
+
+
+@dataclass
+class _Command:
+    words: list[str]
+    writes_output: bool  # its output goes to a file, not to the agent
+    then: str  # the operator after it: "|", "&&", "||", ";", "&", a newline or ""
+
+
+def _unwrap(command: str) -> str:
+    """The script a shell is asked to run (`zsh -lc "<script>"`), a few layers deep."""
+    for _ in range(3):
+        match = _WRAPPER.match(command)
+        if not match:
+            break
+        script = command[match.end() :].strip()
+        quote = script[:1]
+        if quote in "\"'" and len(script) > 1 and script.endswith(quote):
+            script = script[1:-1]
+            if quote == '"':
+                script = re.sub(r'\\(["\\$`])', r"\1", script)
+            else:
+                script = script.replace("'\\''", "'")
+        command = script
+    return command
+
+
+def _without_here_documents(script: str) -> str:
+    """Drop the bodies of here-documents and PowerShell here-strings: they are data."""
+    kept: list[str] = []
+    until: str | None = None
+    for line in script.split("\n"):
+        if until is not None:
+            if line.strip().rstrip("\"'") == until or line.lstrip().startswith(until):
+                until = None
+            continue
+        kept.append(line)
+        marker = _HEREDOC.search(line)
+        if marker:
+            until = marker.group(2)
+        elif line.rstrip().endswith(('@"', "@'")):
+            until = line.rstrip()[-1] + "@"
+    return "\n".join(kept)
+
+
+def _commands(script: str) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - one scanner
+    """Split a script into its simple commands, honouring quotes, comments and redirects."""
+    commands: list[_Command] = []
+    words: list[str] = []
+    word: list[str] = []
+    started = False  # a word is under way, even an empty quoted one
+    quote: str | None = None
+    writes = False
+    drop_next = False  # the next word is a redirect's target or a here-document's marker
+    index, size = 0, len(script)
+
+    def end_word() -> None:
+        nonlocal started, drop_next
+        if started:
+            if drop_next:
+                drop_next = False
+            else:
+                words.append("".join(word))
+        word.clear()
+        started = False
+
+    def end_command(operator: str) -> None:
+        nonlocal words, writes, drop_next
+        end_word()
+        if words or writes:
+            commands.append(_Command(words, writes, operator))
+        words, writes, drop_next = [], False, False
+
+    while index < size:
+        char = script[index]
+        following = script[index + 1 : index + 2]
+        if quote:
+            if char == "\\" and quote == '"' and following and following in _ESCAPABLE_IN_QUOTES:
+                word.append(following)
+                index += 2
+            elif char == quote:
+                quote = None
+                index += 1
+            else:
+                word.append(char)
+                index += 1
+            continue
+        if char in "\"'":
+            quote, started = char, True
+            index += 1
+        elif char == "\\" and following and following in _ESCAPABLE:
+            # an escaped shell character; a Windows path's backslash is none of these
+            if following != "\n":
+                word.append(following)
+                started = True
+            index += 2
+        elif char == "#" and not started:
+            while index < size and script[index] != "\n":
+                index += 1
+        elif char in " \t":
+            end_word()
+            index += 1
+        elif char in "\n;":
+            end_command(char)
+            index += 1
+        elif char == "|":
+            end_command("||" if following == "|" else "|")
+            index += 2 if following == "|" else 1
+        elif char == "&" and following == "&":
+            end_command("&&")
+            index += 2
+        elif char == "&" and following == ">":
+            end_word()
+            writes, drop_next = True, True
+            index += 2
+        elif char == "&":
+            if words or started:
+                end_command("&")
+            index += 1  # otherwise PowerShell's call operator: `& Get-Content …`
+        elif char == ">":
+            descriptor = "".join(word) if started else ""
+            if descriptor.isdigit():
+                word.clear()
+                started = False
+            else:
+                end_word()
+                descriptor = "1"
+            index += 2 if following == ">" else 1
+            if script[index : index + 1] == "&":  # `2>&1`: another descriptor, not a file
+                index += 1
+                while index < size and script[index].isdigit():
+                    index += 1
+            else:
+                drop_next = True
+                writes = writes or descriptor == "1"
+        elif char == "<" and following == "<":
+            end_word()
+            drop_next = True
+            index += 3 if script[index + 2 : index + 3] == "-" else 2
+        elif char == "<":
+            end_word()  # `cat < file`: the file is read, so it stays an operand
+            index += 1
+        else:
+            word.append(char)
+            started = True
+            index += 1
+    end_command("")
+    return commands
+
+
+def _program(words: list[str]) -> tuple[str, list[str]]:
+    """A command's program name, lower-cased and without its folder, and its arguments."""
+    remaining = list(words)
+    while remaining and (
+        _ASSIGNMENT.match(remaining[0]) or remaining[0].lstrip("({").lower() in _PREFIXES
+    ):
+        remaining.pop(0)
+    if not remaining:
+        return "", []
+    name = re.split(r"[/\\]", remaining[0].lstrip("({"))[-1].lower()
+    return name.removesuffix(".exe"), [argument.rstrip(")}") for argument in remaining[1:]]
+
+
+def _printed_by_git(arguments: list[str]) -> list[str]:
+    """The files `git show <revision>:<path>` or `git cat-file -p` prints, as paths."""
+    rest = list(arguments)
+    while rest and rest[0].startswith("-"):
+        option = rest.pop(0)
+        if option in _GIT_OPTIONS_WITH_VALUE and rest:
+            rest.pop(0)
+    if not rest:
+        return []
+    subcommand, rest = rest[0], rest[1:]
+    prints = subcommand == "show" or (subcommand == "cat-file" and "-p" in rest)
+    if not prints or _GIT_NOT_CONTENT & set(rest):
+        return []
+    return [
+        argument.partition(":")[2]
+        for argument in rest
+        if not argument.startswith("-") and ":" in argument
+    ]
+
+
+def _files_read(name: str, arguments: list[str]) -> list[str]:
+    if name in _READERS:
+        return [argument for argument in arguments if not argument.startswith("-")]
+    if name == "sed":
+        in_place = any(
+            argument.startswith(("-i", "--in-place"))
+            or (re.fullmatch(r"-[A-Za-z]+", argument) and "i" in argument)
+            for argument in arguments
+        )
+        return [] if in_place else [a for a in arguments if not a.startswith("-")]
+    if name == "git":
+        return _printed_by_git(arguments)
+    return []
+
+
+def skills_read_by(command: str) -> list[str]:
+    """The skills whose SKILL.md a shell command shows the agent, in order, each once.
+
+    Only a command that prints the file counts: `cat`, `sed`, `head`, `tail`, `nl`, `less`,
+    `more`, `bat`, `awk`, `type`, `Get-Content`, and `git show <revision>:<path>`. A search, a
+    diff, a listing or an edit that names the file does not count, nor does a read whose
+    output goes to a file or into a count, a digest or a search. Quoted text, comments and
+    here-document bodies are data, not commands.
+    """
+    found: list[str] = []
+    commands = _commands(_without_here_documents(_unwrap(command)))
+    for position, simple in enumerate(commands):
+        if simple.writes_output:
+            continue
+        name, arguments = _program(simple.words)
+        if simple.then == "|" and position + 1 < len(commands):
+            if _program(commands[position + 1].words)[0] in _SINKS:
+                continue
+        for path in _files_read(name, arguments):
+            skill = skill_of_file(path)
+            if skill and skill not in found:
+                found.append(skill)
+    return found

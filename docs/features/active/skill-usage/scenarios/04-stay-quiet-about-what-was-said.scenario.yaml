@@ -1,0 +1,36 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: Record that a skill was loaded and nothing that was said
+description: >-
+  When skill loads are collected from my threads, I want only the load recorded and never the
+  conversation, so that the record can be kept and shared between my machines without holding
+  a prompt, a command or file contents.
+job: stay-quiet-about-what-was-said
+tags: [slice]
+steps:
+  - description: Collection answers with counts and where it read, not with what it read
+    command: skill-usage-collect
+    expect:
+      success: true
+      data:
+        added: 3
+        events: 3
+        sessions: 2
+        sources:
+          - { source: t3-code, status: read, scanned: 5, found: 3, added: 3 }
+        loads: { notExists: true }
+  - description: A row of the report names the skill and its counts and carries no text of a thread
+    command: skill-usage-report
+    input: { days: 30 }
+    expect:
+      success: true
+      data:
+        skills:
+          - skill: plant-beds
+            sessions: 1
+            loads: 3
+            prompt: { notExists: true }
+            command: { notExists: true }
+            arguments: { notExists: true }
+            title: { notExists: true }

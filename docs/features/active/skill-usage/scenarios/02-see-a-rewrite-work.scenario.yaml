@@ -1,0 +1,28 @@
+# JTBD scenario for the Skill usage proposal. The data is invented. No fixture can stand in for
+# another program's store on the machine, so this file is checked, not run: the pytest cases in
+# endpoints/botcore/tests/test_skill_usage.py run the job against a store built to that shape.
+name: See whether a rewritten skill is loaded more than before
+description: >-
+  When I rewrite a skill's description, I want to see whether more sessions load it afterwards,
+  so that I know the rewrite worked.
+job: see-a-rewrite-work
+tags: [slice]
+steps:
+  - description: The 30 days since the rewrite, as a share of the sessions there were
+    command: skill-usage-report
+    input: { days: 30, project: acme/garden, skill: plant-beds }
+    expect:
+      success: true
+      data:
+        window: { days: 30 }
+        skills:
+          - { skill: plant-beds, sessions: 9, of_sessions: 30, share: 0.3, also_loaded_as: [do-plant-beds] }
+  - description: The 30 days before it, where the skill still had its old name
+    command: skill-usage-report
+    input: { days: 30, ending_days_ago: 30, project: acme/garden, skill: plant-beds }
+    expect:
+      success: true
+      data:
+        window: { days: 30 }
+        skills:
+          - { skill: plant-beds, sessions: 3, of_sessions: 28, share: 0.107, also_loaded_as: [do-plant-beds] }

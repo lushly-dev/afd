@@ -20,6 +20,8 @@ T3_STORE_ENV = "BOTCORE_SKILL_USAGE_T3_STORE"
 MACHINE_ENV = "BOTCORE_SKILL_USAGE_MACHINE"
 EVENTS_FILE = "events.jsonl"
 STATE_FILE = "state.json"
+SESSIONS_FILE = "sessions.json"
+LOCK_FILE = "collect.lock"
 
 
 def state_dir() -> Path:
@@ -78,29 +80,63 @@ def load_events(directory: Path) -> tuple[list[Event], int]:
 
 
 def append_events(directory: Path, events: list[Event]) -> None:
-    """Add events to the record. A repeated id is harmless: readers keep the first."""
+    """Add events to the record. A repeated id is harmless: readers keep the first. A final
+    line an interrupted write left unfinished is closed first, so the next event is not
+    joined to it and lost with it."""
     if not events:
         return
     directory.mkdir(parents=True, exist_ok=True)
-    with (directory / EVENTS_FILE).open("a", encoding="utf-8") as handle:
+    with (directory / EVENTS_FILE).open("a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell():
+            handle.seek(-1, os.SEEK_END)
+            if handle.read(1) != b"\n":
+                handle.write(b"\n")
         for event in events:
-            handle.write(json.dumps(event.to_json(), sort_keys=True) + "\n")
+            handle.write((json.dumps(event.to_json(), sort_keys=True) + "\n").encode("utf-8"))
         handle.flush()
         os.fsync(handle.fileno())
 
 
-def load_state(directory: Path) -> dict:
-    """What the last collection left for the next one; empty when there was none."""
+def _replace(path: Path, text: str) -> None:
+    """Write a file in one step, so a reader never sees half of it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(text, encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def rewrite_events(directory: Path, events: list[Event]) -> None:
+    """Replace the whole record: what a rebuild does, and nothing else."""
+    lines = [json.dumps(event.to_json(), sort_keys=True) for event in events]
+    _replace(directory / EVENTS_FILE, "".join(line + "\n" for line in lines))
+
+
+def _load_json(path: Path) -> dict:
     try:
-        data = json.loads((directory / STATE_FILE).read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
 
+def load_state(directory: Path) -> dict:
+    """What the last collection left for the next one; empty when there was none."""
+    return _load_json(directory / STATE_FILE)
+
+
 def save_state(directory: Path, state: dict) -> None:
-    """Replace the state file in one step, so a reader never sees half of it."""
-    directory.mkdir(parents=True, exist_ok=True)
-    temporary = directory / f"{STATE_FILE}.{os.getpid()}.tmp"
-    temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(temporary, directory / STATE_FILE)
+    _replace(directory / STATE_FILE, json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
+def load_sessions(directory: Path) -> dict[str, dict]:
+    """Every session a collection saw, by its id, whether or not it loaded a skill."""
+    return {
+        key: value
+        for key, value in _load_json(directory / SESSIONS_FILE).items()
+        if isinstance(value, dict)
+    }
+
+
+def save_sessions(directory: Path, sessions: dict[str, dict]) -> None:
+    _replace(directory / SESSIONS_FILE, json.dumps(sessions, indent=1, sort_keys=True) + "\n")
