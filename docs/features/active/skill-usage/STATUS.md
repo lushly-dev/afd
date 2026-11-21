@@ -139,7 +139,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 ## Phase 3. Every machine
 
-- Collection with the hourly job, and one report across machines (#1818): in this pull request.
+- Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
 - Rollout to the Air, Random and Hero (#1819): first collections run by hand on the Air and Random on 2026-11-21 (see Findings); Hero and the schedule to come.
 

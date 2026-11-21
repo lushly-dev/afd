@@ -170,7 +170,7 @@ def test_a_machine_whose_record_is_old_or_damaged_is_named(machines: Machines, r
     old = {**json.loads(shed_state.read_text("utf-8")), "collected_at": stamp(3)}
     shed_state.write_text(json.dumps(old), "utf-8")
     (machines.shared / ".DS_Store").write_text("not a machine", "utf-8")
-    (machines.shared / "notes").mkdir()  # nor is a folder that holds no record
+    (machines.shared / "Old Notes").mkdir()  # nor is a folder no machine could be named
     machines.on("bench")
 
     data = run(skill_usage_report())
@@ -535,12 +535,14 @@ def test_an_odd_entry_in_the_shared_folder_stops_no_report(machines: Machines) -
     (machines.shared / "knot").mkdir()
     (machines.shared / "knot" / store.STATE_FILE).mkdir()  # a folder where a file should be
     shutil.copytree(machines.shared / "shed", machines.shared / "copied")  # the shed's, twice
+    (machines.shared / "Not A Machine").mkdir()  # a folder no machine could be named
 
     data = run(skill_usage_report())
 
     assert data["record"]["machines"] == ["bench", "shed"]
     named = [warning.split(" ")[0] for warning in data["warnings"] if "not a whole copy" in warning]
-    assert named == ["copied", "knot", "notes"]  # each is named, and none is read
+    # each is named, and none is read: `empty` may be a machine a sync has yet to fill
+    assert named == ["copied", "empty", "knot", "notes"]
 
 
 # ── a miss needs the whole record ───────────────────────────────────────────

@@ -810,6 +810,13 @@ def test_an_append_after_an_interrupted_write_loses_nothing(state: Path) -> None
     store.append_events(state, [event("c")])  # a file that is nothing but the half line
     assert [found.id for found in store.load_events(state)[0]] == ["c"]
 
+    # a whole event that lacks only its line ending is known already, and is kept
+    whole = (state / store.EVENTS_FILE).read_text(encoding="utf-8").rstrip("\n")
+    (state / store.EVENTS_FILE).write_text(whole, encoding="utf-8")
+    store.append_events(state, [event("d")])
+    assert store.load_events(state) == (store.load_events(state)[0], 0)
+    assert [found.id for found in store.load_events(state)[0]] == ["c", "d"]
+
 
 # ── reporting ───────────────────────────────────────────────────────────────
 

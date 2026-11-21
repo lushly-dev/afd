@@ -350,7 +350,8 @@ Both reports name a machine whose collection is over a day old. A sync delivers 
 a time, and a machine's new sessions read with its old events would show a session that
 opened a pull request and loaded nothing. So a copy is parsed from the very bytes whose
 digests were checked, and one whose files are not those its state names is not read, and is
-named. So is a folder that cannot be read or is not a machine's. While any is named, and
+named. So is a folder that cannot be read or is not a machine's, and an empty one that
+bears a machine's name: a sync makes a folder before it fills it. While any is named, and
 while the shared folder is not there, the triggers report calls no change a miss. A
 machine's record with a line that cannot be read is named too, and the triggers report then
 judges nothing, as it does for this machine's.
@@ -366,9 +367,11 @@ new id and still writes its folder, since everything in the folder is in its rec
 whose record was started again from less is a new record: remove its old folder from the
 shared one, which it will not write over.
 
-A collection cut short part way through a line leaves that line unfinished. The next
-collection takes it off before it writes: the one that died never saved how far it had got,
-so its events are read again, and no report meets a line it cannot read.
+A collection cut short leaves its last line unfinished. The next one sees to it before it
+writes. A line that stops part way through an event is taken off: the collection that died
+never saved how far it had got, so that event is read again, and no report meets a line it
+cannot read. A line that holds a whole event and lacks only its end is closed, since that
+event is known already and would not be collected again.
 
 The first collection on each machine is run by hand as soon as phase 1 merges, without waiting
 for the schedule.
@@ -392,6 +395,9 @@ for the schedule.
 - **A machine named as away.** `skill_usage_away` is the owner's word that a machine was
   switched off. If it was working, a load it holds is not in the record, and a change may be
   called a miss until its record arrives.
+- **A machine that has never shared.** One with no folder in the shared one, because it
+  never collected or names no shared folder, is not known to the others and is not waited
+  for. A load only it holds is not in the record.
 - **A load two machines give to different sessions** is counted for both: once more than it
   happened in the usage report, and never as a miss.
 - **What the triggers report cannot tell.** Whether the skill was still in the agent's

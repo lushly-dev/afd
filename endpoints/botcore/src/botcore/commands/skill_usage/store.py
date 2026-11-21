@@ -171,9 +171,11 @@ def load_events(directory: Path) -> tuple[list[Event], int]:
 
 def append_events(directory: Path, events: list[Event]) -> None:
     """Add events to the record. A repeated id is harmless: readers keep the first. A final
-    line an interrupted write left unfinished is taken off first: the collection that was
-    writing it never saved where it had got to, so this one has read those events again,
-    and a line that cannot be read would stop every report that must not miss a load."""
+    line an interrupted write left unfinished is seen to first. One that stopped part way
+    through an event is taken off: the collection that was writing it never saved where it
+    had got to, so this one has read that event again, and a line that cannot be read would
+    stop every report that must not miss a load. One that holds a whole event and lacks only
+    its end is closed: that event is already known, and would not be collected again."""
     if not events:
         return
     directory.mkdir(parents=True, exist_ok=True)
@@ -185,9 +187,10 @@ def append_events(directory: Path, events: list[Event]) -> None:
             tail = handle.read()
             if not tail.endswith(b"\n"):
                 kept = tail.rfind(b"\n") + 1  # 0 when the tail holds no whole line
-                if kept or size <= TAIL:
+                whole = parse_events(tail[kept:])[1] == 0
+                if not whole and (kept or size <= TAIL):
                     handle.truncate(size - len(tail) + kept)
-                else:  # a line longer than any event: not ours to drop
+                else:  # a whole event, or a line longer than any event: not ours to drop
                     handle.write(b"\n")
         for event in events:
             handle.write((json.dumps(event.to_json(), sort_keys=True) + "\n").encode("utf-8"))
@@ -537,11 +540,12 @@ def load_record(directory: Path, here: Local) -> Record:
                 empty = copy is None and not any((folder / n).exists() for n in RECORD_FILES)
             except (OSError, ValueError):  # a folder or a file that cannot be read
                 copy, empty = None, False
-            if empty:
-                continue  # not a machine's record
+            if empty and not _MACHINE.fullmatch(machine):
+                continue  # not a machine's record, nor a folder that could become one
             if copy is None or machine in machines:
-                # a sync part way through, a write cut short, or two folders for one name:
-                # new sessions read with old events would show sessions that loaded nothing
+                # a sync part way through (it makes a folder before it fills it), a write
+                # cut short, or two folders for one name: new sessions read with old events
+                # would show sessions that loaded nothing
                 record.partial.append(folder.name)
                 continue
             machines[machine] = (copy.events, copy.sessions)

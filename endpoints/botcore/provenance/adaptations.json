@@ -2707,7 +2707,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d53fee0593508b375fb1bf6a84db76d06e7a7d7ef0fb71a010704f6a1500fac7",
+      "current_import_sha256": "6d665d7a92886fe2ee6a11f2379924d74b1fa687dcc5627f305e252ed95d1461",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
@@ -6536,7 +6536,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e5603ab6551eee85a8a30631551832bdf58cd87da2e2ff78a82cce3f0c78d930",
+      "current_import_sha256": "2d90b5696ed707786f83f6900f8b0a7a13a1a6eaab849f92956738efb2a7bf18",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
@@ -6547,7 +6547,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3637f5e49a26dcf513796bda0fc8e2ff534470cef62c009e319b840b411e04b0",
+      "current_import_sha256": "944ac398117c86604a49afa590cdc3c9f6f52094cda935325acfa467f37ce1b8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
