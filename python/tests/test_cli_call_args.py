@@ -2,6 +2,7 @@
 ``key=value`` arguments and ``-H``/``AFD_HEADERS`` request headers (#1822), as
 ``packages/cli/src/args.ts`` and ``credentials.ts``."""
 
+import json
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
@@ -181,3 +182,145 @@ def test_the_shell_takes_key_value_pairs_and_survives_bad_arguments(transport, m
     assert "Use a JSON object or key=value pairs." in outcome.output
     transport.call_tool.assert_awaited_once_with("todo-create", {"title": "milk"})
     assert transport.calls[-1]["headers"] == {"X-Api-Key": "k"}
+
+
+def _shell(transport, monkeypatch, *lines):
+    _cli_main._save_state({"server": "http://x/mcp"})
+    feed = iter([*lines, "exit"])
+    monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *args, **kwargs: next(feed))
+    return CliRunner().invoke(cli, ["shell"])
+
+
+def test_a_failed_call_prints_its_error_and_the_shell_continues(transport, monkeypatch):
+    """#1835, as TypeScript's shell: a failed request does not end the shell."""
+    transport.call_tool.side_effect = [RuntimeError("lost \x1b]0;owned\x07[/x] link"), {"success": True}]
+    outcome = _shell(transport, monkeypatch, "call todo-create", "call todo-create title=milk")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Call failed: lost [/x] link" in outcome.output
+    assert "\x1b" not in outcome.output
+    assert transport.call_tool.await_count == 2
+    assert "Goodbye!" in outcome.output
+
+
+def test_a_failed_tools_listing_prints_its_error_and_the_shell_continues(transport, monkeypatch):
+    transport.list_tools.side_effect = [OSError("reset"), [ToolInfo(name="todo-create", description="Create")]]
+    outcome = _shell(transport, monkeypatch, "tools", "tools")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Listing tools failed: reset" in outcome.output
+    assert "todo-create" in outcome.output
+
+
+@pytest.mark.parametrize("line", ["call", "call   "])
+def test_call_without_a_name_prints_its_usage(transport, monkeypatch, line):
+    outcome = _shell(transport, monkeypatch, line)
+    assert outcome.exit_code == 0, outcome.output
+    assert "Usage: call <name> [args]" in outcome.output
+    transport.call_tool.assert_not_awaited()
+
+
+def test_an_unknown_command_with_markup_is_printed_literally(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "frobnicate [/x] [bold]")
+    assert outcome.exit_code == 0, outcome.output
+    assert "Unknown command: frobnicate [/x] [bold]" in outcome.output
+
+
+def test_a_failed_result_with_markup_does_not_end_the_shell(transport, monkeypatch):
+    transport.call_tool.return_value = {
+        "success": False,
+        "error": {"code": "BAD [x]", "message": "bad [/x] arg :smile:", "suggestion": "fix \x1b]0;t\x07[/b]"},
+    }
+    outcome = _shell(transport, monkeypatch, "call todo-create", "exit")
+    assert outcome.exit_code == 0, outcome.output
+    assert "bad [/x] arg :smile:" in outcome.output
+    assert "fix [/b]" in outcome.output
+    assert "\x1b" not in outcome.output
+    assert "Call failed" not in outcome.output
+
+
+def test_afd_call_prints_a_failed_result_with_markup_literally(transport):
+    transport.call_tool.return_value = {
+        "success": False,
+        "error": {"code": "E", "message": "see [/x] :smile:", "suggestion": "[bold]retry"},
+    }
+    outcome = CliRunner().invoke(cli, ["call", "todo-create", "-s", "http://x/mcp"])
+    assert "see [/x] :smile:" in outcome.output
+    assert "[bold]retry" in outcome.output
+
+
+def test_tools_with_markup_in_a_description_are_listed_as_written(transport, monkeypatch):
+    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    outcome = _shell(transport, monkeypatch, "tools")
+    assert "Listing tools failed" not in outcome.output
+    assert "See [/example] :smile:" in outcome.output
+    assert "todo-[x]" in outcome.output
+    listing = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
+    assert listing.exit_code == 0, listing.output
+    assert "See [/example] :smile:" in listing.output
+
+
+def test_call_followed_by_a_tab_is_a_call(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "call\ttodo-create title=milk")
+    assert outcome.exit_code == 0, outcome.output
+    transport.call_tool.assert_awaited_once_with("todo-create", {"title": "milk"})
+
+
+def test_an_unknown_command_keeps_emoji_codes_literal(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "unknown :smile:")
+    assert "Unknown command: unknown :smile:" in outcome.output
+
+
+@pytest.mark.parametrize("command", [["--json", "tools"], ["--json", "tools", "--detail", "todo-[x]"]])
+def test_json_output_keeps_server_text_exact(transport, command):
+    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    outcome = CliRunner().invoke(cli, [*command, "-s", "http://x/mcp"])
+    assert outcome.exit_code == 0, outcome.output
+    assert "See [/example] :smile:" in json.loads(outcome.output).__repr__()
+
+
+def test_status_json_keeps_the_saved_server_exact(transport):
+    _cli_main._save_state({"server": "http://x/mcp?q=:smile:"})
+    outcome = CliRunner().invoke(cli, ["--json", "status"])
+    assert json.loads(outcome.output)["server"] == "http://x/mcp?q=:smile:"
+
+
+def test_surface_findings_print_command_names_as_written(transport):
+    transport.list_tools.return_value = [
+        ToolInfo(name="foo[/x]", description="x", input_schema={"type": "object"}, meta={"mutation": False}),
+    ]
+    outcome = CliRunner().invoke(cli, ["validate", "--surface", "--verbose", "-s", "http://x/mcp"])
+    assert "closing tag" not in outcome.output
+    assert "foo[/x]" in outcome.output
+
+
+def test_the_shell_help_shows_the_args_placeholder(transport, monkeypatch):
+    outcome = _shell(transport, monkeypatch, "help")
+    assert "call <tool> [args]" in outcome.output
+
+
+def test_a_long_description_is_cut_after_escape_codes_are_removed(transport):
+    visible = "d" * 57
+    transport.list_tools.return_value = [ToolInfo(name="t", description=f"\x1b[31m{visible}\x1b[0m")]
+    outcome = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
+    assert visible in outcome.output.replace("\n", "").replace("│", "").replace(" ", "")
+    assert "..." not in outcome.output
+
+
+def test_header_parsing_trims_only_spaces_and_tabs():
+    """str.strip would drop a trailing vertical tab or U+2028 before the check, and a
+    no-break space that may be part of the value; only HTTP's OWS is trimmed."""
+    from afd.cli.args import parse_header
+
+    assert parse_header(" \tX-Key \t:  \t v \t ") == ("X-Key", "v")
+    assert parse_header("X: tok\xa0") == ("X", "tok\xa0")
+    assert parse_header("X: tok\x85") == ("X", "tok\x85")  # obs-text, which strip() dropped
+    for bad in ("X: secret\x0b", "X: secret\u2028", "\x0bX: v", "X: secret\n", "X\n: v"):
+        with pytest.raises(ValueError, match="Invalid header"):
+            parse_header(bad)
+
+
+def test_an_afd_headers_line_holding_only_a_control_character_is_reported_by_its_number():
+    from afd.cli.args import resolve_headers
+
+    with pytest.raises(ValueError, match="^AFD_HEADERS line 2: Invalid header"):
+        resolve_headers([], {"AFD_HEADERS": "X: 1\n\x0b"})
+
