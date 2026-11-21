@@ -799,10 +799,15 @@ export async function openApp(page: Page, instance: string): Promise<void> {
  * timings: the first paint, which is the same for every deployment (phase 2 specification, E1). It
  * reads the mark the shell sets after its first frame, and not `first-contentful-paint`, which a machine
  * can report after the idle chunks have loaded (2.1).
+ * Use `waitForFonts` to collect timing entries for in-flight font loads. The cutoff is still stage B.
  */
-export async function measureFirstPaint(page: Page): Promise<string[]> {
+export async function measureFirstPaint(
+	page: Page,
+	{ waitForFonts = false }: { waitForFonts?: boolean } = {}
+): Promise<string[]> {
 	await page.waitForFunction(() => performance.getEntriesByName('loam-stage-b').length > 0);
-	return page.evaluate(() => {
+	return page.evaluate(async (waitForFonts) => {
+		if (waitForFonts) await document.fonts.ready;
 		const mark = performance.getEntriesByName('loam-stage-b')[0] as PerformanceEntry;
 		const entries = performance.getEntriesByType('resource');
 		return [
@@ -811,7 +816,7 @@ export async function measureFirstPaint(page: Page): Promise<string[]> {
 				.filter((entry) => entry.startTime < mark.startTime)
 				.map((entry) => new URL(entry.name).pathname),
 		];
-	});
+	}, waitForFonts);
 }
 
 // ─── The hosted development profile ───────────────────────────────────────────
