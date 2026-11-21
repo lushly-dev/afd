@@ -18,6 +18,7 @@ LABEL=dev.lushly.factory-gateway
 PLIST=/Library/LaunchDaemons/$LABEL.plist
 PY=$ROOT/app/venv/bin/python
 OWNER_USER=${SUDO_USER:?run this with sudo}
+[ "$OWNER_USER" != root ] || { echo "Run this with sudo from the owner's account, not as root" >&2; exit 2; }
 OWNER_HOME=$(dscl . -read "/Users/$OWNER_USER" NFSHomeDirectory | sed 's/^NFSHomeDirectory: //')
 [ -d "$OWNER_HOME" ] || { echo "No home directory found for $OWNER_USER" >&2; exit 2; }
 as_owner() { sudo -u "$OWNER_USER" "$@"; }
@@ -106,9 +107,10 @@ print(f"   the key loads ({kind})")
 PYEOF
 }
 # Both checks need the gateway's Python: with one installed they run before the daemon stops,
-# so a bad file changes nothing; on a first install the key's runs after the build.
+# so a bad file changes nothing; on a first install the key's runs after the build. REVISION
+# is written only once a build succeeds, so a build that failed halfway is not used.
 CHECKED=''
-if [ -x $PY ]; then
+if [ -x $PY ] && [ -s $ROOT/app/REVISION ]; then
   echo "0. Check what was passed, before anything stops"
   [ -z "$KEY_INPUT" ] || check_key
   [ ! -s "$STAGE/gateway.json" ] || check_config
@@ -190,7 +192,7 @@ fi
 if [ -s $ROOT/etc/gateway.json ]; then
   launchctl bootstrap system "$PLIST"
   sleep 5
-  launchctl print system/$LABEL | grep -E "state|pid|last exit" | head -4
+  launchctl print system/$LABEL | grep -E "state|pid|last exit" | head -4 || true
 else
   echo "   not started: no configuration is installed" >&2
 fi

@@ -85,7 +85,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   two starts). Not yet checked: that it survives a restart of `random`.
 - **Operating it:** the [runbook](../../../operations/factory-gateway.md), with the install
   script, the launch daemon and an example configuration beside it. On 2026-11-21 its two
-  scripts ran on `random` in the form the runbook's pull request merged. Six refusals each left
+  scripts ran on `random` as they stand at commit `8c72670c` of the runbook's pull request;
+  what changed in them after that run is listed in the pull request. Six refusals each left
   the daemon running under the same process: `install.sh` given a configuration the gateway
   would not load, a staged configuration that was a link to a file only root reads, a key file
   holding no key, and a key path that was a link to the installed key; `reconfigure.sh` given
@@ -93,8 +94,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   configuration staged and no key passed, rebuilt the service from `main` at `bc7ae160` and
   kept the key, the tokens and the journal, and `reconfigure.sh` installed a configuration,
   kept `gateway.json.prev` and restarted the daemon. Not run in this form: a first install (no
-  account, key or configuration there yet) and a real key passed in; the key's check ran only
-  against a throwaway key, off the machine. The service was first built on 2026-11-19 by an
+  account, key or configuration there yet); a real key passed in (the key's check ran only
+  against a throwaway key, off the machine); and a staged configuration the old code accepts
+  and the new code refuses. The service was first built on 2026-11-19 by an
   earlier form of the script.
 - **Every route, from two machines (2026-11-21):** `gateway-status` answered on `cell`,
   `session`, `foreman`, `lane` and `owner` from `random` and from `macbook-air` over the tailnet,
