@@ -408,11 +408,13 @@ permitted action is `COMMAND_NOT_ALLOWED`.
 
 `isVerifiedCredentials(value)` answers whether `value` is the `credentials`
 object afd-server put on a call after verifying the call's token. The brand is
-a private `WeakSet`, so a copy, an object built with the same fields, the
-`credentials` a direct-registry caller passes, and those a host's
-`createContext` sets are never recognised. Branded credentials are frozen, and
-stop being recognised once their `expiresAt` has passed (`isVerifiedCredentials(value, now?)`,
-`now` defaulting to `Date.now()`) or their request has ended. No entry exports
+a private `WeakMap` holding each object's admitted expiry deadline, so a copy,
+an object built with the same fields, the `credentials` a direct-registry
+caller passes, and those a host's `createContext` sets are never recognised.
+Branded credentials are frozen, and stop being recognised once their admitted
+deadline (`expiresAt` plus any admission clock skew, checked against `now` in
+`isVerifiedCredentials(value, now?)`, defaulting to `Date.now()`) has passed or
+their request has ended. No entry exports
 the functions that brand and unbrand: only the [`auth` option](#mcp-authorization)
 brands, the credentials of a request it verified. A nested call keeps the brand
 only if it is given the same object.
@@ -491,10 +493,11 @@ const handler = createMcpHandler({
   an issuer `authorizationServers` does not name. `jwksKeySource` keeps the last
   good keys while loads fail, for at most `maxStaleMs` (default one hour), then
   answers `unavailable`.
-- **Whatever the verifier, the layer checks** the credentials' shape, their
-  certificate binding against this request's TLS client certificate, the
-  binding requirement, and `expiresAt` (within the verifier's skew), refusing
-  with M5's 401.
+- **Whatever the verifier, the layer checks** `rules.clockSkewS` (when present,
+  a whole number from 0 to 300 seconds, or construction throws), the
+  credentials' shape, their certificate binding against this request's TLS
+  client certificate, the binding requirement, and `expiresAt` (within the
+  verifier's skew), refusing with M5's 401.
 - **HTTP sessions belong to their caller.** With `contexts`, a session that
   `initialize` creates on `/message` is bound to the credentials' issuer,
   subject and client; another caller presenting its `Mcp-Session-Id` is
@@ -502,10 +505,9 @@ const handler = createMcpHandler({
 - **Commands see `context.credentials`** (`issuer`, `subject`, `clientId`,
   `scopes`, `resource`, `expiresAt`, `issuedAt`, and `authTime`, `acr` and `cnf`
   when present), frozen and recognised by `isVerifiedCredentials` until the
-  request ends. A token accepted inside the clock skew after its `exp` has
-  credentials `isVerifiedCredentials` no longer recognises, so afd-auth's
-  middleware gates that call on its session, and a server with no session
-  answers it `UNAUTHORIZED`: the safe side. Never the token: the layer removes the `Authorization` header
+  request ends or its admitted expiry (`expiresAt` plus admission clock skew)
+  passes. Once that deadline passes, afd-auth's middleware fails closed with
+  `TOKEN_EXPIRED` without reading the session. Never the token: the layer removes the `Authorization` header
   before `createContext` runs, and the journal never records credentials.
   Without an `actor` from `createContext`, the actor is
   `{ kind: 'agent', id: <clientId>, onBehalfOf: <subject> }`.

@@ -28,8 +28,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-20 (dates in this file are Pacific time): G0's test writes in
-  Lushly, below. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
+- **Last verified:** 2026-11-21 (dates in this file are Pacific time): the rebase-credit test,
+  the variables write, every route from two machines and the runbook's install script, all
+  below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
   `lushly-factory-gateway[bot]` for both repositories with a rate limit of 5000, and `issue-get`
   (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub.
@@ -79,9 +80,29 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   only), the configuration and key in `etc` (the key mode 0600, the service's), the log in `log`.
   It listens on `random`'s tailnet address, port 8787. The owner's token is in
   `~/.config/factory-gateway/owner.token` on `random`. Its configuration squashes in both
-  repositories (`mergeMethods`, 2026-11-19, since AFD became squash-only). Both mains fetched at
-  startup (the log shows no fetch warning across two starts). Not yet checked: that it survives a
-  restart of `random`.
+  repositories (`mergeMethods`, 2026-11-19, since AFD became squash-only; superseded for Lushly
+  on 2026-11-21, below). Both mains fetched at startup (the log shows no fetch warning across
+  two starts). Not yet checked: that it survives a restart of `random`.
+- **Operating it:** the [runbook](../../../operations/factory-gateway.md), with the install
+  script, the launch daemon and an example configuration beside it. On 2026-11-21 its two
+  scripts ran on `random` as they stand at commit `8c72670c` of
+  [#1834](https://github.com/lushly-dev/afd/pull/1834), which lists what changed in them after that run. Six refusals each left
+  the daemon running under the same process: `install.sh` given a configuration the gateway
+  would not load, a staged configuration that was a link to a file only root reads, a key file
+  holding no key, and a key path that was a link to the installed key; `reconfigure.sh` given
+  the bad configuration and the link. Then `install.sh` in its update form, with a good
+  configuration staged and no key passed, rebuilt the service from `main` at `bc7ae160` and
+  kept the key, the tokens and the journal, and `reconfigure.sh` installed a configuration,
+  kept `gateway.json.prev` and restarted the daemon. Not run in this form: a first install (no
+  account, key or configuration there yet); a real key passed in (the key's check ran only
+  against a throwaway key, off the machine); and a staged configuration the old code accepts
+  and the new code refuses. The service was first built on 2026-11-19 by an
+  earlier form of the script.
+- **Every route, from two machines (2026-11-21):** `gateway-status` answered on `cell`,
+  `session`, `foreman`, `lane` and `owner` from `random` and from `macbook-air` over the tailnet,
+  naming the App and both repositories; a `cell` token was refused on `/lane` (`FORBIDDEN`). The
+  four test tokens (actors `g0-check@<route>`, in `~/.config/factory-gateway/g0/` on `random`)
+  are to be revoked at G0's exit. Not checked: from `hero`, which `random` cannot reach by SSH.
 - **G0's test writes (2026-11-20, Lushly, owner route):** issues: `issue-create`, `issue-label`,
   `issue-claim`, `issue-comment` and `issue-release` on
   [lushly#2706](https://github.com/lushly-dev/lushly/issues/2706), all by the bot. Contents and
@@ -89,9 +110,11 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [lushly#2707](https://github.com/lushly-dev/lushly/pull/2707) from one commit the owner
   authored, and its push started Lushly's CI (`ci-ok` passed). Checks: `verification-record`
   published `factory/verification` as success. Workflows: `branch-push` of a change to
-  `.github/workflows/` on a throwaway branch succeeded (the branch was then deleted). Not yet
-  tested: the variables write (needs a root step on `random`) and the rate limit against a
-  replay of a fleet day's reads.
+  `.github/workflows/` on a throwaway branch succeeded (the branch was then deleted).
+  Variables (2026-11-21): as the service account, the App's adapter created, updated and
+  deleted `FACTORY_GATEWAY_G0_CHECK` in Lushly, outside `variable-set`, whose only allowed name
+  holds Lushly's live lane host. Not yet tested: the rate limit against a replay of a fleet
+  day's reads; G0's own calls over three days never left the App under 4,991 of 5,000 an hour.
 - **Squash credit, settled 2026-11-20: an App's squash takes the credit.** `pr-merge` squashed
   lushly#2707 as `72adbcc5`, whose author is `lushly-factory-gateway[bot]` and committer GitHub,
   with no line for the owner, who wrote its only commit (`bc996e25`): the gateway's explicit
@@ -99,13 +122,25 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   line GitHub would otherwise add, and with it the owner would still be only a co-author. In
   AFD's merge queue the squash would carry that line and `ci-ok` refuses any co-author, so an
   App's pull request cannot merge there at all. Until the owner chooses how factory merges keep
-  his credit, the gateway must not merge: lushly#2707 is the only such merge.
+  his credit, the gateway must not merge: lushly#2707 is the only such merge. Superseded for
+  Lushly on 2026-11-21 by the owner's choice, next.
+- **Rebase credit, settled 2026-11-21: a rebase merge by the App keeps the owner as author.**
+  By the owner's decision the gateway rebase-merges one commit he authored. Lushly now allows
+  rebase merging and the gateway's `mergeMethods` says `rebase` for it. `pr-merge` landed
+  [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782) as `2a5fd602`: author the
+  owner, committer `lushly-factory-gateway[bot]`, the message unchanged, and `ci-ok` passed on
+  `main`. Two effects: the commit is unsigned, as every rebase merge GitHub makes is, and its
+  subject carries no pull request number. AFD is not done: its merge queue squashes every pull
+  request, so the gateway must not merge in AFD until
+  [#1809](https://github.com/lushly-dev/afd/issues/1809) moves the queue to rebase.
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
   `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).
-- **Next, in order:** the owner's choice of how factory merges keep his credit; G0's remaining
-  checks (a restart of `random`, the variables write, the rate-limit replay, the runbook
-  `docs/operations/factory-gateway.md`); change 3 redesigned so the host is the only validator (held on
+  Filed as [#1810](https://github.com/lushly-dev/afd/issues/1810).
+- **Next, in order:** G0's exit (a restart of `random`, then `gateway-status` on each route from
+  each machine, `hero` included; `gateway-status` named in Lushly's `SETUP.md`; the test tokens
+  revoked) and the rate-limit replay; AFD's merge queue by rebase
+  ([#1809](https://github.com/lushly-dev/afd/issues/1809)); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
@@ -116,7 +151,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for issues, contents, pull requests, checks and workflows 2026-11-20; squash credit settled against the App (the owner's choice open); open: surviving a restart, the variables write, the rate-limit replay, the runbook | — | — |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; open: surviving a restart of `random`, `gateway-status` from `hero`, the rate-limit replay | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782)), which does not name `gateway-status` yet |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
@@ -132,6 +167,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2026-11-15 | Setup for other people waits until there are other people: the project has one developer and no second account to test with. G4 stays the last milestone |
 | 2026-11-15 | Interactive sessions hand their branches to the lane through the gateway (the `/session` route's queue push, in G1) instead of merging them themselves; documentation-only pull requests may still merge directly. Prompted by `main` moving under running validations in Lushly |
 | 2026-11-15 | The lane runs on `random` beside the gateway: the Mac is not always on. `gateway-status` reports the lane |
+| 2026-11-21 | Factory merges keep the owner as the commit's author by rebase: the gateway rebase-merges one commit he authored, in both repositories, after a squash by the App credited the bot (lushly#2707). He accepted that rebase merging is allowed in both repositories and that AFD's merge queue then rebases every pull request, a session's included, so a branch of several commits is squashed to one before it is queued. Tested in Lushly before anything changed in AFD ([#1809](https://github.com/lushly-dev/afd/issues/1809)) |
 | Open | The six questions in [For the owner](factory-gateway.proposal.md#for-the-owner), the ranking of the jobs first |
 
 ## Session log
@@ -237,3 +273,4 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
 | 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
 | 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)) |
+| 2026-11-21 | Gateway session, from the runbook's review | The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch. Its first-install form and a real key passed in have not run in its present shape. `reconfigure.sh`'s state line can still end its run after the restart. Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833) |

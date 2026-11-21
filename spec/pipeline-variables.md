@@ -73,6 +73,13 @@ absent operands are `false`.
 - Step inputs, and the request `input`, nested deeper than **64** levels are rejected before any
   step runs. The outermost object or array counts as level 1. The pipeline returns a
   `VALIDATION_ERROR` failure and never overflows the stack.
+- Each referenced value copied into a step input is also capped at **64** levels (at most
+  **128** levels combined with a 64-level template), failing that step with `VALIDATION_ERROR`.
+- Repeated expansion of referenced values within a step input is bounded (at most **100,000**
+  expanded values and **16 MiB** of string/key characters across the template and repeated
+  expansions; the first expansion of a single referenced value is not capped for size so a
+  large single step output still flows through `$prev`). Exceeding the expansion limit fails
+  that step with `VALIDATION_ERROR` (`retryable: false`) without invoking the command.
 - A reference string longer than **1024** UTF-16 code units is a literal (it is never resolved).
   The unit follows TypeScript's `string.length` (decision D3 of the parity closure plan, #283).
 

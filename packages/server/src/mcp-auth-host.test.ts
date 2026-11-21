@@ -430,4 +430,64 @@ describe('P3-E9: M6, the decision before dispatch of a host’s own layer', () =
 		} as unknown as IncomingMessage;
 		expect(check.decide(post, JSON.stringify(rpc('todo-purge')))).toEqual({ proceed: true });
 	});
+
+	it('does not throw ERR_INVALID_URL on protocol-relative req.url (#1703)', () => {
+		const handler = createMcpHandler(handlerOptions());
+		cleanups.push(async () => handler.dispose());
+		const check = handler.preDispatchCheck();
+		for (const badUrl of ['//[/mcp', '//:bad/mcp', '//evil.com/mcp']) {
+			const req = {
+				method: 'POST',
+				url: badUrl,
+				headers: { 'content-type': 'application/json' },
+				rawHeaders: [],
+				socket: {},
+			} as unknown as IncomingMessage;
+			expect(() => handler.admit(req, credentials())).not.toThrow();
+			expect(check.decide(req, JSON.stringify(rpc('todo-purge')))).toEqual({ proceed: true });
+		}
+		const withToken = {
+			method: 'POST',
+			url: '//[/mcp?access_token=secret',
+			headers: { 'content-type': 'application/json' },
+			rawHeaders: [],
+			socket: {},
+		} as unknown as IncomingMessage;
+		expect(() => handler.admit(withToken, credentials())).toThrow(/carries a bearer token/);
+
+		// Oversized bodies still return 413 even when req.url is protocol-relative.
+		const capped = createMcpHandler({ ...handlerOptions(), maxBodyBytes: 16 });
+		cleanups.push(async () => capped.dispose());
+		const cappedCheck = capped.preDispatchCheck();
+		const oversized = {
+			method: 'POST',
+			url: '//[/mcp',
+			headers: { 'content-type': 'application/json' },
+			rawHeaders: [],
+			socket: {},
+		} as unknown as IncomingMessage;
+		expect(cappedCheck.decide(oversized, 'x'.repeat(32))).toMatchObject({
+			proceed: false,
+			status: 413,
+		});
+
+		// A custom verifier with invalid clockSkewS (e.g. NaN) is refused at construction (#1701).
+		expect(() =>
+			createMcpHandler({
+				...handlerOptions({
+					verifier: {
+						rules: {
+							resource: RESOURCE,
+							clockSkewS: Number.NaN,
+							maxTokenLifetimeS: 3600,
+							scopePrefix: undefined,
+							scopeLimit: 64,
+							requireBoundTokens: false,
+						},
+						verify: async () => ({ ok: false, rule: 'signature' }),
+					},
+				}),
+			})
+		).toThrow(/clockSkewS/);
+	});
 });

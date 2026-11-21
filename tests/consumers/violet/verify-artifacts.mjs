@@ -758,12 +758,16 @@ try {
 	assert(initialized.result.serverInfo.name, JSON.stringify(initialized));
 	mcp.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
 	const tools = (await request(2, 'tools/list', {})).result.tools;
-	assert(tools.length >= 46, `${tools.length} tools`);
-	const doctor = tools.find((tool) => /doctor/.test(tool.name));
-	const called = await request(3, 'tools/call', { name: doctor.name, arguments: {} });
+	assert(tools.length >= 44, `${tools.length} tools`);
+	const names = tools.map((tool) => tool.name);
+	// They run on or inspect the server host, so the server leaves them to the CLI.
+	for (const hostOnly of ['validate', 'doctor'])
+		assert(!names.includes(hostOnly), `${hostOnly} is listed`);
+	const called = await request(3, 'tools/call', { name: 'node.list', arguments: {} });
 	assert(Array.isArray(called.result.content), JSON.stringify(called));
+	assert.notEqual(called.result.isError, true, JSON.stringify(called));
 	passed(
-		`violet-mcp over stdio: initialize (${initialized.result.serverInfo.name}), ${tools.length} tools listed, ${doctor.name} called`
+		`violet-mcp over stdio: initialize (${initialized.result.serverInfo.name}), ${tools.length} tools listed without validate and doctor, node.list called`
 	);
 } finally {
 	mcp.kill();

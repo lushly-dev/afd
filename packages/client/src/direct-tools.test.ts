@@ -278,4 +278,66 @@ describe('DirectTransport tools/list', () => {
 		const response = await listed(registry);
 		expect(response.error?.code).toBe(-32603);
 	});
+
+	it('frames afd-pipe PipelineResult isError from step status on a tool-surface registry (#1707)', async () => {
+		const pipelineResult = {
+			data: { ok: true },
+			metadata: {
+				confidence: 1,
+				confidenceBreakdown: [],
+				reasoning: [],
+				warnings: [],
+				sources: [],
+				alternatives: [],
+				executionTimeMs: 1,
+				completedSteps: 1,
+				totalSteps: 1,
+			},
+			steps: [
+				{
+					index: 0,
+					command: 'note-list',
+					status: 'success',
+					data: { ok: true },
+					executionTimeMs: 1,
+				},
+			],
+		};
+		const failedPipeline = {
+			...pipelineResult,
+			steps: [
+				{
+					index: 0,
+					command: 'note-list',
+					status: 'failure',
+					error: { code: 'BOOM', message: 'failed' },
+					executionTimeMs: 1,
+				},
+			],
+		};
+		let nextPayload: unknown = pipelineResult;
+		const { registry } = recordingRegistry({
+			hasCommand: (name) => name === 'afd-pipe',
+			execute: async () => nextPayload as CommandResult<never>,
+		});
+		const transport = new DirectTransport(registry);
+		await transport.connect();
+
+		const okResp = await transport.send({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/call',
+			params: { name: 'afd-pipe', arguments: { steps: [{ command: 'note-list' }] } },
+		});
+		expect((okResp.result as { isError?: boolean }).isError).toBe(false);
+
+		nextPayload = failedPipeline;
+		const failResp = await transport.send({
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'tools/call',
+			params: { name: 'afd-pipe', arguments: { steps: [{ command: 'note-list' }] } },
+		});
+		expect((failResp.result as { isError?: boolean }).isError).toBe(true);
+	});
 });

@@ -104,6 +104,13 @@ cd alfred && uv run alfred --workspace .. lint
 
 Rust builds across this repository's worktrees share one target directory, which grows quickly; `pnpm rust:sweep` evicts builds nothing has read for three days.
 
+## Factory gateway (operators only)
+
+The software factory's GitHub writes are moving behind the Factory Gateway, a service on
+`random` that writes as the `lushly-factory-gateway` GitHub App. Nothing changes for agents or
+sessions yet. Whoever operates it reads the [runbook](docs/operations/factory-gateway.md):
+checking it with `gateway-status`, tokens, configuration, updates, the App's key and recovery.
+
 ## Disk hygiene
 
 Worktrees, Rust `target/` folders and caches fill a disk fast here: one afd worktree's Rust

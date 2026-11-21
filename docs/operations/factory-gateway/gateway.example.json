@@ -1,0 +1,12 @@
+{
+	"app": "lushly-factory-gateway",
+	"bot": "lushly-factory-gateway[bot]",
+	"owner": "<the owner's GitHub login>",
+	"ownerEmails": ["<every address the owner's commits use>"],
+	"repositories": ["lushly-dev/afd", "lushly-dev/lushly"],
+	"mergeMethods": {
+		"lushly-dev/afd": "squash",
+		"lushly-dev/lushly": "rebase"
+	},
+	"githubApp": { "appId": 5777732, "installationId": 182417554 }
+}

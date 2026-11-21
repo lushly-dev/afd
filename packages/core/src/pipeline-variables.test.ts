@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { PipelineContext, StepResult } from './pipeline.js';
+import { executePipeline } from './pipeline-executor.js';
 import {
 	copyPipelineData,
 	evaluateCondition,
@@ -312,6 +313,67 @@ describe('limits', () => {
 		const cyclic: Record<string, unknown> = {};
 		cyclic.self = cyclic;
 		expect(() => resolveVariables(cyclic, context)).toThrow(/nested deeper than 64 levels/);
+	});
+
+	it('rejects unbounded $input fan-out expansion and combined nesting depth (#1704)', async () => {
+		const big = Array.from({ length: 1_000 }, (_, i) => i);
+		const fanOut = Array.from({ length: 200 }, () => '$input');
+		expect(() => resolveVariables({ items: fanOut }, { steps: [], pipelineInput: big })).toThrow(
+			/expansion limit/i
+		);
+
+		// A single large reference is not rejected for size (only repeated fan-out is charged).
+		const largeSingle = Array.from({ length: 105_000 }, (_, i) => i);
+		expect(
+			(
+				resolveVariables({ rows: '$input' }, { steps: [], pipelineInput: largeSingle }) as {
+					rows: number[];
+				}
+			).rows
+		).toHaveLength(105_000);
+
+		// Repeated Map references are charged against the expansion budget.
+		const bigMap = new Map(Array.from({ length: 1_000 }, (_, i) => [`k${i}`, i]));
+		expect(() => resolveVariables({ items: fanOut }, { steps: [], pipelineInput: bigMap })).toThrow(
+			/expansion limit/i
+		);
+
+		// Functions inside plain objects are stripped like copyPipelineData()'s JSON fallback.
+		const withFn = { id: 1, fn: () => 42, nested: [() => 1, 'ok'] };
+		expect(resolveVariables({ v: '$input' }, { steps: [], pipelineInput: withFn })).toEqual({
+			v: { id: 1, nested: [null, 'ok'] },
+		});
+
+		// Unresolved array references still charge a node each.
+		const manyUnresolved = Array.from({ length: 100_005 }, () => '$steps.missing');
+		expect(() => resolveVariables(manyUnresolved, { steps: [] })).toThrow(/expansion limit/i);
+
+		// Referenced values nested deeper than MAX_NESTING_DEPTH (e.g. from an earlier step) are rejected.
+		const tooDeepOutput = nested(MAX_NESTING_DEPTH + 1);
+		expect(() =>
+			resolveVariables({ leaf: '$input' }, { steps: [], pipelineInput: tooDeepOutput })
+		).toThrow(/nested deeper than 64 levels/);
+
+		// Through executePipeline(), limit errors return VALIDATION_ERROR without calling execute.
+		let calls = 0;
+		const result = await executePipeline(
+			{
+				input: big,
+				steps: [{ command: 'echo-run', input: { items: fanOut } }],
+			},
+			async () => {
+				calls++;
+				return { success: true, data: {} };
+			}
+		);
+		expect(calls).toBe(0);
+		expect(result.steps[0]?.status).toBe('failure');
+		expect(result.steps[0]?.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			retryable: false,
+			details: { stepIndex: 0, limit: 'nodes' },
+		});
+		expect(result.steps[0]?.error?.suggestion).toBeTruthy();
 	});
 });
 

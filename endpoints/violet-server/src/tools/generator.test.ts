@@ -1,6 +1,7 @@
 import { initializeCore, registry } from '@lushly-dev/violet-afd';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { generateTools, getTool } from './generator.js';
+import { HTTP_EXCLUDED_COMMANDS } from '../api.js';
+import { MCP_EXCLUDED_COMMANDS, generateTools, getTool } from './generator.js';
 
 describe('MCP Tool Generator', () => {
 	beforeAll(() => {
@@ -41,8 +42,8 @@ describe('MCP Tool Generator', () => {
 			}
 		});
 
-		it('should generate tools for all registered commands', () => {
-			const commands = registry.list();
+		it('should generate tools for all registered commands but the host-only ones', () => {
+			const commands = registry.list().filter((cmd) => !MCP_EXCLUDED_COMMANDS.has(cmd.name));
 			const tools = generateTools();
 
 			expect(tools.length).toBe(commands.length);
@@ -51,6 +52,17 @@ describe('MCP Tool Generator', () => {
 			for (const cmd of commands) {
 				expect(toolNames).toContain(cmd.name);
 			}
+		});
+
+		it('leaves out validate and doctor, as the HTTP API does', () => {
+			const names = generateTools().map((t) => t.name);
+			expect(registry.get('validate')).toBeDefined();
+			expect(registry.get('doctor')).toBeDefined();
+			expect(names).not.toContain('validate');
+			expect(names).not.toContain('doctor');
+			expect(getTool('validate')).toBeUndefined();
+			expect(getTool('doctor')).toBeUndefined();
+			expect([...MCP_EXCLUDED_COMMANDS].sort()).toEqual([...HTTP_EXCLUDED_COMMANDS].sort());
 		});
 	});
 

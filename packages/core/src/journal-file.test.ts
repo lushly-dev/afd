@@ -113,4 +113,28 @@ describe('FileJournalSink', () => {
 			'c',
 		]);
 	});
+
+	it('keeps recovery intact when the first append fails on an unterminated or torn file (#1705)', async () => {
+		const path = await tempPath();
+		await new FileJournalSink(path).append(record('a'));
+		const complete = await readFile(path, 'utf8');
+		const unserializable = {
+			...record('bad'),
+			input: { big: 1n } as unknown as Record<string, unknown>,
+		};
+
+		// Unterminated tail: first append throws during serialization, second must still emit `\n`.
+		await writeFile(path, complete.trimEnd());
+		const unterminated = new FileJournalSink(path);
+		await expect(unterminated.append(unserializable)).rejects.toThrow(TypeError);
+		expect((await unterminated.append(record('b'))).seq).toBe(2);
+		expect((await unterminated.read()).map((entry) => entry.command)).toEqual(['a', 'b']);
+
+		// Torn tail: first append throws, second must still leave a valid readable journal.
+		await writeFile(path, `${complete}{"seq":2,"timest`);
+		const torn = new FileJournalSink(path);
+		await expect(torn.append(unserializable)).rejects.toThrow(TypeError);
+		expect((await torn.append(record('c'))).seq).toBe(2);
+		expect((await torn.read()).map((entry) => entry.command)).toEqual(['a', 'c']);
+	});
 });
