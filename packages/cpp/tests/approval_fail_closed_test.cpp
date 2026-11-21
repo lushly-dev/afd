@@ -152,8 +152,8 @@ TEST_CASE("a gated command without the approval middleware is refused before its
         afd::CommandContext context = as_agent();
         const Json input{{"id", 1}};
         context.approval_admission = std::make_shared<afd::detail::ApprovalAdmission>();
-        context.approval_admission->admitted =
-            afd::detail::AdmittedCall{.name = "todo-delete", .canonical = R"({"id":1})"};
+        context.approval_admission->admitted = afd::detail::AdmittedCall{
+            .name = "todo-delete", .canonical = R"({"id":1})", .input = &input};
         check_unavailable(registry->execute("todo-delete", input, context), "todo-delete",
                           "no-approval-step");
         CHECK(commands.ran->empty());
