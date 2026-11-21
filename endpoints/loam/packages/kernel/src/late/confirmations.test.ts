@@ -784,6 +784,7 @@ describe("palette-run, the palette's input prompt (7.1)", () => {
 		expect(confirmation.for).toEqual({
 			command: 'keeper-set',
 			kind: 'confirmation',
+			scope: { workspace: 'personal' },
 			input: { value: 7 },
 		});
 		expect((await overlays(kernel)).some((each) => each.overlayId === prompt)).toBe(false);

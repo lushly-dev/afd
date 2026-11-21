@@ -8,7 +8,7 @@
 
 import { realpathSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 /** What a request asks of the site: its path after the prefix the site is served under, still raw. */
 export interface SiteRequest {
@@ -31,6 +31,8 @@ export interface ServeSiteOptions {
 
 /** Refused in the raw path and again in the decoded one, so `%252e` is refused as well as `%2e`. */
 const REFUSED = /\.\.|%2e|%2f|%5c|\\|\0/i;
+/** Non-canonical spellings (`//`, leading `/`, or `.` segments) that `path.join` would collapse. */
+const NON_CANONICAL = /(?:^\/|\/\/|^\.(?:\/|$)|\/\.(?:\/|$))/;
 
 /** The request's `Accept` names `text/html`. */
 export function acceptsHtml(accept: string | undefined): boolean {
@@ -39,16 +41,16 @@ export function acceptsHtml(accept: string | undefined): boolean {
 		.some((part) => part.split(';')[0]?.trim().toLowerCase() === 'text/html');
 }
 
-/** The path once decoded, or `undefined` when it is refused or does not decode. */
+/** The path once decoded, or `undefined` when it is refused, non-canonical or does not decode. */
 export function sitePath(raw: string): string | undefined {
-	if (REFUSED.test(raw)) return undefined;
+	if (REFUSED.test(raw) || NON_CANONICAL.test(raw)) return undefined;
 	let decoded: string;
 	try {
 		decoded = decodeURIComponent(raw);
 	} catch {
 		return undefined;
 	}
-	return REFUSED.test(decoded) ? undefined : decoded;
+	return REFUSED.test(decoded) || NON_CANONICAL.test(decoded) ? undefined : decoded;
 }
 
 function isInside(path: string, root: string): boolean {
@@ -90,7 +92,10 @@ export function serveSite(
 		if (decoded !== '' && !decoded.endsWith('/')) {
 			const found = await resolveFile(decoded);
 			if (found === 'refused') return refused;
-			if (found !== 'missing') return { status: 200, file: found, path: decoded, fallback: false };
+			if (found !== 'missing') {
+				const canonical = relative(base, found).split(sep).join('/');
+				return { status: 200, file: found, path: canonical, fallback: false };
+			}
 		}
 		if (options.fallback === undefined || !acceptsHtml(accept)) return notFound;
 		const page = await resolveFile(options.fallback);

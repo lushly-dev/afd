@@ -496,6 +496,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					header: headerOf(opener, asked.title, scope, call).slice(0, 200),
 					prompt: asked.prompt,
 					danger: asked.danger,
+					scope,
 					input: jsonOf(input),
 				},
 			});
@@ -1069,6 +1070,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					command: open.command,
 					...(open.caller !== undefined ? { caller: open.caller } : {}),
 					kind: 'confirmation',
+					...(open.scope !== undefined ? { scope: open.scope } : {}),
 					input: open.input,
 				},
 			});

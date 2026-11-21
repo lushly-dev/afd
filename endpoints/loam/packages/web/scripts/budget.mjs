@@ -593,7 +593,9 @@ export const CEILINGS = Object.freeze({
 	// clean builds in one tree against `main` at `254249c3`: 93,244 to 105,000 (+11,756), set to 105,500 under D115.
 	// Steps 4, 5 and 8 together: 106,836 (step 4's dialogs, prompts and answer rule beside the inbox's wiring); set to
 	// 107,500 under D115.
-	lateMinified: 117_200,
+	// Raised under D115 by #1867: measured 117,980 against `main` at `7571d34c` (+780 for overlay scope propagation and
+	// agent overlay-list caller isolation); set to 118,500.
+	lateMinified: 118_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	lateIdentityMinified: 63_000,
