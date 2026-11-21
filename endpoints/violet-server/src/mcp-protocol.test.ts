@@ -38,11 +38,13 @@ describe('MCP protocol (in-memory client)', () => {
 		return JSON.parse(content[0].text);
 	}
 
-	it('lists every command with its real input schema', async () => {
+	it('lists every command but validate and doctor, with its real input schema', async () => {
 		const client = await connect();
 		const { tools } = await client.listTools();
 
-		expect(tools.length).toBe(registry.list().length);
+		expect(tools.length).toBe(registry.list().length - 2);
+		expect(tools.map((t) => t.name)).not.toEqual(expect.arrayContaining(['validate']));
+		expect(tools.map((t) => t.name)).not.toEqual(expect.arrayContaining(['doctor']));
 
 		const nodeCreate = tools.find((t) => t.name === 'node.create');
 		expect(nodeCreate).toBeDefined();
@@ -78,6 +80,15 @@ describe('MCP protocol (in-memory client)', () => {
 
 		expect(result.isError).toBe(true);
 		expect(parseText(result).error?.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('refuses validate and doctor, which run or inspect the server host', async () => {
+		const client = await connect();
+		for (const name of ['validate', 'doctor']) {
+			const result = await client.callTool({ name, arguments: {} });
+			expect(result.isError).toBe(true);
+			expect(parseText(result).error?.code).toBe('COMMAND_NOT_FOUND');
+		}
 	});
 
 	it('reports unknown tools as errors', async () => {
