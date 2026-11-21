@@ -1,5 +1,23 @@
 # @lushly-dev/afd-client
 
+## 2.5.0
+
+### Minor Changes
+
+- [#1591](https://github.com/lushly-dev/afd/pull/1591) [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49) Thanks [@Falkicon](https://github.com/Falkicon)! - App-to-app calls and the `apps` exposure flag (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5 step 0b, D30).
+
+  - `ExposeOptions.apps` (default `false`) is a command's declaration that another app may call it, and `apps` is a new `context.interface` a host names for an app's call.
+  - `createCommandRegistry({ callGrant })` and the new `createAppCallRegistry(commands, { callGrant, ...options })` (in `@lushly-dev/afd-server` and `/direct`, with the `CallGrant` type) take the host's check of the caller's grants. A call with the `apps` interface runs only when the command sets `expose.apps` and `callGrant(command, context)` returns `true`; anything else, including a missing or unexposed command and invalid input, gets one fixed `CALL_NOT_GRANTED` refusal (`ErrorCodes.CALL_NOT_GRANTED`, new in the shared catalog) before lookup, validation and middleware. `createAppCallRegistry` serves no tool surface and answers `hasCommand` for every name, so a `DirectClient` over it never lists names.
+  - Everything without the grant check refuses the `apps` interface: `createDirectRegistry` throws for it (its `interface` option's type leaves it out), `DirectClient` and `DirectTransport` refuse to wrap an app-call registry, `createMcpServer`'s in-process `execute` and `executePipeline` answer `CALL_NOT_GRANTED`, and `replayJournal` replays an app call only on a registry whose interface is `apps`.
+  - `@lushly-dev/afd-client`: `new DirectClient(registry)` and `new DirectTransport(registry)` throw for a registry whose `interface` is `apps`, since their `allow` option, middleware and `tools/list` would answer an app before the grant check; call an app-call registry's own `execute`.
+
+- [#1497](https://github.com/lushly-dev/afd/pull/1497) [`8f58c33`](https://github.com/lushly-dev/afd/commit/8f58c33e2639aeebff0081921637548e9e73d12b) Thanks [@Falkicon](https://github.com/Falkicon)! - Add the browser-safe afd-client/direct entry for DirectClient, its helpers and types without loading MCP or eventsource.
+
+### Patch Changes
+
+- Updated dependencies [[`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`dcabc87`](https://github.com/lushly-dev/afd/commit/dcabc87a4384dc6229608837f1fcdb1dc502773f), [`67bfdaa`](https://github.com/lushly-dev/afd/commit/67bfdaaef1cd56f30531c66597c950cfb8127eb1)]:
+  - @lushly-dev/afd-core@2.5.0
+
 ## 2.4.0
 
 ### Patch Changes

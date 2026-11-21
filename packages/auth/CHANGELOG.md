@@ -1,5 +1,13 @@
 # @lushly-dev/afd-auth
 
+## 2.5.0
+
+### Patch Changes
+
+- [#978](https://github.com/lushly-dev/afd/pull/978) [`cfbdc10`](https://github.com/lushly-dev/afd/commit/cfbdc10d859d02e9e9512df463af0c4b61ad0793) Thanks [@Falkicon](https://github.com/Falkicon)! - `BetterAuthAdapter.refresh()` no longer resolves before the provider has answered. Better Auth cancels a session request when a newer one starts (after a sign-in or sign-out, on window focus, from another tab or on its poll), and the cancelled `refetch` resolved with no error stored, so `refresh()` could report the session kept while the provider was unreachable. It now waits for the session store to settle, and rejects with `NETWORK_ERROR` or `REFRESH_FAILED` as documented.
+- Updated dependencies [[`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`dcabc87`](https://github.com/lushly-dev/afd/commit/dcabc87a4384dc6229608837f1fcdb1dc502773f), [`67bfdaa`](https://github.com/lushly-dev/afd/commit/67bfdaaef1cd56f30531c66597c950cfb8127eb1)]:
+  - @lushly-dev/afd-core@2.5.0
+
 ## 2.4.0
 
 ### Minor Changes

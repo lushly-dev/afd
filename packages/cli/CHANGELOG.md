@@ -1,5 +1,18 @@
 # @lushly-dev/afd-cli
 
+## 2.5.0
+
+### Patch Changes
+
+- [#1518](https://github.com/lushly-dev/afd/pull/1518) [`e96c2f0`](https://github.com/lushly-dev/afd/commit/e96c2f0022745190659d9ef1eff4e024b69ce5ae) Thanks [@Falkicon](https://github.com/Falkicon)! - `afd validate --surface` says "Commands listed with afd-discover and afd-detail" only when discovery found commands the listing did not show, now that every tool strategy lists `afd-discover` ([#533](https://github.com/lushly-dev/afd/issues/533)).
+
+- [#1005](https://github.com/lushly-dev/afd/pull/1005) [`4eadf72`](https://github.com/lushly-dev/afd/commit/4eadf727a0a8c5ce930f7462228ad417f2bd83e6) Thanks [@Falkicon](https://github.com/Falkicon)! - `afd scenario run` and afd-testing's `TerminalReporter` color human output only when it goes to a terminal, so piped or redirected output carries no ANSI codes ([#909](https://github.com/lushly-dev/afd/issues/909)). `NO_COLOR` or `TERM=dumb` turns color off, and `FORCE_COLOR` turns it on, or off with `0` or `false`, as chalk reads it; set `FORCE_COLOR=1` to color a pipe. `--no-color` and an explicit `colors` option still win.
+- Updated dependencies [[`5962565`](https://github.com/lushly-dev/afd/commit/5962565062f2f34331f4c5e1f14b132700736959), [`274fcca`](https://github.com/lushly-dev/afd/commit/274fcca21fdeebb344a19873cea5b37a41cf80ff), [`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`f1b4e51`](https://github.com/lushly-dev/afd/commit/f1b4e51fe863dcd3ba8dab509b9e9a1af390b4ce), [`8f58c33`](https://github.com/lushly-dev/afd/commit/8f58c33e2639aeebff0081921637548e9e73d12b), [`68b0024`](https://github.com/lushly-dev/afd/commit/68b002499c6ccd9194f48e77d5e0046fd8a1b377), [`dcabc87`](https://github.com/lushly-dev/afd/commit/dcabc87a4384dc6229608837f1fcdb1dc502773f), [`7ab1d60`](https://github.com/lushly-dev/afd/commit/7ab1d60a5cdfc6f2b0bc97c59cf6bdd0e966dd83), [`67bfdaa`](https://github.com/lushly-dev/afd/commit/67bfdaaef1cd56f30531c66597c950cfb8127eb1), [`c6e2586`](https://github.com/lushly-dev/afd/commit/c6e2586e9253f42fcf5c0f98ee369859791cc2de), [`4eadf72`](https://github.com/lushly-dev/afd/commit/4eadf727a0a8c5ce930f7462228ad417f2bd83e6), [`4da865f`](https://github.com/lushly-dev/afd/commit/4da865ffd7b7d7717e77b7ab83b9101b11ed8019), [`9298052`](https://github.com/lushly-dev/afd/commit/9298052861aa917fa858cedd8f6f782cb20e6381), [`e96c2f0`](https://github.com/lushly-dev/afd/commit/e96c2f0022745190659d9ef1eff4e024b69ce5ae), [`076b364`](https://github.com/lushly-dev/afd/commit/076b3643552fe7bac71b81f78843dc5a973f8772)]:
+  - @lushly-dev/afd-server@2.5.0
+  - @lushly-dev/afd-core@2.5.0
+  - @lushly-dev/afd-client@2.5.0
+  - @lushly-dev/afd-testing@2.5.0
+
 ## 2.4.0
 
 ### Patch Changes
