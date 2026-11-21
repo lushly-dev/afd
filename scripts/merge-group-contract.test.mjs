@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { readTrigger } from './affected/suites.mjs';
@@ -616,6 +617,9 @@ describe('what the contract cannot read, or reads two ways', () => {
 				.map((line) => line.trim())
 				.filter(Boolean);
 		};
+		// The path assertions below read the patterns as git's non-cone mode does.
+		for (const step of checkouts)
+			assert.match(step, /^ {10}sparse-checkout-cone-mode: false$/m, 'each checkout is non-cone');
 		const [head, base] = checkouts.map(sparse);
 		// A directory pattern takes everything under it; `*.yml` would leave a `.yaml` workflow out.
 		const taken = (patterns, path) =>
@@ -631,6 +635,14 @@ describe('what the contract cannot read, or reads two ways', () => {
 			assert.ok(taken(base, path), `${path} is not in ci-ok.yml's checkout of the base`);
 			assert.ok(!taken(head, path), `${path} must come from the base, not the commit under test`);
 			assert.match(verdict, new RegExp(`run: node \\.verdict/${path.replace('.', '\\.')}`));
+		}
+		// The base checkout holds the scripts alone, so a relative import would be missing there.
+		for (const path of ['scripts/ci-verdict.mjs', 'scripts/commit-credit.mjs']) {
+			const text = readFileSync(join(root, path), 'utf8');
+			const imports = [...text.matchAll(/(?:from|import\()\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+			assert.ok(imports.length > 0, `${path} has imports to read`);
+			for (const name of imports)
+				assert.match(name, /^node:/, `${path} imports ${name}, which ci-ok's base checkout lacks`);
 		}
 		// The verdict's code is main's: the base of the pull request, or of the merge group.
 		assert.match(

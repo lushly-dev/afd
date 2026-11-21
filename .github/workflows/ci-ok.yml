@@ -9,11 +9,13 @@ name: CI verdict
 # commits the group holds that main does not, the squash GitHub wrote among them, and waits for a
 # run of every workflow that has the `merge_group` trigger: none may be missing.
 #
-# The verdict's code (scripts/ci-verdict.mjs, scripts/commit-credit.mjs) comes from the base commit,
-# main as the change found it, never from the change it judges: an edit to either script takes
-# effect once it has landed, so keep their arguments and environment working for one merge. The
-# list of workflows to wait for comes from the commit under test, whose workflows are the ones that
-# run.
+# The verdict's code (scripts/ci-verdict.mjs, scripts/commit-credit.mjs) comes from the commit the
+# change is built on (main for a pull request; for a merge group, main with the groups queued ahead
+# of it), never from the change it judges, so an edit to either script takes effect once it has
+# landed. A change's own run drives the base's scripts with its own copy of this file: land a new
+# argument or variable in the scripts first and use it here in a later change, and never move or
+# rename them in one step. The list of workflows to wait for comes from the commit under test, whose
+# workflows are the ones that run.
 on:
   pull_request:
     branches: [main]
