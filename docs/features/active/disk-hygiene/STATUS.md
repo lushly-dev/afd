@@ -25,7 +25,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   154 worktrees' `logs/HEAD` (`git reflog expire --all` does that even when nothing expires), and
   the idle count dropped from 120 to 0. Their `HEAD` and `index` were untouched. The same reset
   held back tier 1 and tier 2 wherever gc runs more often than their limits. A reflog's time is
-  now the earlier of the file's time and its last entry's timestamp (#1814).
+  now the earlier of the file's time and its last entry's timestamp, and a reflog that gc
+  emptied (every entry older than 90 days) counts for nothing (#1814).
 - **The old cleanup agent's archives (#1687).** Deleted 23 full payload tars from
   `20261120T082739Z-air-refresh` (140 GiB freed; `/Volumes/Dev` at 719 GiB free): 4 whose
   verified compact archives exist, and 19 whose original worktrees are still on disk, so the

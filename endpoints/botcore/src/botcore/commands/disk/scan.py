@@ -27,6 +27,12 @@ NEVER_ENTER = {".git", "node_modules", ".venv", "venv", "__pycache__"}
 MAX_DEPTH = 32
 # How much of a reflog's end is read to find its last entry; one entry is a line.
 REFLOG_TAIL = 64 * 1024
+# One reflog entry: `<old> <new> <name> <<email>> <seconds> <zone>`, then a tab and the message
+# or nothing. git strips `<` and `>` from names, so the first `<...>` is the email.
+REFLOG_ENTRY = re.compile(
+    rb"^(?:[0-9a-f]{40}|[0-9a-f]{64}) (?:[0-9a-f]{40}|[0-9a-f]{64}) [^<>\t\n]*<[^<>\t\n]*>"
+    rb" (\d{1,12}) [+-]\d{4}(?:\t|\r?$)"
+)
 
 
 def long_path(path: Path | str) -> str:
@@ -310,36 +316,42 @@ def busy_reason(worktree: Path, processes: Processes, windows: bool | None = Non
 
 def _mtime(path: Path) -> float | None:
     try:
-        return path.lstat().st_mtime
+        return os.lstat(long_path(path)).st_mtime
     except OSError:
         return None
 
 
 def reflog_time(path: Path) -> float | None:
-    """When a reflog last moved: the earlier of the file's time and its last entry's timestamp.
+    """When a worktree's reflog last moved, or None when it holds no entry.
 
     `git gc` runs `git reflog expire --all`, which rewrites every worktree's reflog without
-    adding an entry, so the file's time alone makes every worktree look just used. An entry
-    dated in the past by `GIT_COMMITTER_DATE` still leaves `HEAD` or `index` recent.
+    adding an entry, and empties one whose entries have all expired: the file's time alone
+    makes every worktree look just used. So the time is the earlier of the file's time and its
+    last entry's timestamp, and an empty reflog counts for nothing. A last line that is not a
+    whole entry gives the file's time.
+
+    Porcelain commands that move HEAD also write `HEAD`, `index` or `ORIG_HEAD`, so an entry
+    backdated with `GIT_COMMITTER_DATE` is still seen as activity; a backdated plumbing
+    `git update-ref HEAD` alone is not.
     """
     modified = _mtime(path)
     if modified is None:
         return None
     try:
         with open(long_path(path), "rb") as handle:
-            handle.seek(max(0, handle.seek(0, os.SEEK_END) - REFLOG_TAIL))
+            start = max(0, handle.seek(0, os.SEEK_END) - REFLOG_TAIL)
+            handle.seek(start)
             tail = handle.read()
     except OSError:
         return modified
-    lines = [line for line in tail.split(b"\n") if line.strip()]
+    lines = tail.split(b"\n")
+    if start > 0:
+        lines = lines[1:]  # the read began inside a line
+    lines = [line for line in lines if line.strip()]
     if not lines:
-        return modified
-    # `<old> <new> <name> <email> <seconds> <zone>\t<message>`
-    fields = lines[-1].split(b"\t", 1)[0].rsplit(b" ", 2)
-    try:
-        return min(modified, float(int(fields[-2])))
-    except (IndexError, ValueError):
-        return modified
+        return modified if start > 0 else None
+    entry = REFLOG_ENTRY.match(lines[-1])
+    return modified if entry is None else min(modified, float(entry.group(1)))
 
 
 def last_activity(
