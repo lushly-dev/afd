@@ -100,12 +100,25 @@ def _inside(root: Path | str, path: Path | str) -> bool:
     return inner != outer and inner.startswith(outer.rstrip(os.sep) + os.sep)
 
 
-def manager(path: Path | str, t3_roots: list[Path]) -> str | None:
-    """The tool that creates and removes this worktree itself, if any: tier 2 leaves it alone."""
+def factory_slots(repository: Path) -> Path:
+    """Where Botcore Factory's lane checks a repository's slots out: beside the repository
+    (the folder holding its `.git`), as its `_slot_path` does."""
+    return repository.with_name(f"{repository.name}{FACTORY_SLOTS_SUFFIX}")
+
+
+def repository_of(common: Path) -> Path:
+    """The repository folder Factory names its slots after, from git's common directory."""
+    return common.parent if common.name == ".git" else common
+
+
+def manager(path: Path | str, t3_roots: list[Path], repository: Path | None = None) -> str | None:
+    """The tool that creates and removes this worktree itself, if any: tier 2 leaves it alone.
+    A Factory slot sits directly in this repository's `<repository>.factory-slots/`."""
+    if repository is not None and path_key(Path(path).parent) == path_key(
+            factory_slots(repository)):
+        return "factory"
     if any(_inside(root, path) for root in t3_roots):
         return "t3-code"
-    if Path(path).parent.name.endswith(FACTORY_SLOTS_SUFFIX):
-        return "factory"
     return None
 
 
@@ -250,7 +263,7 @@ def _threshold(cand: Candidate, ctx: Context) -> float:
 # ── Rows ────────────────────────────────────────────────────────────────────
 
 
-def _base_row(wt: Worktree, ctx: Context) -> dict:
+def _base_row(wt: Worktree, ctx: Context, common: Path) -> dict:
     return {
         "path": str(wt.path),
         "branch": wt.branch,
@@ -260,7 +273,8 @@ def _base_row(wt: Worktree, ctx: Context) -> dict:
         "exists": False,
         "locked": wt.locked,
         "prunable": wt.prunable,
-        "managed_by": None if wt.is_main else manager(wt.path, ctx.t3_roots),
+        "managed_by": None if wt.is_main else manager(wt.path, ctx.t3_roots,
+                                                        repository_of(common)),
         "tier": 3,
         "can_strip": False,
         "complete": False,
@@ -408,7 +422,7 @@ def _worktree_row(  # noqa: PLR0913 - one row needs each of these
     wt: Worktree, common: Path, main: Path, config: DiskConfig, ctx: Context,
     block: str | None, presence: tuple[str, str | None],
 ) -> dict:
-    row = _base_row(wt, ctx)
+    row = _base_row(wt, ctx, common)
     state, _detail = presence
     if block:
         row["reasons"].append(f"not inspected: {block}")
@@ -470,24 +484,30 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
         _worktree_row(wt, common, main, repo_cfg.config, ctx, block, presence[str(wt.path)])
         for wt in worktrees
     ]
-    _count_idle(out, ctx.settings)
+    count_idle(out, ctx.settings)
     return out, repo_cfg.config
 
 
-def _count_idle(out: dict, settings: MachineSettings) -> None:
+def count_idle(out: dict, settings: MachineSettings, gone: set[str] | None = None) -> None:
     """How many linked worktrees have been idle strip_after_days or longer, and a warning when
-    that passes idle_worktree_limit. Kept and unreadable worktrees are not counted, so after a
-    report that ran out of time the count is a floor."""
+    that passes idle_worktree_limit. Kept worktrees and Factory's slots (it removes its own) are
+    not counted, nor those in `gone` (removed by this run). `complete` is false when a worktree
+    was not inspected for lack of time: the count is then only a floor."""
+    out.pop("warning", None)
     days = settings.strip_after_days
+    gone = gone or set()
+    rows = [w for w in out["worktrees"] if not w["main"] and path_key(w["path"]) not in gone]
     idle = [
-        w for w in out["worktrees"]
-        if not w["main"] and w["exists"] and w["locked"] is None
-        and w.get("idle_days") is not None and w["idle_days"] >= days
+        w for w in rows
+        if w["exists"] and w["locked"] is None and w["managed_by"] != "factory"
+        and w.get("idle_seconds") is not None and w["idle_seconds"] >= days * DAY
     ]
     managed = sum(1 for w in idle if w["managed_by"] == "t3-code")
-    out["idle_worktrees"] = {"count": len(idle), "days": days, "t3_code": managed,
-                             "limit": settings.idle_worktree_limit}
     limit = settings.idle_worktree_limit
+    complete = not out.get("blocked") and not any(
+        r.startswith("not inspected") for w in rows for r in w["reasons"])
+    out["idle_worktrees"] = {"count": len(idle), "days": days, "t3_code": managed,
+                             "limit": limit, "complete": complete}
     if limit and len(idle) > limit:
         out["warning"] = (
             f"{out['main']}: {len(idle)} worktrees idle {days:g} days or more, over the limit "

@@ -1023,8 +1023,14 @@ def test_local_machine_reads_botcore_disk_warnings(tmp_path, monkeypatch):
     state = tmp_path / "state"
     state.mkdir()
     (state / "status.json").write_text(
-        json.dumps({"worktree_warnings": {"at": "2030-01-01T00:00:00+00:00",
-                                          "warnings": ["/repo: too many idle worktrees"]}})
+        json.dumps(
+            {
+                "worktree_warnings": {
+                    "at": "2030-01-01T00:00:00+00:00",
+                    "warnings": ["/repo: too many idle worktrees"],
+                }
+            }
+        )
     )
     monkeypatch.setenv("BOTCORE_DISK_STATE", str(state))
     monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(tmp_path / "missing.toml"))

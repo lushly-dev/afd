@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -44,18 +45,15 @@ def test_report_warns_when_a_repository_has_too_many_idle_worktrees(
     git(repo["main"], "worktree", "lock", "--reason", "parked", str(kept))
     settings_file(repo, "idle_worktree_limit = 1")
 
-    data = run(report.disk_report())
+    result = asyncio.run(report.disk_report())
+    data = result.data
 
     [row] = data["repos"]
-    assert row["idle_worktrees"] == {"count": 2, "days": 3, "t3_code": 0, "limit": 1}
+    assert row["idle_worktrees"] == {"count": 2, "days": 3, "t3_code": 0, "limit": 1,
+                                     "complete": True}
     assert data["warnings"] == [row["warning"]]
     assert "2 worktrees idle 3 days or more, over the limit of 1" in row["warning"]
-    assert row["warning"] in run_suggestions()
-
-
-def run_suggestions() -> list[str]:
-    result = asyncio.run(report.disk_report())
-    return list(result.suggestions or [])
+    assert row["warning"] in (result.suggestions or [])
 
 
 @pytest.mark.parametrize("limit", ["idle_worktree_limit = 2", "idle_worktree_limit = 0"])
@@ -72,7 +70,28 @@ def test_no_warning_at_the_limit_or_when_it_is_off(
     assert data["repos"][0]["idle_worktrees"]["count"] == 2
 
 
-def test_status_keeps_the_last_full_runs_warnings(
+def test_idle_is_measured_in_seconds_and_leaves_out_what_this_run_removed() -> None:
+    day = report.DAY
+    row = {"main": "/repo", "worktrees": [
+        {"path": "/repo", "main": True, "exists": True, "locked": None, "managed_by": None,
+         "idle_seconds": 9 * day, "reasons": []},
+        {"path": "/w/almost", "main": False, "exists": True, "locked": None, "managed_by": None,
+         "idle_seconds": int(3 * day) - 300, "reasons": []},  # rounds to 3.00 days
+        {"path": "/w/idle", "main": False, "exists": True, "locked": None, "managed_by": None,
+         "idle_seconds": 4 * day, "reasons": []},
+        {"path": "/w/slot", "main": False, "exists": True, "locked": None,
+         "managed_by": "factory", "idle_seconds": 9 * day, "reasons": []},
+        {"path": "/w/late", "main": False, "exists": True, "locked": None, "managed_by": None,
+         "idle_seconds": None, "reasons": ["not inspected: the time budget was spent"]},
+    ]}
+    settings = MachineSettings(idle_worktree_limit=0)
+    report.count_idle(row, settings)
+    assert row["idle_worktrees"]["count"] == 1 and row["idle_worktrees"]["complete"] is False
+    report.count_idle(row, settings, gone={report.path_key("/w/idle")})
+    assert row["idle_worktrees"]["count"] == 0
+
+
+def test_status_keeps_each_repositorys_last_complete_count(
     repo: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
     monkeypatch.setenv("BOTCORE_DISK_STATE", str(tmp_path / "state"))
@@ -81,39 +100,64 @@ def test_status_keeps_the_last_full_runs_warnings(
     settings_file(repo, "idle_worktree_limit = 1")
 
     run(reclaim.disk_reclaim(tier=1))
-    status = json.loads((tmp_path / "state" / "status.json").read_text())
-    [warning] = status["worktree_warnings"]["warnings"]
+    [warning] = setup.disk_warnings()
+    assert "over the limit of 1" in warning
     settings_file(repo, "idle_worktree_limit = 0")
-    run(reclaim.disk_reclaim(tier=1, repo=str(repo["main"])))  # one repository: kept as it was
-
+    run(reclaim.disk_reclaim(tier=1, budget_seconds=0))  # counted nothing: kept as it was
     assert setup.disk_warnings() == [warning]
     data = run(setup.disk_status())
-    assert data["warnings"] == [warning] and data["warnings_at"]
-    run(reclaim.disk_reclaim(tier=1))
+    assert data["warnings"] == [warning]
+
+    status_path = tmp_path / "state" / "status.json"
+    status = json.loads(status_path.read_text())
+    [entry] = status["worktree_warnings"]["repos"].values()
+    entry["at"] = "2020-01-01T00:00:00+00:00"
+    status_path.write_text(json.dumps(status))
+    [stale] = setup.disk_warnings()
+    assert stale.startswith(warning) and "counted 2020-01-01" in stale
+
+    run(reclaim.disk_reclaim(tier=1, repo=str(repo["main"])))  # a full count of that repo
     assert setup.disk_warnings() == []
+
+
+def test_new_keys_stay_out_of_the_settings_file_at_their_defaults() -> None:
+    keys = set(tomllib.loads(setup.settings_toml(MachineSettings())))
+    assert not keys & {"idle_worktree_limit", "remove_landed"}
+    text = setup.settings_toml(MachineSettings(idle_worktree_limit=5, remove_landed=True))
+    assert "idle_worktree_limit = 5" in text and "remove_landed = true" in text
 
 
 # ── Factory's slots ─────────────────────────────────────────────────────────
 
 
-def test_factory_slots_are_stripped_but_never_removed(
+def test_factory_slots_are_stripped_but_never_removed_or_counted(
     repo: dict[str, Path],  # noqa: F811
 ) -> None:
-    slots = repo["tmp"] / f"{repo['main'].name}.factory-slots"
-    slot = slots / "slot-1"
+    slot = repo["tmp"] / f"{repo['main'].name}.factory-slots" / "slot-1"
     git(repo["main"], "worktree", "add", "-q", "--detach", str(slot), "main")
     (slot / "dist").mkdir()
     (slot / "dist" / "bundle.js").write_bytes(b"x" * 20000)
     age_worktree(repo["main"], slot)
     settings_file(repo, "remove_landed_after_days = 1")
 
-    row = rows(run(report.disk_report()))["slot-1"]
+    data = run(report.disk_report())
+    row = rows(data)["slot-1"]
 
     assert row["managed_by"] == "factory"
     assert row["tier"] == 1 and "finished" not in row
     assert any("Factory's lane reuses this slot" in r for r in row["reasons"])
-    assert report.manager(slot, []) == "factory"
-    assert report.manager(repo["old"], []) is None
+    assert data["repos"][0]["idle_worktrees"]["count"] == 0
+
+
+def test_only_this_repositorys_slot_folder_is_factorys(tmp_path: Path) -> None:
+    main = tmp_path / "afd"
+    slot = tmp_path / "afd.factory-slots" / "slot-1"
+    other = tmp_path / "other.factory-slots" / "checkout"
+    t3_root = tmp_path
+    assert report.manager(slot, [t3_root], main) == "factory"  # more specific than T3 Code's
+    assert report.manager(other, [], main) is None
+    assert report.manager(other, [t3_root], main) == "t3-code"
+    assert report.repository_of(main / ".git") == main
 
 
 # ── Cargo ───────────────────────────────────────────────────────────────────
@@ -129,72 +173,170 @@ def cargo_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return home
 
 
-def write_config(home: Path, build: str) -> None:
-    (home / "config.toml").write_text(f"[build]\n{build}\n", encoding="utf-8")
+@pytest.fixture
+def place(tmp_path: Path) -> Path:
+    folder = tmp_path / "work" / "tree"
+    folder.mkdir(parents=True)
+    return folder
 
 
-def test_cargo_default_keeps_output_in_each_worktree(cargo_home: Path) -> None:
-    check = cargo.cargo_check(MachineSettings())
-    assert check == {"arrangement": "inside each worktree", "settings": [], "problems": []}
+def write_config(folder: Path, build: str, name: str = "config.toml") -> Path:
+    path = folder / name
+    path.write_text(f"[build]\n{build}\n", encoding="utf-8")
+    return path
+
+
+def check(place: Path, settings: MachineSettings | None = None) -> dict:
+    return cargo.cargo_check(settings or MachineSettings(), [place])
+
+
+def suggested_entry(problem: str) -> dict:
+    block = problem[problem.index("\n[[aged]]\n") + 1:]
+    return tomllib.loads(block)["aged"][0]
+
+
+def test_cargo_default_keeps_output_in_each_worktree(cargo_home: Path, place: Path) -> None:
+    assert check(place) == {"arrangement": "inside each worktree", "settings": [], "problems": []}
     write_config(cargo_home, 'build-dir = "{workspace-root}/target/build"')
-    check = cargo.cargo_check(MachineSettings())
-    assert check["arrangement"] == "inside each worktree" and not check["problems"]
+    assert check(place) == {"arrangement": "inside each worktree", "settings": [], "problems": []}
 
 
 def test_cargo_build_dir_per_workspace_needs_an_aged_folder(
-    cargo_home: Path, tmp_path: Path,
+    cargo_home: Path, place: Path, tmp_path: Path,
 ) -> None:
     root = tmp_path / "Dev" / "cargo-build"
     write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
 
-    [moved] = cargo.cargo_outputs(MachineSettings())[0]
-    assert (moved.kind, moved.root, moved.aged) == ("build-dir", str(root), str(root / "*"))
-    [problem] = cargo.cargo_check(MachineSettings())["problems"]
-    assert str(root) in problem and f'path = "{root / "*"}"' in problem
+    [problem] = check(place)["problems"]
+    entry = suggested_entry(problem)
+    assert entry == {"path": str(root / "*"), "max_age_days": 7}
 
-    covered = MachineSettings(aged=[AgedFolder(path=str(root / "*"), max_age_days=7)])
-    check = cargo.cargo_check(covered)
-    assert check["arrangement"] == "moved out of the worktrees" and not check["problems"]
-    assert check["settings"][0]["covered_by"] == str(root / "*")
-    assert cargo.cargo_roots(covered) == [root]
+    covered = MachineSettings(aged=[AgedFolder(**entry)])
+    result = check(place, covered)
+    assert result["arrangement"] == "moved out of the worktrees" and not result["problems"]
+    assert result["settings"][0]["covered_by"] == str(root / "*")
+    (root / "ab").mkdir(parents=True)  # a hash bucket: still Cargo's alone
+    assert check(place)["settings"][0]["aged"] == str(root / "*")
 
 
-def test_cargo_environment_overrides_the_config(
-    cargo_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("rule", [
+    {"path": "ROOT/*"},  # no age and no size: it clears nothing
+    {"path": "ROOT", "max_age_days": 7},  # the folder as one entry, always in use
+    {"path": "PARENT/*", "max_age_days": 7},
+])
+def test_cargo_rules_that_clear_nothing_do_not_cover_it(
+    cargo_home: Path, place: Path, tmp_path: Path, rule: dict,
+) -> None:
+    root = tmp_path / "Dev" / "cargo-build"
+    write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
+    path = rule["path"].replace("ROOT", str(root)).replace("PARENT", str(root.parent))
+    assert check(place, MachineSettings(aged=[AgedFolder(**{**rule, "path": path})]))["problems"]
+
+
+def test_cargo_never_suggests_clearing_a_folder_that_holds_other_things(
+    cargo_home: Path, place: Path, tmp_path: Path,
+) -> None:
+    write_config(cargo_home, 'build-dir = "{cargo-cache-home}/{workspace-path-hash}"')
+    (cargo_home / "bin").mkdir()
+    [problem] = check(place)["problems"]
+    assert "[[aged]]\npath" not in problem and "a folder of its own" in problem
+
+    shared = tmp_path / "Dev"
+    (shared / "photos").mkdir(parents=True)
+    write_config(cargo_home, f"build-dir = {json.dumps(str(shared) + '/{workspace-path-hash}')}")
+    [problem] = check(place)["problems"]
+    assert "[[aged]]\npath" not in problem
+
+
+def test_cargo_shared_target_folder_needs_a_size_cap(
+    cargo_home: Path, place: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'ignored'))}")
     shared = tmp_path / "Dev" / "target"
     monkeypatch.setenv("CARGO_TARGET_DIR", str(shared))
-    [moved] = cargo.cargo_outputs(MachineSettings())[0]
-    assert (moved.source, moved.root, moved.aged) == ("CARGO_TARGET_DIR", str(shared), str(shared))
-    parent = MachineSettings(aged=[AgedFolder(path=str(tmp_path / "Dev" / "*"))])
-    assert not cargo.cargo_check(parent)["problems"]
-    monkeypatch.setenv("CARGO_TARGET_DIR", "target-local")  # relative: wherever Cargo runs
-    assert cargo.cargo_check(MachineSettings())["arrangement"] == "inside each worktree"
+    [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
+    assert (moved.source, moved.root, moved.per_workspace) == ("CARGO_TARGET_DIR", str(shared),
+                                                                False)
+    [problem] = check(place)["problems"]
+    assert "one folder" in problem and "max_gb" in problem
+    aged_only = MachineSettings(aged=[AgedFolder(path=str(shared), max_age_days=7)])
+    assert check(place, aged_only)["problems"]
+    capped = MachineSettings(aged=[AgedFolder(path=str(shared), max_gb=50)])
+    assert not check(place, capped)["problems"]
 
 
-def test_cargo_config_paths_are_relative_to_the_folder_holding_cargo_home(
-    cargo_home: Path,
+@pytest.mark.parametrize(("variable", "value"), [
+    ("CARGO_TARGET_DIR", "target-local"),
+    ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/build"),
+])
+def test_cargo_paths_relative_to_the_build_stay_inside(
+    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch, variable: str, value: str,
 ) -> None:
-    write_config(cargo_home, 'target-dir = "shared-target"')
-    [moved] = cargo.cargo_outputs(MachineSettings())[0]
-    assert moved.root == str(cargo_home.parent / "shared-target")
+    monkeypatch.setenv(variable, value)
+    assert check(place)["arrangement"] == "inside each worktree"
 
 
-def test_cargo_name_prefix_and_bad_config_are_reported(cargo_home: Path, tmp_path: Path) -> None:
-    prefixed = str(tmp_path) + "/b-{workspace-path-hash}"
-    write_config(cargo_home, f"build-dir = {json.dumps(prefixed)}")
-    [problem] = cargo.cargo_check(MachineSettings())["problems"]
-    assert "a folder of its own" in problem
-    (cargo_home / "config.toml").write_text("[build\n", encoding="utf-8")
-    [problem] = cargo.cargo_check(MachineSettings())["problems"]
-    assert "not valid TOML" in problem
+@pytest.mark.parametrize(("variable", "value"), [
+    ("CARGO_TARGET_DIR", "../escape"),
+    ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/../out/{workspace-path-hash}"),
+])
+def test_cargo_paths_that_escape_the_build_cannot_be_covered(
+    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch, variable: str, value: str,
+) -> None:
+    monkeypatch.setenv(variable, value)
+    [problem] = check(place)["problems"]
+    assert "relative to where Cargo runs" in problem
+
+
+def test_cargo_values_are_literal_and_relative_to_the_folder_holding_cargo(
+    cargo_home: Path, place: Path,
+) -> None:
+    write_config(cargo_home, 'target-dir = "~/some-data"')
+    [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
+    assert moved.root == str(cargo_home.parent / "~" / "some-data")
+
+
+def test_cargo_reads_configs_as_cargo_does(
+    cargo_home: Path, place: Path, tmp_path: Path,
+) -> None:
+    write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'from-toml'))}")
+    write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'from-config'))}",
+                 name="config")
+    [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
+    assert moved.root == str(tmp_path / "from-config")  # `config` wins when both exist
+
+    above = place.parent / ".cargo"
+    above.mkdir()
+    (above / "extra.toml").write_text(
+        f"[build]\nbuild-dir = {json.dumps(str(tmp_path / 'inc') + '/{workspace-path-hash}')}\n",
+        encoding="utf-8")
+    (above / "config.toml").write_text('include = ["extra.toml"]\n', encoding="utf-8")
+    found = {o.kind: o for o in cargo.cargo_outputs(MachineSettings(), [place])[0]}
+    assert found["build-dir"].root == str(tmp_path / "inc")
+    assert found["build-dir"].source == str(above / "extra.toml")
+    assert found["target-dir"].root == str(tmp_path / "from-config")  # still from CARGO_HOME
+
+
+def test_cargo_config_problems_are_warnings(cargo_home: Path, place: Path) -> None:
+    (cargo_home / "config.toml").write_bytes(b"[build]\ntarget-dir = \"\xff\"\n")
+    [problem] = check(place)["problems"]
+    assert "could not be read" in problem
+    (cargo_home / "config.toml").write_text('include = ["missing.toml"]\n', encoding="utf-8")
+    [problem] = check(place)["problems"]
+    assert "missing" in problem
+
+
+def test_cargo_suggestion_is_valid_toml_for_windows_paths() -> None:
+    value = r"D:\Build\{workspace-path-hash}"
+    placed = cargo.Placement("build-dir", "CARGO_BUILD_BUILD_DIR", value, "moved", r"D:\Build",
+                             True, r"D:\Build\*")
+    assert suggested_entry(placed.problem or "")["path"] == r"D:\Build\*"
 
 
 def test_setup_reports_the_cargo_arrangement(
     repo: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
-    home = Path(str(tmp_path / "cargo-home"))
+    home = tmp_path / "cargo-home"
     home.mkdir()
     root = tmp_path / "cargo-build"
     write_config(home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")

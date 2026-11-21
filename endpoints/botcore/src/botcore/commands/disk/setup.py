@@ -20,7 +20,7 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk import schedule
 from botcore.commands.disk.cargo import cargo_check, cargo_roots
-from botcore.commands.disk.git import GitError, list_worktrees
+from botcore.commands.disk.git import GitError, list_worktrees, path_key
 from botcore.commands.disk.scan import exists, mount_point, volume_id, volume_state
 from botcore.commands.disk.settings import (
     MachineSettings,
@@ -47,6 +47,9 @@ SYSTEM_PATH = {
 # that may sit anywhere (fnm keeps its session links under the user's state folder)
 SESSION_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
 SESSION_PART = "fnm_multishells"
+# Keys newer than the first release, left out of the file while at their defaults, so a botcore
+# from before them (which refuses unknown keys) still reads a file this one wrote
+OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit")
 
 
 # ── The settings file ───────────────────────────────────────────────────────
@@ -67,6 +70,10 @@ def _toml_value(value: object) -> str:
 def settings_toml(settings: MachineSettings) -> str:
     """The machine settings as TOML. Setup writes the whole file; comments are not kept."""
     data = settings.model_dump(exclude_none=True)
+    defaults = MachineSettings().model_dump()
+    for key in OMIT_AT_DEFAULT:
+        if key in data and data[key] == defaults[key]:
+            del data[key]
     tables = {key: data.pop(key) for key in ("volume", "aged")}
     tools = data.pop("tools")
     lines = ["# Written by `botcore disk-setup`; safe to edit. See the disk-hygiene skill.", ""]
@@ -100,7 +107,11 @@ def _watch_volumes(settings: MachineSettings) -> list[str]:
     Cargo output moved out of the worktrees."""
     added = []
     known = {str(expand(v.mount)) for v in settings.volume}
-    paths: list[Path] = list(t3_worktree_roots(settings)[0]) + cargo_roots(settings)
+    paths: list[Path] = list(t3_worktree_roots(settings)[0])
+    for root in cargo_roots(settings):  # before the first build its folder may not exist yet
+        while not exists(root) and root.parent != root:
+            root = root.parent
+        paths.append(root)
     for repo in settings.repos:
         try:
             _common, worktrees = list_worktrees(expand(repo))
@@ -353,17 +364,29 @@ def _age_hours(stamp: str | None) -> float | None:
     return round((datetime.now(UTC) - then).total_seconds() / 3600, 1)
 
 
-def disk_warnings(settings: MachineSettings | None = None) -> list[str]:
-    """What the owner should fix that does not stop a run: repositories over the idle-worktree
-    limit at the last full reclaim, and Cargo output no [[aged]] folder covers. Factory's
-    lane-status shows these to the foreman before it starts cells."""
+def disk_warnings(settings: MachineSettings | None = None, status: dict | None = None) -> list[str]:
+    """What the owner should fix that does not stop a run: registered repositories over the
+    idle-worktree limit when a reclaim last counted them, and Cargo output no [[aged]] folder
+    clears. A count older than 48 hours says when it was taken. Factory's lane-status shows
+    these to the foreman before it starts cells."""
     if settings is None:
         try:
             settings = load_machine_settings()[0]
         except SettingsError:
             return []
-    worktrees = (_read_status().get("worktree_warnings") or {}).get("warnings") or []
-    return [w for w in worktrees if isinstance(w, str)] + cargo_check(settings)["problems"]
+    snapshot = (status if status is not None else _read_status()).get("worktree_warnings")
+    repos = snapshot.get("repos") if isinstance(snapshot, dict) else None
+    registered = {path_key(expand(r)) for r in settings.repos}
+    warnings = []
+    for main, entry in (repos if isinstance(repos, dict) else {}).items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("warning"), str):
+            continue
+        if registered and path_key(main) not in registered:
+            continue  # no longer registered
+        age = _age_hours(entry.get("at"))
+        stale = age is None or age * 3600 > STALE_SECONDS
+        warnings.append(entry["warning"] + (f" (counted {entry.get('at')})" if stale else ""))
+    return warnings + cargo_check(settings)["problems"]
 
 
 def _volumes_now(settings: MachineSettings) -> list[dict]:
@@ -405,8 +428,7 @@ async def disk_status() -> CommandResult[dict]:
         "volumes": volumes,
         "healthy": not problems,
         "problems": problems,
-        "warnings": disk_warnings(settings),
-        "warnings_at": (status.get("worktree_warnings") or {}).get("at"),
+        "warnings": disk_warnings(settings, status),
     }
     return success(data=data,
                    suggestions=problems[:1] or data["warnings"][:1] or ["Nothing to do"])
