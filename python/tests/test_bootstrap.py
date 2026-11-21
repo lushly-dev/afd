@@ -200,6 +200,32 @@ class TestAfdHelp:
         assert todo_create.output_schema["properties"]["id"]["type"] == "string"
 
     @pytest.mark.asyncio
+    async def test_full_format_omits_empty_tags_and_examples(self):
+        """Empty tags and examples are left out, as afd-detail leaves them (#1480)."""
+        commands = [
+            CommandDefinition(name="no-lists", description="Declares none", handler=sample_handler),
+            CommandDefinition(
+                name="empty-lists",
+                description="Declares empty lists",
+                handler=sample_handler,
+                tags=[],
+                examples=[],
+            ),
+            *create_sample_commands(),
+        ]
+        cmd = create_afd_help_command(lambda: commands)
+
+        result = await cmd.handler({"format": "full"}, None)
+
+        wire = to_wire(result.data)
+        by_name = {entry["name"]: entry for entry in wire["commands"]}
+        for name in ("no-lists", "empty-lists"):
+            assert "tags" not in by_name[name]
+            assert "examples" not in by_name[name]
+        assert by_name["todo-create"]["tags"] == ["todo", "mutation", "write"]
+        assert by_name["todo-create"]["examples"] == [{"title": "Basic", "input": {"title": "Buy milk"}}]
+
+    @pytest.mark.asyncio
     async def test_grouped_by_category(self):
         """Test commands are grouped by category."""
         commands = create_sample_commands()
