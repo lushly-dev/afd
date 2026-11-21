@@ -85,6 +85,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
     settings.write_text(f'repos = [{json.dumps(str(main))}]\ncaches = []\n', encoding="utf-8")
     monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(settings))
     monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", "")
+    monkeypatch.setenv("CARGO_HOME", str(tmp_path / "cargo-home"))  # not the machine's own
+    for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(report, "running_processes", lambda: Processes(method="test"))
     return {"main": main, "old": old, "fresh": fresh, "settings": settings, "tmp": tmp_path}
 

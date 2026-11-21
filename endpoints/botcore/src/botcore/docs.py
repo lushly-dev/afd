@@ -185,14 +185,20 @@ repository holding the working directory) with its tier, idle days, whether a pr
 and the build output its `[disk].regenerable` patterns name. Also watched volumes, tool caches
 and aged cache folders. `unclassified=True` lists ignored paths no pattern covers.
 
-Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 3 report only
-(missing worktrees, orphan folders). Worktrees under T3 Code's worktree folders are marked
-`managed_by: "t3-code"`: T3 Code's storage cleanup removes them.
+Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 2 a finished
+worktree; 3 report only (missing worktrees, orphan folders). Worktrees under T3 Code's worktree
+folders are marked `managed_by: "t3-code"` (T3 Code's storage cleanup removes them), and
+Botcore Factory's lane slots (`<repository>.factory-slots/`) `managed_by: "factory"`; tier 2
+never removes either. Each repository's `idle_worktrees` counts linked worktrees idle
+`strip_after_days` or longer (kept ones and Factory's slots aside; `complete` is false when time
+ran out first); past the machine's `idle_worktree_limit` (20; 0 turns it off) it gets a
+`warning`, also listed in `warnings`. A repository whose `[disk]` cannot be read is not counted.
 
 ## disk_reclaim(tier=1, apply=False, repo=None, pressure=False, include_restorable=False)
 A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands (`uv cache
 prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
-store) and clears aged cache folders from the machine settings. Tier 1 also strips the build
+store) and clears aged cache folders from the machine settings (an entry's age is its newest
+time up to three folders down). Tier 1 also strips the build
 output disk_report marks ready in idle worktrees. Before each deletion it checks again that the
 worktree is idle and unused and the path is still ignored and untracked. When a watched volume
 is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and
@@ -211,12 +217,22 @@ records each volume holding their worktrees or T3 Code's worktree folders with i
 and a low-space threshold, and installs the hourly job: a LaunchAgent on macOS, a Task
 Scheduler task on Windows, a systemd user timer (or crontab) on Linux. Needs botcore installed
 as a tool (`uv tool install lushly-botcore==<version>`), not run through uvx. Safe to run
-again. `uninstall=True` removes the job and keeps settings and receipts.
+again. `uninstall=True` removes the job and keeps settings and receipts. Its `cargo` says where
+Cargo puts build output for the registered worktrees, reading Cargo's config files as Cargo
+does (each `.cargo/config` or `config.toml` from the worktree up, then `$CARGO_HOME`'s, with
+their includes) and this process's `CARGO_TARGET_DIR`, `CARGO_BUILD_TARGET_DIR` and
+`CARGO_BUILD_BUILD_DIR`. Inside each worktree is the default. Output moved out of them needs an
+`[[aged]]` folder that clears it: one per workspace (`{workspace-path-hash}`) under a folder
+that holds only Cargo output gets the exact entry to add; one folder shared by every workspace
+needs a `max_gb` cap.
 
 ## disk_status()
 The job's state, the last applied run and its age, free space on watched volumes, and
 `problems` (stale for over 48 hours, failures, low or unverified volumes). `healthy` is true
-when there are none. Session preflights read this.
+when there are none. Session preflights read this. `warnings` do not affect `healthy`: each
+registered repository's idle-worktree warning from the last reclaim that counted it fully
+(older than 48 hours, it says when), and Cargo output no `[[aged]]` folder clears. Botcore
+Factory's `lane_status` shows them to the foreman as `diskWarnings`.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts

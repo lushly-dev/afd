@@ -14,6 +14,23 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### The machines before prevention, 2026-11-20 (#1695)
+
+- **T3 Code's worktree folder** is the same on both Macs, since its settings match: `~/dev` on
+  the internal disk, with `/Volumes/Dev/worktrees` and `D:\Github\worktrees` kept as previous
+  folders, so T3 Code still manages the worktrees there. Storage cleanup: only "when the thread
+  is deleted" on the Air, nothing on Random (#1686).
+- **Idle worktrees** (3 days or more): Air Lushly 120 of 148, afd 29 of 46; Random Lushly 37 of
+  55, afd 20 of 28. Most are T3 Code's. With the limit at 20 the warning fires for three of the
+  four until #1686's rules are on.
+- **Cargo:** the Air sets nothing, so output stays inside each worktree. Random's `build-dir` is
+  `/Volumes/Dev/cargo-build/{workspace-path-hash}`, which its `[[aged]]` folder covers; its
+  192 GiB were all under 7 days old (the largest, `afd-p4`, 85 GB at two days). Hero could not
+  be reached to check.
+- **Factory's lane slots** (`<repository>.factory-slots/`) are detached worktrees that git
+  lists. Tier 2 could have removed an idle one, a parked slot's validation record with it; they
+  are now `managed_by: "factory"`.
+
 ### Rollout, 2026-11-20 (#1693)
 
 - Installed on each machine with `uv tool install` from #1698's merge commit `0f50fb7dc`
@@ -96,8 +113,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Phase 3. Removing finished worktrees
 
-- Tier 2, `disk-keep` and `disk-restore` (#1694): in PR #1723.
+- Tier 2, `disk-keep` and `disk-restore` (#1694): merged in #1723 on 2026-11-20; off on every machine until `disk-setup --remove-landed`.
 
 ## Phase 4. Prevention
 
-- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): not started.
+- One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): in PR #1728.

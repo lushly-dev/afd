@@ -29,7 +29,9 @@ and the change (a wait without `timeout_ms` keeps no lease) is refused `FOREMAN_
 nothing: read `lane_status`, then call again if no other session holds the lane.
 
 1. `lane_status()`: when `canStartCell`, it names the `plan` and `nextIssue`; otherwise `reason`
-   (and `nextReset` when every plan is at its ceiling).
+   (and `nextReset` when every plan is at its ceiling). Pass any `diskWarnings` (too many idle
+   worktrees, Cargo output nothing removes) on to the owner before starting cells; they never
+   stop one.
 2. `cell_register(issues=[nextIssue], branch, route, session)`: claims the issue on GitHub
    (`status:in-progress` plus a claim comment with the lease) and assigns the plan. Call it
    before starting the cell, so a refusal costs nothing; then `cell_attach(branch, thread)`.
@@ -174,7 +176,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `queue` and `seen` (GitHub showed a queue, and this entry in it), `removedBefore` (the
   last removal before the request) and `leftAt` (when it was first read out of the queue)),
   `waitingOnOwner` (owner-decision issues, parked cells and ejected cells at the limit, and
-  events that need the owner), `dials`, `canStartCell` with `plan` (with its `pace`) and
+  events that need the owner), `dials`, `diskWarnings[]` (botcore `disk-status` warnings on
+  this machine; empty without disk hygiene), `canStartCell` with `plan` (with its `pace`) and
   `nextIssue`, or `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
   `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held. A repaired
