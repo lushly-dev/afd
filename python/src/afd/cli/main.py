@@ -31,6 +31,7 @@ from afd.cli.output import (
     print_warning,
 )
 from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
+from afd.cli.terminal import terminal_text
 from afd.core.builtin_names import is_afd_builtin_name
 from afd.cli.elicitation import interactive_elicitation
 from afd.transports import (
@@ -74,7 +75,10 @@ def _save_state(state: dict[str, Any]) -> None:
 
 
 def _get_transport(
-    server: str | None = None, *, on_elicitation: ElicitationHandler | None = None
+    server: str | None = None,
+    *,
+    on_elicitation: ElicitationHandler | None = None,
+    timeout: float | None = None,
 ) -> Transport:
     """
     Get a transport instance.
@@ -86,6 +90,7 @@ def _get_transport(
             - an http(s) URL ending in /message or /messages for HttpTransport (deprecated)
             - any other http(s) URL (such as /mcp) for StreamableHttpTransport
         on_elicitation: Answers server elicitations on a Streamable HTTP transport.
+        timeout: Request timeout in seconds; the transport's default when omitted.
 
     Returns:
         Configured transport instance
@@ -110,12 +115,13 @@ def _get_transport(
 
     parsed = urlparse(server)
     if parsed.scheme in {"http", "https"} and parsed.netloc:
+        options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
         normalized_path = parsed.path.rstrip("/")
         if normalized_path.endswith("/message") or normalized_path.endswith("/messages"):
-            return HttpTransport(server)
+            return HttpTransport(server, **options)
         if normalized_path.endswith("/sse"):
-            return SseTransport(server)
-        return StreamableHttpTransport(server, on_elicitation=on_elicitation)
+            return SseTransport(server, **options)
+        return StreamableHttpTransport(server, on_elicitation=on_elicitation, **options)
 
     raise click.ClickException(
         f"'{server}' is not a server URL. Connect to a running server by URL, for example "
@@ -422,6 +428,180 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
         asyncio.run(_call_module() if module_path is not None else _call_tool())
     except Exception as e:
         print_error(str(e))
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("commands")
+@click.option("--server", help="Server to use (uses saved connection if omitted)")
+@click.option("--stop-on-error", "-s", is_flag=True, help="Stop execution on first error")
+@click.option("--timeout", "-t", type=click.IntRange(min=1), default=30000, show_default=True,
+              help="Timeout for the entire batch in milliseconds")
+@click.option("--parallel", "-p", type=click.IntRange(min=1), default=1, show_default=True,
+              help="Maximum parallel commands (1 = sequential)")
+@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
+              default="text", show_default=True, help="Output format (--json also selects json)")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output for each command")
+@click.pass_context
+def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: bool,
+          timeout: int, parallel: int, output_format: str, verbose: bool) -> None:
+    """
+    Execute multiple commands in a single batch request.
+
+    COMMANDS is a JSON array, [{"command":"name","input":{}},...], or the path
+    of a .json file holding one. Exits 1 when the batch fails and 2 when some
+    of its commands fail.
+
+    \b
+    Examples:
+        afd batch '[{"command":"todo-create","input":{"title":"Task 1"}}]'
+        afd batch ./commands.json --stop-on-error --verbose
+    """
+    from afd.cli.batch_stream import (
+        SERVER_DEADLINE_MARGIN_S,
+        batch_exit_code,
+        batch_text,
+        parse_batch_commands,
+        run_batch,
+    )
+
+    json_output = ctx.obj.get("json_output", False) or output_format == "json"
+    try:
+        parsed = parse_batch_commands(commands)
+    except (ValueError, OSError) as e:
+        print_error(f"Invalid commands format: {e}")
+        click.echo("\nExpected format:\n  [{\"command\":\"todo-create\",\"input\":{\"title\":\"Task 1\"}},...]"
+                   "\n\nOr provide a JSON file path:\n  afd batch ./commands.json", err=True)
+        sys.exit(1)
+
+    # The batch deadline runs on the server; wait a margin past it for the answer.
+    transport = _get_transport(
+        server,
+        on_elicitation=interactive_elicitation(_terminal_yes),
+        timeout=timeout / 1000 + SERVER_DEADLINE_MARGIN_S,
+    )
+
+    async def _batch() -> dict[str, Any]:
+        await transport.connect()
+        try:
+            return await run_batch(transport.call_tool, parsed, {
+                "stopOnError": stop_on_error,
+                "timeout": timeout,
+                "parallelism": parallel,
+            })
+        finally:
+            await transport.disconnect()
+
+    try:
+        result = asyncio.run(_batch())
+    except Exception as e:
+        print_error(f"Batch execution error: {e}")
+        sys.exit(1)
+
+    if json_output:
+        click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        click.echo("\n".join(batch_text(result, verbose=verbose)))
+    code = batch_exit_code(result)
+    if code:
+        sys.exit(code)
+
+
+@cli.command()
+@click.argument("name")
+@click.argument("args", required=False, default="{}")
+@click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
+@click.option("--timeout", "-t", type=click.IntRange(min=1), default=60000, show_default=True,
+              help="Timeout in milliseconds")
+@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
+              default="text", show_default=True,
+              help="Output format: json prints one chunk per line (--json also selects it)")
+@click.option("--progress/--no-progress", default=True, help="Show or hide progress updates")
+@click.pass_context
+def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout: int,
+           output_format: str, progress: bool) -> None:
+    """
+    Execute a command with streaming results (Ctrl+C to cancel).
+
+    NAME is the command; ARGS is a JSON object of its arguments (default: {}).
+    The server must serve AFD's POST /stream/<command> next to its MCP
+    endpoint, as the TypeScript server does. Exits 1 on an error chunk and 130
+    when cancelled.
+
+    \b
+    Examples:
+        afd stream export-run '{"format": "csv"}'
+        afd stream export-run --format json --no-progress
+    """
+    from afd.cli.batch_stream import (
+        EXIT_CANCELLED,
+        StreamPrinter,
+        bounded_stream,
+        stream_error_chunk,
+    )
+    from afd.client import McpClient, McpClientConfig
+
+    json_output = ctx.obj.get("json_output", False) or output_format == "json"
+    try:
+        parsed_args = json.loads(args)
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON arguments: {e}")
+        sys.exit(1)
+    if not isinstance(parsed_args, dict):
+        raise click.UsageError("Arguments must be a JSON object")
+
+    url = server or _load_state().get("server")
+    if url and (url == "mock" or url.startswith("mock:")):
+        raise click.ClickException(
+            "Streaming needs an HTTP server URL; the mock transport has no stream endpoint."
+        )
+    # Each read may wait as long as the whole stream may run.
+    transport = _get_transport(url, timeout=timeout / 1000)
+
+    def write(text: str) -> None:
+        click.echo(text, nl=False)
+
+    printer = StreamPrinter(show_progress=progress, write=write)
+    failed = False
+
+    async def _stream() -> None:
+        nonlocal failed
+        client = McpClient(
+            McpClientConfig(url=url, auto_reconnect=False, timeout=timeout / 1000),
+            transport=transport,
+        )
+        await client.connect()
+        try:
+            if not json_output and progress:
+                click.echo(click.style(f"Streaming {terminal_text(name)}... (Ctrl+C to cancel)", dim=True))
+                click.echo()
+            async for chunk in bounded_stream(client.stream(name, parsed_args), timeout / 1000):
+                if json_output:
+                    click.echo(json.dumps(chunk, ensure_ascii=False, separators=(",", ":")))
+                    failed = failed or (isinstance(chunk, dict) and chunk.get("type") == "error")
+                elif printer.handle(chunk):
+                    failed = True
+        finally:
+            await client.disconnect()
+
+    try:
+        asyncio.run(_stream())
+    except KeyboardInterrupt:
+        printer.clear_progress()
+        if not json_output:
+            click.echo()
+            click.echo(click.style("⚠ Stream cancelled by user", fg="yellow"))
+        sys.exit(EXIT_CANCELLED)
+    except Exception as e:
+        if json_output:
+            click.echo(json.dumps(stream_error_chunk(
+                "STREAM_FAILED", str(e), "Check the connection and retry the stream", 0,
+                recoverable=True,
+            ), ensure_ascii=False, separators=(",", ":")))
+        else:
+            print_error(f"Stream failed: {terminal_text(e)}")
+        sys.exit(1)
+    if failed:
         sys.exit(1)
 
 

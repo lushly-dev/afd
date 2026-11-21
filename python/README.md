@@ -535,7 +535,14 @@ where the agent's own code is the MCP client.
 afd connect http://localhost:3100/mcp   # MCP Streamable HTTP (/sse and /message URLs use the deprecated transports)
 afd tools
 afd call todo-create '{"title": "Hello"}'
+afd batch '[{"command": "todo-create", "input": {"title": "One"}}, {"command": "todo-list"}]'
+afd stream export-run '{"format": "csv"}'
 ```
+
+`afd batch` sends one `afd-batch` call (a JSON array or a `.json` file; `-s` stops on the
+first error, `-t` sets the batch deadline in milliseconds, `-p` the parallelism) and exits 2 when
+some commands fail. `afd stream` reads AFD's `POST /stream/<command>` events, which the
+TypeScript server serves; `-f json` prints one chunk per line, and Ctrl+C exits 130.
 
 `afd connect` takes a server URL (or `mock` for testing); it does not start or name
 servers. `afd call item-delete --module ./commands.py` instead loads a trusted Python file

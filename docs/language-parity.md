@@ -203,7 +203,7 @@ Limits of these checks:
 | Browser-safe MCP transport (`StreamableHttpTransport` at `@lushly-dev/afd-client/streamable-http`, with no Node.js builtin or `eventsource` of ours and a 340,000-byte budget; Loam phase 1 step 0a) | Yes | N/A | N/A | N/A |
 | In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Yes (#545 candidate): validating `create_direct_registry` enforces exposure; fail-closed `allow` (carried into nested calls), ordered middleware and millisecond deadlines on `DirectClient`; legacy registries remain host adapters | Partial: approval-aware `DirectClient.call` with agent exposure and total deadline; no `pipe`, `allow` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | `DirectClient` interface selection (the interface calls run as, default `agent`, so a CLI host calls CLI-exposed commands) | Yes (`createDirectRegistry({ interface })`) | Yes (`DirectCommandRegistry(server, interface=...)`) | Yes (added in the Rust crate's Unreleased changes): `DirectClient::with_interface` | Yes: `DirectClientOptions::surface` |
-| CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
+| CLI | Yes | Partial: `batch` and `stream` as TypeScript's (#548), with `--server` for the connection and a JSON-object `ARGS` only (no `key=value` pairs, as `call`) and no `--header`; `stream` needs a server with AFD's `/stream` route, such as the TypeScript server. No `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
 | Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No | No |
 | UI: view-state, adapters, local-db, React hooks | Yes | N/A | N/A | N/A |
