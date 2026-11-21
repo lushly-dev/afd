@@ -30,7 +30,7 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
-import { approvalAdmitted, beginAdmission } from './approval-admission.js';
+import { beginAdmission, gates, takeAdmission } from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	filterByContext,
@@ -217,11 +217,9 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			// A declared approval policy holds without the approval middleware: a command whose
 			// policy is not 'not-required' runs only when an approval step admitted this call. A
 			// policy function is not evaluated here; declaring one needs an approval step.
-			if (
-				command.approval !== undefined &&
-				command.approval !== 'not-required' &&
-				!approvalAdmitted(context)
-			) {
+			// The admission must name this command and this validated input, and is taken here, so a
+			// second dispatch on the same context (a retry inside the chain) needs a second admission.
+			if (gates(command.approval) && !takeAdmission(context, commandName, data)) {
 				return failure({
 					code: 'APPROVAL_UNAVAILABLE',
 					message: `${commandName} needs a person's approval, and this server cannot ask for it`,

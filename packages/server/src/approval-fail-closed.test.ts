@@ -4,6 +4,8 @@
  * (spec/command-metadata.md, "Approvals").
  */
 
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { createDirectClient } from '@lushly-dev/afd-client';
 import type {
 	ApprovalPolicy,
@@ -11,13 +13,16 @@ import type {
 	CommandMiddleware,
 	CommandResult,
 } from '@lushly-dev/afd-core';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createApprovalMiddleware } from './approval.js';
+import { installAdmissionRecords } from './approval-admission.js';
 import { createDirectRegistry } from './direct-registry.js';
 import { createExecutionEngine } from './execution.js';
+import { createRetryMiddleware } from './middleware.js';
 import { defineCommand } from './schema.js';
-import { createMcpServer } from './server.js';
+import { createMcpHandler, createMcpServer } from './server.js';
 
 const SECRET = 'test-approval-secret-0123456789abcdef';
 
@@ -213,19 +218,22 @@ describe('the approval middleware decides from the command it runs', () => {
 		expect(ran).toEqual(['outer']);
 	});
 
-	it('admits through a second installed copy, which shares the records on globalThis', async () => {
+	it('admits through an independently loaded copy of the middleware module', async () => {
 		const { ran, commands } = fixture();
-		// What another copy of the package's middleware does: mark the call through the shared map.
-		const otherCopy: CommandMiddleware = (_name, _input, context, next) => {
-			const shared = (globalThis as Record<symbol, unknown>)[
-				Symbol.for('dev.afd/approval-admission')
-			] as WeakMap<CommandContext, { admitted: boolean }>;
-			const record = shared.get(context);
-			if (record) record.admitted = true;
-			return next();
-		};
-		const registry = createDirectRegistry(commands, { middleware: [otherCopy] });
-		expect((await registry.execute('todo-delete', { id: 1 })).success).toBe(true);
+		vi.resetModules();
+		const other = (await import('./approval.js')) as typeof import('./approval.js');
+		expect(other.createApprovalMiddleware).not.toBe(createApprovalMiddleware);
+		// The engine is this file's copy; the approval middleware is the other copy's.
+		const engine = createExecutionEngine({
+			commandMap: new Map(commands.map((command) => [command.name, command])),
+			middleware: [other.createApprovalMiddleware({ secret: SECRET })],
+			devMode: false,
+		});
+		const held = await engine.executeCommand('todo-delete', { id: 1 });
+		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		const token = (held.error?.details as { approvalToken?: string } | undefined)?.approvalToken;
+		const retried = await engine.executeCommand('todo-delete', { id: 1 }, { approval: token });
+		expect(retried).toMatchObject({ success: true, data: { id: 1 } });
 		expect(ran).toEqual(['todo-delete:1']);
 	});
 
@@ -236,5 +244,188 @@ describe('the approval middleware decides from the command it runs', () => {
 				commands: [{ name: 'x', approval: 'sometimes' as never }],
 			})
 		).toThrow(/invalid approval policy/);
+	});
+});
+
+describe('one admission runs one handler, on what was approved', () => {
+	/** A registry whose todo-delete is approved through DirectClient, with `after` behind approval. */
+	function approved(after: CommandMiddleware) {
+		const { ran, commands } = fixture();
+		const registry = createDirectRegistry(commands, {
+			middleware: [createApprovalMiddleware({ secret: SECRET }), after],
+		});
+		return { ran, client: createDirectClient(registry, { onApprovalNeeded: async () => true }) };
+	}
+
+	it('refuses a retry inside the chain after the approval middleware', async () => {
+		let attempts = 0;
+		const handled = vi.fn();
+		const flaky = defineCommand({
+			name: 'todo-delete',
+			description: 'Fails once with a transient error',
+			approval: 'required',
+			input: z.object({ id: z.number() }),
+			handler: async () => {
+				handled();
+				attempts++;
+				return attempts === 1
+					? { success: false as const, error: { code: 'TRANSIENT_ERROR', message: 'try again' } }
+					: { success: true as const, data: null };
+			},
+		});
+		const registry = createDirectRegistry([flaky], {
+			middleware: [
+				createApprovalMiddleware({ secret: SECRET }),
+				createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false }),
+			],
+		});
+		const client = createDirectClient(registry, { onApprovalNeeded: async () => true });
+		const result = await client.call('todo-delete', { id: 1 });
+		expect(handled).toHaveBeenCalledOnce();
+		expect(result.error?.code).toBe('APPROVAL_UNAVAILABLE');
+	});
+
+	it('refuses an input changed in place after the approval', async () => {
+		const { ran, client } = approved((_name, input, _context, next) => {
+			(input as { id: number }).id = 99;
+			return next();
+		});
+		expectUnavailable(await client.call('todo-delete', { id: 1 }), 'todo-delete');
+		expect(ran).toEqual([]);
+	});
+
+	it('refuses an admission for another command', async () => {
+		const { ran, commands } = fixture();
+		const approval = createApprovalMiddleware({ secret: SECRET });
+		// Asks the middleware about an ungated command, then lets the gated one through.
+		const swap: CommandMiddleware = (_name, input, context, next) =>
+			approval('todo-touch', input, context, next);
+		const registry = createDirectRegistry(commands, { middleware: [swap] });
+		expectUnavailable(await registry.execute('todo-delete', { id: 1 }), 'todo-delete');
+		expect(ran).toEqual([]);
+	});
+
+	it('runs an approved call whose middleware after the approval leaves it alone', async () => {
+		const { ran, client } = approved((_name, _input, _context, next) => next());
+		expect((await client.call('todo-delete', { id: 2 })).success).toBe(true);
+		expect(ran).toEqual(['todo-delete:2']);
+	});
+});
+
+describe('a policy given only in the commands list', () => {
+	it('still holds the command', async () => {
+		const ran = vi.fn();
+		const wipe = defineCommand({
+			name: 'todo-wipe',
+			description: 'Wipe todos; its gate is declared only in the middleware list',
+			input: z.object({}),
+			handler: async () => {
+				ran();
+				return { success: true as const, data: null };
+			},
+		});
+		const registry = createDirectRegistry([wipe], {
+			middleware: [
+				createApprovalMiddleware({
+					secret: SECRET,
+					commands: [{ name: 'todo-wipe', approval: 'required' }],
+				}),
+			],
+		});
+		const held = await registry.execute('todo-wipe', {});
+		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(ran).not.toHaveBeenCalled();
+	});
+
+	it('holds when a listed function holds, though the command declares not-required', async () => {
+		const { ran, commands } = fixture();
+		const registry = createDirectRegistry(commands, {
+			middleware: [
+				createApprovalMiddleware({
+					secret: SECRET,
+					commands: [{ name: 'todo-touch', approval: () => 'required' }],
+				}),
+			],
+		});
+		expect((await registry.execute('todo-touch', { id: 1 })).error?.code).toBe('APPROVAL_REQUIRED');
+		expect(ran).toEqual([]);
+	});
+});
+
+describe('over MCP tools/call, with no approval middleware', () => {
+	it('refuses a gated command through its own tool and afd-call, before the handler', async () => {
+		const { ran, commands } = fixture();
+		const handler = createMcpHandler({
+			name: 'fail-closed',
+			version: '1.0.0',
+			commands: commands.map((command) => ({
+				...command,
+				expose: { mcp: true },
+			})) as typeof commands,
+			host: '127.0.0.1',
+			toolStrategy: 'individual',
+		});
+		const http = createServer(handler);
+		await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+		const client = new Client({ name: 'fail-closed-client', version: '0' });
+		try {
+			const port = (http.address() as AddressInfo).port;
+			await client.connect(
+				new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`))
+			);
+			for (const call of [
+				{ name: 'todo-delete', arguments: { id: 1 } },
+				{ name: 'afd-call', arguments: { command: 'todo-delete', input: { id: 2 } } },
+			]) {
+				const result = await client.callTool(call);
+				const content = (result as { content: Array<{ text: string }> }).content;
+				const body = JSON.parse(content[0]?.text ?? '{}') as CommandResult;
+				expect(body.error?.code).toBe('APPROVAL_UNAVAILABLE');
+				expect((result as { isError?: boolean }).isError).toBe(true);
+			}
+			expect(ran).toEqual([]);
+		} finally {
+			await client.close();
+			handler.dispose();
+			http.closeAllConnections();
+			await new Promise<void>((resolve) => http.close(() => resolve()));
+		}
+	});
+});
+
+describe('the shared admission records', () => {
+	const KEY = Symbol.for('dev.afd/approval-admission');
+
+	it('are installed once on globalThis, non-writable and non-configurable', () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, KEY);
+		expect(descriptor).toMatchObject({ writable: false, configurable: false, enumerable: false });
+		expect(Object.getPrototypeOf(descriptor?.value)).toBe(WeakMap.prototype);
+		expect(installAdmissionRecords()).toBe(descriptor?.value);
+	});
+
+	it('install on a free holder and are shared by a copy that finds them', () => {
+		const holder = {};
+		const first = installAdmissionRecords(holder);
+		expect(installAdmissionRecords(holder)).toBe(first);
+		expect(() => {
+			(holder as Record<symbol, unknown>)[KEY] = new WeakMap();
+		}).toThrow(TypeError);
+	});
+
+	it('ignore anything else pre-installed under the key', () => {
+		class Admitting extends WeakMap<object, unknown> {}
+		const impostors: Array<[unknown, PropertyDescriptor]> = [
+			[new WeakMap(), { writable: true, configurable: true }],
+			[new Admitting(), { writable: false, configurable: false }],
+			[{ get: () => ({ admitted: true }) }, { writable: false, configurable: false }],
+			[Object.assign(new WeakMap(), { get: () => ({}) }), { writable: false, configurable: false }],
+		];
+		for (const [value, flags] of impostors) {
+			const holder = {};
+			Object.defineProperty(holder, KEY, { value, ...flags });
+			const records = installAdmissionRecords(holder);
+			expect(records).not.toBe(value);
+			expect(Object.getPrototypeOf(records)).toBe(WeakMap.prototype);
+		}
 	});
 });

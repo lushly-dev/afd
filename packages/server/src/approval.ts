@@ -43,7 +43,7 @@ import {
 	holdDirectApproval,
 	takeDirectApproval,
 } from '@lushly-dev/afd-core/internal/direct-approval';
-import { admitApproval, liveCommand, livePolicy } from './approval-admission.js';
+import { admitApproval, gates, liveCommand } from './approval-admission.js';
 import {
 	type ApprovalKey,
 	type ApprovalSecret,
@@ -131,10 +131,11 @@ export interface ApprovalMiddlewareOptions {
 	secret: ApprovalSecret | readonly ApprovalSecret[];
 
 	/**
-	 * Optional. Under `createMcpServer` and `createDirectRegistry` the middleware decides from the
-	 * policy and `confirmPrompt` of the command each call runs, and this list is not consulted.
-	 * It is only for using the middleware outside them, when no engine names the command: then a
-	 * command missing from it is not held. Each policy given is validated.
+	 * Optional. The middleware decides from the policy and `confirmPrompt` of the command each call
+	 * runs (under `createMcpServer` and `createDirectRegistry`), and also from the policy this list
+	 * gives that command: a call is held when either holds it, so a gate declared only here still
+	 * holds. Outside those engines, where no engine names the command, only this list decides, and
+	 * a command missing from it is not held. Each policy given is validated.
 	 */
 	commands?: Iterable<ApprovalCommand>;
 
@@ -291,12 +292,37 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return upFrontApproval(context)?.command(commandName) ?? commands.get(commandName);
 	}
 
-	async function requiresApproval(
-		command: ApprovalCommand | undefined,
+	/**
+	 * The policies that decide `commandName` for this call: the command's own (see
+	 * {@link commandFor}) and, when it differs, the one the `commands` option lists for it. The call
+	 * is held when either holds it.
+	 */
+	function policiesFor(
+		commandName: string,
+		context: CommandContext
+	): Array<ApprovalPolicy<never> | undefined> {
+		const own = commandFor(commandName, context)?.approval;
+		const listed = commands.get(commandName)?.approval;
+		return listed === undefined || listed === own ? [own] : [own, listed];
+	}
+
+	/** Whether this call of `commandName` needs approval: its own policy or its listed one holds it. */
+	async function holds(
+		commandName: string,
 		input: unknown,
 		context: CommandContext
 	): Promise<boolean> {
-		const policy = command?.approval;
+		for (const policy of policiesFor(commandName, context)) {
+			if (await requiresApproval(policy, input, context)) return true;
+		}
+		return false;
+	}
+
+	async function requiresApproval(
+		policy: ApprovalPolicy<never> | undefined,
+		input: unknown,
+		context: CommandContext
+	): Promise<boolean> {
 		if (policy === undefined || policy === 'not-required') return false;
 		// Fail closed: 'required' or anything that is not a function holds the call.
 		if (typeof policy !== 'function') return true;
@@ -428,6 +454,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return (
 			options.summarize?.(commandName, input, context) ||
 			commandFor(commandName, context)?.confirmPrompt ||
+			commands.get(commandName)?.confirmPrompt ||
 			`Run ${commandName}`
 		);
 	}
@@ -435,12 +462,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	// What the up-front gate of an afd-batch or afd-pipe needs; the MCP lane brings the gate.
 	const upFrontDeps: UpFrontDeps = {
 		clock,
-		requiresApproval: (commandName, input, context) =>
-			requiresApproval(commandFor(commandName, context), input, context),
-		mayRequireApproval: (commandName, context) => {
-			const policy = commandFor(commandName, context)?.approval;
-			return policy !== undefined && policy !== 'not-required';
-		},
+		requiresApproval: holds,
+		mayRequireApproval: (commandName, context) => policiesFor(commandName, context).some(gates),
 		bindings: async (tags, commandName, input, actor) =>
 			Promise.all(
 				keys.map(async (key, at) =>
@@ -469,10 +492,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, outerNext) => {
-		// Every way this middleware lets the call through marks it admitted, which the engine
-		// checks before it dispatches a command that declares an approval policy.
+		// Every way this middleware lets the call through admits this command on this input, which
+		// the engine checks, and takes, before it dispatches a command that declares an approval policy.
 		const next = () => {
-			admitApproval(context);
+			admitApproval(context, commandName, input);
 			return outerNext();
 		};
 		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
@@ -489,12 +512,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
 		const upFront = relays ? upFrontApproval(context) : undefined;
 		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
-		// The policy of the command this call runs; the `commands` option only outside the engine.
-		const live = livePolicy(context);
-		const command = live.found
-			? { name: commandName, approval: live.policy }
-			: commands.get(commandName);
-		if (!(await requiresApproval(command, input, context))) return next();
+		// The policy of the command this call runs, and the one the `commands` option lists for it.
+		if (!(await holds(commandName, input, context))) return next();
 
 		const now = clock.now();
 		const inputBinding = canonicalJson(input);
