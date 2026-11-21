@@ -513,6 +513,21 @@ TEST_CASE("an approval step admits only a call one of its own policies may gate"
         CHECK(attempts == 1);
     }
 
+    SUBCASE("a retry between it and a second approval middleware that lets it through") {
+        // Both may gate the call, so both admit; the retry reruns only the second, and the
+        // dispatch needs a fresh admission from each.
+        const auto client = client_of(
+            {flaky},
+            {approval_middleware(listed), retry,
+             approval_middleware({afd::ApprovalCommand(
+                 "todo-delete", afd::ApprovalPolicy([](const Json&, const afd::CommandContext&) {
+                     return afd::ApprovalDecision::not_required;
+                 }))})});
+        check_unavailable(client.call("todo-delete", {{"id", 5}}), "todo-delete",
+                          "admission-mismatch");
+        CHECK(attempts == 1);
+    }
+
     /// A middleware that changes the validated input in place.
     const afd::CommandMiddleware change = [](std::string_view, const Json& input,
                                              afd::CommandContext&, const afd::Next& next) {

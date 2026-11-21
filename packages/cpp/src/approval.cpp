@@ -1045,14 +1045,14 @@ bool gates(const std::optional<ApprovalPolicy>& policy) noexcept {
     return policy && (policy->function() || policy->decision() != ApprovalDecision::not_required);
 }
 
-void admit_approval(CommandContext& context, std::string_view name, const Json& input,
-                    bool listed_gate) {
+void admit_approval(CommandContext& context, const void* step, std::string_view name,
+                    const Json& input, bool listed_gate) {
     ApprovalAdmission* record = context.approval_admission.get();
     if (!record) {
         return;
     }
     AdmittedCall admitted{
-        .name = std::string(name), .canonical = std::nullopt, .input = std::nullopt};
+        .step = step, .name = std::string(name), .canonical = std::nullopt, .input = std::nullopt};
     if (auto encoded = canonical_json(input)) {
         admitted.canonical = std::move(*encoded);
     } else {
@@ -1062,6 +1062,9 @@ void admit_approval(CommandContext& context, std::string_view name, const Json& 
     const std::lock_guard lock(record->mutex);
     if (listed_gate) {
         record->listed_gate = true;
+    }
+    if (std::find(record->steps.begin(), record->steps.end(), step) == record->steps.end()) {
+        record->steps.push_back(step);
     }
     record->admitted.push_back(std::move(admitted));
 }
@@ -1084,6 +1087,13 @@ AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& c
         }
         admitted.swap(record.admitted);
         record.taken = true;
+        // Every step that ever admitted the call must have admitted it again for this dispatch.
+        for (const void* step : record.steps) {
+            if (std::none_of(admitted.begin(), admitted.end(),
+                             [step](const AdmittedCall& call) { return call.step == step; })) {
+                return AdmissionCheck::mismatch;
+            }
+        }
     }
     // A middleware may have put another call's record on the context: the admission must be on
     // the record the registry made for this dispatch, and that record must still be the call's.
@@ -1172,7 +1182,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         const bool listed_gate = decider.listed && detail::gates(decider.listed->approval);
         const Next next = [&]() {
             if (may_gate) {
-                detail::admit_approval(context, name, input, listed_gate);
+                detail::admit_approval(context, state.get(), name, input, listed_gate);
             }
             return outer_next();
         };

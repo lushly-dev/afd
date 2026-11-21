@@ -28,6 +28,8 @@ namespace afd::detail {
 
 /// What an approval step admitted: the command and input it decided on.
 struct AdmittedCall {
+    /// The approval step (one middleware instance) that admitted it, by identity.
+    const void* step = nullptr;
     std::string name;
     /// The canonical JSON of the input; unset when it has none.
     std::optional<std::string> canonical;
@@ -43,10 +45,14 @@ struct ApprovalAdmission {
     /// The command the call runs, as registered.
     std::shared_ptr<const CommandDefinition> command;
     std::mutex mutex;
-    /// What each approval step admitted, in order. Two approval middlewares on one registry each
-    /// admit, and the dispatch must match them all, so a later one never replaces or weakens an
-    /// earlier one's binding.
+    /// What each approval step admitted since the last dispatch. Two approval middlewares on one
+    /// registry each admit, and the dispatch must match them all, so a later one never replaces or
+    /// weakens an earlier one's binding.
     std::vector<AdmittedCall> admitted;
+    /// Every approval step that ever admitted this call, by identity. Never cleared: a dispatch
+    /// needs a fresh admission from each, so a retry that reruns only the steps after one of them
+    /// is refused.
+    std::vector<const void*> steps;
     /// Set once a dispatch took an admission, so a second dispatch reads as a mismatch.
     bool taken = false;
     /// Set by an approval step whose `commands` list gives the command a gating policy, so the
@@ -59,11 +65,12 @@ struct ApprovalAdmission {
 /// policy function counts, unevaluated.
 bool gates(const std::optional<ApprovalPolicy>& policy) noexcept;
 
-/// Records that an approval step admitted the call of `context` to run `name` on `input`;
-/// `listed_gate` when the policy its `commands` list gives the command gates it. A no-op for a
-/// context the registry did not record. Called only for a call one of the step's policies may gate.
-void admit_approval(CommandContext& context, std::string_view name, const Json& input,
-                    bool listed_gate);
+/// Records that the approval step `step` (one middleware instance, by identity) admitted the call
+/// of `context` to run `name` on `input`; `listed_gate` when the policy its `commands` list gives
+/// the command gates it. A no-op for a context the registry did not record. Called only for a call
+/// one of the step's policies may gate.
+void admit_approval(CommandContext& context, const void* step, std::string_view name,
+                    const Json& input, bool listed_gate);
 
 /// Whether the registry must take and check an admission before it dispatches the call of
 /// `record`: its command's own policy gates it, or an approval step marked it as gated by its list.
@@ -72,11 +79,13 @@ bool needs_admission(ApprovalAdmission& record);
 enum class AdmissionCheck { admitted, missing, mismatch };
 
 /// Takes the admissions of `record`, the one the registry made for this dispatch: `admitted` when
-/// `context` still carries that record and every admission names `name` and the same canonical
+/// `context` still carries that record, every approval step that ever admitted the call admitted
+/// it again since the last dispatch, and every admission names `name` and the same canonical
 /// `input` (the same by value, when it has no canonical form), `missing` when no approval step
 /// admitted the call and none was taken, `mismatch` otherwise (another record, command or input,
-/// or a second dispatch). Taken whatever the answer, in one step under the record's mutex, and
-/// never restored, so a second or concurrent dispatch needs a second admission.
+/// a step with no fresh admission, or a second dispatch). Taken whatever the answer, in one step
+/// under the record's mutex, and never restored, so a second or concurrent dispatch needs a second
+/// admission.
 AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
                               std::string_view name, const Json& input);
 
