@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import tempfile
+import time
 from pathlib import Path
 
 from .models import MemoryEntry
@@ -34,14 +37,45 @@ class LocalMemoryStore(MemoryStore):
         return self._base_path / scope / f"{scope_id}.json"
 
     def _read_file(self, path: Path) -> dict[str, dict]:
-        if not path.exists():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
             return {}
-        text = path.read_text(encoding="utf-8")
         return json.loads(text) if text.strip() else {}
+
+    @staticmethod
+    def _replace_file(tmp_path: Path, target_path: Path) -> None:
+        max_attempts = 5 if os.name == "nt" else 1
+        for attempt in range(max_attempts):
+            try:
+                os.replace(tmp_path, target_path)
+                return
+            except PermissionError:
+                if attempt + 1 >= max_attempts:
+                    raise
+                time.sleep(0.01 * (2**attempt))
 
     def _write_file(self, path: Path, data: dict[str, dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        payload = json.dumps(data, indent=2, ensure_ascii=False)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.stem}.",
+            suffix=".tmp",
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            self._replace_file(tmp_path, path)
+        except BaseException:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     async def set(
         self,
@@ -114,9 +148,8 @@ class LocalMemoryStore(MemoryStore):
             files = list(scope_dir.glob("*.json"))
 
         for file_path in files:
-            if not file_path.exists():
-                continue
-            data = self._read_file(file_path)
+            async with self._get_lock(scope, file_path.stem):
+                data = self._read_file(file_path)
             for raw in data.values():
                 entry = MemoryEntry.from_dict(raw)
                 # Substring match on key or value
