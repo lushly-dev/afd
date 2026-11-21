@@ -94,6 +94,9 @@ impl Provider for Sampled {
     async fn list(&mut self) -> Result<Listing, ProviderError> {
         timed(&self.timings, "list", self.inner.list()).await
     }
+    async fn returned(&mut self) -> Result<Vec<String>, ProviderError> {
+        timed(&self.timings, "returned", self.inner.returned()).await
+    }
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError> {
         timed(&self.timings, "changes", self.inner.changes(cursor)).await
     }

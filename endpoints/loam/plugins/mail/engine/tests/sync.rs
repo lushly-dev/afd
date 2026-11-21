@@ -620,6 +620,138 @@ fn later_passes_record_flags_removals_and_new_mail_with_or_without_extensions() 
 }
 
 #[test]
+fn mail_that_leaves_unreported_is_found_gone_by_the_mailboxs_count() {
+    // iCloud's trash let old mail go with no VANISHED for it, and its
+    // search still listed it: only the mailbox's count said so.
+    for (condstore, qresync) in [(true, true), (true, false), (false, false)] {
+        let fixture = Fixture::new(condstore, qresync);
+        populate(&fixture.server);
+        fixture.pass().unwrap();
+        fixture.server.take_log();
+        fixture.server.world().expunge_quietly("GitHub", 2);
+        fixture.server.world().expunge_quietly("GitHub", 4);
+        fixture.later(1);
+        let report = fixture.pass().unwrap();
+        let github = report
+            .mailboxes
+            .iter()
+            .find(|mailbox| mailbox.role == "none")
+            .unwrap();
+        assert_eq!(github.removed, 2, "{condstore} {qresync}");
+        let log = fixture.server.take_log();
+        assert_read_only(&log);
+        assert!(
+            log.iter().any(|command| command == "UID FETCH 1:* (UID)"),
+            "the count differed, so the messages were read: {log:?}"
+        );
+        // And a pass that finds the count as the store shows asks no more.
+        fixture.later(1);
+        fixture.pass().unwrap();
+        let log = fixture.server.take_log();
+        assert!(
+            !log.iter().any(|command| command == "UID FETCH 1:* (UID)"),
+            "{condstore} {qresync}: {log:?}"
+        );
+    }
+}
+
+/// The GitHub mailbox's removals in a pass, and what it then holds and
+/// awaits, as the store counts them.
+fn github_after_pass(fixture: &Fixture) -> (u64, u64, u64) {
+    let report = fixture.pass().unwrap();
+    let removed = report
+        .mailboxes
+        .iter()
+        .find(|mailbox| mailbox.role == "none")
+        .unwrap()
+        .removed;
+    let id = fixture.mailbox("GitHub").id;
+    let counts = fixture
+        .engine
+        .with_store(|store| store.mailbox_status(id))
+        .unwrap()
+        .counts;
+    (
+        removed,
+        counts.headers_held,
+        counts.awaited + counts.unreturned,
+    )
+}
+
+#[test]
+fn an_answer_cut_short_ends_no_mail_that_is_still_there() {
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    fixture.pass().unwrap();
+    {
+        let mut world = fixture.server.world();
+        world.expunge_quietly("GitHub", 2);
+        // A message still there that the answer leaves out.
+        world.find("GitHub").never_return.insert(4);
+    }
+    fixture.later(1);
+    assert_eq!(
+        github_after_pass(&fixture),
+        (0, 5, 0),
+        "fewer returned than the mailbox holds: nothing is ended"
+    );
+}
+
+#[test]
+fn mail_that_leaves_unreported_as_new_mail_arrives_is_found_on_the_next_pass() {
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    fixture.pass().unwrap();
+    {
+        let mut world = fixture.server.world();
+        world.expunge_quietly("GitHub", 2);
+        world.add("GitHub", message(200, "Build", None, "ci"), &[]);
+    }
+    fixture.later(1);
+    // The count is as the store showed before the pass: nothing to see yet.
+    assert_eq!(github_after_pass(&fixture), (0, 6, 0));
+    fixture.later(1);
+    assert_eq!(github_after_pass(&fixture), (1, 5, 0));
+}
+
+#[test]
+fn unreturned_messages_are_not_ended_by_the_mailboxs_count() {
+    // As on iCloud: `EXISTS` counts only what a `FETCH` returns.
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    {
+        let mut world = fixture.server.world();
+        world.exists_counts_returned = true;
+        world.find("GitHub").never_return.insert(3);
+    }
+    fixture.pass().unwrap();
+    fixture.later(1);
+    assert_eq!(github_after_pass(&fixture), (0, 4, 1));
+    fixture.server.world().expunge_quietly("GitHub", 2);
+    fixture.later(1);
+    assert_eq!(
+        github_after_pass(&fixture),
+        (1, 3, 1),
+        "the departure is found, and the unreturned message is still awaited"
+    );
+}
+
+#[test]
+fn a_departure_hides_behind_an_unreturned_message_where_exists_counts_it() {
+    // A server whose `EXISTS` counts a message it never returns: each such
+    // message hides one departure from the count, and nothing is ended.
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    fixture.server.world().find("GitHub").never_return.insert(3);
+    fixture.pass().unwrap();
+    fixture.later(1);
+    assert_eq!(github_after_pass(&fixture), (0, 4, 1));
+    fixture.server.world().expunge_quietly("GitHub", 2);
+    fixture.later(1);
+    assert_eq!(github_after_pass(&fixture), (0, 4, 1));
+}
+
+#[test]
 fn a_new_uidvalidity_lists_the_mailbox_again_and_matches_its_messages() {
     let fixture = Fixture::new(true, true);
     populate(&fixture.server);

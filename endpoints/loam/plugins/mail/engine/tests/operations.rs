@@ -1023,6 +1023,72 @@ fn undo_keeps_a_copy_whose_original_is_flagged_to_be_deleted() {
 }
 
 #[test]
+fn a_search_that_leaves_mail_out_leaves_none_behind_in_the_trash() {
+    // A message is there when either the search or FETCH returns it: a
+    // search that leaves some out does not make an undo skip them.
+    let fixture = Fixture::new(|world_| {
+        world(world_);
+        world_.moves = true;
+    });
+    let ids = [
+        fixture.message("n0"),
+        fixture.message("n2"),
+        fixture.message("s0"),
+    ];
+    let trashed = fixture.changed("mail-trash", json!({ "messages": ids }));
+    assert_eq!(trashed["changed"], 3);
+    let first = fixture.server.world().contents("Deleted Messages")[0].0;
+    fixture
+        .server
+        .world()
+        .search_lags
+        .push(("Deleted Messages".to_string(), first));
+    let undone = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": trashed["operation"] }),
+    );
+    assert_eq!(undone["changed"], 3, "{undone}");
+    assert_eq!(undone["missing"], 0, "{undone}");
+    assert!(subjects(&fixture, "Deleted Messages").is_empty());
+    assert_eq!(subjects(&fixture, "INBOX").len(), 6);
+}
+
+#[test]
+fn undo_keeps_a_copy_whose_original_went_though_a_search_still_lists_it() {
+    let fixture = Fixture::new(world);
+    let receipts = fixture.mailbox_id("none");
+    let copied = fixture.changed(
+        "mail-label",
+        json!({ "messages": [fixture.message("s0")], "mailbox": receipts, "copy": true }),
+    );
+    let s0 = fixture
+        .server
+        .world()
+        .subjects("INBOX")
+        .iter()
+        .position(|subject| subject == "About s0")
+        .unwrap();
+    let uid = fixture.server.world().contents("INBOX")[s0].0;
+    // The original goes, and a search that has not caught up lists it.
+    fixture.server.world().expunge("INBOX", uid);
+    fixture
+        .server
+        .world()
+        .search_keeps
+        .push(("INBOX".to_string(), uid));
+    let undone = fixture.changed(
+        "mail-operation-undo",
+        json!({ "operation": copied["operation"] }),
+    );
+    assert_eq!(undone["missing"], 1, "{undone}");
+    assert_eq!(
+        subjects(&fixture, "Receipts"),
+        ["About s0"],
+        "the last of the message stays"
+    );
+}
+
+#[test]
 fn a_move_into_junk_counts_as_trash() {
     let fixture = Fixture::new(world);
     fixture.set_policy(Policy {

@@ -122,6 +122,9 @@ pub struct Changes {
     pub flags: Vec<FlagsSeen>,
     /// Where the next pass starts.
     pub cursor: String,
+    /// How many messages the provider says the mailbox holds now, when it
+    /// says. Fewer than the store shows means some left unreported.
+    pub held: Option<u64>,
 }
 
 /// The answer to "what changed since this cursor".
@@ -251,7 +254,18 @@ pub trait Provider: Send {
         Err(ProviderError::Refused("changing mail"))
     }
 
-    /// Which of `ids` the open mailbox holds now.
+    /// Every id the open mailbox returns its messages by, of those it held
+    /// when it was opened: read from the messages themselves, not a listing. Sync asks for it
+    /// only when the provider holds fewer messages than the store shows, as
+    /// iCloud did when mail left its trash without being reported. Every
+    /// provider answers it from the messages, never from its listing: a
+    /// listing is what fell behind.
+    async fn returned(&mut self) -> Result<Vec<String>, ProviderError>;
+
+    /// Which of `ids` the open mailbox holds now, by any account the
+    /// provider gives of it: a message one account leaves out is still
+    /// held. Where being held must be sure, as before the last copy of a
+    /// message could go, the caller asks [`Provider::flags_of`] instead.
     async fn present(&mut self, _ids: &[String]) -> Result<Vec<String>, ProviderError> {
         Err(ProviderError::Refused("changing mail"))
     }

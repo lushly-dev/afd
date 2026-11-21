@@ -633,7 +633,7 @@ async fn start(
         (Some(cursor), None) => provider.changes(cursor).await?,
         (None, _) => Since::TooOld,
     };
-    let (queue, cursor, remaining, gone_named, flags) = match since {
+    let (queue, cursor, remaining, gone_named, flags, held) = match since {
         Since::NewGeneration => {
             connection.open = None;
             return restart(plan);
@@ -664,7 +664,14 @@ async fn start(
                 ),
                 Gone::Remaining(ids) => (Some(ids), Vec::new()),
             };
-            (queue, changes.cursor, remaining, named, changes.flags)
+            (
+                queue,
+                changes.cursor,
+                remaining,
+                named,
+                changes.flags,
+                changes.held,
+            )
         }
         Since::TooOld => {
             let listing = provider.list().await?;
@@ -687,7 +694,14 @@ async fn start(
             } else {
                 provider.flags().await?
             };
-            (queue, listing.cursor, Some(listing.ids), Vec::new(), flags)
+            (
+                queue,
+                listing.cursor,
+                Some(listing.ids),
+                Vec::new(),
+                flags,
+                None,
+            )
         }
     };
     // What left: what the provider names, or what the mailbox shows or
@@ -702,6 +716,24 @@ async fn start(
                 .filter(|id| !remaining.contains(id))
                 .cloned(),
         );
+    }
+    // The provider holds fewer messages than the mailbox still shows: some
+    // left without being reported, as mail left iCloud's trash. What its
+    // messages return is the mailbox, and what the mailbox shows beyond that
+    // has left; but only from an answer that returned at least as many as
+    // the provider holds, since one cut short would end mail still there.
+    let leaving: HashSet<&String> = removed.iter().collect();
+    let still_shown = shown.iter().filter(|id| !leaving.contains(id)).count();
+    if let Some(held) = held.filter(|held| u64::try_from(still_shown).unwrap_or(u64::MAX) > *held) {
+        let returned: HashSet<String> = provider.returned().await?.into_iter().collect();
+        if u64::try_from(returned.len()).unwrap_or(u64::MAX) >= held {
+            let unreported: Vec<String> = shown
+                .iter()
+                .filter(|id| !returned.contains(*id) && !leaving.contains(id))
+                .cloned()
+                .collect();
+            removed.extend(unreported);
+        }
     }
     let removed_ids: Vec<&str> = removed.iter().map(String::as_str).collect();
     let (ended, changed) = engine.with_store(|store| {
