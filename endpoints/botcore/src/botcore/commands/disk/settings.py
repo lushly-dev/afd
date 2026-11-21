@@ -55,6 +55,9 @@ class MachineSettings(BaseModel):
     remove_landed_after_days: float = Field(default=7, ge=0)
     # Whether the scheduled job removes finished worktrees (tier 2): `disk-setup --remove-landed`
     remove_landed: bool = False
+    # disk-report warns when a repository has more worktrees than this idle for
+    # strip_after_days or longer; 0 turns the warning off
+    idle_worktree_limit: int = Field(default=20, ge=0)
     caches: list[str] = ["pnpm", "uv"]
     # Extra folders searched for worktrees no registered repository knows (orphans)
     worktree_roots: list[str] = []

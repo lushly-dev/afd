@@ -5,7 +5,7 @@ description: >
   full, a build fails for space, or a worktree, cache or build folder needs removing.
 metadata:
   source: botcore
-  version: 1.0.0
+  version: 1.1.0
   portable: true
 ---
 
@@ -48,7 +48,11 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 
 - T3 Code removes the worktrees it creates once its storage cleanup rules are on (Settings,
   storage cleanup: when the pull request merged, when the thread was deleted, after it has been
-  settled for some days). The report marks them `managed_by: "t3-code"`.
+  settled for some days). The report marks them `managed_by: "t3-code"`; Botcore Factory's lane
+  slots are `managed_by: "factory"`, and Factory removes those itself.
+- `disk-status` `warnings` (also in `disk-report`) name a repository with more idle worktrees
+  than the machine's `idle_worktree_limit`. Tell the owner: the fix is T3 Code's storage
+  cleanup rules, or tier 2 for the rest, never removing them by hand.
 - To keep a parked worktree from being stripped or removed: `botcore disk-keep <path> --reason
   "<why>"` (14 days, or `--until YYYY-MM-DD`). `botcore disk-unkeep <path>` when you resume.
 - Tier 2 removes worktrees T3 Code does not manage once nothing unique is in them (no changes,
@@ -72,6 +76,9 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 - **Machine**: `disk.toml` in the user config folder (`disk-status` prints its path), written
   by `disk-setup`: the repositories, watched volumes with their identifier and low-space
   threshold, and aged cache folders outside worktrees (`[[aged]] path = ".../*"`).
+- **Rust**: Cargo's default keeps `target/` inside each worktree, where tier 1 and worktree
+  removal reach it. A machine that moves it (`CARGO_TARGET_DIR`, or Cargo's `build-dir` on a
+  bigger drive) needs an `[[aged]]` folder covering it; `disk-setup` names the entry to add.
 - `disk-report --unclassified` lists ignored paths no pattern covers: the way to finish a
   repository's list.
 

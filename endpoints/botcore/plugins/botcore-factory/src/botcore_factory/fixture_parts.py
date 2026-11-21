@@ -513,6 +513,10 @@ class FixtureMachine:
     def has_program(self, name: str) -> bool:
         return name not in self.store.this_machine().get("missing", [])
 
+    def disk_warnings(self) -> list[str]:
+        """``host.diskWarnings``, else none."""
+        return list(self.store.data.get("host", {}).get("diskWarnings", []))
+
     def symlinks(self) -> bool:
         return "symlinks" not in self.store.this_machine().get("missing", [])
 

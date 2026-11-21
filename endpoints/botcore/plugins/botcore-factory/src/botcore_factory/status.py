@@ -144,6 +144,7 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         **paginate(lists, limit, cursor),
         "waitingOnOwner": waiting_on_owner(state, backlog),
         "dials": dials.values(state["dials"]),
+        "diskWarnings": world.machine.disk_warnings(),
         **can_start(factory, state, dispatchable(backlog)),
     }
 
