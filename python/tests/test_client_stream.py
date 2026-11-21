@@ -189,3 +189,120 @@ async def test_mcp_client_streams_in_its_transports_session(serve):
     assert [chunk async for chunk in client.stream("export-run", {})] == [DONE]
     assert str(seen[0].url) == "http://localhost:3100/stream/export-run"
     assert seen[0].headers["mcp-session-id"] == "session-1"
+
+
+def many(n):
+    return b"".join(event({**DATA, "index": i}) for i in range(n))
+
+
+async def test_cancelling_wins_over_chunks_already_received(serve):
+    serve(body(many(20), 10.0))
+    cancel = asyncio.Event()
+    received = []
+    async for chunk in stream_over_http(URL, {}, cancel=cancel):
+        received.append(chunk)
+        cancel.set()
+        await asyncio.sleep(0.05)  # let the queued chunks arrive first
+    assert [chunk["type"] for chunk in received] == ["data", "error"]
+    assert received[1]["error"]["code"] == "STREAM_CANCELLED"
+
+
+async def test_a_cancel_set_before_the_call_sends_nothing(serve):
+    seen = serve(body(event(DONE)))
+    cancel = asyncio.Event()
+    cancel.set()
+    chunks = [chunk async for chunk in stream_over_http(URL, {}, cancel=cancel)]
+    assert chunks[0]["error"]["code"] == "STREAM_CANCELLED"
+    assert chunks[0]["chunksBeforeError"] == 0
+    assert seen == []
+
+
+async def test_the_deadline_wins_over_chunks_already_received(serve):
+    serve(body(many(20), 10.0))
+    received = []
+    async for chunk in stream_over_http(URL, {}, timeout=0.1):
+        received.append(chunk)
+        await asyncio.sleep(0.15)  # a slow consumer outlives the deadline
+    assert [chunk["type"] for chunk in received] == ["data", "error"]
+    assert received[1]["error"]["code"] == "STREAM_TIMEOUT"
+
+
+async def test_cancelling_the_consumer_leaves_no_task_behind(serve):
+    serve(body(event(DATA), 10.0))
+    cancel = asyncio.Event()
+
+    async def consume():
+        async for _ in stream_over_http(URL, {}, cancel=cancel, timeout=30):
+            pass
+
+    task = asyncio.ensure_future(consume())
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0)
+    assert [t for t in asyncio.all_tasks() if t is not asyncio.current_task()] == []
+
+
+async def test_closing_early_closes_the_response(serve):
+    stream = Body(many(5), 10.0)
+    serve(lambda request: httpx.Response(200, stream=stream))
+    reader = stream_over_http(URL, {})
+    assert (await reader.__anext__())["type"] == "data"
+    await reader.aclose()
+    assert stream.closed is True
+
+
+async def test_an_event_ending_in_cr_is_dispatched_without_waiting_for_more(serve):
+    serve(body(event(DONE).replace(b"\n", b"\r"), 10.0))
+    assert await read(timeout=5) == [DONE]
+
+
+async def test_a_lf_after_a_cr_in_the_next_piece_is_skipped(serve):
+    raw = event(DATA).replace(b"\n", b"\r\n")
+    pieces = [raw[i : i + 1] for i in range(len(raw))]
+    serve(body(*pieces, event(DONE)))
+    assert await read() == [DATA, DONE]
+
+
+async def test_a_frame_that_is_not_strict_json_is_skipped(serve):
+    serve(body(b'data: {"type":"data","data":NaN,"index":0,"isLast":false}\n\n', event(DONE)))
+    assert await read() == [DONE]
+
+
+async def test_a_silent_server_fails_after_the_clients_timeout_by_default():
+    # A live server: httpx's MockTransport does not enforce read timeouts.
+    pytest.importorskip("mcp.client.streamable_http")
+    from tests.test_mcp_protocol_live import protocol_server
+
+    async with protocol_server("individual", "streamable-http", fixture="stream_server.py") as url:
+        client = McpClient(McpClientConfig(url=url, timeout=2, auto_reconnect=False))
+        await client.connect()
+        client._config.timeout = 0.3  # connect with room, then stream with a short read limit
+        try:
+            chunks = [chunk async for chunk in client.stream("slow-run", {})]
+        finally:
+            await client.disconnect()
+    assert chunks[-1]["error"]["code"] == "CONNECTION_ERROR"
+    assert chunks[-1]["chunksBeforeError"] == 1
+
+
+async def test_a_stream_deadline_replaces_the_idle_timeout(serve):
+    serve(body(event(DATA), 0.2, event(DONE)))
+    client = McpClient(McpClientConfig(url="http://localhost:3100/mcp", timeout=0.05),
+                       transport=MockTransport())
+    await client.connect()
+    chunks = [chunk async for chunk in client.stream("export-run", {}, timeout=5)]
+    assert chunks[-1] == DONE
+
+
+async def test_a_disconnected_client_yields_not_connected():
+    client = McpClient(McpClientConfig(url="http://localhost:3100/mcp"), transport=MockTransport())
+    chunks = [chunk async for chunk in client.stream("export-run", {})]
+    assert chunks == [{
+        "type": "error",
+        "error": {"code": "NOT_CONNECTED", "message": "The client is not connected",
+                  "suggestion": "Call connect() before stream()", "retryable": False},
+        "chunksBeforeError": 0,
+        "recoverable": False,
+    }]

@@ -13,7 +13,6 @@ says, so a U+2028 inside JSON stays in its string.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import re
 from collections.abc import AsyncIterator
@@ -95,37 +94,52 @@ class _EventTooLargeError(Exception):
     pass
 
 
+def _reject_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
+
+
+def strict_json_loads(text: str) -> Any:
+    """``json.loads`` without ``NaN``, ``Infinity`` and ``-Infinity``, which JSON (and
+    JavaScript's ``JSON.parse``) does not allow.
+
+    Raises:
+        ValueError: The text is not strict JSON.
+    """
+    return json.loads(text, parse_constant=_reject_constant)
+
+
 async def _read_events(response: Any, max_event_bytes: int) -> AsyncIterator[str]:
-    """Yield each event's data from an event-stream response body."""
+    """Yield each event's data from an event-stream response body.
+
+    A CR ends its line at once, and an LF right after it (perhaps in the next piece of the
+    body) is skipped, so an event that ends in CR is dispatched without waiting for more.
+    """
     decoder = SseDecoder(max_event_bytes=max_event_bytes)
-
-    def decode(line: bytes) -> str | None:
-        try:
-            event = decoder.decode(line.decode("utf-8", errors="replace"))
-        except ValueError as exc:
-            raise _EventTooLargeError(str(exc)) from exc
-        return None if event is None else event.data
-
     buffer = b""
+    skip_lf = False
     async for piece in response.aiter_bytes():
         buffer += piece
-        while True:
+        while buffer:
+            if skip_lf:
+                skip_lf = False
+                if buffer.startswith(b"\n"):
+                    buffer = buffer[1:]
+                    continue
             match = _LINE_END.search(buffer)
-            # A CR at the end of the buffer may be the first half of a CRLF.
-            if match is None or (match.group() == b"\r" and match.end() == len(buffer)):
+            if match is None:
                 break
-            line, buffer = buffer[: match.start()], buffer[match.end() :]
-            data = decode(line)
-            if data is not None:
-                yield data
+            line, ending = buffer[: match.start()], match.group()
+            buffer = buffer[match.start() + 1 :]  # the CR or LF; a following LF is skipped
+            skip_lf = ending.startswith(b"\r")
+            try:
+                event = decoder.decode(line.decode("utf-8", errors="replace"))
+            except ValueError as exc:
+                raise _EventTooLargeError(str(exc)) from exc
+            if event is not None:
+                yield event.data
         if len(buffer) > max_event_bytes:
             raise _EventTooLargeError(f"SSE event exceeds {max_event_bytes} bytes")
-    if buffer.endswith(b"\r"):
-        # The body ended on a CR, which ends its line.
-        data = decode(buffer[:-1])
-        if data is not None:
-            yield data
-    # Otherwise an unterminated last line, or an event without its blank line, is discarded.
+    # An unterminated last line, or an event without its blank line, is discarded.
 
 
 async def stream_over_http(
@@ -137,6 +151,7 @@ async def stream_over_http(
     timeout: float | None = None,
     cancel: asyncio.Event | None = None,
     connect_timeout: float | None = None,
+    read_timeout: float | None = None,
     max_event_bytes: int = DEFAULT_MAX_STREAM_EVENT_BYTES,
 ) -> AsyncIterator[dict[str, Any]]:
     """POST ``args`` to ``url`` and yield its stream chunks (wire format, camelCase).
@@ -150,9 +165,24 @@ async def stream_over_http(
         timeout: Seconds the whole stream may take; ``None`` for no deadline.
         cancel: Set it to stop the stream with ``STREAM_CANCELLED``.
         connect_timeout: Seconds to wait for the connection.
+        read_timeout: Seconds the server may stay silent before the stream fails with
+            ``CONNECTION_ERROR``; ``None`` for no limit.
         max_event_bytes: The largest event accepted.
+
+    Cancellation and the deadline win over chunks already received: once either has
+    happened, no further chunk is yielded, and a ``cancel`` set before the call sends
+    nothing.
     """
     import httpx
+
+    cancelled_chunk = {
+        "code": "STREAM_CANCELLED",
+        "message": "Stream was cancelled by the caller",
+        "suggestion": "The request was aborted by the client",
+    }
+    if cancel is not None and cancel.is_set():
+        yield stream_error_chunk(dict(cancelled_chunk), 0)
+        return
 
     queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=1)
     request_headers = {
@@ -165,7 +195,7 @@ async def stream_over_http(
     async def produce() -> None:
         try:
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(None, connect=connect_timeout)
+                timeout=httpx.Timeout(read_timeout, connect=connect_timeout)
             ) as http, http.stream(
                 "POST", url, json=args or {}, headers=request_headers
             ) as response:
@@ -178,8 +208,8 @@ async def stream_over_http(
                     if data == "[DONE]":
                         break
                     try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
+                        chunk = strict_json_loads(data)
+                    except ValueError:
                         continue
                     if is_stream_chunk(chunk):
                         await queue.put(("chunk", chunk))
@@ -199,40 +229,46 @@ async def stream_over_http(
 
     loop = asyncio.get_running_loop()
     deadline = None if timeout is None else loop.time() + timeout
+
+    def stopped(count: int, waited_out: bool) -> dict[str, Any] | None:
+        """The error chunk once the caller cancelled or the deadline passed, else None.
+        ``waited_out`` says the wait ended without a chunk, which only the deadline does
+        when the caller has not cancelled (the timer may fire a hair early)."""
+        if cancel is not None and cancel.is_set():
+            return stream_error_chunk(dict(cancelled_chunk), count)
+        if deadline is not None and (waited_out or loop.time() >= deadline):
+            return stream_error_chunk({
+                "code": "STREAM_TIMEOUT",
+                "message": f"Stream did not finish within {round(timeout * 1000)}ms",
+                "suggestion": (
+                    "Retry with a larger timeout. The command may still have run, "
+                    "so check its effect before retrying a mutation."
+                ),
+                "retryable": True,
+            }, count)
+        return None
+
     producer = asyncio.ensure_future(produce())
     count = 0
     try:
         while True:
             getter = asyncio.ensure_future(queue.get())
             waiters: set[asyncio.Future[Any]] = {getter}
-            cancelled = asyncio.ensure_future(cancel.wait()) if cancel is not None else None
-            if cancelled is not None:
-                waiters.add(cancelled)
-            remaining = None if deadline is None else max(0.0, deadline - loop.time())
-            done, _ = await asyncio.wait(
-                waiters, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
-            )
-            if cancelled is not None and not cancelled.done():
-                cancelled.cancel()
-            if getter not in done:
-                getter.cancel()
-                if cancel is not None and cancel.is_set():
-                    yield stream_error_chunk({
-                        "code": "STREAM_CANCELLED",
-                        "message": "Stream was cancelled by the caller",
-                        "suggestion": "The request was aborted by the client",
-                    }, count)
-                else:
-                    yield stream_error_chunk({
-                        "code": "STREAM_TIMEOUT",
-                        "message": f"Stream did not finish within {round(timeout * 1000)}ms",
-                        "suggestion": (
-                            "Retry with a larger timeout. The command may still have run, "
-                            "so check its effect before retrying a mutation."
-                        ),
-                        "retryable": True,
-                    }, count)
+            if cancel is not None:
+                waiters.add(asyncio.ensure_future(cancel.wait()))
+            try:
+                remaining = None if deadline is None else max(0.0, deadline - loop.time())
+                await asyncio.wait(waiters, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                for waiter in waiters:
+                    waiter.cancel()
+            received = getter.done() and not getter.cancelled()
+            ended = stopped(count, waited_out=not received)
+            if ended is not None:
+                yield ended
                 return
+            if not received:
+                continue
             kind, value = getter.result()
             if kind == "end":
                 yield stream_error_chunk(dict(TRUNCATED), count)
@@ -246,6 +282,8 @@ async def stream_over_http(
                 return
             count += 1
     finally:
-        producer.cancel()
-        with contextlib.suppress(asyncio.CancelledError, Exception):
-            await producer
+        if not producer.done():
+            producer.cancel()
+        # The producer's own exception is a chunk already; an outer cancellation propagates.
+        producer.add_done_callback(lambda task: task.cancelled() or task.exception())
+        await asyncio.wait({producer})

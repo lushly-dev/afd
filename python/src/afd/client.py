@@ -405,6 +405,7 @@ class McpClient:
         *,
         timeout: Optional[float] = None,
         cancel: Optional[asyncio.Event] = None,
+        idle_timeout: Any = ...,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream a command's results from the server's ``POST /stream/<command>``.
 
@@ -415,22 +416,33 @@ class McpClient:
         session's active context. As TypeScript's ``stream()``, the last chunk is
         always ``complete`` or ``error``: the client makes ``STREAM_TRUNCATED``,
         ``STREAM_TIMEOUT``, ``STREAM_CANCELLED``, ``STREAM_EVENT_TOO_LARGE``, an HTTP
-        refusal (the server's ``error``, or ``STREAM_ERROR``) or ``CONNECTION_ERROR``
-        itself, and skips events that are not chunks.
+        refusal (the server's ``error``, or ``STREAM_ERROR``), ``CONNECTION_ERROR`` or,
+        when the client is not connected, ``NOT_CONNECTED`` itself, and skips events
+        that are not chunks.
 
         Args:
             name: Command name.
             args: Command arguments.
             timeout: Seconds the whole stream may take; ``None`` for no deadline.
             cancel: Set it to stop the stream with ``STREAM_CANCELLED``.
+            idle_timeout: Seconds the server may stay silent before the stream fails
+                with ``CONNECTION_ERROR``; ``None`` for no limit. By default
+                ``config.timeout``, unless ``timeout`` bounds the stream instead.
 
         Yields:
             Chunks in wire format (camelCase). Use
             :func:`afd.core.streaming.parse_stream_chunk` for models.
         """
-        self._require_connected()
+        from afd.client_stream import stream_error_chunk, stream_over_http
 
-        from afd.client_stream import stream_over_http
+        if not self.is_connected():
+            yield stream_error_chunk({
+                "code": "NOT_CONNECTED",
+                "message": "The client is not connected",
+                "suggestion": "Call connect() before stream()",
+                "retryable": False,
+            }, 0)
+            return
         from afd.transports._mcp_protocol import derive_stream_url
 
         base_url = self._config.resolved_url
@@ -450,6 +462,11 @@ class McpClient:
             timeout=timeout,
             cancel=cancel,
             connect_timeout=self._config.timeout,
+            read_timeout=(
+                (None if timeout is not None else self._config.timeout)
+                if idle_timeout is ...
+                else idle_timeout
+            ),
             max_event_bytes=self._config.max_stream_event_bytes,
         )
         try:

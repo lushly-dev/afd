@@ -9,6 +9,7 @@ output passes every server-provided value through
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 from collections.abc import Callable
@@ -25,6 +26,7 @@ from afd.transports.base import (
     ToolExecutionError,
     ToolNotFoundError,
 )
+from afd.transports.base import TimeoutError as TransportTimeoutError
 
 SERVER_DEADLINE_MARGIN_S = 5.0
 """Extra time the CLI waits for an ``afd-batch`` answer past the batch deadline,
@@ -185,7 +187,7 @@ def unknown_outcome_batch(
             "can repeat writes that already happened."
         ),
         "retryable": False,
-        "details": {"cause": type(cause).__name__},
+        "details": failure_cause(cause),
     }
     result = batch_failure(commands, started_at, error, error["message"])
     result["summary"]["failureCount"] = 0
@@ -212,8 +214,10 @@ JSON_RPC_ERRORS: dict[int, dict[str, Any]] = {
 }
 """JSON-RPC error codes as TypeScript's client maps them (``client-errors.ts``)."""
 
-# The MCP SDK raises these itself when it loses the connection or times out.
-_SDK_LOST = {-32000, 408}
+# The MCP SDK raises MCPError for errors the server sent and for failures of its own,
+# such as a lost connection (-32000), a timeout (408) or an answer it could not decode
+# (-32700). Only these codes say the server refused the request before running it.
+_SDK_REFUSALS = {-32600, -32601, -32602, -32001}
 
 
 def _rpc_error(code: int, message: str, data: Any) -> dict[str, Any] | None:
@@ -259,9 +263,37 @@ def refusal(exc: Exception) -> dict[str, Any] | None:
         }
     cause = getattr(exc, "cause", None)
     code = getattr(cause, "code", None)
-    if type(cause).__name__ == "MCPError" and isinstance(code, int) and code not in _SDK_LOST:
+    if type(cause).__name__ == "MCPError" and code in _SDK_REFUSALS:
         return _rpc_error(code, str(getattr(cause, "message", "") or cause), getattr(cause, "data", None))
+    status = _http_status(cause)
+    if status is not None:
+        return refusal(HttpStatusError(status, str(exc)))
     return None
+
+
+def _http_status(error: Any) -> int | None:
+    """The HTTP status of an httpx-style ``HTTPStatusError`` (``error.response.status_code``)."""
+    status = getattr(getattr(error, "response", None), "status_code", None)
+    return status if isinstance(status, int) and not isinstance(status, bool) else None
+
+
+def failure_cause(exc: Exception) -> dict[str, Any]:
+    """The ``code`` and details of a failure that left the outcome unknown, as TypeScript
+    records the cause of ``OUTCOME_UNKNOWN``."""
+    if isinstance(exc, JsonRpcError):
+        mapping = JSON_RPC_ERRORS.get(exc.code, {})
+        return {"cause": mapping.get("code", "JSON_RPC_ERROR"), "jsonRpcCode": exc.code}
+    cause = getattr(exc, "cause", None)
+    if type(cause).__name__ == "MCPError" and isinstance(getattr(cause, "code", None), int):
+        mapping = JSON_RPC_ERRORS.get(cause.code, {})
+        return {"cause": mapping.get("code", "JSON_RPC_ERROR"), "jsonRpcCode": cause.code}
+    status = exc.status if isinstance(exc, HttpStatusError) else _http_status(cause)
+    if status is not None:
+        return {"cause": f"HTTP_{status}"}
+    timeouts = (TimeoutError, asyncio.TimeoutError, TransportTimeoutError)
+    if isinstance(exc, timeouts) or isinstance(cause, timeouts):
+        return {"cause": "TIMEOUT"}
+    return {"cause": "CONNECTION_ERROR"}
 
 
 def _is_batch_result(value: Any) -> bool:

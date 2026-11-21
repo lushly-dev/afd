@@ -13,11 +13,12 @@ sent with every request and never saved.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
+
+from afd.client_stream import strict_json_loads
 
 HEADERS_ENV = "AFD_HEADERS"
 
@@ -95,9 +96,9 @@ def _parse_value(value: str) -> Any:
     if len(value) >= 2 and value.startswith("'") and value.endswith("'"):
         return value[1:-1]
     try:
-        return json.loads(value)
-    except json.JSONDecodeError:
-        return value
+        return strict_json_loads(value)
+    except ValueError:
+        return value  # caption=NaN stays the string "NaN", as JSON.parse refuses it
 
 
 def parse_tool_args(raw: str | None) -> dict[str, Any]:
@@ -111,7 +112,7 @@ def parse_tool_args(raw: str | None) -> dict[str, Any]:
     if not text:
         return {}
     if text.startswith("{"):
-        parsed = json.loads(text)
+        parsed = strict_json_loads(text)
         if not isinstance(parsed, dict):
             raise ValueError("Arguments must be a JSON object")
         return parsed

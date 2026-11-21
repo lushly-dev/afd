@@ -614,7 +614,8 @@ def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout
                 click.echo(click.style(f"Streaming {terminal_text(name)}... (Ctrl+C to cancel)", dim=True))
                 click.echo()
             async for chunk in client.stream(
-                name, parsed_args, timeout=timeout / 1000 if timeout else None, cancel=cancel
+                name, parsed_args, timeout=timeout / 1000 if timeout else None, cancel=cancel,
+                idle_timeout=None,  # -t bounds the stream, and -t 0 means no limit, as in TypeScript
             ):
                 if json_output:
                     dump(chunk)

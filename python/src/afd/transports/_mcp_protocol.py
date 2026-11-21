@@ -100,19 +100,25 @@ class _HttpBasedTransport:
             self._state = TransportState.ERROR
             raise TransportError(str(exc), cause=exc) from exc
 
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        err = data.get("error") if isinstance(data, dict) else None
+        code = err.get("code") if isinstance(err, dict) else None
+        if isinstance(code, int) and not isinstance(code, bool):
+            # A JSON-RPC error says what the server did, whatever the HTTP status.
+            raise JsonRpcError(code, str(err.get("message", "Unknown")), err.get("data"))
+
         if not response.is_success:
             raise HttpStatusError(
                 response.status_code, f"HTTP {response.status_code}: {response.text}"
             )
-
-        data = response.json()
+        if not isinstance(data, dict):
+            raise TransportError("The server's answer is not a JSON-RPC response")
 
         if "error" in data:
-            err = data["error"] if isinstance(data["error"], dict) else {}
-            code = err.get("code")
-            message = str(err.get("message", "Unknown"))
-            if isinstance(code, int) and not isinstance(code, bool):
-                raise JsonRpcError(code, message, err.get("data"))
+            message = err.get("message", "Unknown") if isinstance(err, dict) else "Unknown"
             raise TransportError(f"JSON-RPC error {code if code is not None else '?'}: {message}")
 
         return data.get("result")

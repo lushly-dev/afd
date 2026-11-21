@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import click
+import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -198,6 +199,81 @@ async def test_a_failure_that_may_have_run_leaves_the_outcome_unknown(raised):
     result = await run_batch(AsyncMock(side_effect=raised), COMMANDS, {})
     assert result["error"]["code"] == "OUTCOME_UNKNOWN"
     assert result["summary"]["failureCount"] == 0
+
+
+class _StatusError(Exception):
+    """Stands in for httpx's ``HTTPStatusError``: ``.response.status_code``."""
+
+    def __init__(self, status):
+        super().__init__(f"HTTP {status}")
+        self.response = MagicMock(status_code=status)
+
+
+@pytest.mark.parametrize(
+    ("raised", "outcome"),
+    [
+        (TransportError("bad", cause=_McpError(-32700, "Could not decode the answer")), "OUTCOME_UNKNOWN"),
+        (TransportError("bad", cause=_McpError(-32603, "Internal")), "OUTCOME_UNKNOWN"),
+        (TransportError("refused", cause=_StatusError(403)), "HTTP_403"),
+        (TransportError("down", cause=_StatusError(502)), "OUTCOME_UNKNOWN"),
+    ],
+)
+async def test_an_mcp_sdk_failure_is_a_refusal_only_when_the_server_refused(raised, outcome):
+    result = await run_batch(AsyncMock(side_effect=raised), COMMANDS, {})
+    assert result["error"]["code"] == outcome
+
+
+@pytest.mark.parametrize(
+    ("raised", "details"),
+    [
+        (JsonRpcError(-32603, "Internal"), {"cause": "INTERNAL_ERROR", "jsonRpcCode": -32603}),
+        (HttpStatusError(503, "HTTP 503"), {"cause": "HTTP_503"}),
+        (asyncio.TimeoutError("timed out"), {"cause": "TIMEOUT"}),
+        (OSError("reset"), {"cause": "CONNECTION_ERROR"}),
+    ],
+)
+async def test_an_unknown_outcome_records_its_typed_cause(raised, details):
+    result = await run_batch(AsyncMock(side_effect=raised), COMMANDS, {})
+    assert result["error"]["details"] == details
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "expected"),
+    [(200, -32602, -32602), (400, -32602, -32602), (500, -32602, -32602), (400, -32603, -32603)],
+)
+async def test_the_http_transport_reads_a_json_rpc_error_before_the_status(monkeypatch, status, code, expected):
+    from afd.transports.http import HttpTransport
+
+    async def post(self_client, url, *, json=None, headers=None, timeout=None):
+        if json["method"] == "initialize":
+            return httpx.Response(200, json={"jsonrpc": "2.0", "id": json["id"], "result": {}})
+        return httpx.Response(status, json={"jsonrpc": "2.0", "id": json["id"],
+                                            "error": {"code": code, "message": "Nope"}})
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    transport = HttpTransport("http://localhost:3100/message")
+    await transport.connect()
+    with pytest.raises(JsonRpcError) as raised:
+        await transport.call_tool("afd-batch", {})
+    assert raised.value.code == expected
+    result = await run_batch(AsyncMock(side_effect=raised.value), COMMANDS, {})
+    assert result["error"]["code"] == ("OUTCOME_UNKNOWN" if expected == -32603 else "INVALID_INPUT")
+
+
+async def test_the_http_transport_keeps_a_plain_http_error_as_a_status(monkeypatch):
+    from afd.transports.http import HttpTransport
+
+    async def post(self_client, url, *, json=None, headers=None, timeout=None):
+        if json["method"] == "initialize":
+            return httpx.Response(200, json={"jsonrpc": "2.0", "id": json["id"], "result": {}})
+        return httpx.Response(403, text="Forbidden")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    transport = HttpTransport("http://localhost:3100/message")
+    await transport.connect()
+    with pytest.raises(HttpStatusError) as raised:
+        await transport.call_tool("afd-batch", {})
+    assert raised.value.status == 403
 
 
 def test_the_exit_code_tells_failure_from_partial_failure():
@@ -406,7 +482,7 @@ def test_stream_refuses_the_mock_transport(tmp_path, monkeypatch):
     assert "Streaming needs an HTTP server URL" in outcome.output
 
 
-@pytest.mark.parametrize("raw", ["[1]", "{bad", "=x", "note='open"])
+@pytest.mark.parametrize("raw", ["[1]", "{bad", "=x", "note='open", '{"a": NaN}'])
 def test_stream_refuses_malformed_arguments(raw):
     outcome = CliRunner().invoke(cli, ["stream", "export-run", raw, "--server", "http://x/mcp"])
     assert outcome.exit_code == 1
@@ -424,6 +500,7 @@ def test_stream_refuses_malformed_arguments(raw):
         ('tags=["a", "b"] meta={"k": [1, 2]}', {"tags": ["a", "b"], "meta": {"k": [1, 2]}}),
         ("note=don't url=a=b", {"note": "don't", "url": "a=b"}),
         ('say="a \\" b"', {"say": 'a " b'}),
+        ("caption=NaN limit=Infinity", {"caption": "NaN", "limit": "Infinity"}),
     ],
 )
 def test_tool_arguments_are_a_json_object_or_key_value_pairs(raw, parsed):
