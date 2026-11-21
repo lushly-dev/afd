@@ -81,10 +81,16 @@ class Merged:
     branch: str  # as the checkout names it, for example origin/main
     latest: datetime | None  # its newest change: a checkout that was not fetched ends early
     changes: list[Change]  # oldest first
+    shared: set[int]  # numbers that more than one change of the branch carries, ever
 
 
 class _NoBranch(Exception):
     """The checkout does not say which branch changes are merged to."""
+
+
+def _number(subject: str) -> int | None:
+    found = _PULL_REQUEST.search(subject.strip())
+    return int(found.group(1) or found.group(2)) if found else None
 
 
 def merged_changes(root: Path, since: datetime) -> Merged:
@@ -111,16 +117,18 @@ def merged_changes(root: Path, since: datetime) -> Merged:
         moment = _parse(stamp.strip())
         if moment is None:
             continue
-        found = _PULL_REQUEST.search(subject.strip())
-        number = int(found.group(1) or found.group(2)) if found else None
         files = [name.strip("\n") for name in rest.split("\0") if name.strip("\n")]
-        changes.append(Change(moment, number, files))
+        changes.append(Change(moment, _number(subject), files))
+    # Over the branch's whole history, so that the answer does not depend on the window
+    subjects = git_out(root, "log", ref, "--first-parent", "--format=%s", timeout=GIT_SECONDS * 2)
+    carried = Counter(_number(subject) for subject in subjects.splitlines())
+    shared = {number for number, times in carried.items() if number is not None and times > 1}
     try:  # origin/HEAD by the name of the branch it points at
         branch = git_out(root, "rev-parse", "--abbrev-ref", ref, timeout=GIT_SECONDS).strip()
     except GitError:
         branch = ""
     branch = branch or ref.removeprefix("refs/remotes/").removeprefix("refs/heads/")
-    return Merged(branch, latest, sorted(changes, key=lambda c: (c.at, c.number or 0)))
+    return Merged(branch, latest, sorted(changes, key=lambda c: (c.at, c.number or 0)), shared)
 
 
 def required_skills(root: Path) -> dict[str, list[str]]:
@@ -171,9 +179,10 @@ def _links(sessions: dict[str, dict], project: str) -> _Links:
 
 
 def _near(sessions: dict[str, dict], opener: str) -> set[str]:
-    """The sessions whose loads may have reached an opener's change: the tasks it delegated,
-    which may have made the change, and the sessions it was forked from, whose conversation
-    it carries. Never its siblings: forty cells of one fleet do not answer for each other."""
+    """The sessions whose loads may have reached an opener's change: the sessions it was
+    forked from, whose conversation it carries, and the tasks it or they delegated, which may
+    have made the change. Never its siblings: forty cells of one fleet do not answer for each
+    other."""
 
     def parent(session_id: str) -> str | None:
         found = sessions.get(session_id, {}).get("parent")
@@ -187,18 +196,18 @@ def _near(sessions: dict[str, dict], opener: str) -> set[str]:
         if agent(session_id) == DELEGATE and (delegator := parent(session_id)):
             tasks.setdefault(delegator, []).append(session_id)
     near: set[str] = set()
-    queue = [opener]
-    while queue:
-        for task in tasks.get(queue.pop(), []):
-            if task not in near and task != opener:
-                near.add(task)
-                queue.append(task)
     current = opener
     while agent(current) == MAIN and (origin := parent(current)) and origin not in near:
         if origin == opener:
             break
         near.add(origin)  # a fork is a person's thread that came from another
         current = origin
+    queue = [opener, *near]
+    while queue:
+        for task in tasks.get(queue.pop(), []):
+            if task not in near and task != opener:
+                near.add(task)
+                queue.append(task)
     return near
 
 
@@ -375,8 +384,6 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             of_skill.unsure.setdefault(event.thread, []).append(moment)
 
     links = _links(sessions, project)
-    # A number two merged changes carry is neither's own: a later push that names it
-    carried = Counter(change.number for change in merged.changes if change.number is not None)
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
         patterns = [_matcher(path) for path in paths]
@@ -391,7 +398,8 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         ]
         for change in matching:
             openers = links.opened.get(change.number, {}) if change.number else {}
-            if change.number is None or carried[change.number] > 1:
+            # a number two merged changes carry is neither's own: a later push that names it
+            if change.number is None or change.number in merged.shared:
                 verdict = "no_pull_request"
             elif openers:
                 verdict, only_subagent = _judge(

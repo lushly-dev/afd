@@ -240,19 +240,22 @@ may be the reviewer, not the agent that made the change. A change is **missed** 
 session never loaded the skill before the change merged, and names the session, so that it
 can be opened. Otherwise it is unknown, never a miss:
 
-- it names no pull request, or one that another merged change names too (`no_pull_request`);
+- it names no pull request, or one that another change on the branch names too
+  (`no_pull_request`);
 - no session on a collected machine is linked to its pull request (`no_session`);
 - no session linked to it is known to have opened it (`opened_elsewhere`): a script, a person
-  or a session on a machine not collected did. A change a fleet's merge lane publishes is one
-  of these two ([#1887](https://github.com/lushly-dev/afd/issues/1887));
+  or a session on a machine not collected did, or its link does not say. A change a fleet's
+  merge lane publishes is one of these two
+  ([#1887](https://github.com/lushly-dev/afd/issues/1887));
 - the record does not place the opening before the merge (`no_link_time`);
 - the session loaded the skill only after it opened the pull request (`after_opening`): at
   review, or for a later push. The record cannot say which;
 - the session never loaded it, but the skill may have reached the change another way
   (`possibly_loaded`): a task the session delegated loaded it and may have made the change, a
-  fork carries the conversation of the session it came from, which had loaded it, or the
-  record holds an event of a kind this botcore does not know. A sibling's load is none of
-  these, nor the load of the session that delegated the opener.
+  fork carries the conversation of the session it came from, which had loaded it or
+  delegated a task that did, or the record holds an event of a kind this botcore does not
+  know. A sibling's load is none of these, nor the load of the session that delegated the
+  opener.
 
 A record with a line it cannot read judges nothing: a lost load would make a miss. Nothing is
 collected for the rules, so a rule declared today judges the record as it stands. A record an
@@ -319,8 +322,12 @@ for the schedule.
   loaded. Whether the load came before the change or at its review: both come before the
   pull request is opened, and a reviewer that is a subagent loads for its session. One
   repository's skill from another's of the same name, for a session the harness filed under
-  another project. And any change whose pull request a script opened
-  ([#1887](https://github.com/lushly-dev/afd/issues/1887)).
+  another project. Any change whose pull request a script opened
+  ([#1887](https://github.com/lushly-dev/afd/issues/1887)). And who made a change, where the
+  session that opened its pull request did not: a miss says that the opener never loaded the
+  skill. A session that resumed a parked branch, one that published the work of a thread it
+  launched (T3 Code records no tie between the two), and one whose task ran on a machine not
+  collected are each judged as the opener they are.
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.
 - **Windows and Linux** are covered by tests of the recognition and paths, and are first

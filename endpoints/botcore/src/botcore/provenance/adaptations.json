@@ -2729,7 +2729,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c0f71a8c374606791535e5ecf9a22d6aae0560867de329b21c337ee9462ea25c",
+      "current_import_sha256": "6f1e9701c31a15fdccabd5c72b0773d9cfbe3de3e4b6b3ab00d411189c378630",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817)"
@@ -2778,7 +2778,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "e56dc53ac05fb5ca9fc049fb5b1b1fa9a21c5a985ee8504cd6acf69ad22ce598",
+      "current_import_sha256": "bf59638f1124cebf197897bc40490ed123db98a4ed404dac5693c5bf2ef3c4f0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -6547,7 +6547,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e286f1354b48596c3715422443034b9f81fb948314b14301753378a899f6d91f",
+      "current_import_sha256": "36bd8112f4cd6b7ad93f7604a07af38e0ffef953d88ac0272c2175a674048eac",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817)"

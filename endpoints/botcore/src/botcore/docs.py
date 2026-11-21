@@ -175,13 +175,15 @@ declared today judges the record as it stands.
   reviewer; `missed` (that session never loaded the skill before the change merged), with
   `misses` naming each change's pull request and that session; `rate` (loaded out of loaded
   and missed); and `unknown`, with `unknown_why`: `no_pull_request` (the change names none,
-  or names one another merged change names too), `no_session` (none on a collected machine
-  is linked to it), `opened_elsewhere` (no session linked to it is known to have opened it:
-  a script, a person or a machine not collected did), `no_link_time` (the record does not
-  place the opening before the merge), `after_opening` (the skill was loaded only after the
-  pull request was opened: at review, or for a later push) and `possibly_loaded` (the opener
+  or names one another change on the branch names too), `no_session` (none on a collected
+  machine is linked to it), `opened_elsewhere` (no session linked to it is known to have
+  opened it: a script, a person or a machine not collected did, or its link does not say),
+  `no_link_time` (the record does not place the opening before the merge), `after_opening`
+  (the skill was loaded only after the pull request was opened: at review, or for a later
+  push) and `possibly_loaded` (the opener
   never loaded it, but a task it delegated or a session it was forked from did, or the record
-  holds an event of a kind this botcore does not know).
+  holds an event of a kind this botcore does not know). A miss says the opener never loaded
+  the skill: an opener that only published another session's work is judged all the same.
 - `merged`: the branch that was read and its newest change; fetch the checkout when that is
   old. `warnings` says when links in the record do not say who opened them (collect again)
   and when an older botcore recognised its events (rebuild).

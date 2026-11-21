@@ -252,11 +252,14 @@ def test_a_load_near_the_opener_is_neither_a_load_nor_a_miss(
     task = t3_store.thread("thread:delegated-task:impl", parent=owner)
     deeper = t3_store.thread("thread:delegated-task:deeper", parent=task)
     t3_store.skill_tool(deeper, "gate-discipline", stamp(3))
-    # 102: a person's fork opened it; the thread it came from had loaded the skill
+    # 102: a person's fork of a fork opened it; a task of the thread it first came from
+    # had loaded the skill
     origin = t3_store.thread("origin")
-    t3_store.skill_tool(origin, "gate-discipline", stamp(3))
+    helper = t3_store.thread("thread:delegated-task:helper", parent=origin)
+    t3_store.skill_tool(helper, "gate-discipline", stamp(3))
+    t3_store.thread("fork-1", parent=origin, relationship="fork")
     fork = {"pullRequests": [link(102, stamp(2))]}
-    t3_store.thread("fork", parent=origin, relationship="fork", extra=fork)
+    t3_store.thread("fork", parent="fork-1", relationship="fork", extra=fork)
     # 103 and 104: two cells of one foreman. Neither a sibling's load nor the foreman's is a
     # cell's own, and a task does not carry its delegator's conversation
     foreman = t3_store.thread("foreman")
@@ -276,7 +279,7 @@ def test_a_load_near_the_opener_is_neither_a_load_nor_a_miss(
     assert judged(found) == (1, 2, 2)
     assert why(found) == {"possibly_loaded": 2}
     assert [miss["change"] for miss in found["misses"]] == [103, 105]
-    assert store.load_sessions(state)["fork"]["parent"] == "origin"
+    assert store.load_sessions(state)["fork"]["parent"] == "fork-1"
     assert store.load_sessions(state)["thread:delegated-task:deeper"]["parent"] == task
 
 
@@ -484,7 +487,7 @@ def test_a_merge_commit_is_one_change_and_the_fetched_branch_is_the_one_read(
 def test_a_number_that_is_not_one_changes_own_judges_nothing(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
-    merge(repo, "feat: a hook (#101)", "notes.txt")
+    merge(repo, "feat: a hook (#101)", "notes.txt", days_ago=45)  # before the window
     merge(repo, "chore: tidy the hooks after (#101)", "hooks.yml")  # pushed later, naming it
     merge(repo, f"feat: a number no forge writes (#{'9' * 5000})", "hooks.yml")
     session(t3_store, "main", (101, stamp(2)))
