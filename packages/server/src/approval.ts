@@ -56,6 +56,7 @@ import {
 	decodeBase64urlText,
 	digest,
 	hmac,
+	inputChanged,
 	inputNotCanonical,
 	randomBytes,
 	safeEqualText,
@@ -494,11 +495,15 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, outerNext) => {
-		// Every way this middleware lets the call through admits this command on the canonical
-		// input it decided on, computed before any await, which the engine checks, and takes,
-		// before it dispatches a command that its own or its listed policy gates.
+		// Every way this middleware lets a call it may gate through admits this command on the
+		// canonical input it decided on, computed before any await, which the engine checks, and
+		// takes, before it dispatches a command that its own or its listed policy gates. A call no
+		// policy here gates is not admitted: an admission from another approval step stands alone,
+		// and a retry placed after that step is still refused.
 		const listedGate = gates(commands.get(commandName)?.approval);
+		const mayGate = policiesFor(commandName, context).some(gates);
 		const next = (canonical: string | undefined) => {
+			if (!mayGate) return outerNext();
 			admitApproval(context, {
 				commandName,
 				canonical,
@@ -508,11 +513,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 			return outerNext();
 		};
-		// Only when a policy may gate the call: canonical JSON refuses some inputs, and an ungated
-		// call does not need it.
-		const decidedOn = policiesFor(commandName, context).some(gates)
-			? canonicalOrUndefined(input)
-			: undefined;
 		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
 		// client"): its token reaches it and is never replaced by an elicitation, its carried
 		// evidence is taken by the first command checked (the one the call routes to), once, and
@@ -527,11 +527,19 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
 		const upFront = relays ? upFrontApproval(context) : undefined;
 		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
+		// Only when a policy may gate the call, and before any await: an ungated call does not need
+		// it.
+		const decidedOn = mayGate ? canonicalOrUndefined(input) : undefined;
+		// Whether the input still has the canonical form decided on, after an await.
+		const changed = () => canonicalOrUndefined(input) !== decidedOn;
 		// The policy of the command this call runs, and the one the `commands` option lists for it.
 		if (!(await holds(commandName, input, context))) return next(decidedOn);
 
 		// No token or relayed approval can bind an input with no canonical form, so nobody is asked.
 		if (decidedOn === undefined) return failure(inputNotCanonical(commandName));
+		// A policy function that changed the input would show the person one input and bind another.
+		if (changed()) return failure(inputChanged(commandName));
+		const summary = summarize(commandName, input, context);
 		const now = clock.now();
 		const inputBinding = decidedOn;
 		const actorBinding = actorJson(context.actor);
@@ -561,8 +569,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				rejected = verdict.reason;
 			}
 		}
-
-		const summary = summarize(commandName, input, context);
 
 		if (relay) {
 			const bindings = await relayBindings(commandName, inputBinding, actorBinding);
@@ -624,6 +630,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 		}
 
+		if (changed()) return failure(inputChanged(commandName));
 		await options.onApprovalRequired?.({
 			command: commandName,
 			input,

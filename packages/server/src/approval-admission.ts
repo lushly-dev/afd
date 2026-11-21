@@ -6,10 +6,11 @@
  * command's own policy) and, when it lets the call through, records what it decided on: the
  * command name, the canonical JSON of the input it decided on, and whether the policy its
  * `commands` option lists for the command gates it. The engine dispatches a call whose own or
- * listed policy is not `'not-required'` only when such an admission matches the command and
- * validated input it is about to run, and it takes the admission as it dispatches, so one
- * admission runs one handler. An input with no canonical form, which only a policy that let the
- * call through admits (the middleware refuses to hold one), is compared by identity.
+ * listed policy is not `'not-required'` only when every such admission matches the command and
+ * validated input it is about to run, and it takes them as it dispatches, so one admission runs
+ * one handler. An input with no canonical form, which only a policy that let the call through
+ * admits (the middleware refuses to hold one), is compared by identity, so a change inside it is
+ * not seen.
  *
  * Every call gets a fresh context object (`withContextDefaults` copies), so a batch item, a
  * pipeline step or a command run from inside another command's handler has its own record and
@@ -50,7 +51,12 @@ interface Admitted {
 
 interface Admission {
 	command: AdmissionCommand;
-	admitted: Admitted | undefined;
+	/**
+	 * What each approval step admitted, in order. Two approval middlewares on one engine each
+	 * admit, and the dispatch must match them all, so a later one never replaces or weakens an
+	 * earlier one's binding.
+	 */
+	admitted: Admitted[];
 	/** Set once a dispatch took an admission, so a second dispatch reads as a mismatch. */
 	taken?: boolean;
 	/**
@@ -114,7 +120,7 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			approval: command.approval,
 			confirmPrompt: command.confirmPrompt,
 		},
-		admitted: undefined,
+		admitted: [],
 	});
 }
 
@@ -139,12 +145,12 @@ export function admitApproval(context: CommandContext, admit: Admit): void {
 	const found = record(context);
 	if (!found) return;
 	if (admit.listedGate) found.listedGate = true;
-	found.admitted = {
+	found.admitted.push({
 		name: admit.commandName,
 		canonical: admit.canonical,
 		input: admit.input,
 		canonicalize: admit.canonicalize,
-	};
+	});
 }
 
 /**
@@ -163,10 +169,11 @@ export function gates(policy: ApprovalPolicy<never> | undefined): boolean {
 }
 
 /**
- * Take the admission of the call of `context`: `admitted` when it admitted `commandName` on
- * `input`: the same name, and the same canonical input (the same value, when the input has no
- * canonical form), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a
- * second dispatch needs a second admission.
+ * Take the admissions of the call of `context`: `admitted` when every approval step that admitted
+ * it admitted `commandName` on `input`: the same name, and the same canonical input (the same
+ * value, by `Object.is`, when the input has no canonical form; a change inside such a value is not
+ * seen), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a second
+ * dispatch needs a second admission.
  */
 export function takeAdmission(
 	context: CommandContext,
@@ -174,17 +181,18 @@ export function takeAdmission(
 	input: unknown
 ): 'admitted' | 'missing' | 'mismatch' {
 	const found = record(context);
-	const admitted = found?.admitted;
 	if (!found) return 'missing';
-	if (!admitted) return found.taken ? 'mismatch' : 'missing';
-	found.admitted = undefined;
+	const admitted = found.admitted;
+	if (admitted.length === 0) return found.taken ? 'mismatch' : 'missing';
+	found.admitted = [];
 	found.taken = true;
-	if (admitted.name !== commandName) return 'mismatch';
-	const canonical = admitted.canonicalize(input);
-	const same =
-		admitted.canonical === undefined
-			? admitted.input === input && canonical === undefined
-			: canonical === admitted.canonical;
+	const same = admitted.every((step) => {
+		if (step.name !== commandName) return false;
+		const canonical = step.canonicalize(input);
+		return step.canonical === undefined
+			? Object.is(step.input, input) && canonical === undefined
+			: canonical === step.canonical;
+	});
 	return same ? 'admitted' : 'mismatch';
 }
 

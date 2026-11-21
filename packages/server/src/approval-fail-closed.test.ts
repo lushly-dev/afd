@@ -306,10 +306,11 @@ describe('one admission runs one handler, on what was approved', () => {
 
 	it('refuses an admission for another command', async () => {
 		const { ran, commands } = fixture();
-		const approval = createApprovalMiddleware({ secret: SECRET });
-		// Asks the middleware about an ungated command, then lets the gated one through.
+		const approval = createApprovalMiddleware({ secret: SECRET, commands });
+		// Asks the middleware about a command its policy lets through, then lets the gated one
+		// through.
 		const swap: CommandMiddleware = (_name, input, context, next) =>
-			approval('todo-touch', input, context, next);
+			approval('todo-check', input, context, next);
 		const registry = createDirectRegistry(commands, { middleware: [swap] });
 		expectUnavailable(
 			await registry.execute('todo-delete', { id: 1 }),
@@ -357,7 +358,7 @@ describe('one admission runs one handler, on what was approved', () => {
 				code: 'APPROVAL_UNAVAILABLE',
 				message: "todo-tag needs a person's approval, and this input cannot be bound to one",
 				suggestion:
-					'Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).',
+					"Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string). If the command's schema itself produces such a value (a Set, Map, bigint or class instance), tell the user: the operator must change the schema.",
 				retryable: false,
 				details: { reason: 'input-not-canonical' },
 			},
@@ -372,8 +373,9 @@ describe('one admission runs one handler, on what was approved', () => {
 		expect(handled).toHaveBeenCalledOnce();
 	});
 
-	it('refuses such an input replaced in place after the approval', async () => {
-		// Compared by identity: the same object, still with no canonical form.
+	it('refuses such an input given a canonical form after the approval', async () => {
+		// Compared by identity, so this is refused because the replaced member gives the input a
+		// canonical form; a change inside the same Set would not be seen.
 		const { handled, registry } = tagged(
 			() => 'not-required',
 			(_name, input, _context, next) => {
@@ -386,6 +388,57 @@ describe('one admission runs one handler, on what was approved', () => {
 			'todo-tag',
 			'admission-mismatch'
 		);
+		expect(handled).not.toHaveBeenCalled();
+	});
+
+	it('runs a top-level NaN input its policy lets through', async () => {
+		const handled = vi.fn();
+		const nan = defineCommand({
+			name: 'todo-nan',
+			description: 'Its validated input is NaN, which is not equal to itself',
+			approval: () => 'not-required',
+			input: z.object({}).transform(() => Number.NaN),
+			handler: async () => {
+				handled();
+				return { success: true as const, data: null };
+			},
+		});
+		const registry = createDirectRegistry([nan], {
+			middleware: [createApprovalMiddleware({ secret: SECRET })],
+		});
+		expect((await registry.execute('todo-nan', {})).success).toBe(true);
+		expect(handled).toHaveBeenCalledOnce();
+	});
+
+	it('refuses, without asking, an input its policy function changed', async () => {
+		const handled = vi.fn();
+		const asked = vi.fn();
+		const remove = defineCommand({
+			name: 'todo-delete',
+			description: 'Its policy function changes the input it decides on',
+			approval: async (input: { id: number }) => {
+				input.id = 9;
+				return 'required' as const;
+			},
+			input: z.object({ id: z.number() }),
+			handler: async () => {
+				handled();
+				return { success: true as const, data: null };
+			},
+		});
+		const registry = createDirectRegistry([remove], {
+			middleware: [createApprovalMiddleware({ secret: SECRET, onApprovalRequired: asked })],
+		});
+		expect(await registry.execute('todo-delete', { id: 1 })).toMatchObject({
+			success: false,
+			error: {
+				code: 'APPROVAL_UNAVAILABLE',
+				message: "todo-delete's input changed while its approval was being decided",
+				retryable: false,
+				details: { reason: 'admission-mismatch' },
+			},
+		});
+		expect(asked).not.toHaveBeenCalled();
 		expect(handled).not.toHaveBeenCalled();
 	});
 
@@ -518,6 +571,29 @@ describe('a policy given only in the commands list', () => {
 		const { handled, client } = listedApproval((_name, _input, _context, next) => next());
 		expect((await client.call('todo-list', { id: 3 })).success).toBe(true);
 		expect(handled).toHaveBeenCalledWith(3);
+	});
+
+	it('runs an approved call behind a second approval middleware that does not gate it', async () => {
+		const { handled, client } = listedApproval(createApprovalMiddleware({ secret: SECRET }));
+		expect((await client.call('todo-list', { id: 4 })).success).toBe(true);
+		expect(handled).toHaveBeenCalledWith(4);
+	});
+
+	it('refuses a retry between it and a second approval middleware that does not gate it', async () => {
+		let attempts = 0;
+		const retry = createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false });
+		const other = createApprovalMiddleware({ secret: SECRET });
+		const { handled, client } = listedApproval(
+			(name, input, context, next) =>
+				retry(name, input, context, () => other(name, input, context, next)),
+			() =>
+				++attempts === 1
+					? { success: false, error: { code: 'TRANSIENT_ERROR', message: 'try again' } }
+					: { success: true, data: null }
+		);
+		const result = await client.call('todo-list', { id: 5 });
+		expect(handled).toHaveBeenCalledOnce();
+		expectUnavailable(result, 'todo-list', 'admission-mismatch');
 	});
 });
 
