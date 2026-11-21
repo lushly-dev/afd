@@ -234,10 +234,15 @@ see the call, answers before the handler runs with:
     "code": "APPROVAL_UNAVAILABLE",
     "message": "todo-delete needs a person's approval, and this server cannot ask for it",
     "suggestion": "Tell the user that todo-delete needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.",
-    "retryable": false
+    "retryable": false,
+    "details": { "reason": "no-approval-step" }
   }
 }
 ```
+
+When an approval step ran but did not admit this dispatch (a retry, a different command or an
+input changed after it), `details.reason` is `admission-mismatch` and the suggestion tells the
+operator to move such middleware before the approval step.
 
 This check reads the declaration alone: a policy function is not evaluated, so a command that
 declares one needs an approval step even for calls the function would let through. The suggestion
