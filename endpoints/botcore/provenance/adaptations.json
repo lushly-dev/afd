@@ -2674,7 +2674,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2d831dffe8ac42577c268f1fd0433b450373a333618df4d285f3f89c1c69e5ff",
+      "current_import_sha256": "0693846ba4e6b24f7c93f91f08c4f89d81bf8450afd37ec86bc234ffbf5d6b86",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
@@ -2685,7 +2685,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "eb1a1ea10ee075109b4dcefbcfc0919188b3bedfae1e612ffc08c89f23d5eb79",
+      "current_import_sha256": "f38672be3e0b5f5ec92d00ff47b5720e6cc976bc637f54c7b7c7bc784f10548b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
@@ -6558,7 +6558,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "63a26822d5b1b5d617a487793b80a4bf5963ff18888190045ce30944a3cdabf6",
+      "current_import_sha256": "ecb2a141b3f9fb3a88cc243405c6e38c3d49c0fe2001bc321fba5baa56fa2a3c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"

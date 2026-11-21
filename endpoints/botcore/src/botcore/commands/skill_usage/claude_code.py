@@ -45,7 +45,9 @@ T3_STARTED = "t3-code"  # a row's `entrypoint` when T3 Code started the session
 READ_TOOLS = {"read"}
 EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 GIT_SECONDS = 10
-SAMPLE = 8  # the calls kept of a transcript, to see later whether T3 Code's store holds them
+# The calls kept of a transcript, to see later whether T3 Code's store has come to hold them:
+# those that were loads first, since a load counted twice is what that would cost
+SAMPLE = 32
 FIRST_LINE = 1 << 20
 # Only lines that can hold a tool call, its result or a typed command are parsed: a
 # transcript is mostly text that is none of them
@@ -431,6 +433,7 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                     pull_requests=(),
                 )
             )
+        loaded: list[str] = []
         for session, call_ids in own.items():
             thread = f"{PREFIX}{session}"
             for call_id in call_ids:
@@ -438,6 +441,7 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                 if call_id not in parsed.finished or not call.at:
                     continue  # only a call that came back, and came back without an error
                 for skill, path in _loads_of(call):
+                    loaded.append(call_id)
                     result.loads.append(
                         Load(
                             item=call_id,
@@ -472,7 +476,8 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                         model=None,
                     )
                 )
-        sample = [call_id for call_ids in own.values() for call_id in call_ids][:SAMPLE]
+        rest = [call_id for call_ids in own.values() for call_id in call_ids]
+        sample = list(dict.fromkeys([*loaded, *rest]))[:SAMPLE]
         result.files[home] = {"stamp": stamp, "sessions": gave, "calls": sample}
     result.loads.sort(key=lambda load: (load.at, load.thread, load.item))
     return result

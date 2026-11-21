@@ -408,13 +408,27 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
     projects, names = _name_projects(
         _mapping(state.get("projects")), {**found.projects, **claude.projects}
     )
+    # A session stays in the project it was filed under: its checkout may have been moved
+    # or removed since, and where it ran is not where its folder leads today
+    for item in [*claude.loads, *claude.sessions]:
+        thread = item.thread if isinstance(item, t3.Load) else item.id
+        filed = _mapping(sessions.get(thread)).get("project")
+        if item.project_id is None and isinstance(filed, str) and filed != UNKNOWN_PROJECT:
+            item.project_id = f"filed:{thread}"
+            names[item.project_id] = filed
     from_t3 = _events(found.loads, t3.SOURCE, names, projects, machine, known_skills)
     # a skill that T3 Code's sessions loaded in this very read is a skill to a command typed
     # elsewhere
     loaded = known_skills | {(e.project, e.skill) for e in from_t3 if e.path != TYPED}
+    # a load T3 Code's store shows too is one load, and T3 Code's event stands: whenever its
+    # store came to hold the call, and whether or not the transcript was read again since
+    shown = {
+        event.native for event in [*stored, *from_t3] if event.native and event.source == t3.SOURCE
+    }
     fresh: dict[str, Event] = {}
     for event in _events(claude.loads, claude_code.SOURCE, names, projects, machine, loaded):
-        fresh.setdefault(event.id, event)  # once, however many transcripts hold the call
+        if event.native not in shown:
+            fresh.setdefault(event.id, event)  # once, however many transcripts hold the call
     from_claude = list(fresh.values())
     events = [*from_t3, *from_claude]
     read_now = {event.id for event in events}
@@ -430,7 +444,7 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         if event.source == t3.SOURCE:
             return rebuild and path is not None and _item(event) in (found.items or set())
         if event.source == claude_code.SOURCE:
-            return _item(event) in claude.seen
+            return _item(event) in claude.seen or event.native in shown
         return False
 
     dropped = [event for event in stored if gone(event)]

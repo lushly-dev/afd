@@ -688,3 +688,66 @@ def test_either_source_alone_is_enough_and_neither_is_nothing(
     data = run(skill_usage_collect(t3_store=str(built.path), machine="tower"))
     assert [found["source"] for found in data["sources"]] == ["t3-code"]  # read alone
     assert "claude-code:s2" not in store.load_sessions(state)
+
+
+def test_a_session_keeps_its_project_when_its_checkout_is_moved(
+    state: Path, transcripts: Transcripts, checkout: Path, tmp_path: Path
+) -> None:
+    subprocess.run(["git", "-C", str(checkout), "remote", "add", "origin",
+                    "git@example.com:acme/garden.git"], check=True)  # fmt: skip
+    transcripts.call("s1", "Skill", {"skill": "prune-roses"}, stamp(2))
+    transcripts.say("s1", "<command-name>/plant-beds</command-name>", stamp(2))
+    run(skill_usage_collect())
+    before = sorted((event.skill, event.path, event.project) for event in collected(state))
+    assert before == [
+        ("plant-beds", "typed", "acme/garden"), ("prune-roses", "skill_tool", "acme/garden"),
+    ]  # fmt: skip
+
+    checkout.rename(tmp_path / "moved-away")  # where the session ran leads nowhere now
+
+    data = run(skill_usage_collect(rebuild=True))  # as after an upgrade
+
+    assert sorted((event.skill, event.path, event.project) for event in collected(state)) == before
+    assert data["removed"] == 0
+    assert store.load_sessions(state)["claude-code:s1"]["project"] == "acme/garden"
+
+
+def test_a_call_t3_code_comes_to_hold_late_is_one_load(
+    state: Path, t3_store: T3Store, transcripts: Transcripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(store.T3_STORE_ENV, "")  # collected while T3 Code's store is away
+    for number in range(40):  # more calls than are kept to look for later
+        transcripts.call("s1", "Bash", {"command": f"echo {number}"}, stamp(3, number),
+                         call=f"toolu_other_{number}", entrypoint="sdk-ts")  # fmt: skip
+    transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_late",
+                     entrypoint="sdk-ts")  # fmt: skip
+    run(skill_usage_collect())
+    kept = store.load_state(state)["sources"]["claude-code"]["files"]["s1"]["calls"]
+    assert kept[0] == "toolu_late" and len(kept) == claude_code.SAMPLE  # a load is kept first
+
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(2), native_id="toolu_late")
+    monkeypatch.setenv(store.T3_STORE_ENV, str(t3_store.path))
+    run(skill_usage_collect())  # the store is back, holding only that call
+
+    assert [(event.source, event.thread) for event in collected(state)] == [("t3-code", "main")]
+    assert sorted(store.load_sessions(state)) == ["main"]
+
+
+def test_a_load_t3_code_shows_too_goes_even_when_its_transcript_is_not_read_again(
+    state: Path, t3_store: T3Store, transcripts: Transcripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(store.T3_STORE_ENV, "")
+    transcripts.call("s1", "Skill", {"skill": "plant-beds"}, stamp(2), call="toolu_late")
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    saved["sources"]["claude-code"]["files"]["s1"]["calls"] = []  # nothing kept to look for
+    store.save_state(state, saved)
+    t3_store.skill_tool(t3_store.thread("main"), "plant-beds", stamp(2), native_id="toolu_late")
+    monkeypatch.setenv(store.T3_STORE_ENV, str(t3_store.path))
+    opened = opens(monkeypatch)
+
+    data = run(skill_usage_collect())
+
+    assert opened == []  # the transcript did not change, and was not opened
+    assert [(event.source, event.thread) for event in collected(state)] == [("t3-code", "main")]
+    assert source(data)["removed"] == 1

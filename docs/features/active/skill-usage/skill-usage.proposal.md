@@ -104,8 +104,9 @@ ranking the jobs is his; the phases below follow the order he agreed.
      or on an event the record already holds, since the store may have dropped the thread.
      So is every call of that session whose row names the same program as such a call, or
      names T3 Code itself: the store misses a call now and then, and a missed call is no
-     session of its own. A session nothing of which is left is not counted here. One
-     continued in another program keeps, as a session of its own, what it did there.
+     session of its own, nor counted. A session nothing of which is left is not counted
+     here. One continued in another program keeps, as a session of its own, what it did
+     there.
    - **A row belongs to the session it names.** A subagent's file is its session's wherever
      it lies: in the session's folder, or, as older versions wrote it, beside the transcript
      under a name of its own. Rows copied into a session that was continued from another
@@ -114,9 +115,10 @@ ranking the jobs is his; the phases below follow the order he agreed.
      change; and one whose call has since turned up as T3 Code's. Only lines that can hold a
      tool call, its result or a typed command are parsed.
    - **A load leaves the record only when its call is read again and is no longer one**: it
-     has become T3 Code's, or shows another skill. Its session goes with it when nothing of
-     it is left. A call that is no longer in a transcript, because Claude Code cleared the
-     file or part of it, keeps what was collected of it: that is what the record is for. A
+     shows another skill, or it has become T3 Code's, which also takes it out as soon as T3
+     Code's own event for the call is there. Its session goes with it when nothing of it is
+     left. A call that is no longer in a transcript, because Claude Code cleared the file or
+     part of it, keeps what was collected of it: that is what the record is for. A
      transcript that cannot be read whole is left as it was and tried again.
    - **The same loads count**, by the same rules: the Skill tool, a file read, a shell read,
      a change to a skill's files, and a command a person typed, which Claude Code writes as
@@ -126,7 +128,8 @@ ranking the jobs is his; the phases below follow the order he agreed.
    - **A session is filed under the repository it ran in**: its main checkout, never a
      worktree, whose folder is often named after a branch. A worktree that is gone is found
      through the nearest folder still there. A folder in no repository is `unknown`: a
-     session can run anywhere, and a folder's name is not the record's to keep.
+     session can run anywhere, and a folder's name is not the record's to keep. A session
+     stays in the project it was first filed under, wherever its folder leads later.
    - **Only what is shaped like an id or a name is kept**: a call's id, a row's, a session's
      and a model's name go into the record whole, so one that is not shaped like one is
      dropped with what it belongs to.
