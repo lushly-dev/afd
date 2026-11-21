@@ -29,7 +29,7 @@ import type {
 	PipelineRequest,
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure } from '@lushly-dev/afd-core';
-import { actorJson, base64url, canonicalJson } from './approval-crypto.js';
+import { actorJson, base64url, canonicalJson, canonicalOrUndefined } from './approval-crypto.js';
 import {
 	type AcceptedApproval,
 	type ApprovalRelay,
@@ -157,7 +157,7 @@ type Gate = (
 	command: string,
 	input: unknown,
 	context: CommandContext,
-	next: () => Promise<CommandResult>
+	next: (canonical: string | undefined) => Promise<CommandResult>
 ) => Promise<CommandResult>;
 
 /** One gate per approval middleware, so each keeps its own plans. */
@@ -293,8 +293,12 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		commandName: string,
 		input: unknown,
 		context: CommandContext,
-		next: () => Promise<CommandResult>
+		next: (canonical: string | undefined) => Promise<CommandResult>
 	): Promise<CommandResult> {
+		// The input this step is decided on, before any await, and the one it is admitted on.
+		const decidedOn = deps.mayRequireApproval(commandName, context)
+			? canonicalOrUndefined(input)
+			: undefined;
 		let plan = plans.get(upFront);
 		if (!plan) {
 			plan = decide(upFront, context);
@@ -307,11 +311,13 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		}
 		// The handler, and any command it runs, never sees the up-front approval.
 		releaseUpFrontApproval(context);
-		if (!(await deps.requiresApproval(commandName, input, context))) return next();
+		if (!(await deps.requiresApproval(commandName, input, context))) return next(decidedOn);
+		// Throws for an input with no canonical form: a step on one cannot be approved.
+		const inputBinding = decidedOn ?? canonicalJson(input);
 		const bindings = await deps.bindings(
 			await callTags(upFront),
 			commandName,
-			canonicalJson(input),
+			inputBinding,
 			actorJson(context.actor)
 		);
 		// A step whose batch or pipeline already timed out or was cancelled never starts: its
@@ -322,7 +328,7 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		const approval = decided.approved.find((item) => !item.used && bindings.includes(item.binding));
 		if (approval) {
 			approval.used = true;
-			return next();
+			return next(inputBinding);
 		}
 		return failure(unplannedError(upFront.tool, commandName));
 	};

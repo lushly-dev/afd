@@ -324,6 +324,68 @@ describe('one admission runs one handler, on what was approved', () => {
 		expect((await client.call('todo-delete', { id: 2 })).success).toBe(true);
 		expect(ran).toEqual(['todo-delete:2']);
 	});
+
+	it('refuses a gated input that has no canonical form, so a change to it cannot go unseen', async () => {
+		const handled = vi.fn();
+		const tag = defineCommand({
+			name: 'todo-tag',
+			description: 'Its validated input holds a Set, which canonical JSON refuses',
+			approval: () => 'not-required',
+			input: z.object({ tags: z.array(z.string()).transform((tags) => new Set(tags)) }),
+			handler: async () => {
+				handled();
+				return { success: true as const, data: null };
+			},
+		});
+		const change: CommandMiddleware = (_name, input, _context, next) => {
+			(input as { tags: Set<string> }).tags.add('changed');
+			return next();
+		};
+		const registry = createDirectRegistry([tag], {
+			middleware: [createApprovalMiddleware({ secret: SECRET }), change],
+		});
+		expectUnavailable(
+			await registry.execute('todo-tag', { tags: ['a'] }),
+			'todo-tag',
+			'admission-mismatch'
+		);
+		expect(handled).not.toHaveBeenCalled();
+	});
+
+	it('admits the input the token was verified against, not one changed while it was checked', async () => {
+		const { ran, commands } = fixture();
+		let seen: { id: number } | undefined;
+		const capture: CommandMiddleware = (_name, input, _context, next) => {
+			seen = input as { id: number };
+			return next();
+		};
+		const engine = createExecutionEngine({
+			commandMap: new Map(commands.map((command) => [command.name, command])),
+			middleware: [
+				capture,
+				createApprovalMiddleware({
+					secret: SECRET,
+					// The input changes while the nonce is being spent.
+					nonceStore: {
+						consume: async () => {
+							if (seen) seen.id = 2;
+							return true;
+						},
+					},
+				}),
+			],
+			devMode: false,
+		});
+		const held = await engine.executeCommand('todo-delete', { id: 1 });
+		const token = (held.error?.details as { approvalToken?: string } | undefined)?.approvalToken;
+		expect(token).toBeTypeOf('string');
+		expectUnavailable(
+			await engine.executeCommand('todo-delete', { id: 1 }, { approval: token }),
+			'todo-delete',
+			'admission-mismatch'
+		);
+		expect(ran).toEqual([]);
+	});
 });
 
 describe('a policy given only in the commands list', () => {
@@ -363,6 +425,62 @@ describe('a policy given only in the commands list', () => {
 		});
 		expect((await registry.execute('todo-touch', { id: 1 })).error?.code).toBe('APPROVAL_REQUIRED');
 		expect(ran).toEqual([]);
+	});
+
+	/** todo-list, ungated by its own declaration, gated by the list; approved through DirectClient. */
+	function listedApproval(after: CommandMiddleware, handler?: () => CommandResult) {
+		const handled = vi.fn();
+		const list = defineCommand({
+			name: 'todo-list',
+			description: 'Its gate is declared only in the middleware list',
+			input: z.object({ id: z.number() }),
+			handler: async (input) => {
+				handled(input.id);
+				return handler?.() ?? { success: true as const, data: null };
+			},
+		});
+		const registry = createDirectRegistry([list], {
+			middleware: [
+				createApprovalMiddleware({
+					secret: SECRET,
+					commands: [{ name: 'todo-list', approval: 'required' }],
+				}),
+				after,
+			],
+		});
+		return {
+			handled,
+			client: createDirectClient(registry, { onApprovalNeeded: async () => true }),
+		};
+	}
+
+	it('runs one handler per approval, refusing a retry after the approval middleware', async () => {
+		let attempts = 0;
+		const { handled, client } = listedApproval(
+			createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false }),
+			() =>
+				++attempts === 1
+					? { success: false, error: { code: 'TRANSIENT_ERROR', message: 'try again' } }
+					: { success: true, data: null }
+		);
+		const result = await client.call('todo-list', { id: 1 });
+		expect(handled).toHaveBeenCalledOnce();
+		expectUnavailable(result, 'todo-list', 'admission-mismatch');
+	});
+
+	it('refuses an input changed in place after the approval', async () => {
+		const { handled, client } = listedApproval((_name, input, _context, next) => {
+			(input as { id: number }).id = 99;
+			return next();
+		});
+		expectUnavailable(await client.call('todo-list', { id: 1 }), 'todo-list', 'admission-mismatch');
+		expect(handled).not.toHaveBeenCalled();
+	});
+
+	it('runs an approved call that nothing changed after the approval', async () => {
+		const { handled, client } = listedApproval((_name, _input, _context, next) => next());
+		expect((await client.call('todo-list', { id: 3 })).success).toBe(true);
+		expect(handled).toHaveBeenCalledWith(3);
 	});
 });
 

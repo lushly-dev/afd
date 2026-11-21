@@ -51,6 +51,7 @@ import {
 	base64url,
 	base64urlText,
 	canonicalJson,
+	canonicalOrUndefined,
 	createMemoryNonceStore,
 	decodeBase64urlText,
 	digest,
@@ -492,12 +493,24 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, outerNext) => {
-		// Every way this middleware lets the call through admits this command on this input, which
-		// the engine checks, and takes, before it dispatches a command that declares an approval policy.
-		const next = () => {
-			admitApproval(context, commandName, input, canonicalOrUndefined);
+		// Every way this middleware lets the call through admits this command on the canonical
+		// input it decided on, computed before any await, which the engine checks, and takes,
+		// before it dispatches a command that its own or its listed policy gates.
+		const listedGate = gates(commands.get(commandName)?.approval);
+		const next = (canonical: string | undefined) => {
+			admitApproval(context, {
+				commandName,
+				canonical,
+				listedGate,
+				canonicalize: canonicalOrUndefined,
+			});
 			return outerNext();
 		};
+		// Only when a policy may gate the call: canonical JSON refuses some inputs, and an ungated
+		// call does not need it.
+		const decidedOn = policiesFor(commandName, context).some(gates)
+			? canonicalOrUndefined(input)
+			: undefined;
 		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
 		// client"): its token reaches it and is never replaced by an elicitation, its carried
 		// evidence is taken by the first command checked (the one the call routes to), once, and
@@ -513,10 +526,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const upFront = relays ? upFrontApproval(context) : undefined;
 		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
 		// The policy of the command this call runs, and the one the `commands` option lists for it.
-		if (!(await holds(commandName, input, context))) return next();
+		if (!(await holds(commandName, input, context))) return next(decidedOn);
 
 		const now = clock.now();
-		const inputBinding = canonicalJson(input);
+		// Throws for an input with no canonical form: a call on one cannot be approved.
+		const inputBinding = decidedOn ?? canonicalJson(input);
 		const actorBinding = actorJson(context.actor);
 		const who: Binding = approver
 			? {
@@ -538,7 +552,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (evidence !== undefined) {
 			const verdict = await verify(evidence, commandName, inputBinding, who, now);
 			if (verdict.ok) {
-				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
+				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next(inputBinding);
 				rejected = 'already-used';
 			} else {
 				rejected = verdict.reason;
@@ -561,7 +575,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				});
 			}
 			if (answer.kind === 'accept' && (await relayedApprovalHolds(answer, bindings, now))) {
-				return next();
+				return next(inputBinding);
 			}
 			// An expired, spent or invalid approval is asked again, saying why.
 			const binding = bindings[0] as string;
@@ -642,15 +656,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			},
 		});
 	};
-}
-
-/** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
-function canonicalOrUndefined(value: unknown): string | undefined {
-	try {
-		return canonicalJson(value);
-	} catch {
-		return undefined;
-	}
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {

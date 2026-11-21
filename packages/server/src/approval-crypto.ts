@@ -12,6 +12,15 @@ import { canonicalJson } from '@lushly-dev/afd-core/internal/canonical-json';
 
 export { canonicalJson };
 
+/** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
+export function canonicalOrUndefined(value: unknown): string | undefined {
+	try {
+		return canonicalJson(value);
+	} catch {
+		return undefined;
+	}
+}
+
 const MIN_SECRET_BYTES = 32;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
