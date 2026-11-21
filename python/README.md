@@ -541,8 +541,9 @@ afd stream export-run '{"format": "csv"}'
 
 `afd batch` sends one `afd-batch` call (a JSON array or a `.json` file; `-s` stops on the
 first error, `-t` sets the batch deadline in milliseconds, `-p` the parallelism) and exits 2 when
-some commands fail. `afd stream` reads AFD's `POST /stream/<command>` events, which the
-TypeScript server serves; `-f json` prints one chunk per line, and Ctrl+C exits 130.
+some commands fail. `afd stream` takes a JSON object or `key=value` pairs and reads AFD's
+`POST /stream/<command>` events, which the TypeScript server serves; `-f json` prints one chunk
+per line, and Ctrl+C exits 130. Both send `-H "Name: value"` headers and those in `AFD_HEADERS`.
 
 `afd connect` takes a server URL (or `mock` for testing); it does not start or name
 servers. `afd call item-delete --module ./commands.py` instead loads a trusted Python file

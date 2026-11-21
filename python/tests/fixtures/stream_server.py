@@ -6,7 +6,8 @@ TypeScript server would (``event: chunk`` then ``data: <json>``, see
 
 ``export-run`` sends progress, data and a complete chunk; ``fail-run`` an error chunk;
 ``cut-run`` data and then ends; ``slow-run`` sends progress and then nothing; ``escape-run``
-sends data carrying terminal escape sequences.
+sends data carrying terminal escape sequences; ``session-run`` answers with the request's
+``Mcp-Session-Id``.
 
 Usage: stream_server.py <port> [ignored...]
 """
@@ -33,8 +34,10 @@ def _event(chunk):
     return f"event: chunk\ndata: {json.dumps(chunk)}\n\n"
 
 
-async def _chunks(name, args):
-    if name == "export-run":
+async def _chunks(name, args, session_id=None):
+    if name == "session-run":
+        yield {"type": "complete", "totalChunks": 0, "totalDurationMs": 1, "data": {"session": session_id}}
+    elif name == "export-run":
         yield {"type": "progress", "progress": 0.5, "message": "Halfway", "itemsProcessed": 1, "itemsTotal": 2}
         yield {"type": "data", "data": {"row": 1, "format": args.get("format")}, "index": 0, "isLast": False}
         yield {"type": "data", "data": "done", "index": 1, "isLast": True}
@@ -61,11 +64,13 @@ async def _chunks(name, args):
 async def stream(request: Request):
     name = request.path_params["name"]
     if name == "missing-run":
-        return JSONResponse({"error": {"message": "Unknown command missing-run"}}, status_code=404)
+        error = {"code": "COMMAND_NOT_FOUND", "message": "Unknown command missing-run",
+                 "suggestion": "Run afd-discover"}
+        return JSONResponse({"success": False, "error": error}, status_code=404)
     args = await request.json()
 
     async def body():
-        async for chunk in _chunks(name, args):
+        async for chunk in _chunks(name, args, request.headers.get("mcp-session-id")):
             yield _event(chunk)
 
     return StreamingResponse(body(), media_type="text/event-stream")

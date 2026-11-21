@@ -1,7 +1,7 @@
 """The ``afd batch`` and ``afd stream`` commands' work, apart from Click.
 
-``batch`` sends one ``afd-batch`` call; ``stream`` reads the server's
-``POST /stream/<command>`` events. Their arguments, JSON output, text output and
+``batch`` sends one ``afd-batch`` call; ``stream`` prints what
+:meth:`afd.client.McpClient.stream` reads from the server's ``POST /stream/<command>``. Their arguments, JSON output, text output and
 exit codes mirror ``packages/cli/src/commands/batch.ts`` and ``stream.ts``. Text
 output passes every server-provided value through
 :func:`afd.cli.terminal.terminal_text`.
@@ -9,10 +9,9 @@ output passes every server-provided value through
 
 from __future__ import annotations
 
-import asyncio
 import json
 import math
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,7 +19,12 @@ from typing import Any
 import click
 
 from afd.cli.terminal import terminal_text
-from afd.transports.base import ToolExecutionError
+from afd.transports.base import (
+    HttpStatusError,
+    JsonRpcError,
+    ToolExecutionError,
+    ToolNotFoundError,
+)
 
 SERVER_DEADLINE_MARGIN_S = 5.0
 """Extra time the CLI waits for an ``afd-batch`` answer past the batch deadline,
@@ -36,6 +40,24 @@ EXIT_CANCELLED = 130
 # ── Shared text helpers ──────────────────────────────────────────────────────
 
 
+def js_round(value: float) -> int:
+    """Round half up, as JavaScript's ``Math.round`` (Python's ``round`` rounds half to even)."""
+    return math.floor(value + 0.5)
+
+
+def _count(value: Any) -> float:
+    """A summary count as a number; anything else counts as zero."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    return value
+
+
+def _json_text(value: Any, indent: int | None = None) -> str:
+    """``value`` as JSON for text output, keeping non-ASCII characters readable."""
+    separators = None if indent is not None else (",", ":")
+    return terminal_text(json.dumps(value, indent=indent, ensure_ascii=False, separators=separators))
+
+
 def _bar(ratio: Any, width: int, color: str) -> str:
     """A fixed-width bar for a 0-1 ratio; values out of range are clamped."""
     try:
@@ -44,7 +66,7 @@ def _bar(ratio: Any, width: int, color: str) -> str:
         value = 0.0
     if math.isnan(value):
         value = 0.0
-    filled = round(min(1.0, max(0.0, value)) * width)
+    filled = js_round(min(1.0, max(0.0, value)) * width)
     return click.style("█" * filled, fg=color) + click.style("░" * (width - filled), dim=True)
 
 
@@ -55,7 +77,7 @@ def format_confidence(confidence: Any) -> str:
     except (TypeError, ValueError):
         value = 0.0
     color = "green" if value >= 0.8 else "yellow" if value >= 0.5 else "red"
-    percent = round(value * 100) if math.isfinite(value) else 0
+    percent = js_round(value * 100) if math.isfinite(value) else 0
     return f"{_bar(value, 10, color)} {percent}%"
 
 
@@ -108,7 +130,9 @@ def parse_batch_commands(commands_arg: str) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = []
     for index, entry in enumerate(raw):
         cmd = entry if isinstance(entry, dict) else {}
-        command = cmd.get("command", cmd.get("name"))
+        command = cmd.get("command")
+        if command is None:
+            command = cmd.get("name")
         if not isinstance(command, str) or command == "":
             raise ValueError(f"Command at index {index} is missing 'command' field")
         command_input = cmd.get("input")
@@ -168,6 +192,78 @@ def unknown_outcome_batch(
     return result
 
 
+JSON_RPC_ERRORS: dict[int, dict[str, Any]] = {
+    -32700: {"code": "PARSE_ERROR", "retryable": False, "suggestion": (
+        "The server could not parse the request as JSON; check the arguments are serializable")},
+    -32600: {"code": "INVALID_REQUEST", "retryable": False, "suggestion": (
+        "The server rejected the JSON-RPC envelope; check that it is an AFD MCP endpoint")},
+    -32601: {"code": "METHOD_NOT_FOUND", "retryable": False, "suggestion": (
+        "The server does not support this MCP method; check the server type and version")},
+    -32602: {"code": "INVALID_INPUT", "retryable": False, "suggestion": (
+        "Correct the request parameters (tool name and arguments object) and try again")},
+    -32603: {"code": "INTERNAL_ERROR", "retryable": True, "outcome_unknown": True, "suggestion": (
+        "The server failed while handling the request; retry, and check the server logs if it "
+        "persists")},
+    -32000: {"code": "REQUEST_REJECTED", "retryable": False, "suggestion": (
+        "The server rejected the HTTP request (Host, Origin, Content-Type or size); check the "
+        "URL and headers")},
+    -32001: {"code": "SESSION_NOT_FOUND", "retryable": True, "suggestion": (
+        "The MCP session is unknown or expired; reconnect to start a new session")},
+}
+"""JSON-RPC error codes as TypeScript's client maps them (``client-errors.ts``)."""
+
+# The MCP SDK raises these itself when it loses the connection or times out.
+_SDK_LOST = {-32000, 408}
+
+
+def _rpc_error(code: int, message: str, data: Any) -> dict[str, Any] | None:
+    """The CommandError for a JSON-RPC error, or ``None`` when the server may have run it."""
+    mapping = JSON_RPC_ERRORS.get(code, {})
+    if mapping.get("outcome_unknown"):
+        return None
+    suggestion = data.get("suggestion") if isinstance(data, dict) else None
+    return {
+        "code": mapping.get("code", "JSON_RPC_ERROR"),
+        "message": message or "The server returned a JSON-RPC error",
+        "suggestion": suggestion if isinstance(suggestion, str) and suggestion else (
+            mapping.get("suggestion", "Check the request against the server documentation")),
+        "retryable": mapping.get("retryable", False),
+        "details": {"jsonRpcCode": code},
+    }
+
+
+def refusal(exc: Exception) -> dict[str, Any] | None:
+    """The error of a request the server definitely did not run, as TypeScript's
+    ``isOutcomeUnknown`` decides; ``None`` when it may have run (a timeout, a lost
+    connection, a 5xx or ``-32603``)."""
+    if isinstance(exc, ToolNotFoundError):
+        return {
+            "code": "COMMAND_NOT_FOUND",
+            "message": str(exc),
+            "suggestion": "Check that the server offers afd-batch: run 'afd tools'",
+            "retryable": False,
+        }
+    if isinstance(exc, JsonRpcError):
+        return _rpc_error(exc.code, exc.rpc_message, exc.data)
+    if isinstance(exc, HttpStatusError):
+        if exc.status < 400 or exc.status >= 500:
+            return None
+        return {
+            "code": f"HTTP_{exc.status}",
+            "message": str(exc),
+            "suggestion": (
+                "The server refused the request; check that the URL points to an AFD MCP "
+                "server endpoint"
+            ),
+            "retryable": exc.status == 429,
+        }
+    cause = getattr(exc, "cause", None)
+    code = getattr(cause, "code", None)
+    if type(cause).__name__ == "MCPError" and isinstance(code, int) and code not in _SDK_LOST:
+        return _rpc_error(code, str(getattr(cause, "message", "") or cause), getattr(cause, "data", None))
+    return None
+
+
 def _is_batch_result(value: Any) -> bool:
     return (
         isinstance(value, dict)
@@ -204,8 +300,13 @@ async def run_batch(
             },
             f"Batch execution failed: {message}",
         )
-    except Exception as exc:  # noqa: BLE001 - every other failure leaves the outcome unknown
-        return unknown_outcome_batch(commands, started_at, exc)
+    except Exception as exc:  # noqa: BLE001 - classified below
+        error = refusal(exc)
+        if error is None:
+            return unknown_outcome_batch(commands, started_at, exc)
+        return batch_failure(
+            commands, started_at, error, f"Batch was not executed: {error['message']}"
+        )
 
     if _is_batch_result(result):
         return result
@@ -232,7 +333,7 @@ def batch_exit_code(result: dict[str, Any]) -> int:
     """1 for a failed batch, 2 when some commands failed, else 0."""
     if not result.get("success"):
         return 1
-    if (result.get("summary") or {}).get("failureCount", 0) > 0:
+    if _count((result.get("summary") or {}).get("failureCount")) > 0:
         return EXIT_PARTIAL
     return 0
 
@@ -241,8 +342,8 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
     """The text lines of a batch result, as TypeScript's ``printBatchResult``."""
     summary = result.get("summary") or {}
     timing = result.get("timing") or {}
-    failures = summary.get("failureCount", 0) or 0
-    skipped = summary.get("skippedCount", 0) or 0
+    failures = _count(summary.get("failureCount"))
+    skipped = _count(summary.get("skippedCount"))
     lines: list[str] = []
 
     if result.get("success") and failures == 0:
@@ -256,9 +357,9 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
     lines.append(f"  Total:    {terminal_text(summary.get('total'))}")
     lines.append(f"  Success:  {click.style(terminal_text(summary.get('successCount')), fg='green')}")
     if failures > 0:
-        lines.append(f"  Failed:   {click.style(terminal_text(failures), fg='red')}")
+        lines.append(f"  Failed:   {click.style(terminal_text(summary['failureCount']), fg='red')}")
     if skipped > 0:
-        lines.append(f"  Skipped:  {_dim(terminal_text(skipped))}")
+        lines.append(f"  Skipped:  {_dim(terminal_text(summary['skippedCount']))}")
 
     lines += ["", click.style("Timing:", bold=True)]
     lines.append(f"  Total:    {terminal_text(timing.get('totalMs'))}ms")
@@ -280,8 +381,8 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
             command = click.style(terminal_text(entry.get("command")), fg="cyan")
             duration = terminal_text(entry.get("durationMs"))
             lines += ["", f"  {status} {command} {_dim(f'({entry_id}, {duration}ms)')}"]
-            if ok and "data" in outcome and outcome["data"] is not None:
-                preview = json.dumps(outcome["data"], separators=(",", ":"))
+            if ok and "data" in outcome:
+                preview = json.dumps(outcome["data"], ensure_ascii=False, separators=(",", ":"))
                 if len(preview) > 100:
                     preview = f"{preview[:100]}..."
                 lines.append(f"    {_dim('Data:')} {terminal_text(preview)}")
@@ -310,74 +411,6 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
 # ── Stream ───────────────────────────────────────────────────────────────────
 
 
-def stream_error_chunk(
-    code: str,
-    message: str,
-    suggestion: str,
-    chunks_before_error: int,
-    *,
-    retryable: bool | None = None,
-    recoverable: bool = False,
-) -> dict[str, Any]:
-    """A wire-format error chunk made by the CLI rather than the server."""
-    error: dict[str, Any] = {"code": code, "message": message, "suggestion": suggestion}
-    if retryable is not None:
-        error["retryable"] = retryable
-    return {
-        "type": "error",
-        "error": error,
-        "chunksBeforeError": chunks_before_error,
-        "recoverable": recoverable,
-    }
-
-
-async def bounded_stream(
-    chunks: AsyncIterator[dict[str, Any]], timeout_s: float | None
-) -> AsyncIterator[dict[str, Any]]:
-    """Yield ``chunks`` and end with a ``complete`` or ``error`` chunk.
-
-    The CLI makes the error chunk itself when the deadline passes (``STREAM_TIMEOUT``)
-    or the stream ends without one (``STREAM_TRUNCATED``), as TypeScript's client does.
-    """
-    loop = asyncio.get_running_loop()
-    deadline = None if timeout_s is None else loop.time() + timeout_s
-    count = 0
-    iterator = chunks.__aiter__()
-    try:
-        while True:
-            remaining = None if deadline is None else max(0.0, deadline - loop.time())
-            try:
-                chunk = await asyncio.wait_for(iterator.__anext__(), remaining)
-            except StopAsyncIteration:
-                break
-            except asyncio.TimeoutError:
-                yield stream_error_chunk(
-                    "STREAM_TIMEOUT",
-                    f"Stream did not finish within {round(timeout_s * 1000)}ms",
-                    "Retry with a larger timeout. The command may still have run, so check "
-                    "its effect before retrying a mutation.",
-                    count,
-                    retryable=True,
-                )
-                return
-            yield chunk
-            if isinstance(chunk, dict) and chunk.get("type") in ("complete", "error"):
-                return
-            count += 1
-        yield stream_error_chunk(
-            "STREAM_TRUNCATED",
-            "The stream ended without a complete or error chunk",
-            "The connection closed before the command reported its result. Check whether "
-            "the command took effect before running it again.",
-            count,
-            retryable=False,
-        )
-    finally:
-        aclose = getattr(iterator, "aclose", None)
-        if aclose is not None:
-            await aclose()
-
-
 class StreamPrinter:
     """Prints stream chunks as text, rewriting one progress line in place."""
 
@@ -404,7 +437,7 @@ class StreamPrinter:
             self.clear_progress()
             progress = chunk.get("progress", 0)
             try:
-                percent = round(float(progress) * 100)
+                percent = js_round(float(progress) * 100)
             except (TypeError, ValueError, OverflowError):
                 percent = 0
             items = ""
@@ -420,24 +453,24 @@ class StreamPrinter:
             if isinstance(data, str):
                 self._write(terminal_text(data))
             else:
-                self._echo(terminal_text(json.dumps(data, indent=2)))
+                self._echo(_json_text(data, indent=2))
             if chunk.get("isLast"):
                 self._echo()
         elif kind == "complete":
             self.clear_progress()
             self._echo()
             self._echo(click.style("✓ Stream complete", fg="green"))
-            if (chunk.get("totalChunks") or 0) > 0:
+            if _count(chunk.get("totalChunks")) > 0:
                 self._echo(_dim(f"  Chunks: {terminal_text(chunk['totalChunks'])}"))
             self._echo(_dim(f"  Duration: {terminal_text(chunk.get('totalDurationMs'))}ms"))
             if chunk.get("confidence") is not None:
                 self._echo(f"{_dim('  Confidence:')} {format_confidence(chunk['confidence'])}")
             if chunk.get("reasoning"):
                 self._echo(_dim(f"  {terminal_text(chunk['reasoning'])}"))
-            if "data" in chunk and chunk["data"] is not None:
+            if "data" in chunk:
                 self._echo()
                 self._echo(click.style("Final Result:", bold=True))
-                self._echo(terminal_text(json.dumps(chunk["data"], indent=2)))
+                self._echo(_json_text(chunk["data"], indent=2))
         elif kind == "error":
             self.clear_progress()
             error = chunk.get("error") if isinstance(chunk.get("error"), dict) else {}
@@ -446,7 +479,7 @@ class StreamPrinter:
             self._echo(f"  {click.style('Error:', fg='red')} {format_error_summary(error)}")
             if error.get("suggestion"):
                 self._echo(f"  {_dim('Suggestion:')} {terminal_text(error['suggestion'])}")
-            if (chunk.get("chunksBeforeError") or 0) > 0:
+            if _count(chunk.get("chunksBeforeError")) > 0:
                 self._echo(_dim(f"  Chunks before error: {terminal_text(chunk['chunksBeforeError'])}"))
             if chunk.get("recoverable"):
                 self._echo(_dim("  This error may be recoverable"))

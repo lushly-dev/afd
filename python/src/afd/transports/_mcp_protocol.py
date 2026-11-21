@@ -14,7 +14,14 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
-from afd.transports.base import ToolExecutionError, ToolInfo, TransportError, TransportState
+from afd.transports.base import (
+    HttpStatusError,
+    JsonRpcError,
+    ToolExecutionError,
+    ToolInfo,
+    TransportError,
+    TransportState,
+)
 
 # MCP protocol version matching the TS client
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -94,17 +101,19 @@ class _HttpBasedTransport:
             raise TransportError(str(exc), cause=exc) from exc
 
         if not response.is_success:
-            raise TransportError(
-                f"HTTP {response.status_code}: {response.text}",
+            raise HttpStatusError(
+                response.status_code, f"HTTP {response.status_code}: {response.text}"
             )
 
         data = response.json()
 
         if "error" in data:
-            err = data["error"]
-            raise TransportError(
-                f"JSON-RPC error {err.get('code', '?')}: {err.get('message', 'Unknown')}"
-            )
+            err = data["error"] if isinstance(data["error"], dict) else {}
+            code = err.get("code")
+            message = str(err.get("message", "Unknown"))
+            if isinstance(code, int) and not isinstance(code, bool):
+                raise JsonRpcError(code, message, err.get("data"))
+            raise TransportError(f"JSON-RPC error {code if code is not None else '?'}: {message}")
 
         return data.get("result")
 

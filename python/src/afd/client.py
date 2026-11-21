@@ -90,6 +90,8 @@ class McpClientConfig:
             asked. ``streamable-http`` only. On MCP 2026-07-28, time spent in the
             handler does not count against ``timeout``; on a 2025 connection it
             does, so give a person enough ``timeout`` to answer.
+        max_stream_event_bytes: The largest ``stream()`` event accepted; a larger one
+            ends the stream with ``STREAM_EVENT_TOO_LARGE``. Default 1 MiB.
     """
 
     url: str = ""
@@ -105,6 +107,7 @@ class McpClientConfig:
     client_version: str = "0.2.0"
     debug: bool = False
     on_elicitation: Optional[ElicitationHandler] = None
+    max_stream_event_bytes: int = 1024 * 1024
 
     @property
     def resolved_url(self) -> str:
@@ -399,26 +402,35 @@ class McpClient:
         self,
         name: str,
         args: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
+        cancel: Optional[asyncio.Event] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Stream results from a command via SSE.
+        """Stream a command's results from the server's ``POST /stream/<command>``.
 
-        POSTs to ``/stream/{name}`` next to the server's ``/sse`` endpoint
-        (the name is URL-encoded) and yields parsed SSE data events. An HTTP
-        error status yields a single ``STREAM_ERROR`` error chunk.
+        The URL is the client's without a trailing ``/sse``, ``/message``,
+        ``/messages`` or (for ``streamable-http``) ``/mcp``, plus
+        ``/stream/<name>`` (URL-encoded). On a 2025 Streamable HTTP connection the
+        request carries the session's ``Mcp-Session-Id``, so the stream sees the
+        session's active context. As TypeScript's ``stream()``, the last chunk is
+        always ``complete`` or ``error``: the client makes ``STREAM_TRUNCATED``,
+        ``STREAM_TIMEOUT``, ``STREAM_CANCELLED``, ``STREAM_EVENT_TOO_LARGE``, an HTTP
+        refusal (the server's ``error``, or ``STREAM_ERROR``) or ``CONNECTION_ERROR``
+        itself, and skips events that are not chunks.
 
         Args:
             name: Command name.
             args: Command arguments.
+            timeout: Seconds the whole stream may take; ``None`` for no deadline.
+            cancel: Set it to stop the stream with ``STREAM_CANCELLED``.
 
         Yields:
-            Parsed JSON chunks from the SSE stream (wire format, camelCase).
-            Use :func:`afd.core.streaming.parse_stream_chunk` for models.
+            Chunks in wire format (camelCase). Use
+            :func:`afd.core.streaming.parse_stream_chunk` for models.
         """
         self._require_connected()
 
-        import httpx
-
-        from afd.core.sse import SseDecoder
+        from afd.client_stream import stream_over_http
         from afd.transports._mcp_protocol import derive_stream_url
 
         base_url = self._config.resolved_url
@@ -430,36 +442,21 @@ class McpClient:
             path = parts.path.rstrip("/")
             if path.endswith("/mcp"):
                 base_url = urlunsplit(parts._replace(path=path[: -len("/mcp")]))
-        stream_url = derive_stream_url(base_url, name)
-
-        async with httpx.AsyncClient() as http_client:
-            async with http_client.stream(
-                "POST",
-                stream_url,
-                json=args or {},
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "text/event-stream",
-                    **self._config.headers,
-                },
-                timeout=self._config.timeout,
-            ) as response:
-                if not response.is_success:
-                    body = await response.aread()
-                    yield _stream_http_error(response.status_code, response.reason_phrase, body)
-                    return
-                decoder = SseDecoder()
-                async for line in response.aiter_lines():
-                    event = decoder.decode(line)
-                    if event is None:
-                        continue
-                    payload = event.data.strip()
-                    if payload == "[DONE]":
-                        return
-                    try:
-                        yield json.loads(payload)
-                    except json.JSONDecodeError:
-                        yield {"raw": payload}
+        stream = stream_over_http(
+            derive_stream_url(base_url, name),
+            args,
+            headers=self._config.headers,
+            session_id=getattr(self._transport, "session_id", None),
+            timeout=timeout,
+            cancel=cancel,
+            connect_timeout=self._config.timeout,
+            max_event_bytes=self._config.max_stream_event_bytes,
+        )
+        try:
+            async for chunk in stream:
+                yield chunk
+        finally:
+            await stream.aclose()
 
     # ── Events ────────────────────────────────────────────────────────────
 
@@ -649,29 +646,6 @@ def _parse_command_result(data: Dict[str, Any]) -> CommandResult:
                 ]
             },
         )
-
-
-def _stream_http_error(status: int, reason: str, body: bytes) -> Dict[str, Any]:
-    """A wire-format error chunk for a stream request that got an HTTP error."""
-    message = f"HTTP {status}: {reason}" if reason else f"HTTP {status}"
-    try:
-        payload = json.loads(body) if body else None
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        payload = None
-    server_error = payload.get("error") if isinstance(payload, dict) else None
-    if isinstance(server_error, dict) and isinstance(server_error.get("message"), str):
-        message = f"HTTP {status}: {server_error['message']}"
-    return {
-        "type": "error",
-        "error": {
-            "code": "STREAM_ERROR",
-            "message": message,
-            "suggestion": "Check the command name and arguments",
-            "retryable": status >= 500,
-        },
-        "chunksBeforeError": 0,
-        "recoverable": False,
-    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

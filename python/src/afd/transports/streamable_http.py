@@ -138,11 +138,18 @@ class StreamableHttpTransport(SseTransport):
         self._mode = mode
         self._on_elicitation = on_elicitation
         self._protocol_version: Optional[str] = None
+        self._session_id: Optional[str] = None
 
     @property
     def protocol_version(self) -> Optional[str]:
         """The negotiated revision, such as ``"2026-07-28"`` or ``"2025-11-25"``."""
         return self._protocol_version
+
+    @property
+    def session_id(self) -> Optional[str]:
+        """The ``Mcp-Session-Id`` the server gave a 2025 connection; ``None`` on
+        MCP 2026-07-28, which has no sessions. ``McpClient.stream`` sends it."""
+        return self._session_id
 
     async def _open_session(self, stack: AsyncExitStack, stop: asyncio.Event) -> Any:
         try:
@@ -157,9 +164,18 @@ class StreamableHttpTransport(SseTransport):
 
         url, headers, timeout = self._url, self._headers, self._timeout
 
+        self._session_id = None
+
+        async def note_session(response: Any) -> None:
+            session_id = response.headers.get("mcp-session-id")
+            if session_id:
+                self._session_id = session_id
+
         @asynccontextmanager
         async def streams() -> AsyncIterator[Any]:
-            http = httpx2.AsyncClient(headers=headers, timeout=timeout)
+            http = httpx2.AsyncClient(
+                headers=headers, timeout=timeout, event_hooks={"response": [note_session]}
+            )
             async with http, streamable_http_client(url, http_client=http) as opened:
                 read, write, *rest = opened
                 yield (_EndOfStreamSignal(read, stop.set), write, *rest)
