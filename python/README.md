@@ -506,13 +506,17 @@ MCP meta-tools and the in-process tool surface remain outside this boundary.
 metadata; only `True` permits one retry. Public call/pipeline contexts cannot approve, and
 held results, observers and journals receive no token. A deadline includes the human wait.
 Use the server's `execute` only as a trusted host API when handling tokens out of band.
+Without an approval middleware, `create_server` and `create_direct_registry` refuse a command whose
+`approval` policy is not `"not-required"` with `APPROVAL_UNAVAILABLE` before its handler runs
+(#1886); place retry middleware, and middleware that changes the input, before the approval
+middleware, since one approval runs one handler on the approved input.
 
 ```python
 from afd import DirectClient, DirectClientOptions, create_direct_registry
 from afd.server import create_approval_middleware
 
 registry = create_direct_registry(commands, middleware=[
-    create_approval_middleware(secret=secret_from_environment, commands=commands),
+    create_approval_middleware(secret=secret_from_environment),
 ])
 client = DirectClient(registry, DirectClientOptions(on_approval_needed=ask_human))
 # ask_human(request) returns True only after approval; request never contains a token.
