@@ -100,6 +100,18 @@ pub struct World {
     pub drop_after_doing: Option<String>,
     /// Wait this long before answering each command, as a far server would.
     pub slow: Option<std::time::Duration>,
+    /// A search that falls behind the mailbox: in each named mailbox, it
+    /// leaves out every UID from the one given on.
+    pub search_lags: Vec<(String, u32)>,
+    /// A search that still lists messages that went: each named mailbox's
+    /// UIDs listed whether it holds them or not.
+    pub search_keeps: Vec<(String, u32)>,
+    /// Count in `EXISTS` only the messages a `FETCH` returns, as iCloud
+    /// does, rather than every message the mailbox holds.
+    pub exists_counts_returned: bool,
+    /// Messages that arrive just after their mailbox is opened: its
+    /// `EXISTS` and `UIDNEXT` leave them out, and everything else sees them.
+    pub arrives_after_opening: Vec<(String, u32)>,
 }
 
 impl World {
@@ -122,6 +134,10 @@ impl World {
             moves: false,
             drop_after_doing: None,
             slow: None,
+            search_lags: Vec::new(),
+            search_keeps: Vec::new(),
+            exists_counts_returned: false,
+            arrives_after_opening: Vec::new(),
         }
     }
 
@@ -229,6 +245,13 @@ impl World {
         let mailbox = self.find(mailbox);
         mailbox.messages.remove(&uid);
         mailbox.expunged.push((uid, modseq));
+    }
+
+    /// Lets a message go as iCloud's trash lets old mail go: no `VANISHED`
+    /// names it, and a search still lists it.
+    pub fn expunge_quietly(&mut self, mailbox: &str, uid: u32) {
+        self.find(mailbox).messages.remove(&uid);
+        self.search_keeps.push((mailbox.to_string(), uid));
     }
 
     /// Gives a mailbox a new `UIDVALIDITY` and renumbers its messages, as a
@@ -549,12 +572,25 @@ fn examine(
         out,
         "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft)\r\n".to_string(),
     );
-    text(out, format!("* {} EXISTS\r\n", mailbox.messages.len()));
+    let later: Vec<u32> = world
+        .arrives_after_opening
+        .iter()
+        .filter(|(name, _)| name == &mailbox.name)
+        .map(|(_, uid)| *uid)
+        .collect();
+    let exists = mailbox
+        .messages
+        .keys()
+        .filter(|uid| !later.contains(uid))
+        .filter(|uid| !(world.exists_counts_returned && mailbox.never_return.contains(uid)))
+        .count();
+    let uid_next = later.iter().copied().min().unwrap_or(mailbox.uid_next);
+    text(out, format!("* {exists} EXISTS\r\n"));
     text(
         out,
         format!("* OK [UIDVALIDITY {}] ok\r\n", mailbox.validity),
     );
-    text(out, format!("* OK [UIDNEXT {}] ok\r\n", mailbox.uid_next));
+    text(out, format!("* OK [UIDNEXT {uid_next}] ok\r\n"));
     if condstore {
         let highest = mailbox
             .messages
@@ -780,15 +816,29 @@ fn search(tag: &str, criteria: &[String], world: &mut World, open: &str, out: &m
         text(out, format!("{tag} NO search refused\r\n"));
         return;
     }
+    let lags_from = world
+        .search_lags
+        .iter()
+        .find(|(name, _)| name == open)
+        .map(|(_, from)| *from);
+    let kept: Vec<u32> = world
+        .search_keeps
+        .iter()
+        .filter(|(name, _)| name == open)
+        .map(|(_, uid)| *uid)
+        .collect();
     let mailbox = world.find(open);
+    let mut listed: Vec<u32> = mailbox.messages.keys().copied().collect();
+    listed.extend(kept);
+    listed.sort_unstable();
+    listed.dedup();
+    listed.retain(|uid| lags_from.is_none_or(|from| *uid < from));
     let uids: Vec<u32> = match criteria {
-        [all] if all.eq_ignore_ascii_case("ALL") => mailbox.messages.keys().copied().collect(),
+        [all] if all.eq_ignore_ascii_case("ALL") => listed,
         [uid, set] if uid.eq_ignore_ascii_case("UID") => {
             let highest = mailbox.messages.keys().max().copied().unwrap_or(0);
-            mailbox
-                .messages
-                .keys()
-                .copied()
+            listed
+                .into_iter()
                 .filter(|candidate| in_set(set, *candidate, highest))
                 .collect()
         }

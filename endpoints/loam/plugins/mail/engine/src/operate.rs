@@ -865,13 +865,17 @@ impl Batch<'_> {
                 .filter(|item| same(item))
                 .filter_map(|item| item.to_provider_id.clone())
                 .collect();
-            let mut there: HashSet<String> =
-                provider.present(&originals).await?.into_iter().collect();
-            for seen in provider.flags_of(&originals).await? {
-                if seen.flags.iter().any(|flag| flag == "\\Deleted") {
-                    there.remove(&seen.provider_id);
-                }
-            }
+            // An original is there only when the provider returns it, not
+            // flagged to be deleted: a listing is not enough, since iCloud's
+            // search still lists messages that went, and the copy would then
+            // be the last of its message.
+            let there: HashSet<String> = provider
+                .flags_of(&originals)
+                .await?
+                .into_iter()
+                .filter(|seen| !seen.flags.iter().any(|flag| flag == "\\Deleted"))
+                .map(|seen| seen.provider_id)
+                .collect();
             alone = checking
                 .into_iter()
                 .filter(|item| {

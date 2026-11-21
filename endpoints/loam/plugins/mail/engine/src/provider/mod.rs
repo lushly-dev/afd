@@ -83,6 +83,17 @@ pub struct Opened {
     pub validity: String,
 }
 
+/// The ids a mailbox's messages are returned by, read from the messages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Returned {
+    /// Every id returned, including mail that arrived after the mailbox was
+    /// opened, such as a copy the engine made meanwhile.
+    pub ids: Vec<String>,
+    /// How many of them the mailbox held when it was opened: what its count
+    /// then is compared with.
+    pub held_when_opened: u64,
+}
+
 /// Every id a mailbox holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
@@ -122,6 +133,9 @@ pub struct Changes {
     pub flags: Vec<FlagsSeen>,
     /// Where the next pass starts.
     pub cursor: String,
+    /// How many messages the provider says the mailbox holds now, when it
+    /// says. Fewer than the store shows means some left unreported.
+    pub held: Option<u64>,
 }
 
 /// The answer to "what changed since this cursor".
@@ -251,7 +265,18 @@ pub trait Provider: Send {
         Err(ProviderError::Refused("changing mail"))
     }
 
-    /// Which of `ids` the open mailbox holds now.
+    /// Every id the open mailbox returns its messages by: read from the
+    /// messages themselves, not a listing. Sync asks for it only when the
+    /// provider holds fewer messages than the store shows, as iCloud did when
+    /// mail left its trash without being reported. Every provider answers it
+    /// from the messages, never from its listing: a listing is what fell
+    /// behind.
+    async fn returned(&mut self) -> Result<Returned, ProviderError>;
+
+    /// Which of `ids` the open mailbox holds now, by any account the
+    /// provider gives of it: a message one account leaves out is still
+    /// held. Where being held must be sure, as before the last copy of a
+    /// message could go, the caller asks [`Provider::flags_of`] instead.
     async fn present(&mut self, _ids: &[String]) -> Result<Vec<String>, ProviderError> {
         Err(ProviderError::Refused("changing mail"))
     }
