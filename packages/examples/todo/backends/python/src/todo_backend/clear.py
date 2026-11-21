@@ -55,8 +55,10 @@ def _approval(input: Any, context: Any) -> str:
     return "not-required" if getattr(actor, "kind", None) == "human" else "required"
 
 
-def clear_command(store: Store) -> Callable[..., Any]:
-    """todo-clear, bound to ``store``."""
+def clear_command(store: Store, *, held: bool = True) -> Callable[..., Any]:
+    """todo-clear, bound to ``store``. With ``held=False`` it declares no approval policy: the
+    server has no approval step then (``APPROVALS=off``), and the engine refuses a command that
+    declares a policy without one (``APPROVAL_UNAVAILABLE``)."""
 
     @define_command(
         name="todo-clear",
@@ -75,7 +77,7 @@ def clear_command(store: Store) -> Callable[..., Any]:
         destructive=True,
         # Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
         confirm_prompt="Delete these todos? This cannot be undone.",
-        approval=_approval,
+        approval=_approval if held else None,
         version="1.0.0",
         contexts=EDIT_CONTEXTS,
         expose=MCP,
