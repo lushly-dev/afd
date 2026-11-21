@@ -270,7 +270,9 @@ def _hybrid_tools_list(
     """
     by_name: dict[str, CommandDefinition] = {}
     for command in commands:
-        by_name.setdefault(command.name, command)  # a registered command shadows a bootstrap one
+        # No registered command shares an enabled built-in's name (MCPServer refuses one
+        # before each request), so the first of a name is the only one.
+        by_name.setdefault(command.name, command)
     meta_tools = list(META_TOOLS)
     context_tools = [by_name[name] for name in CONTEXT_TOOL_ORDER if name in by_name]
     first_class = [by_name[name] for name in first_class_tools if name in by_name]
