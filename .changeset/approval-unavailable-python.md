@@ -4,4 +4,4 @@
 
 ### Added
 
-- **`ErrorCodes.APPROVAL_UNAVAILABLE`**, which joins the shared catalog (`spec/command-metadata.md`, "Approvals"): a server engine refuses a command whose declared approval policy is not `not-required` when no approval step admitted the call. Python defines the constant; its engine does not refuse such calls yet.
+- **`ErrorCodes.APPROVAL_UNAVAILABLE`**, which joins the shared catalog (`spec/command-metadata.md`, "Approvals"): a server engine refuses a command whose declared approval policy is not `not-required` when no approval step admitted the call. Python defines the constant; its engine does not refuse such calls yet ([#1886](https://github.com/lushly-dev/afd/issues/1886)).
