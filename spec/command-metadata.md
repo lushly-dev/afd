@@ -242,7 +242,30 @@ see the call, answers before the handler runs with:
 
 When an approval step ran but did not admit this dispatch (a retry, a different command or an
 input changed after it), `details.reason` is `admission-mismatch` and the suggestion tells the
-operator to move such middleware before the approval step.
+operator to move such middleware before the approval step. This holds whether the policy that
+gates the command is its own or one the approval middleware is given for it.
+
+When a call needs approval and its validated input has no canonical JSON form (rule 3 below), no
+token or relayed approval can bind it, so the approval step answers before the handler, without
+asking the person, for a single call and for a step of an `afd-batch` or `afd-pipe` approved up
+front alike:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "APPROVAL_UNAVAILABLE",
+    "message": "todo-tag needs a person's approval, and this input cannot be bound to one",
+    "suggestion": "Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).",
+    "retryable": false,
+    "details": { "reason": "input-not-canonical" }
+  }
+}
+```
+
+A call whose policy lets it through runs on such an input; the engine then compares the input it
+dispatches with the one admitted in the language's own way (the same object, or an equal copy), and
+a difference is `admission-mismatch`.
 
 This check reads the declaration alone: a policy function is not evaluated, so a command that
 declares one needs an approval step even for calls the function would let through. The suggestion

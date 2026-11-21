@@ -10,4 +10,4 @@ engine answers `APPROVAL_UNAVAILABLE` before the handler runs, not retryable, re
 declaration alone (a policy function is not evaluated). `APPROVAL_UNAVAILABLE` joins
 [`error-codes.md`](./error-codes.md)'s catalog and `vectors/error-codes.json` (50 codes), with its
 constant in all four languages. TypeScript enforces it; Python, Rust and C++ define the constant
-and their enforcement is planned. Additive, so the version stays.
+and their enforcement follows in [#1886](https://github.com/lushly-dev/afd/issues/1886). Additive, so the version stays.
