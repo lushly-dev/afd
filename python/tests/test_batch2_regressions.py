@@ -241,8 +241,11 @@ class TestCliWrapperArgs:
 
 		transport.register_tool("todo-create", handler)
 
+		import importlib
+
+		main_mod = importlib.import_module("afd.cli.main")
 		runner = CliRunner()
-		with patch("afd.cli.main._get_transport", return_value=transport) as mock_get:
+		with patch.object(main_mod, "_get_transport", return_value=transport) as mock_get:
 			result = runner.invoke(afd_cli, args)
 
 		assert result.exit_code == 0, result.output
