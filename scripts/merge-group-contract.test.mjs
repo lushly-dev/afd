@@ -639,7 +639,7 @@ describe('what the contract cannot read, or reads two ways', () => {
 		// The base checkout holds the scripts alone, so a relative import would be missing there.
 		for (const path of ['scripts/ci-verdict.mjs', 'scripts/commit-credit.mjs']) {
 			const text = readFileSync(join(root, path), 'utf8');
-			const imports = [...text.matchAll(/(?:from|import\()\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+			const imports = [...text.matchAll(/(?:from|import\(?)\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
 			assert.ok(imports.length > 0, `${path} has imports to read`);
 			for (const name of imports)
 				assert.match(name, /^node:/, `${path} imports ${name}, which ci-ok's base checkout lacks`);

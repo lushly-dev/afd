@@ -13,8 +13,9 @@ name: CI verdict
 # change is built on (main for a pull request; for a merge group, main with the groups queued ahead
 # of it), never from the change it judges, so an edit to either script takes effect once it has
 # landed. A change's own run drives the base's scripts with its own copy of this file: land a new
-# argument or variable in the scripts first and use it here in a later change, and never move or
-# rename them in one step. The list of workflows to wait for comes from the commit under test, whose
+# argument or variable in the scripts first, as optional, and use it here in a later change; make
+# the scripts stop needing one before this file stops passing it; never move or rename them in one
+# step. The list of workflows to wait for comes from the commit under test, whose
 # workflows are the ones that run.
 on:
   pull_request:
