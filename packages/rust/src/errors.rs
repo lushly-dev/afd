@@ -323,6 +323,10 @@ pub mod error_codes {
     /// The command's approval policy requires a human's approval and the call carried no
     /// valid approval token.
     pub const APPROVAL_REQUIRED: &str = "APPROVAL_REQUIRED";
+    /// The command declares an approval policy other than `not-required`, and the server has no
+    /// approval step that admitted the call. The Rust engine does not emit it yet; the shared
+    /// catalog lists it.
+    pub const APPROVAL_UNAVAILABLE: &str = "APPROVAL_UNAVAILABLE";
     /// A command's successful result was larger than the call's output budget
     /// (`spec/output-budgets.md`, B5): a read fails with it, a mutation keeps its result and
     /// carries it as a warning's code.

@@ -308,7 +308,8 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	/**
 	 * Whether a call needs a human's approval before the handler runs: `'required'`,
 	 * `'not-required'` (the default), or a function of the validated input and context.
-	 * Enforced by `createApprovalMiddleware`; reported as `_meta.approval`.
+	 * Enforced by `createApprovalMiddleware`; without it, the server's engines refuse a policy
+	 * other than `'not-required'` (`APPROVAL_UNAVAILABLE`). Reported as `_meta.approval`.
 	 */
 	approval?: ApprovalPolicy<TInput>;
 

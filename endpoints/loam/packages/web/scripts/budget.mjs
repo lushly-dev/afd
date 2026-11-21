@@ -556,12 +556,17 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #1701 (expired branded token fail-closed check in afd-auth) and #1704 (bounded pipeline
 	// variable expansion in afd-core): measured 325,057 minified and 102,213 gzip against `main` at `e6395319`;
 	// set to 325,800 and 102,700.
-	jsMinified: 325_800,
+	// Approval admission in afd-server (the engine records each call's approval policy and admission and refuses an
+	// unadmitted gated call), measured in one tree against `main` at `2700c62e`: 325,057 to 326,342 (+1,285); set to
+	// 326,800 under D115. Gzip 102,213 to 102,675, within its row.
+	jsMinified: 326_800,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
-	jsGzip: 102_700,
+	// afd-server's approval admission with its refusal reasons, against `main` at `2700c62e`: 102,213 to 102,795 gzip
+	// (+582); set to 103,200 under D115.
+	jsGzip: 103_200,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -578,7 +583,9 @@ export const CEILINGS = Object.freeze({
 	// keeping a failed write; set to 132,600 under D115. First paint (322,183 to 322,639, 101,339 to 101,493 gzip) and
 	// `late` (116,561 to 117,193) stay within their rows.
 	// Raised under D115 by #1701 and #1704: measured 135,309 against `main` at `e6395319`; set to 136,000.
-	kernelMinified: 136_000,
+	// Approval admission in afd-server, against `main` at `2700c62e`: 135,309 to 136,945 (+1,636); set to 137,400 under
+	// D115.
+	kernelMinified: 137_400,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

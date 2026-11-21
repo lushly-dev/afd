@@ -111,9 +111,10 @@ export function createUpFrontApproval(
 			);
 			return steps;
 		},
+		command: (name) => commands.find((candidate) => candidate.name === name),
 		validated: async (command, input) => {
 			// Only a command that may need approval: any other runs as it does on its own.
-			const policy = commands.find((candidate) => candidate.name === command)?.approval;
+			const policy = upFront.command(command)?.approval;
 			if (policy === undefined || policy === 'not-required') return undefined;
 			const sent = sentKey(input);
 			if (sent === undefined) return undefined;
@@ -189,7 +190,9 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 
 	async function decide(upFront: UpFrontApproval, context: CommandContext): Promise<Plan> {
 		const steps = await upFront.steps();
-		const late = steps.find((step) => step.dynamic && deps.mayRequireApproval(step.command));
+		const late = steps.find(
+			(step) => step.dynamic && deps.mayRequireApproval(step.command, context)
+		);
 		if (late) return { kind: 'refuse', error: splitError(upFront.tool, late.index, late.command) };
 		const scope = await callTags(upFront);
 

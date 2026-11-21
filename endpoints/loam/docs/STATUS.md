@@ -716,6 +716,7 @@ new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | AFD approval admission | afd-server's engines refuse a command whose declared approval policy is not `not-required` unless an approval middleware admitted the call (`APPROVAL_UNAVAILABLE`); each admission runs one handler on the approved input. D115 against `main` at `2700c62e`: first paint 325,057 to 326,696 (`jsMinified` raised from 325,800 to 326,800) and 102,213 to 102,795 gzip (`jsGzip` raised from 102,700 to 103,200); `kernelMinified` 135,309 to 137,347 (raised from 136,000 to 137,400); `late` 117,166, unchanged |
 
 ### Sessions: to 2026-11-18, every area
 
