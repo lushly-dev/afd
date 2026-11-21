@@ -9,6 +9,7 @@ import {
 	acceptRecord,
 	buildRecord,
 	CHECK,
+	carryRecord,
 	currentIdentity,
 	MAX_AGE_MS,
 	readRecord,
@@ -127,6 +128,39 @@ describe('acceptRecord', () => {
 			const result = accept(over);
 			assert.equal(result.accepted, false);
 			assert.match(result.reason, reason);
+		});
+});
+
+describe('carryRecord', () => {
+	const folded = { ...identity, head: OTHER };
+	it('restates a record for a commit with the same tree and base, which pre-push accepts', () => {
+		const carried = carryRecord(recordFor(), { from: identity, to: folded });
+		assert.equal(carried.head, OTHER);
+		assert.equal(carried.carriedFrom, HEAD);
+		assert.equal(carried.finishedAt, recordFor().finishedAt);
+		assert.equal(
+			acceptRecord({ record: carried, identity: folded, updates: push(OTHER), now: NOW }).accepted,
+			true
+		);
+		const again = carryRecord(carried, { from: folded, to: { ...identity, head: 'e'.repeat(40) } });
+		assert.equal(again.carriedFrom, HEAD, 'names the commit verify ran on');
+	});
+	const refusals = [
+		['no record', { record: null }],
+		['another schema', { record: { ...recordFor(), schema: SCHEMA + 1 } }],
+		["another commit's record", { from: { ...identity, head: 'e'.repeat(40) } }],
+		['a record of another tree', { record: { ...recordFor(), tree: OTHER } }],
+		['a record against another base', { record: { ...recordFor(), base: OTHER } }],
+		['a new commit with another tree', { to: { ...folded, tree: OTHER } }],
+		['a new commit on another base', { to: { ...folded, base: OTHER } }],
+		['a new commit with no base', { to: { ...folded, base: null } }],
+		['an unclean checkout after', { to: { ...folded, clean: false } }],
+		['an unclean checkout before', { from: { ...identity, clean: false } }],
+	];
+	for (const [what, over] of refusals)
+		it(`carries nothing for ${what}`, () => {
+			const { record = recordFor(), from = identity, to = folded } = over;
+			assert.equal(carryRecord('record' in over ? over.record : record, { from, to }), null);
 		});
 });
 

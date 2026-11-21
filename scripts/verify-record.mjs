@@ -8,6 +8,9 @@
  * that commit, its tree and merge base are unchanged, the checkout is still clean and the record
  * is under a day old. Anything else runs pre-push in full. The software factory's merge lane
  * validates each branch this way and then pushes it without running the checks twice.
+ *
+ * `pnpm branch:squash` folds a branch into one commit with the same tree on the same base, and
+ * carries the record to that commit (`carryRecord`), since what verify ran on is unchanged.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -60,6 +63,20 @@ export function buildRecord({ before, after, results, scope, defaultBase, now = 
 			finishedAt: new Date(now).toISOString(),
 		},
 	};
+}
+
+/**
+ * The record for `from` restated for `to`, a commit `pnpm branch:squash` made with the same tree
+ * and the same merge base with the default base: verify's results are that tree's against that
+ * base, so they hold for it, and its age is kept. Null unless the record is `from`'s own, of this
+ * schema, and both checkouts are clean. `carriedFrom` names the commit verify ran on.
+ */
+export function carryRecord(record, { from, to }) {
+	if (!record || record.schema !== SCHEMA || !from.clean || !to.clean) return null;
+	if (record.head !== from.head || record.tree !== from.tree || record.base !== from.base)
+		return null;
+	if (to.tree !== from.tree || !to.base || to.base !== from.base) return null;
+	return { ...record, head: to.head, carriedFrom: record.carriedFrom ?? from.head };
 }
 
 export function writeRecord(path, record) {
