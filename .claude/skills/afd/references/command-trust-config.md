@@ -36,7 +36,7 @@ const todoDelete = defineCommand({ name: 'todo-delete', mutation: true, destruct
   approval: (input, context) => (context.actor?.kind === 'human' ? 'not-required' : 'required'),
   /* input, handler */ });
 createMcpServer({ name: 'todo', version: '1.0.0', commands,
-  middleware: [createApprovalMiddleware({ secret: process.env.AFD_APPROVAL_SECRET!, commands })] });
+  middleware: [createApprovalMiddleware({ secret: process.env.AFD_APPROVAL_SECRET! })] });
 ```
 
 A held call fails with `APPROVAL_REQUIRED` before the handler runs; `error.details` has
@@ -44,9 +44,13 @@ A held call fails with `APPROVAL_REQUIRED` before the handler runs; `error.detai
 same command, input and actor with `context.approval` set to the token. Tokens are HMAC-signed,
 bound to command, input and actor, expire (5 minutes by default) and work once by default.
 
-- Without the middleware, `approval` is a declaration only. Pass it the same `commands` as the
-  server: an unlisted command is never held. Install it after any middleware that sets
-  `context.actor` (auth), since tokens bind the actor. The secret must be at least 32 bytes.
+- In TypeScript a declared policy holds without the middleware: `createMcpServer` and
+  `createDirectRegistry` refuse a command whose policy is not `'not-required'` with
+  `APPROVAL_UNAVAILABLE` unless the approval middleware admitted the call, and the middleware
+  decides from each command's own policy (its `commands` option is optional). Python, Rust and C++
+  do this later; there, pass the middleware the same `commands` as the server, since an unlisted
+  command is not held. Install it after any middleware that sets `context.actor` (auth), since
+  tokens bind the actor. The secret must be at least 32 bytes.
 - A policy function fails closed: anything but `'not-required'` holds the call. Write it so a
   call with no actor is held.
 - Never read `context.approval` from tool arguments. MCP results leave the token out by default

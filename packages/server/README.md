@@ -901,15 +901,13 @@ const todoDelete = defineCommand({
   },
 });
 
-const commands = [todoDelete];
 const server = createMcpServer({
   name: 'todo',
   version: '1.0.0',
-  commands,
+  commands: [todoDelete],
   middleware: [
     createApprovalMiddleware({
       secret: process.env.AFD_APPROVAL_SECRET!, // required, at least 32 bytes, no default
-      commands,
       summarize: (command, input) => `Delete todo ${(input as { id: string }).id} (permanent)`,
     }),
   ],
@@ -942,7 +940,7 @@ To resume, retry the same command with the same input and `context.approval` set
 - **WebCrypto.** The middleware uses `globalThis.crypto` (Node.js 22 and every current browser on a secure origin), so it also runs in a browser or webview through `@lushly-dev/afd-server/direct`. Tokens are byte for byte the same in TypeScript, Python, Rust and C++ (`spec/vectors/approval-tokens.json`).
 - **In a page, the secret is not a boundary.** A signing secret held in a page is visible to every script on that page. The gate still stops a model from approving its own call through tool input, and DirectClient's private exchange never puts the secret or a token in a result the model reads, but it does not protect against code running in the page. When you need that, keep approvals on a server.
 - **Fails closed.** A policy function that returns anything but `'not-required'` holds the call; one that throws fails it before the handler. Write policies so that a missing actor is held (`kind === 'human' ? 'not-required' : 'required'`).
-- **Gates only the listed commands.** Pass the same `commands` as the server or registry: a command missing from the list is never held.
+- **A declared policy always holds.** The middleware decides from the policy and `confirmPrompt` of the command each call runs. Without an approval middleware, `createMcpServer` and `createDirectRegistry` refuse a command whose policy is not `'not-required'` with `APPROVAL_UNAVAILABLE` before its handler runs (a policy function is not evaluated: declaring one needs the middleware). Each batch item, pipeline step and command run from another command's handler is checked on its own. The `commands` option is optional; it is only for using the middleware outside those two, where a command missing from it is not held.
 - **Actor binding is as strong as the actor.** The MCP default actor is `{ kind: 'agent' }` with no `id`, so tokens are bound to a specific agent or user only when `createContext` or auth middleware sets one. Install the middleware after any middleware that sets or refines `context.actor`.
 - **Batches and pipelines** pass one `context.approval` to every step. Retrying a pipeline reruns its ungated steps, and a gated step whose input comes from an earlier step may never match its token, so approve such steps as separate calls. Over MCP with `relay: 'mcp-elicitation'`, a batch or pipeline is approved up front instead (below).
 - `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` commands that declare no policy. Declare `approval: 'not-required'` to say a command was considered and needs none.
@@ -952,7 +950,7 @@ To resume, retry the same command with the same input and `context.approval` set
 Over MCP the caller is the agent, so the human has to be reached some other way. With `relay: 'mcp-elicitation'`, the middleware asks the human behind the MCP client, through a form elicitation, instead of returning a token:
 
 ```typescript
-createApprovalMiddleware({ secret, commands, relay: 'mcp-elicitation' });
+createApprovalMiddleware({ secret, relay: 'mcp-elicitation' });
 ```
 
 A call to one gated command (its own tool, `afd-call` or a grouped tool) from a client that declares form elicitation gets an `input_required` result on `/mcp` (MCP 2026-07-28), or a server-sent `elicitation/create` on a 2025-era stdio connection. The form shows the approval summary, the command name and its validated input, and one required `approve` checkbox. The client asks its user and retries, and the command runs once:
@@ -985,7 +983,7 @@ createMcpServer({
 	commands,
 	createContext: (_req, { credentials }) => ({ credentials }),
 	approver: (context) => context.credentials?.clientId === 'loam-shell',
-	middleware: [createApprovalMiddleware({ secret, commands })],
+	middleware: [createApprovalMiddleware({ secret })],
 });
 ```
 
@@ -1162,7 +1160,7 @@ Create a command definition with Zod schema.
 | `errors` | string[] | No | Possible error codes |
 | `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
 | `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
-| `approval` | `'required'` \| `'not-required'` \| `(input, context) => …` | No | Whether a call needs human approval before the handler runs (default `'not-required'`); enforced by [`createApprovalMiddleware`](#approvals) |
+| `approval` | `'required'` \| `'not-required'` \| `(input, context) => …` | No | Whether a call needs human approval before the handler runs (default `'not-required'`); enforced by [`createApprovalMiddleware`](#approvals), and refused with `APPROVAL_UNAVAILABLE` when no approval middleware admits the call |
 | `toolMeta` | `Record<string, unknown>` | No | Extra `_meta` entries on the command's tool, grouped action entry and `afd-detail`: prefixed keys with two or more labels, or `ui`; the server refuses others (see [Resources, Skills and Tool `_meta`](#resources-skills-and-tool-_meta)) |
 | `advertisedInputSchema` | JSON Schema object | No | The input schema shown on every surface in place of the one generated from `input`, which still validates |
 
