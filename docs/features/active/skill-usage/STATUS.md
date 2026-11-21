@@ -33,9 +33,10 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 - **Writing a skill looks like use, and so does auditing the skills.** In Lushly's last 30
   days, 6 sessions changed a skill they had read; the report counts them as authoring it.
 - **A dozen skills in a session is ordinary work.** 16 sessions loaded twelve or more
-  different skills within half an hour: at most 20 names, 16 of them among the 31 the checkout
-  holds. Every one was a delegated task with its reviewers, none an audit. So an audit is two
-  thirds of the skills a checkout holds (21 of 31) in half an hour, and no session met it.
+  different skills within half an hour: at most 20 names, and at most 16 of the 31 the
+  checkout holds. Every one was a delegated task with its reviewers, none an audit. So an
+  audit is two thirds of the skills a checkout holds (21 of 31) in half an hour, and no
+  session met it.
 - **A script handed to a shell keeps its own here-documents.** Dropping them from the outer
   command took the terminator and left the inner one open, which lost every read after it in
   ten real commands.

@@ -144,7 +144,8 @@ first (`NOT_COLLECTED` otherwise).
   audit, which is one session loading two thirds or more of the skills the project's checkout
   holds (and at least 12 of them) within 30 minutes (`totals.audit_sessions`). Only skills the
   checkout holds count toward that; a checkout that holds fewer than 12, or is not on this
-  machine, never has an audit, and an audit spread over hours is not seen as one.
+  machine, never has an audit, and an audit that takes longer than about 45 minutes is not
+  seen as one.
 - `quiet`: skills a project's checkout holds (`.claude/skills`, `.agents/skills`,
   `.codex/skills`) that nothing used in the window.
 - `project`: `owner/name` or the name alone. `harness`: `claude` or `codex`. `agent`: `main`,

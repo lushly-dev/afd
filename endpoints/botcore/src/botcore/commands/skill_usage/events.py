@@ -159,37 +159,46 @@ def _without_here_documents(script: str) -> str:
     here-documents, which are dropped when that script is read in turn; dropping them here
     would take the terminator with the body and leave the inner one open.
     """
+    lines = script.split("\n")
+    # A PowerShell script, by its here-string: there a backslash escapes nothing, so a quoted
+    # Windows path that ends in one (`"C:\dir\"`) is closed, not left open
+    powershell = any(line.rstrip().endswith(('@"', "@'")) for line in lines) and any(
+        line.lstrip().startswith(('"@', "'@")) for line in lines
+    )
     kept: list[str] = []
-    until: str | None = None
+    pending: list[str] = []  # the terminators of the bodies still to drop, in order
     quote: str | None = None
-    for line in script.split("\n"):
-        if until is not None:
+    for line in lines:
+        if pending:
+            until = pending[0]
             if line.strip() == until or (until.endswith("@") and line.lstrip().startswith(until)):
-                until = None
+                pending.pop(0)
             continue
         kept.append(line)
         if quote is None and line.rstrip().endswith(('@"', "@'")):
-            until = line.rstrip()[-1] + "@"
+            pending.append(line.rstrip()[-1] + "@")
             kept[-1] = line.rstrip()[:-2]  # the opener is not a quote left open
             continue
         index = 0
         while index < len(line):
             char = line[index]
             if quote:
-                if char == "\\" and quote == '"':
+                if char == "\\" and quote == '"' and not powershell:
                     index += 1
                 elif char == quote:
                     quote = None
             elif char in "\"'":
                 quote = char
-            elif char == "\\":
+            elif char == "\\" and not powershell:
                 index += 1
             elif char == "#" and (index == 0 or line[index - 1].isspace()):
                 break
-            elif until is None and line.startswith("<<", index):
+            elif line.startswith("<<<", index):
+                index += 2  # a here-string: the word after it is data on the same line
+            elif line.startswith("<<", index):
                 marker = _HEREDOC.match(line, index)
                 if marker:
-                    until = marker.group(2)
+                    pending.append(marker.group(2))
                     index = marker.end() - 1
             index += 1
     return "\n".join(kept)
