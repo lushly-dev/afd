@@ -53,9 +53,9 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Phase 1. Collect and report
 
-- `skill-usage-collect` and the record, from T3 Code's store (#1815): in this pull request.
+- `skill-usage-collect` and the record, from T3 Code's store (#1815): merged in #1859.
 
-- `skill-usage-report` (#1816): in this pull request.
+- `skill-usage-report` (#1816): merged in #1859.
 
 ## Phase 2. Missed triggers
 
@@ -76,3 +76,5 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 
 - Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.
+
+- PowerShell quoting in the shell reader (#1847): with the rollout, against a real Windows record.
