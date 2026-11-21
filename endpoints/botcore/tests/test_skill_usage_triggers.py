@@ -139,10 +139,11 @@ def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     assert judged(found) == (1, 1, 3)
     assert found["unknown_why"] == {
         "no_pull_request": 1, "no_session": 1, "opened_elsewhere": 0, "no_link_time": 0,
-        "after_opening": 1,
+        "after_opening": 1, "possibly_loaded": 0,
     }  # fmt: skip
     assert found["misses"] == [{"change": 104, "sessions": ["fourth"]}]
     assert found["rate"] == 0.5 and found["paths"] == ["hooks.yml", "scripts/check-*.mjs"]
+    assert found["loaded_by_subagent"] == 0
     assert data["merged"]["branch"] == "main" and data["merged"]["latest"] >= stamp(1)[:19]
     assert data["warnings"] == []
 
@@ -163,6 +164,23 @@ def test_a_subagent_loads_for_its_session_and_a_sibling_task_does_not(
 
     assert judged(found) == (1, 1, 0)  # the cell's load does not answer for the other cell
     assert found["misses"] == [{"change": 102, "sessions": ["thread:delegated-task:other"]}]
+    assert found["loaded_by_subagent"] == 1  # a reviewer is a subagent too
+
+
+def test_a_pull_request_a_subagent_opened_is_its_sessions(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    main = attached(t3_store, "main", 101)  # the session's own thread only attached itself
+    t3_store.skill_tool(main, "gate-discipline", stamp(3))
+    opener = {"pullRequests": [link(101, stamp(2)), link(101, stamp(1), "agent")]}
+    t3_store.thread("thread:subagent:shipper", parent=main, extra=opener)
+    run(skill_usage_collect())
+
+    assert store.load_sessions(state)["main"]["pull_requests"] == [
+        {"ref": "acme/garden#101", "linked_at": stamp(2), "opened": True}
+    ]
+    assert judged(rule(run(skill_usage_triggers(repo=str(repo))))) == (1, 0, 0)
 
 
 def test_a_session_that_only_attached_itself_to_a_pull_request_is_not_judged(
@@ -182,9 +200,13 @@ def test_a_session_that_only_attached_itself_to_a_pull_request_is_not_judged(
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
 
+    data = run(skill_usage_triggers(repo=str(repo)))
+    found = rule(data)
+
     assert judged(found) == (1, 1, 1)
     assert why(found) == {"opened_elsewhere": 1}
     assert found["misses"] == [{"change": 102, "sessions": ["careless"]}]
+    assert data["warnings"] == []  # a link that says it attached itself does say
 
 
 def test_working_on_the_same_branch_ties_no_session_to_a_change(
@@ -194,19 +216,21 @@ def test_working_on_the_same_branch_ties_no_session_to_a_change(
     merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
     branch = f"lush/{PRIVATE}"  # a branch is often named after its task
     head = {"snapshot": {"headBranch": branch, "title": PRIVATE}}
-    # 101: its author never loaded the skill; the reviewer it sent to the same branch did,
-    # and so did an earlier session that had used the branch's name
-    author = t3_store.thread(
+    # 101: its author never loaded the skill; an earlier session that used the branch's name
+    # did, and so did a session that attached itself to the pull request from that branch
+    t3_store.thread(
         "author", extra={"branch": branch, "pullRequests": [link(101, stamp(2), **head)]}
     )
-    reviewer = t3_store.thread(
-        "thread:delegated-task:review", parent=author, extra={"branch": branch}
-    )
     earlier = t3_store.thread("earlier", extra={"branch": branch})
-    t3_store.skill_tool(reviewer, "gate-discipline", stamp(3))
     t3_store.skill_tool(earlier, "gate-discipline", stamp(9))
+    helper = {"branch": branch, "pullRequests": [link(101, stamp(2), "agent", **head)]}
+    t3_store.skill_tool(t3_store.thread("helper", extra=helper), "gate-discipline", stamp(3))
     # 102: a script opened it from a cell's branch, and the foreman attached itself to it
     t3_store.thread("foreman", extra={"pullRequests": [link(102, stamp(2), "agent", **head)]})
+    cell = t3_store.thread(
+        "thread:delegated-task:cell", parent="foreman", extra=head | {"branch": branch}
+    )
+    t3_store.skill_tool(cell, "gate-discipline", stamp(3))
     run(skill_usage_collect())
 
     found = rule(run(skill_usage_triggers(repo=str(repo))))
@@ -216,6 +240,63 @@ def test_working_on_the_same_branch_ties_no_session_to_a_change(
     assert why(found) == {"opened_elsewhere": 1}
     for name in (store.SESSIONS_FILE, store.EVENTS_FILE, store.STATE_FILE):
         assert PRIVATE not in (state / name).read_text("utf-8")  # no branch is kept
+
+
+def test_a_load_near_the_opener_is_neither_a_load_nor_a_miss(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    for number in range(101, 106):
+        merge(repo, f"feat: a hook (#{number})", "hooks.yml")
+    # 101: the opener sent the work to a task, and the task had loaded the skill
+    owner = session(t3_store, "owner", (101, stamp(2)))
+    task = t3_store.thread("thread:delegated-task:impl", parent=owner)
+    deeper = t3_store.thread("thread:delegated-task:deeper", parent=task)
+    t3_store.skill_tool(deeper, "gate-discipline", stamp(3))
+    # 102: a person's fork opened it; the thread it came from had loaded the skill
+    origin = t3_store.thread("origin")
+    t3_store.skill_tool(origin, "gate-discipline", stamp(3))
+    fork = {"pullRequests": [link(102, stamp(2))]}
+    t3_store.thread("fork", parent=origin, relationship="fork", extra=fork)
+    # 103 and 104: two cells of one foreman. Neither a sibling's load nor the foreman's is a
+    # cell's own, and a task does not carry its delegator's conversation
+    foreman = t3_store.thread("foreman")
+    t3_store.skill_tool(foreman, "gate-discipline", stamp(3))
+    session(t3_store, "thread:delegated-task:cell-a", (103, stamp(2)), parent=foreman)
+    cell_b = session(t3_store, "thread:delegated-task:cell-b", (104, stamp(2)), parent=foreman)
+    t3_store.skill_tool(cell_b, "gate-discipline", stamp(3))
+    # 105: the task loaded it only after the change had merged
+    late = session(t3_store, "late", (105, stamp(2)))
+    slow = t3_store.thread("thread:delegated-task:slow", parent=late)
+    run(skill_usage_collect())
+    t3_store.skill_tool(slow, "gate-discipline", stamp(-1))  # tomorrow
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 2, 2)
+    assert why(found) == {"possibly_loaded": 2}
+    assert [miss["change"] for miss in found["misses"]] == [103, 105]
+    assert store.load_sessions(state)["fork"]["parent"] == "origin"
+    assert store.load_sessions(state)["thread:delegated-task:deeper"]["parent"] == task
+
+
+def test_several_openers_of_one_pull_request_are_judged_together(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    merge(repo, "feat: a check (#102)", "scripts/check-beds.mjs")
+    merge(repo, "feat: another hook (#103)", "hooks.yml")
+    careful = session(t3_store, "careful", (101, stamp(2)), (102, stamp(2)))
+    t3_store.skill_tool(careful, "gate-discipline", stamp(3))  # by the opening of 101
+    session(t3_store, "careless", (101, stamp(2)), (103, stamp(2)))  # never
+    t3_store.skill_tool(session(t3_store, "late", (103, stamp(2))), "gate-discipline", stamp(1))
+    t3_store.skill_tool(session(t3_store, "later", (102, stamp(2))), "gate-discipline", stamp(1))
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    # one that had loaded it answers; where none had, one unknown keeps it from being a miss
+    assert judged(found) == (2, 0, 1) and why(found) == {"after_opening": 1}
 
 
 def test_a_load_after_the_change_merged_is_no_load(
@@ -379,6 +460,48 @@ def test_a_merge_commit_names_its_pull_request_too(
     assert judged(found) == (1, 0, 1) and why(found) == {"no_pull_request": 1}
 
 
+def test_a_merge_commit_is_one_change_and_the_fetched_branch_is_the_one_read(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    session(t3_store, "main", (101, stamp(2)), (55, stamp(2)))
+    t3_store.skill_tool("main", "plant-beds", stamp(3))
+    run(skill_usage_collect())
+    git(repo, "switch", "-q", "-c", "topic")
+    merge(repo, "wip: a hook, as its branch named it (#55)", "hooks.yml")
+    git(repo, "switch", "-q", "main")
+    git(repo, "merge", "-q", "--no-ff", "-m", "Merge pull request #101 from acme/topic", "topic")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    git(repo, "reset", "-q", "--hard", "HEAD~1")  # a local main that was not pulled
+
+    data = run(skill_usage_triggers(repo=str(repo)))
+
+    assert data["merged"]["branch"] == "origin/main"
+    assert rule(data)["misses"] == [{"change": 101, "sessions": ["main"]}]  # and not #55 too
+    assert rule(data)["changes"] == 1
+
+
+def test_a_number_that_is_not_one_changes_own_judges_nothing(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "notes.txt")
+    merge(repo, "chore: tidy the hooks after (#101)", "hooks.yml")  # pushed later, naming it
+    merge(repo, f"feat: a number no forge writes (#{'9' * 5000})", "hooks.yml")
+    session(t3_store, "main", (101, stamp(2)))
+    t3_store.skill_tool("main", "plant-beds", stamp(3))
+    run(skill_usage_collect())
+    sessions = store.load_sessions(state)
+    sessions["main"]["pull_requests"] += [
+        {"ref": "acme/garden#²", "opened": True},  # a digit, and not a number
+        {"ref": f"acme/garden#{'9' * 5000}", "opened": True},
+    ]
+    store.save_sessions(state, sessions)
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (0, 0, 2) and why(found) == {"no_pull_request": 2}
+
+
 def test_a_path_is_matched_by_case_on_every_system(
     state: Path, t3_store: T3Store, repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -422,8 +545,34 @@ def test_only_a_load_counts_as_a_load(state: Path, t3_store: T3Store, repo: Path
     with (state / store.EVENTS_FILE).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(unknown) + "\n")
 
-    assert rule(run(skill_usage_triggers(repo=str(repo))))["missed"] == 1
-    assert "gate-discipline" not in rows(run(skill_usage_report()))  # nor a use of it
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    # an event of a kind a newer botcore wrote may be a load: no miss, and no use either
+    assert judged(found) == (0, 0, 1) and why(found) == {"possibly_loaded": 1}
+    assert "gate-discipline" not in rows(run(skill_usage_report()))
+
+
+def test_events_an_older_botcore_recognised_are_warned_of(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    t3_store.skill_tool(session(t3_store, "main", (101, stamp(1))), "plant-beds", stamp(2))
+    run(skill_usage_collect())
+    assert run(skill_usage_triggers(repo=str(repo)))["warnings"] == []
+    lines = [
+        json.loads(line)
+        for line in (state / store.EVENTS_FILE).read_text("utf-8").split("\n")
+        if line
+    ]
+    (state / store.EVENTS_FILE).write_text(
+        "".join(json.dumps({**line, "v": 0}) + "\n" for line in lines), "utf-8"
+    )
+    saved = store.load_state(state)
+    store.save_state(state, {**saved, "recognizer": 0})
+
+    (warning,) = run(skill_usage_triggers(repo=str(repo)))["warnings"]
+
+    assert "older botcore" in warning and "--rebuild" in warning
 
 
 def test_nothing_but_a_time_a_number_and_who_opened_it_is_kept_of_a_link(

@@ -344,7 +344,7 @@ botcore skill-usage-report --days 30 --project my-repo
 # The 30 days before that, to compare
 botcore skill-usage-report --days 30 --ending-days-ago 30 --skill my-skill
 
-# The merged changes that needed a skill their session had not loaded
+# The merged changes that needed a skill the session that opened them had not loaded
 botcore skill-usage-triggers --days 30
 ```
 

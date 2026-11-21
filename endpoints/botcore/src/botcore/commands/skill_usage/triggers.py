@@ -17,6 +17,7 @@ Read-only. Where those three cannot settle it, a change is unknown, never a miss
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,7 +27,7 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
 from botcore.commands.skill_usage.collect import GIT_SECONDS, _strings, project_remote
-from botcore.commands.skill_usage.events import PATHS
+from botcore.commands.skill_usage.events import DELEGATE, EDIT, MAIN, PATHS, RECOGNIZER, SUBAGENT
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
     STALE_AFTER,
@@ -48,10 +49,19 @@ _DEFAULT_BRANCHES = (
     "refs/heads/main",
     "refs/heads/master",
 )
-_PULL_REQUEST = re.compile(r"\(#(\d+)\)\s*$|^Merge pull request #(\d+)\b")
+# A pull request's number as a forge writes it: a number no forge would write is not one
+_NUMBER = r"\d{1,9}"
+_PULL_REQUEST = re.compile(rf"\(#({_NUMBER})\)\s*$|^Merge pull request #({_NUMBER})\b", re.ASCII)
 _RECORD, _FIELD = "\x1e", "\x1f"
 # Why a change cannot be judged, in the order they are asked
-_UNKNOWN = ("no_pull_request", "no_session", "opened_elsewhere", "no_link_time", "after_opening")
+_UNKNOWN = (
+    "no_pull_request",
+    "no_session",
+    "opened_elsewhere",
+    "no_link_time",
+    "after_opening",
+    "possibly_loaded",
+)
 LOADED, MISSED = "loaded", "missed"
 
 
@@ -110,7 +120,7 @@ def merged_changes(root: Path, since: datetime) -> Merged:
     except GitError:
         branch = ""
     branch = branch or ref.removeprefix("refs/remotes/").removeprefix("refs/heads/")
-    return Merged(branch, latest, sorted(changes, key=lambda change: change.at))
+    return Merged(branch, latest, sorted(changes, key=lambda c: (c.at, c.number or 0)))
 
 
 def required_skills(root: Path) -> dict[str, list[str]]:
@@ -146,7 +156,9 @@ def _links(sessions: dict[str, dict], project: str) -> _Links:
             reference = reference if isinstance(reference, str) else ""
             repository, _, number = reference.rpartition("#")
             # a repository's name is the same in any case
-            if repository.casefold() != project.casefold() or not number.isdigit():
+            if repository.casefold() != project.casefold():
+                continue
+            if not re.fullmatch(_NUMBER, number, re.ASCII):
                 continue
             found.attached.add(int(number))
             opened = item.get("opened") if isinstance(item, dict) else None
@@ -158,23 +170,76 @@ def _links(sessions: dict[str, dict], project: str) -> _Links:
     return found
 
 
+def _near(sessions: dict[str, dict], opener: str) -> set[str]:
+    """The sessions whose loads may have reached an opener's change: the tasks it delegated,
+    which may have made the change, and the sessions it was forked from, whose conversation
+    it carries. Never its siblings: forty cells of one fleet do not answer for each other."""
+
+    def parent(session_id: str) -> str | None:
+        found = sessions.get(session_id, {}).get("parent")
+        return found if isinstance(found, str) and found else None
+
+    def agent(session_id: str) -> object:
+        return sessions.get(session_id, {}).get("agent")
+
+    tasks: dict[str, list[str]] = {}
+    for session_id in sessions:
+        if agent(session_id) == DELEGATE and (delegator := parent(session_id)):
+            tasks.setdefault(delegator, []).append(session_id)
+    near: set[str] = set()
+    queue = [opener]
+    while queue:
+        for task in tasks.get(queue.pop(), []):
+            if task not in near and task != opener:
+                near.add(task)
+                queue.append(task)
+    current = opener
+    while agent(current) == MAIN and (origin := parent(current)) and origin not in near:
+        if origin == opener:
+            break
+        near.add(origin)  # a fork is a person's thread that came from another
+        current = origin
+    return near
+
+
+@dataclass
+class _Loads:
+    """What the record says of one skill, by session."""
+
+    known: dict[str, list[tuple[datetime, bool]]]  # each load, and whether a subagent's
+    unsure: dict[str, list[datetime]]  # events of a kind this botcore does not know
+
+
 def _judge(
-    change: Change, openers: dict[str, datetime | None], loads: dict[str, list[datetime]]
-) -> str:
+    change: Change, openers: dict[str, datetime | None], loads: _Loads, sessions: dict[str, dict]
+) -> tuple[str, bool]:
     """One merged change against the sessions that opened its pull request: `loaded`,
-    `missed`, or the reason it is unknown."""
+    `missed` or the reason it is unknown; and, when loaded, whether only by a subagent."""
     verdicts: set[str] = set()
+    own_agent = False
     for session_id, opened_at in openers.items():
-        before_merge = [load for load in loads.get(session_id, []) if load <= change.at]
+        before_merge = [load for load in loads.known.get(session_id, []) if load[0] <= change.at]
+        by_opening = [load for load in before_merge if opened_at and load[0] <= opened_at]
         if opened_at is None or opened_at > change.at:
             verdicts.add("no_link_time")  # the record does not place the opening before the merge
-        elif any(load <= opened_at for load in before_merge):
+        elif by_opening:
             verdicts.add(LOADED)
+            own_agent = own_agent or not all(subagent for _, subagent in by_opening)
         elif before_merge:
             verdicts.add("after_opening")  # at a review or a repair: after the change was made
+        elif any(
+            moment <= change.at
+            for near in (session_id, *sorted(_near(sessions, session_id)))
+            for moment in (
+                *loads.unsure.get(near, []),
+                *(load[0] for load in loads.known.get(near, []) if near != session_id),
+            )
+        ):
+            verdicts.add("possibly_loaded")  # not by the opener, or not known to be a load
         else:
             verdicts.add(MISSED)
-    return next(verdict for verdict in (LOADED, *_UNKNOWN, MISSED) if verdict in verdicts)
+    verdict = next(verdict for verdict in (LOADED, *_UNKNOWN, MISSED) if verdict in verdicts)
+    return verdict, verdict == LOADED and not own_agent
 
 
 def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
@@ -190,10 +255,10 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     A change is `loaded` when that session had loaded the skill, itself or through a
     subagent, by the time it opened the pull request. It is `missed` when that session never
     loaded it before the change merged, and names the session. Everything else is `unknown`,
-    and `unknown_why` gives the reason: the change has no pull request, no session in the
-    record is linked to it, the sessions linked to it only attached themselves to a pull
-    request something else opened, the record does not place the opening before the merge,
-    or the session loaded the skill only after opening it.
+    and `unknown_why` gives the reason: the change has no pull request of its own, no session
+    in the record is linked to it, no session linked to it is known to have opened it, the
+    record does not place the opening before the merge, the session loaded the skill only
+    after opening it, or the skill may have been loaded where the record cannot be sure.
 
     Args:
         days: Length of the window in days.
@@ -292,22 +357,33 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     for skill, paths in rules.items():
         declared.setdefault(named(skill), []).extend(paths)
 
-    # skill -> session -> when it loaded it. A session's loads count whichever project the
-    # harness filed the session under: one started in another project can open a pull
-    # request here, and it loaded the skill all the same.
-    loads: dict[str, dict[str, list[datetime]]] = {}
+    # A session's loads count whichever project the harness filed the session under: one
+    # started in another project can open a pull request here, and it loaded the skill all
+    # the same.
+    loads: dict[str, _Loads] = {}
+    outdated = 0
     for event in events:
+        outdated += event.v < RECOGNIZER
         moment = _parse(event.at)
-        if moment is not None and event.path in PATHS:
-            loads.setdefault(named(event.skill), {}).setdefault(event.thread, []).append(moment)
+        if moment is None or event.path == EDIT:
+            continue
+        of_skill = loads.setdefault(named(event.skill), _Loads({}, {}))
+        if event.path in PATHS:
+            load = (moment, event.agent == SUBAGENT)
+            of_skill.known.setdefault(event.thread, []).append(load)
+        else:  # a kind of event a newer botcore wrote: it may be a load
+            of_skill.unsure.setdefault(event.thread, []).append(moment)
 
     links = _links(sessions, project)
+    # A number two merged changes carry is neither's own: a later push that names it
+    carried = Counter(change.number for change in merged.changes if change.number is not None)
     report: list[dict] = []
     for skill, paths in sorted(declared.items()):
         patterns = [_matcher(path) for path in paths]
         counts = {LOADED: 0, MISSED: 0}
         unknown = dict.fromkeys(_UNKNOWN, 0)
         misses: list[dict] = []
+        by_subagent = 0
         matching = [
             change
             for change in merged.changes
@@ -315,10 +391,13 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         ]
         for change in matching:
             openers = links.opened.get(change.number, {}) if change.number else {}
-            if change.number is None:
+            if change.number is None or carried[change.number] > 1:
                 verdict = "no_pull_request"
             elif openers:
-                verdict = _judge(change, openers, loads.get(skill, {}))
+                verdict, only_subagent = _judge(
+                    change, openers, loads.get(skill, _Loads({}, {})), sessions
+                )
+                by_subagent += only_subagent
             else:
                 attached = change.number in links.attached
                 verdict = "opened_elsewhere" if attached else "no_session"
@@ -335,6 +414,7 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
                 "paths": sorted(paths),
                 "changes": len(matching),
                 "loaded": counts[LOADED],
+                "loaded_by_subagent": by_subagent,
                 "missed": counts[MISSED],
                 "unknown": sum(unknown.values()),
                 "unknown_why": unknown,
@@ -348,6 +428,13 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     if collected is None or now - collected > STALE_AFTER:
         when = state.get("collected_at") or "never"
         warnings.append(f"Last collected {when}: run skill-usage-collect for current numbers")
+    if outdated and not (
+        isinstance(state.get("recognizer"), int) and state["recognizer"] >= RECOGNIZER
+    ):
+        warnings.append(  # a load an older botcore did not know reads as a miss
+            f"{outdated} events were recognised by an older botcore, which may have missed "
+            "loads: run skill-usage-collect --rebuild to read them again"
+        )
     if links.unsaid:
         warnings.append(
             f"{links.unsaid} links to {project} pull requests do not say which session opened "

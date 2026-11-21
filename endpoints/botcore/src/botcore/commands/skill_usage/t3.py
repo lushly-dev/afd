@@ -107,7 +107,7 @@ class Load:
 @dataclass
 class Session:
     """A session the store holds, whether or not it loaded a skill: the denominator of every
-    rate, and what ties a session to the pull requests it produced."""
+    rate, and what says which pull requests a session opened."""
 
     id: str
     root: str
@@ -117,6 +117,8 @@ class Session:
     created_at: str | None
     updated_at: str | None
     pull_requests: tuple[tuple[str, str | None, bool | None], ...]
+    # The session it came from: the one that delegated it, or the one it was forked from
+    parent: str | None = None
 
 
 @dataclass
@@ -396,11 +398,28 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
 
 
+def _says_more(link: tuple[str, str | None, bool | None]) -> tuple[int, bool, str]:
+    """Orders two links to one pull request: the one that opened it first, then one that
+    says it did not, then the earlier."""
+    _, linked_at, opened = link
+    return ({True: 0, False: 1}.get(opened, 2), linked_at is None, linked_at or "")
+
+
 def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
+    # A pull request a subagent linked is its session's: the session's own links first
+    links: dict[str, dict[str, tuple[str, str | None, bool | None]]] = {}
+    for thread_id in sorted(threads, key=lambda name: (family.session(name) != name, name)):
+        held = links.setdefault(family.session(thread_id), {})
+        for link in threads[thread_id].pull_requests:
+            if link[0] not in held or _says_more(link) < _says_more(held[link[0]]):
+                held[link[0]] = link
     sessions: list[Session] = []
     for thread_id, thread in threads.items():
         if thread_id.startswith(SUBAGENT_PREFIXES) or family.session(thread_id) != thread_id:
             continue
+        came_from = thread.remote_parent
+        if not came_from and (parent := family.parent(thread_id)):
+            came_from = family.session(parent)
         sessions.append(
             Session(
                 id=thread_id,
@@ -410,7 +429,8 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
                 project_id=thread.project_id,
                 created_at=thread.created_at,
                 updated_at=thread.updated_at,
-                pull_requests=thread.pull_requests,
+                pull_requests=tuple(links.get(thread_id, {}).values()),
+                parent=came_from if came_from != thread_id else None,
             )
         )
     return sessions

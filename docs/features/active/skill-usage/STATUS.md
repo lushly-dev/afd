@@ -23,7 +23,9 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
   1 had no pull request number, and 3 had only sessions that attached themselves to a pull
   request something else had opened. Of the 6 that could be judged, the session that opened
   the pull request had loaded the gate skill in 2 and never loaded it before the merge in 4.
-  Over 90 days it is the same 6, out of 168.
+  Over 90 days it is the same 6, out of 168. Each of the six was checked by hand against the
+  store: the opener's own `gh pr create`, and every thread of its family for a read of the
+  skill.
 - **T3 Code says who opened a pull request.** A link's `source` is `created` on the thread
   that opened it and `agent` on one that attached itself later: 406 and 151 of the store's
   557 links. No pull request has two openers, and 48 have none on this machine.
@@ -48,7 +50,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
   when, and when it loaded the skill. It judges 6 changes where the turn-by-turn design could
   honestly judge 1.
 - **Gate files are not edited with the edit tools.** No file-edit item in the store touches
-  one, so the exact moment of such a change is not on record at all.
+  one of Lushly's, so the exact moment of such a change is not on record at all.
 - **A long-lived thread is linked to many pull requests,** each with a time (all 557 links in
   the store carry one), so each is judged by its own.
 - **Which skill a repository requires is its own decision.** AFD's instructions send a change

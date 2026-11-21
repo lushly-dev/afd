@@ -326,6 +326,7 @@ def _collect(
     for session in found.sessions:
         sessions[session.id] = {
             "root": session.root,
+            "parent": session.parent,
             "agent": session.agent,
             "harness": session.harness,
             "project": names.get(session.project_id or "", UNKNOWN_PROJECT),

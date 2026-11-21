@@ -147,11 +147,12 @@ T3 Code's store is another program's internal schema, not an interface:
 ### Sessions
 
 Collection also writes `sessions.json`: every session T3 Code holds, whether or not it loaded
-a skill, with its root, agent, harness, project, first and last activity and the pull requests
-T3 Code linked to it: `owner/name#number`, when, and whether the session opened the pull
-request or attached itself to one that existed. No title and no branch name is kept. It is
-the denominator of every share, and what ties a session to the change it produced. It is
-written from the first collection, since T3 Code does not keep its threads for ever.
+a skill, with its root, the session it came from (the one that delegated it, or the one it
+was forked from), agent, harness, project, first and last activity and the pull requests T3
+Code linked to it or its subagents: `owner/name#number`, when, and whether the session opened
+the pull request or attached itself to one that existed. No title and no branch name is kept.
+It is the denominator of every share, and it says which session opened which pull request. It
+is written from the first collection, since T3 Code does not keep its threads for ever.
 
 ### The event
 
@@ -234,17 +235,24 @@ The report uses only what is known for certain:
   same root does not count: forty cells of one fleet are forty sessions.
 
 A change is **loaded** when the session that opened its pull request had loaded the skill by
-then. It is **missed** when that session never loaded the skill before the change merged, and
-names the session, so that it can be opened. Otherwise it is unknown, never a miss:
+then. `loaded_by_subagent` counts those where only a subagent of the session had: a subagent
+may be the reviewer, not the agent that made the change. A change is **missed** when the
+session never loaded the skill before the change merged, and names the session, so that it
+can be opened. Otherwise it is unknown, never a miss:
 
-- it has no pull request number (`no_pull_request`);
+- it names no pull request, or one that another merged change names too (`no_pull_request`);
 - no session on a collected machine is linked to its pull request (`no_session`);
-- the sessions linked to it only attached themselves to it (`opened_elsewhere`): a script, a
-  person or a session on a machine not collected opened it. Every change a fleet's merge lane
-  publishes is one ([#1887](https://github.com/lushly-dev/afd/issues/1887));
+- no session linked to it is known to have opened it (`opened_elsewhere`): a script, a person
+  or a session on a machine not collected did. A change a fleet's merge lane publishes is one
+  of these two ([#1887](https://github.com/lushly-dev/afd/issues/1887));
 - the record does not place the opening before the merge (`no_link_time`);
 - the session loaded the skill only after it opened the pull request (`after_opening`): at
-  review, or for a later push. The record cannot say which.
+  review, or for a later push. The record cannot say which;
+- the session never loaded it, but the skill may have reached the change another way
+  (`possibly_loaded`): a task the session delegated loaded it and may have made the change, a
+  fork carries the conversation of the session it came from, which had loaded it, or the
+  record holds an event of a kind this botcore does not know. A sibling's load is none of
+  these, nor the load of the session that delegated the opener.
 
 A record with a line it cannot read judges nothing: a lost load would make a miss. Nothing is
 collected for the rules, so a rule declared today judges the record as it stands. A record an
@@ -308,10 +316,10 @@ for the schedule.
   machines' records.
 - **What the triggers report cannot tell.** Whether the skill was still in the agent's
   context when it made the change: a long session that loaded it days before counts as
-  loaded. Whether another session made the change: where the session that opened the pull
-  request had delegated the work to a task that loaded the skill, the miss is the opener's.
-  One repository's skill from another's of the same name, for a session the harness filed
-  under another project. And any change whose pull request a script opened
+  loaded. Whether the load came before the change or at its review: both come before the
+  pull request is opened, and a reviewer that is a subagent loads for its session. One
+  repository's skill from another's of the same name, for a session the harness filed under
+  another project. And any change whose pull request a script opened
   ([#1887](https://github.com/lushly-dev/afd/issues/1887)).
 - **A copied store.** `--t3-store` with another machine's store names its projects by folder,
   since their checkouts are not here; each machine collecting its own store has no such gap.

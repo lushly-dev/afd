@@ -112,10 +112,11 @@ from one snapshot, from T3 Code's store, which covers its Claude and Codex threa
   `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
   that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
   or edit that names the file is not a load, nor a read sent to a file, a count or a search.
-- It also records each session, whether or not it loaded a skill, with the pull requests T3
-  Code linked to it, when, and the branch it works on (kept as a hash, never the name); and
-  each change a session made to a skill's files (`loads_added` and `edits_added` count the
-  two kinds of event).
+- It also records each session, whether or not it loaded a skill, with the session it came
+  from (the one that delegated it, or the one it was forked from) and the pull requests T3
+  Code linked to it or its subagents: when, and whether it opened each or attached itself to
+  one that existed; and each change a session made to a skill's files (`loads_added` and
+  `edits_added` count the two kinds of event). No title and no branch name is kept.
 - The record (`events.jsonl` and `sessions.json` in botcore's state folder) holds the skill,
   time, harness, model, project (`owner/name` from the checkout's origin), session and agent.
   It never holds a prompt, a command, arguments, a title or file contents.
@@ -170,16 +171,20 @@ declared today judges the record as it stands.
   that attached itself to a pull request to repair, review or merge it is not judged, and
   neither a session's turns nor its branch tie it to a change.
 - Per rule: `changes`; `loaded` (the session that opened the pull request had loaded the
-  skill by then); `missed` (that session never loaded the skill before the change merged),
-  with `misses` naming each change's pull request and that session; `rate` (loaded out of
-  loaded and missed); and `unknown`, with `unknown_why`: `no_pull_request`, `no_session` (none
-  on a collected machine is linked to it), `opened_elsewhere` (the sessions linked to it only
-  attached themselves: a script, a person or a machine not collected opened it),
-  `no_link_time` (the record does not place the opening before the merge) and `after_opening`
-  (the skill was loaded only after the pull request was opened: at review, or for a later
-  push).
+  skill by then), of which `loaded_by_subagent` only through a subagent, which may be a
+  reviewer; `missed` (that session never loaded the skill before the change merged), with
+  `misses` naming each change's pull request and that session; `rate` (loaded out of loaded
+  and missed); and `unknown`, with `unknown_why`: `no_pull_request` (the change names none,
+  or names one another merged change names too), `no_session` (none on a collected machine
+  is linked to it), `opened_elsewhere` (no session linked to it is known to have opened it:
+  a script, a person or a machine not collected did), `no_link_time` (the record does not
+  place the opening before the merge), `after_opening` (the skill was loaded only after the
+  pull request was opened: at review, or for a later push) and `possibly_loaded` (the opener
+  never loaded it, but a task it delegated or a session it was forked from did, or the record
+  holds an event of a kind this botcore does not know).
 - `merged`: the branch that was read and its newest change; fetch the checkout when that is
-  old. `warnings` says when links in the record do not say who opened them (collect again).
+  old. `warnings` says when links in the record do not say who opened them (collect again)
+  and when an older botcore recognised its events (rebuild).
 - `repo`: the repository's checkout; the one holding the working directory when left out.
 - Errors: `NO_REQUIRED_SKILLS`, `NOT_COLLECTED`, `NO_WORKSPACE`, `CONFIG_INVALID`,
   `GIT_FAILED` (also when the checkout does not say which branch is the default),
