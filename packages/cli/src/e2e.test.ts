@@ -522,7 +522,20 @@ describe('afd CLI against a real server', { timeout: 180_000 }, () => {
 				AFD_HEADERS: 'nonsense',
 			});
 			expectExit(fromEnv, 1);
-			expect(fromEnv.stderr).toContain('AFD_HEADERS: Invalid header');
+			expect(fromEnv.stderr).toContain('AFD_HEADERS line 1: Invalid header');
+
+			// Neither Commander nor the parser repeats a mistyped header, which may be a credential.
+			const leaky = await runCli([
+				'call',
+				'health-ping',
+				'--connect',
+				baseUrl,
+				'-H',
+				'Authorization Bearer sk-e2e-SECRET',
+			]);
+			expectExit(leaky, 1);
+			expect(leaky.stderr).toContain('--header 1: Invalid header');
+			expect(`${leaky.stdout}${leaky.stderr}`).not.toContain('SECRET');
 			expect(calls.ping).toEqual([]);
 		});
 

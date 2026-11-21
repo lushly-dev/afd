@@ -58,7 +58,7 @@ describe('afd call invocation', () => {
 		);
 	});
 
-	it('rejects an unknown transport and a malformed --header while parsing', async () => {
+	it('rejects an unknown transport while parsing, and leaves --header to headersOrExit', async () => {
 		const errors: string[] = [];
 		const parse = (...args: string[]) => {
 			const program = createCli();
@@ -71,9 +71,16 @@ describe('afd call invocation', () => {
 		};
 
 		await expect(parse('--connect', 'http://x', '--transport', 'ws')).rejects.toThrow();
-		await expect(parse('--header', 'no colon here')).rejects.toThrow();
 		expect(errors.join('')).toContain('Allowed choices are streamable-http, sse, http');
-		expect(errors.join('')).toContain('Use "Name: value"');
+
+		// Commander's InvalidArgumentError repeats the argument, which may hold a credential,
+		// so a malformed header is refused by headersOrExit (see e2e.test.ts), not while parsing.
+		errors.length = 0;
+		await parse('--header', 'Authorization Bearer sk-SECRET');
+		expect(errors.join('')).not.toContain('SECRET');
+		expect(mocks.requireClient.mock.lastCall?.[0]).toMatchObject({
+			header: ['Authorization Bearer sk-SECRET'],
+		});
 	});
 });
 

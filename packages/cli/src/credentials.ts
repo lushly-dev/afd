@@ -13,6 +13,13 @@ export const HEADERS_ENV = 'AFD_HEADERS';
 /** RFC 9110 token characters, the only ones allowed in a header name. */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 
+/**
+ * RFC 9110 field-value characters: tab, visible ASCII and space, and obs-text
+ * (0x80-0xFF). Anything else, a vertical tab say, fails in the HTTP layer, whose
+ * error (undici's `Headers`) repeats the value.
+ */
+const HEADER_VALUE = /^[\t\x20-\x7e\x80-\xff]*$/;
+
 /** Query/fragment parameter names whose values are redacted when a URL is printed. */
 const SENSITIVE_PARAM = /token|key|secret|auth|pass(word)?|signature|credential/i;
 
@@ -20,20 +27,24 @@ const REDACTED = '***';
 
 /**
  * Parse one `Name: value` header. Throws an `Error` whose message explains the
- * expected form when the name is not a valid HTTP token or the value contains a
- * line break.
+ * expected form when the name is not a valid HTTP token, or the value holds a
+ * character HTTP does not allow (a line break or another control character).
+ * The message never repeats any of the header: a mistyped one is often a
+ * credential (`Authorization Bearer sk-...`).
  */
 export function parseHeader(header: string): [name: string, value: string] {
 	const colon = header.indexOf(':');
 	const name = colon === -1 ? '' : header.slice(0, colon).trim();
 	if (!name || !HEADER_NAME.test(name)) {
 		throw new Error(
-			`Invalid header "${header}". Use "Name: value", e.g. "Authorization: Bearer <token>".`
+			'Invalid header. Use "Name: value" with a name of letters, digits and -, e.g. "Authorization: Bearer <token>". The header is not shown, since it may hold a credential.'
 		);
 	}
 	const value = header.slice(colon + 1).trim();
-	if (/[\r\n\0]/.test(value)) {
-		throw new Error(`Invalid header "${name}": the value must not contain line breaks.`);
+	if (!HEADER_VALUE.test(value)) {
+		throw new Error(
+			'Invalid header: the value holds a line break or another character HTTP does not allow. The header is not shown, since it may hold a credential.'
+		);
 	}
 	return [name, value];
 }
@@ -41,18 +52,24 @@ export function parseHeader(header: string): [name: string, value: string] {
 /**
  * Headers for a connection: those from {@link HEADERS_ENV} (one per line), then
  * each `--header` flag. A flag replaces an environment header with the same
- * name (compared case-insensitively). Throws on a malformed header.
+ * name (compared case-insensitively). Throws on a malformed header; the message
+ * names where it came from (`AFD_HEADERS line 3`, counting blank lines, or
+ * `--header 2`) and never repeats it.
  */
 export function resolveHeaders(
 	flags: readonly string[] = [],
 	env: NodeJS.ProcessEnv = process.env
 ): Record<string, string> {
-	const lines = (env[HEADERS_ENV] ?? '').split(/\r?\n/).filter((line) => line.trim() !== '');
+	const lines = (env[HEADERS_ENV] ?? '').split(/\r?\n/);
 	const byName = new Map<string, [string, string]>();
-	for (const [source, header] of [
-		...lines.map((line) => [HEADERS_ENV, line] as const),
-		...flags.map((flag) => ['--header', flag] as const),
-	]) {
+	const sources = [
+		// Numbered before blank lines are skipped, so the number is the line's own.
+		...lines
+			.map((line, index) => [`${HEADERS_ENV} line ${index + 1}`, line] as const)
+			.filter(([, line]) => line.trim() !== ''),
+		...flags.map((flag, index) => [`--header ${index + 1}`, flag] as const),
+	];
+	for (const [source, header] of sources) {
 		try {
 			const [name, value] = parseHeader(header);
 			byName.set(name.toLowerCase(), [name, value]);
