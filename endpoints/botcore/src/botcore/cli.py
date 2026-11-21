@@ -433,6 +433,41 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("skill-usage-collect")
+@click.option(
+    "--since-days", type=click.IntRange(min=0), default=None,
+    help="Re-read this many days instead of continuing from the last collection",
+)
+@click.option("--t3-store", default=None, help="Read this T3 Code store, not this machine's")
+@_json_option
+@click.pass_context
+def skill_usage_collect_cmd(
+    ctx: click.Context, since_days: int | None, t3_store: str | None, **_kwargs: Any,
+) -> None:
+    """Add the skill loads the harnesses recorded to this machine's record."""
+    from botcore.commands.skill_usage import skill_usage_collect
+
+    result = _run_async(skill_usage_collect(since_days=since_days, t3_store=t3_store))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("skill-usage-report")
+@click.option("--days", type=click.IntRange(min=1), default=30, show_default=True,
+              help="Days to report")
+@click.option("--project", default=None, help="Report one project")
+@click.option("--harness", default=None, help="Report one harness: claude or codex")
+@_json_option
+@click.pass_context
+def skill_usage_report_cmd(
+    ctx: click.Context, days: int, project: str | None, harness: str | None, **_kwargs: Any,
+) -> None:
+    """Report which skills were used, how often, and by which harness. Read-only."""
+    from botcore.commands.skill_usage import skill_usage_report
+
+    result = _run_async(skill_usage_report(days=days, project=project, harness=harness))
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command("disk-report")
 @click.option("--repo", default=None, help="Report one repository instead of the registered ones")
 @click.option(

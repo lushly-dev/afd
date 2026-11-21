@@ -102,6 +102,32 @@ Remove `metadata.source` (or a top-level `source:`) from a skill.
 ## skill_index(write=True)
 Generate `_index.md` table of all installed skills.
 - `write`: Write file (default: True). False for preview.
+
+## skill_usage_collect(since_days=None, t3_store=None)
+Add the skill loads recorded since the last collection to this machine's record. Nothing is
+added to a skill and no agent reports anything: the loads are read, read-only, from T3 Code's
+store, which covers its Claude and Codex threads alike. A load is the Skill tool, a file tool
+or shell command that reads a `SKILL.md` (`git show <revision>:<path>` included), or a message
+from the person that opens by naming a skill (`$name`); a search, diff or edit that only names
+the file is not one. The record
+(`events.jsonl` in botcore's state folder) holds the skill, time, harness, model, project,
+thread and whether the main agent, a subagent or a delegated task loaded it. It never holds a
+prompt, a command, arguments or file contents. Running it again adds only what is new; it
+continues from the last collection and reads everything again once a week.
+- `since_days`: re-read that many days instead of continuing from the last collection
+- `t3_store`: read a store other than this machine's
+- Errors: `SOURCE_SCHEMA_CHANGED` (this botcore cannot read this T3 Code release's store;
+  nothing collected before is lost), `SOURCE_UNREADABLE`, `SOURCE_NOT_FOUND`.
+
+## skill_usage_report(days=30, project=None, harness=None)
+Read-only. Skill use over the last `days` days from this machine's record. Per skill:
+`threads` (sessions that used it: a skill read three times in one session is one use, and a
+subagent's load counts under the session it works for), `loads`, `typed_threads` (sessions
+where the person asked for it), `harnesses`, `agents`, `paths`, `last_used`, and
+`context_bytes` (the `SKILL.md` size times loads). A renamed skill keeps one identity, from
+the renames in the project's git history and botcore's own (`also_loaded_as` lists the earlier
+names). `quiet` lists skills a project's checkout holds that nothing loaded in the window.
+Run `skill_usage_collect` first; a `warnings` entry says when the record is over a day old.
 """,
     "docs": """\
 # Docs Commands
