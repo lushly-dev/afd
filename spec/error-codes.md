@@ -122,7 +122,7 @@ budget code, the authorization code, the task code and the app call code.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `VALIDATION_ERROR` | The input failed validation: the command's input schema, a meta-tool's arguments, a pipeline input nested deeper than 64 levels, or a bad stream timeout. Schema failures carry `details.errors`, `expectedFields`, `unexpectedFields` and `missingFields` | No | Server engine, router, core executors, DirectClient (`validateInputs`), application |
+| `VALIDATION_ERROR` | The input failed validation: the command's input schema, a meta-tool's arguments, a pipeline input nested deeper than 64 levels or exceeding variable expansion limits, or a bad stream timeout. Schema failures carry `details.errors`, `expectedFields`, `unexpectedFields` and `missingFields` | No | Server engine, router, core executors, DirectClient (`validateInputs`), application |
 | `INVALID_INPUT` | The input is malformed in a way a schema does not describe. The client also maps JSON-RPC `-32602` to it | No | Application, client |
 | `MISSING_REQUIRED_FIELD` | A required field is missing | No | Application |
 | `INVALID_FORMAT` | A field has the wrong format | No | Application |

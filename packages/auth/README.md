@@ -50,6 +50,7 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 | `authenticated`, `session.expiresAt` at or before now (or not a valid date) | `TOKEN_EXPIRED`, retryable |
 | `authenticated` | sets `context.auth`, fills `context.actor` from the session user and runs the command |
 | any state, with `credentials` afd-server verified (below) | deletes `context.auth`, keeps `context.actor` and runs the command, without reading the session; `auth-*` commands are `UNAUTHORIZED` |
+| any state, with `credentials` afd-server verified but expired | deletes `context.auth` and returns `TOKEN_EXPIRED`, retryable, without reading the session (even for `exclude`d or `auth-*` commands) |
 
 - The built-in commands `auth-sign-in`, `auth-sign-out` and `auth-session-get`
   (`AUTH_COMMAND_NAMES`) always run, so a signed-out caller can sign in.
