@@ -52,10 +52,12 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 - To keep a parked worktree from being stripped or removed: `botcore disk-keep <path> --reason
   "<why>"` (14 days, or `--until YYYY-MM-DD`). `botcore disk-unkeep <path>` when you resume.
 - Tier 2 removes worktrees T3 Code does not manage once nothing unique is in them (no changes,
-  no operation in progress, the commit on a branch or remote, no ignored file that is not
-  rebuildable or an unchanged declared copy) and their work has landed. `git worktree remove`
-  only: the branch stays. The hourly job does it only after `disk-setup --remove-landed`.
-  `botcore disk-restore <path>` brings a removed worktree back at the same commit.
+  hidden ones included; no operation in progress; the commit on a branch, remote or tag; no
+  per-worktree refs, config or sparse rules; no ignored file that is not rebuildable or an
+  unchanged declared copy) and their work has landed. `git worktree remove` only: the branch
+  stays, and the commit is pinned under `refs/botcore/removed/` first. The hourly job does it
+  only after `disk-setup --remove-landed`. `botcore disk-restore <path>` brings a removed
+  worktree back at the same commit.
 - A stripped worktree has a `botcore-disk-strip.json` in its git folder
   (`git rev-parse --absolute-git-dir`). Install and build again before running anything.
 

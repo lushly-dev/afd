@@ -34,10 +34,13 @@ from botcore.commands.disk.git import (
 )
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.removal import (
+    begin_record,
+    finish_record,
+    pin_commits,
     plan_removals,
     recheck_removal,
-    record_removal,
     remove_worktree,
+    unpin,
 )
 from botcore.commands.disk.remove import UnsafePath, remove_inside
 from botcore.commands.disk.report import Context, build_report, settings_error, volume_for
@@ -53,9 +56,9 @@ from botcore.commands.disk.scan import (
 )
 from botcore.commands.disk.settings import (
     SettingsError,
-    expand,
     load_machine_settings,
     state_path,
+    t3_worktree_roots,
 )
 from botcore.config import DiskConfig
 
@@ -98,6 +101,7 @@ class Run:
     ctx: Context
     protected: list[Path] = field(default_factory=list)
     configs: dict[str, DiskConfig] = field(default_factory=dict)  # by main checkout's key
+    unfetched: dict[str, str] = field(default_factory=dict)  # main's key -> why the fetch failed
     actions: list[Action] = field(default_factory=list)
     seen: set[str] = field(default_factory=set)
     _per_worktree: dict[str, Processes] = field(default_factory=dict)
@@ -371,25 +375,49 @@ def carry_out(action: Action, run: Run) -> None:
         action.outcome, action.detail = "skipped", f"could not be checked: {exc}"
 
 
+def _t3_owned(target: Path, run: Run) -> str | None:
+    """T3 Code's ownership read again: never remove what it manages, or when it cannot tell."""
+    roots, read_ok = t3_worktree_roots(run.ctx.settings)
+    if not read_ok:
+        return "T3 Code's settings cannot be read, so its worktrees are unknown"
+    key = path_key(target)
+    for root in roots:
+        if key.startswith(path_key(root).rstrip(os.sep) + os.sep):
+            return "T3 Code manages it (its storage cleanup removes it)"
+    return None
+
+
 def _carry_out_removal(action: Action, run: Run) -> None:
     target, main = Path(action.target), Path(action.root or "")
     config = run.configs.get(path_key(main))
     if config is None:
         action.outcome, action.detail = "skipped", "the repository's [disk] settings are gone"
         return
+    if action.landed and path_key(main) in run.unfetched:
+        action.outcome = "skipped"
+        why = run.unfetched[path_key(main)]
+        action.detail = f"{config.landing_ref} could not be refreshed: {why}"
+        return
     busy = busy_reason(target, run.processes_for(action.target))
-    reason = recheck_removal(target, main, action.head, bool(action.landed),
-                             action.due_days or 0, config, busy, action.outputs)
+    reason = recheck_removal(
+        target, main, action.head, bool(action.landed), action.due_days or 0, config, busy,
+        action.outputs, volume_problem=lambda p: _volume_problem(p, run.ctx),
+        t3_owned=lambda p: _t3_owned(p, run), checkouts=run.ctx.checkouts,
+    )
     if reason:
         action.outcome, action.detail = "skipped", reason
         return
+    refs = pin_commits(target, main, action.head or "")
+    record_id = begin_record(target, main, action.branch, action.head, refs)
     done, problem = remove_worktree(target, main)
     if not done:
+        unpin(main, refs)
+        finish_record(record_id, "failed", problem)
         action.outcome, action.detail = "failed", problem
         return
-    record_removal(target, main, action.branch, action.head)
+    finish_record(record_id, "removed")
     action.outcome = "done"
-    action.detail = f"removed; disk-restore {target} brings it back"
+    action.detail = f"removed; its commits are pinned under {refs[0]}; disk-restore {target}"
 
 
 def plan_tier2(data: dict, run: Run, include_restorable: bool) -> list[Action]:
@@ -403,16 +431,24 @@ def plan_tier2(data: dict, run: Run, include_restorable: bool) -> list[Action]:
     ]
 
 
-def _fetch_landing(repos: list[Path]) -> None:
-    """Bring each repository's remote-tracking refs up to date, so "landed" is current.
-
-    Best effort: a stale ref only makes fewer worktrees look landed.
-    """
-    for repo in repos:
-        try:
-            git_out(repo, "fetch", "--quiet", "--prune", "origin", timeout=120)
-        except GitError:
-            continue
+def refresh_landing(main: Path, landing_ref: str) -> str | None:
+    """Fetch only the landing ref's branch from its own remote: no prune, no prompts, no
+    automatic maintenance. Returns why it failed, or None. A local landing ref needs nothing."""
+    try:
+        remotes = git_out(main, "remote", timeout=30).split()
+    except GitError as exc:
+        return str(exc)
+    remote = next((r for r in remotes if landing_ref.startswith(f"{r}/")), None)
+    if remote is None:
+        return None
+    branch = landing_ref[len(remote) + 1:]
+    try:
+        git_out(main, "-c", "gc.auto=0", "-c", "maintenance.auto=false", "fetch", "--quiet",
+                "--no-prune", "--no-tags", remote, branch, timeout=120,
+                env={"GIT_SSH_COMMAND": "ssh -o BatchMode=yes"})
+    except GitError as exc:
+        return str(exc)
+    return None
 
 
 # ── Receipts and status ─────────────────────────────────────────────────────
@@ -565,6 +601,13 @@ def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool
     removed: set[str] = set()
     if run.tier >= 2:
         removals = plan_tier2(data, run, include_restorable)
+        if run.apply:
+            for main in {a.root for a in removals if a.landed}:
+                config = run.configs.get(path_key(main or ""))
+                if config is not None:
+                    problem = refresh_landing(Path(main or ""), config.landing_ref)
+                    if problem:
+                        run.unfetched[path_key(main or "")] = problem
         _execute(run, removals)
         removed = {a.target for a in removals if a.outcome in ("done", "planned")}
     _execute(run, [a for a in plan_strips(data, None, False, ctx, only_low=False)
@@ -580,8 +623,6 @@ def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool
 def _reclaim(  # noqa: PLR0913 - the command's own arguments
     settings, tier, apply, repo, pressure, budget_seconds, include_restorable=False,
 ) -> dict:
-    if apply and tier >= 2:
-        _fetch_landing([expand(repo)] if repo else [expand(r) for r in settings.repos])
     data, pairs, ctx = build_report(settings, repo, budget_seconds=budget_seconds)
     configs = {path_key(row["main"]): config for row, config in pairs
                if config is not None and row.get("main")}

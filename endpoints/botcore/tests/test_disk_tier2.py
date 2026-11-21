@@ -95,7 +95,7 @@ def test_only_landed_worktrees_with_nothing_unique_are_tier_2(repo: dict[str, Pa
     assert "matches origin/main" in by["squashed"]["finished"]["landed"]
     assert by["open"]["tier"] != 2 and by["open"]["finished"]["restorable"]
     assert by["dirty"]["tier"] != 2 and by["dirty"]["finished"]["unique"]
-    assert "may be unique: .env" in " ".join(by["envcopy"]["finished"]["unique"])
+    assert "changed declared copy: .env" in " ".join(by["envcopy"]["finished"]["unique"])
     assert by["kept"]["tier"] != 2 and "finished" not in by["kept"]
     assert by["main"]["tier"] != 2
 
@@ -106,7 +106,7 @@ def test_a_commit_on_no_branch_is_unique(repo: dict[str, Path]) -> None:
     commit(done, "lost.txt", "only here", "detached work")
     age_worktree(repo["main"], done)
     verdict = rows(run(report.disk_report()))["done"]["finished"]
-    assert "on no branch or remote" in " ".join(verdict["unique"])
+    assert "on no branch, remote or tag" in " ".join(verdict["unique"])
 
 
 def test_t3_codes_worktrees_are_never_tier_2(
@@ -262,3 +262,134 @@ def test_the_job_removes_worktrees_only_when_setup_said_so(
     repo["settings"].write_text(repo["settings"].read_text() + "remove_landed = true\n")
     run(setup.disk_run(force=True))
     assert tiers == [1, 2]
+
+
+# ── Second review: what else removal could lose ─────────────────────────────
+
+
+def test_an_edit_hidden_by_skip_worktree_or_assume_unchanged_is_unique(
+    repo: dict[str, Path],
+) -> None:
+    for flag, name in (("--skip-worktree", "done"), ("--assume-unchanged", "squashed")):
+        path = repo[name]
+        tracked = "done.txt" if name == "done" else "feature.txt"
+        git(path, "update-index", flag, tracked)
+        (path / tracked).write_text("edited behind git's back", encoding="utf-8")
+        age_worktree(repo["main"], path)
+    by = rows(run(report.disk_report()))
+    for name in ("done", "squashed"):
+        assert by[name]["tier"] != 2
+        assert "behind skip-worktree or assume-unchanged" in " ".join(
+            by[name]["finished"]["unique"])
+    data = run(reclaim.disk_reclaim(tier=2, apply=True, include_restorable=True))
+    assert {"done", "squashed"}.isdisjoint(removed(data))
+
+
+def test_per_worktree_refs_and_config_are_unique(repo: dict[str, Path]) -> None:
+    git(repo["done"], "update-ref", "refs/worktree/mark", "HEAD")
+    admin = Path(git(repo["squashed"], "rev-parse", "--absolute-git-dir").strip())
+    (admin / "config.worktree").write_text("[core]\n\tbare = false\n", encoding="utf-8")
+    for name in ("done", "squashed"):
+        age_worktree(repo["main"], repo[name])
+    by = rows(run(report.disk_report()))
+    assert "refs/worktree/mark" in " ".join(by["done"]["finished"]["unique"])
+    assert "own git config" in " ".join(by["squashed"]["finished"]["unique"])
+
+
+def test_a_repository_or_changed_copy_inside_a_build_folder_is_unique(
+    repo: dict[str, Path],
+) -> None:
+    hidden = repo["done"] / "dist" / "vendor"
+    hidden.mkdir()
+    subprocess.run(["git", "init", "-q", str(hidden)], check=True)
+    (repo["main"] / "botcore.toml").write_text(DISK_TOML.replace(
+        'copies = [".env"]', 'copies = [".env", "dist/.env"]'), encoding="utf-8")
+    commit(repo["main"], "botcore.toml", (repo["main"] / "botcore.toml").read_text(), "copies")
+    git(repo["main"], "push", "-q", "origin", "main")
+    git(repo["main"], "fetch", "-q", "origin")
+    (repo["squashed"] / "dist" / ".env").write_text("TOKEN=only here\n", encoding="utf-8")
+    for name in ("done", "squashed"):
+        age_worktree(repo["main"], repo[name])
+    by = rows(run(report.disk_report()))
+    assert "git checkout inside dist" in " ".join(by["done"]["finished"]["unique"])
+    assert "changed declared copy: dist/.env" in " ".join(by["squashed"]["finished"]["unique"])
+
+
+def test_reflog_only_commits_and_the_head_are_pinned_before_removal(
+    repo: dict[str, Path],
+) -> None:
+    done = repo["done"]
+    git(done, "checkout", "-q", "--detach")
+    commit(done, "experiment.txt", "tried and dropped", "experiment")
+    lost = git(done, "rev-parse", "HEAD").strip()
+    git(done, "checkout", "-q", "done")
+    age_worktree(repo["main"], done)
+    data = run(reclaim.disk_reclaim(tier=2, apply=True))
+    assert "done" in removed(data)
+    pinned = git(repo["main"], "for-each-ref", "--format=%(objectname)", "refs/botcore/removed")
+    assert lost in pinned.split()
+    head = git(repo["main"], "rev-parse", "done").strip()
+    assert head in pinned.split()
+
+
+def test_a_head_only_a_remote_reached_survives_a_prune_and_restores(
+    repo: dict[str, Path],
+) -> None:
+    open_ = repo["open"]
+    head = git(open_, "rev-parse", "HEAD").strip()
+    run(reclaim.disk_reclaim(tier=2, apply=True, include_restorable=True))
+    git(repo["main"], "branch", "-q", "-D", "open")
+    git(repo["main"], "gc", "-q", "--prune=now")
+    back = run(keep.disk_restore(str(open_)))
+    assert git(open_, "rev-parse", "HEAD").strip() == head and "recreated" in back["how"]
+
+
+def test_unreadable_t3_settings_turn_tier_2_off(
+    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broken = repo["tmp"] / "t3.json"
+    broken.write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", str(broken))
+    data = run(report.disk_report())
+    assert all(w["tier"] != 2 for w in rows(data).values())
+    assert "tier 2 is off" in " ".join(rows(data)["done"]["reasons"])
+    assert not removed(run(reclaim.disk_reclaim(tier=2, apply=True)))
+
+
+def test_a_volume_that_changes_before_removal_stops_it(
+    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(reclaim, "_volume_problem", lambda path, ctx: "volume unplugged")
+    data = run(reclaim.disk_reclaim(tier=2, apply=True))
+    outcomes = {Path(a["target"]).name: a["detail"] for a in data["actions"]
+                if a["kind"] == "remove"}
+    assert outcomes["done"] == "volume unplugged" and repo["done"].exists()
+
+
+def test_a_branch_that_reverted_a_landed_path_is_not_landed(repo: dict[str, Path]) -> None:
+    sq = repo["squashed"]
+    commit(sq, "feature.txt", "", "revert the landed change")
+    age_worktree(repo["main"], sq)
+    assert rows(run(report.disk_report()))["squashed"]["tier"] != 2
+
+
+def test_keep_ownership_needs_the_exact_marker_and_renewal_never_unlocks(
+    repo: dict[str, Path],
+) -> None:
+    git(repo["main"], "worktree", "lock", "--reason", "botcore-keeper owns this",
+        str(repo["done"]))
+    assert asyncio.run(keep.disk_unkeep(str(repo["done"]))).error.code == \
+        "DISK_LOCKED_ELSEWHERE"
+    run(keep.disk_keep(str(repo["squashed"]), until="2999-01-01"))
+    run(keep.disk_keep(str(repo["squashed"]), until="29991231"[:4] + "-12-31"))
+    listing = git(repo["main"], "worktree", "list", "--porcelain")
+    assert "botcore-keep until=2999-12-31" in listing
+
+
+def test_restore_refuses_a_missing_parent_folder(repo: dict[str, Path]) -> None:
+    import shutil
+
+    run(reclaim.disk_reclaim(tier=2, apply=True))
+    shutil.rmtree(repo["done"].parent)
+    result = asyncio.run(keep.disk_restore(str(repo["done"])))
+    assert not result.success and "missing" in result.error.message

@@ -9,12 +9,13 @@ tier 2 run removed, from the record that run wrote.
 
 from __future__ import annotations
 
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
 from afd import CommandResult, error, success
 
-from botcore.commands.disk.finished import KEEP_PREFIX, keep_reason
+from botcore.commands.disk.finished import keep_reason, keep_until
 from botcore.commands.disk.git import GitError, git_out, list_worktrees, path_key
 from botcore.commands.disk.removal import find_record, restore
 from botcore.commands.disk.settings import expand
@@ -46,25 +47,38 @@ async def disk_keep(path: str, until: str | None = None, reason: str = "") -> Co
     if failure:
         return failure
     main, entry = found
-    if until is None:
-        until = (date.today() + timedelta(days=DEFAULT_KEEP_DAYS)).isoformat()
     try:
-        if date.fromisoformat(until) < date.today():
+        day = (date.fromisoformat(until) if until else
+               date.today() + timedelta(days=DEFAULT_KEEP_DAYS))
+        if day < date.today():
             raise ValueError("in the past")
     except ValueError as exc:
         return error("DISK_KEEP_INVALID", f"until={until!r}: {exc}",
                      suggestion="Pass a date on or after today as YYYY-MM-DD")
-    if entry.locked is not None and not entry.locked.startswith(KEEP_PREFIX):
+    until = day.isoformat()
+    if entry.locked is not None and keep_until(entry.locked) is None:
         return error("DISK_LOCKED_ELSEWHERE", f"{target} is already locked: {entry.locked or '?'}",
                      suggestion="It is already protected; its own lock stays as it is")
     try:
-        if entry.locked is not None:
-            git_out(main, "worktree", "unlock", str(entry.path))
-        git_out(main, "worktree", "lock", "--reason", keep_reason(until, reason), str(entry.path))
-    except GitError as exc:
-        return error("DISK_KEEP_FAILED", str(exc), suggestion="Read git's message and try again")
+        if entry.locked is None:
+            git_out(main, "worktree", "lock", "--reason", keep_reason(until, reason),
+                    str(entry.path))
+        else:
+            _renew(entry.admin, keep_reason(until, reason))
+    except (GitError, OSError) as exc:
+        return error("DISK_KEEP_FAILED", str(exc), suggestion="Read the message and try again")
     return success(data={"path": str(entry.path), "until": until, "reason": reason},
                    suggestions=[f"disk-unkeep {entry.path} releases it"])
+
+
+def _renew(admin: Path | None, reason: str) -> None:
+    """Replace a keep's reason in git's own lock file, so the worktree never goes unlocked."""
+    if admin is None:
+        raise OSError("git's record of the worktree is unknown")
+    lock = admin / "locked"
+    tmp = admin / f".locked.{os.getpid()}.tmp"
+    tmp.write_text(reason, encoding="utf-8")
+    os.replace(tmp, lock)
 
 
 async def disk_unkeep(path: str) -> CommandResult[dict]:
@@ -77,7 +91,7 @@ async def disk_unkeep(path: str) -> CommandResult[dict]:
     if entry.locked is None:
         return success(data={"path": str(entry.path), "released": False},
                        suggestions=["It was not kept"])
-    if not entry.locked.startswith(KEEP_PREFIX):
+    if keep_until(entry.locked) is None:
         return error("DISK_LOCKED_ELSEWHERE", f"{target} is locked by something else: "
                      f"{entry.locked or '?'}",
                      suggestion="Release it with `git worktree unlock` if you are sure")
@@ -98,7 +112,9 @@ async def disk_restore(path: str) -> CommandResult[dict]:
     if not done:
         return error("DISK_RESTORE_FAILED", how,
                      suggestion="Recreate it with `git worktree add` from the record's commit")
-    return success(data={"path": record["path"], "how": how, "removed_at": record["removed_at"]},
+    removed_at = record.get("finished_at") or record.get("started_at")
+    return success(data={"path": record["path"], "how": how, "removed_at": removed_at,
+                         "pinned": record.get("refs", [])},
                    suggestions=["Install and build again before running anything in it"])
 
 

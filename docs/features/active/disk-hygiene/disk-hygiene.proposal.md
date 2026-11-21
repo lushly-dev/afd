@@ -197,22 +197,32 @@ left; the output was rebuildable either way.
 **Tier 2: "nothing unique lives here".** Removing a worktree keeps its branch and commits, so the
 question is what else would be lost. All of these must hold:
 
-- no modified, staged or untracked files, and no rebase, merge, cherry-pick or bisect in
-  progress;
-- the checked-out commit is reachable from a branch or a remote. A detached worktree whose commit
-  is on no branch would lose that commit, so it stays in Tier 3;
+- no modified, staged or untracked files, no edit hidden behind `skip-worktree` or
+  `assume-unchanged` (git status does not show those), and no rebase, merge, cherry-pick or
+  bisect in progress;
+- the checked-out commit is reachable from a branch, a remote or a tag;
+- no per-worktree git state removal would delete and a restore could not bring back:
+  `refs/worktree/*` or `refs/bisect/*` refs, its own `config.worktree`, its own sparse-checkout
+  rules;
 - every git-ignored file is either declared rebuildable or is a declared copy identical to the
-  same file in the main checkout (for example a `.env` copied in at setup).
+  same plain file in the main checkout (for example a `.env` copied in at setup), and no
+  rebuildable folder hides a git checkout, a registered worktree or a changed declared copy.
+
+Tier 2 is off on a machine whose T3 Code settings cannot be read, since which worktrees T3 Code
+manages is then unknown. Before git removes anything, the commit and every commit only the
+worktree's HEAD reflog reaches are pinned under `refs/botcore/removed/<name>-<time>/`, and a
+pending removal record is written; no later branch deletion, remote prune or gc can take them.
 
 **Landed** means one of these, checked in this order:
 
 1. the commit is an ancestor of the landing ref (`origin/main`);
-2. every file the branch changed matches the landing ref: the content check that survives squash
-   merges;
+2. every path any of the branch's commits touched (both sides of renames, reverted paths too)
+   matches the landing ref: the content check that survives squash merges;
 3. the branch's pull request is merged and its head is this commit (needs `gh`; skipped offline).
 
-The tool fetches the landing ref first when it can. A stale ref only makes the tool more
-cautious, because a worktree that looks unlanded is left alone.
+An applied tier 2 run fetches only the landing ref's branch from its own remote first, after the
+volume checks, without pruning or prompts; if that fetch fails, nothing that relies on landing is
+removed from that repository.
 
 Worktrees that pass "nothing unique" but have not landed stay in Tier 3, labeled **restorable**.
 An agent or a person can remove them in bulk with `disk-reclaim --include-restorable`. Every

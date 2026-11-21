@@ -200,8 +200,10 @@ lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctio
 machine; every run writes a receipt (the response's `receipt`) and updates status.json in the
 state folder (`BOTCORE_DISK_STATE` overrides it). Tier 2 also removes worktrees T3 Code does not
 manage that hold nothing unique and whose work has landed (`git worktree remove`, branch kept,
-after the same just-before rechecks); include_restorable also removes those that hold nothing
-unique but have not landed. The hourly job uses tier 2 only after `disk_setup(remove_landed=True)`.
+commits pinned under refs/botcore/removed/ first, after the same just-before rechecks);
+include_restorable also removes those that hold nothing unique but have not landed. Tier 2 is
+off while T3 Code's settings cannot be read. The hourly job uses tier 2 only after
+`disk_setup(remove_landed=True)`.
 
 ## disk_setup(uninstall=False, repos=None, install_schedule=True)
 Registers the repository holding the working directory (and `repos`) in the machine settings,

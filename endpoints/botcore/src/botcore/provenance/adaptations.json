@@ -2369,10 +2369,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d0ebce76f239b3d864938324851b6dd677d9ac5fe60b315362f13ceaa95aae44",
+      "current_import_sha256": "322bec362d7c5be24ff8fe35a4c77962cfb7d83a72ac94ece05268b55d383130",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/git.py",
@@ -2380,10 +2380,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4dc5a70275f348e981ef0ff19e80f710e7d945a7e6e5fd8d03d2a1534b481051",
+      "current_import_sha256": "82ac4b13b7cb82e1919343c87c481eeede5a85eb3c2d876348466e3c1966330c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/keep.py",
@@ -2391,10 +2391,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "861a28775a50edc8981d084b6d0edb18058c075a2397250980b30d276ded9696",
+      "current_import_sha256": "9dba425dec475e7f2ec3035ebe97e40c5df9d4021f3cb16c1f3d1fc2f1a4986b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/lock.py",
@@ -2413,10 +2413,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ef9997bc156fda09bc4e34b822bf5e4ff95761b0f4d3b1eda9356fe90a6477f7",
+      "current_import_sha256": "5e704a508bc3eef75e09967964967fcf3d06b46fba5cec4a278d03f00231eb07",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/removal.py",
@@ -2424,10 +2424,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9080da6955d73528453d72a145100435c776457cabe67de7b510cde501753f45",
+      "current_import_sha256": "30a1035198290df9ee71ee47e823ec6253ae5a8287849c6a99de55b3820f4aa3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/remove.py",
@@ -2446,10 +2446,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "982c44b8b559fe99691789404cea803c5a08f76fa122a877f6b9075c49e3ed03",
+      "current_import_sha256": "4f5833c615ad60df3afcf3654de1dad06c69d12d8fd9d1e2d28724b9e24a566b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/commands/disk/scan.py",
@@ -2690,11 +2690,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "fca5b233f705356d2f89e57f00d9d2105377945c9c0f93e448d44162bf96d179",
+      "current_import_sha256": "acd51b3c2098906968512377dead3085e3f633a3e16beeecc30caeb5071c7d1c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs"
     },
     {
       "path": "src/botcore/host.py",
@@ -4295,10 +4295,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ba98ee51e6f8a6e26e40413c3ff40302903210300b1738732e903acd4de293d9",
+      "current_import_sha256": "1088e6d428efe1988c26e8efbd88b851f23a6df58aa933a7de563f08f9808579",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "src/botcore/skills/docs-manager/SKILL.md",
@@ -6175,10 +6175,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e6af63b3e1768d2d5aa20d9445cdabf5ace558529be0a34ce11f9a85596b4267",
+      "current_import_sha256": "d0760bea64fd93d72e8c414a462af7eaef73686f6430693fa218e597b4a622de",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
     },
     {
       "path": "tests/test_docs.py",

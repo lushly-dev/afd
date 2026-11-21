@@ -327,7 +327,13 @@ def _judge_finished(
     due = ctx.settings.remove_landed_after_days
     if idle is None or idle < due * DAY:
         return
-    verdict = judge(wt.path, main, wt.head, changed, operation, config, ctx.git_timeout())
+    if not ctx.t3_read:
+        row["reasons"].append("tier 2 is off: T3 Code's settings could not be read, so which "
+                              "worktrees it manages is unknown")
+        return
+    others = [c for c in ctx.checkouts if c != path_key(wt.path)]
+    verdict = judge(wt.path, main, wt.admin, wt.head, wt.branch, changed, operation, config,
+                    ctx.git_timeout(), others)
     row["finished"] = {
         "unique": verdict.unique,
         "landed": verdict.landed,

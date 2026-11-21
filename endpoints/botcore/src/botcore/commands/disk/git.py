@@ -18,10 +18,12 @@ class GitError(Exception):
     """A git command failed or could not run."""
 
 
-def _env() -> dict[str, str]:
+def _env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env["LC_ALL"] = "C"
     env["GIT_OPTIONAL_LOCKS"] = "0"  # a read must never take the index lock
+    env["GIT_TERMINAL_PROMPT"] = "0"  # a scheduled job must never wait for a password
+    env.update(extra or {})
     return env
 
 
@@ -29,9 +31,9 @@ def _decode(raw: bytes) -> str:
     return raw.decode("utf-8", errors="surrogateescape")
 
 
-def git_out(
+def git_out(  # noqa: PLR0913 - git's own knobs
     cwd: Path, *args: str, timeout: float = GIT_TIMEOUT, stdin: str | None = None,
-    ok_codes: tuple[int, ...] = (0,),
+    ok_codes: tuple[int, ...] = (0,), env: dict[str, str] | None = None,
 ) -> str:
     """Run git in cwd and return stdout; raise GitError on failure or timeout."""
     try:
@@ -39,7 +41,7 @@ def git_out(
             ["git", "-C", str(cwd), *args],
             input=None if stdin is None else stdin.encode("utf-8", errors="surrogateescape"),
             capture_output=True,
-            env=_env(),
+            env=_env(env),
             timeout=max(1.0, timeout),
             check=False,
         )
