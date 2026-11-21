@@ -438,6 +438,14 @@ def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:
     return sessions
 
 
+def native_ids(connection: sqlite3.Connection) -> set[str]:
+    """The harness's own id of every item the store holds, as the harness wrote it."""
+    rows = connection.execute(
+        f"select json_extract(payload_json, '$.nativeItemRef.nativeId') from {ITEMS}"
+    )
+    return {str(row[0]) for row in rows if row[0]}
+
+
 def read(connection: sqlite3.Connection, *, since: str | None, all_items: bool = False) -> T3Read:
     """Every skill load, and change to a skill's files, the store shows at or after `since`
     (an ISO time), oldest first; and every session it holds.

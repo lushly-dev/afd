@@ -14,6 +14,29 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Sessions outside T3 Code, and the rollout, 2026-11-21 (#1820, #1819)
+
+- **Most skill loads before November never passed through T3 Code.** Of 900 Claude Code
+  transcripts on the MacBook Air, 530 were started by the Claude desktop app and 44 from the
+  command line; T3 Code started 326. Of 734 Skill tool calls in them, 529 came from the
+  desktop app's sessions, between March and October, and none of those was in the record.
+- **T3 Code's sessions are told exactly.** Every one of the 326 holds a tool call whose id
+  T3 Code's store holds too, and none of the other 574 does. The id is the same in both
+  places (`toolu_…`, which the record keeps as `claude:toolu_…`).
+- **What reading them added.** 3,071 events from 572 sessions, beside T3 Code's 3,177 from
+  523: 1,623 file reads, 705 Skill tool calls, 547 shell reads, 144 changes to a skill's
+  files and 52 typed commands. 2,632 are Lushly's; 72 ran in a folder that is gone and
+  leads to no repository.
+- **Cost.** The transcripts are 3.2 GB. The first collection took 49 seconds with a full
+  read of T3 Code's store, and the next 8: only a transcript that changed is opened, and one
+  of T3 Code's never again.
+- **Codex logs are not worth reading yet.** 208 of 213 across the Air and Random name T3
+  Code as what started them; 5 came from the Codex desktop app (#1891).
+- **The rollout.** The Air and Random run the merged build, installed from git by commit as
+  the disk commands were. Each is named in its settings (`air`, `random`), its record was
+  rebuilt, and its hourly job collects. Hero was switched off. No shared folder is named
+  yet, so each record is still read alone.
+
 ### Across machines, what review found, 2026-11-21 (#1818)
 
 - **A miss needs the whole record.** With several machines, the session that opened a pull
@@ -141,13 +164,15 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): first collections run by hand on the Air and Random on 2026-11-21 (see Findings); Hero and the schedule to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random collect hourly since 2026-11-21 (see Findings); Hero, and the shared folder on all three, to come.
 
 ## Phase 4. Provider logs
 
-- Claude Code transcripts and Codex rollouts as sources (#1820): not started.
+- Claude Code's transcripts as a source (#1820): merged in #1892.
 
 ## Later
+
+- Codex session logs as a source (#1891): not started; 5 of 213 logs measured are outside T3 Code.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 

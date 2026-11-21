@@ -105,13 +105,18 @@ Generate `_index.md` table of all installed skills.
 
 ## skill_usage_collect(since_days=None, t3_store=None, machine=None, rebuild=False)
 Add the skill loads recorded since the last collection to this machine's skill usage record.
-Nothing is added to a skill and no agent reports anything: the loads are read, read-only and
-from one snapshot, from T3 Code's store, which covers its Claude and Codex threads alike.
+Nothing is added to a skill and no agent reports anything: the loads are read, read-only,
+from T3 Code's store (one snapshot, its Claude and Codex threads alike) and, for sessions T3
+Code did not run, from Claude Code's transcripts (`~/.claude/projects`, or
+`BOTCORE_SKILL_USAGE_CLAUDE_DIR`; empty turns it off). A session T3 Code ran is left to its
+store, a load both show is one load, and only a transcript that changed is read again.
+`sources` says what each source did; a machine with neither succeeds with nothing read.
 - A load is: the Skill tool; a file tool that reads `…/skills/<name>/SKILL.md`; a shell command
   that shows the agent that file (`cat`, `sed`, `head`, `tail`, `nl`, `less`, `more`, `bat`,
   `awk`, `type`, `Get-Content`, `git show <revision>:<path>`); or a message the person wrote
-  that opens by naming a skill (`$name`). Only completed calls count. A search, diff, listing
-  or edit that names the file is not a load, nor a read sent to a file, a count or a search.
+  that opens by naming a skill (`$name` in T3 Code, a `/name` command in Claude Code). Only
+  completed calls count. A search, diff, listing or edit that names the file is not a load,
+  nor a read sent to a file, a count or a search.
 - It also records each session, whether or not it loaded a skill, with the session it came
   from (the one that delegated it, or the one it was forked from) and the pull requests T3
   Code linked to it or its subagents: when, and whether it opened each or attached itself to

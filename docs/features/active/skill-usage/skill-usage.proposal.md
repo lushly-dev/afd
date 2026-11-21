@@ -95,9 +95,32 @@ ranking the jobs is his; the phases below follow the order he agreed.
    platform). It records each tool call, shell command and message of the threads it runs, for
    each provider, with the thread, its parent, the project, the model of each run and the
    linked pull requests. One reader covers Claude and Codex.
-2. **Provider logs**, for a session that never ran under T3 Code: Claude Code transcripts and
-   Codex rollouts. An event carries the harness's own id for the tool call (`native`), so a
-   load both sources show is recognised as one.
+2. **Claude Code's transcripts**, for a session that never ran under T3 Code: one started
+   in the Claude desktop app or from the command line. Claude Code writes each session as a
+   file of JSON lines under `~/.claude/projects/`, and each subagent in a folder beside it.
+   - **A session T3 Code ran is left to T3 Code's store**, which knows more of it: its
+     thread, its lineage, its pull requests. Such a session is told two ways. Its transcript
+     names the program that started it, and T3 Code's store holds the harness's own id of
+     every tool call it recorded, so a session with one call the store holds is T3 Code's.
+     Once told, its transcript is never opened again.
+   - **Only a transcript that changed is read again**, by how many files a session has,
+     their size and their newest change. Only lines that can hold a tool call, its result or
+     a typed command are parsed.
+   - **The same loads count**, with the same rules: the Skill tool, a file read, a shell
+     read, a change to a skill's files, and a command a person typed (`/name`, which Claude
+     Code records between `<command-name>` tags) when the name is a skill. A call counts
+     once its result came back without an error. A subagent's load is its session's.
+   - **A session is filed under the repository it ran in.** A worktree that is gone is found
+     through the nearest folder still there, which inside a repository leads to it; one
+     that leads nowhere is `unknown`.
+   - **An event carries the harness's own id for the tool call** (`native`), as T3 Code's
+     do, so a load both sources show is one load: T3 Code's event stands.
+   - Such a session has no pull request on record, so the triggers report cannot judge a
+     change it opened.
+
+Codex writes session logs too. They are not read: on the two machines measured, 208 of 213
+name T3 Code as what started them
+([#1891](https://github.com/lushly-dev/afd/issues/1891)).
 
 T3 Code's store is another program's internal schema, not an interface:
 
@@ -421,7 +444,7 @@ for the schedule.
 1. **Collect and report** from T3 Code's store.
 2. **Missed triggers.**
 3. **Every machine:** the schedule, the shared folder, and the rollout.
-4. **Provider logs** for sessions outside T3 Code.
+4. **Claude Code's transcripts** for sessions outside T3 Code.
 
 ## Exit criteria
 
