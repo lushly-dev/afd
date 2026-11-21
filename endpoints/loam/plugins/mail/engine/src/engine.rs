@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use crate::home::{Home, HomeError};
 use crate::operate::ChangeOptions;
 use crate::provider::Connector;
+use crate::provider::smtp::MailSender;
 use crate::secrets::{InMemory, Secrets};
 use crate::store::{Store, StoreError, TokenRow};
 use crate::sync::Options;
@@ -32,6 +33,8 @@ pub struct Engine {
     /// How sync reaches accounts' providers; `None` in a build that syncs
     /// nothing.
     connector: Option<Arc<dyn Connector>>,
+    /// How outbound mail is sent; `None` in a build that sends nothing.
+    sender: Option<Arc<dyn MailSender>>,
     sync: Options,
     /// Where accounts' sign-ins are kept.
     secrets: Arc<dyn Secrets>,
@@ -89,6 +92,7 @@ impl Engine {
             owns_store: AtomicBool::new(false),
             progress: None,
             connector: None,
+            sender: None,
             sync: Options::default(),
             // The program gives the keychain; an engine made without one
             // keeps nothing beyond the process, so a test never reaches the
@@ -179,6 +183,13 @@ impl Engine {
         self
     }
 
+    /// The same engine, sending outbound mail through `sender`.
+    #[must_use]
+    pub fn with_sender(mut self, sender: Arc<dyn MailSender>) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
     /// The same engine, sizing sync's work by `options`.
     #[must_use]
     pub fn with_sync_options(mut self, options: Options) -> Self {
@@ -215,6 +226,12 @@ impl Engine {
     #[must_use]
     pub fn connector(&self) -> Option<&Arc<dyn Connector>> {
         self.connector.as_ref()
+    }
+
+    /// How outbound mail is sent.
+    #[must_use]
+    pub fn sender(&self) -> Option<&Arc<dyn MailSender>> {
+        self.sender.as_ref()
     }
 
     /// How sync sizes its work.

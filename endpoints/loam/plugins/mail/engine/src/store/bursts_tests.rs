@@ -751,6 +751,7 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
              DROP TABLE selection;
              DROP TABLE policy;
              DROP TABLE snooze;
+             DROP TABLE outbound;
              DROP TABLE draft;
              PRAGMA user_version = 10;"
         ))

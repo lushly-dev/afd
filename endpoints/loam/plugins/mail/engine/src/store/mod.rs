@@ -35,7 +35,9 @@ pub use decisions::{
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use drafts::{
-    Authors, DISCARD_LIFETIME, DraftChange, DraftRefusal, DraftRow, NewDraft, Recipients,
+    Authors, DISCARD_LIFETIME, DraftChange, DraftRefusal, DraftRow, NewDraft, OutboundRow,
+    OutboundState, RecipientBases, RecipientBasis, Recipients, ReplyHeaders, SendRefusal,
+    SendState, normalize_domain,
 };
 pub use operations::{
     Action, ItemStep, Kind, MOST_PROPOSALS, NewItem, NewOperation, OperationItem, OperationRow,
@@ -98,6 +100,8 @@ pub enum StoreError {
     /// The search index is older than the tables, or gone: it was removed or
     /// restored from elsewhere. `mail-rebuild` makes it again.
     IndexStale,
+    /// A send is currently in progress for the account being removed.
+    Sending,
     /// SQLite refused.
     Sqlite(rusqlite::Error),
 }
@@ -126,6 +130,7 @@ impl fmt::Display for StoreError {
                 f,
                 "the search index is older than the store; run `mail-rebuild`"
             ),
+            Self::Sending => write!(f, "a send is in progress for this account"),
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
         }
     }
@@ -368,6 +373,10 @@ impl Store {
             // This process owns the store now: an operation that says it
             // runs was running in one that is gone.
             Self::stop_interrupted_operations(&connection, wall_clock())?;
+            // Likewise, an outbound send left in `sending` ended when the
+            // process before did: whether it went is unknown, and it is never
+            // retried (section 9.5).
+            Self::mark_interrupted_outbound(&connection, wall_clock())?;
             // A proposal that waited its seven days while no process ran
             // goes now.
             Self::expire_proposals_on(&connection, wall_clock())?;

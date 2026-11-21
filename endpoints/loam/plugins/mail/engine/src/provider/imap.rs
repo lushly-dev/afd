@@ -1104,6 +1104,37 @@ impl Provider for Imap {
             .await
     }
 
+    async fn append(
+        &mut self,
+        mailbox: &str,
+        flags: &[&str],
+        bytes: &[u8],
+    ) -> Result<(), ProviderError> {
+        for flag in flags {
+            if !SYSTEM_FLAGS.contains(flag) {
+                return Err(ProviderError::Protocol("a flag the engine does not set"));
+            }
+        }
+        let flag_list = (!flags.is_empty()).then(|| format!("({})", flags.join(" ")));
+        match within(
+            SILENCE,
+            self.session
+                .append(mailbox, flag_list.as_deref(), None, bytes),
+        )
+        .await
+        {
+            Ok(()) => Ok(()),
+            Err(None) => Err(ProviderError::Unavailable("the server stopped answering")),
+            Err(Some(async_imap::error::Error::No(_))) => {
+                Err(ProviderError::Refused("appending a sent copy"))
+            }
+            Err(Some(async_imap::error::Error::Bad(_))) => {
+                Err(ProviderError::Protocol("appending a sent copy"))
+            }
+            Err(Some(_)) => Err(ProviderError::Unavailable("the connection failed")),
+        }
+    }
+
     async fn close(&mut self) {
         let _ = within(
             Duration::from_secs(5),
@@ -1548,7 +1579,7 @@ impl AsyncWrite for Stream {
 
 /// Starts TLS on `tcp`, checking the server's certificate against the
 /// operating system's roots.
-async fn tls(
+pub(crate) async fn tls(
     host: &str,
     tcp: TcpStream,
 ) -> Result<tokio_rustls::client::TlsStream<TcpStream>, ProviderError> {

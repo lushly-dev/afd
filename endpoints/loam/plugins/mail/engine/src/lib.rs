@@ -116,6 +116,7 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(drafts::restore(Arc::clone(engine)))?;
     registry.register(drafts::list(Arc::clone(engine)))?;
     registry.register(drafts::show(Arc::clone(engine)))?;
+    registry.register(drafts::send(Arc::clone(engine)))?;
     registry.register(drafts::snooze(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {

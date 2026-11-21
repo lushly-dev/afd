@@ -601,6 +601,7 @@ fn the_person_is_not_asked_to_accept_without_the_preview() {
     let mut person = Scripted {
         approve: true,
         asked: Vec::new(),
+        typed: std::collections::VecDeque::new(),
     };
     let status = loam_mail::cli::run_on(
         &args,

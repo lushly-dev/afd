@@ -374,6 +374,12 @@ fn plan(
                     .with_suggestion("Run `loam-mail mail-status` to see the mailboxes' ids."),
                 ));
             };
+            if target.role == Role::Sent {
+                return Err(invalid(
+                    "mail cannot be filed into the sent mailbox",
+                    "The engine treats mail in the sent mailbox as mail you sent; choose another mailbox.",
+                ));
+            }
             for place in &items {
                 match account_of(place.mailbox) {
                     Some((owner, _)) if owner != account => {
