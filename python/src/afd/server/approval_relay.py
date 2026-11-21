@@ -434,7 +434,10 @@ class UpFrontApproval:
             return failure(decided.error)
         if not await deps.requires_approval(command, input, context):
             return await _released(next_fn)
-        verified = deps.binding_input(input)
+        try:
+            verified = deps.binding_input(input)
+        except _UNBINDABLE:
+            return failure(not_canonical_error(command))
         bindings = deps.bindings(self._call_tags(deps), command, verified, deps.actor_binding(context))
         # No await between finding and taking it, so concurrent steps cannot take the same one.
         # Its expiry was checked when the call started, as a single command's is.
@@ -469,7 +472,10 @@ class UpFrontApproval:
                 continue
             if not await deps.requires_approval(step.command, step.input, context):
                 continue
-            input = deps.binding_input(step.input)
+            try:
+                input = deps.binding_input(step.input)
+            except _UNBINDABLE:
+                return _Plan("refuse", error=not_canonical_error(step.command))
             gated.append(
                 _GatedStep(
                     index=step.index,
@@ -682,6 +688,26 @@ def _pipeline_steps(
 
 def _what(tool: str) -> str:
     return "batch" if tool == "afd-batch" else "pipeline"
+
+
+def not_canonical_error(command: str) -> CommandError:
+    """A call that needs approval on an input with no canonical form: no approval can be bound to
+    it, so nobody is asked and nothing runs."""
+    return CommandError(
+        code=ErrorCodes.APPROVAL_UNAVAILABLE,
+        message=f"{command} needs a person's approval, and this input cannot be bound to one",
+        suggestion=(
+            "Do not retry with this input: it has no exact canonical form, so an approval cannot "
+            "be bound to it. Send the input in a form canonical JSON accepts (for example, an "
+            "integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string)."
+        ),
+        retryable=False,
+        details={"reason": "input-not-canonical"},
+    )
+
+
+_UNBINDABLE = (TypeError, ValueError, RecursionError)
+"""What canonical JSON raises for an input it cannot bind."""
 
 
 def _split_error(tool: str, index: int, command: str) -> CommandError:

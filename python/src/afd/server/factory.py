@@ -95,7 +95,12 @@ from afd.server.first_class import check_first_class_tools, normalize_first_clas
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
-from afd.server.approval_admission import admission_for, admission_required, take_admission
+from afd.server.approval_admission import (
+    Admission,
+    admission_for,
+    admission_required,
+    take_admission,
+)
 from afd.server.approval_relay import bind_approval_relay, current_up_front_approval
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
@@ -631,6 +636,7 @@ class MCPServer:
         command: CommandDefinition,
         data: Any,
         context: CommandContext,
+        record: Admission,
     ) -> Any:
         """Call the handler with validated input and stamp its result's metadata.
 
@@ -641,8 +647,8 @@ class MCPServer:
         evaluated here; declaring one needs an approval step. The admission is taken here, so a
         second dispatch on the same call (a retry inside the chain) needs a second admission.
         """
-        if admission_required(context, getattr(command, "approval", None)):
-            admission = take_admission(context, command.name, data)
+        if admission_required(record, getattr(command, "approval", None)):
+            admission = take_admission(record, command.name, data)
             if admission != "admitted":
                 return _approval_unavailable(command.name, admission)
         clock = getattr(context, "clock", None) or system_clock
@@ -730,20 +736,22 @@ class MCPServer:
         if invalid_field is not None:
             return invalid_field
 
-        async def run_handler() -> Any:
-            return await self._run_handler(command, data, context)
+        # The command this call runs, for the approval middleware to decide from and the
+        # handler's dispatch to check: this dispatch's own record, which the dispatch reads
+        # directly, wherever the chain ran it.
+        with admission_for(context, command) as record:
 
-        next_fn: Callable[[], Any] = run_handler
-        for middleware in reversed(self._middleware):
-            next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
+            async def run_handler() -> Any:
+                return await self._run_handler(command, data, context, record)
 
-        try:
-            # The command this call runs, for the approval middleware to decide from and the
-            # handler's dispatch to check. Recorded under this call's own context object.
-            with admission_for(context, command):
+            next_fn: Callable[[], Any] = run_handler
+            for middleware in reversed(self._middleware):
+                next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
+
+            try:
                 result = await next_fn()
-        except Exception as exc:
-            result = self._internal_error(name, exc)
+            except Exception as exc:
+                result = self._internal_error(name, exc)
         self._refresh_dynamic_tools(name, result)
         return result
 
@@ -1595,8 +1603,7 @@ def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
 def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
     """``APPROVAL_UNAVAILABLE`` for a gated dispatch no approval step admitted.
 
-    ``admission`` is ``"missing"`` (no approval step admitted this call), ``"not-canonical"``
-    (the input has no exact JSON form, so no approval can be bound to it) or ``"mismatch"``: an
+    ``admission`` is ``"missing"`` (no approval step admitted this call) or ``"mismatch"``: an
     approval step ran, but this dispatch is not the one it admitted (a retry placed after it, or
     the input changed after it), so the operator fixes the order.
     """
@@ -1606,13 +1613,6 @@ def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
             f"Tell the user that {command_name} needs their approval and this server has no "
             "approval step; do not retry. The operator adds the approval middleware "
             "(create_approval_middleware) or removes the command's approval policy."
-        )
-    elif admission == "not-canonical":
-        reason = "input-not-canonical"
-        suggestion = (
-            "Do not retry with this input: it has no exact JSON form, so an approval cannot be "
-            "bound to it. Send the input as JSON can represent it (for example, an id above 2^53 "
-            "as a string)."
         )
     else:
         reason = "admission-mismatch"

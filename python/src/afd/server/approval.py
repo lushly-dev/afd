@@ -65,6 +65,7 @@ from afd.server.approval_relay import (
     StepsHold,
     current_approval_relay,
     current_up_front_approval,
+    not_canonical_error,
     relay_message,
 )
 
@@ -187,7 +188,13 @@ def create_approval_middleware(
     with ``APPROVAL_UNAVAILABLE``, so a declared policy always holds (#1886).
 
     Install it after any middleware that sets or refines ``context.actor`` (such as
-    auth), since tokens are bound to the actor. ``context.approval`` must only ever be
+    auth), since tokens are bound to the actor, and after any retry middleware or
+    middleware that changes the input: one approval runs one handler, on the approved
+    input. Middleware that moves ``next_fn`` to a thread should use ``asyncio.to_thread``
+    or ``contextvars.copy_context().run``; otherwise a call on a context object that
+    overlapping calls share is refused. A call that needs approval on an input with no
+    canonical form gets ``APPROVAL_UNAVAILABLE`` (``reason: "input-not-canonical"``)
+    without asking anyone. ``context.approval`` must only ever be
     set by trusted surface code once a human approved, never from tool arguments:
     whoever holds a token can use it.
 
@@ -451,6 +458,7 @@ def create_approval_middleware(
                 context,
                 command_name,
                 verified if approved else decided,
+                input,
                 _canonical_or_none,
                 required=approved,
             )
@@ -467,10 +475,12 @@ def create_approval_middleware(
         # The policy of the command this call runs, and the one the `commands` option lists.
         if not await holds(command_name, input, context):
             return await next_fn()
+        # No token, relayed approval or question can bind an input with no canonical form.
+        if decided is None:
+            return failure(not_canonical_error(command_name))
 
         now = security_clock.now()
-        # Raises for an input with no canonical form: such a call cannot be approved.
-        input_binding = decided if decided is not None else _canonical_json(_plain_input(input))
+        input_binding = decided
         actor = getattr(context, "actor", None)
         actor_binding = _actor_json(actor)
 

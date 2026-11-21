@@ -484,8 +484,48 @@ async def test_an_input_changed_while_the_token_is_spent_is_refused():
     assert fixture.ran == []
 
 
-async def test_a_gated_input_with_no_canonical_form_is_refused():
-    ran: list[str] = []
+NOT_CANONICAL = (
+    "Do not retry with this input: it has no exact canonical form, so an approval cannot be bound "
+    "to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript "
+    "number cannot hold exactly, such as 2^53 + 1, as a string)."
+)
+# An integer past 2**53 that a JavaScript number cannot hold exactly has no canonical JSON.
+UNBOUNDABLE = 2**53 + 1
+
+
+def expect_not_canonical(error: Any, command: str) -> None:
+    wire = error if isinstance(error, dict) else {
+        "code": error.code,
+        "message": error.message,
+        "suggestion": error.suggestion,
+        "retryable": error.retryable,
+        "details": error.details,
+    }
+    assert wire["code"] == "APPROVAL_UNAVAILABLE"
+    assert wire["message"] == (
+        f"{command} needs a person's approval, and this input cannot be bound to one"
+    )
+    assert wire["suggestion"] == NOT_CANONICAL
+    assert wire["retryable"] is False
+    assert wire["details"] == {"reason": "input-not-canonical"}
+
+
+async def test_an_input_with_no_canonical_form_that_needs_approval_is_refused_up_front():
+    fixture = Fixture()
+    asked: list[Any] = []
+    server = fixture.server(
+        middleware=[create_approval_middleware(secret=SECRET, on_approval_required=asked.append)]
+    )
+    result = await server.execute("todo-delete", {"id": UNBOUNDABLE})
+    assert result.success is False
+    expect_not_canonical(result.error, "todo-delete")
+    # Nobody is asked: no token can bind such an input.
+    assert asked == []
+    assert fixture.ran == []
+
+
+async def test_an_input_with_no_canonical_form_runs_when_its_policy_lets_it_through():
+    ran: list[Any] = []
 
     @define_command(
         name="todo-tag",
@@ -493,19 +533,28 @@ async def test_a_gated_input_with_no_canonical_form_is_refused():
         approval=lambda input, context: "not-required",
     )
     async def tag(input: Any) -> CommandResult[Any]:
-        ran.append("tag")
+        ran.append(input["count"])
         return success(None)
 
     registry = create_direct_registry([tag], middleware=[create_approval_middleware(secret=SECRET)])
-    # An integer past 2**53 that a JavaScript number cannot hold exactly has no canonical JSON.
-    result = await registry.execute("todo-tag", {"count": 2**60 + 1})
-    expect_unavailable(result, "todo-tag", "input-not-canonical")
-    assert result.error.suggestion == (
-        "Do not retry with this input: it has no exact JSON form, so an approval cannot be bound "
-        "to it. Send the input as JSON can represent it (for example, an id above 2^53 as a "
-        "string)."
+    assert (await registry.execute("todo-tag", {"count": UNBOUNDABLE})).success
+    assert ran == [UNBOUNDABLE]
+
+
+async def test_an_input_changed_after_a_policy_let_it_through_is_refused():
+    fixture = Fixture()
+
+    async def change(name, input, context, next_fn):
+        input.id = 99
+        return await next_fn()
+
+    registry = create_direct_registry(
+        fixture.commands, middleware=[create_approval_middleware(secret=SECRET), change]
     )
-    assert ran == []
+    expect_unavailable(
+        await registry.execute("todo-check", {"id": 1}), "todo-check", "admission-mismatch"
+    )
+    assert fixture.ran == []
 
 
 # ─── A policy given only in the list is one-shot too ────────────────────────
@@ -620,3 +669,65 @@ async def test_a_pipeline_is_approved_up_front_without_a_commands_list(mode):
     assert [step["status"] for step in result["steps"]] == ["success", "success"], result
     assert ran == ["todo-list:1", "todo-delete:2"]
     assert len(prompts) == 1 and "Command: todo-delete" in prompts[0]
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_batch_step_with_no_canonical_input_needing_approval_runs_nothing(mode):
+    ran: list[str] = []
+    prompts: list[str] = []
+    request = {
+        "commands": [
+            {"command": "todo-list", "input": {"id": 1}},
+            {"command": "todo-delete", "input": {"id": UNBOUNDABLE}},
+        ]
+    }
+    result = await _relay_call(_relay_server(ran), mode, prompts, "afd-batch", request)
+    assert result["success"] is False, result
+    expect_not_canonical(result["error"], "todo-delete")
+    assert ran == [] and prompts == []
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_pipe_step_with_no_canonical_input_needing_approval_runs_nothing(mode):
+    ran: list[str] = []
+    prompts: list[str] = []
+    request = {
+        "steps": [
+            {"command": "todo-list", "input": {"id": 1}},
+            {"command": "todo-delete", "input": {"id": UNBOUNDABLE}},
+        ]
+    }
+    result = await _relay_call(_relay_server(ran), mode, prompts, "afd-pipe", request)
+    [refusal] = result["steps"]
+    assert refusal["status"] == "failure", result
+    expect_not_canonical(refusal["error"], "todo-delete")
+    assert ran == [] and prompts == []
+
+
+# ─── A middleware that moves the rest of the chain to a thread ──────────────
+
+
+async def _in_a_thread(name, input, context, next_fn):
+    """Runs the rest of the chain on a new event loop in a worker thread, without copying the
+    context variables (run_in_executor copies none)."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: asyncio.run(next_fn()))
+
+
+async def test_an_approved_call_runs_when_a_middleware_moves_it_to_a_thread():
+    fixture = Fixture()
+    server = fixture.server(middleware=[_in_a_thread, create_approval_middleware(secret=SECRET)])
+    held = await server.execute("todo-delete", {"id": 1})
+    assert held.error.code == "APPROVAL_REQUIRED", held.error
+    token = held.error.details["approvalToken"]
+    retried = await server.execute("todo-delete", {"id": 1}, CommandContext(approval=token))
+    assert retried.success, retried.error
+    assert (await server.execute("todo-check", {"id": 2})).success
+    assert fixture.ran == ["todo-delete:1", "todo-check:2"]
+
+
+async def test_a_thread_hop_without_an_approval_step_still_says_so():
+    fixture = Fixture()
+    server = fixture.server(middleware=[_in_a_thread])
+    expect_unavailable(await server.execute("todo-delete", {"id": 1}), "todo-delete")
+    assert fixture.ran == []
