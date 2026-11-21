@@ -75,7 +75,8 @@ export function resolveHeaders(
 		// Numbered before blank lines are skipped, so the number is the line's own.
 		...lines
 			.map((line, index) => [`${HEADERS_ENV} line ${index + 1}`, line] as const)
-			.filter(([, line]) => line.trim() !== ''),
+			// Blank means spaces and tabs only, so a control character is refused, not skipped.
+			.filter(([, line]) => trimOws(line) !== ''),
 		...flags.map((flag, index) => [`--header ${index + 1}`, flag] as const),
 	];
 	for (const [source, header] of sources) {

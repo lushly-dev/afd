@@ -193,6 +193,8 @@ async function loadScenarios(
 async function runScenarios(path: string, options: RunOptions): Promise<void> {
 	const startTime = Date.now();
 	const cwd = process.cwd();
+	// Checked before any spinner starts, so its error is not printed under a live frame.
+	const headers = headersOrExit(options.header);
 	const spinner = ora('Finding scenarios...').start();
 
 	try {
@@ -213,8 +215,6 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 			return process.exit(1);
 		}
 
-		// Checked before the spinner starts, so its error is not printed under a live frame.
-		const headers = headersOrExit(options.header);
 		const connectSpinner = ora('Connecting to server...').start();
 		let client: McpClient;
 

@@ -81,16 +81,14 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 				return process.exit(1);
 			}
 
-			// Check -H before either branch: --module never reaches requireClient, which checks
-			// it for the MCP branch, and a malformed header must stop the call in both.
-			// headersOrExit exits on a malformed header; returning covers a mocked exit too.
-			if (headersOrExit(options.header) === undefined) return;
-
 			if (options.module !== undefined) {
 				if (options.connect !== undefined) {
 					printError('--module and --connect cannot be used together');
 					return process.exit(1);
 				}
+				// --module never reaches requireClient, which checks -H for the MCP branch, so a
+				// malformed header is refused here before the module loads.
+				headersOrExit(options.header);
 				const result = await callInProcess(name, parsedArgs, options);
 				if (!result) return process.exit(1);
 				printResult(result, { format: options.format, verbose: options.verbose });

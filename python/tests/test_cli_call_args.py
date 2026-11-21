@@ -313,6 +313,14 @@ def test_header_parsing_trims_only_spaces_and_tabs():
     assert parse_header(" \tX-Key \t:  \t v \t ") == ("X-Key", "v")
     assert parse_header("X: tok\xa0") == ("X", "tok\xa0")
     assert parse_header("X: tok\x85") == ("X", "tok\x85")  # obs-text, which strip() dropped
-    for bad in ("X: secret\x0b", "X: secret\u2028", "\x0bX: v"):
+    for bad in ("X: secret\x0b", "X: secret\u2028", "\x0bX: v", "X: secret\n", "X\n: v"):
         with pytest.raises(ValueError, match="Invalid header"):
             parse_header(bad)
+
+
+def test_an_afd_headers_line_holding_only_a_control_character_is_reported_by_its_number():
+    from afd.cli.args import resolve_headers
+
+    with pytest.raises(ValueError, match="^AFD_HEADERS line 2: Invalid header"):
+        resolve_headers([], {"AFD_HEADERS": "X: 1\n\x0b"})
+

@@ -78,18 +78,14 @@ describe('afd call invocation', () => {
 		expect(errors.join('')).toContain('Allowed choices are streamable-http, sse, http');
 
 		// Commander's InvalidArgumentError repeats the argument, which may hold a credential,
-		// so a malformed header is refused by headersOrExit, not while parsing.
+		// so parsing passes a malformed header on and requireClient's headersOrExit refuses
+		// it (e2e.test.ts runs that path without mocks).
 		errors.length = 0;
-		mocks.requireClient.mockClear();
-		const printed: string[] = [];
-		vi.spyOn(console, 'error').mockImplementation((...parts) => void printed.push(parts.join(' ')));
-		vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-			throw new Error(`exit ${code}`);
-		}) as never);
-		await expect(parse('--header', 'Authorization Bearer sk-SECRET')).rejects.toThrow('exit 1');
-		expect(`${errors.join('')}${printed.join('')}`).not.toContain('SECRET');
-		expect(printed.join('')).toContain('--header 1: Invalid header');
-		expect(mocks.requireClient).not.toHaveBeenCalled();
+		await parse('--header', 'Authorization Bearer sk-SECRET');
+		expect(errors.join('')).not.toContain('SECRET');
+		expect(mocks.requireClient.mock.lastCall?.[0]).toMatchObject({
+			header: ['Authorization Bearer sk-SECRET'],
+		});
 	});
 });
 
@@ -174,19 +170,22 @@ describe('afd call approvals (#417)', () => {
 	it('a malformed -H stops an in-process --module call before it runs', async () => {
 		const { deleted } = await fixture();
 		deleted.length = 0;
-		const { code, stdout, stderr } = await run(
-			'todo-delete',
-			'{"id":42}',
-			'--module',
-			MODULE,
-			'--approve',
-			'-H',
-			'Authorization Bearer sk-SECRET'
-		);
-		expect(code).toBe(1);
+		const printed: string[] = [];
+		vi.spyOn(console, 'error').mockImplementation((...parts) => void printed.push(parts.join(' ')));
+		vi.spyOn(console, 'log').mockImplementation((...parts) => void printed.push(parts.join(' ')));
+		// A real exit never returns, so this one throws.
+		vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+			throw new Error(`exit ${code}`);
+		}) as never);
+		const args = ['todo-delete', '{"id":42}', '--module', MODULE, '--approve'];
+		await expect(
+			createCli().parseAsync(['call', ...args, '-H', 'Authorization Bearer sk-SECRET'], {
+				from: 'user',
+			})
+		).rejects.toThrow('exit 1');
 		expect(deleted).toEqual([]);
-		expect(stderr).toContain('--header 1: Invalid header');
-		expect(`${stdout}${stderr}`).not.toContain('SECRET');
+		expect(printed.join('')).toContain('--header 1: Invalid header');
+		expect(printed.join('')).not.toContain('SECRET');
 	});
 
 	it('shows the summary and expiry on stderr in text format', async () => {

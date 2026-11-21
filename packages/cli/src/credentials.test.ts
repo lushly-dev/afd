@@ -132,5 +132,13 @@ describe('a malformed header is never repeated (#1836)', () => {
 		expect(() => parseHeader('X: secret\u2028')).toThrow('holds a line break');
 		expect(() => parseHeader('\vX: v')).toThrow('Use "Name: value"');
 		expect(parseHeader('X: tok\u00a0')).toEqual(['X', 'tok\u00a0']);
+		expect(() => parseHeader('X: secret\n')).toThrow('holds a line break');
+		expect(() => parseHeader('X\n: v')).toThrow('Use "Name: value"');
+	});
+
+	it('reports an AFD_HEADERS line holding only a control character by its number', () => {
+		expect(() => resolveHeaders([], { [HEADERS_ENV]: 'X: 1\n\u000b' })).toThrow(
+			/^AFD_HEADERS line 2: Invalid header/
+		);
 	});
 });
