@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
+#include <memory>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -125,4 +127,100 @@ TEST_CASE("FileJournalSink reports a corrupt journal instead of appending to it"
 TEST_CASE("FileJournalSink reads the golden fixture") {
     afd::FileJournalSink sink(fs::path(AFD_WIRE_DIR) / "journal.jsonl");
     CHECK(file_seqs(sink) == std::vector<std::int64_t>{1, 2, 3, 4, 5, 6});
+}
+
+TEST_CASE(
+    "FileJournalSink does not corrupt an unterminated journal after a failed append (#1717)") {
+    TempDir dir;
+    fs::create_directories(dir.path());
+    afd::JournalEntry first;
+    static_cast<afd::JournalRecord&>(first) = file_record("todo-create");
+    const std::string line = afd::serialize_journal_entry(first);
+
+    const fs::path path = dir.path() / "unterminated-retry.jsonl";
+    write_text(path, line); // intentionally no trailing '\n'
+
+    // Limits large enough for the first line and a normal second line, too small for oversized.
+    afd::ParseLimits limits;
+    limits.max_bytes = line.size() + 128;
+    afd::FileJournalSink sink(path, limits);
+
+    afd::JournalRecord oversized = file_record("todo-big");
+    oversized.input = {{"payload", std::string(limits.max_bytes + 64, 'x')}};
+    const auto failed = sink.append(oversized);
+    REQUIRE_FALSE(failed.has_value());
+    CHECK(read_text(path) == line); // untouched on validation failure
+
+    const auto retry = sink.append(file_record("todo-list"));
+    REQUIRE(retry.has_value());
+    CHECK(retry->seq == 2);
+    CHECK(file_seqs(sink) == std::vector<std::int64_t>{1, 2});
+    const std::string text = read_text(path);
+    CHECK(afd::parse_journal(text).has_value());
+    CHECK(std::count(text.begin(), text.end(), '\n') == 2);
+}
+
+TEST_CASE("FileJournalSink clamps recorded hostile random samples and rejects invalid tapes "
+          "(#1716)") {
+    struct HostileRandom final : afd::RandomSource {
+        std::vector<double> samples = {
+            -1.0,
+            1.0,
+            1e9,
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::infinity(),
+        };
+        std::size_t index = 0;
+        [[nodiscard]] double next() override { return samples[index++ % samples.size()]; }
+    };
+
+    TempDir dir;
+    const fs::path recorded_path = dir.path() / "recorded.jsonl";
+    auto sink = std::make_shared<afd::FileJournalSink>(recorded_path);
+
+    afd::CommandRegistry registry({.middleware = {afd::create_journal_middleware(sink)},
+                                   .clock = afd::fixed_clock(1700000000000),
+                                   .random = std::make_shared<HostileRandom>()});
+    REQUIRE_FALSE(
+        registry.register_command({.name = "rand-sample",
+                                   .description = "Sample random values",
+                                   .handler = [](const afd::Json&, afd::CommandContext& ctx) {
+                                       afd::Json draws = afd::Json::array();
+                                       for (int i = 0; i < 5; ++i) {
+                                           const double value = ctx.random->next();
+                                           CHECK(value >= 0.0);
+                                           CHECK(value < 1.0);
+                                           draws.push_back(value);
+                                       }
+                                       return afd::success(draws);
+                                   }}));
+
+    const auto result = registry.execute("rand-sample", afd::Json::object());
+    REQUIRE(result.success);
+
+    // Every recorded sample must survive FileJournalSink::read() without breaking the journal.
+    const auto entries = sink->read();
+    REQUIRE_MESSAGE(entries.has_value(), entries.error());
+    REQUIRE(entries->size() == 1);
+    REQUIRE(entries->at(0).tape.has_value());
+    REQUIRE(entries->at(0).tape->random.size() == 5);
+    for (double sample : entries->at(0).tape->random) {
+        CHECK(sample >= 0.0);
+        CHECK(sample < 1.0);
+    }
+
+    // A caller-supplied JournalRecord with an out-of-range tape.random must be rejected before
+    // writing so it cannot poison the journal file.
+    const fs::path direct_path = dir.path() / "direct.jsonl";
+    afd::FileJournalSink direct_sink(direct_path);
+    REQUIRE(direct_sink.append(file_record("todo-list")).has_value());
+    const std::string before = read_text(direct_path);
+
+    afd::JournalRecord bad = file_record("todo-bad");
+    bad.tape = afd::JournalTape{.random = {1.0}};
+    const auto rejected = direct_sink.append(bad);
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().find("is not a valid journal entry") != std::string::npos);
+    CHECK(read_text(direct_path) == before);
+    CHECK(file_seqs(direct_sink) == std::vector<std::int64_t>{1});
 }

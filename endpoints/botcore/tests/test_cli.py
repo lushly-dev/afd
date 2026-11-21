@@ -328,6 +328,26 @@ def test_init_skill_seed_failure_json_still_succeeds(tmp_path):
             assert output["skills_seeded"] == 0
 
 
+def test_serve_refuses_a_network_transport():
+    """The run tool executes any Python, so serve never listens on a port."""
+    runner = CliRunner()
+    with patch("botcore.server.create_mcp_server") as create:
+        result = runner.invoke(cli, ["serve", "--transport", "sse"])
+    assert result.exit_code == 2
+    message = result.output + str(result.stderr_bytes or b"", "utf-8")
+    assert "only over stdio" in message
+    assert "create_host_http_app" in message
+    create.assert_not_called()
+
+
+def test_serve_runs_over_stdio():
+    runner = CliRunner()
+    with patch("botcore.server.create_mcp_server") as create:
+        result = runner.invoke(cli, ["serve"])
+    assert result.exit_code == 0, result.output
+    create.return_value.run.assert_called_once_with(transport="stdio")
+
+
 def test_serve_missing_mcp_dependency():
     """serve should give a clear error when mcp is not installed."""
     runner = CliRunner()

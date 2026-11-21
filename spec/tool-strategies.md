@@ -121,7 +121,7 @@ A command cannot take a name the server provides itself.
 | Language | Refused at registration |
 | --- | --- |
 | TypeScript | The meta-tool names always; the bootstrap names with `bootstrap: true`; the context names with `contexts`. Duplicates are refused too (`command-names.ts`) |
-| Python | The meta-tool names. A command named like a bootstrap tool shadows it ([language parity](../docs/language-parity.md#command-definition)) |
+| Python | The meta-tool names always; the bootstrap names with `bootstrap=True`; the context names with `contexts`. Duplicates are refused too (`register` in `afd/server/factory.py`) |
 | Rust | The bootstrap and context names, by `register_bootstrap_commands` and `with_contexts` when a command already has one. A command named like a meta-tool is not refused, but the router handles the meta-tool first, so the command is unreachable |
 | C++ | The meta-tool names, by `register_command`; the bootstrap and context names by `register_bootstrap_commands` and `register_context_commands` when a command already has one |
 

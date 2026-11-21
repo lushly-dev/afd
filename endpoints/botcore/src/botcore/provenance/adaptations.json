@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "b74dc39dea109b396a10edc8d46355bd199c109049c84f1ad067c0c88b819c41",
+      "current_import_sha256": "cd42a5e84c22173f08763aed2989bcb8fa1052f2ed1244f68b778160b0e8c76f",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
     },
     {
       "path": "SETUP.md",
@@ -2120,11 +2120,11 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "7f5a54e9c6b9fd2fc18e03c3e7961bfbc58844bf7e254c40e40c92c1426d1e60",
+      "current_import_sha256": "622948def3d9eb1dd9c409c23a794ff36ef435b7759632e4b74f373c3598e54c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill no session had loaded (lushly-dev/afd#1817)"
     },
     {
       "path": "src/botcore/commands/__init__.py",
@@ -2521,11 +2521,11 @@
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
-      "current_import_sha256": "2498472b5164c1a3c8695ee0334de44abbda70a4add1ba452cd8c1688c63c6e2",
+      "current_import_sha256": "15c55d96f8348654c6af92cbd0f27a79ff16510374c03cc7be17021e2c4dd375",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning; docs_lint never reads or tests a link target, a symlinked Markdown file or a starting directory outside the worktree; such a link is a warning; links between units are still checked; the command-line boundary walk starts from the resolved workspace"
     },
     {
       "path": "src/botcore/commands/info.py",
@@ -2850,11 +2850,11 @@
       "path": "src/botcore/server.py",
       "upstream_sha256": "6088aefc9d936a028f7e7f0b7d9b4db3c685868667faad6108c938cf93381b8d",
       "staged_sha256": "23b894e5f71c341ead8dd19c717527500856048d8a622f9e91925c1c14095dd9",
-      "current_import_sha256": "d985603e4279f35fe122399526661fa7c0f514aaeab5f571509fb601c8cca307",
+      "current_import_sha256": "f9da7975d9afa7bdb8a3a1a6dd64655a2fbca7a0d6557b9cb8b1e733ec0e5033",
       "stage_classification": "modified-upstream",
       "stage_reason": "Reject command/docs replacement while retaining legacy local tools",
       "import_classification": "modified-after-staging",
-      "import_reason": "Preserve legacy tool names and streaming under SDK 1/2 imports"
+      "import_reason": "Preserve legacy tool names and streaming under SDK 1/2 imports; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
     },
     {
       "path": "src/botcore/skills/__init__.py",
@@ -6117,11 +6117,11 @@
       "path": "tests/test_cli.py",
       "upstream_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
       "staged_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
-      "current_import_sha256": "0ed63e97a223bfba1b694c47efa6417e686e391f301e84f6cb9031c838ab52e5",
+      "current_import_sha256": "d94d85fbe8172646d5dbe07d99085e3ba736930bfe20fc77556aebe776f2e4f0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes"
+      "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes; botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so"
     },
     {
       "path": "tests/test_config.py",
@@ -6294,11 +6294,11 @@
       "path": "tests/test_docs.py",
       "upstream_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
       "staged_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
-      "current_import_sha256": "f7514238cebb9f4c94b9fbd95571eba3236e35573e1e32730f3f27d3a5184800",
+      "current_import_sha256": "678aeee26b6f46230b8f5007a020ca5fb62ab57c6bae646940221d9971283e29",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779)"
+      "import_reason": "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning; docs_lint never reads or tests a link target, a symlinked Markdown file or a starting directory outside the worktree; such a link is a warning; links between units are still checked"
     },
     {
       "path": "tests/test_docs_extended.py",

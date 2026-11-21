@@ -8,6 +8,7 @@
 #include "detail/direct_approval.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
+#include "detail/random_unit.hpp"
 
 namespace afd {
 namespace {
@@ -20,7 +21,7 @@ std::string generate_trace_id(const Clock& clock, RandomSource& random) {
     constexpr char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
     std::string suffix;
     for (int i = 0; i < 7; ++i) {
-        suffix.push_back(digits[static_cast<std::size_t>(random.next() * 36.0)]);
+        suffix.push_back(digits[detail::random_index(random.next(), 36)]);
     }
     return "trace-" + std::to_string(clock.wall_ms()) + "-" + suffix;
 }

@@ -699,3 +699,108 @@ def test_an_empty_category_is_kept_and_a_missing_one_left_out(category, expected
         )
     )["_meta"]
     assert {key: meta[key] for key in meta if key == "category"} == expected
+
+
+def _register(server, name):
+    @server.command(name=name, description="A command with a built-in's name")
+    async def handler(input):
+        return success({"mine": True})
+
+
+@pytest.mark.parametrize("name", sorted(BOOTSTRAP_TOOLS))
+def test_bootstrap_names_are_reserved_only_with_bootstrap(name):
+    """#1731, as TypeScript's assertValidCommandNames: with bootstrap=True a command of the
+    same name would shadow the built-in, so registering it raises."""
+    with pytest.raises(ValueError, match=f"Command name '{name}' is reserved: bootstrap=True"):
+        _register(create_server("test-app", bootstrap=True), name)
+
+    plain = create_server("test-app")
+    _register(plain, name)
+    assert plain._get_command_index()[name].description == "A command with a built-in's name"
+
+
+async def test_without_bootstrap_a_command_named_afd_help_runs_as_itself():
+    server = create_server("test-app")
+    _register(server, "afd-help")
+    result = await server.execute("afd-help", {})
+    assert result.success is True
+    assert result.data == {"mine": True}
+
+
+@pytest.mark.parametrize("name", ["afd-context-list", "afd-context-enter", "afd-context-exit"])
+def test_context_names_are_reserved_only_with_contexts(name):
+    with pytest.raises(ValueError, match=f"Command name '{name}' is reserved: contexts"):
+        _register(create_server("test-app", contexts=[ContextConfig(name="alpha")]), name)
+
+    plain = create_server("test-app")
+    _register(plain, name)
+    assert name in {command.name for command in plain.list_commands()}
+
+
+def test_a_refused_name_leaves_nothing_registered():
+    server = create_server("test-app", bootstrap=True)
+    with pytest.raises(ValueError):
+        _register(server, "afd-help")
+    assert "afd-help" not in {command.name for command in server.list_commands()}
+    assert server._get_command_index()["afd-help"].description != "A command with a built-in's name"
+
+
+def _raw_definition(name):
+    from afd.core.commands import CommandDefinition
+
+    async def handler(input, context=None):
+        return success({"mine": True})
+
+    return CommandDefinition(name=name, description="Raw", handler=handler)
+
+
+async def test_a_reserved_name_added_through_the_registry_is_refused_before_a_request():
+    server = create_server("test-app", bootstrap=True)
+    server.registry.register(_raw_definition("afd-help"))
+    with pytest.raises(ValueError, match="'afd-help' is reserved: bootstrap=True"):
+        await server.execute("afd-help", {})
+    with pytest.raises(ValueError, match="is reserved"):
+        server.get_mcp_tools()
+
+
+async def test_turning_a_built_in_on_after_registration_is_refused_before_a_request():
+    server = create_server("test-app")
+    _register(server, "afd-help")
+    assert (await server.execute("afd-help", {})).data == {"mine": True}
+    server.config.bootstrap = True
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
+
+    contexts = create_server("test-app")
+    _register(contexts, "afd-context-list")
+    contexts.config.contexts = [ContextConfig(name="alpha")]
+    with pytest.raises(ValueError, match="'afd-context-list' is reserved: contexts"):
+        await contexts.execute("afd-context-list", {})
+
+
+async def test_a_definition_renamed_after_registration_is_refused_before_a_request():
+    server = create_server("test-app", bootstrap=True)
+    _register(server, "app-help")
+    server.registry.get("app-help").name = "afd-help"
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
+
+
+@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
+async def test_renaming_after_a_refusal_leaves_no_stale_dispatch_key(strategy):
+    """Following the error's advice (rename) must not leave the old name reaching the
+    application: the built-ins, index and router are rebuilt when names change."""
+    server = create_server("test-app", tool_strategy=strategy)
+    _register(server, "afd-help")
+    assert (await server.execute("afd-help", {})).data == {"mine": True}  # caches built
+
+    server.config.bootstrap = True
+    with pytest.raises(ValueError, match="'afd-help' is reserved"):
+        await server.execute("afd-help", {})
+    server.registry.get("afd-help").name = "app-help"
+
+    builtin = await server.execute("afd-help", {})
+    assert builtin.success is True
+    assert builtin.data != {"mine": True}
+    routed = await server.call_tool("afd-call", {"command": "afd-help", "input": {}})
+    assert getattr(routed, "data", None) != {"mine": True}

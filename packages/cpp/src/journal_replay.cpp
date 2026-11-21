@@ -12,6 +12,7 @@
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/journal_state.hpp"
+#include "detail/random_unit.hpp"
 
 namespace afd {
 namespace {
@@ -95,7 +96,7 @@ public:
         : inner_(std::move(inner)), tape_(std::move(tape)) {}
 
     [[nodiscard]] double next() override {
-        const double value = inner_->next();
+        const double value = detail::clamp_unit_random(inner_->next());
         tape_->random(value);
         return value;
     }
@@ -217,7 +218,7 @@ public:
             return fallback_->next();
         }
         if (index_ < values_.size()) {
-            return values_[index_++];
+            return detail::clamp_unit_random(values_[index_++]);
         }
         overran_ = true;
         return fallback_->next();

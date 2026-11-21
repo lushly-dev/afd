@@ -9,6 +9,7 @@
 
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
+#include "detail/random_unit.hpp"
 #include "detail/utf8.hpp"
 
 namespace afd {
@@ -467,7 +468,7 @@ std::string random_suffix(RandomSource& random) {
     constexpr char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
     std::string out;
     for (int i = 0; i < 11; ++i) {
-        out.push_back(digits[static_cast<std::size_t>(random.next() * 36.0)]);
+        out.push_back(digits[detail::random_index(random.next(), 36)]);
     }
     return out;
 }

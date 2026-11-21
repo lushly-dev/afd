@@ -77,7 +77,11 @@ from afd.server.decorators import (
     has_command_metadata,
     validate_command_input,
 )
-from afd.core.builtin_names import AFD_META_TOOL_NAMES
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+)
 from afd.server.context_fields import (
     AFD_CONTEXT_FIELDS_META_KEY,
     ContextField,
@@ -244,6 +248,7 @@ class MCPServer:
         self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state = SessionContextState()
         self._bootstrap_commands: list[CommandDefinition] | None = None
+        self._names_key: tuple[Any, ...] | None = None
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
@@ -335,10 +340,14 @@ class MCPServer:
         """Register an already-decorated command function.
 
         Raises:
-            ValueError: If the function is not decorated, or its name is one of
-                the router's built-in tools (``afd-call``, ``afd-batch``,
-                ``afd-pipe``, ``afd-discover``, ``afd-detail``), which would
-                make the command unreachable.
+            ValueError: If the function is not decorated, or its name is one the
+                server handles itself, as TypeScript's ``assertValidCommandNames``
+                refuses: the router's meta-tools (``afd-call``, ``afd-batch``,
+                ``afd-pipe``, ``afd-discover``, ``afd-detail``), always; ``afd-help``,
+                ``afd-docs`` and ``afd-schema`` when ``bootstrap=True``; and
+                ``afd-context-list``, ``afd-context-enter`` and ``afd-context-exit``
+                when contexts are configured. Without those options the names are
+                ordinary commands.
         """
 
         if not has_command_metadata(func):
@@ -354,6 +363,9 @@ class MCPServer:
                 f"'{definition.name}' itself, so the command would be unreachable. "
                 "Rename the command."
             )
+        reserved = self._reserved_name_error(definition.name)
+        if reserved is not None:
+            raise ValueError(reserved)
 
         first_class = self.config.first_class_tools or []
         if definition.name in first_class and not self._is_exposed_to(definition, "mcp"):
@@ -368,6 +380,54 @@ class MCPServer:
         self._metadata[definition.name] = metadata
         self._invalidate_caches()
         self._sync_mcp_tool_definitions()
+
+    def _reserved_name_error(self, name: str) -> str | None:
+        """Why ``name`` cannot be a command while its built-in is on, or ``None``."""
+        if self.config.bootstrap and name in AFD_BOOTSTRAP_COMMAND_NAMES:
+            return (
+                f"Command name '{name}' is reserved: bootstrap=True registers a built-in "
+                f"'{name}'. Rename the command, or do not register get_bootstrap_commands() "
+                "output on a server that sets bootstrap=True."
+            )
+        if self.config.contexts and name in AFD_CONTEXT_COMMAND_NAMES:
+            return (
+                f"Command name '{name}' is reserved: contexts registers a built-in '{name}'. "
+                "Rename the command."
+            )
+        return None
+
+    def _check_reserved_names(self) -> None:
+        """Refuse a registered command that has the name of a built-in that is on.
+
+        ``register`` refuses one at once. This check, run before each tools/list and
+        command call, also catches a command added through ``server.registry`` directly,
+        a built-in turned on (``config.bootstrap``, ``config.contexts``) after
+        registration, and a definition renamed after registration. When the options or
+        the registered names have changed since the last request, the built-ins, the
+        command index and the router are rebuilt, so no lookup uses a stale name.
+        """
+        commands = self._registry.list()
+        key = (
+            self.config.bootstrap,
+            tuple(context.name for context in self.config.contexts or ()),
+            tuple(id(command) for command in commands),
+            tuple(command.name for command in commands),
+        )
+        if key != self._names_key:
+            self._bootstrap_commands = None
+            self._invalidate_caches()
+            self._names_key = key
+        if not (self.config.bootstrap or self.config.contexts):
+            return
+        for command in commands:
+            reserved = self._reserved_name_error(command.name)
+            if reserved is not None:
+                raise ValueError(reserved)
+
+    def _check_before_request(self) -> None:
+        """The registration checks that must hold before the server answers a request."""
+        self._check_reserved_names()
+        self._check_first_class_tools()
 
     def _invalidate_caches(self) -> None:
         self._command_index = None
@@ -416,7 +476,8 @@ class MCPServer:
         """Name -> definition for registered and bootstrap commands (cached)."""
         if self._command_index is None:
             index = {command.name: command for command in self._get_bootstrap_commands()}
-            # A registered command shadows a bootstrap command of the same name.
+            # No registered command has the name of a built-in that is on: register() and
+            # _check_reserved_names(), run before each request, refuse one.
             index.update({command.name: command for command in self._registry.list()})
             self._command_index = index
         return self._command_index
@@ -678,7 +739,7 @@ class MCPServer:
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
-        self._check_first_class_tools()
+        self._check_before_request()
         if name in META_TOOL_NAMES:
             return await self.route_tool_call(name, input)
         return await self._execute_command(name, input, context)
@@ -1101,7 +1162,7 @@ class MCPServer:
 
     def _get_router(self) -> Callable[[str, Any], Any]:
         """The tool router, built once and rebuilt after register() or a context change."""
-        self._check_first_class_tools()
+        self._check_before_request()
         if self._router is None:
             commands = self.list_exposed_commands(
                 interface="mcp", include_bootstrap=True, context_filtered=False
@@ -1166,7 +1227,7 @@ class MCPServer:
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Return the MCP-visible tool definitions for the current strategy."""
 
-        self._check_first_class_tools()
+        self._check_before_request()
         return get_tools_list(
             self.list_exposed_commands(interface="mcp", include_bootstrap=True, context_filtered=False),
             self.config.tool_strategy,
@@ -1304,7 +1365,7 @@ class MCPServer:
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError("mcp not installed. Install with: pip install afd[server]") from exc
 
-        self._check_first_class_tools()
+        self._check_before_request()
         server = self
         context_names = {item.name for item in self.config.contexts}
         ttl_ms = self.config.tools_list_ttl_ms

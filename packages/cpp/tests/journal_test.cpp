@@ -2,6 +2,7 @@
 // packages/server/src/journal.test.ts and journal-replay.test.ts, #273).
 #include "afd/afd.hpp"
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -512,4 +513,119 @@ TEST_CASE("replay_status_name and replay_difference_kind_name") {
     CHECK(afd::replay_difference_kind_name(afd::ReplayDifferenceKind::changed) == "changed");
     CHECK(afd::replay_difference_kind_name(afd::ReplayDifferenceKind::added) == "added");
     CHECK(afd::replay_difference_kind_name(afd::ReplayDifferenceKind::removed) == "removed");
+}
+
+namespace {
+
+class HostileRandom final : public afd::RandomSource {
+public:
+    explicit HostileRandom(std::vector<double> values) : values_(std::move(values)) {}
+
+    [[nodiscard]] double next() override {
+        const double value = values_[index_ % values_.size()];
+        ++index_;
+        return value;
+    }
+
+private:
+    std::vector<double> values_;
+    std::size_t index_ = 0;
+};
+
+} // namespace
+
+TEST_CASE("hostile RandomSource values and out-of-range journal tapes are safely bounded (#1716)") {
+    const std::vector<double> hostile{
+        -1.0,
+        -1e12,
+        0.0,
+        0.5,
+        1.0,
+        1e9,
+        (std::numeric_limits<double>::quiet_NaN)(),
+        (std::numeric_limits<double>::infinity)(),
+        -(std::numeric_limits<double>::infinity)(),
+    };
+
+    HostileRandom uuid_rng(hostile);
+    const std::string uuid = afd::random_uuid(uuid_rng);
+    CHECK(uuid.size() == 36);
+    CHECK(uuid[14] == '4');
+
+    auto registry = std::make_shared<afd::CommandRegistry>();
+    REQUIRE_FALSE(
+        registry
+            ->register_command({.name = "echo-val",
+                                .description = "Echo",
+                                .handler = [](const afd::Json& in,
+                                              afd::CommandContext&) { return afd::success(in); }})
+            .has_value());
+    afd::DirectClient client(registry, {.clock = afd::fixed_clock(1000),
+                                        .random = std::make_shared<HostileRandom>(hostile)});
+    const auto called = client.call("echo-val", {{"k", 1}});
+    REQUIRE(called.success);
+    REQUIRE(called.metadata.has_value());
+    REQUIRE(called.metadata->trace_id.has_value());
+    CHECK(called.metadata->trace_id->rfind("trace-1000-", 0) == 0);
+    CHECK(called.metadata->trace_id->size() == 18); // "trace-1000-" (11) + 7 base-36 chars
+
+    const auto piped =
+        client.pipe(afd::create_pipeline({{.command = "echo-val", .input = afd::Json{{"k", 2}}}}));
+    CHECK(piped.steps.size() == 1);
+    CHECK(piped.steps[0].status == afd::StepStatus::success);
+
+    // SystemRandom::next() stays strictly in [0.0, 1.0).
+    afd::SystemRandom sys_rng;
+    for (int i = 0; i < 10000; ++i) {
+        const double sample = sys_rng.next();
+        CHECK(sample >= 0.0);
+        CHECK(sample < 1.0);
+    }
+
+    // parse_journal rejects tape.random entries outside [0, 1).
+    for (const double bad : {-0.1, 1.0, 1e9}) {
+        afd::Json raw = {
+            {"seq", 1},
+            {"timestamp", "2026-01-01T00:00:00.000Z"},
+            {"command", "echo-val"},
+            {"input", afd::Json::object()},
+            {"contextDigest", {{"hash", "abc"}}},
+            {"result", {{"success", true}, {"data", afd::Json::object()}}},
+            {"durationMs", 0},
+            {"tape", {{"clock", afd::Json::array()}, {"random", afd::Json::array({bad})}}},
+        };
+        const auto parsed = afd::parse_journal(raw.dump());
+        CHECK_FALSE(parsed.has_value());
+    }
+
+    // replay_journal clamps hostile tape.random values even on hand-constructed JournalEntry.
+    std::vector<double> observed;
+    afd::CommandRegistry replay_reg;
+    REQUIRE_FALSE(replay_reg
+                      .register_command({.name = "sample-rng",
+                                         .description = "Sample random",
+                                         .handler =
+                                             [&](const afd::Json&, afd::CommandContext& ctx) {
+                                                 for (std::size_t i = 0; i < hostile.size(); ++i) {
+                                                     observed.push_back(ctx.random->next());
+                                                 }
+                                                 return afd::success(afd::Json::object());
+                                             }})
+                      .has_value());
+    afd::JournalEntry entry;
+    entry.seq = 1;
+    entry.timestamp = "2026-01-01T00:00:00.000Z";
+    entry.command = "sample-rng";
+    entry.input = afd::Json::object();
+    entry.context_digest = {.hash = "abc"};
+    entry.result = afd::success(afd::Json::object());
+    entry.tape = afd::JournalTape{.clock = {}, .random = hostile};
+
+    const auto report = afd::replay_journal(replay_reg, {entry});
+    REQUIRE(report.entries.size() == 1);
+    REQUIRE(observed.size() == hostile.size());
+    for (const double value : observed) {
+        CHECK(value >= 0.0);
+        CHECK(value < 1.0);
+    }
 }

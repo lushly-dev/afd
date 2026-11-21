@@ -53,16 +53,41 @@ Expected<FileJournalSink::Contents> FileJournalSink::load() const {
 Expected<JournalEntry> FileJournalSink::append(JournalRecord record) {
     const std::lock_guard lock(mutex_);
     std::string prefix;
-    if (!last_seq_) {
+    std::int64_t base_seq = 0;
+    std::optional<std::size_t> torn_at;
+    bool needs_prepare = false;
+    if (last_seq_) {
+        base_seq = *last_seq_;
+    } else {
         auto existing = load();
         if (!existing) {
             return unexpected(existing.error());
         }
-        std::error_code error;
-        if (existing->torn_at) {
-            std::filesystem::resize_file(path_, *existing->torn_at, error);
-        } else if (existing->unterminated) {
+        torn_at = existing->torn_at;
+        if (!torn_at && existing->unterminated) {
             prefix = "\n";
+        }
+        base_seq = existing->entries.empty() ? 0 : existing->entries.back().seq;
+        needs_prepare = true;
+    }
+    JournalEntry entry;
+    static_cast<JournalRecord&>(entry) = std::move(record);
+    entry.seq = base_seq + 1;
+    const std::string line = serialize_journal_entry(entry);
+    // A line the next load could not parse would end the journal there.
+    auto parsed = parse_bounded(line, limits_);
+    if (!parsed) {
+        return unexpected("Journal entry " + std::to_string(entry.seq) +
+                          " exceeds the sink's parse limits: " + parsed.error().message);
+    }
+    if (auto validated = JournalEntry::from_json(*parsed); !validated) {
+        return unexpected("Journal entry " + std::to_string(entry.seq) +
+                          " is not a valid journal entry: " + validated.error());
+    }
+    if (needs_prepare) {
+        std::error_code error;
+        if (torn_at) {
+            std::filesystem::resize_file(path_, *torn_at, error);
         }
         if (!error && path_.has_parent_path()) {
             std::filesystem::create_directories(path_.parent_path(), error);
@@ -70,16 +95,6 @@ Expected<JournalEntry> FileJournalSink::append(JournalRecord record) {
         if (error) {
             return unexpected("Cannot prepare journal " + path_.string() + ": " + error.message());
         }
-        last_seq_ = existing->entries.empty() ? 0 : existing->entries.back().seq;
-    }
-    JournalEntry entry;
-    static_cast<JournalRecord&>(entry) = std::move(record);
-    entry.seq = *last_seq_ + 1;
-    const std::string line = serialize_journal_entry(entry);
-    // A line the next load could not parse would end the journal there.
-    if (auto check = parse_bounded(line, limits_); !check) {
-        return unexpected("Journal entry " + std::to_string(entry.seq) +
-                          " exceeds the sink's parse limits: " + check.error().message);
     }
     std::ofstream out(path_, std::ios::binary | std::ios::app);
     out << prefix << line << '\n';
