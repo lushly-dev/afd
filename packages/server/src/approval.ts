@@ -494,6 +494,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return `${signingInput}.${base64url(await hmac(keys[0] as ApprovalKey, signingInput))}`;
 	}
 
+	// This approval step, as the admission records name it.
+	const self = {};
+
 	return async (commandName, input, context, outerNext) => {
 		// Every way this middleware lets a call it may gate through admits this command on the
 		// canonical input it decided on, computed before any await, which the engine checks, and
@@ -505,6 +508,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const next = (canonical: string | undefined) => {
 			if (!mayGate) return outerNext();
 			admitApproval(context, {
+				step: self,
 				commandName,
 				canonical,
 				input,
@@ -621,6 +625,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// An approver always gets its token; anyone else as the option says.
 		const includeToken =
 			!directExchange && (!!approver || (options.includeToken ?? context.interface !== 'mcp'));
+		// Checked again after the awaits since the first check, before anyone is told of the call.
+		if (changed()) return failure(inputChanged(commandName));
 		if (directExchange) {
 			holdDirectApproval(context, {
 				approvalToken,
@@ -630,7 +636,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 		}
 
-		if (changed()) return failure(inputChanged(commandName));
 		await options.onApprovalRequired?.({
 			command: commandName,
 			input,

@@ -579,6 +579,27 @@ describe('a policy given only in the commands list', () => {
 		expect(handled).toHaveBeenCalledWith(4);
 	});
 
+	it('refuses a retry between it and a second approval middleware that also lists it', async () => {
+		let attempts = 0;
+		const retry = createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false });
+		// Lists the command with a policy that lets it through, so it admits the call too.
+		const other = createApprovalMiddleware({
+			secret: SECRET,
+			commands: [{ name: 'todo-list', approval: () => 'not-required' }],
+		});
+		const { handled, client } = listedApproval(
+			(name, input, context, next) =>
+				retry(name, input, context, () => other(name, input, context, next)),
+			() =>
+				++attempts === 1
+					? { success: false, error: { code: 'TRANSIENT_ERROR', message: 'try again' } }
+					: { success: true, data: null }
+		);
+		const result = await client.call('todo-list', { id: 6 });
+		expect(handled).toHaveBeenCalledOnce();
+		expectUnavailable(result, 'todo-list', 'admission-mismatch');
+	});
+
 	it('refuses a retry between it and a second approval middleware that does not gate it', async () => {
 		let attempts = 0;
 		const retry = createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false });

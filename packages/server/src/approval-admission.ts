@@ -38,6 +38,8 @@ export type Canonicalize = (value: unknown) => string | undefined;
 
 /** What an approval step admitted: the command and input it decided on. */
 interface Admitted {
+	/** The approval step (one middleware instance) that admitted it. */
+	step: object;
 	name: string;
 	/** The canonical JSON of the input it decided on, or undefined when it has none (compared by identity). */
 	canonical: string | undefined;
@@ -52,11 +54,16 @@ interface Admitted {
 interface Admission {
 	command: AdmissionCommand;
 	/**
-	 * What each approval step admitted, in order. Two approval middlewares on one engine each
-	 * admit, and the dispatch must match them all, so a later one never replaces or weakens an
-	 * earlier one's binding.
+	 * What each approval step admitted since the last dispatch. Two approval middlewares on one
+	 * engine each admit, and the dispatch must match them all, so a later one never replaces or
+	 * weakens an earlier one's binding.
 	 */
 	admitted: Admitted[];
+	/**
+	 * Every approval step that ever admitted this call. A dispatch needs a fresh admission from
+	 * each, so a retry that reruns only the steps after one of them is refused.
+	 */
+	steps: Set<object>;
 	/** Set once a dispatch took an admission, so a second dispatch reads as a mismatch. */
 	taken?: boolean;
 	/**
@@ -71,6 +78,8 @@ const KEY = Symbol.for('dev.afd/approval-admission');
 // Captured once, so later changes to WeakMap.prototype do not reach these records.
 const weakGet = WeakMap.prototype.get;
 const weakSet = WeakMap.prototype.set;
+const setAdd = Set.prototype.add;
+const setHas = Set.prototype.has;
 
 /**
  * The shared map on `holder` (`globalThis`) when another copy installed it as this module does,
@@ -121,11 +130,14 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			confirmPrompt: command.confirmPrompt,
 		},
 		admitted: [],
+		steps: new Set(),
 	});
 }
 
 /** What an approval step decided on when it let a call through. */
 export interface Admit {
+	/** The approval step (one middleware instance) admitting it. */
+	step: object;
 	commandName: string;
 	/**
 	 * The canonical JSON of the input it decided on (verified a token against, or found not to
@@ -145,7 +157,9 @@ export function admitApproval(context: CommandContext, admit: Admit): void {
 	const found = record(context);
 	if (!found) return;
 	if (admit.listedGate) found.listedGate = true;
+	setAdd.call(found.steps, admit.step);
 	found.admitted.push({
+		step: admit.step,
 		name: admit.commandName,
 		canonical: admit.canonical,
 		input: admit.input,
@@ -169,11 +183,11 @@ export function gates(policy: ApprovalPolicy<never> | undefined): boolean {
 }
 
 /**
- * Take the admissions of the call of `context`: `admitted` when every approval step that admitted
- * it admitted `commandName` on `input`: the same name, and the same canonical input (the same
- * value, by `Object.is`, when the input has no canonical form; a change inside such a value is not
- * seen), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a second
- * dispatch needs a second admission.
+ * Take the admissions of the call of `context`: `admitted` when every approval step that ever
+ * admitted it admitted it again since the last dispatch, each on `commandName` and `input`: the
+ * same name, and the same canonical input (the same value, by `Object.is`, when the input has no
+ * canonical form; a change inside such a value is not seen), `missing` with none, `mismatch`
+ * otherwise. Taken whatever the answer, so a second dispatch needs a second admission from each.
  */
 export function takeAdmission(
 	context: CommandContext,
@@ -186,6 +200,9 @@ export function takeAdmission(
 	if (admitted.length === 0) return found.taken ? 'mismatch' : 'missing';
 	found.admitted = [];
 	found.taken = true;
+	const fresh = new Set<object>();
+	for (const step of admitted) setAdd.call(fresh, step.step);
+	for (const step of found.steps) if (!setHas.call(fresh, step)) return 'mismatch';
 	const same = admitted.every((step) => {
 		if (step.name !== commandName) return false;
 		const canonical = step.canonicalize(input);

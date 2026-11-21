@@ -861,6 +861,51 @@ describe('a held call on an input with no canonical form', () => {
 	});
 });
 
+describe('an up-front step whose policy changes its input', () => {
+	/** todo-tag needs approval, and its policy function changes the input it decides on. */
+	const changing = (calls: string[]) =>
+		[
+			defineCommand({
+				name: 'todo-tag',
+				description: 'Tag a todo',
+				mutation: true,
+				approval: (input: { tag: string }) => {
+					input.tag = 'changed';
+					return 'required' as const;
+				},
+				expose: { mcp: true },
+				input: z.object({ tag: z.string() }),
+				handler: async () => {
+					calls.push('tag');
+					return success({ tagged: true });
+				},
+			}),
+		] as unknown as ReturnType<typeof commands>;
+
+	it('refuses the afd-batch up front, asking nobody and running nothing', async () => {
+		const { url, calls, requests } = await serve({ extra: changing });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'todo-list', input: {} },
+					{ command: 'todo-tag', input: { tag: 'a' } },
+				],
+			},
+		});
+		expect(refusal(result)).toMatchObject({
+			code: 'APPROVAL_UNAVAILABLE',
+			retryable: false,
+			details: { reason: 'admission-mismatch' },
+		});
+		expect(prompts).toEqual([]);
+		expect(requests).toEqual([]);
+		expect(calls).toEqual([]);
+	});
+});
+
 describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 	it('asks once for every gated step of a batch, then runs it', async () => {
 		const { url, calls, requests } = await serve();

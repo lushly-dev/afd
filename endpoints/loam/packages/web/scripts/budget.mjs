@@ -560,8 +560,10 @@ export const CEILINGS = Object.freeze({
 	// unadmitted gated call), measured in one tree against `main` at `2700c62e`: 325,057 to 326,342 (+1,285); set to
 	// 326,800 under D115. Gzip 102,213 to 102,675, within its row.
 	// The approval-admission follow-ups, in one tree against `main` at `d6764276`: 326,696 to 326,777 (+81) and gzip
-	// 102,795 to 102,827, within both rows.
-	jsMinified: 326_800,
+	// 102,795 to 102,827, within both rows. Their review fixes (an approval step admits only a call it may gate, every
+	// step's admission must match, an input changed while the step decides is refused): 326,961 and gzip 102,905; set
+	// to 327,300 under D115.
+	jsMinified: 327_300,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.

@@ -34,6 +34,7 @@ import {
 	base64url,
 	canonicalJson,
 	canonicalOrUndefined,
+	inputChanged,
 	inputNotCanonical,
 } from './approval-crypto.js';
 import {
@@ -207,10 +208,15 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		const gated: Array<GatedStep & { bindings: string[] }> = [];
 		for (const step of steps) {
 			if (step.dynamic || !step.valid) continue;
+			// Before the policy runs, so a policy that changes the input is caught.
+			const before = deps.mayRequireApproval(step.command, context)
+				? canonicalOrUndefined(step.input)
+				: undefined;
 			if (!(await deps.requiresApproval(step.command, step.input, context))) continue;
 			// No approval can bind it, so nothing runs and nobody is asked.
 			const input = canonicalOrUndefined(step.input);
 			if (input === undefined) return { kind: 'refuse', error: inputNotCanonical(step.command) };
+			if (input !== before) return { kind: 'refuse', error: inputChanged(step.command) };
 			gated.push({
 				index: step.index,
 				command: step.command,
