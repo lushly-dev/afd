@@ -17,7 +17,12 @@ def get_bootstrap_commands(
     get_commands: Callable[[], List[CommandDefinition]],
     options: Optional[Dict[str, Any]] = None,
 ) -> List[CommandDefinition]:
-    """Get all bootstrap commands for an AFD server."""
+    """Get all bootstrap commands for an AFD server.
+
+    ``options["include_discovery"]`` (default True) includes ``afd-help``, ``afd-docs`` and
+    ``afd-schema``; ``create_server`` passes its ``bootstrap`` option, so a server leaves them
+    out unless it opts in. The context commands follow ``get_contexts`` and ``context_state``.
+    """
     options = options or {}
     get_json_schema = options.get("get_json_schema")
     get_contexts = options.get("get_contexts")

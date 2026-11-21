@@ -608,6 +608,26 @@ def test_bootstrap_tools_are_opt_in(strategy):
     assert BOOTSTRAP_TOOLS <= set(opted_in._get_command_index())
 
 
+def test_a_first_class_bootstrap_tool_needs_bootstrap():
+    server = create_server("test-app", tool_strategy="hybrid", first_class_tools=["afd-help"])
+
+    with pytest.raises(ValueError, match="Set bootstrap=True to register it"):
+        server.get_mcp_tools()
+
+    opted_in = create_server(
+        "test-app", tool_strategy="hybrid", first_class_tools=["afd-help"], bootstrap=True
+    )
+    assert "afd-help" in _tool_names(opted_in)
+
+
+def test_get_bootstrap_commands_can_leave_out_the_discovery_commands():
+    from afd.server.bootstrap import get_bootstrap_commands
+
+    names = [command.name for command in get_bootstrap_commands(list)]
+    assert names == ["afd-help", "afd-docs", "afd-schema"]
+    assert get_bootstrap_commands(list, {"include_discovery": False}) == []
+
+
 @pytest.mark.asyncio
 async def test_afd_help_is_not_found_without_bootstrap():
     server = create_server("test-app", tool_strategy="individual")

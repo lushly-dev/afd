@@ -345,7 +345,7 @@ def create_tool_router(deps: ToolRouterDeps):
                     return error(
                         "COMMAND_NOT_FOUND",
                         f"Action '{action}' is not available for grouped tool '{tool_name}'",
-                        suggestion="Use afd-discover or afd-help to inspect available actions.",
+                        suggestion="Use afd-discover or afd-detail to inspect available actions.",
                     )
                 params = payload.get("params", {})
                 refused = await unconfirmed(
