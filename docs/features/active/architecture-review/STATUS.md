@@ -14,7 +14,7 @@ This file tracks the follow-up work from an architecture review of the whole rep
 
 These keep their own work; this review only cross-references them.
 
-- [#1551](https://github.com/lushly-dev/afd/issues/1551), parity closure: contract 1.0 in #541, Python executors in #1535, Rust cancellation in #1599, Rust runtime items in #546
+- [#1551](https://github.com/lushly-dev/afd/issues/1551), parity closure
 - [#1555](https://github.com/lushly-dev/afd/issues/1555), output budgets
 - [#1385](https://github.com/lushly-dev/afd/issues/1385), FAST-AF's place in AFD
 - [#1387](https://github.com/lushly-dev/afd/issues/1387), test integrity and trends
@@ -50,7 +50,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1744](https://github.com/lushly-dev/afd/issues/1744) server: pin the MCP SDK and add guard tests for the internals AFD patches
 
-- [#1745](https://github.com/lushly-dev/afd/issues/1745) core: one canonical JSON implementation for approvals, journal digests and confirmations
+- [#1745](https://github.com/lushly-dev/afd/issues/1745) core: one canonical JSON implementation instead of four
 
 - [#1746](https://github.com/lushly-dev/afd/issues/1746) server: stop recomputing tool lists, context-field schemas and the SDK server on every request
 
