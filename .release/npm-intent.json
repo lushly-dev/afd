@@ -3,6 +3,13 @@
 	"selectedUnits": ["violet-elements"],
 	"inventoryHash": "2e14649d9365f274f9e9937665cc6203bf30339e5885807cd17f78496696eae8",
 	"sourceDigest": "63c174e9b93d7db20fe820f849165ab763e3475cac3e02cef13b81ba7ce03444",
+	"supersedes": {
+		"intentDigest": "571f4963b8fb23df6cfa3c545d6e37c97c2b13113582850fdc2869f49a6df38b",
+		"statusId": 59519695251,
+		"runId": "44827924550",
+		"attempt": "1",
+		"reason": "Acquire claim readback failed on GitHub status lag before any npm upload"
+	},
 	"distributions": [
 		{
 			"name": "@lushly-dev/violet-elements",

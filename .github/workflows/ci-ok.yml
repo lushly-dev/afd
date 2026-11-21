@@ -8,6 +8,15 @@ name: CI verdict
 # A merge queue asks for the same check on the commit it built (`merge_group`). There it reads the
 # commits the group holds that main does not, the squash GitHub wrote among them, and waits for a
 # run of every workflow that has the `merge_group` trigger: none may be missing.
+#
+# The verdict's code (scripts/ci-verdict.mjs, scripts/commit-credit.mjs) comes from the commit the
+# change is built on (main for a pull request; for a merge group, main with the groups queued ahead
+# of it), never from the change it judges, so an edit to either script takes effect once it has
+# landed. A change's own run drives the base's scripts with its own copy of this file: land a new
+# argument or variable in the scripts first, as optional, and use it here in a later change; make
+# the scripts stop needing one before this file stops passing it; never move or rename them in one
+# step. The list of workflows to wait for comes from the commit under test, whose
+# workflows are the ones that run.
 on:
   pull_request:
     branches: [main]
@@ -29,12 +38,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      # The commit under test, for its list of workflows.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/workflows/
+          sparse-checkout-cone-mode: false
+
+      # The base commit, for the verdict's own code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          path: .verdict
+          persist-credentials: false
           sparse-checkout: |
             scripts/ci-verdict.mjs
             scripts/commit-credit.mjs
-            .github/workflows/
           sparse-checkout-cone-mode: false
 
       # The owner is the credited contributor: no commit names an agent as author or co-author,
@@ -45,11 +65,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.merge_group.base_ref }}
           HEAD_SHA: ${{ github.event.merge_group.head_sha }}
-        run: node scripts/commit-credit.mjs ${{ github.event_name == 'merge_group' && '--merge-group' || '' }}
+        run: node .verdict/scripts/commit-credit.mjs ${{ github.event_name == 'merge_group' && '--merge-group' || '' }}
 
       - name: Wait for the head commit's workflows
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
           RUN_EVENT: ${{ github.event_name }}
-        run: node scripts/ci-verdict.mjs
+        run: node .verdict/scripts/ci-verdict.mjs
