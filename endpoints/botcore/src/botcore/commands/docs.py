@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import functools
+import os
 import re
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -130,11 +132,48 @@ def _record_issue(
     issues.append(issue)
 
 
-def _outside_workspace(ws: Path | None, path: Path) -> bool:
-    """Whether ``path`` resolves outside the workspace, through ``..`` or a symlink."""
+def _link_boundary(ws: Path | None) -> Path | None:
+    """The directory a link may not leave: the worktree, not only the selected unit.
+
+    Under a managed host that is the context's worktree. From the command line it is the
+    nearest directory above the workspace that holds ``.git``, so links between a
+    repository's units are still checked.
+    """
+    from botcore.context import current_context
+
+    context = current_context()
+    if context is not None:
+        return context.workspace
     if ws is None:
+        return None
+    root = Path(os.path.abspath(ws))
+    for candidate in (root, *root.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return root
+
+
+@functools.lru_cache(maxsize=8)
+def _resolved(path: Path) -> Path:
+    return path.resolve()
+
+
+def _outside_workspace(boundary: Path | None, path: Path) -> bool:
+    """Whether ``path`` leaves ``boundary``, through ``..`` or a symlink.
+
+    The ``..`` check is lexical, so such a path is never looked up. A path that stays inside
+    lexically is resolved, which follows symlinks inside the boundary; a path that cannot be
+    resolved (a symlink loop) counts as outside.
+    """
+    if boundary is None:
         return False
-    return not path.resolve().is_relative_to(ws.resolve())
+    lexical = Path(os.path.normpath(os.path.abspath(path)))
+    if not lexical.is_relative_to(boundary):
+        return True
+    try:
+        return not path.resolve().is_relative_to(_resolved(boundary))
+    except (OSError, RuntimeError):
+        return True
 
 
 def _record_outside(
@@ -230,7 +269,7 @@ def _check_anchor(
         )
 
 
-def _check_link(
+def _check_link(  # noqa: PLR0913 - one argument per lint input
     link_text: str,
     link_url: str,
     md_file: Path,
@@ -239,6 +278,7 @@ def _check_link(
     doc_headings: dict[str, int],
     anchor_cache: dict[Path, dict[str, int]],
     issues: list[dict],
+    boundary: Path | None = None,
 ) -> None:
     if link_url.startswith(("http://", "https://", "mailto:")):
         return
@@ -249,7 +289,7 @@ def _check_link(
         if url_path:
             target = _resolve_target(ws, md_file, url_path)
             # Never read or test a file outside the workspace: the link names it, not the caller.
-            if _outside_workspace(ws, target):
+            if _outside_workspace(boundary, target):
                 _record_outside(issues, md_file, ws, line_num, url_path, link_text)
                 return
             if not target.exists():
@@ -274,7 +314,7 @@ def _check_link(
         return
 
     target = _resolve_target(ws, md_file, url_path)
-    if _outside_workspace(ws, target):
+    if _outside_workspace(boundary, target):
         _record_outside(issues, md_file, ws, line_num, url_path, link_text)
         return
     if not target.exists():
@@ -333,6 +373,15 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     """
     ws = find_workspace()
     check_path = resolve_path(path, ws, "docs")
+    boundary = _link_boundary(ws)
+
+    # Checked before the path is looked up, so a docs/ that links out is never listed.
+    if _outside_workspace(boundary, check_path):
+        return error(
+            "PATH_OUTSIDE_WORKSPACE",
+            f"Path is outside the workspace: {check_path}",
+            suggestion="Lint a directory inside the workspace, or run from inside the one to lint",
+        )
 
     if not check_path.exists():
         return error(
@@ -349,7 +398,7 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
 
     for md_file in _markdown_files(check_path):
         # A Markdown file reached through a symlink out of the workspace is not read.
-        if _outside_workspace(ws, md_file):
+        if _outside_workspace(boundary, md_file):
             continue
         files_checked += 1
         content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -369,6 +418,7 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
                     doc_headings,
                     anchor_cache,
                     issues,
+                    boundary,
                 )
 
     has_errors = any(i["severity"] == "error" for i in issues)

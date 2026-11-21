@@ -2521,11 +2521,11 @@
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
-      "current_import_sha256": "adfb1b2867b7966fa67ec4329ef118b8986aeab55f3d5cfc7da6d00d9adddbc0",
+      "current_import_sha256": "64ba1920bc49e617065ced3bff1c2ce2a4ed7970964663734226ca7bb5bcfa76",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning"
+      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning; docs_lint never reads or tests a link target, a symlinked Markdown file or a starting directory outside the worktree; such a link is a warning; links between units are still checked"
     },
     {
       "path": "src/botcore/commands/info.py",
@@ -6206,11 +6206,11 @@
       "path": "tests/test_docs.py",
       "upstream_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
       "staged_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
-      "current_import_sha256": "b268d800ce1b0cacfee736d2d71eb39732779ee7dade4045329963648718622e",
+      "current_import_sha256": "678aeee26b6f46230b8f5007a020ca5fb62ab57c6bae646940221d9971283e29",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning"
+      "import_reason": "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779); docs_lint never reads or tests a link target, or a symlinked Markdown file, outside the workspace; such a link is a warning; docs_lint never reads or tests a link target, a symlinked Markdown file or a starting directory outside the worktree; such a link is a warning; links between units are still checked"
     },
     {
       "path": "tests/test_docs_extended.py",

@@ -111,6 +111,55 @@ async def test_docs_lint_skips_a_markdown_symlink_out_of_the_workspace(tmp_path)
     assert data["issues"] == []
 
 
+async def test_docs_lint_checks_links_between_units_of_a_worktree(tmp_path) -> None:
+    """A unit's link into another unit of the same worktree is still checked."""
+    (tmp_path / ".git").mkdir()
+    unit = tmp_path / "unit"
+    (unit / "docs").mkdir(parents=True)
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "page.md").write_text("# Other\n")
+    (unit / "docs" / "page.md").write_text(
+        "# Page\n\n[ok](../../other/page.md#other) [gone](../../other/missing.md)\n"
+    )
+
+    with patch("botcore.commands.docs.find_workspace", return_value=unit):
+        result = await docs_lint()
+
+    assert_error(result, "BROKEN_LINKS")
+    issues = result.error.details["issues"]
+    assert [issue["rule"] for issue in issues] == ["broken-link"]
+
+
+async def test_docs_lint_survives_a_symlink_loop(tmp_path) -> None:
+    """A link through a symlink loop is reported, not raised."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "loop").symlink_to(docs / "loop")
+    (docs / "page.md").write_text("# Page\n\n[x](loop/x.md)\n")
+
+    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
+        result = await docs_lint()
+
+    # Python 3.11 and 3.12 cannot resolve the loop (an outside warning); later versions
+    # resolve it inside the workspace, where the target does not exist (a broken link).
+    issues = result.data["issues"] if result.success else result.error.details["issues"]
+    assert [issue["rule"] for issue in issues] in (["link-outside-workspace"], ["broken-link"])
+
+
+async def test_docs_lint_refuses_a_docs_directory_that_links_out(tmp_path) -> None:
+    """A starting directory outside the workspace is refused before it is listed."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "page.md").write_text("# Page\n")
+    (ws / "docs").symlink_to(tmp_path / "elsewhere")
+
+    with patch("botcore.commands.docs.find_workspace", return_value=ws):
+        result = await docs_lint()
+
+    assert_error(result, "PATH_OUTSIDE_WORKSPACE")
+
+
 async def test_docs_check_changelog_no_workspace() -> None:
     """docs_check_changelog errors without workspace."""
     with patch("botcore.commands.docs.find_workspace", return_value=None):
