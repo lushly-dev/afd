@@ -606,26 +606,41 @@ describe('what the contract cannot read, or reads two ways', () => {
 
 	it("checks out every workflow file for the verdict's list, whatever its extension", () => {
 		const verdict = readWorkflows(root)['ci-ok.yml'];
-		const block = /sparse-checkout: \|\n((?: {12}.*\n)+)/.exec(verdict)?.[1];
-		assert.ok(block, 'ci-ok.yml has a sparse checkout');
-		const patterns = block
-			.split('\n')
-			.map((line) => line.trim())
-			.filter(Boolean);
+		const checkouts = verdict.split('uses: actions/checkout@').slice(1);
+		assert.equal(checkouts.length, 2, 'ci-ok.yml checks out the commit under test, then the base');
+		const sparse = (step) => {
+			const block = /sparse-checkout: \|\n((?: {12}.*\n)+)/.exec(step)?.[1];
+			assert.ok(block, 'each ci-ok.yml checkout is sparse');
+			return block
+				.split('\n')
+				.map((line) => line.trim())
+				.filter(Boolean);
+		};
+		const [head, base] = checkouts.map(sparse);
 		// A directory pattern takes everything under it; `*.yml` would leave a `.yaml` workflow out.
-		const taken = (path) =>
+		const taken = (patterns, path) =>
 			patterns.some((pattern) =>
 				pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern
 			);
 		for (const path of [
 			...Object.keys(readWorkflows(root)).map((file) => `.github/workflows/${file}`),
 			'.github/workflows/future.yaml',
-			'scripts/ci-verdict.mjs',
-			'scripts/commit-credit.mjs',
 		])
-			assert.ok(taken(path), `${path} is not in ci-ok.yml's sparse checkout`);
+			assert.ok(taken(head, path), `${path} is not in ci-ok.yml's checkout of the commit`);
+		for (const path of ['scripts/ci-verdict.mjs', 'scripts/commit-credit.mjs']) {
+			assert.ok(taken(base, path), `${path} is not in ci-ok.yml's checkout of the base`);
+			assert.ok(!taken(head, path), `${path} must come from the base, not the commit under test`);
+			assert.match(verdict, new RegExp(`run: node \\.verdict/${path.replace('.', '\\.')}`));
+		}
+		// The verdict's code is main's: the base of the pull request, or of the merge group.
+		assert.match(
+			checkouts[1],
+			/^ {10}ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.merge_group\.base_sha \}\}$/m
+		);
+		assert.match(checkouts[1], /^ {10}path: \.verdict$/m);
+		assert.doesNotMatch(checkouts[0], /^ {10}ref:/m);
 		assert.ok(
-			!patterns.some((pattern) => /[*?[]/.test(pattern)),
+			![...head, ...base].some((pattern) => /[*?[]/.test(pattern)),
 			'plain paths only, so this test reads them as git does'
 		);
 	});
