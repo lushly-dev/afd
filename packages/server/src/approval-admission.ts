@@ -168,6 +168,16 @@ export function admitApproval(context: CommandContext, admit: Admit): void {
 }
 
 /**
+ * Record that the policy an approval step's `commands` option lists for the command the call of
+ * `context` runs gates it, whatever name the step was called with, so a call renamed on its way
+ * to the step is still checked at dispatch. A no-op outside the engine.
+ */
+export function markListedGate(context: CommandContext): void {
+	const found = record(context);
+	if (found) found.listedGate = true;
+}
+
+/**
  * Whether the engine must take and check an admission before it dispatches the call of
  * `context`: its command's own policy gates it, or an approval step recorded that its listed
  * policy does.

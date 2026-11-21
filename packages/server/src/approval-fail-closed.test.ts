@@ -573,6 +573,28 @@ describe('a policy given only in the commands list', () => {
 		expect(handled).toHaveBeenCalledWith(3);
 	});
 
+	it('refuses a call renamed to an ungated command on its way to the approval middleware', async () => {
+		const handled = vi.fn();
+		const wipe = defineCommand({
+			name: 'todo-wipe',
+			description: 'Its gate is declared only in the middleware list',
+			input: z.object({}),
+			handler: async () => {
+				handled();
+				return { success: true as const, data: null };
+			},
+		});
+		const approval = createApprovalMiddleware({
+			secret: SECRET,
+			commands: [{ name: 'todo-wipe', approval: 'required' }],
+		});
+		const rename: CommandMiddleware = (_name, input, context, next) =>
+			approval('todo-list', input, context, next);
+		const registry = createDirectRegistry([wipe], { middleware: [rename] });
+		expectUnavailable(await registry.execute('todo-wipe', {}), 'todo-wipe');
+		expect(handled).not.toHaveBeenCalled();
+	});
+
 	it('runs an approved call behind a second approval middleware that does not gate it', async () => {
 		const { handled, client } = listedApproval(createApprovalMiddleware({ secret: SECRET }));
 		expect((await client.call('todo-list', { id: 4 })).success).toBe(true);

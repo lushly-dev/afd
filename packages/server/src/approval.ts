@@ -43,7 +43,7 @@ import {
 	holdDirectApproval,
 	takeDirectApproval,
 } from '@lushly-dev/afd-core/internal/direct-approval';
-import { admitApproval, gates, liveCommand } from './approval-admission.js';
+import { admitApproval, gates, liveCommand, markListedGate } from './approval-admission.js';
 import {
 	type ApprovalKey,
 	type ApprovalSecret,
@@ -504,6 +504,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// policy here gates is not admitted: an admission from another approval step stands alone,
 		// and a retry placed after that step is still refused.
 		const listedGate = gates(commands.get(commandName)?.approval);
+		// The command the engine runs, which a middleware before this one may have called it under
+		// another name: its listed gate holds at dispatch either way, and a renamed call is refused.
+		const live = liveCommand(context);
+		if (live && gates(commands.get(live.name)?.approval)) markListedGate(context);
 		const mayGate = policiesFor(commandName, context).some(gates);
 		const next = (canonical: string | undefined) => {
 			if (!mayGate) return outerNext();
