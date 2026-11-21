@@ -182,6 +182,12 @@ def _within(inner: str, outer: str) -> bool:
     return inner == outer or inner.startswith(outer.rstrip(os.sep) + os.sep)
 
 
+# How deep an aged entry's age is read. Builds write deep in a folder (Cargo's build-dir is
+# `<2 hex>/<hash>/<profile>/deps/...`): three levels reach the `deps` folders whose times every
+# rebuild moves, without listing their files.
+AGED_DEPTH = 3
+
+
 def unsafe_aged_root(path: Path, protected: list[Path] | None = None) -> str | None:
     """Why an [[aged]] path may never be cleared, or None.
 
@@ -234,7 +240,7 @@ def report_aged(
             refused = unsafe_aged_root(item, protected)
             if refused is None and processes is not None:
                 refused = busy_reason(item, processes)
-            modified = newest_mtime(item)
+            modified = newest_mtime(item, AGED_DEPTH)
             entries.append({
                 "path": str(item),
                 "mtime": modified,

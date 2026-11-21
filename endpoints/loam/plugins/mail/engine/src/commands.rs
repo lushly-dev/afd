@@ -27,6 +27,9 @@ pub fn store_failure(error: &StoreError) -> CommandError {
             .with_suggestion("Use the newer loam-mail that wrote this store."),
         StoreError::IndexStale => CommandError::new("INDEX_STALE", error.to_string())
             .with_suggestion("Run `loam-mail mail-rebuild`."),
+        StoreError::Sending => CommandError::new("WORK_RUNNING", error.to_string())
+            .with_suggestion("Wait for the in-flight send to finish, then check `mail-status`.")
+            .with_retryable(true),
         other => CommandError::new("STORE_FAILED", other.to_string())
             .with_suggestion("Check the data directory and its disk, then try again."),
     }
@@ -205,6 +208,9 @@ pub fn provider_failure(error: &ProviderError) -> CommandError {
             .with_suggestion(
                 "The provider's reply cannot be read; trying again gets the same reply.",
             ),
+        ProviderError::Limit(_) => CommandError::new("PROVIDER_LIMIT", error.to_string())
+            .with_suggestion("Wait a while before trying again.")
+            .with_retryable(true),
         _ => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
             .with_suggestion(
                 "Check the network, then try again; `loam-mail mail-sync` carries on where it stopped.",
@@ -496,10 +502,27 @@ impl CommandHandler for Status {
                 "proposed": states.proposed,
                 "proposals": waiting,
             });
-            Ok((result, stale, screening, operations))
+            let (unknown_total, unknown_rows) = store.unknown_outbound(PROPOSALS_SHOWN)?;
+            let sending_total = store.sending_outbound_count()?;
+            let outbound = json!({
+                "sending": sending_total,
+                "unknown": unknown_total,
+                "unknownSends": unknown_rows.iter().map(|row| json!({
+                    "outbound": row.id,
+                    "draft": row.draft,
+                    "revision": row.draft_revision,
+                    "account": row.account.0,
+                    "kind": row.kind,
+                    "recipients": row.recipients,
+                    "startedAt": row.started_at,
+                    "finishedAt": row.finished_at,
+                    "error": row.error,
+                })).collect::<Vec<_>>(),
+            });
+            Ok((result, stale, screening, operations, outbound))
         });
         match read {
-            Ok((accounts, stale, screening, operations)) => success(json!({
+            Ok((accounts, stale, screening, operations, outbound)) => success(json!({
                 "accounts": accounts,
                 // Messages an older derivation read, waiting to be read again.
                 "stale": stale,
@@ -512,6 +535,8 @@ impl CommandHandler for Status {
                 // before their end and can be resumed (9.1), and that wait
                 // for the person's approval (9.4).
                 "operations": operations,
+                // Outbound sends whose outcome is unknown (9.5).
+                "outbound": outbound,
             })),
             Err(error) => failure(store_failure(&error)),
         }
@@ -599,8 +624,16 @@ pub fn approval_summary(
                     counted(preview.drafts, "draft", "drafts")
                 )
             };
+            let unknown_sends = if preview.unknown_sends == 0 {
+                String::new()
+            } else {
+                format!(
+                    ", and the records of {} whose outcome is unknown",
+                    counted(preview.unknown_sends, "send", "sends")
+                )
+            };
             Some(format!(
-                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer{drafts}, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
+                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer{drafts}{unknown_sends}, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
                 preview.account.address,
                 counted(preview.mailboxes, "mailbox", "mailboxes"),
                 counted(preview.messages, "message", "messages"),
@@ -609,6 +642,7 @@ pub fn approval_summary(
         crate::screening::ACCEPT => crate::screening::approval_summary(engine, input),
         crate::policy::SET => crate::policy::approval_summary(engine, input),
         crate::operations::APPROVE => crate::operations::approval_summary(engine, input, now),
+        crate::drafts::SEND => crate::drafts::approval_summary(engine, input),
         _ => crate::tokens::approval_summary(command, input),
     }
 }
@@ -833,6 +867,12 @@ impl CommandHandler for AccountRemove {
             Ok(mut accounts) => accounts.remove(0),
             Err(error) => return failure(*error),
         };
+        if matches!(
+            engine.with_store(|store| store.has_sending_outbound(account.id)),
+            Ok(true)
+        ) {
+            return failure(store_failure(&StoreError::Sending));
+        }
         // On a server, nothing of the server's work may read the account
         // while it goes.
         let work = engine.work();

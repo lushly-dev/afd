@@ -1017,3 +1017,20 @@ def test_a_tool_s_version_is_read_with_the_node_bin_first_on_path(tmp_path):
     assert machine.tool_version("botcore-factory-pnpm", [str(bin_dir)]) == "26.13.0"
     assert machine.tool_version("botcore-factory-pnpm") is None  # Not on the host's PATH.
     assert machine.tool_version("botcore-factory-no-such-program", [str(bin_dir)]) is None
+
+
+def test_local_machine_reads_botcore_disk_warnings(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    state.mkdir()
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    snapshot = {"repos": {"/repo": {"at": now, "count": 30, "warning": "/repo: too many idle"}}}
+    (state / "status.json").write_text(json.dumps({"worktree_warnings": snapshot}))
+    monkeypatch.setenv("BOTCORE_DISK_STATE", str(state))
+    monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(tmp_path / "missing.toml"))
+    monkeypatch.setenv("CARGO_HOME", str(tmp_path / "cargo"))
+    monkeypatch.chdir(tmp_path)  # no registered repositories: Cargo is checked from here
+    for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+        monkeypatch.delenv(name, raising=False)
+    assert LocalMachine().disk_warnings() == ["/repo: too many idle"]
+    (state / "status.json").write_text("not json")
+    assert LocalMachine().disk_warnings() == []

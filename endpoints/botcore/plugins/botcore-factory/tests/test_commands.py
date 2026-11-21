@@ -387,6 +387,15 @@ async def test_status_says_why_not_and_when_room_returns(make_run):
     assert "triage-issues" in empty["reason"]
 
 
+async def test_status_passes_disk_warnings_on_and_still_starts_cells(make_run):
+    plain = (await make_run().call("lane_status")).data
+    assert plain["diskWarnings"] == []
+    warning = "/repo: 30 worktrees idle 3 days or more, over the limit of 20"
+    warned = (await make_run(host={"diskWarnings": [warning]}).call("lane_status")).data
+    assert warned["diskWarnings"] == [warning]
+    assert warned["canStartCell"] == plain["canStartCell"]
+
+
 async def test_status_of_the_backlog(make_run):
     data = (await make_run("backlog").call("lane_status")).data
     assert (data["runId"], data["paused"], data["pauseReason"]) == (

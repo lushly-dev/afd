@@ -882,6 +882,37 @@ pub(super) const MIGRATIONS: &[&str] = &[
         creator_id TEXT
     ) STRICT;
     ",
+    // 16: sending drafts and `outbound` (step D3, second part; the specification's 9.5).
+    // Not derived: survives a rebuild.
+    "
+    -- Whether a draft is being sent, was sent, or had a send whose outcome is unknown (and is
+    -- therefore never retried).
+    ALTER TABLE draft ADD COLUMN send_state TEXT NOT NULL DEFAULT 'none'
+        CHECK (send_state IN ('none', 'sending', 'sent', 'unknown'));
+
+    -- Every outbound send attempt, recorded before handover and updated after. A send whose
+    -- connection drops after handover stays `unknown` and is never retried; `mail-status`
+    -- shows it to the person.
+    CREATE TABLE outbound (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL REFERENCES account (id),
+        draft_id INTEGER REFERENCES draft (id) ON DELETE SET NULL,
+        draft_revision INTEGER,
+        kind TEXT NOT NULL CHECK (kind IN ('draft', 'replyset', 'unsubscribe')),
+        message_id TEXT NOT NULL,
+        recipients INTEGER NOT NULL CHECK (recipients >= 0),
+        state TEXT NOT NULL CHECK (state IN ('sending', 'sent', 'failed', 'unknown')),
+        sent_copy INTEGER NOT NULL DEFAULT 0 CHECK (sent_copy IN (0, 1)),
+        sender_kind TEXT NOT NULL,
+        sender_id TEXT,
+        started_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        -- The engine's own words only; never text from a provider or from mail.
+        error TEXT
+    ) STRICT;
+    CREATE INDEX outbound_state ON outbound (state, started_at DESC, id DESC);
+    CREATE INDEX outbound_account ON outbound (account_id);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

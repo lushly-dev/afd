@@ -122,6 +122,22 @@ Linux it is a systemd user timer, or a crontab line. `botcore disk-setup --unins
 it. If you run T3 Code, also turn on its storage cleanup (remove a worktree when its pull
 request merges, when its thread is deleted, and after it has been settled for a week).
 
+- **Rust output stays in each worktree.** Leave Cargo's `target/` where it is: the job strips
+  it once a worktree is idle, and removing the worktree deletes it. A machine whose worktrees
+  sit on a small disk may move Cargo's `build-dir` to a bigger drive that is always attached
+  (`build-dir = "/Volumes/Dev/cargo-build/{workspace-path-hash}"` in `~/.cargo/config.toml`).
+  Nothing removes that output when a worktree goes, so also add
+  `[[aged]] path = "/Volumes/Dev/cargo-build/*"` with `max_age_days = 7` to the machine
+  settings; `disk-setup` and `disk-status` warn until you do. Avoid one shared
+  `CARGO_TARGET_DIR` for parallel worktrees: their builds wait on its lock and rebuild each
+  other's changes.
+- **One T3 Code worktree folder per machine**, on a drive that is always mounted: on an
+  unplugged drive every new thread's worktree fails at once. When you move it, keep the old
+  folder in T3 Code's previous worktree folders, so its cleanup still removes what it made there
+  and the disk commands still leave those worktrees to it.
+- `disk-status` also warns when a repository has more than 20 idle worktrees
+  (`idle_worktree_limit` in the machine settings); usually T3 Code's cleanup rules are off.
+
 ## Build & Test Commands
 
 ```bash

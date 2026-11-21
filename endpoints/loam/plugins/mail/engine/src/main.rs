@@ -10,6 +10,7 @@ use loam_mail::engine::Engine;
 use loam_mail::home::Home;
 use loam_mail::provider::ProviderError;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
+use loam_mail::provider::smtp::{SmtpEndpoint, SmtpSender};
 use loam_mail::secrets::{Keychain, Secrets, account_key};
 
 fn main() -> ExitCode {
@@ -35,8 +36,21 @@ fn main() -> ExitCode {
             Err(_) => Err(ProviderError::Keychain),
         }
     });
+    let smtp_keychain = Arc::clone(&secrets);
+    let smtp = SmtpSender::new(SmtpEndpoint::icloud(), move |account| {
+        let key = account_key(&account.provider, &account.address);
+        match smtp_keychain.get(&key) {
+            Ok(Some(password)) => Ok(Credentials {
+                user: account.address.clone(),
+                password,
+            }),
+            Ok(None) => Err(ProviderError::NoCredential),
+            Err(_) => Err(ProviderError::Keychain),
+        }
+    });
     let mut engine = Engine::new(home.clone())
         .with_connector(Arc::new(icloud))
+        .with_sender(Arc::new(smtp))
         .with_secrets(Arc::clone(&secrets))
         // A change run at the terminal stops after the batch in hand on Ctrl-C.
         .with_interrupts();

@@ -453,6 +453,12 @@ class Machine(Protocol):
 
     def has_program(self, name: str) -> bool: ...
 
+    def disk_warnings(self) -> list[str]:
+        """What botcore's disk hygiene found worth the owner's attention on this machine
+        (repositories with too many idle worktrees, Cargo output nothing removes); empty when
+        it is not set up here. Shown to the foreman, never a reason to refuse work."""
+        ...
+
     def symlinks(self) -> bool:
         """Whether this user can create symlinks (Windows needs Developer Mode)."""
         ...

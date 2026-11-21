@@ -12,12 +12,14 @@ use loam_mail::engine::Engine;
 use loam_mail::home::Home;
 use loam_mail::operate::ChangeOptions;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
+use loam_mail::provider::smtp::{SmtpEndpoint, SmtpSender};
 use loam_mail::secrets::InMemory;
 use loam_mail::store::AccountRow;
 use loam_mail::sync::{Options, sync_account};
 use serde_json::{Value, json};
 
 use super::imap::{PASSWORD, Server, USER, World};
+use super::smtp::SmtpServer;
 
 /// A plain message from `from` with the id `id` and the header lines
 /// `fields`, each ending in a line break.
@@ -32,6 +34,7 @@ pub fn mail(from: &str, id: &str, fields: &str) -> Vec<u8> {
 pub struct Fixture {
     pub directory: tempfile::TempDir,
     pub server: Server,
+    pub smtp: SmtpServer,
     pub engine: Arc<Engine>,
     pub registry: CommandRegistry,
     pub account: AccountRow,
@@ -47,6 +50,7 @@ impl Fixture {
     pub fn with_changes(world: impl FnOnce(&mut World), change: ChangeOptions) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let server = Server::start(true, true);
+        let smtp = SmtpServer::start();
         world(&mut server.world());
         let endpoint = Endpoint {
             host: "127.0.0.1".to_string(),
@@ -59,9 +63,19 @@ impl Fixture {
                 password: PASSWORD.to_string(),
             })
         });
+        let sender = SmtpSender::new(
+            SmtpEndpoint::plain("127.0.0.1", smtp.address.port()),
+            |_| {
+                Ok(Credentials {
+                    user: USER.to_string(),
+                    password: PASSWORD.to_string(),
+                })
+            },
+        );
         let engine = Arc::new(
             Engine::new(Some(Home::at(directory.path().join("data"))))
                 .with_connector(Arc::new(connector))
+                .with_sender(Arc::new(sender))
                 .with_sync_options(Options {
                     backoff: std::time::Duration::ZERO,
                     ..Options::default()
@@ -78,6 +92,7 @@ impl Fixture {
         let fixture = Self {
             directory,
             server,
+            smtp,
             engine,
             registry,
             account,
@@ -148,11 +163,23 @@ impl Fixture {
     /// `approve`; returns the status, standard output and error, and what
     /// the person was asked.
     pub fn terminal(&self, args: &[&str], approve: bool) -> (u8, String, String, Vec<String>) {
+        self.terminal_typing(args, approve, &[])
+    }
+
+    /// [`Fixture::terminal`], also answering each `type_text` prompt in order
+    /// from `typed`.
+    pub fn terminal_typing(
+        &self,
+        args: &[&str],
+        approve: bool,
+        typed: &[&str],
+    ) -> (u8, String, String, Vec<String>) {
         let args: Vec<String> = args.iter().map(ToString::to_string).collect();
         let (mut out, mut err) = (Vec::new(), Vec::new());
         let mut person = Scripted {
             approve,
             asked: Vec::new(),
+            typed: typed.iter().map(ToString::to_string).collect(),
         };
         let status = run(
             &args,
@@ -186,6 +213,7 @@ impl Fixture {
 pub struct Scripted {
     pub approve: bool,
     pub asked: Vec<String>,
+    pub typed: std::collections::VecDeque<String>,
 }
 
 impl Person for Scripted {
@@ -197,6 +225,11 @@ impl Person for Scripted {
     fn secret(&mut self, prompt: &str) -> std::io::Result<String> {
         self.asked.push(prompt.to_string());
         Ok(String::new())
+    }
+
+    fn type_text(&mut self, prompt: &str) -> std::io::Result<String> {
+        self.asked.push(prompt.to_string());
+        Ok(self.typed.pop_front().unwrap_or_default())
     }
 }
 

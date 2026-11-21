@@ -53,6 +53,15 @@ pub trait Person {
     /// # Errors
     /// When the terminal cannot be read or written, or cannot stop echoing.
     fn secret(&mut self, prompt: &str) -> std::io::Result<String>;
+
+    /// Reads one line of text from the terminal (for example, typing a new
+    /// recipient address to confirm it for a send).
+    ///
+    /// # Errors
+    /// When the terminal cannot be read or written.
+    fn type_text(&mut self, _prompt: &str) -> std::io::Result<String> {
+        Ok(String::new())
+    }
 }
 
 /// Where the command line's commands run.
@@ -238,6 +247,23 @@ fn run_command(
     // A person's large change to mail is shown by its count, and asked
     // about, before it runs (the specification's 9.4).
     let mut caller = caller;
+    let mut input = input;
+    let mut preloaded_preview: Option<Vec<String>> = None;
+    if let Caller::Terminal(person) = &mut caller
+        && name == crate::drafts::SEND
+    {
+        match prepare_draft_send(&mut input, runner, &runtime, *person, err)? {
+            DraftSendPrep::Ready(lines) => preloaded_preview = Some(lines),
+            DraftSendPrep::Reject(error) => {
+                let result: afd::CommandResult<serde_json::Value> = failure(error);
+                let rendered =
+                    serde_json::to_string_pretty(&result).map_err(std::io::Error::other)?;
+                writeln!(out, "{rendered}")?;
+                return Ok(EXIT_FAILED);
+            }
+            DraftSendPrep::Stop => return Ok(EXIT_FAILED),
+        }
+    }
     if let Caller::Terminal(person) = &mut caller
         && let Some(change) = large_change(name, &input, runner, &runtime)
     {
@@ -262,9 +288,14 @@ fn run_command(
             Caller::Terminal(person) => {
                 // A command whose detail comes through its preview is not
                 // asked about without it.
-                let Some(lines) = preview(name, &input, runner, &runtime) else {
+                let Some(lines) = preloaded_preview
+                    .take()
+                    .or_else(|| preview(name, &input, runner, &runtime))
+                else {
                     let why = if name == crate::operations::APPROVE {
                         "`mail-operation-show` with the operation"
+                    } else if name == crate::drafts::SEND {
+                        "`mail-draft-show` with the draft"
                     } else {
                         "`mail-sender-show` with the suggestion"
                     };
@@ -347,7 +378,16 @@ fn run_command(
                     }
                 }
                 if interrupted {
-                    writeln!(err, "Stopped. Nothing was added.")?;
+                    if name == crate::drafts::SEND {
+                        writeln!(
+                            err,
+                            "Stopped. If the message was already handed over, check your Sent mailbox and mail-status before trying again."
+                        )?;
+                    } else if name == "mail-account-add" {
+                        writeln!(err, "Stopped. Nothing was added.")?;
+                    } else {
+                        writeln!(err, "Stopped.")?;
+                    }
                     return Ok(EXIT_INTERRUPTED);
                 }
             }
@@ -727,6 +767,17 @@ fn printable(text: &str) -> String {
         .collect()
 }
 
+/// Like [`printable`], keeping plain line breaks so a multi-line draft body is
+/// readable at the terminal while every other control or bidi character is
+/// replaced.
+fn printable_body(text: &str) -> String {
+    text.replace("\r\n", "\n")
+        .split('\n')
+        .map(printable)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The summary and token of a call the approval middleware held.
 fn held(result: &afd::CommandResult<serde_json::Value>) -> Option<(String, String)> {
     let error = result.error.as_ref()?;
@@ -768,6 +819,224 @@ impl Person for Tty {
         writeln!(err)?;
         Ok(secret)
     }
+
+    fn type_text(&mut self, prompt: &str) -> std::io::Result<String> {
+        let mut err = std::io::stderr().lock();
+        write!(err, "{prompt}")?;
+        err.flush()?;
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        Ok(answer.trim_end_matches(['\r', '\n']).to_string())
+    }
+}
+
+enum DraftSendPrep {
+    Ready(Vec<String>),
+    Reject(CommandError),
+    Stop,
+}
+
+/// Reads the draft preview before a terminal send: strips any pre-supplied
+/// `typedRecipients`, fills in `revision` only when omitted, refuses drafts
+/// that cannot be sent or changed since the asked revision with structured
+/// errors before asking, shows every recipient with its basis, and asks the
+/// person to type any `new` address verbatim for this send (the specification's
+/// 9.5).
+fn prepare_draft_send(
+    input: &mut serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+    person: &mut dyn Person,
+    err: &mut dyn Write,
+) -> std::io::Result<DraftSendPrep> {
+    // Never accept pre-populated `typedRecipients` from CLI arguments; the
+    // person must type each new address at the terminal now.
+    if let Some(obj) = input.as_object_mut() {
+        obj.remove("typedRecipients");
+    }
+    let Some(draft_id) = input.get("draft").and_then(serde_json::Value::as_i64) else {
+        // Let the registry return its standard validation error.
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    };
+    // If `revision` was given as a non-integer, let the registry return its
+    // standard schema validation error rather than overwriting it.
+    if let Some(raw_rev) = input.get("revision")
+        && raw_rev.as_i64().is_none()
+    {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    let shown = runtime.block_on(runner.run(
+        "mail-draft-show",
+        serde_json::json!({ "draft": draft_id }),
+        true,
+        None,
+    ));
+    let Some(data) = shown.data.filter(|_| shown.success) else {
+        if let Some(error) = shown.error {
+            return Ok(DraftSendPrep::Reject(error));
+        }
+        writeln!(
+            err,
+            "{PROGRAM}: draft {draft_id} could not be read; `mail-draft-show` says why. Nothing was sent."
+        )?;
+        return Ok(DraftSendPrep::Stop);
+    };
+    let state = data
+        .get("state")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown");
+    if state != "open" {
+        let error = match state {
+            "unknown" => CommandError::new(
+                "SEND_OUTCOME_UNKNOWN",
+                format!(
+                    "a previous send of draft {draft_id} ended with an unknown outcome and is never retried"
+                ),
+            )
+            .with_retryable(false)
+            .with_suggestion(
+                "Check your Sent mailbox and mail-status before deciding whether to write a new draft.",
+            ),
+            "sending" => CommandError::new(
+                "WORK_RUNNING",
+                format!("draft {draft_id} is already being sent"),
+            )
+            .with_retryable(true)
+            .with_suggestion("Wait for the send to finish, then check mail-draft-show."),
+            _ => CommandError::new(
+                "INVALID_INPUT",
+                format!("draft {draft_id} is {state} and cannot be sent"),
+            )
+            .with_suggestion("Inspect the draft with mail-draft-show."),
+        };
+        return Ok(DraftSendPrep::Reject(error));
+    }
+    let current_rev = data
+        .get("revision")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if let Some(asked_rev) = input.get("revision").and_then(serde_json::Value::as_i64) {
+        if asked_rev != current_rev {
+            return Ok(DraftSendPrep::Reject(
+                CommandError::new(
+                    "PREVIEW_CHANGED",
+                    format!(
+                        "The draft changed since its preview was read (now at revision {current_rev}). Nothing was sent."
+                    ),
+                )
+                .with_retryable(false)
+                .with_suggestion("Read it again with mail-draft-show and ask the person again."),
+            ));
+        }
+    } else if let Some(obj) = input.as_object_mut() {
+        obj.insert("revision".to_string(), serde_json::json!(current_rev));
+    }
+    let recipient_count = data
+        .get("recipients")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    if recipient_count == 0 {
+        return Ok(DraftSendPrep::Reject(
+            CommandError::new(
+                "INVALID_INPUT",
+                format!("draft {draft_id} has no recipients"),
+            )
+            .with_suggestion("Add at least one recipient with mail-draft-update before sending."),
+        ));
+    }
+    let from = data
+        .get("from")
+        .and_then(serde_json::Value::as_str)
+        .map(printable)
+        .unwrap_or_default();
+    let mut lines = vec![format!(
+        "Draft {draft_id} (revision {current_rev}), from account {} ({from}):",
+        data.get("account")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0)
+    )];
+    if data.get("replyToDiffers") == Some(&serde_json::Value::Bool(true)) {
+        lines.push(
+            "Warning: the message being answered has a Reply-To header that differs from its sender."
+                .to_string(),
+        );
+    }
+    let mut new_recipients: Vec<String> = Vec::new();
+    for (label, field) in [("To", "to"), ("Cc", "cc"), ("Bcc", "bcc")] {
+        let addresses = data
+            .pointer(&format!("/content/{field}"))
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let bases = data
+            .pointer(&format!("/recipientBasis/{field}"))
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for (index, addr_val) in addresses.iter().enumerate() {
+            let Some(addr) = addr_val.as_str() else {
+                continue;
+            };
+            let basis = bases
+                .get(index)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("new");
+            lines.push(format!(
+                "{label}, as written in the draft: {} [{basis}]",
+                printable(addr)
+            ));
+            let key = crate::store::normalize_domain(addr);
+            if basis == "new"
+                && !new_recipients
+                    .iter()
+                    .any(|seen| crate::store::normalize_domain(seen) == key)
+            {
+                new_recipients.push(addr.to_string());
+            }
+        }
+    }
+    let subject = data
+        .pointer("/content/subject")
+        .and_then(serde_json::Value::as_str)
+        .map(printable)
+        .unwrap_or_default();
+    lines.push(format!("Subject, as written in the draft: {subject}"));
+    let body = data
+        .pointer("/content/body")
+        .and_then(serde_json::Value::as_str)
+        .map(printable_body)
+        .unwrap_or_default();
+    lines.push(format!("Body, as written in the draft:\n{body}"));
+    lines.push(format!(
+        "Written by: recipients {}, subject {}, body {}.",
+        proposer_line(data.pointer("/authors/recipients")),
+        proposer_line(data.pointer("/authors/subject")),
+        proposer_line(data.pointer("/authors/body")),
+    ));
+    if !new_recipients.is_empty() {
+        for line in &lines {
+            writeln!(err, "{line}")?;
+        }
+        let mut confirmed = Vec::with_capacity(new_recipients.len());
+        for addr in &new_recipients {
+            let prompt = format!(
+                "New recipient (never written to and not in this thread): {}. Type the address verbatim to allow it for this send: ",
+                printable(addr)
+            );
+            let typed = person.type_text(&prompt)?;
+            if typed != addr.as_str() {
+                writeln!(err, "Address did not match. Nothing was sent.")?;
+                return Ok(DraftSendPrep::Stop);
+            }
+            confirmed.push(addr.clone());
+        }
+        if let Some(obj) = input.as_object_mut() {
+            obj.insert("typedRecipients".to_string(), serde_json::json!(confirmed));
+        }
+        // Preview was already printed above before typing the new recipients.
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    Ok(DraftSendPrep::Ready(lines))
 }
 
 /// Reads a line from standard input with the terminal's echo off, and puts

@@ -92,3 +92,65 @@ fn removing_another_account_keeps_drafts_and_snoozes_true() {
     assert_eq!(mail.store.snoozed_until(thread, NOW).unwrap(), None);
     assert_eq!(mail.store.wake_snoozes().unwrap(), 1);
 }
+
+#[test]
+fn migration_16_keeps_drafts_and_reopen_marks_interrupted_send_unknown() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = crate::home::Home::at(directory.path().join("data"));
+    let mut store = Store::open_with(&home, &schema::MIGRATIONS[..15]).unwrap();
+    assert_eq!(store.schema_version().unwrap(), 15);
+    let account = store.add_account("icloud", "me@example.com", 1).unwrap();
+    store
+        .connection
+        .execute(
+            "INSERT INTO draft (account_id, answers_message_id, to_addresses, cc_addresses,
+                 bcc_addresses, subject, body, authors, revision, creator_kind, creator_id,
+                 created_at, updated_at)
+             VALUES (?1, NULL, '[\"friend@example.org\"]', '[]', '[]', 'Hi', 'Body',
+                 '{\"recipients\":{\"kind\":\"human\",\"id\":null},\"subject\":{\"kind\":\"human\",\"id\":null},\"body\":{\"kind\":\"human\",\"id\":null}}',
+                 1, 'human', NULL, 10, 10)",
+            [account.0],
+        )
+        .unwrap();
+    drop(store);
+
+    // Opening on migration 16 upgrades cleanly and keeps the existing draft open.
+    let mut store = Store::open(&home).unwrap();
+    assert_eq!(
+        store.schema_version().unwrap(),
+        u32::try_from(schema::MIGRATIONS.len()).unwrap()
+    );
+    let draft = store.draft(1).unwrap().unwrap();
+    assert_eq!(draft.state(), "open");
+    assert_eq!(draft.subject, "Hi");
+
+    // Simulate a process dying mid-send: outbound left in `sending`.
+    let person = Proposer {
+        kind: "human".to_string(),
+        id: None,
+    };
+    let typed = std::collections::HashSet::from(["friend@example.org".to_string()]);
+    let (_, _, outbound_id) = store
+        .begin_draft_send(draft.id, 1, &typed, "mid@example.com", &person, 20)
+        .unwrap()
+        .unwrap();
+    assert_eq!(store.draft(draft.id).unwrap().unwrap().state(), "sending");
+    assert_eq!(
+        store.outbound(outbound_id).unwrap().unwrap().state,
+        OutboundState::Sending
+    );
+    drop(store);
+
+    // Next process opens the store: both draft and outbound become `unknown`.
+    let store = Store::open(&home).unwrap();
+    let after = store.draft(draft.id).unwrap().unwrap();
+    assert_eq!(after.state(), "unknown");
+    assert_eq!(after.revision, 2);
+    let out = store.outbound(outbound_id).unwrap().unwrap();
+    assert_eq!(out.state, OutboundState::Unknown);
+    assert_eq!(out.draft_revision, Some(1));
+    assert!(out.error.is_some());
+    let (count, list) = store.unknown_outbound(10).unwrap();
+    assert_eq!(count, 1);
+    assert_eq!(list[0].id, outbound_id);
+}

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
-from botcore.commands.disk.caches import unsafe_aged_root
+from botcore.commands.disk.caches import AGED_DEPTH, unsafe_aged_root
 from botcore.commands.disk.finished import ReflogTooLong
 from botcore.commands.disk.git import (
     GitError,
@@ -44,7 +44,16 @@ from botcore.commands.disk.removal import (
     unpin,
 )
 from botcore.commands.disk.remove import UnsafePath, remove_inside
-from botcore.commands.disk.report import Context, build_report, settings_error, volume_for
+from botcore.commands.disk.report import (
+    MANAGERS,
+    Context,
+    build_report,
+    count_idle,
+    manager,
+    repository_of,
+    settings_error,
+    volume_for,
+)
 from botcore.commands.disk.scan import (
     DAY,
     Processes,
@@ -277,7 +286,7 @@ def _recheck_aged(action: Action, run: Run) -> str | None:
         return problem
     if _identity(action.target) != action.identity:
         return "it was replaced since planning"
-    if newest_mtime(target) != action.planned_mtime:
+    if newest_mtime(target, AGED_DEPTH) != action.planned_mtime:
         return "it changed since planning"
     processes = running_processes()
     if tool_running(RUST_BUILDERS, processes) or busy_reason(target, processes):
@@ -376,16 +385,22 @@ def carry_out(action: Action, run: Run) -> None:
         action.outcome, action.detail = "skipped", f"could not be checked: {exc}"
 
 
-def _t3_owned(target: Path, run: Run) -> str | None:
-    """T3 Code's ownership read again: never remove what it manages, or when it cannot tell."""
+def _repository(main: Path, run: Run) -> Path:
+    """The repository folder Factory names its slots after, from the run's worktree lists."""
+    for common, worktrees in run.ctx.listed.values():
+        if worktrees and path_key(worktrees[0].path) == path_key(main):
+            return repository_of(common)
+    return main
+
+
+def _t3_owned(target: Path, run: Run, repository: Path) -> str | None:
+    """Ownership read again: never remove what T3 Code or Factory manages, or when T3 Code's
+    settings cannot tell."""
     roots, read_ok = t3_worktree_roots(run.ctx.settings)
     if not read_ok:
         return "T3 Code's settings cannot be read, so its worktrees are unknown"
-    key = path_key(target)
-    for root in roots:
-        if key.startswith(path_key(root).rstrip(os.sep) + os.sep):
-            return "T3 Code manages it (its storage cleanup removes it)"
-    return None
+    owner = manager(target, roots, repository)
+    return MANAGERS[owner] if owner else None
 
 
 def _carry_out_removal(action: Action, run: Run) -> None:
@@ -403,7 +418,8 @@ def _carry_out_removal(action: Action, run: Run) -> None:
     reason = recheck_removal(
         target, main, action.head, bool(action.landed), action.due_days or 0, config, busy,
         action.outputs, volume_problem=lambda p: _volume_problem(p, run.ctx),
-        t3_owned=lambda p: _t3_owned(p, run), checkouts=run.ctx.checkouts,
+        t3_owned=lambda p: _t3_owned(p, run, _repository(main, run)),
+        checkouts=run.ctx.checkouts,
     )
     if reason:
         action.outcome, action.detail = "skipped", reason
@@ -536,6 +552,16 @@ def write_status(payload: dict, receipt: Path) -> None:
         "free_after": payload.get("free_after", {}),
     }
     current["volumes"] = payload["volumes_after"]
+    # Per repository, and only where its count was established: a run that ran out of time,
+    # could not list a repository or was given one with --repo leaves the others as they were
+    snapshot = current.get("worktree_warnings")
+    repos = dict(snapshot.get("repos") or {}) if isinstance(snapshot, dict) else {}
+    for entry in payload.get("idle", []):
+        if entry.get("complete"):
+            repos[entry["main"]] = {"at": now, "count": entry["count"],
+                                    "checkout": entry.get("checkout"),
+                                    "warning": entry.get("warning")}
+    current["worktree_warnings"] = {"repos": repos}
     _write_atomic(path, json.dumps(current, indent=1))
 
 
@@ -636,6 +662,23 @@ def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool
             break
 
 
+def _idle_after(data: dict, run: Run) -> dict:
+    """Each repository's idle count once this run's removals are taken off, and its warnings."""
+    gone = {path_key(a.target) for a in run.actions if a.kind == "remove" and a.outcome == "done"}
+    idle, warnings = [], []
+    for repo_row in data["repos"]:
+        if "idle_worktrees" not in repo_row:
+            continue  # its worktrees were not listed, or its [disk] could not be read
+        count_idle(repo_row, run.ctx.settings, gone)
+        counted = repo_row["idle_worktrees"]
+        idle.append({"main": repo_row["main"], "checkout": repo_row.get("checkout"),
+                     "count": counted["count"],
+                     "complete": counted["complete"], "warning": repo_row.get("warning")})
+        if repo_row.get("warning"):
+            warnings.append(repo_row["warning"])
+    return {"idle": idle, "warnings": warnings}
+
+
 def _reclaim(  # noqa: PLR0913 - the command's own arguments
     settings, tier, apply, repo, pressure, budget_seconds, include_restorable=False,
 ) -> dict:
@@ -661,6 +704,7 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         "still_low": _low(ctx) if apply else [],
         "free_after": after,
         "volumes_after": [v.as_dict() for v in ctx.volumes.values()],
+        **_idle_after(data, run),
         "error": failure,
     }
     receipt = write_receipt(payload)
