@@ -23,6 +23,10 @@ from afd.client_stream import strict_json_loads
 HEADERS_ENV = "AFD_HEADERS"
 
 _HEADER_NAME = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+# RFC 9110 field-value characters: tab, visible ASCII and space, and obs-text (0x80-0xFF).
+# Anything else, a vertical tab say, would fail in the HTTP encoder, whose error repeats
+# the header.
+_HEADER_VALUE = re.compile(r"^[\t\x20-\x7e\x80-\xff]*$")
 _SPACE = " \t\n\r"
 
 
@@ -134,8 +138,9 @@ def parse_header(header: str) -> tuple[str, str]:
     """Parse one ``Name: value`` header.
 
     Raises:
-        ValueError: The name is not an HTTP token, or the value has a line break. The
-            message never contains the header's value.
+        ValueError: The name is not an HTTP token, or the value holds a character HTTP
+            does not allow (a line break or another control character). The message
+            never contains any of the header, since it may hold a credential.
     """
     colon = header.find(":")
     name = "" if colon == -1 else header[:colon].strip()
@@ -147,8 +152,11 @@ def parse_header(header: str) -> tuple[str, str]:
             "hold a credential."
         )
     value = header[colon + 1 :].strip()
-    if re.search(r"[\r\n\0]", value):
-        raise ValueError(f'Invalid header "{name}": the value must not contain line breaks.')
+    if not _HEADER_VALUE.match(value):
+        raise ValueError(
+            "Invalid header: the value holds a line break or another character HTTP does not "
+            "allow. The header is not shown, since it may hold a credential."
+        )
     return name, value
 
 
@@ -163,10 +171,11 @@ def resolve_headers(
             (``AFD_HEADERS line 2``, ``--header 1``) without its value.
     """
     source_env = os.environ if env is None else env
-    lines = [line for line in re.split(r"\r?\n", source_env.get(HEADERS_ENV, "")) if line.strip()]
+    lines = re.split(r"\r?\n", source_env.get(HEADERS_ENV, ""))
     by_name: dict[str, tuple[str, str]] = {}
     sources = [
-        *((f"{HEADERS_ENV} line {n}", line) for n, line in enumerate(lines, 1)),
+        # Numbered before blank lines are skipped, so the number is the line's own.
+        *((f"{HEADERS_ENV} line {n}", line) for n, line in enumerate(lines, 1) if line.strip()),
         *((f"--header {n}", flag) for n, flag in enumerate(flags, 1)),
     ]
     for source, header in sources:

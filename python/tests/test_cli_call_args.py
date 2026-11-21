@@ -93,7 +93,12 @@ def test_call_refuses_headers_for_an_in_process_module(transport, tmp_path):
     [
         (["-H", "Authorization Bearer sk-SECRET"], "", "--header 1"),
         (["-H", "X-Ok: 1", "-H", "Bad Name: sk-SECRET"], "", "--header 2"),
-        ([], "X-Ok: 1\nAuthorisation Bearer sk-SECRET", "AFD_HEADERS line 2"),
+        ([], "X-Ok: 1\n\nAuthorisation Bearer sk-SECRET", "AFD_HEADERS line 3"),
+        (["-H", "Authorization: Bearer sk-\x0bSECRET"], "", "--header 1"),
+        (["-H", "Authorization: Bearer sk-SECRET\rX: y"], "", "--header 1"),
+        (["-H", "sk-SECRET: a\x00b"], "", "--header 1"),
+        (["-H", "X: sk-\u2028SECRET"], "", "--header 1"),
+        ([], "Authorization: Bearer sk-\x0bSECRET", "AFD_HEADERS line 1"),
     ],
 )
 def test_a_malformed_header_exits_1_without_showing_its_value(transport, monkeypatch, flags, env, source):
@@ -103,6 +108,12 @@ def test_a_malformed_header_exits_1_without_showing_its_value(transport, monkeyp
     assert f"{source}: Invalid header" in outcome.output
     assert "SECRET" not in outcome.output
     transport.connect.assert_not_awaited()
+
+
+def test_a_header_value_may_hold_tabs_and_latin_1(transport):
+    outcome = CliRunner().invoke(cli, ["call", "x", "-s", "http://x/mcp", "-H", "X-Note: a\tb caf\xe9"])
+    assert outcome.exit_code == 0, outcome.output
+    assert transport.calls[-1]["headers"] == {"X-Note": "a\tb caf\xe9"}
 
 
 @pytest.mark.parametrize(
@@ -129,7 +140,9 @@ def test_connect_does_not_save_headers_and_says_so(transport):
 def test_connect_passes_its_timeout_and_refuses_one_that_is_not_positive(transport):
     assert CliRunner().invoke(cli, ["connect", "http://x/mcp", "-t", "2"]).exit_code == 0
     assert transport.calls[-1]["timeout"] == 2.0
-    assert CliRunner().invoke(cli, ["connect", "http://x/mcp", "-t", "-1"]).exit_code == 2
+    for bad in ("-1", "0", "nan", "inf"):
+        assert CliRunner().invoke(cli, ["connect", "http://x/mcp", "-t", bad]).exit_code == 2
+    assert all(call["timeout"] == 2.0 for call in transport.calls)
 
 
 def test_environment_headers_never_reach_an_in_process_module(transport, monkeypatch, tmp_path):

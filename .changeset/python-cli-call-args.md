@@ -9,10 +9,10 @@
 
 ### Changed
 
-- **`afd call`'s arguments follow TypeScript's rules**, which changes three cases for scripts: an empty or blank argument now calls the tool with `{}` (it failed before); a JSON value that is not an object, such as `[1]`, is now a malformed pair and exits 1 (it exited 2 with "Arguments must be a JSON object"); and malformed arguments print "Invalid arguments (...). Use a JSON object or key=value pairs." instead of "Invalid JSON arguments".
-- **A malformed header exits 1** on every command, `batch` and `stream` included (it exited 2 there), as TypeScript does. Its message names where it came from (`--header 2`, `AFD_HEADERS line 1`) and never repeats the header, which may hold a credential.
+- **`afd call`'s arguments follow TypeScript's rules**, which changes three cases for scripts: an empty or blank argument now calls the tool with `{}` (it failed before); text that does not start with `{` is read as pairs, so a JSON array such as `[1]` is a malformed pair and exits 1 (it exited 2 with "Arguments must be a JSON object"), and `["a=b"]` is the pair `["a` = `b"]`; and malformed arguments print "Invalid arguments (...). Use a JSON object or key=value pairs." instead of "Invalid JSON arguments".
+- **A malformed header exits 1** on every command, `batch` and `stream` included (it exited 2 there), as TypeScript does. So does a header whose value holds a character HTTP does not allow (a line break, a vertical tab, another control character), which before reached the HTTP encoder, whose error repeated it. The message names where the header came from (`--header 2`, `AFD_HEADERS line 3`, counting blank lines) and never repeats any of it, since it may hold a credential.
 
 ### Fixed
 
-- **`afd connect --timeout`** is now used for the connection (it was ignored) and must be greater than 0.
-- **`call`, `connect`, `tools` and `validate` print error text without Rich markup** and strip terminal escape sequences from it, as `batch` and `stream` do; so does the shell for a malformed argument, after which it now waits for the next command instead of ending.
+- **`afd connect --timeout`** is now used for the connection (it was ignored) and must be finite and greater than 0.
+- **`call`, `connect`, `tools` and `validate` print the text of an exception without Rich markup** and strip terminal escape sequences from it (a command's own failed result is still rendered as before), as `batch` and `stream` do; so does the shell for a malformed argument, after which it now waits for the next command instead of ending.

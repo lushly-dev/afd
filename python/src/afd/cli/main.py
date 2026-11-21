@@ -206,6 +206,8 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
         afd connect mock
     """
     quiet = ctx.obj.get("quiet", False)
+    if not math.isfinite(timeout):
+        raise click.UsageError("--timeout must be finite")
 
     # Rejects a non-URL target before claiming to connect to it.
     request_headers = _resolve_headers(headers)
