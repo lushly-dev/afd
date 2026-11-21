@@ -113,7 +113,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 ## Phase 2. Missed triggers
 
-- `skill-usage-triggers` and `[[skills.required]]` (#1817): in this pull request.
+- `skill-usage-triggers` and `[[skills.required]]` (#1817): merged in #1888.
 
 ## Phase 3. Every machine
 
