@@ -22,12 +22,20 @@ export interface McpTool {
 }
 
 /**
+ * Commands never exposed as MCP tools, the same ones the HTTP API leaves out
+ * (`HTTP_EXCLUDED_COMMANDS` in api.ts). The CLI keeps them.
+ * - `validate` shells out (`pnpm test`) on the server host.
+ * - `doctor` inspects the host environment.
+ */
+export const MCP_EXCLUDED_COMMANDS: ReadonlySet<string> = new Set(['validate', 'doctor']);
+
+/**
  * Generate MCP tools from the command registry
  *
  * @returns Array of MCP tool definitions
  */
 export function generateTools(): McpTool[] {
-	const commands = registry.list();
+	const commands = registry.list().filter((cmd) => !MCP_EXCLUDED_COMMANDS.has(cmd.name));
 
 	return commands.map((cmd) => {
 		return {
@@ -42,6 +50,7 @@ export function generateTools(): McpTool[] {
  * Get a single tool definition by name
  */
 export function getTool(name: string): McpTool | undefined {
+	if (MCP_EXCLUDED_COMMANDS.has(name)) return undefined;
 	const command = registry.get(name);
 	if (!command) return undefined;
 

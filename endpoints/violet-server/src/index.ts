@@ -1,7 +1,8 @@
 /**
  * Violet Design MCP Server
  *
- * Model Context Protocol server exposing all Violet commands as AI tools.
+ * Model Context Protocol server exposing the Violet commands as AI tools, all but the
+ * host-only `validate` and `doctor`.
  */
 
 export { createMcpServer, type ServerOptions } from './server.js';

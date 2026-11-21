@@ -243,7 +243,8 @@
 								<h3>violet-server</h3>
 								<p>
 									The <code>violet-mcp</code> binary: an MCP server and a local REST API. Every
-									command is a tool.
+									command is a tool except <code>validate</code> and <code>doctor</code>, which stay
+									in the CLI.
 								</p>
 							</article>
 						</div>
@@ -381,8 +382,9 @@ npx violet-mcp            # MCP over stdio
 # or, from the command line you already have
 npx --no -- violet mcp start</code></pre>
 							<div class="command-source__note">
-								Every Violet command becomes an MCP tool with the same input schema and the same
-								result as the command line. An agent that can preview a change with
+								Every Violet command but <code>validate</code> and <code>doctor</code>, which work
+								on the machine they run on, becomes an MCP tool with the same input schema and the
+								same result as the command line. An agent that can preview a change with
 								<code>changes.impact</code> can be asked to show its work before it writes.
 							</div>
 						</figure>
