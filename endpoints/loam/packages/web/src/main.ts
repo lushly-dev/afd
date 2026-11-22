@@ -191,11 +191,28 @@ async function boot(): Promise<void> {
 		: undefined;
 	// The page's anchors for `popover-open` (phase 4 specification, 6.3): the shell answers once it renders.
 	const overlayAnchors = {};
+	// A hosted `provider` deployment runs its trust-record commands on the server (phase 6 specification, 6.1): the
+	// transport's port, its mapping loaded on the first routed call. Stage B's reader checks the projection's `host`.
+	const hosted = (raw as { host?: { kind?: unknown } } | undefined)?.host?.kind === 'hosted';
+	const identityPorts =
+		provider && hosted
+			? {
+					...provider.ports,
+					serverCall: async (
+						request: Parameters<typeof import('./server-call.js').serverCall>[1]
+					) =>
+						(await import('./server-call.js')).serverCall(
+							{
+								url: new URL('api/kernel/call', base).href,
+								refreshSession: () => (provider as ProviderIdentity).refreshSession(),
+							},
+							request
+						),
+				}
+			: provider?.ports;
 	const host = await createHostKernel({
 		overlayAnchors,
-		...(provider
-			? { auth: provider.adapter, membership: provider.membership, identityPorts: provider.ports }
-			: {}),
+		...(provider ? { auth: provider.adapter, membership: provider.membership, identityPorts } : {}),
 		environment: mediaEnvironment(window),
 		boot: read,
 		appsLoader: () => loadApps(raw),

@@ -39,6 +39,7 @@ import type { CopilotOptionsV1, CopilotTraceV1 } from './copilot/types.js';
 import type { KeybindingInForceV1 } from './keybindings.js';
 import type { MembershipV1 } from './scope/access.js';
 import type { ProjectV1, ScopeChangeV2 } from './scope/records.js';
+import type { ServerCallV1 } from './trust-records.js';
 
 export type { MemberRoleV1, MembershipV1 } from './scope/access.js';
 export type {
@@ -224,6 +225,12 @@ export interface KernelPortsV1 {
 	 * finds (phase 3 specification, 4.3 and 7.6), and the kernel reads it again. Returns an unsubscribe.
 	 */
 	watchMembership?(listener: () => void): () => void;
+	/**
+	 * Phase 6's transport (its 6.1, step 5): a trust-record command run on the hosted server, answered with the server's
+	 * `CommandResult` unchanged and the person's snapshot digest after it. Only a hosted `provider` deployment's browser host
+	 * gives it; with it the kernel routes `SERVER_COMMANDS` there and keeps a copy of their records.
+	 */
+	serverCall?: ServerCallV1;
 }
 
 /**
@@ -641,7 +648,10 @@ export interface KernelOptionsV3 extends KernelOptionsV2 {
 	 * The identity ports of a host whose apps' ports come from stage B's loader, as the web host's do: the expiry
 	 * timer's `schedule`, the membership read and its watch (4.3, 4.4). `ports` serves when this is absent.
 	 */
-	identityPorts?: Pick<KernelPortsV1, 'schedule' | 'readMembership' | 'watchMembership'>;
+	identityPorts?: Pick<
+		KernelPortsV1,
+		'schedule' | 'readMembership' | 'watchMembership' | 'serverCall'
+	>;
 }
 
 /** What `shell-info-get` returns from version 3. */

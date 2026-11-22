@@ -38,6 +38,7 @@ import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { SqliteAdapter } from '@lushly-dev/local-db/sqlite';
 import { originAllowed } from './gate.js';
 import { INERT_POLICY } from './headers.js';
+import { createKernelCall, createRemovalHook } from './kernel-call.js';
 import type { HostProvider } from './provider.js';
 import { serveSite } from './site.js';
 
@@ -147,6 +148,8 @@ export interface HostedMcp {
 	readonly kernel: ServerKernel;
 	/** The served list, as the handler holds it. */
 	readonly commands: readonly ZodCommandDefinition[];
+	/** `<base>api/kernel/call` (6.2): a browser's trust-record command, run as the session's person. */
+	kernelCall(incoming: IncomingMessage, outgoing: ServerResponse): void;
 	/** `<base>mcp`: the request handed to AFD's handler at its own `/mcp`, its query kept. */
 	route(incoming: IncomingMessage, outgoing: ServerResponse, search: string): void;
 	/** RFC 9728's metadata, at one of the two paths the handler serves it from (`metadataPaths`). */
@@ -354,6 +357,26 @@ export async function openHostedMcp(options: {
 			void request.finally(() => inFlight.delete(request));
 		};
 		let closing = false;
+		// The trust-record transport (6.2, step 5) on the same kernel, tracked as the handler's requests are.
+		const call = createKernelCall({
+			origin,
+			maxBodyBytes: options.maxBodyBytes,
+			kernel: held,
+			provider,
+		});
+		// The removal hook's work is tracked as a request is, so `close()` waits for it before the store closes (A4).
+		const removal = createRemovalHook(held, store);
+		provider.hearRemovals((event) => {
+			if (closing) return Promise.reject(new Error('The hosted server is stopping'));
+			const work = removal(event);
+			const tracked = work.then(
+				() => undefined,
+				() => undefined
+			);
+			inFlight.add(tracked);
+			void tracked.finally(() => inFlight.delete(tracked));
+			return work;
+		});
 		const metadataPaths = Object.freeze([
 			`/.well-known/oauth-protected-resource${basePath}mcp`,
 			'/.well-known/oauth-protected-resource',
@@ -362,6 +385,15 @@ export async function openHostedMcp(options: {
 			kernel: held,
 			commands,
 			metadataPaths,
+			kernelCall(incoming, outgoing) {
+				if (closing) return refuse(outgoing, 503, 'Service Unavailable', 'no-store');
+				const request = call(incoming, outgoing).catch(() => {
+					if (!outgoing.headersSent) refuse(outgoing, 500, 'Internal Server Error', 'no-store');
+					else outgoing.destroy();
+				});
+				inFlight.add(request);
+				void request.finally(() => inFlight.delete(request));
+			},
 			route(incoming, outgoing, search) {
 				if (closing) return refuse(outgoing, 503, 'Service Unavailable', 'no-store');
 				if (!originAllowed(incoming, origin))
@@ -381,6 +413,7 @@ export async function openHostedMcp(options: {
 			async close() {
 				closing = true;
 				await commandsRunning.drain([...inFlight]);
+				provider.hearRemovals(undefined);
 				try {
 					await held.parts.kernel.dispose();
 				} finally {

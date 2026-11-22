@@ -42,8 +42,11 @@ export function assertProvider(
 	});
 }
 
-/** Which of the kernel's own calls a context is, set by `execute` alone (9.5). */
-export type KernelOwnCall = 'boot' | 'instance';
+/**
+ * Which of the kernel's own calls a context is, set by `execute` alone (9.5): boot's own work, the instance refresh, or
+ * the provider's removal hook (phase 3's A8, phase 6's step 5).
+ */
+export type KernelOwnCall = 'boot' | 'instance' | 'hook';
 
 /** The principals one kernel minted, and each one's actor. */
 export interface PrincipalRegistry {
@@ -144,7 +147,8 @@ const unauthorized = (): CommandResult<never> => ({
 
 /**
  * `principalGate` (9.5): the actor from the call's principal, or the call refused. Boot's own work passes with no
- * actor, and the instance refresh with none for `app-instance-refresh` alone; nothing else passes either mark.
+ * actor, the instance refresh with none for `app-instance-refresh` alone, and the provider's removal hook as its own actor
+ * for `agent-member-settle` alone (A8); nothing else passes any mark.
  */
 export function createPrincipalGate(options: {
 	principals: PrincipalRegistry;
@@ -152,16 +156,23 @@ export function createPrincipalGate(options: {
 	own: symbol;
 }): CommandMiddleware {
 	const { principals, own } = options;
-	return async (name, input, context, next) => {
+	return async (name, _input, context, next) => {
 		const call = context as CommandContext & {
 			principal?: unknown;
 			[key: symbol]: KernelOwnCall | undefined;
 		};
 		const mark = call[own];
+		// `agent-member-settle` is the provider hook's alone on the server (A4): boot's mark never carries it.
+		if (mark === 'boot' && name === 'agent-member-settle') return unauthorized();
 		if (mark === 'boot' || (mark === 'instance' && name === 'app-instance-refresh')) {
 			delete call.actor;
 			delete call.principal;
 			return next();
+		}
+		// The provider's removal hook (A8): `agent-member-settle` alone, as the actor `execute` gave it, with no principal.
+		if (mark === 'hook') {
+			delete call.principal;
+			return name === 'agent-member-settle' ? next() : unauthorized();
 		}
 		const principal = call.principal;
 		if (!principals.has(principal)) {
@@ -172,5 +183,43 @@ export function createPrincipalGate(options: {
 		// Never an actor the caller sent: only the principal's.
 		call.actor = principal.actor as Actor;
 		return next();
+	};
+}
+
+/** The kernel's `execute`, as the server's calls reach it (9.5; phase 6's step 5). */
+type Execute = (
+	iface: 'palette',
+	name: string,
+	input: unknown,
+	options: { scope?: { workspace: string; project?: string } },
+	fields: Record<string, unknown>,
+	hookActor?: Actor
+) => Promise<CommandResult>;
+
+/**
+ * A gated kernel's own entries, here so first paint holds none of them: minting and retiring principals, `callAs` (a
+ * command run as a principal at a scope, through the palette's whole chain: phase 6's transport, its 6.2), and the
+ * provider's removal hook (phase 3's A4, A8), `agent-member-settle` with `hook`'s fields, journaled as the removing
+ * person when known, else as the hook itself.
+ */
+export function serverCalls(principals: PrincipalRegistry, execute: Execute, hook: object) {
+	return {
+		admitPrincipal: principals.admit,
+		retirePrincipal: principals.retire,
+		callAs: (
+			principal: KernelPrincipalV1,
+			name: string,
+			input: unknown,
+			scope: { workspace: string; project?: string }
+		) => execute('palette', name, input, { scope }, { actor: principal.actor as Actor }),
+		runProviderHook: (input: unknown, actor?: Actor) =>
+			execute(
+				'palette',
+				'agent-member-settle',
+				input,
+				{},
+				hook as Record<string, unknown>,
+				actor ?? { kind: 'service', id: 'provider-hook' }
+			),
 	};
 }

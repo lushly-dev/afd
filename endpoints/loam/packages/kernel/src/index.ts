@@ -116,6 +116,18 @@ export { personalRecordId } from './scope/personal.js';
 export type { KernelPrincipalV1, PrincipalInputV1 } from './scope/principal.js';
 export { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 export { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from './shell-state.js';
+// Phase 6's trust records (its section 6): the routed list and the transport's shapes, for the hosts.
+export {
+	canonicalJson,
+	SERVER_COMMANDS,
+	type ServerCallAnswerV1,
+	type ServerCallRequestV1,
+	type ServerCallV1,
+	type ServerCommandV1,
+	TRUST_RECORDS_MAX_BYTES,
+	type TrustRecordSettleInputV1,
+	type TrustRecordSnapshotV1,
+} from './trust-records.js';
 export {
 	type AgentMemberV1,
 	APP_CALLABLE_SHELL_COMMANDS_V1,

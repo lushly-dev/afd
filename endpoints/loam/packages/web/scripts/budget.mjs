@@ -590,7 +590,11 @@ export const CEILINGS = Object.freeze({
 	// FAST-AF controller-replacement edges (#1389, mid-connect disconnect, connected-behavior tracking, notifier reuse
 	// and safe mid-render teardown in fast-element's ElementController), measured against `main` at `4de94c10`: 328,805
 	// to 329,804 (+999; gzip 103,590, within 103,700); set to 330,300 under D115.
-	jsMinified: 330_300,
+	// Phase 6's step 5 (the trust-record transport), measured in one tree against `main` at `01d92259`: 330,093 to 330,537
+	// (+444; gzip 103,724 to 103,894, within its row): the hosted transport's port and its refresh in the web host, the
+	// provider hook's mark in `execute`, and `trust-record-settle` and `member-leave` in the kernel's lists; set to 331,000
+	// under D115.
+	jsMinified: 331_000,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -631,7 +635,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 3 merged on top (`main` at `21374a6d`), the combined build: 142,194 (+509: a confirmed copilot
 	// call's trace and a host command's definition passed to `late/`); set to 142,300 under D115. First paint 328,926 of
 	// 329,300 and 103,421 gzip of 103,700; `late-copilot` 25,336 of 25,800.
-	kernelMinified: 142_300,
+	// Phase 6's step 5, against `main` at `01d92259`: 141,347 to 142,585 (+1,238): the trust records' list and digest,
+	// the server's snapshot and calls in the principal gate's chunk, and the provider hook's mark; set to 143,000 under D115.
+	kernelMinified: 143_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -649,13 +655,18 @@ export const CEILINGS = Object.freeze({
 	// within that step's 120,800, which stands.
 	// Phase 5's step 3 merged on top (`main` at `21374a6d`), the combined build: 124,575 (+4,300: enforcement's wiring,
 	// the cards' and health's reads, the members hand-off); set to 125,200 under D115.
-	lateMinified: 125_200,
+	// Phase 6's step 5, against `main` at `01d92259`: 124,664 to 127,384 (+2,720): the trust records' wiring, `member-leave`,
+	// the server's per-call roster for the sponsor rule, and the routed list `late` shares with `late-hosted`; set to
+	// 127,500 under D115.
+	lateMinified: 127_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
 	// connected agents in `agent-member-list`, `-get` and `-remove`, the account read by the call's person; set to 65,500.
 	// After its review's fixes, 65,750 (an owner's removal kept, provider failures mapped); set to 66,300.
-	lateIdentityMinified: 66_300,
+	// Phase 6's step 5, against `main` at `01d92259`: 65,829 to 66,629 (+800): `member-leave` and its refusals, and the
+	// agent members' roster per call on the server; set to 67,000 under D115.
+	lateIdentityMinified: 67_000,
 	lateCopilotMinified: 25_800,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 101,093 to 116,636 (+15,543: the four `experiment-*` commands and boot's settle, their
@@ -665,6 +676,10 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 3 merged on top, the combined build: 123,388 (+3,481: the confirmations' enforced record and "Run
 	// it"); set to 124,000 under D115.
 	lateSettingsMinified: 124_000,
+	// Phase 6's step 5: the trust records' routing, the copy and its settle, 3,964 at its first measurement; set to 4,400,
+	// that plus 10%. After its trust review and re-check, 5,829 (the copy's holder record and one batch, the person rule, the journal's
+	// bound, the strip, the agent reads from the copy and a replay's periods); set to 6,200 under D115.
+	lateHostedMinified: 6_200,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -883,8 +898,9 @@ async function measurePage() {
 	// `late-identity` (phase 3 specification, 13).
 	// Phase 5's `late-copilot` too, the copilot's records and commands (phase 5 specification, 2 and 16).
 	// Phase 4's `late-settings` too, its settings commands (phase 4 specification, 1 and 14).
+	// Phase 6's `late-hosted` too, loaded only in a hosted `provider` shell (phase 6 specification, 14): charged below.
 	const late = closure(
-		/^assets\/late-(?!documents-|editor-|identity-|copilot-|settings-)/,
+		/^assets\/late-(?!documents-|editor-|identity-|copilot-|settings-|hosted-)/,
 		initial
 	);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
@@ -940,6 +956,11 @@ async function measurePage() {
 	const auth = closure(/^assets\/auth-/, afterLate);
 	if (auth.size === 0) throw new Error('budget: the build has no `auth` chunk to measure');
 	const afterAuth = new Set([...afterLate, ...auth]);
+	// Phase 6's `late-hosted` (its 6.1, 6.3): the routing and the copy, loaded in stage B of a hosted `provider` shell
+	// alone, so charged here, after `late`, and left out of `afterLate`, as `auth` is.
+	const lateHosted = closure(/^assets\/late-hosted-/, afterLate);
+	if (lateHosted.size === 0)
+		throw new Error('budget: the build has no `late-hosted` chunk to measure');
 	// The sign-in dialog and the account menu, each loaded on a press in a `provider` deployment, whose rail may be
 	// empty, so no `surfaces` before them: charged after `auth`, with what they share with later chunks.
 	const signIn = closure(/^assets\/sign-in-/, afterAuth);
@@ -1065,6 +1086,7 @@ async function measurePage() {
 		lateIdentityMinified: sizeOf(lateIdentity),
 		lateCopilotMinified: sizeOf(lateCopilot),
 		lateSettingsMinified: sizeOf(lateSettings),
+		lateHostedMinified: sizeOf(lateHosted),
 		copilotPanelGzip: gzipOfFiles(copilotPanel),
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
@@ -1163,6 +1185,7 @@ const ROWS = [
 	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
 	['lateCopilotMinified', "The kernel's `late-copilot` chunk and its imports, minified"],
 	['lateSettingsMinified', "The kernel's `late-settings` chunk and its imports, minified"],
+	['lateHostedMinified', "The kernel's `late-hosted` chunk and its imports, minified"],
 	['copilotPanelGzip', 'The `copilot-panel` chunk and its imports, gzip'],
 	['copilotRuntimeAnthropicGzip', 'The copilot runtime for `anthropic` and `test`, gzip'],
 	['copilotRuntimeOpenaiGzip', 'The copilot runtime for the OpenAI kinds, gzip'],

@@ -27,6 +27,7 @@ import type { PersonalStore } from '../scope/personal.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { QueuedTicket } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
+import { canonicalJson } from '../trust-records.js';
 import type {
 	AppSummaryV2,
 	AppsLoadV2,
@@ -39,7 +40,6 @@ import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import {
 	agentActor,
 	createAuthGate,
-	KERNEL_SETTLE_COMMANDS,
 	membershipUnavailable,
 	SIGNED_OUT_COMMANDS,
 	sessionChanged,
@@ -69,6 +69,14 @@ import type { SessionSettle } from './session-settle.js';
 import type { Settings } from './settings.js';
 import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
+import {
+	preparedUnlessRouted,
+	SERVER_UNSETTLED,
+	TRUST_COMMAND_NAMES,
+	type TrustWiring,
+	wireTrustRecords,
+	withHost,
+} from './trust-wiring.js';
 
 /**
  * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
@@ -208,19 +216,7 @@ const MCP_UNSERVED_OVERLAYS: ReadonlySet<string> = new Set([
 ]);
 
 /** JSON with object keys sorted at every level, as AFD's journal digests it: a turn's call's `inputDigest` (phase 5's 3.4). */
-const canonical = (value: unknown): string => {
-	const sort = (item: unknown): unknown =>
-		Array.isArray(item)
-			? item.map(sort)
-			: item && typeof item === 'object'
-				? Object.fromEntries(
-						Object.keys(item)
-							.sort()
-							.map((key) => [key, sort((item as Record<string, unknown>)[key])])
-					)
-				: item;
-	return JSON.stringify(sort(value)) ?? 'null';
-};
+const canonical = canonicalJson;
 
 /** Report a failure of stage B's own work, which fails alone (2.2). */
 const reportLate = (cause: unknown): void =>
@@ -247,7 +243,9 @@ export async function applyDeployment(
 	run: (name: string, input: unknown) => Promise<{ success: boolean }>
 ): Promise<boolean> {
 	const row = await stores.workspace();
-	if (row ? row.generation === projection.generation : projection.apps.length === 0) return true;
+	// A hosted one is applied even with no app, so its journal records the host a replay reads (phase 6's A5).
+	const empty = projection.apps.length === 0 && projection.host?.kind !== 'hosted';
+	if (row ? row.generation === projection.generation : empty) return true;
 	const result = await run('workspace-deployment-apply', {
 		generation: projection.generation,
 		workspace: projection.workspace,
@@ -528,12 +526,14 @@ export async function createLateParts(
 			(appearance as ZodCommandDefinition).handler(patch, context) as Promise<CommandResult>,
 		kit: DOCUMENT_KIT,
 	});
+	let trust: TrustWiring | undefined; // Phase 6's trust records (6.1, 6.3, A5), wired once the commands are built.
 	const lateScope = createLateScope({
 		...deps,
 		recorded: PROVIDER_COMMANDS,
-		recordedCall: agentMembers.recordedCall,
+		recordedCall: (name, input) =>
+			agentMembers.recordedCall(name, input) || trust?.recorded(name) === true,
 		session: () => sessions,
-		prepare: agentMembers.prepare,
+		prepare: preparedUnlessRouted(() => trust, agentMembers.prepare),
 		documents,
 		async settle(name, call) {
 			// A page's own state after a call: the editor owner, the person's settings, the inspector. The server holds no
@@ -605,6 +605,7 @@ export async function createLateParts(
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
 	deps.viewState.destroy = () => {
 		sessions?.stop();
+		trust?.stop();
 		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
 		settings?.stop();
 		return destroy();
@@ -1090,6 +1091,8 @@ export async function createLateParts(
 		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
 	);
 	appearance = byName.get('appearance-set');
+	const own = { agentMembers, shellPerson, lateScope, sha256, identityCommands, sessions };
+	trust = await wireTrustRecords(byName, deps, own);
 	// 8.1's precedence for the kernel's keybindings, with whom the shell is for and what a command an override names
 	// is (the reviews' 7): registered, listed in the palette and taking the chord's input, `section-open`'s section or
 	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
@@ -1222,7 +1225,10 @@ export async function createLateParts(
 	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
-		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
+		shell: [
+			...SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
+			...TRUST_COMMAND_NAMES.flatMap((name) => byName.get(name) ?? []),
+		],
 		internal: [
 			...createPortRefusals(deps.limits),
 			...copilot.internal,
@@ -1233,10 +1239,10 @@ export async function createLateParts(
 		confirmations,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
-		// The server registers none of the three settles (9.5): no person's session or membership is held there.
-		bootOnly: BOOT_ONLY.filter(
-			(name) => !(deps.gated && (KERNEL_SETTLE_COMMANDS as readonly string[]).includes(name))
-		).flatMap((name) => byName.get(name) ?? []),
+		// The server registers two of the three settles (9.5), and `agent-member-settle` for the provider's hook (A4).
+		bootOnly: BOOT_ONLY.filter((name) => !(deps.gated && SERVER_UNSETTLED.includes(name))).flatMap(
+			(name) => byName.get(name) ?? []
+		),
 		lateScope,
 		authGate: (held) =>
 			createAuthGate(deps.auth, held, {
@@ -1253,6 +1259,7 @@ export async function createLateParts(
 					// settled by a top-level `autonomy-settle` after its entry (phase 4's 4.2; step 8's blocker 1).
 					if (name === 'app-instance-refresh' || name === 'workspace-app-set')
 						sessions?.follow(() => settleAutonomy());
+					trust?.after(name);
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
@@ -1359,7 +1366,7 @@ export async function createLateParts(
 			try {
 				applied = replaying
 					? projection.apps.length === 0
-					: await applyDeployment(stores, projection, run);
+					: await applyDeployment(stores, withHost(trust, projection), run);
 			} catch (cause) {
 				reportLate(cause);
 			}
@@ -1445,7 +1452,10 @@ export async function createLateParts(
 			editor?.reset();
 		},
 		// The server hears no adapter (9.5): nothing to begin.
-		begin: async () => sessions?.begin(),
+		begin: async () => {
+			await sessions?.begin();
+			await trust?.begin();
+		},
 		async readApps() {
 			try {
 				const listed = deps.deployment;

@@ -460,3 +460,20 @@ describe('P3-E15: no secret in the journal or the store', () => {
 		expect(found).toEqual([]);
 	});
 });
+
+describe('P6-E9: only a hosted provider shell loads `late-hosted` (phase 6 specification, 14)', () => {
+	it('a static `provider` shell finishes stage B without requesting it', async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		const urls: string[] = [];
+		context.on('request', (request) => urls.push(request.url()));
+		const page = await openShell(browser, site.root, {}, context);
+		await page.page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { appsReady: Promise<void> };
+			};
+			await shell.kernel.appsReady;
+		});
+		expect(urls.filter((url) => /\/late-hosted-[^/]+\.js$/.test(url))).toEqual([]);
+		await context.close();
+	});
+});

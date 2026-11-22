@@ -114,6 +114,8 @@ describe('P3-E5: an agent member has no account at the provider (8.1)', () => {
 		'/loam/join/check',
 		'/loam/join/name',
 		'/loam/join/password',
+		// Phase 6's S4: a person's own leave, on removal's path; it makes no agent a user.
+		'/loam/leave',
 		'/loam/members',
 		'/loam/recover/check',
 		'/loam/recover/oidc/complete',

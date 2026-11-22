@@ -13,6 +13,44 @@ export interface MemberLike {
 	role: string;
 }
 
+/** What the host hears of one removal (phase 3's A4): who left the bound organization, and who removed them, if known. */
+export interface MemberRemovedV1 {
+	organizationId: string;
+	userId: string;
+	/** The removing person when the request had a session: the leaver on `leave`; unknown on Better Auth's removal. */
+	removedBy?: string;
+}
+
+/**
+ * After a member of the bound organization is removed or leaves (7.5, A4): their sessions go at once, so no tab of theirs
+ * keeps a session the provider would still accept, and with them their OAuth consents, refresh tokens and connected
+ * agents; then the host's `onMemberRemoved`, once, which runs the server's `agent-member-settle`. A failed callback is
+ * logged, and line 2's refusal of a removed sponsor's agents stays in force.
+ */
+export async function memberRemoved(
+	state: LoamProviderState,
+	event: MemberRemovedV1
+): Promise<void> {
+	await revokeRemoved(state, event.userId);
+	try {
+		await state.onMemberRemoved?.(event);
+	} catch (cause) {
+		state.context?.logger?.error?.(
+			`Loam's removal hook failed: ${(cause as Error)?.message ?? String(cause)}`
+		);
+	}
+}
+
+/**
+ * A removed person's sessions, and their OAuth grants and connected agents (7.5, 9.2): a refresh token left would be
+ * useful again if they rejoined.
+ */
+export async function revokeRemoved(state: LoamProviderState, userId: string): Promise<void> {
+	await state.context?.internalAdapter.deleteUserSessions(userId);
+	const adapter = state.context?.adapter as unknown as ConnectionAdapter | undefined;
+	if (adapter) await suspendConnections(adapter, userId);
+}
+
 /** The hooks `createLoamAuthOptions` gives the organization plugin, over the plugin's shared state. */
 export function createOrganizationHooks(state: LoamProviderState) {
 	/** The bound organization, by its pinned id; before the binding exists, the one its slug names. */
@@ -41,6 +79,7 @@ export function createOrganizationHooks(state: LoamProviderState) {
 		);
 	const isLastOwner = async (member: MemberLike) =>
 		rolesOf(member.role).includes('owner') && (await ownersOf(member.organizationId)) <= 1;
+	state.lastOwner = async (member) => ((await isLastOwner(member)) ? lastOwner() : undefined);
 
 	return {
 		/**
@@ -99,18 +138,26 @@ export function createOrganizationHooks(state: LoamProviderState) {
 		 * would still accept, and with them their OAuth consents, refresh tokens and connected agents.
 		 */
 		async afterRemoveMember({
+			member,
 			user,
 			organization,
 		}: {
-			user: { id: string };
+			member?: { id: string };
+			user: { id: string; email?: string };
 			organization: { id: string; slug: string };
 		}) {
+			// Better Auth 1.7.18 gives this hook no session: the remover is the one the role paths' hook read (A8).
+			const keys = [member?.id, user.email].flatMap((key) =>
+				key ? [`${organization.id}:${key.toLowerCase()}`] : []
+			);
+			const removedBy = keys.map((key) => state.removers?.get(key)).find(Boolean);
+			for (const key of keys) state.removers?.delete(key);
 			if (!(await isBound(organization.id, organization.slug))) return;
-			await state.context?.internalAdapter.deleteUserSessions(user.id);
-			// Their OAuth grants and connected agents end too (7.5, 9.2): a refresh token left would be useful again if they
-			// rejoined. The kernel's own settle of it is A4's, on the hosted server.
-			const adapter = state.context?.adapter as unknown as ConnectionAdapter | undefined;
-			if (adapter) await suspendConnections(adapter, user.id);
+			await memberRemoved(state, {
+				organizationId: organization.id,
+				userId: user.id,
+				...(removedBy ? { removedBy } : {}),
+			});
 		},
 	};
 }

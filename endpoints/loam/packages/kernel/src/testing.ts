@@ -542,6 +542,12 @@ export async function replayKernel(
 		},
 		nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 		replaying: true,
+		// Whether the deployment was hosted, from the journal's own apply, never the projection replayed against (A5).
+		hostedReplay: ordered.some(
+			(entry) =>
+				entry.command === 'workspace-deployment-apply' &&
+				(entry.input as { host?: { kind?: unknown } } | undefined)?.host?.kind === 'hosted'
+		),
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
 		actorOf(traceId) {
 			const entry = traceId === undefined ? undefined : byTrace.get(traceId);

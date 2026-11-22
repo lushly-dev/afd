@@ -9,7 +9,12 @@ import type { IdentityMethodV1 } from '@lushly-dev/loam-manifest';
 import { betterAuth } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { bootstrapOrganization } from '../bootstrap.js';
-import { createLoamAuthOptions, type LoamMailV1, type LoamOidcProviderV1 } from '../options.js';
+import {
+	createLoamAuthOptions,
+	type LoamAuthConfig,
+	type LoamMailV1,
+	type LoamOidcProviderV1,
+} from '../options.js';
 import type { TestPersonV1 } from './index.js';
 
 export interface TestProviderConfig {
@@ -32,6 +37,8 @@ export interface TestProviderConfig {
 	bootstrapOwner?: string;
 	/** The provider's rate limit, raised for a suite's many requests from one address; default 10,000 per 10 s. */
 	rateLimit?: { window: number; max: number };
+	/** The host's removal callback (phase 3's A4), heard once per removal. */
+	onMemberRemoved?: LoamAuthConfig['onMemberRemoved'];
 }
 
 /** What the test-only provider raises the limit to by default: suites sign in many times from one address. */
@@ -51,6 +58,7 @@ export async function createTestProvider(config: TestProviderConfig) {
 			...(config.oidc ? { oidc: config.oidc } : {}),
 			...(config.shell ? { shell: config.shell } : {}),
 			rateLimit: config.rateLimit ?? TEST_RATE_LIMIT,
+			...(config.onMemberRemoved ? { onMemberRemoved: config.onMemberRemoved } : {}),
 		}),
 		logger: { disabled: true },
 	};

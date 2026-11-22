@@ -16,7 +16,7 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { organization } from 'better-auth/plugins/organization';
 import { membershipOf } from './binding.js';
 import { invitationMailer, JOIN_INVITATION_MS } from './enrolment.js';
-import { createOrganizationHooks } from './hooks.js';
+import { createOrganizationHooks, type MemberRemovedV1 } from './hooks.js';
 import {
 	type LoamOAuthConfig,
 	OAUTH_DISABLED_PATHS,
@@ -80,6 +80,12 @@ export interface LoamAuthConfig {
 	rateLimit?: { window: number; max: number };
 	/** The authorization server's options (9.4): the MCP resource, the metadata documents' transport, registration. */
 	oauth?: LoamOAuthConfig;
+	/**
+	 * The host's removal callback (phase 3's A4, phase 6's 3.7): run exactly once per removal of a member of the bound
+	 * organization, by Better Auth's `afterRemoveMember` or Loam's own `leave` endpoint, after their sessions are revoked.
+	 * The hosted server runs its kernel's `agent-member-settle` from it. A failure is logged and changes nothing else.
+	 */
+	onMemberRemoved?: (event: MemberRemovedV1) => Promise<void> | void;
 }
 
 /**
@@ -270,6 +276,7 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		mail: config.mail,
 		password,
 		oidc: oidc.map((provider) => provider.id),
+		...(config.onMemberRemoved ? { onMemberRemoved: config.onMemberRemoved } : {}),
 	};
 
 	return {
