@@ -76,31 +76,32 @@ export interface McpServerOptions {
 	host?: string;
 
 	/**
-	 * Enable development mode.
-	 * When true:
-	 * - Error responses include stack traces
-	 * - CORS allows all origins (*)
-	 * - Verbose validation errors are returned
+	 * Enable development mode: error responses include exception messages and stacks, and
+	 * validation errors are verbose. When false (the default) they are redacted.
 	 *
-	 * When false (default, secure by default):
-	 * - Stack traces are omitted from error responses
-	 * - CORS is restrictive (same-origin only unless cors option is set)
-	 * - Validation errors are sanitized
+	 * It changes no HTTP check: Host and Origin validation and CORS headers are the same either
+	 * way, so a page the developer visits cannot reach a dev server. To call the server from a
+	 * browser app on another origin (such as a dev server on another port), list that origin in
+	 * `allowedOrigins` and set `cors: true`.
 	 */
 	devMode?: boolean;
 
 	/**
-	 * Send CORS response headers for accepted browser origins. It does not widen which
-	 * origins are accepted; see `allowedOrigins`.
+	 * Send CORS response headers for accepted browser origins: the request's own origin is
+	 * echoed, never `*`. It does not widen which origins are accepted; see `allowedOrigins`.
 	 *
-	 * @default devMode
+	 * @default false
 	 */
 	cors?: boolean;
 
 	/** Allowed HTTP Host names (without ports). Defaults to the configured host and loopback names. Set explicitly for proxies and embedded hosts. */
 	allowedHosts?: string[];
 
-	/** Exact additional browser origins. Same-origin requests are allowed by default; devMode permits any origin. */
+	/**
+	 * Exact additional browser origins, such as `http://localhost:5173`. Same-origin requests and
+	 * requests without an Origin are allowed by default; any other browser origin is refused with
+	 * HTTP 403, in `devMode` too.
+	 */
 	allowedOrigins?: string[];
 
 	/**
@@ -165,8 +166,10 @@ export interface McpServerOptions {
 	maxSseConnections?: number;
 
 	/**
-	 * Maximum live HTTP sessions when `contexts` are configured; the least recently used one
-	 * is evicted beyond it (default: 1000).
+	 * Maximum live HTTP sessions when `contexts` are configured (default: 1000). Beyond it, an
+	 * `initialize` evicts the least recently used session of its own owner (with `auth`, the
+	 * verified issuer, subject and client), never another's; an owner with no session to give up
+	 * is refused with HTTP 503 and `Retry-After`. Without `auth` every caller is one owner.
 	 */
 	maxSessions?: number;
 

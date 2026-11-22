@@ -679,6 +679,49 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 		const listed = JSON.parse((await call(alice, 'afd-context-list')).text);
 		expect(listed.result.data.activeContext).toBe('edit');
 	});
+
+	it("at the cap, refuses another principal's initialize rather than evict a session, and evicts only the owner's own", async () => {
+		const { base } = await serve({
+			contexts: [{ name: 'edit', description: 'Editing' }],
+			maxSessions: 2,
+		});
+		const alice = `Bearer ${await as.issue()}`;
+		const mallory = `Bearer ${await as.issue({ claims: { sub: 'user-2' } })}`;
+		const open = (authorization: string) =>
+			send(`${base}/message`, {
+				body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+				authorization,
+			});
+		const live = async (authorization: string, session: string) =>
+			(
+				await send(`${base}/rpc`, {
+					body: rpc('afd-context-list'),
+					authorization,
+					headers: { 'Mcp-Session-Id': session },
+				})
+			).status;
+		const first = (await open(alice)).headers['mcp-session-id'] as string;
+		const second = (await open(alice)).headers['mcp-session-id'] as string;
+
+		const refused = await open(mallory);
+		expect(refused.status).toBe(503);
+		expect(refused.headers['mcp-session-id']).toBeUndefined();
+		expect(refused.headers['retry-after']).toBe('60');
+		expect(JSON.parse(refused.text).error).toMatchObject({
+			code: -32000,
+			message: 'Too many live MCP sessions',
+			data: { suggestion: expect.stringContaining('Mcp-Session-Id') },
+		});
+		expect(await live(alice, first)).toBe(200);
+		expect(await live(alice, second)).toBe(200);
+
+		// The owner's own initialize gives up its least recently used session: `first`.
+		const third = (await open(alice)).headers['mcp-session-id'] as string;
+		expect(third).toMatch(/^[0-9a-f-]{36}$/);
+		expect(await live(alice, first)).toBe(404);
+		expect(await live(alice, second)).toBe(200);
+		expect(await live(alice, third)).toBe(200);
+	});
 });
 
 describe('P3-E9: configuration fails closed', () => {

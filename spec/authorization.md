@@ -602,7 +602,9 @@ through WebCrypto; keys come from a `KeySource` (`jwksKeySource` over a host's J
 `credentials` are frozen and branded for `isVerifiedCredentials` until the request ends;
 `createContext(req, { credentials })` maps them to the actor. An HTTP session (`Mcp-Session-Id`)
 belongs to the credentials' issuer, subject and client that created it (`credentialsBinding`), so
-another caller's use of it is answered as an unknown session's. `packages/server/src/authorization-cases.test.ts`
+another caller's use of it is answered as an unknown session's, and only its own owner's
+`initialize` can displace it: at the session cap the owner's least recently used session is evicted,
+and an owner with none is refused (HTTP 503, JSON-RPC `-32000`) rather than another's evicted. `packages/server/src/authorization-cases.test.ts`
 loads the `bearer`, `challenges`, `metadataUrls`, `metadataDocuments`, `audience`, `scopeClaims`,
 `jwtHeaders`, `keys` and `claims` cases; `mcp-auth-verifier.test.ts` holds one test per rule of M3
 with keys generated in the test (RSA, EC P-256 and P-384, Ed25519) by a test authorization server

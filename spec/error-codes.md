@@ -313,7 +313,7 @@ does not define them.
 | `PARSE_ERROR` | JSON-RPC `-32700`, or a batch result the client could not parse | No | TypeScript |
 | `INVALID_REQUEST` | JSON-RPC `-32600` | No | TypeScript |
 | `METHOD_NOT_FOUND` | JSON-RPC `-32601` | No | TypeScript |
-| `REQUEST_REJECTED` | JSON-RPC `-32000`: the server rejected the HTTP request (Host, Origin, Content-Type or size) | No | TypeScript |
+| `REQUEST_REJECTED` | JSON-RPC `-32000`: the server rejected the HTTP request (Host, Origin, Content-Type or size), or refused a new session at its cap (HTTP 503 with `Retry-After`) | No | TypeScript |
 | `SESSION_NOT_FOUND` | JSON-RPC `-32001`: the MCP session is unknown or expired; reconnect | Yes | TypeScript |
 | `JSON_RPC_ERROR` | Any other JSON-RPC error code | No | TypeScript |
 | `OUTCOME_UNKNOWN` | A batch or pipeline request got no result after it may have reached the server, so some commands may have run | No | TypeScript |

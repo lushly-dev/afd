@@ -64,6 +64,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	name: string;
 	version: string;
 	port: number;
+	/** Detailed error messages. It changes no Origin check and no CORS header. */
+	devMode: boolean;
 	cors: boolean;
 	getToolsList: (context: CommandContext) => unknown[];
 	routeToolCall: (
@@ -187,7 +189,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 
 	/**
 	 * Who owns the sessions `req` creates and may use: with MCP authorization, its verified
-	 * credentials' issuer, subject and client, so one caller's session is unknown to another.
+	 * credentials' issuer, subject and client, so one caller's session is unknown to another and
+	 * no caller's `initialize` displaces another's session. Without it the transport carries no
+	 * identity: every caller is one owner, and the unguessable session ID is the only binding.
 	 */
 	function sessionOwner(req: IncomingMessage): string | undefined {
 		return auth ? credentialsBinding(auth.credentialsFor(req)) : undefined;
@@ -340,7 +344,17 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
-			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create(sessionOwner(req)));
+			if (sessions) {
+				const id = sessions.create(sessionOwner(req));
+				if (id === undefined) {
+					res.setHeader('Retry-After', '60');
+					throw new HttpRequestError(503, 'Too many live MCP sessions', {
+						suggestion:
+							'Reuse an existing session by sending its Mcp-Session-Id, or retry after idle sessions expire',
+					});
+				}
+				res.setHeader('Mcp-Session-Id', id);
+			}
 			json(
 				res,
 				200,
@@ -484,8 +498,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 
 	async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const url = validateHttpRequest(req, deps);
+		// Only an origin `validateHttpRequest` accepted reaches here, and it is echoed, never `*`.
 		if (cors && req.headers.origin) {
-			res.setHeader('Access-Control-Allow-Origin', devMode ? '*' : req.headers.origin);
+			res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
 			res.setHeader('Vary', 'Origin');
 			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 			res.setHeader(

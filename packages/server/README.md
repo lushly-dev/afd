@@ -501,7 +501,8 @@ const handler = createMcpHandler({
 - **HTTP sessions belong to their caller.** With `contexts`, a session that
   `initialize` creates on `/message` is bound to the credentials' issuer,
   subject and client; another caller presenting its `Mcp-Session-Id` is
-  answered as for an unknown session.
+  answered as for an unknown session, and another caller's `initialize` never
+  evicts it (see [Sessions](#sessions-mcp-session-id)).
 - **Commands see `context.credentials`** (`issuer`, `subject`, `clientId`,
   `scopes`, `resource`, `expiresAt`, `issuedAt`, and `authTime`, `acr` and `cnf`
   when present), frozen and recognised by `isVerifiedCredentials` until the
@@ -750,7 +751,7 @@ const server = createMcpServer({
   port: 3100,              // Default: 3100
   host: 'localhost',       // Default: localhost
   transport: 'http',       // Default: 'auto' (see the pitfall above)
-  cors: true,              // Send CORS headers (default: follows devMode)
+  cors: true,              // Send CORS headers for accepted origins (default: false)
   toolStrategy: 'grouped', // Default: 'grouped' (see "Tool Strategies")
   bootstrap: true,         // Add afd-help, afd-docs, afd-schema (default: false)
   resources: provider,     // MCP resources (see "Resources, Skills and Tool _meta")
@@ -1185,15 +1186,15 @@ Create an MCP server from commands.
 | `groupByFn` | `(command) => string \| undefined` | No | Group name for the grouped strategy (default: `category`, else the first name segment) |
 | `contexts` | `{ name, description }[]` | No | Context scopes for dynamic tool filtering |
 | `bootstrap` | boolean | No | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools (default: `false`) |
-| `devMode` | boolean | No | Enable development mode (default: false) |
-| `cors` | boolean | No | Enable CORS for HTTP transport (default: follows devMode) |
-| `allowedOrigins` | string[] | No | Additional exact browser origins |
+| `devMode` | boolean | No | Exception details in error responses; changes no Origin or CORS check (default: false) |
+| `cors` | boolean | No | Send CORS headers for accepted origins (default: false) |
+| `allowedOrigins` | string[] | No | Additional exact browser origins, such as `http://localhost:5173` (refused otherwise, in `devMode` too) |
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
 | `createContext` | `(req, { credentials? }) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command; with `auth`, it is given the verified credentials |
 | `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token, and `scopes`, `requiredScopes`, a `resolver` and `filterToolsByScope` decide each call |
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
-| `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
+| `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; at the cap the owner's own least recently used session is evicted, or `initialize` gets 503 (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
 | `clock` | `Clock` | No | `context.clock` for every command, and the clock for HTTP session expiry (default: `systemClock`) |
 | `random` | `RandomSource` | No | `context.random` for every command (default: `systemRandom`) |
@@ -1281,6 +1282,12 @@ Batch (`/batch`, `afd-batch`) and stream execution use the core `executeBatch()`
 
 Sessions exist only on the deprecated `/message` lane; `/mcp` never issues one. When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
 
+A session belongs to the owner that created it, and only that owner can use it or displace it:
+
+- **Owner.** With `auth`, the owner is the verified credentials' issuer, subject and client. Another principal presenting the session's ID is answered as for an unknown session. Without `auth` the transport carries no identity, so every caller is one owner and the unguessable session ID (a random UUID) is the only binding: anyone holding it can use the session.
+- **Ending a session.** There is no explicit close (`DELETE` is not served). A session ends when it is idle for `sessionIdleTimeoutMs`, when its own owner's `initialize` displaces it at the cap, or when the server stops.
+- **The cap.** At `maxSessions` live sessions, `initialize` evicts the least recently used session of the same owner. An owner with no session to give up is refused with HTTP 503, a `Retry-After` header and JSON-RPC error `-32000` whose suggestion is to reuse an existing session or retry after idle sessions expire. Another principal's session is never evicted. Without `auth`, every caller is one owner, so the least recently used session overall is evicted, as before.
+
 ### SSE Connections
 
 `/sse` accepts at most `maxSseConnections` concurrent connections (default: 100); more receive HTTP 503 with `Retry-After`. Open connections get a `: ping` comment every 25 seconds so proxies keep them open and dead peers are detected. Closed connections are removed immediately, and `dispose()`/`stop()` closes the rest.
@@ -1327,7 +1334,7 @@ console.log(result.data.greeting); // "Hello, World!"
 
 ### CORS Configuration
 
-HTTP requests validate Host and browser Origin before dispatch. The default Host allowlist contains the configured host and loopback names. Requests without an Origin (such as CLI clients) and same-origin browser requests are accepted. Cross-site browser requests are rejected unless their exact Origin is listed in `allowedOrigins`. `cors: true` adds response headers for accepted origins; it does not disable request validation. `devMode: true` intentionally permits any browser origin, while Host checks remain enabled.
+HTTP requests validate Host and browser Origin before dispatch. The default Host allowlist contains the configured host and loopback names. Requests without an Origin (such as CLI clients) and same-origin browser requests are accepted. Cross-site browser requests are rejected unless their exact Origin is listed in `allowedOrigins`. `cors: true` (off by default) adds response headers for accepted origins, echoing the request's origin and never `*`; it does not disable request validation. `devMode` changes neither: it only adds exception details to errors, so a page a developer visits cannot reach a dev server. To call a local server from a browser app on another port, list that origin, for example `allowedOrigins: ['http://localhost:5173']`, with `cors: true`.
 
 All POST endpoints require `Content-Type: application/json`. Request bodies, and the `input` query parameter of `GET /stream`, are limited to 1 MiB (UTF-8 bytes) by default; set `maxBodyBytes` to change the limit. Larger input is refused with HTTP 413 whatever header size limit the host sets. Configure `allowedHosts` and `allowedOrigins` explicitly when embedding behind a proxy. Forwarded headers are not trusted automatically.
 

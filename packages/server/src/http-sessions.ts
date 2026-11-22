@@ -3,8 +3,9 @@
  *
  * `initialize` creates a session and returns its ID in the `Mcp-Session-Id` response header.
  * Later requests carrying that header share one context stack; requests without it are
- * stateless. Sessions expire after an idle timeout, and the least recently used session is
- * evicted when the store is full, so memory stays bounded however many clients connect.
+ * stateless. Sessions expire after an idle timeout. When the store is full, a new session
+ * displaces only the least recently used session of the same owner; an owner with none is
+ * refused, so memory stays bounded however many clients connect and no caller ends another's.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,10 @@ export const DEFAULT_MAX_SESSIONS = 1000;
 export const DEFAULT_SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface SessionStoreOptions {
-	/** Maximum live sessions; the least recently used one is evicted beyond it. */
+	/**
+	 * Maximum live sessions. Beyond it, the creating owner's least recently used session is
+	 * evicted, or the new session is refused when that owner has none.
+	 */
 	maxSessions?: number;
 	/** Idle time in milliseconds after which a session expires. */
 	idleTimeoutMs?: number;
@@ -29,9 +33,10 @@ export interface SessionStore {
 	/**
 	 * Start a session and return its ID. `owner` binds it to a caller: on a server with MCP
 	 * authorization, the verified credentials' issuer, subject and client
-	 * (`credentialsBinding`).
+	 * (`credentialsBinding`). At capacity it evicts only `owner`'s own least recently used
+	 * session, and returns `undefined` (nothing created) when `owner` has none to give up.
 	 */
-	create(owner?: string): string;
+	create(owner?: string): string | undefined;
 	/**
 	 * The context state of a live session, refreshing its idle timer; `undefined` if unknown,
 	 * expired, or owned by another caller than `owner`. A caller that is not the owner neither
@@ -76,9 +81,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 		create(owner) {
 			const at = now();
 			sweep(at);
-			for (const oldest of sessions.keys()) {
-				if (sessions.size < maxSessions) break;
-				sessions.delete(oldest);
+			if (sessions.size >= maxSessions) {
+				// Room comes only from the caller's own sessions, least recently used first: one
+				// caller's `initialize` never ends another caller's session.
+				for (const [id, session] of sessions) {
+					if (session.owner !== owner) continue;
+					sessions.delete(id);
+					break;
+				}
+				if (sessions.size >= maxSessions) return undefined;
 			}
 			const id = randomUUID();
 			sessions.set(id, { state: createContextState(), lastSeen: at, owner });
