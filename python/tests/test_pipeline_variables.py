@@ -22,7 +22,14 @@ from afd.core.pipeline import (
     resolve_variable,
     resolve_variables,
 )
-from afd.core.pipeline_variables import MAX_INPUT_DEPTH, MAX_REFERENCE_LENGTH, parse_reference
+from afd.core.pipeline_variables import (
+    MAX_INPUT_DEPTH,
+    MAX_REFERENCE_LENGTH,
+    MAX_RESOLVED_CHARS,
+    MAX_RESOLVED_NODES,
+    PipelineResolutionLimitError,
+    parse_reference,
+)
 from afd.core.result import CommandResult, failure
 from afd.direct import DirectClient, SimpleRegistry
 from afd.server import create_server
@@ -468,6 +475,157 @@ class TestExecutePipelineLimits:
 # ═══════════════════════════════════════════════════════════════════════════════
 # SERVER (afd-pipe) AND DIRECTCLIENT
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestExpansionLimits:
+    """spec/pipeline-variables.md, Limits: the budget of one resolved step input (#1722)."""
+
+    def _limit(self, template: Any, context: PipelineContext) -> str:
+        with pytest.raises(PipelineResolutionLimitError) as raised:
+            resolve_variables(template, context)
+        return raised.value.limit
+
+    def test_repeated_fan_out_of_input_is_rejected(self):
+        context = _context(pipeline_input={"big": list(range(1_000))})
+
+        assert self._limit({"items": ["$input.big"] * 200}, context) == "nodes"
+
+    def test_a_single_large_reference_is_not_charged(self):
+        context = _context(pipeline_input={"rows": list(range(105_000))})
+
+        assert len(resolve_variables({"rows": "$input.rows"}, context)["rows"]) == 105_000
+
+    def test_the_same_step_through_two_references_is_a_repeat(self):
+        step = _step(0, {"rows": list(range(110_000))}, alias="load")
+
+        resolve_variables({"a": "$prev.rows"}, _context(step))
+        assert self._limit({"a": "$prev.rows", "b": "$steps.load.rows"}, _context(step)) == "nodes"
+
+    def test_equal_strings_are_charged_as_repeats(self):
+        text = "x" * (MAX_RESOLVED_CHARS // 2)
+        context = _context(pipeline_input={"a": text, "b": text})
+
+        assert resolve_variables({"a": "$input.a"}, context) == {"a": text}
+        assert self._limit({"a": "$input.a", "b": "$input.b", "c": "$input.a"}, context) == "chars"
+
+    def test_each_unresolved_list_element_costs_a_value(self):
+        assert self._limit(["$steps.missing"] * (MAX_RESOLVED_NODES + 5), _context()) == "nodes"
+
+    def test_the_node_budget_boundary(self):
+        # The list is one value and each literal one more.
+        assert len(resolve_variables(["x"] * (MAX_RESOLVED_NODES - 1), _context())) == (
+            MAX_RESOLVED_NODES - 1
+        )
+        assert self._limit(["x"] * MAX_RESOLVED_NODES, _context()) == "nodes"
+
+    def test_the_character_budget_boundary_counts_utf16_code_units(self):
+        # The key "s" is one character; an astral character is two code units.
+        fits = "x" * (MAX_RESOLVED_CHARS - 3) + "\U0001F600"
+        assert resolve_variables({"s": fits}, _context()) == {"s": fits}
+        assert self._limit({"s": fits + "x"}, _context()) == "chars"
+
+    def test_a_referenced_value_deeper_than_64_levels_is_rejected(self):
+        context = _context(pipeline_input={"deep": _nested(MAX_INPUT_DEPTH + 1)})
+
+        assert self._limit({"leaf": "$input.deep"}, context) == "depth"
+        resolve_variables({"leaf": "$input.deep.a"}, context)
+
+    @pytest.mark.parametrize("levels", [254, 255, 5_000])
+    def test_step_data_too_deep_to_serialize_still_fails_on_depth(self, levels):
+        # to_wire refuses 255 levels or more; the view must not turn that into an absent value.
+        deep: Any = 0
+        for _ in range(levels):
+            deep = [deep]
+        context = _context(_step(0, {"shallow": 1, "deep": deep}))
+
+        assert self._limit({"a": "$prev.deep", "b": 1}, context) == "depth"
+        assert resolve_variables({"a": "$prev.shallow"}, context) == {"a": 1}
+
+    def test_circular_step_data_fails_on_depth_when_copied(self):
+        data: Dict[str, Any] = {"v": 1}
+        data["self"] = data
+        context = _context(_step(0, data))
+
+        assert self._limit({"a": "$prev"}, context) == "depth"
+        assert self._limit({"a": "$prev.self"}, context) == "depth"
+        assert resolve_variables({"a": "$prev.v", "b": "$prev.self.self.v"}, context) == {
+            "a": 1,
+            "b": 1,
+        }
+
+    def test_deep_step_data_that_reuses_objects_is_viewed_once(self):
+        # 300 levels force the fallback view; 40 of them reuse one object twice, which a walk
+        # that converted every route would take 2**40 steps over.
+        deep: Any = 0
+        for level in range(300):
+            deep = [deep, deep] if level < 40 else [deep]
+        context = _context(_step(0, {"shallow": 1, "deep": deep}))
+
+        assert resolve_variables({"a": "$prev.shallow"}, context) == {"a": 1}
+        assert self._limit({"a": "$prev.deep"}, context) == "depth"
+
+    def test_a_lookup_that_builds_fresh_views_never_has_a_first_expansion_charged(self):
+        # Views freed during resolution must not lend their id to a later first expansion.
+        from afd.core.pipeline_variables import resolve_input
+
+        def lookup(reference):
+            return {"rows": list(range(60_000))}
+
+        assert len(resolve_input(["$input.rows"] * 3, lookup)) == 3
+
+    def test_referenced_values_are_copies(self):
+        data = {"tags": ["a"]}
+        context = _context(_step(0, data))
+
+        resolved = resolve_variables({"tags": "$prev.tags"}, context)
+        resolved["tags"].append("mutated")
+
+        assert resolve_variables({"tags": "$prev.tags"}, context) == {"tags": ["a"]}
+
+    @pytest.mark.asyncio
+    async def test_execute_pipeline_fails_the_step_without_running_it(self):
+        executor = _Recorder()
+        request = PipelineRequest(
+            input={"big": list(range(1_000))},
+            steps=[PipelineStep(command="echo", input={"items": ["$input.big"] * 200})],
+        )
+
+        result = await execute_pipeline(request, executor)
+
+        assert executor.calls == []
+        assert result.steps[0].status == StepStatus.FAILURE
+        error = result.steps[0].error
+        assert error.code == "VALIDATION_ERROR"
+        assert error.retryable is False
+        assert error.suggestion
+        assert error.details == {"stepIndex": 0, "limit": "nodes"}
+
+    @pytest.mark.asyncio
+    async def test_afd_pipe_and_direct_client_fail_the_step(self):
+        fan_out = {"steps": [{"command": "message-echo", "input": {"v": ["$input.big"] * 200}}],
+                   "input": {"big": list(range(1_000))}}
+        piped = await _echo_server().call_tool("afd-pipe", fan_out)
+
+        assert piped.steps[0].error.code == "VALIDATION_ERROR"
+        assert piped.steps[0].error.details == {"stepIndex": 0, "limit": "nodes"}
+
+        calls = []
+        registry = SimpleRegistry()
+
+        @registry.command(name="echo")
+        async def echo(**kwargs):
+            calls.append(kwargs)
+            return success(kwargs)
+
+        direct = await DirectClient(registry).pipe(
+            [{"command": "echo", "input": {"v": ["$input.big"] * 200}}],
+            input={"big": list(range(1_000))},
+        )
+
+        assert calls == []
+        assert direct.success is False
+        assert direct.final.error.code == "VALIDATION_ERROR"
+        assert direct.final.error.details == {"stepIndex": 0, "limit": "nodes"}
 
 
 class EchoInput(BaseModel):

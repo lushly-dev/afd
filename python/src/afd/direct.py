@@ -59,10 +59,15 @@ from afd.core.pipeline import (
     _stream_unsupported_error,
     condition_error,
     evaluate_condition,
+    resolution_limit_failure,
     resolve_variable,
     resolve_variables,
 )
-from afd.core.pipeline_variables import MAX_INPUT_DEPTH, exceeds_depth
+from afd.core.pipeline_variables import (
+    MAX_INPUT_DEPTH,
+    PipelineResolutionLimitError,
+    exceeds_depth,
+)
 
 from afd.core.direct_approval import (
     DirectApprovalRequest, _DirectApprovalExchange, _public_result,
@@ -915,16 +920,20 @@ class DirectClient:
                     ))
                     continue
 
-            # Resolve variables in input
-            resolved_input = (
-                resolve_variables(step.input, variables) if step.input is not None else None
-            )
-
-            # Execute the command. A handler that returned something other
-            # than a CommandResult is a failed step, never an exception.
-            result = coerce_command_result(
-                await self.call(step.command, resolved_input, context), step.command
-            )
+            # Resolve variables in input. A step input over the limits fails
+            # the step without running the command.
+            try:
+                resolved_input = (
+                    resolve_variables(step.input, variables) if step.input is not None else None
+                )
+            except PipelineResolutionLimitError as exc:
+                result = resolution_limit_failure(exc, i)
+            else:
+                # Execute the command. A handler that returned something other
+                # than a CommandResult is a failed step, never an exception.
+                result = coerce_command_result(
+                    await self.call(step.command, resolved_input, context), step.command
+                )
 
             step_duration = (time.perf_counter() - step_start) * 1000
 

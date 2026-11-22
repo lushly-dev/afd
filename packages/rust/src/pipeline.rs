@@ -44,6 +44,13 @@
 //! - [`execute_pipeline`] rejects step inputs and the request `input` nested
 //!   deeper than [`MAX_INPUT_DEPTH`] levels (the outermost object or array is
 //!   level 1) with `VALIDATION_ERROR` before any step runs.
+//! - A step whose resolved input exceeds the limits fails with
+//!   `VALIDATION_ERROR` (`retryable: false`, `details.limit` naming the
+//!   limit) without running its command: a value copied into it may nest at
+//!   most [`MAX_INPUT_DEPTH`] levels, and it may hold at most
+//!   [`MAX_RESOLVED_NODES`] values and [`MAX_RESOLVED_CHARS`] string and key
+//!   characters, where only a repeated expansion of the same referenced value
+//!   is charged for its contents (see [`try_resolve_variables`]).
 //! - Options that are accepted but not implemented, `options.parallel` and a
 //!   step's `stream: true`, fail that step (step 0 for `parallel`) with
 //!   `UNSUPPORTED_OPTION` and skip every other step, so no command runs.
@@ -70,6 +77,7 @@ use resolve::exceeds_depth;
 pub(crate) use resolve::reads_step_data;
 pub use resolve::{
     evaluate_condition, get_nested_value, resolve_reference, resolve_variable, resolve_variables,
+    try_resolve_variables, ResolutionLimit, ResolutionLimitError,
 };
 
 /// Step inputs nested deeper than this many levels are rejected before any step runs.
@@ -77,6 +85,12 @@ pub const MAX_INPUT_DEPTH: usize = 64;
 
 /// Reference strings longer than this many characters are literals.
 pub const MAX_REFERENCE_LENGTH: usize = 1024;
+
+/// Values (template nodes and charged copies) one resolved step input may hold.
+pub const MAX_RESOLVED_NODES: usize = 100_000;
+
+/// String and key characters (UTF-16 code units) one resolved step input may hold.
+pub const MAX_RESOLVED_CHARS: usize = 16 * 1024 * 1024;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE REQUEST TYPES
@@ -1365,6 +1379,25 @@ fn pipeline_error(code: &str, message: String, suggestion: &str, retryable: bool
         .with_retryable(retryable)
 }
 
+/// The failed result of a step whose resolved input exceeded the limits.
+fn resolution_limit_failure(
+    error: ResolutionLimitError,
+    index: usize,
+) -> CommandResult<serde_json::Value> {
+    let mut details = HashMap::new();
+    details.insert("stepIndex".to_string(), serde_json::json!(index));
+    details.insert("limit".to_string(), serde_json::json!(error.limit.as_str()));
+    crate::result::failure(
+        pipeline_error(
+            error_codes::VALIDATION_ERROR,
+            error.to_string(),
+            "Reduce pipeline input size, repeated reference fan-out, or nesting depth so the resolved step input stays within the limits",
+            false,
+        )
+        .with_details(details),
+    )
+}
+
 /// Check the request before any step runs. Returns the index of the step to
 /// blame and the error.
 fn preflight(
@@ -1572,14 +1605,23 @@ pub async fn execute_pipeline(
 
         // As in TypeScript, a step that would start at or past the deadline
         // fails with PIPELINE_TIMEOUT without running (`None` below).
-        let remaining = deadline.map(|deadline| deadline.saturating_duration_since(step_start));
-        let result = if remaining.is_some_and(|remaining| remaining.is_zero()) {
+        // A step input over the limits fails the step without running it, as in TypeScript,
+        // where this failure comes before the deadline check.
+        let resolved_input = step
+            .input
+            .as_ref()
+            .map(|input| try_resolve_variables(input, &pipeline_context))
+            .transpose();
+        // As in TypeScript, the time left is measured once the input is resolved.
+        let remaining = deadline.map(|deadline| deadline.saturating_duration_since(Instant::now()));
+        let result = if let Err(error) = resolved_input {
+            Some(resolution_limit_failure(error, i))
+        } else if remaining.is_some_and(|remaining| remaining.is_zero()) {
             None
         } else {
-            let resolved_input = step
-                .input
-                .as_ref()
-                .map(|input| resolve_variables(input, &pipeline_context))
+            let resolved_input = resolved_input
+                .ok()
+                .flatten()
                 .unwrap_or_else(|| serde_json::json!({}));
 
             let mut step_context = base_context.clone();

@@ -136,8 +136,102 @@ TEST_CASE("resolve_variables rejects input nested deeper than 64 levels") {
     for (int i = 0; i < 64; ++i) {
         deep = afd::Json{{"x", deep}};
     }
-    CHECK_FALSE(afd::resolve_variables(deep, sample()).has_value());
+    const auto too_deep = afd::resolve_variables(deep, sample());
+    REQUIRE_FALSE(too_deep.has_value());
+    CHECK(too_deep.error().limit == afd::ResolutionLimit::depth);
+    CHECK(too_deep.error().message() == "Pipeline step input is nested deeper than 64 levels");
     CHECK(afd::resolve_variables(deep["x"], sample()).has_value());
+}
+
+namespace {
+
+// The limit a template exceeds, or nullopt when it resolves.
+std::optional<afd::ResolutionLimit> limit_of(const afd::Json& tmpl,
+                                             const afd::PipelineContext& context) {
+    const auto resolved = afd::resolve_variables(tmpl, context);
+    return resolved ? std::nullopt : std::optional<afd::ResolutionLimit>(resolved.error().limit);
+}
+
+afd::Json numbers(int count) {
+    afd::Json out = afd::Json::array();
+    for (int i = 0; i < count; ++i) {
+        out.push_back(i);
+    }
+    return out;
+}
+
+afd::Json repeated(const afd::Json& value, std::size_t count) {
+    afd::Json out = afd::Json::array();
+    for (std::size_t i = 0; i < count; ++i) {
+        out.push_back(value);
+    }
+    return out;
+}
+
+afd::PipelineContext with_input(afd::Json input) {
+    afd::PipelineContext context;
+    context.pipeline_input = std::move(input);
+    return context;
+}
+
+} // namespace
+
+// spec/pipeline-variables.md, Limits: the budget of one resolved step input (#1722).
+TEST_CASE("repeated fan-out of a referenced value is charged; a single expansion is not") {
+    const auto big = with_input(afd::Json{{"big", numbers(1'000)}});
+    CHECK(limit_of(afd::Json{{"items", repeated("$input.big", 200)}}, big) ==
+          afd::ResolutionLimit::nodes);
+
+    const auto rows = with_input(afd::Json{{"rows", numbers(105'000)}});
+    const auto once = afd::resolve_variables(afd::Json{{"rows", "$input.rows"}}, rows);
+    REQUIRE(once.has_value());
+    CHECK((*once)["rows"].size() == 105'000);
+}
+
+TEST_CASE("$prev and $steps reaching the same step are a repeat") {
+    afd::PipelineContext context;
+    context.steps.push_back(
+        step(0, afd::StepStatus::success, afd::Json{{"rows", numbers(110'000)}}, "load"));
+    context.previous_success = 0;
+    CHECK_FALSE(limit_of(afd::Json{{"a", "$prev.rows"}}, context).has_value());
+    CHECK(limit_of(afd::Json{{"a", "$prev.rows"}, {"b", "$steps.load.rows"}}, context) ==
+          afd::ResolutionLimit::nodes);
+}
+
+TEST_CASE("equal strings are charged as repeats") {
+    const std::string text(afd::max_resolved_chars / 2, 'x');
+    const auto context = with_input(afd::Json{{"a", text}, {"b", text}});
+    CHECK_FALSE(limit_of(afd::Json{{"a", "$input.a"}}, context).has_value());
+    CHECK(limit_of(afd::Json{{"a", "$input.a"}, {"b", "$input.b"}, {"c", "$input.a"}}, context) ==
+          afd::ResolutionLimit::chars);
+}
+
+TEST_CASE("each unresolved array element costs a value") {
+    CHECK(limit_of(repeated("$steps.missing", afd::max_resolved_nodes + 5), {}) ==
+          afd::ResolutionLimit::nodes);
+}
+
+TEST_CASE("the node budget boundary") {
+    // The array is one value and each literal one more.
+    CHECK_FALSE(limit_of(repeated("x", afd::max_resolved_nodes - 1), {}).has_value());
+    CHECK(limit_of(repeated("x", afd::max_resolved_nodes), {}) == afd::ResolutionLimit::nodes);
+}
+
+TEST_CASE("the character budget boundary counts UTF-16 code units") {
+    // The key "s" is one character; an astral character (4 UTF-8 bytes) is two code units.
+    const std::string fits = std::string(afd::max_resolved_chars - 3, 'x') + "\xF0\x9F\x98\x80";
+    CHECK_FALSE(limit_of(afd::Json{{"s", fits}}, {}).has_value());
+    CHECK(limit_of(afd::Json{{"s", fits + "x"}}, {}) == afd::ResolutionLimit::chars);
+}
+
+TEST_CASE("a referenced value deeper than 64 levels is rejected") {
+    afd::Json deep = afd::Json::object();
+    for (int i = 0; i < 64; ++i) {
+        deep = afd::Json{{"a", deep}};
+    }
+    const auto context = with_input(afd::Json{{"deep", deep}});
+    CHECK(limit_of(afd::Json{{"leaf", "$input.deep"}}, context) == afd::ResolutionLimit::depth);
+    CHECK_FALSE(limit_of(afd::Json{{"leaf", "$input.deep.a"}}, context).has_value());
 }
 
 TEST_CASE("when conditions, including over unresolved paths") {

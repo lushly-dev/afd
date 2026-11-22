@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string_view>
+#include <unordered_set>
 #include <utility>
 
 #include "detail/exceptions.hpp"
@@ -183,121 +185,246 @@ std::optional<Reference> parse_reference(std::string_view ref) {
     return reference;
 }
 
-std::optional<Json> element(const Json& array, std::optional<std::size_t> index) {
+// Lookups return pointers into the context, so a reference copies nothing until it is resolved
+// into a step input, and the expansion budget can recognize a repeat by address.
+const Json* element(const Json& array, std::optional<std::size_t> index) {
     if (!index || *index >= array.size()) {
-        return std::nullopt;
+        return nullptr;
     }
-    return array[*index];
+    return &array[*index];
 }
 
-std::optional<Json> child(const Json& container, const std::string& key) {
+const Json* child(const Json& container, const std::string& key) {
     if (starts_with(key, "__")) {
-        return std::nullopt;
+        return nullptr;
     }
     if (container.is_array()) {
         for (char c : key) {
             if (!is_ascii_digit(c)) {
-                return std::nullopt;
+                return nullptr;
             }
         }
         return element(container, parse_index(key));
     }
     if (container.is_object()) {
         const auto it = container.find(key);
-        return it == container.end() ? std::nullopt : std::optional<Json>(*it);
+        return it == container.end() ? nullptr : &*it;
     }
-    return std::nullopt;
+    return nullptr;
 }
 
-std::optional<Json> traverse(std::optional<Json> current, const std::vector<Segment>& path) {
+const Json* traverse(const Json* current, const std::vector<Segment>& path) {
     for (const auto& segment : path) {
-        if (!current) {
-            return std::nullopt;
+        if (current == nullptr) {
+            return nullptr;
         }
         current = child(*current, segment.key);
         if (segment.has_index) {
-            current =
-                current && current->is_array() ? element(*current, segment.index) : std::nullopt;
+            current = current != nullptr && current->is_array() ? element(*current, segment.index)
+                                                                : nullptr;
         }
     }
     return current;
 }
 
-std::optional<Json> source_data(const Reference& reference, const PipelineContext& context) {
+const Json* data_of(const StepResult& step) {
+    return step.data ? &*step.data : nullptr;
+}
+
+const Json* source_data(const Reference& reference, const PipelineContext& context) {
     switch (reference.kind) {
     case SourceKind::prev:
         return context.previous_success && *context.previous_success < context.steps.size()
-                   ? context.steps[*context.previous_success].data
-                   : std::nullopt;
+                   ? data_of(context.steps[*context.previous_success])
+                   : nullptr;
     case SourceKind::first:
-        return context.steps.empty() ? std::nullopt : context.steps.front().data;
+        return context.steps.empty() ? nullptr : data_of(context.steps.front());
     case SourceKind::input:
-        return context.pipeline_input;
+        return context.pipeline_input ? &*context.pipeline_input : nullptr;
     case SourceKind::index:
         return reference.step_index && *reference.step_index < context.steps.size()
-                   ? context.steps[*reference.step_index].data
-                   : std::nullopt;
+                   ? data_of(context.steps[*reference.step_index])
+                   : nullptr;
     case SourceKind::alias:
         if (starts_with(reference.alias, "__")) {
-            return std::nullopt;
+            return nullptr;
         }
         for (const auto& step : context.steps) {
             if (step.alias == reference.alias) {
-                return step.data;
+                return data_of(step);
             }
         }
-        return std::nullopt;
+        return nullptr;
     }
-    return std::nullopt;
+    return nullptr;
 }
 
-std::optional<Json> lookup(const Reference& reference, const PipelineContext& context) {
+const Json* lookup(const Reference& reference, const PipelineContext& context) {
     return traverse(source_data(reference, context), reference.path);
 }
 
-// nullopt is TypeScript's ABSENT marker.
-std::optional<Json> resolve_value(const Json& value, const PipelineContext& context,
-                                  std::size_t depth, bool& too_deep) {
-    if (value.is_string()) {
-        const auto& text = value.get_ref<const std::string&>();
-        if (starts_with(text, "$$")) {
-            return Json(text.substr(1));
+/// The expansion budget of one step input (spec/pipeline-variables.md, Limits).
+class Budget {
+public:
+    std::optional<ResolutionLimit> node(bool charge = true) {
+        if (charge) {
+            if (nodes_ == 0) {
+                return ResolutionLimit::nodes;
+            }
+            --nodes_;
         }
-        const auto reference = parse_reference(text);
-        return reference ? lookup(*reference, context) : std::optional<Json>(value);
+        return std::nullopt;
+    }
+
+    /// Charges a string's length in UTF-16 code units, as JavaScript's `length`.
+    std::optional<ResolutionLimit> text(std::string_view text, bool charge = true) {
+        if (charge) {
+            const std::size_t length = detail::utf16_length(text);
+            if (length > chars_) {
+                return ResolutionLimit::chars;
+            }
+            chars_ -= length;
+        }
+        return std::nullopt;
+    }
+
+    /// Records a referenced value; true the first time this step input expands it. Containers are
+    /// recognized by address, non-empty strings by value.
+    bool first_expansion(const Json& value) {
+        if (value.is_array() || value.is_object()) {
+            return seen_containers_.insert(&value).second;
+        }
+        if (value.is_string() && !value.get_ref<const std::string&>().empty()) {
+            return seen_strings_.insert(value.get_ref<const std::string&>()).second;
+        }
+        return false;
+    }
+
+private:
+    std::size_t nodes_ = max_resolved_nodes;
+    std::size_t chars_ = max_resolved_chars;
+    std::unordered_set<const Json*> seen_containers_;
+    std::unordered_set<std::string_view> seen_strings_;
+};
+
+// A failure of the budget or the depth limit, or the copy.
+using Bounded = Expected<Json, ResolutionLimit>;
+
+// Copies a referenced value, at most max_pipeline_nesting_depth levels deep, charging it when it
+// is a repeat.
+Bounded copy_resolved(const Json& value, std::size_t depth, Budget& budget, bool charge) {
+    if (const auto exceeded = budget.node(charge)) {
+        return unexpected(*exceeded);
+    }
+    if (value.is_string()) {
+        if (const auto exceeded = budget.text(value.get_ref<const std::string&>(), charge)) {
+            return unexpected(*exceeded);
+        }
+        return value;
     }
     if (!value.is_array() && !value.is_object()) {
         return value;
     }
     if (depth >= max_pipeline_nesting_depth) {
-        too_deep = true;
-        return value;
+        return unexpected(ResolutionLimit::depth);
     }
-    if (value.is_array()) {
-        Json out = Json::array();
-        for (const Json& item : value) {
-            auto resolved = resolve_value(item, context, depth + 1, too_deep);
-            out.push_back(resolved ? std::move(*resolved) : Json());
-        }
-        return out;
-    }
-    Json out = Json::object();
+    Json out = value.is_array() ? Json::array() : Json::object();
     for (auto it = value.begin(); it != value.end(); ++it) {
-        if (auto resolved = resolve_value(it.value(), context, depth + 1, too_deep)) {
-            out[it.key()] = std::move(*resolved);
+        if (value.is_object()) {
+            if (const auto exceeded = budget.text(it.key(), charge)) {
+                return unexpected(*exceeded);
+            }
+        }
+        auto copied = copy_resolved(it.value(), depth + 1, budget, charge);
+        if (!copied) {
+            return copied;
+        }
+        if (value.is_array()) {
+            out.push_back(std::move(*copied));
+        } else {
+            out[it.key()] = std::move(*copied);
         }
     }
     return out;
 }
 
+// Resolves a step input under the budget. A missing value (nullopt) is TypeScript's ABSENT.
+Expected<std::optional<Json>, ResolutionLimit> resolve_value(const Json& value,
+                                                             const PipelineContext& context,
+                                                             std::size_t depth, Budget& budget) {
+    if (value.is_string()) {
+        const auto& text = value.get_ref<const std::string&>();
+        const auto reference =
+            starts_with(text, "$$") ? std::optional<Reference>() : parse_reference(text);
+        if (!reference) {
+            const std::string_view literal =
+                starts_with(text, "$$") ? std::string_view(text).substr(1) : std::string_view(text);
+            if (const auto exceeded = budget.node()) {
+                return unexpected(*exceeded);
+            }
+            if (const auto exceeded = budget.text(literal)) {
+                return unexpected(*exceeded);
+            }
+            return std::optional<Json>(Json(std::string(literal)));
+        }
+        const Json* resolved = lookup(*reference, context);
+        if (resolved == nullptr) {
+            return std::optional<Json>();
+        }
+        // The first expansion of a value is not charged, so one large step output still flows
+        // through $prev; repeats are charged in full.
+        const bool charge = !budget.first_expansion(*resolved);
+        if (const auto exceeded = budget.node()) {
+            return unexpected(*exceeded);
+        }
+        auto copied = copy_resolved(*resolved, 0, budget, charge);
+        if (!copied) {
+            return unexpected(copied.error());
+        }
+        return std::optional<Json>(std::move(*copied));
+    }
+    if (const auto exceeded = budget.node()) {
+        return unexpected(*exceeded);
+    }
+    if (!value.is_array() && !value.is_object()) {
+        return std::optional<Json>(value);
+    }
+    if (depth >= max_pipeline_nesting_depth) {
+        return unexpected(ResolutionLimit::depth);
+    }
+    Json out = value.is_array() ? Json::array() : Json::object();
+    for (auto it = value.begin(); it != value.end(); ++it) {
+        if (value.is_object()) {
+            if (const auto exceeded = budget.text(it.key())) {
+                return unexpected(*exceeded);
+            }
+        }
+        auto resolved = resolve_value(it.value(), context, depth + 1, budget);
+        if (!resolved) {
+            return resolved;
+        }
+        if (value.is_array()) {
+            if (!*resolved) {
+                if (const auto exceeded = budget.node()) {
+                    return unexpected(*exceeded);
+                }
+            }
+            out.push_back(*resolved ? std::move(**resolved) : Json());
+        } else if (*resolved) {
+            out[it.key()] = std::move(**resolved);
+        }
+    }
+    return std::optional<Json>(std::move(out));
+}
+
 // --- conditions ---------------------------------------------------------------------------
 
-std::optional<Json> operand(const Json& ref, const PipelineContext& context) {
+const Json* operand(const Json& ref, const PipelineContext& context) {
     if (!ref.is_string()) {
-        return std::nullopt;
+        return nullptr;
     }
     const auto reference = parse_reference(ref.get_ref<const std::string&>());
-    return reference ? lookup(*reference, context) : std::nullopt;
+    return reference ? lookup(*reference, context) : nullptr;
 }
 
 bool is_comparison(const std::string& key) {
@@ -634,17 +761,48 @@ std::optional<Json> resolve_variable(std::string_view reference, const PipelineC
         return Json(std::string(reference.substr(1)));
     }
     const auto parsed = parse_reference(reference);
-    return parsed ? lookup(*parsed, context) : std::optional<Json>(Json(std::string(reference)));
+    if (!parsed) {
+        return Json(std::string(reference));
+    }
+    const Json* resolved = lookup(*parsed, context);
+    return resolved ? std::optional<Json>(*resolved) : std::nullopt;
 }
 
-Expected<Json> resolve_variables(const Json& input, const PipelineContext& context) {
-    bool deep = false;
-    auto resolved = resolve_value(input, context, 0, deep);
-    if (deep) {
-        return unexpected("Pipeline step input is nested deeper than " +
-                          std::to_string(max_pipeline_nesting_depth) + " levels");
+std::string ResolutionLimitError::message() const {
+    switch (limit) {
+    case ResolutionLimit::depth:
+        return "Pipeline step input is nested deeper than " +
+               std::to_string(max_pipeline_nesting_depth) + " levels";
+    case ResolutionLimit::nodes:
+        return "Pipeline variable expansion limit exceeded (more than " +
+               std::to_string(max_resolved_nodes) + " values)";
+    case ResolutionLimit::chars:
+        return "Pipeline variable expansion limit exceeded (more than " +
+               std::to_string(max_resolved_chars) + " characters)";
     }
-    return resolved ? std::move(*resolved) : Json();
+    return "Pipeline step input exceeds the limits";
+}
+
+std::string_view ResolutionLimitError::name() const {
+    switch (limit) {
+    case ResolutionLimit::depth:
+        return "depth";
+    case ResolutionLimit::nodes:
+        return "nodes";
+    case ResolutionLimit::chars:
+        return "chars";
+    }
+    return "depth";
+}
+
+Expected<Json, ResolutionLimitError> resolve_variables(const Json& input,
+                                                       const PipelineContext& context) {
+    Budget budget;
+    auto resolved = resolve_value(input, context, 0, budget);
+    if (!resolved) {
+        return unexpected(ResolutionLimitError{resolved.error()});
+    }
+    return *resolved ? std::move(**resolved) : Json();
 }
 
 bool evaluate_condition(const Json& condition, const PipelineContext& context) {
@@ -812,21 +970,24 @@ PipelineResult execute_pipeline(const Json& raw_request, const CommandExecutor& 
 
         CommandResult result;
         Json input = Json::object();
-        bool resolution_failed = false;
+        std::optional<ResolutionLimitError> over_limit;
         if (step.input) {
             auto resolved = resolve_variables(*step.input, pipeline);
             if (resolved) {
                 input = std::move(*resolved);
             } else {
-                resolution_failed = true;
+                over_limit = resolved.error();
             }
         }
 
-        if (resolution_failed) {
+        if (over_limit) {
+            // The step input exceeds the limits: the step fails without running.
             result = failure(create_error(
-                error_codes::INTERNAL_ERROR,
-                "Could not evaluate the step condition or resolve its input references",
-                {.suggestion = "Check that earlier steps return plain JSON data, then retry"}));
+                error_codes::VALIDATION_ERROR, over_limit->message(),
+                {.suggestion = "Reduce pipeline input size, repeated reference fan-out, or nesting "
+                               "depth so the resolved step input stays within the limits",
+                 .retryable = false,
+                 .details = Json{{"stepIndex", i}, {"limit", std::string(over_limit->name())}}}));
         } else if (deadline && clock->steady_ms() >= *deadline) {
             result = failure(timeout_error());
         } else {

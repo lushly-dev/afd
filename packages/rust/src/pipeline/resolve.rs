@@ -2,6 +2,7 @@
 //! string or a condition means against the steps that have run.
 
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use super::*;
@@ -46,7 +47,37 @@ fn exceeds_reference_length(value: &str) -> bool {
         && value.encode_utf16().take(MAX_REFERENCE_LENGTH + 1).count() > MAX_REFERENCE_LENGTH
 }
 
+/// The step `$prev` reads while one step input resolves under the budget: the step's entry in
+/// `steps` when it holds the same step and data as `previous_result` (the executor stores a clone
+/// there), so `$prev` and `$steps[N]` reach one value and a repeat is recognized by address.
+/// Otherwise `previous_result`, which is always what `$prev` means.
+fn canonical_previous(context: &PipelineContext) -> Option<&StepResult> {
+    let previous = context.previous_result.as_ref()?;
+    Some(
+        context
+            .steps
+            .get(previous.index)
+            .filter(|step| {
+                step.index == previous.index
+                    && step.status == previous.status
+                    && step.command == previous.command
+                    && step.alias == previous.alias
+                    && step.data == previous.data
+            })
+            .unwrap_or(previous),
+    )
+}
+
 fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resolution<'s, 'c> {
+    resolve_string_with(value, context, context.previous_result.as_ref())
+}
+
+/// [`resolve_string`], with `previous` as the step `$prev` reads.
+fn resolve_string_with<'s, 'c>(
+    value: &'s str,
+    context: &'c PipelineContext,
+    previous: Option<&'c StepResult>,
+) -> Resolution<'s, 'c> {
     if value.starts_with("$$") {
         return Resolution::Literal(&value[1..]);
     }
@@ -59,10 +90,7 @@ fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resol
 
     let root = if let Some(name) = captures.get(1) {
         match name.as_str() {
-            "prev" => context
-                .previous_result
-                .as_ref()
-                .and_then(|step| step.data.as_ref()),
+            "prev" => previous.and_then(|step| step.data.as_ref()),
             "first" => context.steps.first().and_then(|step| step.data.as_ref()),
             _ => context.pipeline_input.as_ref(),
         }
@@ -213,12 +241,257 @@ fn resolve_value(
     }
 }
 
+/// Which limit a step input exceeded (`spec/pipeline-variables.md`, Limits).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolutionLimit {
+    /// The input, or a value copied into it, nests deeper than [`MAX_INPUT_DEPTH`] levels.
+    Depth,
+    /// More than [`MAX_RESOLVED_NODES`] values.
+    Nodes,
+    /// More than [`MAX_RESOLVED_CHARS`] string and key characters.
+    Chars,
+}
+
+impl ResolutionLimit {
+    /// The limit's name on the wire: `"depth"`, `"nodes"` or `"chars"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Depth => "depth",
+            Self::Nodes => "nodes",
+            Self::Chars => "chars",
+        }
+    }
+}
+
+/// A step input exceeded the nesting depth or the expansion budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolutionLimitError {
+    /// The limit it exceeded.
+    pub limit: ResolutionLimit,
+}
+
+impl std::fmt::Display for ResolutionLimitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.limit {
+            ResolutionLimit::Depth => write!(
+                f,
+                "Pipeline step input is nested deeper than {MAX_INPUT_DEPTH} levels"
+            ),
+            ResolutionLimit::Nodes => write!(
+                f,
+                "Pipeline variable expansion limit exceeded (more than {MAX_RESOLVED_NODES} values)"
+            ),
+            ResolutionLimit::Chars => write!(
+                f,
+                "Pipeline variable expansion limit exceeded (more than {MAX_RESOLVED_CHARS} characters)"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ResolutionLimitError {}
+
+fn limit(limit: ResolutionLimit) -> ResolutionLimitError {
+    ResolutionLimitError { limit }
+}
+
+/// The expansion budget of one step input.
+struct Budget<'c> {
+    /// The step `$prev` reads ([`canonical_previous`]), found at the first `$prev`.
+    previous: Option<Option<&'c StepResult>>,
+    nodes: usize,
+    chars: usize,
+    /// Containers already expanded, by address, and non-empty strings, by value.
+    seen_containers: HashSet<*const serde_json::Value>,
+    seen_strings: HashSet<&'c str>,
+}
+
+impl<'c> Budget<'c> {
+    fn new() -> Self {
+        Self {
+            previous: None,
+            nodes: MAX_RESOLVED_NODES,
+            chars: MAX_RESOLVED_CHARS,
+            seen_containers: HashSet::new(),
+            seen_strings: HashSet::new(),
+        }
+    }
+
+    fn node(&mut self, charge: bool) -> Result<(), ResolutionLimitError> {
+        if charge {
+            self.nodes = self
+                .nodes
+                .checked_sub(1)
+                .ok_or(limit(ResolutionLimit::Nodes))?;
+        }
+        Ok(())
+    }
+
+    /// Charge a string's length in UTF-16 code units, as JavaScript's `length`.
+    fn text(&mut self, text: &str, charge: bool) -> Result<(), ResolutionLimitError> {
+        if charge {
+            self.chars = self
+                .chars
+                .checked_sub(text.encode_utf16().count())
+                .ok_or(limit(ResolutionLimit::Chars))?;
+        }
+        Ok(())
+    }
+
+    /// Record a referenced value; `true` the first time this step input expands it.
+    fn first_expansion(&mut self, value: &'c serde_json::Value) -> bool {
+        match value {
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => self
+                .seen_containers
+                .insert(value as *const serde_json::Value),
+            serde_json::Value::String(text) if !text.is_empty() => {
+                self.seen_strings.insert(text.as_str())
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Copy a referenced value, at most [`MAX_INPUT_DEPTH`] levels deep, charging it when it is a
+/// repeat.
+fn copy_resolved(
+    value: &serde_json::Value,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    charge: bool,
+) -> Result<serde_json::Value, ResolutionLimitError> {
+    budget.node(charge)?;
+    match value {
+        serde_json::Value::String(text) => {
+            budget.text(text, charge)?;
+            Ok(value.clone())
+        }
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) if depth >= MAX_INPUT_DEPTH => {
+            Err(limit(ResolutionLimit::Depth))
+        }
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(|item| copy_resolved(item, depth + 1, budget, charge))
+            .collect::<Result<_, _>>()
+            .map(serde_json::Value::Array),
+        serde_json::Value::Object(map) => {
+            let mut copied = serde_json::Map::new();
+            for (key, item) in map {
+                budget.text(key, charge)?;
+                copied.insert(key.clone(), copy_resolved(item, depth + 1, budget, charge)?);
+            }
+            Ok(serde_json::Value::Object(copied))
+        }
+        _ => Ok(value.clone()),
+    }
+}
+
+/// Resolve a step input under the budget; `None` is an unresolved reference.
+fn resolve_bounded<'c>(
+    input: &serde_json::Value,
+    context: &'c PipelineContext,
+    depth: usize,
+    budget: &mut Budget<'c>,
+) -> Result<Option<serde_json::Value>, ResolutionLimitError> {
+    if let serde_json::Value::String(text) = input {
+        let previous = if text.starts_with("$prev") {
+            *budget
+                .previous
+                .get_or_insert_with(|| canonical_previous(context))
+        } else {
+            context.previous_result.as_ref()
+        };
+        return match resolve_string_with(text, context, previous) {
+            Resolution::Literal(literal) => {
+                budget.node(true)?;
+                budget.text(literal, true)?;
+                Ok(Some(serde_json::Value::String(literal.to_owned())))
+            }
+            Resolution::Absent => Ok(None),
+            Resolution::Value(value) => {
+                // The first expansion of a value is not charged, so one large step output still
+                // flows through `$prev`; repeats are charged in full.
+                let charge = !budget.first_expansion(value);
+                budget.node(true)?;
+                copy_resolved(value, 0, budget, charge).map(Some)
+            }
+        };
+    }
+    budget.node(true)?;
+    match input {
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) if depth >= MAX_INPUT_DEPTH => {
+            Err(limit(ResolutionLimit::Depth))
+        }
+        serde_json::Value::Array(items) => {
+            let mut resolved = Vec::with_capacity(items.len());
+            for item in items {
+                resolved.push(match resolve_bounded(item, context, depth + 1, budget)? {
+                    Some(value) => value,
+                    None => {
+                        budget.node(true)?;
+                        serde_json::Value::Null
+                    }
+                });
+            }
+            Ok(Some(serde_json::Value::Array(resolved)))
+        }
+        serde_json::Value::Object(map) => {
+            let mut resolved = serde_json::Map::new();
+            for (key, item) in map {
+                budget.text(key, true)?;
+                if let Some(value) = resolve_bounded(item, context, depth + 1, budget)? {
+                    resolved.insert(key.clone(), value);
+                }
+            }
+            Ok(Some(serde_json::Value::Object(resolved)))
+        }
+        other => Ok(Some(other.clone())),
+    }
+}
+
+/// Resolve all variable references in a step input, within the limits of
+/// `spec/pipeline-variables.md` (as [`execute_pipeline`](super::execute_pipeline) does).
+///
+/// Unresolved references are omitted from objects and become `null` in
+/// arrays; an unresolved top-level reference becomes `null`.
+///
+/// # Errors
+///
+/// [`ResolutionLimitError`] when the input, or a value copied into it, nests
+/// deeper than [`MAX_INPUT_DEPTH`] levels, or the resolved input holds more
+/// than [`MAX_RESOLVED_NODES`] values or [`MAX_RESOLVED_CHARS`] string and key
+/// characters (UTF-16 code units). Only a repeated expansion of the same
+/// referenced value is charged for its contents.
+///
+/// # Example
+///
+/// ```rust
+/// use afd::pipeline::{try_resolve_variables, PipelineContext, ResolutionLimit};
+///
+/// let context = PipelineContext::new(Some(serde_json::json!({"rows": vec![0; 1_000]})));
+/// let once = try_resolve_variables(&serde_json::json!({"a": "$input.rows"}), &context);
+/// assert!(once.is_ok());
+/// let fan_out = serde_json::json!({"a": vec!["$input.rows"; 200]});
+/// let error = try_resolve_variables(&fan_out, &context).unwrap_err();
+/// assert_eq!(error.limit, ResolutionLimit::Nodes);
+/// ```
+pub fn try_resolve_variables(
+    input: &serde_json::Value,
+    context: &PipelineContext,
+) -> Result<serde_json::Value, ResolutionLimitError> {
+    Ok(resolve_bounded(input, context, 0, &mut Budget::new())?.unwrap_or_default())
+}
+
 /// Resolve all variable references in an input value.
 ///
 /// Unresolved references are omitted from objects and become `null` in
 /// arrays; an unresolved top-level reference becomes `null`. Containers
 /// nested deeper than [`MAX_INPUT_DEPTH`] are replaced by `null` (the pipeline
 /// executor rejects such inputs before running any step).
+///
+/// This applies no expansion budget, so repeated references to a large value
+/// copy it in full each time: for input you do not control, use
+/// [`try_resolve_variables`], which the pipeline executor uses.
 pub fn resolve_variables(
     input: &serde_json::Value,
     context: &PipelineContext,

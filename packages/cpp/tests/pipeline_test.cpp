@@ -280,3 +280,30 @@ TEST_CASE("caller cancellation skips queued pipeline steps and preserves complet
         }
     }
 }
+
+TEST_CASE("a step input over the expansion limits fails the step without running it (#1722)") {
+    afd::Json big = afd::Json::array();
+    for (int i = 0; i < 1'000; ++i) {
+        big.push_back(i);
+    }
+    afd::Json fan_out = afd::Json::array();
+    for (int i = 0; i < 200; ++i) {
+        fan_out.push_back("$input.big");
+    }
+    const afd::Json request = {
+        {"input", {{"big", big}}},
+        {"steps", afd::Json::array({{{"command", "echo-run"}, {"input", {{"items", fan_out}}}},
+                                    {{"command", "after-run"}}})}};
+    Calls calls;
+    const auto result = afd::execute_pipeline(request, recorder(calls), {}, {});
+    CHECK(calls.names.empty());
+    REQUIRE(result.steps.size() == 2);
+    CHECK(result.steps[0].status == afd::StepStatus::failure);
+    REQUIRE(result.steps[0].error.has_value());
+    const auto& error = *result.steps[0].error;
+    CHECK(error.code == "VALIDATION_ERROR");
+    CHECK(error.retryable == false);
+    CHECK(error.suggestion.has_value());
+    CHECK(error.details == afd::Json{{"stepIndex", 0}, {"limit", "nodes"}});
+    CHECK(result.steps[1].status == afd::StepStatus::skipped);
+}

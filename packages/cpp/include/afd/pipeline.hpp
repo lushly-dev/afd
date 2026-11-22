@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace afd {
@@ -112,6 +113,32 @@ inline constexpr std::size_t max_pipeline_nesting_depth = 64;
 /// Strings longer than this (in UTF-16 code units) are literals, never references.
 inline constexpr std::size_t max_reference_length = 1024;
 
+/// Values (template nodes and charged copies) one resolved step input may hold.
+inline constexpr std::size_t max_resolved_nodes = 100'000;
+
+/// String and key characters (UTF-16 code units) one resolved step input may hold.
+inline constexpr std::size_t max_resolved_chars = std::size_t{16} * 1024 * 1024;
+
+/// Which limit a step input exceeded (spec/pipeline-variables.md, Limits).
+enum class ResolutionLimit {
+    /// The input, or a value copied into it, nests deeper than `max_pipeline_nesting_depth`.
+    depth,
+    /// More than `max_resolved_nodes` values.
+    nodes,
+    /// More than `max_resolved_chars` string and key characters.
+    chars,
+};
+
+/// Why `resolve_variables` failed.
+struct ResolutionLimitError {
+    ResolutionLimit limit;
+
+    /// The message TypeScript gives for this limit.
+    [[nodiscard]] std::string message() const;
+    /// The limit's name on the wire: "depth", "nodes" or "chars".
+    [[nodiscard]] std::string_view name() const;
+};
+
 /// One pipeline step.
 struct PipelineStep {
     std::string command;
@@ -172,9 +199,16 @@ struct PipelineContext {
 };
 
 /// Resolves every reference in `input` (spec/pipeline-variables.md). Unresolved references are
-/// omitted from objects and become `null` in arrays; `$$` escapes a literal `$`. Fails for input
-/// nested deeper than `max_pipeline_nesting_depth`. A bare unresolved reference resolves to null.
-Expected<Json> resolve_variables(const Json& input, const PipelineContext& context);
+/// omitted from objects and become `null` in arrays; `$$` escapes a literal `$`. Referenced values
+/// are copies. A bare unresolved reference resolves to null.
+///
+/// Fails when `input`, or a value copied into it, nests deeper than `max_pipeline_nesting_depth`
+/// levels, or the resolved input holds more than `max_resolved_nodes` values or
+/// `max_resolved_chars` string and key characters (UTF-16 code units). Only a repeated expansion
+/// of the same referenced value is charged for its contents, so one large step output still flows
+/// through `$prev`.
+Expected<Json, ResolutionLimitError> resolve_variables(const Json& input,
+                                                       const PipelineContext& context);
 
 /// Whether `input` holds a reference to an earlier step's data (`$prev`, `$first` or `$steps`),
 /// so that it is known only when the pipeline runs. `$input` references are known up front.

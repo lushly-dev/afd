@@ -735,6 +735,159 @@ fn test_resolve_variables_never_recurses_past_the_limit() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// EXPANSION LIMITS (spec/pipeline-variables.md, Limits; #1722)
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn limit_of(template: serde_json::Value, context: &PipelineContext) -> ResolutionLimit {
+    try_resolve_variables(&template, context).unwrap_err().limit
+}
+
+fn input_context(input: serde_json::Value) -> PipelineContext {
+    PipelineContext::new(Some(input))
+}
+
+#[test]
+fn test_repeated_fan_out_of_input_is_rejected() {
+    let context = input_context(json!({"big": (0..1_000).collect::<Vec<_>>()}));
+    assert_eq!(
+        limit_of(json!({"items": vec!["$input.big"; 200]}), &context),
+        ResolutionLimit::Nodes
+    );
+}
+
+#[test]
+fn test_a_single_large_reference_is_not_charged() {
+    let context = input_context(json!({"rows": (0..105_000).collect::<Vec<_>>()}));
+    let resolved = try_resolve_variables(&json!({"rows": "$input.rows"}), &context).unwrap();
+    assert_eq!(resolved["rows"].as_array().unwrap().len(), 105_000);
+}
+
+#[test]
+fn test_the_same_step_through_two_references_is_a_repeat() {
+    let mut context = PipelineContext::default();
+    context.push_step(
+        ok_step(0, json!({"rows": (0..110_000).collect::<Vec<_>>()})).with_alias("load"),
+    );
+    assert!(try_resolve_variables(&json!({"a": "$prev.rows"}), &context).is_ok());
+    assert_eq!(
+        limit_of(
+            json!({"a": "$prev.rows", "b": "$steps.load.rows"}),
+            &context
+        ),
+        ResolutionLimit::Nodes
+    );
+}
+
+#[test]
+fn test_prev_reads_previous_result_when_it_differs_from_its_steps_entry() {
+    // A hand-built context: `$prev` is `previous_result`, even beside a matching steps entry.
+    let mut context = PipelineContext::default();
+    context.push_step(ok_step(0, json!(1)));
+    context.previous_result.as_mut().unwrap().data = Some(json!(2));
+    assert_eq!(resolve_variable("$prev", &context), Some(json!(2)));
+    assert_eq!(
+        try_resolve_variables(&json!({"a": "$prev"}), &context).unwrap(),
+        json!({"a": 2})
+    );
+}
+
+#[test]
+fn test_equal_strings_are_charged_as_repeats() {
+    let text = "x".repeat(MAX_RESOLVED_CHARS / 2);
+    let context = input_context(json!({"a": text, "b": text}));
+    assert_eq!(
+        try_resolve_variables(&json!({"a": "$input.a"}), &context).unwrap(),
+        json!({"a": text})
+    );
+    assert_eq!(
+        limit_of(
+            json!({"a": "$input.a", "b": "$input.b", "c": "$input.a"}),
+            &context
+        ),
+        ResolutionLimit::Chars
+    );
+}
+
+#[test]
+fn test_each_unresolved_array_element_costs_a_value() {
+    assert_eq!(
+        limit_of(
+            json!(vec!["$steps.missing"; MAX_RESOLVED_NODES + 5]),
+            &PipelineContext::default()
+        ),
+        ResolutionLimit::Nodes
+    );
+}
+
+#[test]
+fn test_the_node_budget_boundary() {
+    // The array is one value and each literal one more.
+    let context = PipelineContext::default();
+    assert!(try_resolve_variables(&json!(vec!["x"; MAX_RESOLVED_NODES - 1]), &context).is_ok());
+    assert_eq!(
+        limit_of(json!(vec!["x"; MAX_RESOLVED_NODES]), &context),
+        ResolutionLimit::Nodes
+    );
+}
+
+#[test]
+fn test_the_character_budget_boundary_counts_utf16_code_units() {
+    // The key "s" is one character; an astral character is two code units.
+    let fits = format!("{}\u{1F600}", "x".repeat(MAX_RESOLVED_CHARS - 3));
+    let context = PipelineContext::default();
+    assert!(try_resolve_variables(&json!({ "s": fits }), &context).is_ok());
+    assert_eq!(
+        limit_of(json!({ "s": format!("{fits}x") }), &context),
+        ResolutionLimit::Chars
+    );
+}
+
+#[test]
+fn test_a_referenced_value_deeper_than_64_levels_is_rejected() {
+    let context = input_context(json!({"deep": nested_object(MAX_INPUT_DEPTH + 1)}));
+    assert_eq!(
+        limit_of(json!({"leaf": "$input.deep"}), &context),
+        ResolutionLimit::Depth
+    );
+    assert!(try_resolve_variables(&json!({"leaf": "$input.deep.a"}), &context).is_ok());
+}
+
+#[test]
+fn test_a_template_deeper_than_64_levels_is_rejected() {
+    assert_eq!(
+        limit_of(
+            nested_object(MAX_INPUT_DEPTH + 1),
+            &PipelineContext::default()
+        ),
+        ResolutionLimit::Depth
+    );
+}
+
+#[tokio::test]
+async fn test_execute_pipeline_fails_an_over_limit_step_without_running_it() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let executor = counting_executor(calls.clone());
+    let request = PipelineRequest::new(vec![
+        PipelineStep::new("echo-run").with_input(json!({"items": vec!["$input.big"; 200]})),
+        PipelineStep::new("after-run"),
+    ])
+    .with_input(json!({"big": (0..1_000).collect::<Vec<_>>()}));
+
+    let result = execute_pipeline(&request, &executor, None).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(result.steps[0].status, StepStatus::Failure);
+    let error = result.steps[0].error.as_ref().unwrap();
+    assert_eq!(error.code, "VALIDATION_ERROR");
+    assert_eq!(error.retryable, Some(false));
+    assert!(error.suggestion.is_some());
+    let details = error.details.as_ref().unwrap();
+    assert_eq!(details.get("stepIndex"), Some(&json!(0)));
+    assert_eq!(details.get("limit"), Some(&json!("nodes")));
+    assert_eq!(result.steps[1].status, StepStatus::Skipped);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AGGREGATION AND RESULT SHAPES
 // ═══════════════════════════════════════════════════════════════════════════
 
