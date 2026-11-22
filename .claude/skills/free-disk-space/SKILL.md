@@ -84,7 +84,10 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
   removal reach it. A machine that moves it (`CARGO_TARGET_DIR`, or Cargo's `build-dir` on a
   bigger drive) needs an `[[aged]]` folder covering it; `disk-setup` names the entry to add.
 - `disk-report --unclassified` lists ignored paths no pattern covers: the way to finish a
-  repository's list.
+  repository's list. Such a path keeps tier 2 from removing its worktree, so name build output
+  and leave state unnamed. Name a build-info file with its output (`**/*.tsbuildinfo` with
+  `**/dist`): `tsc` emits nothing when its build info survives the output it describes. Keep
+  `tsBuildInfoFile` out of `node_modules`, where no pattern reaches.
 
 ## Setting up a machine
 

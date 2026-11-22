@@ -21,6 +21,10 @@ venv/
 .eggs/
 *.egg-info/
 *.egg
+# Each ignores itself with a `*` inside, which leaves the folder itself unignored to git
+# check-ignore, so botcore's disk-reclaim would refuse to strip it
+.pytest_cache/
+.ruff_cache/
 
 # IDE
 .idea/
