@@ -22,13 +22,16 @@
  *   node scripts/commit-credit.mjs --push-event       Actions (main-credit.yml): every commit a
  *                                                     push to main brought, from the event at
  *                                                     GITHUB_EVENT_PATH; any Co-authored-by line
- *                                                     but the author's own fails, since GitHub
- *                                                     writes one into a squash message after
- *                                                     ci-ok has checked the branch
+ *                                                     but the author's own fails: this checks
+ *                                                     what landed, whatever path it took. On a
+ *                                                     failure it reads how main's queue merges,
+ *                                                     to name the fix: GITHUB_REPOSITORY,
+ *                                                     GITHUB_REF_NAME, GITHUB_API_URL and, if
+ *                                                     set, GITHUB_TOKEN
  *   node scripts/commit-credit.mjs --merge-group      Actions (ci-ok, on a merge queue's commit):
  *                                                     every commit the merge group holds that
- *                                                     its target branch does not, the squash
- *                                                     GitHub wrote for it and for each pull
+ *                                                     its target branch does not, as the queue
+ *                                                     will land them, for it and for each pull
  *                                                     request queued ahead; any Co-authored-by
  *                                                     line but the author's own fails.
  *                                                     GITHUB_TOKEN, GITHUB_REPOSITORY, BASE_REF
@@ -91,9 +94,9 @@ function agentIdentities(commit) {
 /**
  * Every way one commit on main credits anyone but its author: an agent as its author or
  * committer, and any co-author line, a person's included, except one that names the commit's own
- * author by the same address. That line credits nobody else, and GitHub writes it into the
- * queue's squash of a pull request `github-actions` opened, whose commit `github-actions[bot]`
- * authored (#1590 on 2026-11-20).
+ * author by the same address. That line credits nobody else, and GitHub writes it into a
+ * squash of a pull request `github-actions` opened, whose commit `github-actions[bot]` authored
+ * (#1590 on 2026-11-20).
  */
 export function mainProblems(commit) {
 	const found = agentIdentities(commit);
@@ -202,11 +205,12 @@ export const QUEUE_FIX = [
 
 /**
  * The commits a merge group holds that its target branch does not, oldest first, in the shape
- * `mainProblems` reads: the squash GitHub wrote for each queued pull request, which exists
- * nowhere before the queue builds it. The base is the branch (`refs/heads/main`), not the commit
- * the group was built on: a group is built on the groups ahead of it, and a queue set to merge
- * past a failing entry would land those squashes on this group's verdict. A list that may be
- * partial, or a group that is not the branch plus commits, is refused rather than checked in part.
+ * `mainProblems` reads: each queued pull request's commit as the queue will land it (rebased,
+ * or a squash GitHub wrote), which exists nowhere before the queue builds it. The base is the
+ * branch (`refs/heads/main`), not the commit the group was built on: a group is built on the
+ * groups ahead of it, and a queue set to merge past a failing entry would land those commits on
+ * this group's verdict. A list that may be partial, or a group that is not the branch plus
+ * commits, is refused rather than checked in part.
  */
 export async function mergeGroupCommits({
 	repository,
@@ -280,10 +284,14 @@ export async function queueMergeMethod({
 	api = 'https://api.github.com',
 	fetchImpl = fetch,
 }) {
-	if (!branch) throw new Error("GITHUB_BASE_REF must name the pull request's base branch");
+	if (!branch)
+		throw new Error('no branch named whose rules to read (GITHUB_BASE_REF on a pull request)');
 	const url = `${api}/repos/${repository}/rules/branches/${encodeURIComponent(branch)}?per_page=100`;
 	const response = await fetchImpl(url, {
-		headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+		headers: {
+			accept: 'application/vnd.github+json',
+			...(token ? { authorization: `Bearer ${token}` } : {}),
+		},
 	});
 	if (!response.ok) throw new Error(`${url}: ${response.status} ${await response.text()}`);
 	const rules = await response.json();
@@ -328,6 +336,47 @@ export const REBASE_FIX = [
 	'  a co-author line: main would receive it; replace it with an email-free "Assisted-by: <agent>"',
 	'  trailer (git commit --amend), and make the owner the author',
 ].join('\n');
+
+/** What a co-author on main means when the queue rebases: a commit carried the line. */
+export const MAIN_REBASE_FIX = [
+	'A commit on main credits a co-author. Main is not rewritten, so fix the path that wrote it:',
+	'  the merge queue rebases, so main receives each commit as it is: the line was in the commit',
+	'  itself; write an email-free "Assisted-by: <agent>" trailer instead from now on',
+	"  ci-ok refuses such a commit in the pull request and in the queue (prepare-pr's step 9), so",
+	'  this one went around the queue or landed while the queue was off: never merge with --admin',
+].join('\n');
+
+/** What a co-author in a merge group means when the queue rebases. */
+export const QUEUE_REBASE_FIX = [
+	'A commit the merge queue built credits a co-author, and main would receive it. The queue rebases:',
+	"it lands the pull request's own commit as it is, so the line is in that commit's message.",
+	'The pull request has left the queue. Before queueing it again:',
+	'  replace the line with an email-free "Assisted-by: <agent>" trailer (git commit --amend),',
+	'  make the owner the author, fold the branch with pnpm branch:squash and push',
+].join('\n');
+
+/**
+ * The fix for a co-author on main (`--push-event`) or in a merge group (`--merge-group`), by how
+ * main's queue merges: a squash GitHub wrote, or a rebase that lands the commit as it is. A method
+ * that could not be read (`undefined`) gives both, each under its case; the verdict never depends
+ * on it.
+ */
+export function onMainFix(method, inQueue) {
+	const squash = inQueue ? QUEUE_FIX : MAIN_FIX;
+	const rebase = inQueue ? QUEUE_REBASE_FIX : MAIN_REBASE_FIX;
+	if (method === 'REBASE') return rebase;
+	if (method !== undefined) return squash;
+	return `If main's merge queue squashes:\n${squash}\nIf it rebases:\n${rebase}`;
+}
+
+async function readMethodQuietly({ repository, branch, token, api }) {
+	try {
+		return await queueMergeMethod({ repository, branch, token, api });
+	} catch (error) {
+		console.error(`commit-credit: how main's queue merges could not be read: ${error.message}`);
+		return undefined;
+	}
+}
 
 async function main(argv) {
 	const at = argv.indexOf('--message');
@@ -390,7 +439,18 @@ async function main(argv) {
 			console.error(`commit-credit: ${commit.sha ? `${commit.sha.slice(0, 8)} ` : ''}${problem}`);
 		}
 	}
-	if (failed) console.error(inQueue ? QUEUE_FIX : onMain ? MAIN_FIX : FIX);
+	if (failed && onMain) {
+		const { GITHUB_REPOSITORY, GITHUB_TOKEN, GITHUB_API_URL, BASE_REF, GITHUB_REF_NAME } =
+			process.env;
+		const branch = (inQueue ? BASE_REF : GITHUB_REF_NAME)?.replace(/^refs\/heads\//, '');
+		const found = await readMethodQuietly({
+			repository: GITHUB_REPOSITORY,
+			branch,
+			token: GITHUB_TOKEN,
+			api: GITHUB_API_URL || 'https://api.github.com',
+		});
+		console.error(onMainFix(found, inQueue));
+	} else if (failed) console.error(FIX);
 	else if (onMain)
 		console.log(`commit-credit: ${commits.length} commit(s) credit only their authors`);
 	else console.log(`commit-credit: ${commits.length} commit(s) credit only people`);

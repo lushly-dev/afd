@@ -185,8 +185,8 @@ class MergeProgress:
     #: required check failed on the queue's commit, or another word of GitHub's.
     removed_at: str = ""
     removal_reason: str = ""
-    #: The commit the queue had built for it when it let it go: the pull request squashed, with
-    #: the message GitHub wrote, onto the base and whatever was queued ahead (the removal
+    #: The commit the queue had built for it when it let it go: the pull request rebased or
+    #: squashed, by the queue's method, onto the base and whatever was queued ahead (the removal
     #: event's ``beforeCommit``; read on lushly-dev/afd#1621, whose squash carried the
     #: ``Co-authored-by:`` line its group failed for).
     removed_commit: str = ""
@@ -285,7 +285,7 @@ class GitHub(Protocol):
         ...
 
     def commit_message(self, commit: str) -> str:
-        """The full message of ``commit`` (a merge queue's squash commit)."""
+        """The full message of ``commit`` (the commit a merge queue built)."""
         ...
 
     def pr_state(self, pr: int) -> str:

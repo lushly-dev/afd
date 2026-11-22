@@ -158,7 +158,7 @@ class Merging(Advancing):
         if progress.removal_reason.strip().lower() == "merged":
             # Open, and its last removal from a merge queue says ``merged``: GitHub logs that a
             # second before the pull request reads as merged, and a merged pull request never
-            # reopens. Asking again would find main moved by this pull request's own squash
+            # reopens. Asking again would find main moved by this pull request's own merge
             # and validate it again; it waits for ``MERGED`` instead.
             self.enter_queue(entry, progress, "")
             entry["mergeQueue"]["queue"] = True
@@ -365,9 +365,10 @@ class Merging(Advancing):
         entry's head as last read). When GitHub says the queue's checks failed
         (``failed_checks``), or the required check failed on that commit, the branch failed a
         check and is ejected as ``ci-failed``.
-        A ``Co-authored-by:`` line in the squash the queue wrote is named: GitHub adds one for
-        every commit author who is not the pull request's, and a base that refuses co-authors
-        fails the check for that alone, whatever the branch's code does. Anything else (a
+        A ``Co-authored-by:`` line in the commit the queue built is named: a rebasing queue keeps
+        the branch's own message, a squashing one adds a line for every commit author who is not
+        the pull request's, and a base that refuses co-authors fails the check for that alone,
+        whatever the branch's code does. Anything else (a
         conflict in the queue, a person removing it, a reason GitHub does not give) is
         ``merge-failed``: GitHub refused the merge, and the branch may not need to change.
         """
@@ -398,10 +399,11 @@ class Merging(Advancing):
             credited = [line.strip() for line in _CO_AUTHOR.findall(message)]
             if credited:
                 detail += (
-                    f": the squash message the queue wrote carries `{credited[0]}`, which a "
-                    "check that refuses co-authors fails. GitHub adds one for each commit author "
-                    "who is not the pull request's: author every commit of the branch as the "
-                    "pull request's author, and take any such line out of its commit messages"
+                    f": the commit the queue built carries `{credited[0]}`, which a check that "
+                    "refuses co-authors fails. A rebasing queue lands the branch's own message; a "
+                    "squashing one adds a line for each commit author who is not the pull "
+                    "request's: take any such line out of the branch's commit messages, and "
+                    "author every commit of the branch as the pull request's author"
                 )
             elif reason:
                 detail += f" ({reason})"

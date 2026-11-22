@@ -3,14 +3,15 @@
  * Sets the git identity the version pull request's commit is made with to that pull request's
  * author, so the commit and the pull request have one author.
  *
- * `main` merges through a merge queue, and GitHub writes the queue's squash. It adds a
- * `Co-authored-by:` line for a branch commit whose author is not the pull request's, and `ci-ok`
- * refuses that line on the queue's commit (`scripts/commit-credit.mjs --merge-group`). The
- * Changesets action commits with whatever identity git already has, and with
+ * `main` merges through a merge queue, and however it merges, the commit and the pull request
+ * must name one author: a rebasing queue (#1809) lands the commit as it is, so its author is who
+ * `main` credits, and a squashing one adds a `Co-authored-by:` line for a branch commit whose
+ * author is not the pull request's, which `ci-ok` refuses (`scripts/commit-credit.mjs
+ * --merge-group`). The Changesets action commits with whatever identity git already has, and with
  * `github-actions[bot]` when it has none. That matches a pull request GITHUB_TOKEN opened. It does
  * not match one the release App opened, which every release would then fail on (#1624). Even when
- * they match, GitHub adds a line naming the bot author itself (#1590's squash, 2026-11-20), which
- * credits nobody else and which `commit-credit.mjs` allows.
+ * they match, a squash gains a line naming the bot author itself (#1590's squash, 2026-11-20),
+ * which credits nobody else and which `commit-credit.mjs` allows.
  *
  * The identity follows the pull request, not the token: the action force-pushes a new commit to
  * the open version pull request on every push to `main`, and that pull request keeps the author
@@ -62,12 +63,12 @@ export function chooseAuthor({ openPr = null, app = null }) {
 		};
 	}
 	if (openPr) {
-		// A person's commits are theirs to make. The queue will refuse this pull request with a
-		// co-author line; the message says how to get one this workflow opened.
+		// A person's commits are theirs to make. The author check refuses this pull request; the
+		// message says how to get one this workflow opened.
 		return {
 			...identity(ACTIONS_BOT),
 			reason: `pull request #${openPr.number} was opened by ${openPr.login}, not by a bot`,
-			warning: `Version pull request #${openPr.number} was opened by ${openPr.login}. Its commit is made as ${ACTIONS_BOT.login}, so the merge queue's squash will carry a Co-authored-by line and ci-ok will refuse it. Close that pull request and delete its branch; the next push to main opens one this workflow authors.`,
+			warning: `Version pull request #${openPr.number} was opened by ${openPr.login}. Its commit is made as ${ACTIONS_BOT.login}, not as the pull request's author, so this workflow's author check fails it (a squashing queue would also add a Co-authored-by line, which ci-ok refuses). Close that pull request and delete its branch; the next push to main opens one this workflow authors.`,
 		};
 	}
 	if (app) {
@@ -158,8 +159,9 @@ export async function setAuthor(env, { get = read, git = gitConfig, log = consol
 }
 
 /**
- * Every commit on the open version pull request that GitHub credits to anyone but its author: the
- * commits the queue's squash would name in a Co-authored-by line.
+ * Every commit on the open version pull request that GitHub credits to anyone but its author: a
+ * rebase would land them under someone who did not open it, and a squash would name them in a
+ * Co-authored-by line.
  */
 export async function verifyAuthor(env, { get = read, log = console.log } = {}) {
 	const { repository, base, token } = facts(env);
@@ -184,7 +186,8 @@ export async function verifyAuthor(env, { get = read, log = console.log } = {}) 
 }
 
 const VERIFY_FIX = [
-	"The merge queue's squash would carry a Co-authored-by line for each, and ci-ok refuses it.",
+	'Each would land under an author who did not open the pull request (a squashing queue adds a',
+	'Co-authored-by line for each, which ci-ok refuses).',
 	'The next push to main rewrites the commit with the identity this workflow reads then; if it',
 	'still differs, the Changesets action no longer commits with the identity git holds, or a',
 	'person opened the pull request (close it, delete its branch, and let this workflow open one).',

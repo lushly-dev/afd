@@ -520,7 +520,7 @@ test('a merge group is compared with the commit the queue built it on', (t) => {
 	};
 	git(['init', '-b', 'main']);
 	commit('base');
-	// The queue's branch: the squash of one pull request, then of the next.
+	// The queue's branch: the commit of one pull request, then of the next.
 	git(['switch', '-c', 'queue']);
 	write('packages/core/src/index.ts', 'export const first = 1;');
 	commit('first in the queue (#1)');

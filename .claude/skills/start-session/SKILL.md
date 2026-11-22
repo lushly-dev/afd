@@ -61,7 +61,7 @@ the SHA, never `git pull`, so the base you report is the one you merged. If the
 harness has its own base-sync tool, merge with that instead.
 
 - **Diverged:** don't force it. Run the landing check: the commits may be
-  squash-merged already, another task's unlanded work, or real WIP. Report which;
+  merged already (the queue lands new commits), another task's unlanded work, or real WIP. Report which;
   new work usually gets a fresh branch off `origin/main`.
 - **Branch carries task work:** `pnpm base:sync` at natural checkpoints instead
   (`prepare-pr` step 1 says what it reports).
@@ -84,7 +84,7 @@ git diff origin/main HEAD -- <those files>
 Empty means landed; otherwise it has not landed or `main` moved past it, so read the
 diff. These don't answer it:
 
-- `git rev-list origin/main..HEAD` or `git cherry`: ambiguous after a squash merge.
+- `git rev-list origin/main..HEAD` or `git cherry`: ambiguous after a merge: the queue lands a new commit.
 - A missing remote branch: head branches are deleted on merge, but a never-pushed or
   hand-deleted branch looks the same. Find the PR
   (`gh pr list --state all --head <branch>`) and read

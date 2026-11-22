@@ -46,8 +46,9 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
 `pr-closed`, `ci-failed` (the required check failed on the pull request's head or, behind a
 merge queue, on the commit the queue built for it: `detail` names that commit, and a
-`Co-authored-by:` line in the squash the queue wrote when there is one, which GitHub adds for
-every commit author who is not the pull request's), `merge-failed` (GitHub
+`Co-authored-by:` line that commit carries when there is one: the branch's own under a queue
+that rebases, or one a squashing queue adds for every commit author who is not the pull
+request's), `merge-failed` (GitHub
 refused the merge, or the pull request left the merge queue unmerged for another reason, which
 `detail` gives when GitHub does), `review-unverified`, `node-missing` (the branch's own
 `.nvmrc` names a Node the lane host lacks, or an alias, or the branch deletes or blanks
@@ -125,13 +126,13 @@ head if the queue has let that head go meanwhile (queued, merged or about to rea
 it is taken up instead), and `lane_host_set(recover)` rebuilds every queue ref as `queued`, so
 a pull request in GitHub's queue is validated again and its push refused by the branch lock,
 and one the queue already merged is never recorded as landed: recover a host only once
-GitHub's queue holds none of the lane's pull requests. The queue writes the
-squash message itself: in the trials a pull request of one commit kept that commit's message,
-and any other got the pull request's title as its subject and each commit's message below. The
-lane's fold makes every branch it pushes one commit, so the folded message lands. GitHub adds
-`Co-authored-by:` for every commit author who is not the pull request's, so the fold, and the
-lane's merges of the base before it, are authored as the branch's own author (its newest own
-commit's), whatever the host's git identity is.
+GitHub's queue holds none of the lane's pull requests. The queue merges by its own method:
+AFD's rebases (lushly-dev/afd#1809), landing each of the pull request's own commits as it is,
+and a squashing queue kept a single commit's message in the trials. The lane's fold makes every
+branch it pushes one commit, so the folded message lands either way, authored as the branch's
+own author (its newest own commit's), whatever the host's git identity is; the lane's merges of
+the base before it are authored so too, since a squashing queue adds `Co-authored-by:` for
+every commit author who is not the pull request's.
 Coverage runs on the base every `lane.coverageEvery` merges and at
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
 that advanced without a new validation (either way) the lane watches the check runs and
