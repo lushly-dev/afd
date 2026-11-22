@@ -266,7 +266,7 @@ export const SUITES = [
 	{
 		workflow: 'loam-plugins.yml',
 		tools: ['cargo'],
-		remote: 'Linux',
+		remote: 'Linux, and the release-profile test-doubles check',
 		steps: [
 			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo fmt --check' },
 			{
@@ -277,7 +277,17 @@ export const SUITES = [
 			{
 				gate: 'mail',
 				cwd: 'endpoints/loam/plugins/mail/engine',
+				run: 'cargo clippy --locked --all-targets --features test-doubles -- -D warnings',
+			},
+			{
+				gate: 'mail',
+				cwd: 'endpoints/loam/plugins/mail/engine',
 				run: 'cargo test --no-fail-fast --locked',
+			},
+			{
+				gate: 'mail',
+				cwd: 'endpoints/loam/plugins/mail/engine',
+				run: 'cargo test --no-fail-fast --locked --features test-doubles',
 			},
 		],
 	},

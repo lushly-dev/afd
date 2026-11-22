@@ -30,7 +30,7 @@ fn setup() -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let home = Home::at(dir.path().join("mail"));
     let engine = Arc::new(Engine::new(Some(home.clone())));
-    let registry = Arc::new(loam_mail::registry(&engine).unwrap());
+    let registry = loam_mail::registry(&engine).unwrap();
     engine.open_store().unwrap();
     Setup {
         _dir: dir,
@@ -556,7 +556,7 @@ async fn the_command_line_forwards_to_a_running_server_and_the_server_cleans_up(
     drop(setup.engine);
     drop(setup.registry);
     let engine = Arc::new(Engine::new(Some(home.clone())));
-    let registry = Arc::new(loam_mail::registry(&engine).unwrap());
+    let registry = loam_mail::registry(&engine).unwrap();
     // Files a killed server left: the new server removes them before it
     // writes its own.
     std::fs::write(server_file(&home), r#"{"pid":1,"port":1}"#).unwrap();
@@ -644,7 +644,7 @@ async fn a_request_to_end_that_came_while_the_server_started_stops_it_before_it_
     let dir = tempfile::tempdir().unwrap();
     let home = Home::at(dir.path().join("mail"));
     let engine = Arc::new(Engine::new(Some(home.clone())));
-    let registry = Arc::new(loam_mail::registry(&engine).unwrap());
+    let registry = loam_mail::registry(&engine).unwrap();
     loam_mail::serve::serve(engine, registry, 0, async {}, |_| {
         panic!("it announced a server")
     })
@@ -702,7 +702,7 @@ async fn mcp_over_stdio_refuses_a_store_a_server_owns_and_names_it() {
     let setup = setup();
     std::fs::write(server_file(&setup.home), r#"{"pid":1,"port":4321}"#).unwrap();
     let other = Engine::new(Some(setup.home.clone()));
-    let registry = Arc::new(loam_mail::registry(&Arc::new(Engine::new(None))).unwrap());
+    let registry = loam_mail::registry(&Arc::new(Engine::new(None))).unwrap();
     let refused = loam_mail::serve::serve_stdio(&Arc::new(other), registry)
         .await
         .unwrap_err();

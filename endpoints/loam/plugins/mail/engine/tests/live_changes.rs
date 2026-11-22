@@ -193,7 +193,7 @@ type Places = Vec<(String, bool, i64, String)>;
 
 struct Run {
     engine: Arc<Engine>,
-    registry: CommandRegistry,
+    registry: Arc<CommandRegistry>,
     account: AccountRow,
     mailbox: String,
     database: std::path::PathBuf,

@@ -6,11 +6,14 @@
 //! request, stall without replying) so tests can verify exact wire format,
 //! redirect refusal, error mapping, and `SEND_OUTCOME_UNKNOWN`.
 
-#![allow(dead_code, clippy::expect_used, clippy::unwrap_used)]
+#![allow(dead_code, missing_docs, clippy::expect_used, clippy::unwrap_used)]
 
+use std::io::Write;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -43,6 +46,8 @@ pub struct HttpWorld {
     pub received: Vec<ReceivedHttpRequest>,
     pub behavior: HttpBehavior,
     pub connections: usize,
+    /// Optional path to a `received.jsonl` file appended on every received request.
+    pub received_log: Option<PathBuf>,
 }
 
 impl Default for HttpWorld {
@@ -54,6 +59,7 @@ impl Default for HttpWorld {
                 body: "ok".to_string(),
             },
             connections: 0,
+            received_log: None,
         }
     }
 }
@@ -148,17 +154,54 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<HttpWorld>>) {
         return;
     }
 
-    let behavior = {
+    let (behavior, log_failed) = {
         let mut guard = world.lock().unwrap();
-        guard.received.push(ReceivedHttpRequest {
+        let req = ReceivedHttpRequest {
             method,
             target,
             host,
             content_type,
             body,
-        });
-        guard.behavior.clone()
+        };
+        let mut log_failed = false;
+        if let Some(path) = &guard.received_log {
+            let digest: String = Sha256::digest(&req.body)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            let entry = serde_json::json!({
+                "kind": "http",
+                "method": req.method,
+                "target": req.target,
+                "host": req.host,
+                "bodyDigest": digest,
+                "bytes": req.body.len(),
+            });
+            let mut line = entry.to_string();
+            line.push('\n');
+            let logged = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .and_then(|mut file| {
+                    file.write_all(line.as_bytes())?;
+                    file.flush()
+                });
+            if logged.is_err() {
+                log_failed = true;
+            }
+        }
+        guard.received.push(req);
+        (guard.behavior.clone(), log_failed)
     };
+
+    if log_failed {
+        let response =
+            "HTTP/1.1 500 Receipt Log Failed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        let _ = write.write_all(response.as_bytes()).await;
+        let _ = write.shutdown().await;
+        return;
+    }
 
     match behavior {
         HttpBehavior::Status { status, body } => {

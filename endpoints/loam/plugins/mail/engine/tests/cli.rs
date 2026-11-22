@@ -50,7 +50,16 @@ fn help_is_the_default_and_names_the_program() {
 fn version_prints_the_crate_version() {
     let (status, out, _) = run_with(&["version"]);
     assert_eq!(status, EXIT_OK);
-    assert_eq!(out, format!("loam-mail {}\n", env!("CARGO_PKG_VERSION")));
+    let expected = if loam_mail::BUILD_FEATURES.is_empty() {
+        format!("loam-mail {}\n", env!("CARGO_PKG_VERSION"))
+    } else {
+        format!(
+            "loam-mail {} (features: {})\n",
+            env!("CARGO_PKG_VERSION"),
+            loam_mail::BUILD_FEATURES.join(", ")
+        )
+    };
+    assert_eq!(out, expected);
 }
 
 #[test]

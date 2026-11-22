@@ -64,7 +64,7 @@ pub use stories::{
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
 };
-pub use tokens::TokenRow;
+pub use tokens::{TokenRole, TokenRow};
 
 use std::fmt;
 

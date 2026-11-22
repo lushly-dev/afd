@@ -24,6 +24,13 @@ expect_used = "warn"
 [lib]
 name = "loam_mail"
 
+[features]
+default = []
+# Scripted IMAP/SMTP/HTTP servers, file-backed sign-ins, loopback endpoint
+# overrides and `loam-mail test-world` for cross-process tests (plugin.spec.md
+# section 12.4). Never enabled in release builds (enforced by compile_error!).
+test-doubles = []
+
 [[bin]]
 name = "loam-mail"
 path = "src/main.rs"

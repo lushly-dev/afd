@@ -30,7 +30,7 @@ struct Fixture {
     _directory: tempfile::TempDir,
     _server: Server,
     engine: Arc<Engine>,
-    registry: CommandRegistry,
+    registry: Arc<CommandRegistry>,
 }
 
 impl Fixture {

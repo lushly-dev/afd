@@ -67,7 +67,7 @@ struct Fixture {
     a: Server,
     b: Server,
     engine: Arc<Engine>,
-    registry: CommandRegistry,
+    registry: Arc<CommandRegistry>,
 }
 
 impl Fixture {
@@ -363,7 +363,7 @@ async fn an_account_and_its_own_mail_go_and_mail_another_account_shows_stays() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn on_a_server_removal_waits_for_no_work_and_leaves_a_rebuild_to_it() {
     let fixture = Fixture::new();
-    let registry = Arc::new(loam_mail::registry(&fixture.engine).unwrap());
+    let registry = loam_mail::registry(&fixture.engine).unwrap();
     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
     let server = tokio::spawn(loam_mail::serve::serve(
         Arc::clone(&fixture.engine),

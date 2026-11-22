@@ -19,6 +19,7 @@ const MOST_REPLY: usize = 8 * 1024 * 1024;
 pub struct Server {
     port: u16,
     token: String,
+    transport: Option<String>,
 }
 
 impl Server {
@@ -30,6 +31,7 @@ impl Server {
         Some(Self {
             port: entry.port,
             token: token.trim().to_string(),
+            transport: entry.transport,
         })
     }
 
@@ -37,6 +39,13 @@ impl Server {
     #[must_use]
     pub fn port(&self) -> u16 {
         self.port
+    }
+
+    /// The server's transport label, defaulting to `"real"` for older
+    /// `server.json` files without the field.
+    #[must_use]
+    pub fn transport(&self) -> &str {
+        self.transport.as_deref().unwrap_or("real")
     }
 
     /// Sends `call` and returns the command's result, or a failure in the

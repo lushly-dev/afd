@@ -13,7 +13,7 @@ use serde_json::json;
 use crate::engine::Engine;
 use crate::provider::ProviderError;
 use crate::secrets::account_key;
-use crate::store::{AccountRow, MailboxRow, MailboxStatus, RebuildProgress, StoreError};
+use crate::store::{AccountRow, MailboxRow, MailboxStatus, RebuildProgress, StoreError, TokenRole};
 use crate::sync::{AccountReport, SyncError, sync_account};
 use crate::work::Accounts;
 
@@ -484,6 +484,18 @@ impl CommandHandler for Status {
             // What awaits the person: the newest proposals, with their
             // command, counts and proposer (9.4).
             let tokens = store.tokens()?;
+            let agent_tokens = tokens
+                .iter()
+                .filter(|token| token.role == TokenRole::Agent)
+                .count();
+            let approver_tokens = tokens
+                .iter()
+                .filter(|token| token.role == TokenRole::Approver)
+                .count();
+            let token_counts = json!({
+                "agents": agent_tokens,
+                "approvers": approver_tokens,
+            });
             let mut waiting = Vec::new();
             for row in store.proposals(None, PROPOSALS_SHOWN)? {
                 let counts = store.operation_counts(row.id)?;
@@ -519,25 +531,35 @@ impl CommandHandler for Status {
                     "error": row.error,
                 })).collect::<Vec<_>>(),
             });
-            Ok((result, stale, screening, operations, outbound))
+            Ok((result, stale, screening, operations, outbound, token_counts))
         });
         match read {
-            Ok((accounts, stale, screening, operations, outbound)) => success(json!({
-                "accounts": accounts,
-                // Messages an older derivation read, waiting to be read again.
-                "stale": stale,
-                // Whether classes can be read, the queue, suggestions waiting
-                // and recent blocks (the specification's 7.3).
-                "screening": screening,
-                // What a running server carries on; null without one.
-                "work": self.engine.work().status(),
-                // Changes to mail at the provider that run now, that stopped
-                // before their end and can be resumed (9.1), and that wait
-                // for the person's approval (9.4).
-                "operations": operations,
-                // Outbound sends whose outcome is unknown (9.5).
-                "outbound": outbound,
-            })),
+            Ok((accounts, stale, screening, operations, outbound, token_counts)) => {
+                #[cfg_attr(not(feature = "test-doubles"), allow(unused_mut))]
+                let mut payload = json!({
+                    "accounts": accounts,
+                    // Messages an older derivation read, waiting to be read again.
+                    "stale": stale,
+                    // Whether classes can be read, the queue, suggestions waiting
+                    // and recent blocks (the specification's 7.3).
+                    "screening": screening,
+                    // What a running server carries on; null without one.
+                    "work": self.engine.work().status(),
+                    // Changes to mail at the provider that run now, that stopped
+                    // before their end and can be resumed (9.1), and that wait
+                    // for the person's approval (9.4).
+                    "operations": operations,
+                    // Outbound sends whose outcome is unknown (9.5).
+                    "outbound": outbound,
+                    // Counts of configured MCP tokens by role (plugin.spec.md 4.3).
+                    "tokens": token_counts,
+                });
+                #[cfg(feature = "test-doubles")]
+                if let Some(obj) = payload.as_object_mut() {
+                    obj.insert("build".to_string(), json!({ "testDoubles": true }));
+                }
+                success(payload)
+            }
             Err(error) => failure(store_failure(&error)),
         }
     }

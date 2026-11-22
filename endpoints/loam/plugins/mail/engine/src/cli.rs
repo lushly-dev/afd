@@ -185,7 +185,16 @@ pub fn run_on(
             Ok(EXIT_OK)
         }
         Some("version" | "--version" | "-V") => {
-            writeln!(out, "{PROGRAM} {}", env!("CARGO_PKG_VERSION"))?;
+            if crate::BUILD_FEATURES.is_empty() {
+                writeln!(out, "{PROGRAM} {}", env!("CARGO_PKG_VERSION"))?;
+            } else {
+                writeln!(
+                    out,
+                    "{PROGRAM} {} (features: {})",
+                    env!("CARGO_PKG_VERSION"),
+                    crate::BUILD_FEATURES.join(", ")
+                )?;
+            }
             Ok(EXIT_OK)
         }
         Some(name) if exposed(registry, name) => {
@@ -213,6 +222,129 @@ fn exposed(registry: &CommandRegistry, name: &str) -> bool {
         .any(|command| command.name == name && command.expose.cli)
 }
 
+/// Parses command arguments: an optional JSON object input, plus `--out <file>`
+/// for `mail-token-create` alone (plugin.spec.md, section 4.1).
+fn parse_command_args(
+    name: &str,
+    rest: &[String],
+    err: &mut dyn Write,
+) -> std::io::Result<Result<(serde_json::Value, Option<std::path::PathBuf>), u8>> {
+    let mut json_arg: Option<&str> = None;
+    let mut out_path: Option<std::path::PathBuf> = None;
+    let mut index = 0;
+    while index < rest.len() {
+        let arg = &rest[index];
+        if arg == "--out" {
+            if name != crate::tokens::CREATE {
+                writeln!(
+                    err,
+                    "{PROGRAM}: `--out` is only supported for `{}`.",
+                    crate::tokens::CREATE
+                )?;
+                return Ok(Err(EXIT_USAGE));
+            }
+            if out_path.is_some() {
+                writeln!(err, "{PROGRAM}: `--out` may be given only once.")?;
+                return Ok(Err(EXIT_USAGE));
+            }
+            let Some(path) = rest.get(index + 1) else {
+                writeln!(err, "{PROGRAM}: `--out` requires a file path.")?;
+                return Ok(Err(EXIT_USAGE));
+            };
+            if path.is_empty() {
+                writeln!(err, "{PROGRAM}: `--out` requires a non-empty file path.")?;
+                return Ok(Err(EXIT_USAGE));
+            }
+            out_path = Some(std::path::PathBuf::from(path));
+            index += 2;
+            continue;
+        }
+        if json_arg.is_some() {
+            writeln!(
+                err,
+                "{PROGRAM}: `{name}` takes one input, a JSON object in quotes."
+            )?;
+            return Ok(Err(EXIT_USAGE));
+        }
+        json_arg = Some(arg.as_str());
+        index += 1;
+    }
+    let input = match json_arg {
+        None => serde_json::Value::Object(serde_json::Map::new()),
+        Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {
+            Ok(input @ serde_json::Value::Object(_)) => input,
+            _ => {
+                writeln!(err, "{PROGRAM}: the input of `{name}` is a JSON object.")?;
+                return Ok(Err(EXIT_USAGE));
+            }
+        },
+    };
+    Ok(Ok((input, out_path)))
+}
+
+/// Checks whether `--out <path>` can be used on this platform and that no file
+/// exists there yet, before asking the person or creating a token.
+fn check_token_out_path(path: &std::path::Path, err: &mut dyn Write) -> std::io::Result<bool> {
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        writeln!(
+            err,
+            "{PROGRAM}: `--out` is refused on this platform because owner-only file access lists are not yet supported; omit `--out` to print the token once."
+        )?;
+        Ok(false)
+    }
+    #[cfg(unix)]
+    {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.is_dir()
+        {
+            writeln!(
+                err,
+                "{PROGRAM}: parent directory `{}` does not exist for `--out`.",
+                parent.display()
+            )?;
+            return Ok(false);
+        }
+        match std::fs::symlink_metadata(path) {
+            Ok(_) => {
+                writeln!(
+                    err,
+                    "{PROGRAM}: `{}` already exists; `--out` refuses to overwrite an existing file.",
+                    path.display()
+                )?;
+                Ok(false)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+            Err(error) => {
+                writeln!(
+                    err,
+                    "{PROGRAM}: cannot inspect `{}`: {error}",
+                    path.display()
+                )?;
+                Ok(false)
+            }
+        }
+    }
+}
+
+/// Reserves a brand-new `0600` file at `path` (atomically via `create_new(true)`)
+/// before issuing the token so concurrent creation or permission errors fail
+/// before any active credential is created.
+#[cfg(unix)]
+fn reserve_token_out_file(path: &std::path::Path) -> std::io::Result<std::fs::File> {
+    crate::home::private_file().create_new(true).open(path)
+}
+
+/// Writes `secret` into a previously reserved `0600` file and syncs it to disk.
+#[cfg(unix)]
+fn finish_token_out_file(file: &mut std::fs::File, secret: &str) -> std::io::Result<()> {
+    file.write_all(secret.as_bytes())?;
+    file.sync_all()?;
+    Ok(())
+}
+
 /// Runs one command through the registry and prints its result as JSON.
 fn run_command(
     name: &str,
@@ -223,23 +355,15 @@ fn run_command(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> std::io::Result<u8> {
-    let input = match rest {
-        [] => serde_json::Value::Object(serde_json::Map::new()),
-        [input] => match serde_json::from_str::<serde_json::Value>(input) {
-            Ok(input @ serde_json::Value::Object(_)) => input,
-            _ => {
-                writeln!(err, "{PROGRAM}: the input of `{name}` is a JSON object.")?;
-                return Ok(EXIT_USAGE);
-            }
-        },
-        _ => {
-            writeln!(
-                err,
-                "{PROGRAM}: `{name}` takes one input, a JSON object in quotes."
-            )?;
-            return Ok(EXIT_USAGE);
-        }
+    let (input, token_out) = match parse_command_args(name, rest, err)? {
+        Ok(parsed) => parsed,
+        Err(status) => return Ok(status),
     };
+    if let Some(path) = token_out.as_deref()
+        && !check_token_out_path(path, err)?
+    {
+        return Ok(EXIT_FAILED);
+    }
     let terminal = matches!(caller, Caller::Terminal(_));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -327,7 +451,12 @@ fn run_command(
                 }
                 // The summary is the engine's words, with a token's name, the
                 // person's own; made safe all the same.
-                writeln!(err, "{}.", printable(&summary))?;
+                let shown_summary = printable(&summary);
+                if shown_summary.ends_with('.') {
+                    writeln!(err, "{shown_summary}")?;
+                } else {
+                    writeln!(err, "{shown_summary}.")?;
+                }
                 if !person.confirm("Go ahead? [y/N] ")? {
                     writeln!(err, "Nothing was done.")?;
                     return Ok(EXIT_FAILED);
@@ -367,6 +496,27 @@ fn run_command(
                     }
                     kept = Some((ask.key, before));
                 }
+                // Reserve the `--out` file atomically (`0600`, `create_new`)
+                // right before issuing the token so concurrent creation or
+                // permission errors fail before any active token is stored.
+                #[cfg(unix)]
+                let mut reserved_out: Option<std::fs::File> = None;
+                #[cfg(unix)]
+                if name == crate::tokens::CREATE
+                    && let Some(path) = token_out.as_deref()
+                {
+                    match reserve_token_out_file(path) {
+                        Ok(file) => reserved_out = Some(file),
+                        Err(error) => {
+                            writeln!(
+                                err,
+                                "{PROGRAM}: could not create `{}` for `--out`: {error}. Nothing was done.",
+                                path.display()
+                            )?;
+                            return Ok(EXIT_FAILED);
+                        }
+                    }
+                }
                 // The stop is listened for first, so that it is caught from
                 // the start of the sign-in.
                 let finished = runtime.block_on(async {
@@ -379,6 +529,13 @@ fn run_command(
                 let interrupted = finished.is_none();
                 if let Some(finished) = finished {
                     result = finished;
+                }
+                #[cfg(unix)]
+                if let Some(path) = token_out.as_deref()
+                    && (interrupted || !result.success)
+                {
+                    drop(reserved_out.take());
+                    let _ = std::fs::remove_file(path);
                 }
                 if let Some((key, before)) = kept
                     && (interrupted || !result.success)
@@ -412,6 +569,56 @@ fn run_command(
                     }
                     return Ok(EXIT_INTERRUPTED);
                 }
+                #[cfg(unix)]
+                if result.success
+                    && name == crate::tokens::CREATE
+                    && let (Some(path), Some(mut file)) =
+                        (token_out.as_deref(), reserved_out.take())
+                {
+                    let mut rendered =
+                        serde_json::to_value(&result).map_err(std::io::Error::other)?;
+                    let secret = rendered
+                        .pointer_mut("/data")
+                        .and_then(serde_json::Value::as_object_mut)
+                        .and_then(|data| data.remove("secret"))
+                        .and_then(|value| value.as_str().map(str::to_string));
+                    let Some(secret) = secret else {
+                        drop(file);
+                        let _ = std::fs::remove_file(path);
+                        writeln!(
+                            err,
+                            "{PROGRAM}: `mail-token-create` returned no token to write."
+                        )?;
+                        return Ok(EXIT_FAILED);
+                    };
+                    if let Err(error) = finish_token_out_file(&mut file, &secret) {
+                        drop(file);
+                        let _ = std::fs::remove_file(path);
+                        let id = rendered
+                            .pointer("/data/token")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("unknown");
+                        writeln!(
+                            err,
+                            "{PROGRAM}: could not write token {id} to `{}`: {error}; revoke it with `{PROGRAM} mail-token-revoke '{{\"token\":\"{id}\"}}'`.",
+                            path.display()
+                        )?;
+                        return Ok(EXIT_FAILED);
+                    }
+                    if let Some(data) = rendered
+                        .pointer_mut("/data")
+                        .and_then(serde_json::Value::as_object_mut)
+                    {
+                        data.insert(
+                            "out".to_string(),
+                            serde_json::Value::String(path.display().to_string()),
+                        );
+                    }
+                    let rendered =
+                        serde_json::to_string_pretty(&rendered).map_err(std::io::Error::other)?;
+                    writeln!(out, "{rendered}")?;
+                    return Ok(EXIT_OK);
+                }
             }
         }
     }
@@ -422,6 +629,16 @@ fn run_command(
         .and_then(serde_json::Value::as_object_mut)
     {
         details.remove("approvalToken");
+    }
+    if result.success && name == crate::tokens::CREATE && token_out.is_some() {
+        // On Unix, `--out` is reserved before the held retry and written
+        // directly in the approval branch above; never print a secret if
+        // `mail-token-create` ever returns without passing through a hold.
+        writeln!(
+            err,
+            "{PROGRAM}: `{name}` completed without an approval hold; refusing to print token with `--out`."
+        )?;
+        return Ok(EXIT_FAILED);
     }
     let rendered = serde_json::to_string_pretty(&rendered).map_err(std::io::Error::other)?;
     writeln!(out, "{rendered}")?;
@@ -1245,6 +1462,11 @@ fn write_help(registry: &CommandRegistry, out: &mut dyn Write) -> std::io::Resul
     writeln!(
         out,
         "  {PROGRAM} mcp                  Serve MCP on standard input and output"
+    )?;
+    #[cfg(feature = "test-doubles")]
+    writeln!(
+        out,
+        "  {PROGRAM} test-world --seed <name> --home <dir> --out <dir>  Run scripted servers for tests"
     )?;
     writeln!(out)?;
     let mut commands: Vec<_> = registry

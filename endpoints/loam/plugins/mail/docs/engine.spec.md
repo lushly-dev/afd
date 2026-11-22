@@ -297,6 +297,20 @@ directly at a terminal, with no server, may run for longer, printing its progres
   the server starts. Over HTTP the context hook turns the layer's caller into an `agent` actor
   with the token's id, and refuses a request the layer did not mark.
 
+- **As step F1 built it** (migration 18, [plugin.spec.md](plugin.spec.md#4-the-approver-token)):
+  each token has a `role`, `agent` (the default, and every pre-existing row) or `approver`,
+  chosen by the person at the terminal when created (`mail-token-create { name, role? }`).
+  An approver token is `lmail_approver_` and 64 hex digits; its approval summary names what it
+  can do and notes that the engine cannot verify the person was asked. The command line gains
+  `--out <file>` for `mail-token-create`, creating a new owner-only (`0600`) file on Unix and
+  printing the path instead of the token; `--out` is refused on Windows until owner-only access
+  lists are built. `mail-token-list` includes `role`, and `mail-status` reports
+  `tokens: { agents, approvers }`. Over HTTP `/mcp`, `McpServer::with_approver` marks callers
+  whose token has role `approver`; the same predicate strips `details.approvalToken` and sets the
+  engine's suggestion on `APPROVAL_REQUIRED` results for non-approver MCP callers (HTTP agent
+  tokens and stdio). The engine registers AFD's bootstrap commands (`afd-help`, `afd-docs`,
+  `afd-schema`) for discovery, exempted by name in `rules.rs`.
+
 ### 3.4 The HTTP surface
 
 - It listens on `127.0.0.1` only.
@@ -2076,11 +2090,11 @@ says otherwise.
 
 | Command | Phase | Class | Exposed to | Notes |
 | --- | --- | --- | --- | --- |
-| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome (`outbound`, step D3). Step B5: and the server's work ([3.2](#32-modes)). Step D1: the operations running and stopped, and the proposals waiting for the person ([9.4](#94-the-policy)) |
+| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome (`outbound`, step D3). Step B5: and the server's work ([3.2](#32-modes)). Step D1: the operations running and stopped, and the proposals waiting for the person ([9.4](#94-the-policy)). Step F0: `build: { testDoubles: true }` in `test-doubles` builds. Step F1: `tokens: { agents, approvers }` |
 | `mail-account-list` | B | Read | cli, mcp | |
 | `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's ([3.5](#35-commands-only-a-person-may-run)) |
-| `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND` |
-| `mail-token-list` | B | Read | cli | Each token's id, name and when it was made; never the token, which the store does not have. A read, so no approval (step B5) |
+| `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once (or written to a new `0600` file via `--out` on Unix; refused on Windows). Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND`. Step F1: `role` (`agent` or `approver`, `lmail_approver_` prefix) |
+| `mail-token-list` | B | Read | cli | Each token's id, name, `role` (step F1) and when it was made; never the token, which the store does not have. A read, so no approval (step B5) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)). On a server it asks for a pass and returns at once (step B5) |
 | `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor. Step B4: `mail-thread-list` takes a mailbox's id and gives its threads newest first; `mail-thread-open` a thread's messages oldest first, with each message's evidence; `mail-message-open` fetches a message's body when it is not held, whole when it is 1 MiB or less and in parts when it is larger (M20), trying each mailbox that shows it, and gives its recipients, evidence, links, files and a window of its visible text, with where the next window starts. The window is fitted to the budget as the budget measures the result; when even a small window does not fit, the HTML, then the hidden text, then half the links are left out and named in `leftOut`, and past that the call fails rather than give an empty window. A person at a terminal gets each command's largest budget |
 | `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first, and a file of a message held in parts, fetching that part alone when it is not held, up to 256 MiB; its bytes are then decoded on their own (a part of a forwarded message held whole is read from that message), its type read from them and the message derived again. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
@@ -2114,6 +2128,7 @@ says otherwise.
 | `mail-replyset-create`, `mail-replyset-next` | E | Local | cli, mcp | |
 | `mail-replyset-show` | E | Read | cli, mcp | |
 | `mail-replyset-send` | E | Remote, destructive; a person | cli | |
+| `afd-help`, `afd-docs`, `afd-schema` | F1 | Read (AFD bootstrap) | mcp | Registered via `afd::register_bootstrap_commands` for discovery (e.g. Loam's `afd-help { format: "full" }`); exempted by name in `rules.rs` |
 
 Differences from the proposal's draft list:
 

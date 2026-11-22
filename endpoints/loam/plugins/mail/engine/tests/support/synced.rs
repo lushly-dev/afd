@@ -39,7 +39,7 @@ pub struct Fixture {
     pub smtp: SmtpServer,
     pub http: HttpServer,
     pub engine: Arc<Engine>,
-    pub registry: CommandRegistry,
+    pub registry: Arc<CommandRegistry>,
     pub account: AccountRow,
 }
 

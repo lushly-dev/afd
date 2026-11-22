@@ -20,12 +20,32 @@ fn main() -> ExitCode {
     #[cfg(unix)]
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    #[cfg(feature = "test-doubles")]
+    if args.first().map(String::as_str) == Some("test-world") {
+        return test_world(&args[1..]);
+    }
+
+    let is_meta = matches!(
+        args.first().map(String::as_str),
+        None | Some("help" | "--help" | "-h" | "version" | "--version" | "-V")
+    );
+
     let home = Home::resolve(|name| std::env::var(name).ok()).ok();
-    let secrets: Arc<dyn Secrets> = Arc::new(Keychain);
-    // An account signs in with what the keychain holds for it; iCloud's user
-    // name is the address.
+
+    let (secrets, imap_endpoint, smtp_endpoint, unsubscribe_poster, transport_tag) =
+        match build_transport(is_meta) {
+            Ok(transport) => transport,
+            Err(problem) => {
+                eprintln!("{}: {problem}", loam_mail::PROGRAM);
+                return ExitCode::FAILURE;
+            }
+        };
+
+    // An account signs in with what the keychain (or test secrets file) holds
+    // for it; iCloud's user name is the address.
     let keychain = Arc::clone(&secrets);
-    let icloud = ImapConnector::new(Endpoint::icloud(), ICLOUD_NAMES, move |account| {
+    let icloud = ImapConnector::new(imap_endpoint, ICLOUD_NAMES, move |account| {
         let key = account_key(&account.provider, &account.address);
         match keychain.get(&key) {
             Ok(Some(password)) => Ok(Credentials {
@@ -36,24 +56,30 @@ fn main() -> ExitCode {
             Err(_) => Err(ProviderError::Keychain),
         }
     });
-    let smtp_keychain = Arc::clone(&secrets);
-    let smtp = SmtpSender::new(SmtpEndpoint::icloud(), move |account| {
-        let key = account_key(&account.provider, &account.address);
-        match smtp_keychain.get(&key) {
-            Ok(Some(password)) => Ok(Credentials {
-                user: account.address.clone(),
-                password,
-            }),
-            Ok(None) => Err(ProviderError::NoCredential),
-            Err(_) => Err(ProviderError::Keychain),
-        }
-    });
     let mut engine = Engine::new(home.clone())
         .with_connector(Arc::new(icloud))
-        .with_sender(Arc::new(smtp))
         .with_secrets(Arc::clone(&secrets))
+        .with_transport_tag(transport_tag)
         // A change run at the terminal stops after the batch in hand on Ctrl-C.
         .with_interrupts();
+    if let Some(smtp_endpoint) = smtp_endpoint {
+        let smtp_keychain = Arc::clone(&secrets);
+        let smtp = SmtpSender::new(smtp_endpoint, move |account| {
+            let key = account_key(&account.provider, &account.address);
+            match smtp_keychain.get(&key) {
+                Ok(Some(password)) => Ok(Credentials {
+                    user: account.address.clone(),
+                    password,
+                }),
+                Ok(None) => Err(ProviderError::NoCredential),
+                Err(_) => Err(ProviderError::Keychain),
+            }
+        });
+        engine = engine.with_sender(Arc::new(smtp));
+    }
+    if let Some(poster) = unsubscribe_poster {
+        engine = engine.with_unsubscribe_poster(poster);
+    }
     if std::io::stderr().is_terminal() {
         engine = engine.with_progress(Arc::new(|line| eprintln!("{line}")));
     }
@@ -74,7 +100,8 @@ fn main() -> ExitCode {
         _ => {}
     }
     // A command opens the store before it runs, to learn whether a server
-    // owns it; if one does, the call goes to the server instead.
+    // owns it; if one does, the call goes to the server instead, provided both
+    // use the same transport (real vs. test-doubles endpoints).
     let server = match args.first() {
         Some(name) if is_command(&registry, name) => match engine.open_store() {
             Err(loam_mail::store::StoreError::InUse) => {
@@ -84,6 +111,17 @@ fn main() -> ExitCode {
         },
         _ => None,
     };
+    if let Some(server) = &server
+        && server.transport() != engine.transport_tag()
+    {
+        eprintln!(
+            "{}: a running server owns the store with a different transport configuration (`{}` vs `{}`); stop the server or match its environment before running commands.",
+            loam_mail::PROGRAM,
+            server.transport(),
+            engine.transport_tag()
+        );
+        return ExitCode::FAILURE;
+    }
     let local = loam_mail::cli::Local(&registry);
     let runner: &(dyn Runner + Sync) = match &server {
         Some(server) => server,
@@ -116,6 +154,96 @@ fn main() -> ExitCode {
     }
 }
 
+type Transport = (
+    Arc<dyn Secrets>,
+    Endpoint,
+    Option<SmtpEndpoint>,
+    Option<Arc<dyn loam_mail::provider::http::UnsubscribePoster>>,
+    String,
+);
+
+/// Builds the sign-in store and provider endpoints. Under `test-doubles`,
+/// honours `LOAM_MAIL_TEST_SECRETS` + `LOAM_MAIL_TEST_ENDPOINTS` (both or
+/// neither; loopback IP literals only; never silently falling back on empty or
+/// non-UTF-8 values). Without `test-doubles`, ignores both variables and always
+/// uses the real keychain and iCloud endpoints.
+fn build_transport(is_meta: bool) -> Result<Transport, String> {
+    #[cfg(feature = "test-doubles")]
+    if !is_meta
+        && let Some(config) =
+            loam_mail::doubles::config::TestDoubleConfig::from_env(|name| std::env::var_os(name))?
+    {
+        let tag = config.transport_tag();
+        let imap = Endpoint {
+            host: config.endpoints.imap.ip().to_string(),
+            port: config.endpoints.imap.port(),
+            tls: false,
+        };
+        let smtp = config
+            .endpoints
+            .smtp
+            .map(|addr| SmtpEndpoint::plain(addr.ip().to_string(), addr.port()));
+        let poster: Arc<dyn loam_mail::provider::http::UnsubscribePoster> =
+            match config.endpoints.http {
+                Some(addr) => Arc::new(loam_mail::provider::http::HttpsPoster::for_test_endpoint(
+                    addr,
+                )),
+                None => Arc::new(loam_mail::doubles::config::RefusingPoster),
+            };
+        return Ok((Arc::new(config.secrets), imap, smtp, Some(poster), tag));
+    }
+    #[cfg(not(feature = "test-doubles"))]
+    let _ = is_meta;
+    Ok((
+        Arc::new(Keychain),
+        Endpoint::icloud(),
+        Some(SmtpEndpoint::icloud()),
+        None,
+        "real".to_string(),
+    ))
+}
+
+#[cfg(feature = "test-doubles")]
+fn test_world(args: &[String]) -> ExitCode {
+    let (seed, home, out) = match loam_mail::doubles::world::parse_args(args) {
+        Ok(parsed) => parsed,
+        Err(problem) => {
+            eprintln!("{}: {problem}", loam_mail::PROGRAM);
+            return ExitCode::from(loam_mail::cli::EXIT_USAGE);
+        }
+    };
+    let runtime = match server_runtime() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("{}: {error}", loam_mail::PROGRAM);
+            return ExitCode::FAILURE;
+        }
+    };
+    let stop = {
+        let _inside = runtime.enter();
+        loam_mail::cli::stopped()
+    };
+    let result = runtime.block_on(async move {
+        let running = loam_mail::doubles::world::start_world(&seed, &home, &out).await?;
+        let line = serde_json::to_string(&running.outputs).map_err(|error| error.to_string())?;
+        {
+            let mut stdout = std::io::stdout().lock();
+            writeln!(stdout, "{line}").map_err(|error| error.to_string())?;
+            stdout.flush().map_err(|error| error.to_string())?;
+        }
+        stop.await;
+        drop(running);
+        Ok::<(), String>(())
+    });
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(problem) => {
+            eprintln!("{}: {problem}", loam_mail::PROGRAM);
+            ExitCode::FAILURE
+        }
+    }
+}
+
 /// Whether `name` is a command the command line may run.
 fn is_command(registry: &CommandRegistry, name: &str) -> bool {
     registry
@@ -133,7 +261,7 @@ fn server_runtime() -> std::io::Result<tokio::runtime::Runtime> {
 }
 
 /// `loam-mail serve [--port N]`.
-fn serve(args: &[String], engine: Arc<Engine>, registry: CommandRegistry) -> ExitCode {
+fn serve(args: &[String], engine: Arc<Engine>, registry: Arc<CommandRegistry>) -> ExitCode {
     let port = match args {
         [] => 0,
         [flag, port] if flag == "--port" => match port.parse::<u16>() {
@@ -164,7 +292,7 @@ fn serve(args: &[String], engine: Arc<Engine>, registry: CommandRegistry) -> Exi
     };
     let served = runtime.block_on(loam_mail::serve::serve(
         engine,
-        Arc::new(registry),
+        registry,
         port,
         stop,
         |line| eprintln!("{}: {line}", loam_mail::PROGRAM),
@@ -179,7 +307,7 @@ fn serve(args: &[String], engine: Arc<Engine>, registry: CommandRegistry) -> Exi
 }
 
 /// `loam-mail mcp`.
-fn mcp(engine: &Arc<Engine>, registry: CommandRegistry) -> ExitCode {
+fn mcp(engine: &Arc<Engine>, registry: Arc<CommandRegistry>) -> ExitCode {
     let runtime = match server_runtime() {
         Ok(runtime) => runtime,
         Err(error) => {
@@ -187,7 +315,7 @@ fn mcp(engine: &Arc<Engine>, registry: CommandRegistry) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match runtime.block_on(loam_mail::serve::serve_stdio(engine, Arc::new(registry))) {
+    match runtime.block_on(loam_mail::serve::serve_stdio(engine, registry)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(problem) => {
             eprintln!("{}: {problem}", loam_mail::PROGRAM);
