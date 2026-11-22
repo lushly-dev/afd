@@ -84,6 +84,7 @@ export type {
 	CommandRegistryOptions,
 	ExposeOptions,
 	JsonSchema,
+	TaskSupport,
 } from './commands.js';
 export {
 	commandsToMcpTools,

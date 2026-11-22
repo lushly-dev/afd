@@ -45,6 +45,32 @@ export function unbrandVerifiedCredentials(credentials: object): void {
 }
 
 /**
+ * If `credentials` is branded as verified by afd-server, return a frozen shallow copy branded
+ * with the same admission deadline (so a background task outliving its HTTP response keeps its
+ * verified brand until the task finishes, when it calls {@link unbrandVerifiedCredentials}).
+ * Returns `undefined` when `credentials` is not branded.
+ */
+export function cloneVerifiedCredentials<T extends object>(
+	credentials: T
+): Readonly<T> | undefined {
+	const deadline = verified.get(credentials);
+	if (deadline === undefined) return undefined;
+	const copy: Record<string, unknown> = { ...(credentials as Record<string, unknown>) };
+	if (Array.isArray(copy.scopes)) copy.scopes = Object.freeze([...copy.scopes]);
+	if (copy.cnf && typeof copy.cnf === 'object') {
+		copy.cnf = Object.freeze({ ...(copy.cnf as Record<string, unknown>) });
+	}
+	const inspectSymbol = Symbol.for('nodejs.util.inspect.custom');
+	const inspectDesc = Object.getOwnPropertyDescriptor(credentials, inspectSymbol);
+	if (inspectDesc) {
+		Object.defineProperty(copy, inspectSymbol, inspectDesc);
+	}
+	Object.freeze(copy);
+	verified.set(copy, deadline);
+	return copy as Readonly<T>;
+}
+
+/**
  * Whether `credentials` is the object afd-server put on a call after verifying its token, and
  * its admitted expiry (`expiresAt` plus any admission clock skew, M4) is still after `now`. A
  * copy, an object built with the same fields, branded credentials without a numeric `expiresAt`,

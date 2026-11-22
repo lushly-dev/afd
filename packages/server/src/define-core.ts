@@ -16,6 +16,7 @@ import type {
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	TaskSupport,
 } from '@lushly-dev/afd-core';
 import { validateCommandName } from '@lushly-dev/afd-core/commands';
 import type { ZodType } from 'zod';
@@ -140,6 +141,13 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	scopes?: string[];
 
 	/**
+	 * Whether this command may or must run as an MCP task (`spec/command-metadata.md`, "Tasks"):
+	 * `'never'` (default when unset), `'optional'`, or `'required'`. Reported as `_meta.task`
+	 * and by `afd-detail` only when explicitly set.
+	 */
+	task?: TaskSupport;
+
+	/**
 	 * Extra `_meta` entries for this command's tool, its grouped action entry and afd-detail
 	 * (`spec/mcp-resources.md`, T1). Keys are reverse-DNS prefixed with two or more labels, outside
 	 * `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui`, the MCP Apps
@@ -239,6 +247,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 
 	/** OAuth scopes a caller's token needs over authorized HTTP (`spec/authorization.md`, M6) */
 	scopes?: string[];
+
+	/** MCP task support (`spec/command-metadata.md`, "Tasks") */
+	task?: TaskSupport;
 
 	/** Extra `_meta` entries for this command's tool (`spec/mcp-resources.md`, T1) */
 	toolMeta?: Record<string, unknown>;
@@ -344,8 +355,9 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		undoable: options.undoable,
 		approval: options.approval,
 		expose: options.expose,
-		// Only when set, so a command without scopes keeps the keys it always had.
+		// Only when set, so a command without scopes or task keeps the keys it always had.
 		...(options.scopes && { scopes: options.scopes }),
+		...(options.task !== undefined && { task: options.task }),
 	};
 
 	return {

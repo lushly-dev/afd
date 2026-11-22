@@ -249,8 +249,8 @@
 		{
 			"file": "docs/language-parity.md",
 			"startsWith": "| MCP authorization ([`spec/authorization.md`]",
-			"length": 2576,
-			"sha256": "e893c6e3c0521d0983da5910c59cbe475782d1ed0d5f7993bc120130a776d015",
+			"length": 2530,
+			"sha256": "4b1bce19bd7f2314c823152b99e8d8ce65d64be6550bd67423c9878d0e5bca96",
 			"reason": "One feature's row across four languages, written before the limit; split it when it next changes"
 		},
 		{

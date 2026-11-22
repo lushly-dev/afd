@@ -191,6 +191,11 @@ jobs:
       - name: Approvals (TypeScript backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:ts --suite approvals --mode modern
 
+      # spec/task-cases.json: todo-create-batch (task: optional) runs as an MCP task for a
+      # tasks-capable 2026-07-28 client and inline otherwise.
+      - name: Tasks (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite tasks --mode modern
+
       # afd validate --surface --strict and afd scenario run against the TypeScript backend over
       # Streamable HTTP (dx/run-scenarios.ts).
       - name: Surface and scenarios (TypeScript backend)
@@ -318,6 +323,9 @@ jobs:
 
       - name: Approvals (Rust backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:rs --suite approvals --mode modern
+
+      - name: Tasks (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite tasks --mode modern
 
       - name: Check the working tree is unchanged
         run: |

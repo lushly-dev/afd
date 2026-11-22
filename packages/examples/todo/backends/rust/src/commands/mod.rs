@@ -37,7 +37,7 @@ use crate::types::iso;
 use afd::{
     failure, success_with, Alternative, ApprovalPolicy, CommandContext, CommandDefinition,
     CommandError, CommandExample, CommandHandler, CommandRegistry, CommandResult, ExposeOptions,
-    JsonSchema, RandomSource, ResultOptions, Warning, WarningSeverity,
+    JsonSchema, RandomSource, ResultOptions, TaskSupport, Warning, WarningSeverity,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -72,6 +72,8 @@ pub trait Command: Send + Sync + 'static {
     const REQUIRES: &'static [&'static str] = &[];
     /// The confirmation question, enforced when the server runs with `CONFIRMATIONS`.
     const CONFIRM_PROMPT: Option<&'static str> = None;
+    /// Whether this command may or must run as an MCP task.
+    const TASK: TaskSupport = TaskSupport::Never;
 
     /// JSON Schema of the input object.
     fn schema() -> Value;
@@ -273,6 +275,9 @@ fn definition<C: Command>(command: C, store: &Arc<TodoStore>) -> (CommandDefinit
     }
     if let Some(approval) = C::approval() {
         definition = definition.with_approval(approval);
+    }
+    if C::TASK != TaskSupport::Never {
+        definition = definition.with_task(C::TASK);
     }
     (definition, C::schema())
 }

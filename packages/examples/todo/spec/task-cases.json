@@ -1,0 +1,81 @@
+{
+	"description": "MCP Tasks (spec/command-metadata.md, \"Tasks\"; MCP 2026-07-28 SEP-2663) against a backend where todo-create-batch declares task: \"optional\". Each case names the client it needs: \"tasks\" declares the io.modelcontextprotocol/tasks capability on MCP 2026-07-28 and expects todo-create-batch to return a task polled via tasks/get to completion; \"no-tasks\" declares no tasks capability and expects todo-create-batch to run inline.",
+	"tests": [
+		{
+			"name": "afd-detail reports task: optional on todo-create-batch",
+			"description": "Discovery metadata advertises task: optional on todo-create-batch and omits task on todo-create",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust"],
+			"setup": [],
+			"command": "afd-detail",
+			"input": { "command": ["todo-create-batch", "todo-create"] },
+			"expect": {
+				"success": true,
+				"data.0.name": "todo-create-batch",
+				"data.0.task": "optional",
+				"data.1.name": "todo-create",
+				"data.1.task": { "exists": false }
+			}
+		},
+		{
+			"name": "Batch create runs as a task for a tasks-capable client",
+			"description": "todo-create-batch starts a task, polls tasks/get to completed, and persists the todos",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust"],
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": {
+				"todos": [
+					{ "title": "Task batch alpha" },
+					{ "title": "Task batch beta", "priority": "high" }
+				]
+			},
+			"expect": {
+				"success": true,
+				"data.summary.total": 2,
+				"data.summary.successCount": 2,
+				"data.summary.failureCount": 0,
+				"data.succeeded.0.title": "Task batch alpha",
+				"data.succeeded.1.title": "Task batch beta",
+				"data.succeeded.1.priority": "high",
+				"undoCommand": "todo-delete-batch"
+			},
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 2 } }
+		},
+		{
+			"name": "Non-task commands still run inline for a tasks-capable client",
+			"description": "todo-create has default task: never and executes inline even when the client declares tasks",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust"],
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "Inline with tasks client" },
+			"expect": {
+				"success": true,
+				"data.title": "Inline with tasks client"
+			}
+		},
+		{
+			"name": "Batch create runs inline when client does not declare tasks",
+			"description": "todo-create-batch has task: optional so a client without io.modelcontextprotocol/tasks gets an inline result",
+			"client": "no-tasks",
+			"implementedBy": ["typescript", "rust"],
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": {
+				"todos": [
+					{ "title": "Inline batch one" },
+					{ "title": "Inline batch two", "priority": "low" }
+				]
+			},
+			"expect": {
+				"success": true,
+				"data.summary.total": 2,
+				"data.summary.successCount": 2,
+				"data.succeeded.0.title": "Inline batch one",
+				"data.succeeded.1.title": "Inline batch two"
+			},
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 2 } }
+		}
+	]
+}

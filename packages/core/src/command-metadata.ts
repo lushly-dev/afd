@@ -13,6 +13,7 @@ type MetadataFields = Pick<
 	| 'contexts'
 	| 'scopes'
 	| 'toolMeta'
+	| 'task'
 >;
 
 /** Per-command planning metadata; display-only confirmPrompt is intentionally absent. */
@@ -47,6 +48,7 @@ export function commandToolMeta(
 		...(outputSchema && { outputSchema: { ...outputSchema } }),
 		...(command.contexts?.length && { contexts: command.contexts }),
 		...(command.scopes?.length && { scopes: command.scopes }),
+		...(command.task != null && { task: command.task }),
 	};
 	return Object.keys(meta).length > 0 ? meta : undefined;
 }

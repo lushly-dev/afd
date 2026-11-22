@@ -69,6 +69,7 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 	mutation: true,
 	undoable: true,
 	approval: 'not-required',
+	task: 'optional',
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['VALIDATION_ERROR', 'PARTIAL_FAILURE'],
@@ -122,6 +123,7 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 				);
 
 				succeeded.push(todo);
+				context.reportProgress?.(`Created ${succeeded.length} of ${input.todos.length} todos`);
 			} catch (err) {
 				failed.push({
 					index: i,

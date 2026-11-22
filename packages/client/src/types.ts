@@ -7,6 +7,7 @@ import type {
 	McpResponse,
 	McpServerCapabilities,
 	McpTool,
+	McpToolCallResult,
 } from '@lushly-dev/afd-core';
 import type { DirectRegistry } from './direct-types.js';
 
@@ -53,6 +54,26 @@ export interface ElicitationResponse {
 /** Answers a server's elicitation, such as a confirmation of a destructive command. */
 export type ElicitationHandler = (request: ElicitationRequest) => Promise<ElicitationResponse>;
 
+/** MCP Task lifecycle status (MCP 2026-07-28 Tasks extension, SEP-2663). */
+export type TaskStatus = 'working' | 'completed' | 'failed' | 'cancelled';
+
+/** Summary of an MCP task returned by `tools/call` (`resultType: 'task'`) or progress updates. */
+export interface TaskInfo {
+	taskId: string;
+	status: TaskStatus;
+	statusMessage?: string;
+	createdAt: string;
+	lastUpdatedAt: string;
+	ttlMs: number;
+	pollIntervalMs?: number;
+}
+
+/** Detailed MCP task state returned by `tasks/get`. */
+export interface DetailedTask extends TaskInfo {
+	result?: McpToolCallResult;
+	error?: { code: number; message: string; data?: unknown };
+}
+
 /**
  * Client configuration options.
  */
@@ -92,6 +113,13 @@ export interface McpClientConfig {
 	 * what it asked.
 	 */
 	onElicitation?: ElicitationHandler;
+
+	/**
+	 * Declare the MCP Tasks extension (`io.modelcontextprotocol/tasks`) on `streamable-http`
+	 * requests and poll returned tasks to completion (`spec/command-metadata.md`, "Tasks").
+	 * @default false
+	 */
+	tasks?: boolean;
 
 	/**
 	 * Registry for `transport: 'direct'`, such as `createDirectRegistry(commands)` from

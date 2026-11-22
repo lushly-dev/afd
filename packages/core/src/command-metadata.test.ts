@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { commandResultOutputSchema, commandToolAnnotations } from './command-metadata.js';
+import {
+	commandResultOutputSchema,
+	commandToolAnnotations,
+	commandToolMeta,
+} from './command-metadata.js';
 import { type CommandDefinition, commandToMcpTool, type JsonSchema } from './commands.js';
 import type { McpTool } from './mcp.js';
 import { success } from './result.js';
@@ -56,6 +60,15 @@ describe('commandToolAnnotations', () => {
 			readOnlyHint: false,
 			destructiveHint: true,
 		});
+	});
+});
+
+describe('commandToolMeta', () => {
+	it('omits task when unset and reports explicit task values', () => {
+		expect(commandToolMeta({})).toBeUndefined();
+		expect(commandToolMeta({ task: 'never' })).toEqual({ task: 'never' });
+		expect(commandToolMeta({ task: 'optional' })).toEqual({ task: 'optional' });
+		expect(commandToolMeta({ task: 'required' })).toEqual({ task: 'required' });
 	});
 });
 

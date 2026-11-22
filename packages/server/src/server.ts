@@ -44,6 +44,8 @@ import type { ZodCommandDefinition } from './schema.js';
 import { listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
+import { assertValidTaskCommands } from './tasks.js';
+import { TaskRuntime } from './tasks-runtime.js';
 import { createToolRouter } from './tool-router.js';
 import { getToolsList } from './tools.js';
 import { validateInputEnhanced } from './validation.js';
@@ -102,6 +104,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	assertValidCommandNames(commands, { bootstrap, contexts: Boolean(contexts?.length) });
 	// A command built by hand skips `defineCommand`'s check; registration refuses a bad key too.
 	for (const command of commands) assertToolMeta(command.name, command.toolMeta);
+	assertValidTaskCommands(commands);
 	// Resource entries and the skill catalog are checked now, so a bad one stops the server from
 	// being built. Their results do not vary by context, so contexts leave the TTL alone.
 	const resourcesTtlMs = options.toolsListTtlMs ?? DEFAULT_TOOLS_LIST_TTL_MS;
@@ -240,6 +243,26 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			}
 		);
 
+	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
+	const auth = options.auth
+		? createAuthLayer(options.auth, {
+				maxBodyBytes,
+				clock,
+				commands: remoteCommands,
+				toolStrategy,
+				groupByFn,
+			})
+		: undefined;
+	const taskRuntime = new TaskRuntime({
+		commands: remoteCommands,
+		executeCommand: remoteEngine.executeCommand,
+		store: options.taskStore,
+		options: options.taskOptions,
+		clock,
+		hasAuth: Boolean(auth),
+		hasContextHook: Boolean(options.createContext),
+		actor: options.actor ?? { kind: 'agent' },
+	});
 	const modernDeps: ModernMcpDeps = {
 		name,
 		version,
@@ -256,19 +279,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		approver: options.approver,
 		resources,
 		resourcesTtlMs,
+		tasks: taskRuntime,
 		devMode,
 		onError,
 	};
-	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
-	const auth = options.auth
-		? createAuthLayer(options.auth, {
-				maxBodyBytes,
-				clock,
-				commands: remoteCommands,
-				toolStrategy,
-				groupByFn,
-			})
-		: undefined;
 	const modern = createModernHttpLane({
 		...modernDeps,
 		createContext: options.createContext,
@@ -276,7 +290,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		auth,
 	});
 
-	const { handler, dispose } = createHttpHandler({
+	const { handler, dispose: disposeHttp } = createHttpHandler({
 		name,
 		version,
 		host,
@@ -302,7 +316,12 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onError,
 		modern,
 		auth,
+		tasks: taskRuntime,
 	});
+	const dispose = () => {
+		taskRuntime.dispose();
+		disposeHttp();
+	};
 
 	return {
 		engine,
@@ -466,6 +485,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			if (!isRunning) return;
 
 			if (stdioHandle) {
+				sharedRuntime.dispose();
 				await stdioHandle.close();
 				stdioHandle = null;
 			}
