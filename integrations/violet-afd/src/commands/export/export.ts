@@ -1,3 +1,4 @@
+import { UnsafeCssValueError, checkCssToken } from '@lushly-dev/violet-core/css';
 import {
 	InheritanceResolutionError,
 	matchesGlob,
@@ -150,6 +151,24 @@ export const exportCommand: CommandDefinition<typeof InputSchema, Output> = {
 			});
 		}
 
+		// CSS and SCSS write values as they are, so a value that could leave its
+		// declaration is refused, for stores written before writes were checked (#1325)
+		if (input.format === 'css' || input.format === 'scss') {
+			const prefix =
+				input.format === 'css' && input.prefix ? `${input.prefix}-` : (input.prefix ?? '');
+			const unsafe = filteredTokens.flatMap((t) => {
+				const problem = checkCssToken(t, prefix);
+				return problem ? [`'${t.id}': ${problem}`] : [];
+			});
+			if (unsafe.length > 0) {
+				return failure({
+					code: ErrorCodes.INVALID_TOKEN_VALUE,
+					message: `${unsafe.length} token(s) cannot be written to ${input.format} safely: ${unsafe.slice(0, 10).join('; ')}${unsafe.length > 10 ? '; …' : ''}`,
+					suggestion: `Fix each value with 'token.override' at the node that sets it (see token.lineage), rename a token whose id is refused, or leave the tokens out with filter`,
+				});
+			}
+		}
+
 		// Transform. Transformers throw when options don't fit the tokens
 		// (e.g. a Lua themeMap entry that names a missing color).
 		let content: string;
@@ -174,6 +193,13 @@ export const exportCommand: CommandDefinition<typeof InputSchema, Output> = {
 				outputReferences: input.outputReferences,
 			});
 		} catch (error) {
+			if (error instanceof UnsafeCssValueError) {
+				return failure({
+					code: ErrorCodes.INVALID_TOKEN_VALUE,
+					message: error.message,
+					suggestion: `Fix the value of '${error.tokenId}' with 'token.override' at the node that sets it`,
+				});
+			}
 			return failure({
 				code: ErrorCodes.VALIDATION_ERROR,
 				message: `Export to ${input.format} failed: ${error instanceof Error ? error.message : String(error)}`,

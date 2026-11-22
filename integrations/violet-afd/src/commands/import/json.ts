@@ -1,7 +1,13 @@
-import { resolveAncestorTokenMap, validateTokenId } from '@lushly-dev/violet-core/engine';
+import {
+	resolveAncestorTokenMap,
+	resolveNodeTokenMap,
+	validateTokenId,
+} from '@lushly-dev/violet-core/engine';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { unsafeImportValues, unsafeValueSuggestion } from '../value-checks.js';
 import { type FlatToken, findDuplicateTokenIds, flattenTokenFile } from './flatten.js';
 
 /**
@@ -107,6 +113,22 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 			existingOps.filter((op) => op.type === 'add').map((op) => op.tokenId),
 		);
 
+		// Refuse the whole file when a value cannot reach CSS safely, before anything is
+		// written. A token the import overrides keeps the type the node resolves it with,
+		// so its value is held to that type, not the file's (#1325).
+		const resolvedHere = await resolveNodeTokenMap(db, input.targetNode);
+		const unsafe = unsafeImportValues(flatTokens, (id) => ({
+			metadata: resolvedHere.get(id)?.metadata,
+			becomesOverride: existingTokenIds.has(id) || inheritedTokens.has(id),
+		}));
+		if (unsafe.length > 0) {
+			return failure({
+				code: ErrorCodes.INVALID_TOKEN_VALUE,
+				message: `${unsafe.length} value(s) cannot be imported safely: ${unsafe.slice(0, 10).join('; ')}${unsafe.length > 10 ? '; …' : ''}`,
+				suggestion: unsafeValueSuggestion,
+			});
+		}
+
 		const conflicts: Output['conflicts'] = [];
 		const errors: Output['errors'] = [];
 		const toImport: FlatToken[] = [];
@@ -173,7 +195,7 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 			try {
 				await db.addOperation({
-					id: `${input.targetNode}-${opType}-${token.id}-${Date.now()}`,
+					id: contextId(context),
 					nodeId: input.targetNode,
 					tokenId: token.id,
 					type: opType as 'add' | 'override',
@@ -181,7 +203,7 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 					// The resolver only reads metadata from 'add' ops
 					metadata: opType === 'add' && token.metadata ? JSON.stringify(token.metadata) : null,
 					sequence: maxSeq + imported + 1,
-					createdAt: new Date().toISOString(),
+					createdAt: contextNow(context),
 					author: context.actor || 'import',
 					reason: 'Imported from JSON',
 					fromNode: null,

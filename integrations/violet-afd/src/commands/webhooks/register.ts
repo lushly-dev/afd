@@ -1,9 +1,9 @@
 import type { Webhook } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { generateSecret } from '../../webhooks/signer.js';
 import { validateWebhookUrl } from '../../webhooks/url-policy.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { redactWebhook } from './redact.js';
 
@@ -70,8 +70,8 @@ type Output = z.infer<typeof OutputSchema>;
 /**
  * Generates a webhook ID with 'wh_' prefix
  */
-function generateWebhookId(): string {
-	return `wh_${nanoid(16)}`;
+function generateWebhookId(context: CommandContext): string {
+	return `wh_${contextId(context, 16)}`;
 }
 
 /**
@@ -95,7 +95,7 @@ export const webhooksRegisterCommand: CommandDefinition<typeof InputSchema, Outp
 		const input = InputSchema.parse(rawInput);
 
 		// Generate webhook ID
-		const webhookId = generateWebhookId();
+		const webhookId = generateWebhookId(context);
 
 		// Generate secret if not provided
 		const secret = input.secret || generateSecret(32);
@@ -112,7 +112,7 @@ export const webhooksRegisterCommand: CommandDefinition<typeof InputSchema, Outp
 		}
 
 		// Create the webhook record
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 		const webhook: Webhook = {
 			id: webhookId,
 			url: input.url,
@@ -129,7 +129,7 @@ export const webhooksRegisterCommand: CommandDefinition<typeof InputSchema, Outp
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'webhook_registered',
 			actor: actor || 'system',

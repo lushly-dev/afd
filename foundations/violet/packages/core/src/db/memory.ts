@@ -268,7 +268,8 @@ export class MemoryDatabase implements Database {
 		// Nothing to change (also keeps updatedAt untouched, like the SQL adapters)
 		if (!changed) return;
 
-		next.updatedAt = new Date().toISOString();
+		// The caller's clock when it gives one, so a replayed update stamps the same time
+		next.updatedAt = updates.updatedAt ?? new Date().toISOString();
 		this.webhooks.set(id, next);
 	}
 

@@ -81,6 +81,20 @@ export interface CommandContext {
 	traceId?: string;
 
 	/**
+	 * The clock a write stamps its records with, in epoch milliseconds. A host that
+	 * journals calls (Loam's `clock` grant) injects it so a replay writes the same
+	 * timestamps; without it writes read the wall clock.
+	 */
+	now?(): number;
+
+	/**
+	 * A random source in [0, 1) that new record ids are drawn from. A host that
+	 * journals calls (Loam's `random` grant) injects it so a replay writes the same
+	 * ids; without it ids come from `nanoid`.
+	 */
+	random?(): number;
+
+	/**
 	 * Store reads and resolved chains shared by the resolutions of one read-only
 	 * command execution. Set by withResolutionCache on a context made for that
 	 * execution; never set it on a context that outlives it or sees writes.

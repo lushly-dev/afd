@@ -6,3 +6,4 @@
  */
 export * from './safe-css.js';
 export * from './specimens.js';
+export * from './token-value.js';

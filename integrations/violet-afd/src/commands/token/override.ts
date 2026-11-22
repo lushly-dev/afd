@@ -1,14 +1,17 @@
+import { checkCssTokenValue } from '@lushly-dev/violet-core/css';
 import {
 	InheritanceResolutionError,
 	resolveNodeTokenMap,
 	validateTokenId,
 } from '@lushly-dev/violet-core/engine';
 import { type ResolvedToken, TokenValueSchema } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { unsafeValueSuggestion } from '../value-checks.js';
 import { previousValue } from './previous-value.js';
+import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.override command
@@ -75,6 +78,7 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 			return failure({
 				code: ErrorCodes.NODE_NOT_FOUND,
 				message: `Node '${input.nodeId}' has been deleted`,
+				suggestion: `Use 'node.list' to see the nodes that are not deleted`,
 			});
 		}
 
@@ -100,6 +104,16 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 			throw error;
 		}
 
+		// Refuse a value the token's type cannot hold safely (#1325)
+		const unsafe = checkCssTokenValue(input.value, previous.metadata);
+		if (unsafe) {
+			return failure({
+				code: ErrorCodes.INVALID_TOKEN_VALUE,
+				message: `The value of '${input.tokenId}' ${unsafe}`,
+				suggestion: unsafeValueSuggestion,
+			});
+		}
+
 		// The old value is what the node resolved before, even when inherited (#90)
 		const existingOps = await db.getOperations(input.nodeId);
 		const hadOverride = existingOps.some(
@@ -108,13 +122,13 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 		const before = previousValue(input.nodeId, previous);
 
 		// Create the operation
-		const operationId = nanoid();
-		const now = new Date().toISOString();
+		const operationId = contextId(context);
+		const now = contextNow(context);
 
 		await db.addOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: existingOps.length + 1,
+			sequence: nextSequence(existingOps),
 			type: 'override',
 			tokenId: input.tokenId,
 			value: JSON.stringify(input.value),
@@ -129,7 +143,7 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'token_updated',
 			actor: actor || 'system',

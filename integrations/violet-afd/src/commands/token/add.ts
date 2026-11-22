@@ -1,13 +1,16 @@
+import { checkCssTokenValue } from '@lushly-dev/violet-core/css';
 import {
 	InheritanceResolutionError,
 	resolveAncestorTokenMap,
 	validateTokenId,
 } from '@lushly-dev/violet-core/engine';
 import { TokenMetadataSchema, TokenValueSchema } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { unsafeValueSuggestion } from '../value-checks.js';
+import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.add command
@@ -60,6 +63,16 @@ export const tokenAddCommand: CommandDefinition<typeof InputSchema, Output> = {
 			});
 		}
 
+		// Refuse a value its type cannot hold safely, before it can reach an export (#1325)
+		const unsafe = checkCssTokenValue(input.value, input.metadata);
+		if (unsafe) {
+			return failure({
+				code: ErrorCodes.INVALID_TOKEN_VALUE,
+				message: `The value of '${input.tokenId}' ${unsafe}`,
+				suggestion: unsafeValueSuggestion,
+			});
+		}
+
 		// Verify node exists
 		const node = await db.getNode(input.nodeId);
 		if (!node) {
@@ -74,6 +87,7 @@ export const tokenAddCommand: CommandDefinition<typeof InputSchema, Output> = {
 			return failure({
 				code: ErrorCodes.NODE_NOT_FOUND,
 				message: `Node '${input.nodeId}' has been deleted`,
+				suggestion: `Use 'node.list' to see the nodes that are not deleted`,
 			});
 		}
 
@@ -111,13 +125,13 @@ export const tokenAddCommand: CommandDefinition<typeof InputSchema, Output> = {
 		}
 
 		// Create the operation
-		const operationId = nanoid();
-		const now = new Date().toISOString();
+		const operationId = contextId(context);
+		const now = contextNow(context);
 
 		await db.addOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: existingOps.length + 1,
+			sequence: nextSequence(existingOps),
 			type: 'add',
 			tokenId: input.tokenId,
 			value: JSON.stringify(input.value),
@@ -132,7 +146,7 @@ export const tokenAddCommand: CommandDefinition<typeof InputSchema, Output> = {
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'token_created',
 			actor: actor || 'system',

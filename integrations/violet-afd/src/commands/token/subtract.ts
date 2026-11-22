@@ -1,10 +1,11 @@
 import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
 import type { ResolvedToken } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { previousValue } from './previous-value.js';
+import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.subtract command
@@ -85,13 +86,13 @@ export const tokenSubtractCommand: CommandDefinition<typeof InputSchema, Output>
 
 		// Create the operation
 		const existingOps = await db.getOperations(input.nodeId);
-		const operationId = nanoid();
-		const now = new Date().toISOString();
+		const operationId = contextId(context);
+		const now = contextNow(context);
 
 		await db.addOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: existingOps.length + 1,
+			sequence: nextSequence(existingOps),
 			type: 'subtract',
 			tokenId: input.tokenId,
 			value: null,
@@ -107,7 +108,7 @@ export const tokenSubtractCommand: CommandDefinition<typeof InputSchema, Output>
 		// Log audit event, with the value removed even when inherited (#90)
 		const before = previousValue(input.nodeId, previous);
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'token_deleted',
 			actor: actor || 'system',

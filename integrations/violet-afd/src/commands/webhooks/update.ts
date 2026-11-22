@@ -1,8 +1,8 @@
 import type { WebhookEventType, WebhookUpdate } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { failure, success } from '../../types/command-result.js';
 import { validateWebhookUrl } from '../../webhooks/url-policy.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { redactWebhook } from './redact.js';
 
@@ -141,8 +141,8 @@ export const webhooksUpdateCommand: CommandDefinition<typeof InputSchema, Output
 			updates.secret = newSecret;
 		}
 
-		// Update webhook
-		await db.updateWebhook(input.id, updates);
+		// Update webhook, stamped by the context's clock (#1324)
+		await db.updateWebhook(input.id, { ...updates, updatedAt: contextNow(context) });
 
 		// Get the updated webhook
 		const updated = await db.getWebhook(input.id);
@@ -155,11 +155,11 @@ export const webhooksUpdateCommand: CommandDefinition<typeof InputSchema, Output
 			});
 		}
 
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'webhook_updated',
 			actor: actor || 'system',

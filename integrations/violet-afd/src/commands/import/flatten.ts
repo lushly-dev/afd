@@ -143,7 +143,7 @@ function readDtcgMetadata(
 /**
  * Map a DTCG `$type` to the closest Violet token category
  */
-function dtcgTypeToCategory(type: string): TokenCategory {
+export function dtcgTypeToCategory(type: string): TokenCategory {
 	switch (type) {
 		case 'color':
 			return 'color';

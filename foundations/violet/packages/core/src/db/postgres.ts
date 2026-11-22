@@ -100,6 +100,13 @@ export const POSTGRES_LENS_FOLLOW_UPS_UPGRADE = [
 ] as const;
 
 /**
+ * #1327: why a rule is disabled. Additive and idempotent: the column is
+ * nullable, so existing rules have no reason.
+ */
+export const POSTGRES_CONSTRAINT_REASON_UPGRADE =
+	'ALTER TABLE constraints ADD COLUMN IF NOT EXISTS disabled_reason TEXT';
+
+/**
  * Schema statements for the Neon/Postgres prototype.
  *
  * We keep operational payload fields as text where Violet already treats them
@@ -159,8 +166,10 @@ export const POSTGRES_SCHEMA_STATEMENTS = [
     severity TEXT NOT NULL DEFAULT 'error',
     apply_to TEXT NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    disabled_reason TEXT,
     PRIMARY KEY (node_id, id)
   )`,
+	POSTGRES_CONSTRAINT_REASON_UPGRADE,
 	`CREATE TABLE IF NOT EXISTS webhooks (
     id TEXT PRIMARY KEY,
     url TEXT NOT NULL,
@@ -419,9 +428,9 @@ export class PostgresDatabase implements Database {
 		await this.executor.query(
 			`INSERT INTO constraints (
         id, node_id, name, description, constraint_type, config, severity,
-        apply_to, enabled
+        apply_to, enabled, disabled_reason
       ) VALUES (
-        $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9
+        $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10
       )`,
 			[
 				constraint.id,
@@ -433,6 +442,7 @@ export class PostgresDatabase implements Database {
 				constraint.severity,
 				constraint.applyTo,
 				constraint.enabled,
+				constraint.disabledReason ?? null,
 			],
 		);
 	}
@@ -615,7 +625,10 @@ export class PostgresDatabase implements Database {
 		// Nothing to change (also keeps updated_at untouched for no-op updates)
 		if (setClauses.length === 0) return;
 
-		setClauses.push(`updated_at = ${bindParam(params, new Date().toISOString())}`);
+		// The caller's clock when it gives one, so a replayed update stamps the same time
+		setClauses.push(
+			`updated_at = ${bindParam(params, updates.updatedAt ?? new Date().toISOString())}`,
+		);
 
 		const idPlaceholder = bindParam(params, id);
 		await this.executor.query(
@@ -906,6 +919,7 @@ interface ConstraintRow {
 	severity: string;
 	apply_to: string;
 	enabled: boolean;
+	disabled_reason: string | null;
 }
 
 interface WebhookRow {
@@ -1067,6 +1081,7 @@ function rowToConstraint(row: ConstraintRow): Constraint {
 		severity: row.severity as Constraint['severity'],
 		applyTo: row.apply_to,
 		enabled: row.enabled,
+		...(row.disabled_reason ? { disabledReason: row.disabled_reason } : {}),
 	};
 }
 

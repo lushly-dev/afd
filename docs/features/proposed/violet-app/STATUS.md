@@ -23,8 +23,9 @@ not, so an agent never has to scan the code to learn what is current. It follows
   files that pass the three checks; a recommended app kind; the `violet-tree` document type;
   screens by part and layout class; twenty-two drafted commands; ten gaps (G1 to G10); the
   dependencies; the home and tests; five questions for the owner with recommendations.
-- **Not done:** the slice's gaps in `violet-afd` (#1322, #1323, #1324, #1325); moving Loam's
-  tree to DTCG files (question 3); then a specification in `endpoints/loam/plugins/violet/docs/`, and the build.
+- **Not done:** moving Loam's tree to DTCG files (question 3); then a specification in
+  `endpoints/loam/plugins/violet/docs/`, and the build. The seven gaps in `violet-afd` are built
+  (see Steps).
 - **Order:** the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md),
   steps 1 to 6 done, with one walk; step 9, the owner's ranking, done 2026-11-16; the
   specification next.
@@ -38,6 +39,7 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | Each job as a scenario, and the three checks | Done 2026-11-15 | [`scenarios/`](scenarios/), fifteen files, 61 steps; [How the jobs were checked](#how-the-jobs-were-checked) |
 | Walk the paths with a reader who did not write them | Done 2026-11-15: one fresh reader, three seats; six blockers and eleven improvements, all applied; three jobs and four commands added | Proposal, [section 8](violet-app.proposal.md#8-what-the-walk-changed) |
 | The owner ranks the jobs and answers section 12 | Done 2026-11-16 | Every recommendation accepted; proposal, [section 12](violet-app.proposal.md#12-for-the-owner) |
+| The seven gaps in `violet-afd`: G1 #1322, G2 #1323, G3 #1326, G4 #1327, G8 #1328, G9 #1324, G10 #1325 | Merged in #1942 | `export.tree`, `interface.check`, `token.remove`, the context's `now()` and `random()`, `INVALID_TOKEN_VALUE` on write, import and CSS export, alpha in contrast, `disabledReason`; `pnpm -F @lushly-dev/violet-afd test` 780 passed and `pnpm -F @lushly-dev/violet-core test` (its unit config) 191 passed; Loam's tree round-trips through `export.tree` and `import.tree` with the same values and files (an ad hoc check against `buildLoamTree()`) |
 | Specification, in the plugin's folder | Open, after approval | |
 | Build: the first slice (`slice` scenarios) | Open | |
 
@@ -61,7 +63,7 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | Loam phase 6, step 11 (the desktop lane's mounts) | In progress, by the owner's brief; Loam's STATUS.md lists steps 4 to 13 as not done at `6eeb545d` | Running the app in the desktop Loam; `stdio` mounts for the later engine |
 | Loam phase 5 (`calls`, plain mounts, mounted document types, the copilot) | Not started | The mounted engine (question 2) |
 | Loam's plugin-engine specification (Mail's L5) | Open since 2026-11-10 | The mounted engine, as an alternative to phase 5's `calls` |
-| Violet gaps G1, G2, G9 and G10 in `violet-afd` | Filed 2026-11-16: #1322, #1323, #1324, #1325 | The slice: tree export, the interface check, replay and safe values |
+| Violet gaps G1, G2, G9 and G10 in `violet-afd` | Built 2026-11-21 (see Steps) | The slice: tree export, the interface check, replay and safe values |
 | The Violet session working on `violet-elements` and packaging (#1195, #1297) | Both merged; further work may be in flight | Any change to Violet's code here waits for it |
 
 ## Follow-ups not yet issues
@@ -73,6 +75,12 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | 2026-11-15 | This proposal | Superseded 2026-11-16: the `violet` row of Loam's first-party apps is amended in #1314 |
 | 2026-11-16 | Owner (question 3) | Move Loam's tree from TypeScript to DTCG token files, and write Lushly's that way from the start |
 | 2026-11-15 | This proposal | Measure Loam's tree, and later Lushly's, as DTCG files against the 256 KiB bound on an instance command's input |
+| 2026-11-21 | Gaps session | `export.tree` refuses a node's subtract, reset and copy operations, since `import.tree`'s files hold adds and overrides only; extend both if the app needs them |
+| 2026-11-21 | Gaps session | Token ids are refused at CSS and SCSS export when they cannot be a name, but writes still accept them; refuse them on write too |
+| 2026-11-21 | Gaps session | Writes take a node's next sequence from an earlier read, so two writes at once can share one; allocate it with the insert |
+| 2026-11-21 | Gaps session | The webhook dispatcher still stamps deliveries with the wall clock and `Math.random()`; the memory store's `transaction()` does not roll back |
+| 2026-11-21 | Gaps session | `export.tree` lists a token's category as dropped when it has no `$type` (71 in Loam's tree); DTCG files with `$type` carry it |
+| 2026-11-21 | Gaps session | The new commands reach the `violet` CLI through `violet call` only; no subcommands, and `violet-server`'s instructions text does not name them |
 
 ## Session log
 
@@ -80,3 +88,4 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | --- | --- | --- |
 | 2026-11-15 | Proposal | Drafted the proposal, twelve scenarios and this file at `6eeb545d`; ran the three checks; one fresh reader walked the paths in three seats; applied every finding (three jobs and four commands added, undo and unsafe values fixed, agents stated plainly); reran the checks |
 | 2026-11-16 | Proposal | The owner accepted every recommendation in section 12; filed the seven gaps (#1322 to #1328); amended the `violet` row of Loam's first-party apps; told the desktop-lane session the app waits on its step 11 only to run on the desktop |
+| 2026-11-21 | Gaps | Built the seven gaps in `violet-afd` and `violet-core` (#1322 to #1328) in #1942 |

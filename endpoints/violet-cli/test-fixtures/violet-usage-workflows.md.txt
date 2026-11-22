@@ -58,6 +58,7 @@ drifts from the registry or names a CLI command that doesn't exist.
 - `token.subtract`: `violet token subtract`
 - `token.reset`: `violet token reset`
 - `token.copy`: `violet token copy`
+- `token.remove`: `violet call token.remove`, removes a node's own operation by `operationId`, or all of them on a `tokenId`, as if never written (the undo of `token.add`)
 - `tokens.resolve`: `violet tokens <nodeId>`
 - `token.lineage`: `violet token lineage`
 - `tokens.matrix`: `violet matrix`, tokens resolved across many nodes with how each value got there (`--group`, `--summary`, `--limit`/`--cursor` paging, `--around <token>` for the page holding a token)
@@ -67,6 +68,7 @@ drifts from the registry or names a CLI command that doesn't exist.
 ### Export (`export`)
 
 - `export`: `violet export json|css|scss|ts|lua <nodeId>`; swift, kotlin, dart and tailwind through `violet call export`
+- `export.tree`: `violet call export.tree`, the tree as DTCG files, one per node with only its own tokens, which `import.tree` reads back
 
 ### Import (`import`)
 
@@ -89,6 +91,7 @@ drifts from the registry or names a CLI command that doesn't exist.
 - `analyze.health`: `violet health`, per node, own customizations by category, drift against a baseline (`--baseline parent|root|<id>`), violations, owner, status, deprecation plans (sunset date, replacement, usage), coupling and risk flags
 - `analyze.trends`: `violet trends`, changes per day for a node and its descendants (`--since 90d`), the open rule issues by the day their failing value was set, and the rule checks recorded with `violet snapshot`
 - `analyze.snapshot`: `violet snapshot`, checks the rules on a subtree (`--root`) or every tree and stores the results, so `trends` has true history; run it on a schedule
+- `interface.check`: `violet call interface.check`, whether every id of a component interface (`violet-elements`' `tokens/interface.json`) resolves in each theme node
 - `changes.impact`: `violet impact`, a dry-run add/override/subtract/reset on a node; nothing is written
 
 ### Audit log (`audit`)

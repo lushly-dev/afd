@@ -7,6 +7,7 @@ import { compareNodesCommand } from './compare.js';
 import { analyzeComplianceCommand } from './compliance.js';
 import { analyzeDeviationsCommand } from './deviations.js';
 import { analyzeHealthCommand } from './health.js';
+import { interfaceCheckCommand } from './interface.js';
 import { analyzeSnapshotCommand } from './snapshot.js';
 import { analyzeTrendsCommand } from './trends.js';
 import { analyzeViolationsCommand } from './violations.js';
@@ -18,6 +19,7 @@ export * from './violations.js';
 export * from './health.js';
 export * from './trends.js';
 export * from './snapshot.js';
+export * from './interface.js';
 
 /**
  * Register all analyze commands
@@ -30,4 +32,5 @@ export function registerAnalyzeCommands(): void {
 	registry.register(analyzeHealthCommand);
 	registry.register(analyzeTrendsCommand);
 	registry.register(analyzeSnapshotCommand);
+	registry.register(interfaceCheckCommand);
 }

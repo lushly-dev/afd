@@ -545,7 +545,7 @@ describe('Registry Command Coverage', () => {
 
 	it('registry has expected command count', () => {
 		const commands = registry.list();
-		expect(commands.length).toBe(46);
+		expect(commands.length).toBe(49);
 	});
 });
 

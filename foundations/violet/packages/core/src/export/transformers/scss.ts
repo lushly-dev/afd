@@ -1,3 +1,4 @@
+import { UnsafeCssValueError, checkCssToken } from '../../css/token-value.js';
 import type { ResolvedToken } from '../../types/token.js';
 import type { TransformOptions, Transformer } from '../transformer.js';
 import { groupByCategory, tokenIdToKebab } from '../transformer.js';
@@ -14,6 +15,12 @@ export const scssTransformer: Transformer = {
 
 	transform(tokens: ResolvedToken[], options: TransformOptions = {}): string {
 		const { prefix = '', includeComments = false, groupByCategory: group = false } = options;
+
+		// Every name and value is checked here, for stores written before writes were checked (#1325)
+		for (const token of tokens) {
+			const problem = checkCssToken(token, prefix);
+			if (problem) throw new UnsafeCssValueError(token.id, problem);
+		}
 
 		const lines: string[] = [];
 
@@ -36,7 +43,7 @@ export const scssTransformer: Transformer = {
 					const value = formatScssValue(token.resolvedValue);
 
 					if (includeComments && token.metadata?.description) {
-						lines.push(`// ${token.metadata.description}`);
+						lines.push(`// ${token.metadata.description.replace(/[\r\n<>]+/g, ' ')}`);
 					}
 
 					lines.push(`${varName}: ${value};`);
@@ -51,7 +58,7 @@ export const scssTransformer: Transformer = {
 				const value = formatScssValue(token.resolvedValue);
 
 				if (includeComments && token.metadata?.description) {
-					lines.push(`// ${token.metadata.description}`);
+					lines.push(`// ${token.metadata.description.replace(/[\r\n<>]+/g, ' ')}`);
 				}
 
 				lines.push(`${varName}: ${value};`);

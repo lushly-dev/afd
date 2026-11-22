@@ -58,6 +58,20 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 		};
 	}
 
+	// A reason says why a rule is switched off; on a rule that runs it would mislead (#1327)
+	const reasonOnEnabled = input.constraints.filter((c) => c.enabled && c.disabledReason);
+	if (reasonOnEnabled.length > 0) {
+		return {
+			success: false,
+			error: {
+				code: 'VALIDATION_ERROR',
+				message: `disabledReason is set on enabled constraint(s): ${reasonOnEnabled.map((c) => c.id).join(', ')}`,
+				suggestion:
+					'Set enabled: false beside disabledReason to switch the rule off, or drop disabledReason',
+			},
+		};
+	}
+
 	// Reject pattern constraints whose regex is invalid or can backtrack catastrophically
 	for (const constraint of input.constraints) {
 		if (constraint.config.type !== 'pattern') {

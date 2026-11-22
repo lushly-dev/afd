@@ -39,6 +39,15 @@ const OutputSchema = z.object({
 	valid: z.boolean(),
 	results: z.array(TokenValidationResultSchema),
 	summary: ValidationSummarySchema,
+	/** Rules in the node's chain that are switched off, each with why when it says (#1327) */
+	disabled: z.array(
+		z.object({
+			constraintId: z.string(),
+			name: z.string(),
+			source: z.string(),
+			reason: z.string().optional(),
+		}),
+	),
 });
 
 type Input = z.input<typeof InputSchema>;
@@ -51,31 +60,19 @@ type Output = z.infer<typeof OutputSchema>;
 async function getAllConstraints(
 	db: CommandContext['db'],
 	nodeId: string,
-): Promise<ConstraintWithSource[]> {
-	const constraints: ConstraintWithSource[] = [];
+): Promise<{ enabled: ConstraintWithSource[]; disabled: ConstraintWithSource[] }> {
+	const enabled: ConstraintWithSource[] = [];
+	const disabled: ConstraintWithSource[] = [];
 
-	// Get ancestry from root to node
+	// Ancestors root first, then the node's own
 	const ancestryChain = await db.getAncestryChain(nodeId);
-
-	// Collect constraints from ancestors (root first)
-	for (const ancestorId of ancestryChain) {
-		const ancestorConstraints = await db.getConstraints(ancestorId);
-		for (const constraint of ancestorConstraints) {
-			if (constraint.enabled) {
-				constraints.push({ ...constraint, source: ancestorId });
-			}
+	for (const source of [...ancestryChain, nodeId]) {
+		for (const constraint of await db.getConstraints(source)) {
+			(constraint.enabled ? enabled : disabled).push({ ...constraint, source });
 		}
 	}
 
-	// Add local constraints
-	const localConstraints = await db.getConstraints(nodeId);
-	for (const constraint of localConstraints) {
-		if (constraint.enabled) {
-			constraints.push({ ...constraint, source: nodeId });
-		}
-	}
-
-	return constraints;
+	return { enabled, disabled };
 }
 
 // =============================================================================
@@ -127,7 +124,7 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 	}
 
 	// Get all constraints
-	const constraints = await getAllConstraints(db, input.nodeId);
+	const { enabled: constraints, disabled } = await getAllConstraints(db, input.nodeId);
 
 	// Validate each token against matching constraints
 	const results: Array<{
@@ -200,6 +197,12 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 				warnings,
 				infos,
 			},
+			disabled: disabled.map((constraint) => ({
+				constraintId: constraint.id,
+				name: constraint.name,
+				source: constraint.source,
+				...(constraint.disabledReason ? { reason: constraint.disabledReason } : {}),
+			})),
 		},
 		reasoning:
 			errors === 0

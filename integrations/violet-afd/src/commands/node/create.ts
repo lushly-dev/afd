@@ -5,9 +5,9 @@ import {
 	NodeStatusSchema,
 	NodeTypeSchema,
 } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { checkDeprecationPlan } from './deprecation.js';
 
@@ -107,7 +107,7 @@ export const nodeCreateCommand: CommandDefinition<typeof InputSchema, Output> = 
 		if ('error' in plan) return failure(plan.error);
 
 		// Create the node
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 		const node: Node = {
 			id: nodeId,
 			name: input.name,
@@ -129,7 +129,7 @@ export const nodeCreateCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'node_created',
 			actor: actor || 'system',

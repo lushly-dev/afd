@@ -4,12 +4,36 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext } from '../registry.js';
 import { tokenAddCommand } from '../token/add.js';
-import { tokenOverrideCommand } from '../token/override.js';
 import { specimenGetCommand } from './get.js';
 import { specimenSetCommand } from './set.js';
 
 describe('specimen.get and specimen.set (#118)', () => {
 	let context: CommandContext;
+
+	/** Write an operation straight to the store, past the commands' value checks */
+	const storeUnchecked = async (
+		nodeId: string,
+		type: 'add' | 'override',
+		tokenId: string,
+		value: string,
+	) => {
+		const ops = await context.db.getOperations(nodeId);
+		await context.db.addOperation({
+			id: `unchecked-${nodeId}-${tokenId}`,
+			nodeId,
+			sequence: ops.length + 1,
+			type,
+			tokenId,
+			value: JSON.stringify(value),
+			metadata: null,
+			fromNode: null,
+			asTokenId: null,
+			toAncestor: null,
+			reason: null,
+			author: null,
+			createdAt: '2026-01-01T00:00:00.000Z',
+		});
+	};
 
 	const get = async (nodeId: string) => {
 		const result = await specimenGetCommand.handler({ nodeId }, context);
@@ -43,11 +67,9 @@ describe('specimen.get and specimen.set (#118)', () => {
 		]) {
 			await tokenAddCommand.handler({ nodeId, tokenId, value }, context);
 		}
-		// A value no colour validator accepts
-		await tokenOverrideCommand.handler(
-			{ nodeId: 'theme', tokenId: 'btn.bg', value: 'url(javascript:alert(1))' },
-			context,
-		);
+		// A value no colour validator accepts, stored as a database made before writes
+		// refused it (#1325) would hold it
+		await storeUnchecked('theme', 'override', 'btn.bg', 'url(javascript:alert(1))');
 	});
 
 	it('falls back to the naming convention without a stored map', async () => {
@@ -178,12 +200,12 @@ describe('specimen.get and specimen.set (#118)', () => {
 			['link.underline.offset', '0.2em'],
 			['checkbox.background', '#FFFFFF'],
 			['checkbox.size', '16px'],
-			['checkbox.check', 'url(javascript:alert(1))'],
 			['focus.ring.width', '-2px'],
 			['focus.ring.offset', '-2px'],
 		]) {
 			await tokenAddCommand.handler({ nodeId: 'global', tokenId, value }, context);
 		}
+		await storeUnchecked('global', 'add', 'checkbox.check', 'url(javascript:alert(1))');
 		const data = await get('product');
 		const component = (name: string) => data.components.find((entry) => entry.component === name);
 
