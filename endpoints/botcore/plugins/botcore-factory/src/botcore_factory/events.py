@@ -10,11 +10,13 @@ foreman that dies between reading and acting loses nothing: the next one finds i
 
 from __future__ import annotations
 
+import contextlib
 import re
 import time
 
 from botcore_factory.records import make
 from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.world import WorldError
 
 EVENT_FIELDS = (
     "id",
@@ -155,6 +157,17 @@ def lane_pause(factory: Factory, reason: str | None) -> dict:
     with factory.store.update(f"lane-pause: {reason}" if reason else "lane-pause") as state:
         state["lane"]["paused"] = True
         state["lane"]["pauseReason"] = reason or state["lane"].get("pauseReason")
+        state["lane"].pop("waitingOnHostLock", None)
+        pid = state["lane"].get("pid")
+        if (
+            factory.world.validation_lock is not None
+            and isinstance(pid, int)
+            and not isinstance(pid, bool)
+        ):
+            with contextlib.suppress(WorldError):
+                factory.world.validation_lock.withdraw_waiter(
+                    factory.world.github.repository(), pid
+                )
     return {"paused": True, "pauseReason": state["lane"]["pauseReason"]}
 
 

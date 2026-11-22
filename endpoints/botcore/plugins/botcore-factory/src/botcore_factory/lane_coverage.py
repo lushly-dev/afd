@@ -8,6 +8,8 @@ clears only the merges it ran after, so a merge that landed meanwhile still owes
 
 from __future__ import annotations
 
+import contextlib
+
 from botcore_factory.cells import build_dir, seated
 from botcore_factory.events import is_open
 from botcore_factory.lane_base import (
@@ -16,7 +18,8 @@ from botcore_factory.lane_base import (
     StepBase,
     first_lines,
 )
-from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
+from botcore_factory.validation_lock import parse_job_handle
+from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
 INSTALL_TIMEOUT_SECONDS = 1800
 
@@ -141,27 +144,57 @@ class Coverage(StepBase):
             return
         if any(e.get("state") in AT_THE_FRONT for e in self.state["queue"]):
             return
-        base = self.base_head(fresh=True)
-        path = self.world.git.prepare_slot("coverage", "", base)
-        log = f"coverage/{base[:12]}.log"
-        handle = self.world.processes.start_job(
-            self.job_steps("coverage", self.config.coverage, path, "coverage", ""),
-            cwd=path,
-            log=self.absolute(log),
-            label="coverage",
-        )
-        self.lane["coverage"] = {
-            "run": handle,
-            "main": base,
-            "startedAt": self.at,
-            "logPath": log,
-            "after": list(self.lane.get("mergedSinceCoverage", [])),
-        }
-        self.actions.append(f"coverage on {base}")
+        if self._blocked_on_host_lock is not None:
+            return
+        lock = self.world.validation_lock
+        acquired = False
+        if lock is not None:
+            blocker = lock.try_acquire(
+                "coverage", self.world.github.repository(), self.host_lock_pid()
+            )
+            if blocker is not None:
+                self._blocked_on_host_lock = blocker
+                self.actions.append(
+                    f"waiting on host validation lock ({blocker.get('lane')}: "
+                    f"{blocker.get('repository')})"
+                )
+                return
+            acquired = True
+        started = False
+        try:
+            base = self.base_head(fresh=True)
+            path = self.world.git.prepare_slot("coverage", "", base)
+            log = f"coverage/{base[:12]}.log"
+            handle = self.world.processes.start_job(
+                self.job_steps("coverage", self.config.coverage, path, "coverage", ""),
+                cwd=path,
+                log=self.absolute(log),
+                label="coverage",
+            )
+            started = True
+            self.lane["coverage"] = {
+                "run": handle,
+                "main": base,
+                "startedAt": self.at,
+                "logPath": log,
+                "after": list(self.lane.get("mergedSinceCoverage", [])),
+            }
+            if acquired and lock is not None:
+                job_pid, job_started = parse_job_handle(handle)
+                lock.set_job(
+                    "coverage",
+                    self.world.github.repository(),
+                    self.host_lock_pid(),
+                    job_pid,
+                    job_started,
+                )
+            self.actions.append(f"coverage on {base}")
+        finally:
+            if acquired and not started and lock is not None:
+                with contextlib.suppress(WorldError):
+                    self.release_host_hold("coverage")
 
     def poll_coverage(self) -> None:
-        from botcore_factory.world import WorldError
-
         running = self.lane.get("coverage")
         if not running:
             return
@@ -169,10 +202,14 @@ class Coverage(StepBase):
             done = self.world.processes.poll(running["run"])
         except WorldError:
             self.lane.pop("coverage")  # Lost with a restart: it runs again.
+            with contextlib.suppress(WorldError):
+                self.release_host_hold("coverage")
             return
         if done is None:
             return
         self.lane.pop("coverage")
+        with contextlib.suppress(WorldError):
+            self.release_host_hold("coverage")
         passed = done.returncode == 0
         full = None if passed else done.disk_full
         if full is not None and running.get("main") != self.lane.get("diskFullCoverage"):

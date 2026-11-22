@@ -40,6 +40,7 @@ ejects a branch is in ``lane_base``. The lane never edits code.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 
@@ -56,6 +57,7 @@ from botcore_factory.lane_base import (
 from botcore_factory.lane_coverage import NVMRC_BLANK, NVMRC_DELETED, Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
 from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.validation_lock import parse_job_handle
 from botcore_factory.world import MergeOutcome, WorldError
 
 __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
@@ -72,6 +74,7 @@ REVIEW_REFUSED = 3
 
 class Step(Merging, Coverage):
     def run(self) -> list[str]:
+        failed = False
         try:
             self.poll_validations()
             self.poll_coverage()
@@ -82,13 +85,57 @@ class Step(Merging, Coverage):
                 self.sweep_kept()
                 if not self.lane.get("stopRequested"):
                     self.start_validations()
-                self.start_coverage()
+                    self.start_coverage()
                 self.queue_empty()
         except LaneTrouble as trouble:
+            failed = True
             self.trouble(str(trouble))
         except WorldError as exc:  # Anything else outside that failed is the lane's trouble too.
+            failed = True
             self.trouble(f"{type(exc).__name__}: {exc}")
+        self._finish_host_lock(failed)
         return self.actions
+
+    def _finish_host_lock(self, failed: bool) -> None:
+        """Reconcile active holds, withdraw unneeded waiter registrations and keep
+        ``waitingOnHostLock`` deterministic (no ticking fields that would spam state.log)."""
+        waiting = (
+            not failed
+            and not self.lane.get("paused")
+            and not self.lane.get("stopRequested")
+            and self._blocked_on_host_lock is not None
+        )
+        if waiting:
+            self.lane["waitingOnHostLock"] = self._blocked_on_host_lock
+        else:
+            self.lane.pop("waitingOnHostLock", None)
+        lock = self.world.validation_lock
+        if lock is None:
+            return
+        active = [
+            f"slot:{entry['slot']}"
+            for entry in self.state["queue"]
+            if entry.get("state") == "validating" and entry.get("slot")
+        ]
+        if self.lane.get("coverage"):
+            active.append("coverage")
+
+        def sync() -> None:
+            repo, pid = self.world.github.repository(), self.host_lock_pid()
+            lock.reconcile(repo, pid, active)
+            if not waiting:
+                lock.withdraw_waiter(repo, pid)
+
+        if failed or self.lane.get("paused"):
+            # Never mask an existing lane-error or spam new ones on every tick while paused.
+            with contextlib.suppress(WorldError):
+                sync()
+            return
+        try:
+            sync()
+        except WorldError as exc:
+            self.lane.pop("waitingOnHostLock", None)
+            self.trouble(f"{type(exc).__name__}: {exc}")
 
     def poll_validations(self) -> None:
         # In reverse, so entries a restart sends to the front keep their order there.
@@ -144,6 +191,8 @@ class Step(Merging, Coverage):
             if passed:
                 entry.pop("run", None)
                 entry["state"] = "validated"
+                if entry.get("slot"):
+                    self.release_host_hold(f"slot:{entry['slot']}")
                 self.actions.append(f"validated {entry['branch']}")
             else:
                 self.eject(entry, "final-failed", output, entry.get("logPath"), done.failures)
@@ -195,6 +244,21 @@ class Step(Merging, Coverage):
                     f"Validating {entry['branch']} waits: {short.message}. {short.suggestion}; "
                     "then lane-resume"
                 )
+            # Check the shared host validation lock before running review_verified or releasing
+            # a kept slot, so waiting on another lane neither re-runs review checks every tick
+            # nor evicts a validated branch's slot (lushly-dev/afd#1309).
+            lock = self.world.validation_lock
+            if lock is not None:
+                blocker = lock.check_available(
+                    self.world.github.repository(), self.host_lock_pid(), register_waiter=True
+                )
+                if blocker is not None:
+                    self._blocked_on_host_lock = blocker
+                    self.actions.append(
+                        f"waiting on host validation lock ({blocker.get('lane')}: "
+                        f"{blocker.get('repository')})"
+                    )
+                    return
             # Checked once a slot is to be had, and before a validated branch gives one up.
             if not self.review_verified(entry, self.base_head()):
                 continue
@@ -203,7 +267,9 @@ class Step(Merging, Coverage):
                 self.release_slot(reserved)
             slot = free.pop(0)
             if not self.start_validation(entry, slot):
-                free.insert(0, slot)  # Ejected before it ran: the next branch takes the slot.
+                free.insert(0, slot)  # Ejected before it ran (or lock raced): keep slot free.
+                if self._blocked_on_host_lock is not None:
+                    return
 
     def release_slot(self, entry: dict) -> None:
         """Give a validated entry's slot to the front of the queue, keeping its validation
@@ -252,81 +318,121 @@ class Step(Merging, Coverage):
             kept.remove(path)
 
     def start_validation(self, entry: dict, slot: str) -> bool:
-        """Start validating ``entry`` in ``slot``; False when it was ejected instead."""
+        """Start validating ``entry`` in ``slot``; False when ejected or blocked on host lock."""
         base, branch = self.base_head(), entry["branch"]
         log = log_path(branch, entry["attempt"])
-        try:
-            path = self.world.git.prepare_slot(slot, branch, entry["head"])
-        except WorldError as exc:
-            if BAD_REVISION.search(str(exc)):
-                self.eject(entry, "entry-invalid", f"{entry['head']} cannot be checked out: {exc}")
+        lock = self.world.validation_lock
+        hold_id = f"slot:{slot}"
+        acquired = False
+        if lock is not None:
+            blocker = lock.try_acquire(
+                hold_id, self.world.github.repository(), self.host_lock_pid()
+            )
+            if blocker is not None:
+                self._blocked_on_host_lock = blocker
+                self.actions.append(
+                    f"waiting on host validation lock ({blocker.get('lane')}: "
+                    f"{blocker.get('repository')})"
+                )
                 return False
-            raise LaneTrouble(f"Preparing slot {slot} for {branch} failed: {exc}") from exc
+            acquired = True
+        started = False
         try:
-            merged = self.world.git.merge_main(path, base, keep_open=self.regenerable)
-        except WorldError as exc:
-            raise LaneTrouble(f"Merging {base} into {branch} did not happen: {exc}") from exc
-        regenerated: list[str] = []
-        regenerated_paths: list[str] = []
-        if merged.open:
-            regenerated_paths = list(merged.conflicts)
-            outcome = self.regenerate(entry, path, base, merged.conflicts)
-            if outcome is None:
+            try:
+                path = self.world.git.prepare_slot(slot, branch, entry["head"])
+            except WorldError as exc:
+                if BAD_REVISION.search(str(exc)):
+                    self.eject(
+                        entry, "entry-invalid", f"{entry['head']} cannot be checked out: {exc}"
+                    )
+                    return False
+                raise LaneTrouble(f"Preparing slot {slot} for {branch} failed: {exc}") from exc
+            try:
+                merged = self.world.git.merge_main(path, base, keep_open=self.regenerable)
+            except WorldError as exc:
+                raise LaneTrouble(f"Merging {base} into {branch} did not happen: {exc}") from exc
+            regenerated: list[str] = []
+            regenerated_paths: list[str] = []
+            if merged.open:
+                regenerated_paths = list(merged.conflicts)
+                outcome = self.regenerate(entry, path, base, merged.conflicts)
+                if outcome is None:
+                    return False
+                merged, regenerated = outcome
+            if not merged.clean:
+                self.eject(
+                    entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}"
+                )
                 return False
-            merged, regenerated = outcome
-        if not merged.clean:
-            self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
-            return False
-        if regenerated:
+            if regenerated:
+                self.record(
+                    "provenance-rerecorded",
+                    branch=branch,
+                    attempt=entry["attempt"],
+                    base=base,
+                    names=regenerated,
+                    paths=regenerated_paths,
+                )
+            # One commit of its own on the base, with the merged tree: what is validated, pushed
+            # and merged (lushly-dev/afd#1809).
+            try:
+                folded = self.world.git.fold(path, base)
+            except WorldError as exc:
+                raise LaneTrouble(
+                    f"Folding {branch} into one commit on {base} failed: {exc}"
+                ) from exc
+            if folded.refused:
+                self.eject(entry, "entry-invalid", folded.refused)
+                return False
+            steps = self.validation_steps(entry, path, base, slot)
+            if steps is None:
+                return False
+            tree = self.world.git.tree(path)
+            # What the branch changes against the base, read while the slot holds it,
+            # before start_job so nothing can raise between process spawn and entry.update.
+            changed = self.world.git.changed_files(path, base)
+            handle = self.world.processes.start_job(
+                steps, cwd=path, log=self.absolute(log), label="validate"
+            )
+            started = True
+            entry.update(
+                state="validating",
+                slot=slot,
+                path=path,
+                base=base,
+                validatedHead=folded.head,
+                tree=tree,
+                changed=changed,
+                startedAt=self.at,
+                run=handle,
+                logPath=log,
+            )
+            if acquired and lock is not None:
+                job_pid, job_started = parse_job_handle(handle)
+                lock.set_job(
+                    hold_id,
+                    self.world.github.repository(),
+                    self.host_lock_pid(),
+                    job_pid,
+                    job_started,
+                )
             self.record(
-                "provenance-rerecorded",
+                "validation-started",
                 branch=branch,
                 attempt=entry["attempt"],
+                head=folded.head,
                 base=base,
-                names=regenerated,
-                paths=regenerated_paths,
+                slot=slot,
+                **({"regenerated": regenerated} if regenerated else {}),
             )
-        # One commit of its own on the base, with the merged tree: what is validated, pushed
-        # and merged (lushly-dev/afd#1809).
-        try:
-            folded = self.world.git.fold(path, base)
-        except WorldError as exc:
-            raise LaneTrouble(f"Folding {branch} into one commit on {base} failed: {exc}") from exc
-        if folded.refused:
-            self.eject(entry, "entry-invalid", folded.refused)
-            return False
-        steps = self.validation_steps(entry, path, base, slot)
-        if steps is None:
-            return False
-        handle = self.world.processes.start_job(
-            steps, cwd=path, log=self.absolute(log), label="validate"
-        )
-        entry.update(
-            state="validating",
-            slot=slot,
-            path=path,
-            base=base,
-            validatedHead=folded.head,
-            tree=self.world.git.tree(path),
-            # What the branch changes against the base, read while the slot holds it.
-            changed=self.world.git.changed_files(path, base),
-            startedAt=self.at,
-            run=handle,
-            logPath=log,
-        )
-        self.record(
-            "validation-started",
-            branch=branch,
-            attempt=entry["attempt"],
-            head=folded.head,
-            base=base,
-            slot=slot,
-            **({"regenerated": regenerated} if regenerated else {}),
-        )
-        if regenerated:
-            self.actions.append(f"regenerated {', '.join(regenerated)} for {branch}")
-        self.actions.append(f"validating {branch} in slot {slot}")
-        return True
+            if regenerated:
+                self.actions.append(f"regenerated {', '.join(regenerated)} for {branch}")
+            self.actions.append(f"validating {branch} in slot {slot}")
+            return True
+        finally:
+            if acquired and not started and lock is not None:
+                with contextlib.suppress(WorldError):
+                    self.release_host_hold(hold_id)
 
     def validation_steps(self, entry: dict, path: str, base: str, slot: str) -> list[dict] | None:
         """The validation job's steps, on the Node the merged slot's ``.nvmrc`` names. That Node

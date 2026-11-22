@@ -14,6 +14,7 @@ foreman excused (``ejection-excuse``).
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 
 from botcore_factory import dials, records
@@ -196,6 +197,7 @@ class StepBase:
         self.at = format_time(self.now)
         self.actions: list[str] = []
         self._base: str | None = None
+        self._blocked_on_host_lock: dict | None = None
         for entry in [*state["queue"], *state["held"]]:  # Entries a fixture or recovery wrote.
             entry.setdefault("attempt", 1)
             entry.setdefault("state", "queued" if entry in state["queue"] else "held")
@@ -237,6 +239,16 @@ class StepBase:
         run_id = self.lane.get("runId")
         return next((run for run in self.state["runs"] if run.get("id") == run_id), None)
 
+    def host_lock_pid(self) -> int:
+        """The lane daemon's PID recorded in state, falling back to this process."""
+        pid = self.lane.get("pid")
+        return int(pid) if isinstance(pid, int) and not isinstance(pid, bool) else os.getpid()
+
+    def release_host_hold(self, hold_id: str) -> None:
+        lock = self.world.validation_lock
+        if lock is not None:
+            lock.release(hold_id, self.world.github.repository(), self.host_lock_pid())
+
     def requeue(
         self, entry: dict, reason: str, *, front: bool = True, detail: str | None = None
     ) -> None:
@@ -245,9 +257,14 @@ class StepBase:
         It keeps its open PR and goes to the front, behind any branch already merging.
         With ``front=False`` it keeps its position while giving up a reserved slot.
         """
+        was_validating = entry.get("state") == "validating"
+        slot = entry.get("slot")
         if entry.get("run"):
             with contextlib.suppress(WorldError):
                 self.world.processes.kill(entry["run"])
+        if was_validating and slot:
+            with contextlib.suppress(WorldError):
+                self.release_host_hold(f"slot:{slot}")
         self.record(
             "rerun", branch=entry["branch"], attempt=entry["attempt"], reason=reason, detail=detail
         )
@@ -269,9 +286,14 @@ class StepBase:
         failures: tuple[str, ...] | None = None,
     ) -> None:
         self.world.git.delete_queue_ref(entry["branch"], entry["head"])
+        was_validating = entry.get("state") == "validating"
+        slot = entry.get("slot")
         if entry.get("run"):
             with contextlib.suppress(WorldError):  # Already gone.
                 self.world.processes.kill(entry["run"])
+        if was_validating and slot:
+            with contextlib.suppress(WorldError):
+                self.release_host_hold(f"slot:{slot}")
         self.state["queue"].remove(entry)
         lines, tests = failure_lines(text, list(failures) if failures is not None else None)
         lines = lines or [cause]
@@ -316,5 +338,6 @@ class StepBase:
     def trouble(self, detail: str) -> None:
         self.lane["paused"] = True
         self.lane["pauseReason"] = detail
+        self.lane.pop("waitingOnHostLock", None)
         needs = "sign-in" if re.search(r"auth|sign.?in|401|credential", detail, re.I) else None
         self.event("lane-error", detail=detail, needsOwner=needs)

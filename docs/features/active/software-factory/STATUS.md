@@ -170,6 +170,31 @@ how to record a decision with `event-resolve` and its `note` argument.
 
 The lane host, its slots, Node and the other toolchains.
 
+#### Shared host validation lock (Phase A: AFD), 2026-11-22
+
+Branch `t3/host-validation-lock-1309`, for
+[#1309](https://github.com/lushly-dev/afd/issues/1309) (after the owner approved both open
+decisions on 2026-11-22: auto-clearing dead holds once both lane PID and job PIDs exit, and
+keeping Lushly's non-lane `pnpm validate:final` runs on `final-validation-lock.mjs` alone):
+
+- Added `botcore_factory.validation_lock.ValidationLock` over `~/.cache/lushly-factory/`
+  (`validation-lock.json` schema `version: 1` + short-lived `validation-lock.mutex` with nonce
+  release and rename-aside stale breaking; override `LUSHLY_FACTORY_HOST_LOCK_DIR`), plus an
+  in-memory `FixtureValidationLock` (`hostLock` fixture key) so tests never touch the home cache.
+- Updated `real_system._darwin_start_time` to run `ps` under `TZ=UTC LC_ALL=C` and parse with
+  `calendar.timegm` so Python and Node agree on integer UTC Unix epoch seconds (`startedAtEpoch`).
+- Wired the host validation lock into `Step.start_validations()` (pre-checking before
+  `review_verified` and `release_slot`), `Step.start_validation()`, `Coverage.start_coverage()`
+  (with rollback on pre-`start_job` ejections/`LaneTrouble` and `set_job` for child PIDs),
+  `poll_validations()`, `poll_coverage()`, `requeue()`, `eject()`, `cells.drop()` (using the lane
+  daemon's PID, never the CLI PID), `lane_pause()`, and end-of-step `reconcile`/`withdraw_waiter`.
+- Extended `lane_stop`, `_end_run(kill=True)`, `resume()`, `run_loop` `busy`, and `stopRequested`
+  gating to include `lane.coverage`; exposed deterministic `waitingOnHostLock` and `hostLock` in
+  `lane_status`.
+- Remaining for `#1309`: Phase B in `lushly-dev/lushly` (`scripts/host-validation-lock.mjs` wired
+  into `merge-lane-worker.mjs:final()` and `merge-lane-operations.mjs:coverage()`), then Phase C
+  live two-lane check on `random` and removal of the manual host note in `runbook.md`.
+
 #### Shared host validation lock approach proposed for #1309, 2026-11-22
 
 Posted and independently reviewed the cross-repository approach on

@@ -26,6 +26,7 @@ from botcore_factory.fixture_parts import (
     FixtureMachine,
     FixturePlans,
     FixtureProcesses,
+    FixtureValidationLock,
 )
 from botcore_factory.world import World, WorldError
 
@@ -62,6 +63,7 @@ WORLD_KEYS = frozenset(
         "nextPr",
         "pushed",
         "checkouts",
+        "hostLock",
     }
 )
 STATE_KEYS = frozenset(
@@ -228,6 +230,7 @@ class FixtureWorld:
             machine=FixtureMachine(self),
             plans=FixturePlans(self),
             processes=FixtureProcesses(self),
+            validation_lock=FixtureValidationLock(self),
         )
 
     def issue_data(self, number: int) -> dict:

@@ -174,7 +174,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `WRITE_FAILED` (a claim write failed; the claims it wrote are put back, and it names any it
   could not). A refusal writes nothing.
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
-  `paused`, `pauseReason`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
+  `paused`, `pauseReason`, `waitingOnHostLock` (deterministic holder or head waiter summary when
+  another lane owns or leads the shared host validation lock), `hostLock {version, owner,
+  waiters[]}`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
   `cells[] {branch, issue, issues, relatedBecause?, state, plan, route, ejections, excused,
   countedEjections, lastEjection}`, `openEvents[]`,
   (a `queue[]` entry's `state` is `queued`, `validating`, `validated`, `merging`, its pull

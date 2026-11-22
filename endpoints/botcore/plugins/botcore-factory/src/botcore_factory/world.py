@@ -557,6 +557,82 @@ class Processes(Protocol):
         ...
 
 
+@runtime_checkable
+class ValidationLockProtocol(Protocol):
+    """Host-wide validation lock shared across merge lanes on one machine."""
+
+    def check_available(
+        self,
+        repository: str,
+        pid: int,
+        *,
+        register_waiter: bool = True,
+        lane: str = "botcore-factory",
+    ) -> dict | None:
+        """None when this lane may take a new hold; otherwise a deterministic blocker summary."""
+        ...
+
+    def try_acquire(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = "botcore-factory",
+    ) -> dict | None:
+        """Acquire ``hold_id``; returns None on success or a deterministic blocker summary."""
+        ...
+
+    def set_job(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        job_pid: int | None,
+        job_started_at: float | None,
+        *,
+        lane: str = "botcore-factory",
+    ) -> None:
+        """Record the spawned validation child's PID and start time on an active hold."""
+        ...
+
+    def release(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = "botcore-factory",
+    ) -> None:
+        """Release ``hold_id`` if owned by this lane; clears ``owner`` when its last hold ends."""
+        ...
+
+    def reconcile(
+        self,
+        repository: str,
+        pid: int,
+        active_hold_ids: Sequence[str],
+        *,
+        lane: str = "botcore-factory",
+    ) -> None:
+        """Drop any holds of this lane not in ``active_hold_ids``."""
+        ...
+
+    def withdraw_waiter(
+        self,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = "botcore-factory",
+    ) -> None:
+        """Remove this lane from ``waiters`` when it is no longer waiting to start work."""
+        ...
+
+    def status(self) -> dict:
+        """Pruned snapshot of the shared host validation lock."""
+        ...
+
+
 @dataclass(frozen=True)
 class World:
     """Everything outside the plugin's own state, injected into every command."""
@@ -567,3 +643,4 @@ class World:
     machine: Machine
     plans: Plans
     processes: Processes
+    validation_lock: ValidationLockProtocol | None = None

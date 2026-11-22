@@ -428,13 +428,15 @@ def _spawn(args: Sequence[str], cwd: str, log: str, options: dict) -> subprocess
 
 
 def _darwin_start_time(pid: int) -> float | None:
-    """``ps -o lstart=``: the start to the second, which tells a reused pid apart."""
+    """``ps -o lstart=`` in UTC/C locale: the start to the second, matching Node's ``ps`` probe."""
+    import calendar
     import time
 
-    out = run_process(["ps", "-o", "lstart=", "-p", str(pid)]).stdout.strip()
+    env = {**os.environ, "TZ": "UTC", "LC_ALL": "C"}
+    out = run_process(["ps", "-o", "lstart=", "-p", str(pid)], env=env).stdout.strip()
     if not out:
         return None
-    return time.mktime(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y"))
+    return float(calendar.timegm(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y")))
 
 
 def _size(log: str) -> int:
