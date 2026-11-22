@@ -28,15 +28,23 @@ tauri-plugin-single-instance = "=2.5.5"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "stream", "http2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["process", "io-util", "sync", "time", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["process", "io-util", "sync", "time", "macros", "rt-multi-thread", "net", "signal"] }
 futures-util = "0.3"
 percent-encoding = "2"
+# The inbound endpoint (phase 6 specification, 10.8): HTTP/1.1 on loopback, at the versions `reqwest` already locks;
+# the per-run token from the operating system's random source.
+hyper = { version = "=1.12.0", features = ["server", "http1"] }
+hyper-util = { version = "=0.1.21", features = ["tokio"] }
+http-body-util = "=0.1.5"
+bytes = "=1.12.1"
+getrandom = "=0.3.4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-# A copilot provider's key from the Credential Manager (phase 5 specification, 4.2) and owner-only ACL checks on
-# open file handles (`mounts::owner_only`), at the version Tauri's own dependencies already lock.
+# A copilot provider's key from the Credential Manager (phase 5 specification, 4.2), owner-only ACL checks on open
+# file handles (`mounts::owner_only`), `inbound.json` created owner-only and the bridge's console (10.8), at the version
+# Tauri's own dependencies already lock.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = [
     "Win32_Foundation",
@@ -44,6 +52,7 @@ windows-sys = { version = "=0.61.2", features = [
     "Win32_Security_Authorization",
     "Win32_Security_Credentials",
     "Win32_Storage_FileSystem",
+    "Win32_System_Console",
     "Win32_System_SystemServices",
     "Win32_System_Threading",
 ] }

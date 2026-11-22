@@ -3,11 +3,12 @@
 //! through Tauri's IPC on its mock runtime, with the app's own configuration and capability and its two schemes
 //! registered, so Tauri's ACL decides as it does in the app: it lets the sandbox's origin through, as a local
 //! one, and only the check refuses it. Phase 5's step 2 adds `model_send` and `model_cancel` (its 4.2 and
-//! P5-A3: "from the sandbox proxy and a view it is refused").
+//! P5-A3: "from the sandbox proxy and a view it is refused"), and step 11b `inbound_reply` (10.8 and P6-D6: "from the
+//! proxy frame or a view is refused").
 use loam_desktop::models::{Models, PROVIDER_UNKNOWN};
 use loam_desktop::mounts::{INSTANCE_UNKNOWN, Mounts};
 use loam_desktop::site::{sandbox_origin, shell_origin};
-use loam_desktop::{MAIN, ORIGIN_REFUSED, handler};
+use loam_desktop::{InboundState, MAIN, ORIGIN_REFUSED, handler};
 use serde_json::{Value, json};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -27,6 +28,7 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         .invoke_handler(handler())
         .manage(Arc::new(Mounts::new(Ok(Vec::new()))))
         .manage(Arc::new(Models::new(Ok(Vec::new()))))
+        .manage(InboundState::default())
         .build(tauri::generate_context!("tauri.conf.json", test = true))
         .expect("a mock app");
     let webview = WebviewWindowBuilder::new(&app, MAIN, Default::default())
@@ -60,6 +62,11 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
             json!({ "provider": "claude", "body": { "max_tokens": 1, "messages": [] }, "stream": 1 }),
         ),
         ("model_cancel", json!({ "stream": 1 })),
+        (
+            "inbound_reply",
+            json!({ "id": 1, "message": { "jsonrpc": "2.0", "id": 1, "result": {} } }),
+        ),
+        ("inbound_reply", json!({ "ready": true })),
     ];
 
     // The shell passes the ACL and the check, and the command answers.
@@ -86,6 +93,21 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         )
         .is_ok()
     );
+
+    // `inbound_reply` from the shell passes, and with no endpoint serving does nothing and answers `true`, so a page
+    // on a desktop with the endpoint off stops asking at once (10.8).
+    for body in [
+        json!({ "ready": true }),
+        json!({ "id": 1, "message": { "jsonrpc": "2.0", "id": 1, "result": {} } }),
+    ] {
+        assert_eq!(
+            call("inbound_reply", shell_origin(), Some(shell_origin()), body)
+                .unwrap()
+                .deserialize::<Value>()
+                .unwrap(),
+            json!(true)
+        );
+    }
 
     // The sandbox proxy frame: a local origin to Tauri, so its ACL admits the call, and the check refuses it.
     for (command, body) in &commands {

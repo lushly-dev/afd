@@ -1,7 +1,7 @@
 /**
  * P6-D4 (phase 6 specification, section 19, as amended 2026-11-16): the capabilities. No `core:*` and no
- * plugin JavaScript permission; the IPC allow-list is Loam's five commands (the three mount commands, and from phase 5's
- * step 2 `model_send` and `model_cancel`); `invoke` of any other command an
+ * plugin JavaScript permission; the IPC allow-list is Loam's six commands (the three mount commands, from phase 5's
+ * step 2 `model_send` and `model_cancel`, and from step 11b 10.8's `inbound_reply`); `invoke` of any other command an
  * app or plugin can register is refused from the main webview; Tauri's framework transport, the ACL-exempt
  * channel fetch pinned in `src-tauri/tests/acl.rs`, hands out nothing, since Loam uses no `Channel`; neither
  * frame's `invoke` runs a command, nor does one with a forged `Origin` on Tauri's message fallback or a raw IPC
@@ -70,7 +70,7 @@ function invoke(
 }
 
 describe('P6-D4: the capabilities', () => {
-	it("P6-D4: grants no core or plugin permission, and Loam's five commands to the main webview alone", () => {
+	it("P6-D4: grants no core or plugin permission, and Loam's six commands to the main webview alone", () => {
 		const file = JSON.parse(readFileSync(join(SRC_TAURI, 'capabilities/main.json'), 'utf8'));
 		expect(file).toEqual({
 			identifier: 'main',
@@ -83,6 +83,7 @@ describe('P6-D4: the capabilities', () => {
 				'allow-mount-close',
 				'allow-model-send',
 				'allow-model-cancel',
+				'allow-inbound-reply',
 			],
 		});
 		const config = JSON.parse(readFileSync(join(SRC_TAURI, 'tauri.conf.json'), 'utf8'));

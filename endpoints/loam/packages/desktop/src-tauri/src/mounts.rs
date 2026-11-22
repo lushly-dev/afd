@@ -81,13 +81,34 @@ impl Access {
 #[serde(deny_unknown_fields)]
 struct File {
     mounts: Vec<Access>,
+    /// The deployer's `[host] inbound` (10.8, D137), which `deployment write --host desktop` always writes. Absent,
+    /// the endpoint is off: it is served only from a file that says so.
+    #[serde(default)]
+    inbound: bool,
+}
+
+/// What `mounts.json` says: the instances, and whether the inbound endpoint is on (10.8).
+pub struct Deployed {
+    pub mounts: Vec<Access>,
+    pub inbound: bool,
 }
 
 /// `mounts.json`, or a code: none at `path` mounts nothing; one others can read is refused (10.3).
 pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
+    read_deployed(path).map(|deployed| deployed.mounts)
+}
+
+/// `mounts.json` whole: none at `path` mounts nothing and serves nothing inbound, and one refused serves nothing
+/// either, so the endpoint fails closed (10.8).
+pub fn read_deployed(path: &Path) -> Result<Deployed, &'static str> {
     let bytes = match read_owner_only(path, REQUEST_MAX) {
         Ok(bytes) => bytes,
-        Err(Unread::Missing) => return Ok(Vec::new()),
+        Err(Unread::Missing) => {
+            return Ok(Deployed {
+                mounts: Vec::new(),
+                inbound: false,
+            });
+        }
         Err(Unread::Denied) => return Err(PERMISSIONS),
         Err(Unread::TooLarge) => return Err(MOUNTS_INVALID),
     };
@@ -112,7 +133,10 @@ pub fn read(path: &Path) -> Result<Vec<Access>, &'static str> {
             }
         }
     }
-    Ok(file.mounts)
+    Ok(Deployed {
+        mounts: file.mounts,
+        inbound: file.inbound,
+    })
 }
 
 /// Why [`read_owner_only`] read nothing.
@@ -197,6 +221,30 @@ pub fn permissions(path: &Path) -> Result<(), &'static str> {
         Ok(())
     } else {
         Err(PERMISSIONS)
+    }
+}
+
+/// Whether an open file is one only its owner can read, by its own handle: on POSIX owned by this user with mode
+/// exactly 0600, on Windows by its security descriptor. `inbound.json` is checked this way before its token is written
+/// (phase 6 specification, 10.8).
+pub fn file_owner_only(file: &std::fs::File) -> bool {
+    let Ok(metadata) = file.metadata() else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let user = unsafe { libc::geteuid() };
+        metadata.uid() == user && metadata.permissions().mode() & 0o777 == 0o600
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+        handle_owner_only(file.as_raw_handle())
     }
 }
 
@@ -965,9 +1013,19 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("mounts.json");
         assert!(read(&path).unwrap().is_empty());
+        // No file serves nothing inbound (10.8).
+        assert!(!read_deployed(&path).unwrap().inbound);
         std::fs::write(&path, r#"{"mounts":[{"instance":"a","url":"http://127.0.0.1:1/mcp","bearer":"t"},{"instance":"b","transport":"stdio","command":["hello-mcp"]}]}"#).unwrap();
         restrict(&path);
         assert_eq!(read(&path).unwrap().len(), 2);
+        // `inbound` (10.8): off when absent, on only when the file says so, refused unless a boolean.
+        assert!(!read_deployed(&path).unwrap().inbound);
+        std::fs::write(&path, r#"{"mounts":[],"inbound":true}"#).unwrap();
+        assert!(read_deployed(&path).unwrap().inbound);
+        std::fs::write(&path, r#"{"mounts":[],"inbound":false}"#).unwrap();
+        assert!(!read_deployed(&path).unwrap().inbound);
+        std::fs::write(&path, r#"{"mounts":[],"inbound":"yes"}"#).unwrap();
+        assert_eq!(read_deployed(&path).err(), Some(MOUNTS_INVALID));
         for bad in [
             r#"{"mounts":[{"instance":"a","url":"file:///etc/passwd"}]}"#,
             r#"{"mounts":[{"instance":"a","transport":"stdio","command":[]}]}"#,

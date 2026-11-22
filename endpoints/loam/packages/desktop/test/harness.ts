@@ -135,16 +135,15 @@ export interface OpenOptions {
 	prepare?(data: string): Promise<void>;
 	/** Skip the shell's readiness wait. */
 	raw?: boolean;
+	/** An earlier run's data directory, used as it is: nothing is written, as when the person restarts the app. */
+	data?: string;
 }
 
-/** Writes the deployment, starts the app under `tauri-driver`, and waits for the shell. */
-export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
-	const app = binary();
-	if (!existsSync(app))
-		throw new Error(`${app} is not built: run \`pnpm -F @lushly-dev/loam-desktop build:app\``);
+/** A new data directory with `deployment` written into it by `loam deployment write --host desktop`. */
+export async function writeData(deployment = desktopDeployment()): Promise<string> {
 	const data = await mkdtemp(join(tmpdir(), 'loam-desktop-data-'));
 	const config = join(data, 'loam.deployment.toml');
-	await writeFile(config, options.deployment ?? desktopDeployment());
+	await writeFile(config, deployment);
 	const written = await writeDeployment({
 		config,
 		dist: WEB_DIST,
@@ -155,6 +154,15 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 	});
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
 	await mkdir(join(data, 'webview'), { recursive: true });
+	return data;
+}
+
+/** Writes the deployment, starts the app under `tauri-driver`, and waits for the shell. */
+export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
+	const app = binary();
+	if (!existsSync(app))
+		throw new Error(`${app} is not built: run \`pnpm -F @lushly-dev/loam-desktop build:app\``);
+	const data = options.data ?? (await writeData(options.deployment));
 	await options.prepare?.(data);
 
 	const port = await freePort();

@@ -623,7 +623,12 @@ export async function writeDeployment(
 			...analysis.mounts,
 			...analysis.stdioMounts,
 		];
-		const text = `${JSON.stringify({ mounts }, null, '\t')}\n`;
+		// And the desktop's inbound switch (10.8, D137): on unless `[host] inbound = false`, read by the Rust host alone.
+		const inbound =
+			analysis.deployment?.deployment_version === 4
+				? analysis.deployment.host?.inbound !== false
+				: true;
+		const text = `${JSON.stringify(desktop ? { mounts, inbound } : { mounts }, null, '\t')}\n`;
 		if (desktop) await writeOwnerOnly(options.mountsOut, text, options.platform);
 		else await writeFile(options.mountsOut, text, { mode: 0o600, flag: 'wx' });
 	}

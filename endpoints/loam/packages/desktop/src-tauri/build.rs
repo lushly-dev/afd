@@ -1,5 +1,5 @@
-//! Declares Loam's five commands, the only ones the capability file can grant (phase 6 specification, 10.2, as
-//! phase 5's step 2 amends it with `model_send` and `model_cancel`).
+//! Declares Loam's six commands, the only ones the capability file can grant (phase 6 specification, 10.2, as
+//! phase 5's step 2 amends it with `model_send` and `model_cancel`, and step 11b with 10.8's `inbound_reply`).
 //! The bundled empty shell is `../dist`, written by `pnpm build:site`; without it, a page that says so stands
 //! in, so `cargo test` and `cargo clippy` need no web build.
 use std::path::Path;
@@ -32,6 +32,7 @@ fn main() {
             "mount_close",
             "model_send",
             "model_cancel",
+            "inbound_reply",
         ]),
     ))
     .expect("desktop build metadata");

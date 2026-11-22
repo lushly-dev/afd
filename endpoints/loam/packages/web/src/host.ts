@@ -11,9 +11,10 @@ import {
 	type IndexedDbJournalSinkOptions,
 } from '@lushly-dev/afd-core/journal-indexeddb';
 import {
-	createKernel,
+	createKernelParts,
 	type KernelEnvironmentV0,
 	type KernelOptionsV5,
+	type KernelParts,
 	type LoamKernelV5,
 } from '@lushly-dev/loam-kernel';
 
@@ -77,7 +78,13 @@ export interface HostKernelOptions {
 const LOCK_RETRY_MS = 100;
 
 export type HostKernel =
-	| { kind: 'ready'; kernel: LoamKernelV5; journal: IndexedDbJournalSink }
+	| {
+			kind: 'ready';
+			kernel: LoamKernelV5;
+			journal: IndexedDbJournalSink;
+			/** What the desktop's inbound dispatcher reads (phase 6 specification, 10.8). */
+			inboundCommands: KernelParts['inboundCommands'];
+	  }
 	| { kind: 'locked'; error: IndexedDbJournalError };
 
 /** Take the journal's writer lock, then create the kernel over the IndexedDB stores. */
@@ -101,7 +108,7 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 			await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
 		}
 	}
-	const kernel = await createKernel({
+	const { kernel, inboundCommands } = await createKernelParts({
 		store: new IndexedDbAdapter({
 			name: STORE_NAME,
 			...(options.indexedDB ? { indexedDB: options.indexedDB } : {}),
@@ -120,5 +127,5 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		...(options.copilot ? { copilot: options.copilot } : {}),
 		...(options.overlayAnchors ? { overlayAnchors: options.overlayAnchors } : {}),
 	});
-	return { kind: 'ready', kernel, journal };
+	return { kind: 'ready', kernel, journal, inboundCommands };
 }

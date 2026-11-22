@@ -22,6 +22,10 @@
 			"types": "./dist/copilot/index.d.ts",
 			"import": "./dist/copilot/index.js"
 		},
+		"./inbound": {
+			"types": "./dist/inbound/index.d.ts",
+			"import": "./dist/inbound/index.js"
+		},
 		"./palette": {
 			"types": "./dist/palette-index.d.ts",
 			"import": "./dist/palette-index.js"

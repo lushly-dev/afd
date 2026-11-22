@@ -615,7 +615,16 @@ export const CEILINGS = Object.freeze({
 	// entry since a lazy chunk would part the modules it uses from first paint. Measured on one tree against the same
 	// branch without it (#2061, on `663afd52`): 330,093 to 330,846 (+753; gzip 103,724 to 103,987, +263); on `main` at
 	// `fa8ab4a5`, the combined build: 333,649; set to 334,100 under D115.
-	jsMinified: 334_100,
+	// Phase 6's step 11b (the desktop's inbound endpoint, 10.8), against `main` at `663afd52`: 330,391 without it to
+	// 331,185 (+794: `main.ts`'s load of the `inbound` chunk on the desktop, and the bindings first paint's `events` chunk
+	// now exports to it, the direct registry and its engine, which `vite.config.ts` keeps there so first paint's chunks are
+	// unchanged). Merged with step 5 (`main` at `2b304beb`), the combined build: 331,750; set to 332,300 under D115.
+	// Merged with #1936 too (`main` at `5b01fe89`), the combined build: 333,363; set to 333,900 under D115.
+	// Phase 6's step 11b merged with phase 5's step 4 too (`main` at `06dde692`), the combined build: 334,043; set to
+	// 334,600 under D115.
+	// Phase 6's step 11b merged with phase 3's step 9 too (`main` at `31b409fb`), the combined build: 334,951; set to
+	// 335,500 under D115.
+	jsMinified: 335_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -633,7 +642,12 @@ export const CEILINGS = Object.freeze({
 	// 105,000 under D115.
 	// Phase 3's step 9, the coordinator's R9 (the identity pages' appearance, `jsMinified` above), on `main` at
 	// `fa8ab4a5`, the combined build: 105,119 (+263 on its own base); set to 105,500 under D115.
-	jsGzip: 105_500,
+	// Phase 6's step 11b, the same build: 103,821 to 104,363 (+542). Merged with step 5, the combined build: 104,567; set
+	// to 105,000 under D115. Merged with #1936 too (`main` at `5b01fe89`), the combined build: 105,232; set to 105,600 under
+	// D115.
+	// Merged with phase 5's step 4 too (`main` at `06dde692`): 105,541; set to 106,000 under D115.
+	// Merged with phase 3's step 9 too (`main` at `31b409fb`): 105,876; set to 106,300 under D115.
+	jsGzip: 106_300,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -669,7 +683,12 @@ export const CEILINGS = Object.freeze({
 	// Both merged (#1936 on phase 6's step 5, `main` at `2b304beb`), the combined build: 145,003; set to 145,500 under
 	// D115.
 	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 145,888; set to 146,300 under D115.
-	kernelMinified: 146_300,
+	// Phase 6's step 11b merged with step 5 (`main` at `2b304beb`): 143,189 (`KernelParts.inboundCommands()`, 10.8); set to
+	// 143,700 under D115. Merged with #1936 too (`main` at `5b01fe89`), the combined build: 145,542; set to 146,000 under
+	// D115.
+	// Phase 6's step 11b merged with phase 5's step 4 too (`main` at `06dde692`), the combined build: 146,386; set to
+	// 146,800 under D115.
+	kernelMinified: 146_800,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -746,7 +765,11 @@ export const CEILINGS = Object.freeze({
 	// `MountFailureCode`, each with the kernel's own message, suggestion and `retryable` (8.1), and `firstClass` read
 	// only under `hybrid`; set to 445,500 under D115.
 	// Phase 5's step 4: 449,455 after its review; merged on phase 6's step 5 and #1936, the combined build: 449,668.
+	// Phase 6's step 11b merged with #1936 (`main` at `5b01fe89`), the combined build: 443,282 (the step's branch before
+	// the merge, 443,081); set to 443,800 under D115.
+	// Phase 6's step 11b merged with phase 5's step 4 (`main` at `06dde692`), the combined build: 449,993, within the row.
 	// Phase 6's step 6 merged on it (`main` at `06dde692`), the combined build: 452,033; set to 452,600 under D115.
+	// Phase 6's steps 6 and 11b together (`main` at `c274ddaa`), the combined build: 452,358, within step 6's row.
 	appsMinified: 452_600,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
@@ -761,6 +784,9 @@ export const CEILINGS = Object.freeze({
 	// comments, plus a margin.
 	viewMinified: 26_800,
 	consoleMinified: 91_222,
+	// Phase 6's step 11b (10.8): the dispatcher, the direct registry's MCP tool surface (the tool router, the meta-tools,
+	// the bootstrap tools' describers) and what it shares with `apps`; 36,799, and 37,624 merged with step 5, plus a margin.
+	inboundMinified: 39_000,
 	mountMinified: 238_268,
 	switcherMinified: 11_600,
 	switcherColdMinified: 45_163,
@@ -1027,6 +1053,10 @@ async function measurePage() {
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
 	const mount = closure(/^assets\/mount-/, afterSurfaces);
 	if (mount.size === 0) throw new Error('budget: the build has no `mount` chunk to measure');
+	// The desktop's inbound dispatcher (phase 6 specification, 10.8), loaded once stage B has, on the desktop alone:
+	// charged after `apps`, with the direct registry's tool surface it adds.
+	const inbound = closure(/^assets\/inbound-/, afterApps);
+	if (inbound.size === 0) throw new Error('budget: the build has no `inbound` chunk to measure');
 	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2): in "the rest" of
 	// 2.4's load order, so charged after the surfaces.
 	const switcher = closure(/^assets\/switcher-/, afterSurfaces);
@@ -1137,6 +1167,7 @@ async function measurePage() {
 		viewMinified: sizeOf(view),
 		consoleMinified: sizeOf(consoleFiles),
 		mountMinified: sizeOf(mount),
+		inboundMinified: sizeOf(inbound),
 		switcherMinified: sizeOf(switcher),
 		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
@@ -1241,6 +1272,7 @@ const ROWS = [
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
 	['consoleMinified', 'The `console` chunk and its imports, minified'],
 	['mountMinified', 'The `mount` chunk and its imports, minified: the MCP client'],
+	['inboundMinified', "The desktop's `inbound` chunk and its imports, minified"],
 	['switcherMinified', "The chrome's `switcher` chunk and its imports, minified"],
 	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
