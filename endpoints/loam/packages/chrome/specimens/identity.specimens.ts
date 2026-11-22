@@ -1,20 +1,29 @@
 /**
- * Phase 3's captures (phase 3 specification, 14; P3-E11): the sign-in dialog and the account menu over the shell, and
- * the join, recovery, OAuth login and consent pages over a provider the fixture gives, each with no provider behind
- * it, so they show the page's own markup and words. Specimen renders each in the light, dark and high-contrast
- * contexts (D53); the web package's Chromium suite captures them. The account section, which reads the provider
- * through the kernel's ports, is captured under axe in the Chromium suite instead.
+ * Phase 3's captures (phase 3 specification, 14; P3-E11): the sign-in dialog and the account menu over the shell; the
+ * join, recovery, OAuth login and consent pages over a provider the fixture gives; and the account section's every tab
+ * over a kernel that answers its reads. None has a real provider behind it, so each shows the page's own markup and
+ * words. Specimen renders each in the light, dark and high-contrast contexts (D53); the web package's Chromium suite
+ * captures them.
  */
 
+import type {
+	AccountV1,
+	AgentMemberRowV1,
+	MemberInvitationV1,
+	MemberV1,
+	OwnInvitationV1,
+} from '@lushly-dev/loam-kernel';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
 import {
 	type LinkProviderV1,
+	LoamAccountSection,
 	mountLinkPage,
 	mountOAuthPage,
 	type OAuthProviderV1,
 } from '../dist/identity/account.js';
 import { openAccountMenu } from '../dist/identity/account-menu.js';
+import { defineOnce } from '../dist/identity/account-parts.js';
 import { openSignIn } from '../dist/identity/sign-in.js';
 import { mediaKernel, shellFixture, themePart, until } from './support.js';
 
@@ -188,3 +197,137 @@ export const IdentityOAuthConsent = page(
 		}),
 	'Connect Claude Code to Acme?'
 );
+
+/**
+ * The account section's reads, answered as an owner's (5.1 to 5.4, 7.2, 8.2): what the kernel would answer, each held
+ * to the kernel's own result type where its root exports one, so a change to a result fails the type check here.
+ */
+const ACCOUNT_ANSWERS: Record<string, unknown> = {
+	'account-get': {
+		id: 'usr_bea',
+		email: 'bea@example.com',
+		name: 'Bea Ortiz',
+		image: null,
+		organizations: [{ id: 'org-acme', slug: 'acme', name: 'Acme', role: 'owner', bound: true }],
+		workspace: { member: true, role: 'owner', owner: true },
+		persona: 'default',
+		methods: ['passkey', 'password'],
+		recovery: 'email',
+		recoveredAt: null,
+	} satisfies AccountV1,
+	'account-passkey-list': {
+		passkeys: [
+			{
+				id: 'pk_laptop',
+				name: 'Laptop',
+				createdAt: '2026-11-01T10:00:00.000Z',
+				deviceType: 'multiDevice',
+			},
+			{
+				id: 'pk_key',
+				name: null,
+				createdAt: '2026-11-02T10:00:00.000Z',
+				deviceType: 'singleDevice',
+			},
+		],
+	},
+	'session-list': {
+		sessions: [
+			{
+				id: '0123456789abcdef',
+				current: true,
+				device: 'Chrome on macOS',
+				createdAt: '2026-11-21T09:00:00.000Z',
+				updatedAt: '2026-11-21T09:30:00.000Z',
+				expiresAt: '2026-11-28T09:00:00.000Z',
+			},
+			{
+				id: 'fedcba9876543210',
+				current: false,
+				device: 'Safari on iOS',
+				createdAt: '2026-11-20T09:00:00.000Z',
+				updatedAt: '2026-11-20T09:30:00.000Z',
+				expiresAt: '2026-11-27T09:00:00.000Z',
+			},
+		],
+	},
+	'account-agent-list': {
+		agents: [
+			{
+				agent: 'agt_aaaaaaaaaaaaaaaaaaaa',
+				name: 'Claude Code',
+				clientHost: '',
+				scopes: ['loam:read', 'loam:write'],
+				connectedAt: '2026-11-21T09:00:00.000Z',
+				status: 'active',
+			},
+		],
+	},
+	'member-list': {
+		people: [
+			{ id: 'usr_bea', name: 'Bea Ortiz', image: null, role: 'owner', email: 'bea@example.com' },
+			{ id: 'usr_cy', name: 'Cy Park', image: null, role: 'member', email: 'cy@example.com' },
+		] satisfies MemberV1[],
+		agents: [
+			{
+				id: 'agt_bbbbbbbbbbbbbbbbbbbb',
+				kind: 'installed',
+				name: 'Reviewer',
+				sponsor: 'usr_cy',
+				sponsorName: 'Cy Park',
+				installedBy: 'usr_bea',
+				access: { workspace: true, projects: 'sponsor' },
+				hiddenProjects: 0,
+				status: 'pending',
+				createdAt: 1,
+				updatedAt: 1,
+				updatedBy: 'usr_bea',
+			},
+		] satisfies AgentMemberRowV1[],
+		total: 2,
+	},
+	'member-invitation-list': { invitations: [] satisfies MemberInvitationV1[] },
+	'account-invitation-list': { invitations: [] satisfies OwnInvitationV1[] },
+	'project-list': { projects: [] },
+};
+
+/** A kernel that answers the section's reads from `ACCOUNT_ANSWERS`, and refuses anything else. */
+const accountKernel = {
+	call: (name: string) =>
+		Promise.resolve(
+			name in ACCOUNT_ANSWERS
+				? { success: true, data: ACCOUNT_ANSWERS[name] }
+				: { success: false, error: { code: 'COMMAND_NOT_FOUND', message: `No ${name} here` } }
+		),
+	subscribe: () => () => {},
+};
+
+/** The account section at one tab, over `accountKernel`, as an owner in `provider` mode. */
+function accountTab(
+	tab: 'profile' | 'passkeys' | 'sessions' | 'members' | 'agents',
+	ready: string
+) {
+	return page(async (target) => {
+		defineOnce('loam-account-section', LoamAccountSection);
+		const section = document.createElement('loam-account-section') as LoamAccountSection;
+		Object.assign(section, {
+			kernel: accountKernel,
+			provider: true,
+			base: '/',
+			workspace: 'personal',
+		});
+		target.replaceChildren(section);
+		await section.show(tab);
+	}, ready);
+}
+
+/** The account section's profile (5.4). */
+export const IdentityAccountProfile = accountTab('profile', 'Save name');
+/** Its passkeys (5.2). */
+export const IdentityAccountPasskeys = accountTab('passkeys', 'Laptop');
+/** Its sessions (4.6). */
+export const IdentityAccountSessions = accountTab('sessions', 'Safari on iOS');
+/** Its members, with an agent member and its sponsor (7.2, 8.2), as an owner sees them. */
+export const IdentityAccountMembers = accountTab('members', 'Reviewer');
+/** Its connected agents (5.3). */
+export const IdentityAccountAgents = accountTab('agents', 'Claude Code');

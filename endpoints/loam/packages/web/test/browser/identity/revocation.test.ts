@@ -117,6 +117,23 @@ const providerKnows = (page: Page) =>
 
 const authHost = () => site.authHost as NonNullable<DeploymentSite['authHost']>;
 
+/** A page's text and every attribute's value, every shadow root's included: anywhere a name could still show. */
+const deepText = (page: Page) =>
+	page.evaluate(() => {
+		const parts: string[] = [document.body.textContent ?? ''];
+		const walk = (root: Document | ShadowRoot) => {
+			for (const node of root.querySelectorAll('*')) {
+				for (const attribute of node.attributes) parts.push(attribute.value);
+				if (node.shadowRoot) {
+					parts.push(node.shadowRoot.textContent ?? '');
+					walk(node.shadowRoot);
+				}
+			}
+		};
+		walk(document);
+		return parts.join('\n');
+	});
+
 /** E15: no profile holds the password, nor a cookie, token or address of a session now or in `earlier`. */
 async function expectNoSecret(
 	shells: ShellPage[],
@@ -143,6 +160,15 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		// E15: read now, since the revocation deletes the other device's session.
 		const before = [await secretsNow(here, authHost()), await secretsNow(there, authHost())];
 		expect(before[1]?.tokens.length).toBeGreaterThan(1);
+		// A project restricted to Dee, which the other device shows before it signs out.
+		const dee = authHost().people['dee@example.com'] as string;
+		const vault = (await kernelCall(there.page, 'project-create', {
+			name: 'Vault Seven',
+			access: { mode: 'restricted', members: [dee] },
+		})) as { success: boolean; error?: unknown };
+		expect(vault.success, JSON.stringify(vault.error)).toBe(true);
+		await kernelCall(there.page, 'section-open', { section: 'projects' });
+		await expect.poll(() => deepText(there.page)).toContain('Vault Seven');
 		const listed = (await kernelCall(here.page, 'session-list')) as Listed;
 		expect(listed.success, JSON.stringify(listed.error)).toBe(true);
 		const other = listed.data?.sessions.find((row) => !row.current);
@@ -157,16 +183,23 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		// The provider refuses the revoked session at once: no cookie cache stands between.
 		expect(await providerKnows(there.page)).toBe(false);
 		expect(await providerKnows(here.page)).toBe(true);
-		// The other device reads its session again when it becomes visible, and shows "Sign in" within 2 s.
+		// The other device reads its session again when it becomes visible: within 2 s of that, it shows "Sign in" and
+		// nothing restricted anywhere in the page, text or attribute, shadow roots included.
 		const started = Date.now();
 		await there.page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-		await there.page.waitForFunction(
-			() => (document.querySelector('loam-shell') as unknown as { account: string }).account === '',
-			undefined,
-			{ timeout: 2_000 }
-		);
+		await expect
+			.poll(
+				async () => {
+					const text = await deepText(there.page);
+					return text.includes('Sign in to acme') && !text.includes('Vault Seven');
+				},
+				{ timeout: 2_000, interval: 50 }
+			)
+			.toBe(true);
 		expect(Date.now() - started).toBeLessThan(2_000);
+		expect(await accountOf(there.page)).toBe('');
 		await settle(there.page);
+		expect(await deepText(there.page)).not.toContain('Vault Seven');
 		// The change of person was settled, top-level, in that device's journal.
 		const settled = (await entriesOf(there.page)).filter(
 			(entry) => entry.command === 'session-settle'
@@ -216,8 +249,10 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		await tab.evaluate(() => {
 			const heard: unknown[] = [];
 			(globalThis as { heard?: unknown[] }).heard = heard;
-			new BroadcastChannel('loam-session').onmessage = (event) => heard.push(event.data);
+			new BroadcastChannel('loam-session').onmessage = (event) =>
+				heard.push({ ...(event.data as object), at: Date.now() });
 		});
+		const revokedAt = Date.now();
 		const all = (await kernelCall(page.page, 'session-revoke', { session: 'all' })) as {
 			success: boolean;
 			data?: { revoked: number; signedOut: boolean };
@@ -228,9 +263,20 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		await page.page.waitForFunction(
 			() => (document.querySelector('loam-shell') as unknown as { account: string }).account === ''
 		);
+		// The profile's other page hears `SessionSync`'s sign-out within 2 s of the revocation, by the time it stamped
+		// on arrival. The journal's writer lock holds one shell tab per profile (step 3's deviation 9), so this page is
+		// on the channel, not a second shell.
 		await expect
-			.poll(() => tab.evaluate(() => (globalThis as { heard?: unknown[] }).heard))
+			.poll(() => tab.evaluate(() => (globalThis as { heard?: unknown[] }).heard), {
+				timeout: 2_000,
+			})
 			.toContainEqual(expect.objectContaining({ type: 'signed-out' }));
+		const heard = (await tab.evaluate(() => (globalThis as { heard?: unknown[] }).heard)) as {
+			type: string;
+			at: number;
+		}[];
+		const arrived = heard.find((message) => message.type === 'signed-out') as { at: number };
+		expect(arrived.at - revokedAt).toBeLessThan(2_000);
 		expect(await providerKnows(elsewhere.page)).toBe(false);
 		// The person's consents deleted and their refresh tokens, `offline_access` included, revoked: from the host's
 		// database (4.3).

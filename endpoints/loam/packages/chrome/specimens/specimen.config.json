@@ -725,6 +725,36 @@
 			"title": "Loam/Identity/OAuthConsent",
 			"module": "./identity.specimens.ts",
 			"exportName": "IdentityOAuthConsent"
+		},
+		{
+			"id": "identity-account-profile",
+			"title": "Loam/Identity/AccountProfile",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountProfile"
+		},
+		{
+			"id": "identity-account-passkeys",
+			"title": "Loam/Identity/AccountPasskeys",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountPasskeys"
+		},
+		{
+			"id": "identity-account-sessions",
+			"title": "Loam/Identity/AccountSessions",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountSessions"
+		},
+		{
+			"id": "identity-account-members",
+			"title": "Loam/Identity/AccountMembers",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountMembers"
+		},
+		{
+			"id": "identity-account-agents",
+			"title": "Loam/Identity/AccountAgents",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountAgents"
 		}
 	]
 }

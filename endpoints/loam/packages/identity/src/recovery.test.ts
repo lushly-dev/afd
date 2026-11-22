@@ -432,6 +432,27 @@ describe('P3-E18: recovery by single sign-on, an explicit ceremony (5.7, 5.8)', 
 
 	it('P3-E18: the ceremony runs the whole recovery transaction and lets its session register a passkey for a holder', async () => {
 		const other = await signedIn('cy@example.com');
+		// Cy's own agent, connected with a refresh token, which the recovery ends as the email path does.
+		const redirect = 'http://127.0.0.1:43126/callback';
+		const clientId = await registerTestClient(
+			provider,
+			await signedIn('olu@example.com'),
+			redirect
+		);
+		expect(
+			(await connectTestClient(provider, other, { origin: ORIGIN, clientId, redirect })).refresh
+		).toBeTruthy();
+		const cy = idOf('cy@example.com');
+		const grants = () => ({
+			consents: database.prepare('SELECT id FROM oauthConsent WHERE userId = ?').all(cy).length,
+			live: database
+				.prepare('SELECT id FROM oauthRefreshToken WHERE userId = ? AND revoked IS NULL')
+				.all(cy).length,
+			agents: database
+				.prepare('SELECT status, suspended FROM loam_connected_agent WHERE sponsor = ?')
+				.all(cy),
+		});
+		expect(grants()).toMatchObject({ consents: 1, live: 1, agents: [{ status: 'active' }] });
 		const page = await signedIn('cy@example.com');
 		const start = await page.call('/loam/recover/oidc/start', { body: { provider: 'corp' } });
 		expect(start.body).toMatchObject({
@@ -448,6 +469,15 @@ describe('P3-E18: recovery by single sign-on, an explicit ceremony (5.7, 5.8)', 
 		expect(sessionsOf('cy@example.com')).toBe(1);
 		expect((await other.call('/loam/whoami')).body).toBeNull();
 		expect(sent.slice(before).some((message) => /was restored/.test(message.text))).toBe(true);
+		// Every consent deleted, every refresh token revoked, the agent suspended until Cy approves it again.
+		expect(grants()).toEqual({
+			consents: 0,
+			live: 0,
+			agents: [{ status: 'suspended', suspended: 'disconnected' }],
+		});
+		// The account says so (5.7).
+		const account = await page.call('/loam/account');
+		expect((account.body as { recoveredAt?: unknown }).recoveredAt).toBeTruthy();
 		expect(
 			(await page.registerPasskey(new SoftAuthenticator({ origin: ORIGIN }))).verified?.status
 		).toBe(200);

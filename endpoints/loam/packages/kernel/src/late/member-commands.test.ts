@@ -6,6 +6,7 @@
  */
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { withMockCapabilities } from '@lushly-dev/afd-auth/mock-capabilities';
 import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -729,5 +730,84 @@ describe("P3-E6: #852's rules in the kernel (7.3, 7.4; D110)", () => {
 			(await made.kernel.call('project-create', { name: 'Theirs', access: restricted([OLU]) }))
 				.error?.code
 		).toBe('PROJECT_MEMBER_SELF_REQUIRED');
+	});
+});
+
+describe('P3-E18: `PASSKEY_LAST` follows recovery (5.2, 5.7)', () => {
+	for (const [recovery, refused] of [
+		['none', true],
+		['email', false],
+		['oidc', false],
+	] as const)
+		it(`P3-E18: on a passkey-only deployment, a person's last passkey with recovery \`${recovery}\` is ${refused ? 'refused, PASSKEY_LAST' : 'removed'}`, async () => {
+			const made = await provider({ identity: { ...PROVIDER, methods: ['passkey'] } });
+			const get = vi.mocked(made.account.get);
+			const original = get.getMockImplementation() as () => Promise<Record<string, unknown>>;
+			get.mockImplementation(async () => ({ ...(await original()), recovery }) as never);
+			// The Mock's own passkeys, as `local` mode attaches them, with the stub's organization kept.
+			withMockCapabilities(made.auth as MockAuthAdapter);
+			Object.assign(made.auth, { organization: made.organization });
+			// A credentials sign-in is not one of the deployment's methods: the adapter is signed in as a passkey would.
+			await made.auth.signIn({ method: 'credentials', email: 'bea@example.com', password: 'x' });
+			await vi.waitFor(async () => {
+				const listed = await made.kernel.call('account-passkey-list');
+				expect(listed.success, JSON.stringify(listed.error)).toBe(true);
+			});
+			const added = await made.kernel.call<{ id: string }>('account-passkey-add', { name: 'Only' });
+			expect(added.success, JSON.stringify(added.error)).toBe(true);
+			const removed = await made.kernel.call('account-passkey-remove', {
+				passkey: added.data?.id as string,
+			});
+			if (refused) expect(removed.error?.code).toBe('PASSKEY_LAST');
+			else expect(removed.data).toEqual({ removed: true });
+			// Read back: the refused passkey stays, and a removed one is gone.
+			const listed = await made.kernel.call<{ passkeys: { id: string }[] }>('account-passkey-list');
+			expect(listed.data?.passkeys.map(({ id }) => id)).toEqual(refused ? [added.data?.id] : []);
+		});
+});
+
+describe("P3-E18: no command starts another person's recovery (5.7, D97)", () => {
+	it("P3-E18: no registry, the person's, the agent's or boot's, has a command named for recovery or an input that names it", async () => {
+		const made = await provider();
+		await signIn(made.kernel, 'olu@example.com');
+		// Every registry: the person's, the agent's and boot's, with each command's input schema.
+		const commands = [
+			...made.registries.palette.listCommands(),
+			...made.registries.agent.listCommands(),
+			...made.registries.boot.listCommands(),
+		];
+		// The population: the account and member commands an owner has are there to scan.
+		expect(commands.map(({ name }) => name)).toEqual(
+			expect.arrayContaining(['account-get', 'member-remove', 'member-role-set', 'session-revoke'])
+		);
+		// The provider-route scan's words (recovery.test.ts): a command that restores a record, or resets a layout or a
+		// setting to its default, is named, and is no person's access.
+		const RECORDS = ['document-restore', 'layout-reset', 'project-restore', 'setting-reset'];
+		const named = commands.filter(
+			({ name }) => /recover|reset|restore/i.test(name) && !RECORDS.includes(name)
+		);
+		expect(named.map(({ name }) => name)).toEqual([]);
+		// The allowed list is held to what the registries have, so a name leaving it does not stay excused.
+		expect(RECORDS.filter((name) => !commands.some((command) => command.name === name))).toEqual(
+			[]
+		);
+		const keys = (schema: unknown): string[] =>
+			schema && typeof schema === 'object'
+				? Object.entries(schema as Record<string, unknown>).flatMap(([key, value]) => [
+						key,
+						...keys(value),
+					])
+				: [];
+		// Each command's input schema is listed, so the scan below reads something.
+		expect(
+			commands.filter((command) =>
+				keys((command as { inputSchema?: unknown }).inputSchema).includes('properties')
+			).length
+		).toBeGreaterThan(20);
+		const inputs = commands.filter((command) =>
+			// An input naming recovery; `reset` and `restore` are other commands' words for defaults and records.
+			keys((command as { inputSchema?: unknown }).inputSchema).some((key) => /recover/i.test(key))
+		);
+		expect(inputs.map(({ name }) => name)).toEqual([]);
 	});
 });

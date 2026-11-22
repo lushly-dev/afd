@@ -256,8 +256,9 @@ describe('P3-E20: the login page (9.4)', () => {
 		const policy = await arrive(page, 'login');
 		expect(policy).toContain("frame-ancestors 'none'");
 		expect(policy).toContain("form-action 'self'");
-		const buttons = await page.locator('loam-oauth-page button').allTextContents();
-		expect(buttons[0]).toBe('Sign in with a passkey');
+		await expect
+			.poll(async () => (await page.locator('loam-oauth-page button').allTextContents())[0])
+			.toBe('Sign in with a passkey');
 		expect(await axe(page)).toEqual([]);
 		await page.locator('loam-oauth-page input[name="email"]').fill('olu@example.com');
 		await page.locator('loam-oauth-page input[name="password"]').fill(PASSWORD);
