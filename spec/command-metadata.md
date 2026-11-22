@@ -53,8 +53,9 @@ runs, and a server with no approval step refuses it, as [Approvals](#approvals) 
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`, and
-  afd-detail's `tags` and `errors`).
+- **Empty command-metadata arrays are omitted:** from `_meta` (`requires`, `examples`, `contexts`,
+  `scopes`), from afd-detail (those, `tags` and `errors`) and from afd-help (`requires`, and in its
+  `full` format `tags` and `examples`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry

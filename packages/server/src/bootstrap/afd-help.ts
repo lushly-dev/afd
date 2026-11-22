@@ -124,11 +124,12 @@ export function createAfdHelpCommand(
 				if (input.format === 'full') {
 					info.title = cmd.title;
 					info.category = cmd.category;
-					info.tags = cmd.tags;
+					// Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1480).
+					if (cmd.tags?.length) info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
 					info.destructive = cmd.destructive;
 					info.undoable = cmd.undoable;
-					info.examples = cmd.examples;
+					if (cmd.examples?.length) info.examples = cmd.examples;
 				}
 
 				return info;

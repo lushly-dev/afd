@@ -111,11 +111,12 @@ async def _afd_help_handler(
         if input.format == "full":
             info.title = command.title
             info.category = command.category
-            info.tags = command.tags
+            # Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1480).
+            info.tags = list(command.tags) if command.tags else None
             info.mutation = command.mutation
             info.destructive = command.destructive
             info.undoable = command.undoable
-            info.examples = _serialize_examples(command.examples)
+            info.examples = _serialize_examples(command.examples) if command.examples else None
             info.output_schema = command.returns
 
         command_infos.append(info)
