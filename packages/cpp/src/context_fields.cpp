@@ -104,7 +104,7 @@ CommandResult context_field_failure(const ContextField& field, std::string messa
     details["field"] = field.name;
     details["meta"] = field.meta;
     details["errors"] = std::move(errors);
-    // TypeScript's suggestion, without its pointer to server/discover: C++ has no MCP server.
+    // TypeScript's suggestion, without its pointer to server/discover.
     return failure(
         create_error(error_codes::VALIDATION_ERROR, std::move(message),
                      {.suggestion = "Send '" + field.name + "' in _meta[\"" + field.meta +

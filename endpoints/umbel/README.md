@@ -444,7 +444,7 @@ surfaces access is a policy, not a boundary, and it protects nothing a local pro
 read from the files. To make one person's CLI and that person's agents line up, set
 `principal.local_id` and `principal.on_behalf_of` to the same id. `workspace-show` reports this as
 `access: { principals: "unverified", exact: ["library"] }` until phase 5 changes it. In a hosted
-`auth.mode` (configuration version 5, not served over HTTP yet) it says `principals: "verified"`, and
+`auth.mode` (configuration version 5) it says `principals: "verified"`, and
 any caller but the operator at the CLI sees no workspace name or path and only the spaces it reads;
 `auth-show` tells any caller who it is to the host, and `umbel workspace doctor` adds the hosted
 profile's `auth.*` checks and answers the operator alone. Every metered MCP HTTP request leaves one
