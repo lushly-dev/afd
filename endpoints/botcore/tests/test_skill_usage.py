@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import shutil
 import sqlite3
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -14,7 +16,13 @@ from click.testing import CliRunner
 
 from botcore.cli import cli
 from botcore.commands.disk.lock import RunLock
-from botcore.commands.skill_usage import skill_usage_collect, skill_usage_report, store, t3
+from botcore.commands.skill_usage import (
+    collect,
+    skill_usage_collect,
+    skill_usage_report,
+    store,
+    t3,
+)
 from botcore.commands.skill_usage.events import (
     Event,
     clean_skill_name,
@@ -207,12 +215,19 @@ def collected(state: Path) -> list[Event]:
     return store.load_events(state)[0]
 
 
-def git(root: Path, *args: str) -> None:
+def git(root: Path, *args: str, at: str | None = None) -> None:
+    """Run git in a folder; `at` is when a commit it makes is dated."""
+    dated = {"GIT_AUTHOR_DATE": at, "GIT_COMMITTER_DATE": at} if at else {}
     subprocess.run(
         ["git", "-C", str(root), "-c", "user.name=T", "-c", "user.email=t@example.com",
          "-c", "commit.gpgsign=false", *args],
-        check=True, capture_output=True,
+        check=True, capture_output=True, env={**os.environ, **dated},
     )  # fmt: skip
+
+
+def held(state: Path, project: str = "garden") -> dict:
+    """What the record says a project holds."""
+    return store.load_state(state)["projects"][project]["skills"]
 
 
 # ── recognising a load ──────────────────────────────────────────────────────
@@ -1138,6 +1153,499 @@ def test_a_name_the_checkout_still_holds_is_not_renamed(
     run(skill_usage_collect())
 
     assert "audit-security" in rows(run(skill_usage_report()))
+
+
+# ── what a project holds ────────────────────────────────────────────────────
+
+
+def test_a_project_is_listed_as_its_default_branch_has_it(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills")
+    # work under way in the folder: a skill renamed and one grown on a branch, one not yet
+    # added. None of it is the project until it is merged.
+    skills = checkout / ".claude" / "skills"
+    git(checkout, "checkout", "-q", "-b", "topic")
+    git(checkout, "mv", ".claude/skills/prune-roses", ".claude/skills/trim-roses")
+    (skills / "plant-beds" / "SKILL.md").write_text(
+        skill_text("plant-beds", "Plant a bed, at length.", 900), encoding="utf-8"
+    )
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "work under way")
+    (skills / "draft").mkdir()
+    (skills / "draft" / "SKILL.md").write_text(skill_text("draft", "A draft.", 300), "utf-8")
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+
+    data = run(skill_usage_report(days=30))
+
+    row = rows(data)["plant-beds"]
+    assert (row["size_bytes"], row["listing_chars"]) == (200, len("Plant a bed."))
+    assert [(entry["skill"], entry["size_bytes"]) for entry in data["quiet"]] == [
+        ("prune-roses", 120)
+    ]
+    found = held(state)
+    assert sorted(found["held"]) == ["plant-beds", "prune-roses"]
+    assert found["commit"] and found["at"].endswith("+00:00")
+
+    git(checkout, "checkout", "-q", "main")
+    git(checkout, "merge", "-q", "topic")  # merged, the work is the project
+    run(skill_usage_collect())
+    assert held(state)["held"] == {
+        "plant-beds": [900, len("Plant a bed, at length.")],
+        "trim-roses": [120, len("Prune the roses.")],
+    }
+    assert held(state)["renames"] == {"prune-roses": "trim-roses"}  # read from that commit
+
+
+@pytest.mark.parametrize(
+    "later",
+    ["2026-03-01T10:00:00+00:00", "2026-03-02T10:00:00+00:00", "2026-02-28T10:00:00+00:00"],
+)
+def test_of_two_default_branches_the_one_ahead_is_read(
+    state: Path, t3_store: T3Store, checkout: Path, later: str
+) -> None:
+    """A checkout that was not pushed has the remote's branch behind its own. The one the
+    other leads to is ahead whatever their times: git keeps a commit's time to the second,
+    so the two can share one, and a clock that runs behind dates a commit before its
+    parent."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    git(checkout, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename", at=later)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+
+    run(skill_usage_collect())
+
+    assert sorted(held(state)["held"]) == ["build-beds", "prune-roses"]
+    assert sorted(rows(run(skill_usage_report()))) == ["build-beds"]
+
+
+@pytest.mark.parametrize("later", ["2026-03-02T10:00:00+00:00", "2026-02-28T10:00:00+00:00"])
+def test_a_checkout_that_was_not_fetched_reads_what_it_has(
+    state: Path, t3_store: T3Store, checkout: Path, later: str
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename", at=later)
+    git(checkout, "update-ref", "refs/remotes/origin/main", "HEAD")  # fetched, and
+    git(checkout, "reset", "-q", "--hard", "HEAD~1")  # its own branch never moved on
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+
+    run(skill_usage_collect())
+
+    assert sorted(held(state)["held"]) == ["build-beds", "prune-roses"]
+    # and the rename is read from the same branch, though the checked-out one lacks it
+    assert sorted(rows(run(skill_usage_report()))) == ["build-beds"]
+
+
+def test_a_commit_and_a_folder_say_the_same_of_a_skill(tmp_path: Path) -> None:
+    root = tmp_path / "garden"
+    windows = b"---\r\nname: windows\r\ndescription: Line ends.\r\n---\r\nbody\r\n"
+    no_such_day = b"---\nname: bad-date\nupdated: 2026-02-30\n---\nThe first paragraph.\n\nMore.\n"
+    files = {
+        ".claude/skills/plain/SKILL.md": skill_text("plain", "Plain.", 150).encode(),
+        ".claude/skills/windows/SKILL.md": windows,
+        ".claude/skills/odd-bytes/SKILL.md": b"---\nname: odd\ndescription: caf\xe9\n---\n\xff",
+        ".claude/skills/bad-date/SKILL.md": no_such_day,
+        ".claude/skills/not a name/SKILL.md": b"no load is recorded under a name like this",
+        ".claude/skills/_drafts/SKILL.md": b"nor this",
+        ".agents/skills/plain/SKILL.md": skill_text("plain", "Another.", 400).encode(),
+        ".agents/skills/only-agents/SKILL.md": skill_text("only-agents", "Agents.", 99).encode(),
+        ".claude/skills/no-file/notes.md": b"notes",
+        ".claude/skills/deep/inner/SKILL.md": b"not a skill: one folder too far down",
+        ".claude/skills/README.md": b"not a folder",
+        "elsewhere/.claude/skills/far/SKILL.md": b"not this project's",
+    }
+    for name, data in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_bytes(data)
+    git(root, "init", "-q", "-b", "main")
+    git(root, "-c", "core.autocrlf=false", "add", "-A")
+    git(root, "commit", "-q", "-m", "skills")
+
+    folder = collect.held_in_folder(root)
+
+    assert collect.held_at(root, "HEAD") == folder
+    assert sorted(folder) == ["bad-date", "odd-bytes", "only-agents", "plain", "windows"]
+    # a front matter that cannot be read is none: the skill is listed by its first paragraph
+    assert folder["bad-date"] == [len(no_such_day), len("The first paragraph.")]
+    assert folder["plain"] == [150, len("Plain.")]  # of two folders, the first one's
+    assert folder["windows"] == [len(windows) - windows.count(b"\r"), len("Line ends.")]
+    (root / ".claude" / "skills" / "plain" / "SKILL.md").write_bytes(b"changed in the folder")
+    assert collect.held_at(root, "HEAD") == folder  # the commit, whatever the folder holds
+
+
+def test_a_git_that_does_not_answer_leaves_what_was_known(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A busy machine's git can run out of its time. That is not a folder with no branch:
+    read as it lies, a checkout with work under way would speak for the project."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills")
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    known = held(state)
+    draft = checkout / ".claude" / "skills" / "draft"
+    draft.mkdir()
+    (draft / "SKILL.md").write_text(skill_text("draft", "A draft.", 300), "utf-8")
+    real = collect.git_out
+
+    def slow(root: Path, *args: str, **more: object) -> str:
+        if args[0] == "for-each-ref":
+            raise collect.GitError("git for-each-ref: timed out")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", slow)
+
+    run(skill_usage_collect())
+
+    assert known["commit"] and held(state) == known
+
+
+def test_a_repository_git_cannot_read_is_not_a_folder_with_no_branch(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills")
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    known = held(state)
+    draft = checkout / ".claude" / "skills" / "draft"
+    draft.mkdir()
+    (draft / "SKILL.md").write_text(skill_text("draft", "A draft.", 300), "utf-8")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "a draft, merged")
+    real = collect.git_out
+
+    def no_file(root: Path, *args: str, **more: object) -> str:
+        if args[0] == "cat-file":  # an object git lists and cannot give
+            return f"{'0' * 40} missing\n"
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", no_file)
+    with pytest.raises(ValueError, match="cat-file"):
+        collect.held_at(checkout, "HEAD")
+    run(skill_usage_collect())
+    assert held(state) == known  # the commit could not be read: nothing new is said
+
+    monkeypatch.setattr(collect, "git_out", real)
+    ref = checkout / ".git" / "refs" / "heads" / "main"
+    ref.write_text("1" * 40 + "\n", "utf-8")  # a branch that names a commit that is not there
+    with pytest.raises(collect.GitError, match="missing object"):
+        collect.default_tip(checkout)
+    run(skill_usage_collect())
+    assert held(state) == known  # nor is the folder read as it lies, draft and all
+
+
+def test_no_other_branch_speaks_for_the_default_one(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    """The remote says which branch is the default. A branch that happens to be called
+    `main`, however new, is not it."""
+    git(checkout, "init", "-q", "-b", "trunk")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    git(checkout, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+    git(checkout, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+    git(checkout, "checkout", "-q", "-b", "main")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/other-beds")
+    git(checkout, "commit", "-q", "-m", "elsewhere", at="2026-03-09T10:00:00+00:00")
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+
+    run(skill_usage_collect())
+
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+    assert collect.default_tip(checkout)[0] == "refs/remotes/origin/trunk"
+
+
+@pytest.mark.parametrize(
+    ("theirs", "ours", "read"),
+    [
+        ("2026-03-03T10:00:00+00:00", "2026-03-02T10:00:00+00:00", "their-beds"),
+        ("2026-03-02T10:00:00+00:00", "2026-03-03T10:00:00+00:00", "our-beds"),
+        ("2026-03-02T10:00:00+00:00", "2026-03-02T10:00:00+00:00", "their-beds"),
+    ],
+)
+def test_of_two_default_branches_that_parted_the_newer_is_read(
+    checkout: Path, theirs: str, ours: str, read: str
+) -> None:
+    """Neither leads to the other (the remote's was rewritten, or the checkout's has work
+    not pushed): the newer, and of two as new the remote's."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    git(checkout, "checkout", "-q", "-b", "remote")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/their-beds")
+    git(checkout, "commit", "-q", "-m", "theirs", at=theirs)
+    git(checkout, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(checkout, "checkout", "-q", "main")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/our-beds")
+    git(checkout, "commit", "-q", "-m", "ours", at=ours)
+
+    account = collect.skill_inventory(checkout)
+
+    assert sorted(account["held"]) == sorted([read, "prune-roses"])
+    assert account["renames"] == {"plant-beds": read}
+
+
+def test_a_rename_to_a_name_no_load_is_recorded_under_is_not_followed(checkout: Path) -> None:
+    """Neither list holds such a folder, so neither report may call a skill by its name."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/Beds, see the notes")
+    git(checkout, "commit", "-q", "-m", "set aside", at="2026-03-02T10:00:00+00:00")
+
+    account = collect.skill_inventory(checkout)
+
+    assert (sorted(account["held"]), account["renames"]) == (["prune-roses"], {})
+    assert collect.skill_renames(checkout) == {}
+
+
+def test_an_older_clone_never_takes_a_project_back(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+    old = checkout.parent / "old" / "garden"  # cloned then, and never fetched since
+    subprocess.run(["git", "clone", "-q", str(checkout), str(old)], check=True)
+    git(old, "remote", "set-url", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename", at="2026-04-02T10:00:00+00:00")
+    t3_store.project("p2", old)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    newest = held(state, "acme/garden")
+    assert sorted(newest["held"]) == ["build-beds", "prune-roses"]
+
+    away = checkout.parent / "not-mounted"
+    checkout.rename(away)  # the folder with the newest is not there this time
+    run(skill_usage_collect())
+    assert held(state, "acme/garden") == newest  # what it said last still speaks
+
+    away.rename(checkout)
+    real = collect.git_out
+
+    def busy(root: Path, *args: str, **more: object) -> str:
+        if Path(root) == checkout and args[0] == "for-each-ref":
+            raise collect.GitError("git for-each-ref: timed out")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", busy)  # nor when git does not answer in it
+    run(skill_usage_collect())
+    assert held(state, "acme/garden") == newest
+
+    monkeypatch.setattr(collect, "git_out", real)
+    git(checkout, "reset", "-q", "--hard", "HEAD~1")  # the folder itself says otherwise now
+    run(skill_usage_collect())
+    assert sorted(held(state, "acme/garden")["held"]) == ["plant-beds", "prune-roses"]
+
+
+def test_a_branch_that_has_not_moved_is_not_read_again(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-03-01T10:00:00+00:00")
+    other = checkout.parent / "garden-2"
+    git(checkout, "worktree", "add", "-q", "-b", "topic", str(other))
+    t3_store.project("p2", other)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(1))
+    read: list[Path] = []
+    real = collect.held_at
+
+    def reading(root: Path, commit: str) -> dict:
+        read.append(root)
+        return real(root, commit)
+
+    monkeypatch.setattr(collect, "held_at", reading)
+
+    run(skill_usage_collect())
+    assert sorted(read) == [checkout, other]  # each folder says what it holds itself
+    first = held(state, "acme/garden")
+    run(skill_usage_collect())
+    assert len(read) == 2 and held(state, "acme/garden") == first  # noqa: PLR2004
+
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename", at="2026-03-02T10:00:00+00:00")
+    run(skill_usage_collect())
+    assert len(read) == 4 and "build-beds" in held(state, "acme/garden")["held"]  # noqa: PLR2004
+    run(skill_usage_collect(rebuild=True))  # everything again, under the rules of this botcore
+    assert len(read) == 6  # noqa: PLR2004
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a link needs a privilege on Windows")
+def test_a_link_is_not_followed_in_a_commit(tmp_path: Path) -> None:
+    root = checkout_at(tmp_path / "garden")
+    skills = root / ".claude" / "skills"
+    (skills / "linked").mkdir()
+    (skills / "linked" / "SKILL.md").symlink_to("../plant-beds/SKILL.md")
+    (root / ".codex").mkdir()
+    (root / ".codex" / "skills").symlink_to("../.claude/skills")  # one folder under two names
+    git(root, "init", "-q", "-b", "main")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "skills")
+
+    assert sorted(collect.held_at(root, "HEAD")) == ["plant-beds", "prune-roses"]
+
+
+def test_a_folder_inside_a_repository_holds_its_own_skills(tmp_path: Path) -> None:
+    """A project can be a folder inside a repository. It holds the skills under it, not the
+    repository's, as its folder would if it were read as it lies."""
+    root = checkout_at(tmp_path / "garden")
+    inner = root / "packages" / "shed" / ".claude" / "skills" / "mend-shed"
+    inner.mkdir(parents=True)
+    (inner / "SKILL.md").write_text(skill_text("mend-shed", "Mend the shed.", 80), "utf-8")
+    git(root, "init", "-q", "-b", "main")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "skills")
+    shed = root / "packages" / "shed"
+
+    tip = collect.default_tip(shed)
+
+    assert tip is not None and tip == collect.default_tip(root)
+    assert collect.skill_inventory(shed)["held"] == collect.held_in_folder(shed)
+    assert sorted(collect.skill_inventory(shed)["held"]) == ["mend-shed"]
+    assert sorted(collect.skill_inventory(root)["held"]) == ["plant-beds", "prune-roses"]
+    assert collect.default_tip(tmp_path) is None  # no repository: read as it lies
+
+
+def test_a_report_reads_the_record_and_no_checkout(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    assert held(state) == {
+        "at": None,  # a folder that is no repository, read as it lies
+        "commit": None,
+        "held": {
+            "plant-beds": [200, len("Plant a bed.")],
+            "prune-roses": [120, len("Prune the roses.")],
+        },
+        "renames": {},
+    }
+    shutil.rmtree(checkout)
+
+    data = run(skill_usage_report())
+
+    assert rows(data)["plant-beds"]["size_bytes"] == 200
+    assert [entry["skill"] for entry in data["quiet"]] == ["prune-roses"]
+    assert data["warnings"] == []
+    run(skill_usage_collect())  # with no folder to read, what was known stands
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+
+
+def test_a_project_no_folder_speaks_for_holds_nothing_and_says_so(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    shutil.rmtree(checkout)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+
+    data = run(skill_usage_report())
+
+    assert held(state) == {"at": None, "commit": None, "held": {}, "renames": {}}
+    assert "size_bytes" not in rows(data)["plant-beds"]
+    assert data["warnings"] == []  # it was looked for: nothing is missing from the record
+
+
+def test_sessions_no_project_is_known_for_are_not_a_record_that_does_not_say(
+    state: Path, t3_store: T3Store
+) -> None:
+    t3_store.skill_tool(t3_store.thread("main-1", project_id="gone"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+
+    data = run(skill_usage_report())
+
+    assert [row["project"] for row in data["skills"]] == ["unknown"]
+    assert data["warnings"] == []  # no collection could ever say what "unknown" holds
+
+
+def test_a_record_that_does_not_say_what_a_project_holds_is_named(
+    state: Path, t3_store: T3Store
+) -> None:
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    saved = store.load_state(state)  # as a botcore before this wrote it
+    del saved["projects"]["garden"]["skills"], saved["projects"]["garden"]["accounts"]
+    store.save_state(state, saved)
+
+    data = run(skill_usage_report())
+
+    (warning,) = data["warnings"]
+    assert "which skills these projects hold: garden." in warning
+    assert "size_bytes" not in rows(data)["plant-beds"] and data["quiet"] == []
+    run(skill_usage_collect())
+    assert run(skill_usage_report())["warnings"] == []
+
+
+def test_a_project_with_sessions_and_no_load_is_named_too(state: Path, t3_store: T3Store) -> None:
+    """An empty `quiet` list would read as no skill unused."""
+    seen = {"createdAt": stamp(2), "updatedAt": stamp(1)}
+    t3_store.message(t3_store.thread("main-1", extra=seen), "hello", stamp(1))
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    del saved["projects"]["garden"]["skills"], saved["projects"]["garden"]["accounts"]
+    store.save_state(state, saved)
+
+    data = run(skill_usage_report())
+
+    assert (data["skills"], data["quiet"], data["totals"]["sessions_seen"]) == ([], [], 1)
+    assert "which skills these projects hold: garden." in data["warnings"][0]
+
+
+def test_the_newest_account_of_a_project_is_the_one_read() -> None:
+    old = {"at": "2026-01-01T00:00:00+00:00", "commit": "a", "held": {"a": [1, 1]}}
+    new = {"at": "2026-01-02T00:00:00+00:00", "commit": "b", "held": {}}
+    east = {"at": "2026-01-02T05:00:00+09:00", "commit": "c", "held": {"c": [1, 1]}}
+    folder = {"at": None, "commit": None, "held": {"d": [1, 1]}}
+    empty = {"at": None, "commit": None, "held": {}}
+
+    assert store.newest_inventory([old, east, folder, empty, new]) is new  # a moment, not text
+    assert store.newest_inventory([empty, folder, {"at": "soon", "held": {}}]) is folder
+    assert store.newest_inventory([folder, dict(folder)]) is folder  # of two alike, the first
+    assert store.newest_inventory([]) is None
+    assert store.as_inventory({"held": []}) is None and store.as_inventory("x") is None
+
+
+def test_only_what_a_collection_writes_is_kept_of_an_account() -> None:
+    """It is shared: nothing a hand put in the file reaches another machine."""
+    commit = "a" * 40
+    odd = {
+        "at": "2026-01-02T05:00:00+09:00",
+        "commit": commit,
+        "held": {
+            "a": [1, 2], "b": [1], "c": ["1", 2], 4: [1, 2], "d": [True, 1], "e": [-1, 2],
+            "/home/someone/notes": [1, 1], "a sentence someone wrote": [1, 1], "x" * 101: [1, 1],
+        },
+        "renames": {"old": "new", "old name": "new", "older": "../up", 5: "new", "elder": 5},
+        "folder": "/home/someone",
+    }  # fmt: skip
+
+    assert store.as_inventory(odd) == {
+        "at": "2026-01-01T20:00:00+00:00",  # one way of writing a moment
+        "commit": commit,
+        "held": {"a": [1, 2]},
+        "renames": {"old": "new"},
+    }
+    # a time with no commit, or a commit with no time, is neither
+    for at, named in (("soon", commit), ("2026-01-02T05:00:00+09:00", "/home/someone"), (5, 5)):
+        found = store.as_inventory({**odd, "at": at, "commit": named})
+        assert (found["at"], found["commit"]) == (None, None)
 
 
 def test_report_warns_when_the_record_is_old(state: Path, t3_store: T3Store) -> None:

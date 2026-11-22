@@ -141,9 +141,11 @@ machine with neither source succeeds with nothing read.
   a machine's folder that holds another record of the same name (`error`), does not undo the
   collection, and botcore never creates or syncs the shared folder. What is shared is what
   was read, with this module's fields only: session ids, project names and pull request
-  numbers, and each project's renamed skills; never a folder of the machine or a line it
-  could not read. Keep it private. A name is lower case and fit for a folder on any system;
-  the shared folder is a full path. The hourly job must be able to read it: on macOS, a
+  numbers, and for each project its renamed skills and the skills it holds (their names,
+  sizes and listing characters, and the commit they were read from with its time); never a
+  folder of the machine or a line it could not read. Keep it private. A name is lower case
+  and fit for a folder on any system; the shared folder is a full path. The hourly job must
+  be able to read it: on macOS, a
   folder in a cloud drive that fetches files on demand needs the owner's consent for the
   job's program, once, at the screen (`disk-status` says so while the job waits, and that
   the record itself was collected); a folder the drive keeps local copies of needs none.
@@ -172,13 +174,20 @@ a shared folder, every other machine's, each session once; run `skill_usage_coll
   load counts under the session it works for. A skill read three times in one session is one
   use. A typed request is a load unless a tool then loads the skill within ten minutes.
 - Not counted as use: a session that changed the skill's files (`authoring_sessions`), and an
-  audit, which is one session loading two thirds or more of the skills the project's checkout
-  holds (and at least 12 of them) within 30 minutes (`totals.audit_sessions`). Only skills the
-  checkout holds count toward that; a checkout that holds fewer than 12, or is not on this
-  machine, never has an audit, and an audit that takes longer than about 45 minutes is not
+  audit, which is one session loading two thirds or more of the skills the project holds (and
+  at least 12 of them) within 30 minutes (`totals.audit_sessions`). Only skills the project
+  holds count toward that; a project that holds fewer than 12, or that no machine has a
+  folder of, never has an audit, and an audit that takes longer than about 45 minutes is not
   seen as one.
-- `quiet`: skills a project's checkout holds (`.claude/skills`, `.agents/skills`,
-  `.codex/skills`) that nothing used in the window.
+- `quiet`: skills a project holds (`.claude/skills`, `.agents/skills`, `.codex/skills`) that
+  nothing used in the window.
+- What a project holds, with sizes and names, is what the tip of its default branch has, as
+  a collection read it from git on a machine that has the project, and never the files as a
+  folder lies: the report reads no checkout, and says the same on every machine once each
+  runs this botcore and their records have synced. Of several machines' accounts the one
+  read from the newest commit is used, by the commit's time. A skill on a branch not yet
+  merged, or kept out of git, is counted with no size and is not in `quiet`. A folder that
+  is no repository is read as it lies.
 - `project`: `owner/name` or the name alone. `harness`: `claude` or `codex`. `agent`: `main`,
   `delegate` or `subagent`. `skill`: one skill. `ending_days_ago`: move the window back, to
   compare two periods. `limit`: skills listed, most used first; `more` counts the rest.
@@ -186,7 +195,8 @@ a shared folder, every other machine's, each session once; run `skill_usage_coll
   values, not an empty report. `warnings` says when a machine's record is over a day old,
   when lines of one could not be read, when a folder in the shared one is not a whole copy
   of a machine's record and was not read (a sync part way through, or not a machine's), when
-  the shared folder was not there, and when an older botcore recognised events. Also
+  the shared folder was not there, when an older botcore recognised events, and when no
+  machine's record says what a project holds (one an earlier botcore wrote). Also
   `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`.
 
 ## skill_usage_triggers(days=30, repo=None)

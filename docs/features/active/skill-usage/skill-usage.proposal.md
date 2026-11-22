@@ -176,11 +176,11 @@ T3 Code's store is another program's internal schema, not an interface:
 - **Writing a skill.** A completed change to any file under `…/skills/<name>/` is recorded as
   an `edit` event. A session that changed a skill's files read it as the subject of its work,
   so the report counts that session as authoring the skill, not using it.
-- **Reading the skills.** One session loading two thirds or more of the skills a project's
-  checkout holds, and at least twelve of them, within thirty minutes is an audit, a rename or
-  a listing. The report leaves those loads out of every skill's count, so an audit done within
-  about half an hour cannot empty the `quiet` list. Only skills the checkout holds count
-  toward the bar.
+- **Reading the skills.** One session loading two thirds or more of the skills a project
+  holds ([what a project holds](#what-a-project-holds)), and at least twelve of them, within
+  thirty minutes is an audit, a rename or a listing. The report leaves those loads out of
+  every skill's count, so an audit done within about half an hour cannot empty the `quiet`
+  list. Only skills the project holds count toward the bar.
   The bar is a share because a working session with its reviewers loads a dozen and more in
   that time: on the machine first measured, up to 16 of the 31 the checkout held, against a
   bar of 21. It is decided before any filter, so a filter never changes a skill's count.
@@ -229,9 +229,53 @@ One line of `events.jsonl` in botcore's state folder (`~/.local/state/botcore/sk
 ### Identity across a rename
 
 `skill-usage-collect` reads the renames of `SKILL.md` files from the history of each project's
-checkout (`git log HEAD --diff-filter=R`), the checkout whose files the report lists, so a
-skill folder renamed in one commit keeps one identity with nothing to configure. Botcore's own
-rename table covers the skills it ships. A name the checkout still holds is never renamed.
+default branch (`git log <branch> --diff-filter=R`), the branch whose skills the report
+lists, so a skill folder renamed in one commit keeps one identity with nothing to configure.
+Botcore's own rename table covers the skills it ships. A name the project still holds is
+never renamed.
+
+### What a project holds
+
+A report lists a project's skills, sizes them and names them as the project's default branch
+has them, never as a folder lies. A checkout left on a branch eleven days old held 21 skills
+where another machine's held 27, four of them under names since changed, and the two
+machines gave different totals from one record
+([#1904](https://github.com/lushly-dev/afd/issues/1904)).
+
+- **At each collection** a machine reads, in each folder of a project, the tip of its
+  default branch. The branch is named first: the one the remote calls its default
+  (`origin/HEAD`), else `main`, else `master`, so that no other branch speaks for it however
+  new. Then, of the remote's copy and the checkout's own, the one ahead: a checkout that was
+  not fetched has the remote's behind, one that was not pushed has it ahead. Ahead is the
+  one the other leads to, whatever their times (git keeps a commit's time to the second, and
+  a clock that runs behind dates a commit before its parent); the newer only where neither
+  leads to the other, and of two as new the remote's.
+- **From that one commit** it reads the `SKILL.md` files and the renames in its history,
+  out of git's objects. The branch checked out, work under way and files not yet added play
+  no part, and every machine that has the commit says the same of it. Only names a load can
+  be recorded under are listed. A front matter that cannot be read does not stop the read:
+  the skill is listed by its first paragraph.
+- **A folder that is no repository**, or names no such branch, is read as it lies. A
+  repository git could not say anything of that hour (it did not answer in time, a ref is
+  broken) is neither: it says nothing, and what it said last stands.
+- **Each folder's account is kept by folder**, on the machine only. A folder that is not
+  there (a volume not mounted, a checkout removed) still speaks through what it said last,
+  so an older clone that does answer never takes the project back. A folder read again
+  replaces its own account, whatever it now says. A branch that has not moved is not read
+  again; `--rebuild` reads every folder again.
+- **The record keeps** the newest of them: each skill's size and listing characters, the
+  renames, and the commit with its time. A machine shares that with its record, and only
+  what a collection could have written: a commit and a time that are ones, names a skill's
+  folder can have, and counts.
+- **A report reads no checkout.** For each project it takes the account read from the newest
+  commit, among every machine's, by the commit's time; one read from a folder as it lay is
+  older than any commit, and of two as new the first machine's by name. A skill's name now
+  is read with the list it is looked up in: where two machines' histories say otherwise of
+  an old name, the one whose list is used has the last word. So every machine lists the same
+  skills, with the same sizes, under the same names, whatever its own checkout is at, once
+  each runs this botcore and their records have synced.
+- **The triggers report** runs in a checkout, so it also reads that checkout's default
+  branch, and uses it where it is newer than the record's.
 
 ### Commands
 
@@ -375,9 +419,9 @@ After each collection a machine writes its record to a folder of its own name th
 - **What it understood, not its files as they lie.** Its events and sessions are written
   again from what was read, with the fields this module writes and no other. A line that
   could not be read stays on the machine, and the state says how many there are. Of its
-  state it shares when it collected, under which rules, and each project's renamed skills,
-  so that a reader with no checkout of a project still knows a skill by its name now. Never
-  its folders.
+  state it shares when it collected, under which rules, and each project's renamed skills
+  and the skills it holds, so that a reader lists a project's skills by their names now
+  whatever its own checkout is at, or with none. Never its folders.
 - **Only what changed**, so a sync has little to send, and the state last. The state names
   the other two files by their digests.
 - **Only its own folder.** Each record has an id. A folder that holds another record under
@@ -431,8 +475,18 @@ for the schedule.
 
 ## Limits
 
+- **A skill not merged.** One that is only on a topic branch, or kept out of git in a
+  repository (ignored, or not yet added), is counted with no size and is not in the `quiet`
+  list until it is on the default branch. A rename is known once it is merged.
+- **Which machine's list.** Between machines the newer commit is the one with the later
+  time, since a reader may have no checkout to ask which leads to which. A machine whose
+  newest commit was dated by a clock that runs behind loses to one that has not fetched it,
+  until the next merge. Every reader still agrees.
+- **A folder name no load is recorded under** (one with a space, or that begins with `_`
+  or a dot) is not a listed skill.
 - **Skills outside a project's skill folders.** Size, context cost and the `quiet` list come
-  from `.claude/skills`, `.agents/skills` and `.codex/skills` of the project's checkout. A load
+  from `.claude/skills`, `.agents/skills` and `.codex/skills` of the project's default
+  branch. A skill folder or `SKILL.md` that is a link is not followed in a commit. A load
   of a skill kept elsewhere (a person's own folder, a plugin, a repository's source folder for
   generated skills) is counted, with no size, and a canonical name and its exported name stay
   two skills ([#1830](https://github.com/lushly-dev/afd/issues/1830)).
@@ -441,8 +495,8 @@ for the schedule.
   not counted.
 - **Two skills merged into one** are not a rename: their histories stay apart.
 - **An audit the rule does not see.** One that takes longer than about 45 minutes (so that
-  no half hour holds two thirds of the skills), one of a checkout that holds fewer than twelve
-  skills, and one of a project whose checkout is not on the machine all count as use.
+  no half hour holds two thirds of the skills), one of a project that holds fewer than twelve
+  skills, and one of a project no machine has a folder of all count as use.
 - **A machine that has not synced.** Each machine's numbers end at its last collection that
   reached the shared folder; the report gives that time for every machine.
 - **A machine named as away.** `skill_usage_away` is the owner's word that a machine was

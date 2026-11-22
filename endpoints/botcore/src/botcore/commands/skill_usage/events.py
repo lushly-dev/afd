@@ -33,6 +33,8 @@ SUBAGENT = "subagent"  # a subagent inside either
 
 _NAME = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 _SKILL_NAME = re.compile(rf"{_NAME}(?::{_NAME})?")  # a skill, or a plugin's `plugin:skill`
+_SKILL_FOLDER_NAME = re.compile(_NAME)
+_LONGEST_NAME = 100
 _SKILL_FILE = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+SKILL\.md$")
 _SKILL_FOLDER = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+[^/\\]")
 _TYPED = re.compile(rf"^\s*[$/]({_NAME}(?::{_NAME})?)(?=\s|$)")
@@ -104,6 +106,17 @@ class Event:
         if not isinstance(fields["v"], int):
             fields["v"] = 0
         return cls(**fields)
+
+
+def is_skill_folder(name: object) -> bool:
+    """Whether a name is one a skill's folder can have and a load be recorded under. No
+    other is a skill a report could count, and nothing else is kept or shared as a name:
+    not a path, not a sentence."""
+    return (
+        isinstance(name, str)
+        and len(name) <= _LONGEST_NAME
+        and _SKILL_FOLDER_NAME.fullmatch(name) is not None
+    )
 
 
 def clean_skill_name(raw: str) -> str | None:

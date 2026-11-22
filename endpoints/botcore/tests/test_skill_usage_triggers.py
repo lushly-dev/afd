@@ -114,6 +114,48 @@ def why(found: dict) -> dict[str, int]:
 # ── judging a merged change ─────────────────────────────────────────────────
 
 
+def test_a_skill_is_named_as_the_default_branch_names_it(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    """Not as the checked-out files do: a checkout left on an old branch still holds the
+    skill's folder under the name it had. Nor as the record does where the checkout knows
+    more: nothing was collected since the rename."""
+    git(repo, "branch", "old")
+    t3_store.skill_tool(session(t3_store, "first", (101, stamp(2))), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    git(repo, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates")
+    merge(repo, "chore: rename the skill (#100)", days_ago=-1)
+    merge(repo, "feat: a hook (#101)", "hooks.yml", days_ago=-1)
+    git(repo, "checkout", "-q", "old")  # its rule and its folder name the skill the old way
+    saved = store.load_state(state)  # and an older history, another machine's, another name
+    saved["projects"]["acme/garden"]["renames"] = {"gate-discipline": "elsewhere"}
+    store.save_state(state, saved)
+
+    found = rule(run(skill_usage_triggers(repo=str(repo), days=40)))
+
+    assert (found["skill"], judged(found)) == ("gates", (1, 0, 0))
+
+
+def test_a_checkout_git_stops_answering_in_is_named_by_the_record(
+    state: Path, t3_store: T3Store, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git(repo, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates")
+    merge(repo, "chore: rename the skill (#100)")
+    merge(repo, "feat: a hook (#101)", "hooks.yml")
+    t3_store.skill_tool(session(t3_store, "first", (101, stamp(2))), "gate-discipline", stamp(3))
+    run(skill_usage_collect())
+    git(repo, "checkout", "-q", "-b", "old", "HEAD~2")  # where the skill has its old name
+
+    def busy(root: Path, last: dict | None = None) -> dict:
+        raise triggers.GitError("git for-each-ref: timed out")
+
+    monkeypatch.setattr(triggers, "skill_inventory", busy)
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert (found["skill"], judged(found)) == ("gates", (1, 0, 0))
+
+
 def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
