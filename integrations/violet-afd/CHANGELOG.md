@@ -1,5 +1,9 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.2
+
+No changes in this release.
+
 ## 0.3.0-preview.1
 
 ### Minor Changes
