@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented, on the pack format's `example` library. Canonical `example/select` keep
 # order across scenarios: 0=named, 1=escape-closes, 2=shows-choice, 3=fits-narrow.
 # `example-select` passes its pattern's gates. `example-dropdown` has been changed so that Escape
@@ -47,7 +47,7 @@ steps:
         guides.obligations: guides@1
         patterns.obligations: patterns@1
         patterns.complete: true
-        patterns.implementations.0.library: example
+        patterns.implementations.0.patternLibrary: example
         patterns.implementations.0.pattern: select
         patterns.implementations.0.tag: example-select
         patterns.implementations.0.keep.0.id: select.keep.named

@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented. The project under test is a second library (`touch`) whose `touch-select`
 # claims the `example` library's `select` pattern via `patternSources` in `specimen.config.json`.
 # Canonical `example/select` keep order across scenarios: 0=named, 1=escape-closes,
@@ -64,7 +64,7 @@ steps:
       data:
         patterns.obligations: patterns@1
         patterns.complete: false
-        patterns.implementations.0.library: example
+        patterns.implementations.0.patternLibrary: example
         patterns.implementations.0.pattern: select
         patterns.implementations.0.tag: touch-select
         patterns.implementations.0.keep.0.id: select.keep.named

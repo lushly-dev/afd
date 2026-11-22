@@ -24,7 +24,11 @@
   profile states the deployment's own guidance, and `default_consumer` applies a profile to calls
   that name none. Amended by [A30](#amendment-a30-components-check-step-d1-1154) (D199, the owner's decision of
   2026-11-19): `components-check` reads a page's source as text for undeclared tags and attributes only, and
-  says it rendered nothing.
+  says it rendered nothing. Amended by [A31](#amendment-a31-patterns-and-saved-copies-1073) (Phase A draft,
+  2026-11-22, [#1073](https://github.com/lushly-dev/afd/issues/1073), [#2133](https://github.com/lushly-dev/afd/issues/2133);
+  awaiting owner Phase A exit approval): pack format 2 reader, `components-pattern-list`,
+  `components-pattern-open`, patterns and saved copies in `components-brief`, and outdated-copy warnings in
+  `components-check`.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
 - **Last verified:** 2026-11-17 for amendment A28, on `0f625e26`: `cargo test --locked -p umbel-plugin-components`
@@ -527,6 +531,229 @@ on `violet-text-field`, `size` on `violet-button` and `label` on `violet-checkbo
 refusals, the cap, the budget, `versions`, `minimum_basis`, and the scenario); `tests/surfaces.rs` (listed, not
 first-class, callable by name on every lane); and the host's `tests/component_components.rs` (the compiled and
 component builds answer the same checks).
+
+### Amendment A31: Patterns and saved copies (#1073)
+
+Phase A specification for [Patterns](../../../../../docs/features/active/patterns/spec.md) (epic
+[#1073](https://github.com/lushly-dev/afd/issues/1073), Phase A [#2133](https://github.com/lushly-dev/afd/issues/2133)),
+authored 2026-11-22 following the owner's Phase 0 step 0.5 **go with changes** decision on [#1966](https://github.com/lushly-dev/afd/issues/1966).
+Implementation (Phase C steps C1–C3) remains gated on Phase A exit approval.
+
+#### A31.1 Format 2 reader and identifiers (step C1)
+
+- **Versions.** `pack::read` accepts format `2` (defined in
+  [`docs/features/active/patterns/spec.md` §6](../../../../../docs/features/active/patterns/spec.md#6-component-pack-format-version-2-format-2))
+  and continues to accept format `1` for packs without patterns during rollout; any other `format` value is
+  `FORMAT_UNSUPPORTED`. A format 1 library has empty `patterns` and `copies` collections.
+- **Layout.** For format 2 libraries, the reader accepts `data/<library>/patterns/<pattern>.json` (Slice 1) and
+  `data/<library>/patterns/<pattern>/<name>.json` (Slice 2), plus `patterns[]` and `copies[]` in `library.json`.
+  An application library with patterns/copies and `components: []` (no files under `components/` and empty `rules: []`)
+  is valid. Draft copies never appear in a pack.
+- **Identifiers & scanning (D153).** `src/pack/patterns.rs` adds the nine ASCII-only format-2 identifier forms
+  (`pattern`, `qualifiedPattern`, `copyName`, `setup`, `gate`, `alias`, `facetKey`, `facetValue`, `stepId`;
+  all verified against Specimen's generated JSON Schemas in `tests/patterns.rs`). Every new identifier is scanned by
+  `umbel-scan` with separators (`-`, `.`, `_`, `/`) read as spaces (3.2); a hit fails the library with
+  `IDENTIFIER_INVALID`. Every served text field inside `content` (pattern summaries, statements, setup descriptions,
+  `changeNote`, `contexts.reason`, copy `html` and `css`) is scanned by `umbel-scan` (5.6) and flagged without
+  blocking (`CONTENT_FLAGGED`).
+- **Checks.** Extends 3.3 with `PATTERN_MISMATCH`, `COPY_MISMATCH`, `PATTERN_UNKNOWN` (same-library missing pattern),
+  and `COPY_UNKNOWN`, plus `copyHtml` (16 000 code points) and `copyCss` (8 000 code points) text caps. Host caps
+  (1 000 files/pack, 1 MiB/file, 16 MiB/call) and graceful refusal (9.1) are unchanged.
+- **Cross-library implementation aggregation.** Component records may claim patterns owned by another library
+  (`{ library, pattern }`). At read time, across all libraries touched in the call's `space`, Umbel builds a read-only
+  index mapping `(owningLibrary, pattern)` to every claiming component and complete copy, sorted with the pattern's
+  owning library first and then ascending by library, kind, and tag/name:
+  `(library !== owningLibrary, library, kind, tag ?? name)`. Thus `example/example-select` precedes
+  `desktop/desk-select` when opening `example/select`.
+
+#### A31.2 Manifest, budgets, and first-class cap (step C2)
+
+Adds two read-only commands (`effects = ["inspect"]`, version `1.0.0`, **not** `first_class`, keeping
+`umbel-first-party` at 7 of 8 first-class slots; discovered via `afd-discover` and invoked via `afd-call`):
+
+| Command | Budget (default / max) | Journal (`digest` keep) | Slice |
+| --- | --- | --- | --- |
+| `components-pattern-list` | 16 000 B / 64 000 B | `["space", "library", "scope"]` | Slice 1 |
+| `components-pattern-open` | 32 000 B / 96 000 B | `["space", "library", "pattern"]` | Slice 1 (copy `source`: Slice 2) |
+
+No new grants, host code, stores, or cross-plugin dependencies are added (D3, D151). Both compiled and WebAssembly
+component manifests (`umbel-plugin.toml`, `manifests/component.toml`) declare both commands.
+
+#### A31.3 `components-pattern-list` (step C2)
+
+- **Input** (`schemas/components-pattern-list.input.json`, `additionalProperties: false`):
+  - `space` (optional string)
+  - `library` (optional library id; touches only that library when given. When omitted, touches **all** libraries in
+    the space, intentionally ignoring `default_library` so cross-library need discovery works without knowing which
+    library owns a pattern)
+  - `scope` (optional `'control' | 'composition'`)
+  - `facets` (optional object mapping facet keys to arrays of 1..16 facet values; a pattern matches iff for every
+    requested key, the pattern holds at least one requested value; keys/values checked against `facetKey`/`facetValue`
+    else `COMPONENTS_INVALID`)
+  - `contains` (optional string, 1..64 chars, ASCII case-insensitive substring match against `pattern` id and `summary`)
+  - `after` (optional cursor: `<pattern>` for single-library listing, `<library>/<pattern>` when multiple libraries are listed)
+- **Answer:**
+  - `libraries`: touched library stamps (`library`, `package`, `version`, `digest`, `prefix`, `patternCount`).
+  - `content`: `{ "trust": "content", "libraries": [...], "patterns": [...], "availableFacets"?: Record<string, string[]> }`.
+    - Each `patterns[]` item: `{ library, pattern, summary?, status, replacedBy?, scope, facets, implementations }`,
+      ordered ascending by `(library, pattern)`.
+    - Each `implementations[]` item (aggregated across touched libraries, owning library first as in A31.1):
+      `{ library, kind: "component" | "copy", tag? | name?, linkage: "instance" | "copy", status, replacedBy? }`.
+    - `availableFacets`: union of all facet keys and sorted unique values across touched libraries; included whenever
+      no filter (`scope`, `facets`, `contains`) was passed **or** `content.patterns` is empty, so an agent without a
+      skill can separate a facet-name miss from a true no-fit.
+  - `next`: `{ "after": "<cursor>" }` or `null`.
+  - A filter matching zero patterns succeeds with `content.patterns: []` and `content.availableFacets` (never an error).
+
+#### A31.4 `components-pattern-open` (step C2)
+
+- **Input** (`schemas/components-pattern-open.input.json`, `additionalProperties: false`):
+  - `space` (optional string)
+  - `pattern` (required `PACK_PATTERNS.pattern`)
+  - `library` (optional library id; resolves ambiguity when multiple libraries define `pattern`; `default_library` applies)
+  - `sections` (optional unique subset of `["keep", "customize", "setups", "gates", "implementations", "source"]`;
+    default: `["keep", "customize", "setups", "gates", "implementations"]`; `source` is Slice 2 and omitted unless requested)
+  - `implementation` (optional `<tag>`, `<copyName>`, or `<library>/<tag|copyName>` to disambiguate when two
+    libraries share a copy name; filters `implementations[]` to that entry and selects which copy's `html`/`css` is
+    returned when `source` is requested)
+  - `skip` (optional non-negative integer; allowed only when `sections` names exactly one paginated section:
+    `implementations` or `gates`; on `gates`, `skip` slices the `gates` map in ascending gate-id key order; otherwise
+    `COMPONENTS_INVALID`)
+- **Answer:**
+  - Outer envelope matches 5.1: `libraries` and `content.libraries` include the pattern's owning library plus every
+    library contributing an aggregated implementation in the answer (in library order); `content.trust: "content"`;
+    `omitted`.
+  - `content.pattern`: `{ library, pattern, summary?, status, replacedBy?, scope, facets, useWhen?, avoidWhen?, ...requestedSections }`.
+  - `implementations[]` (aggregated across all libraries in the space, owning library first per A31.1): each entry
+    carries `library`, `kind`, `tag` or `name`, `linkage`, `status`, optional `replacedBy`, optional `contexts`, and
+    `keep: [{ id, basis, reason? }]`. When `source` is requested (Slice 2):
+    - If `implementation` is passed, `implementations[]` contains that matching entry (with `html`/`css` if it is a
+      complete copy).
+    - If `implementation` is omitted, every complete copy in `implementations[]` includes `html`/`css` (subject to
+      budget and `skip` pagination).
+    - Each complete copy's `source` fields carry `revision`, `fingerprint`, `dependencies`, `tokens`, optional
+      `themeStylesheet`, optional `changeNote`, `css`, and `html` deterministically stamped with
+      `data-pattern-copy="<library>/<pattern>/<name> <revision>"` on single-root HTML elements (or prepended
+      `<!-- pattern-copy: <library>/<pattern>/<name> <revision> -->\n` for multi-root or non-element starts).
+  - **Budget & paging:** Follows 8.2's section-by-section fitting and `omitted` `{ reason: "budget", sections, skip?, open }`
+    shape (`OUTPUT_BUDGET_EXCEEDED` if a single requested item exceeds the call budget).
+  - **Failures:** `PATTERN_NOT_FOUND` (suggesting `components-pattern-list`; `details.nearest` up to 3 pattern ids) and
+    `PATTERN_AMBIGUOUS` (`details.libraries`, suggesting `library`).
+
+#### A31.5 `components-brief` extensions, `components-open` section, and Phase 0.4 shedding order (step C3)
+
+- **Inputs & `components-open` parity:**
+  - `components-brief` and `components-open` add `"patterns"` to their `sections` enum (5.3, 8.2), so component
+    `patterns` links shed in Step 13 remain recoverable via `components-open { tag, sections: ["patterns"] }`.
+  - `known` accepts pattern statement ids (bare `<id>` in single-library answers, `<library>/<id>` in multi-library
+    answers or qualified calls, matching A5).
+- **Library envelope (A5):** Libraries contributing any served component, any `content.patterns` entry (including
+  cross-library pattern owners), or any matched (`current` / `differs`) `content.copies` entry join `libraries` and
+  `content.libraries` in library order—including calls where `source` contains only provenance markers and zero
+  component tags (`components: []`).
+- **Compact pattern links with `out-of-context` preservation (Phase 0.4 P0-6):**
+  - Each served component entry gains an optional `patterns` array (omitted when the component implements no patterns):
+    - **Compact string form** (`"select"` when same-library in a single-library answer, or `"<library>/<pattern>"`
+      when cross-library or in a multi-library answer) is used **only** when every gated `keep` statement for that
+      component is `verified` (zero `out-of-context` gates), preserving the Phase 0.4 S5 byte savings (~40 B/component).
+    - **Object form** (`{ "pattern": "<id-or-qualified>", "contexts"?: ..., "outOfContext": [{ "id", "reason" }] }`)
+      is emitted whenever one or more gated `keep` statements on that component are `out-of-context`, so an
+      out-of-context component (e.g., `desk-select`) is never indistinguishable from a fully verified one
+      (`example-select`), even under `minimum_basis = "verified"`.
+- **Shared pattern statements (`content.patterns`):**
+  - Included when `detail` is `"brief"` or `"full"`, or `sections` names `"patterns"`.
+  - **Under `detail: "api"`:** `content.patterns` is omitted (while component `patterns` links stay, matching `rules`
+    in A7), and `omitted` records a `reason: "detail"` entry per omitted pattern (`{ "reason": "detail", "pattern": "<library>/<pattern>", "pieces": ["patterns"], "open": { "command": "components-pattern-open", "library": "<library>", "pattern": "<pattern>", "sections": ["keep", "customize"] } }`), matching A24's rule that a brief always states what `detail` omitted.
+  - Deduplicated once per referenced `(library, pattern)` across all served components and (Slice 2) all matched
+    provenance markers in `source`, in first-referenced order.
+  - Each entry: `{ library, pattern, status, replacedBy?, keep: [{ id, text?, flags? }], customize: [{ id, text?, flags? }] }`.
+    Statement `id`s inside `content.patterns[]` stay bare (because the enclosing object already carries `library` and
+    `pattern`); a statement matched by `known` keeps its `id` and omits `text` (and is not counted in `omitted`).
+- **Shedding order and callable `omitted[]` recovery (Phase 0.4 P0-6):**
+  Measured in Phase 0.4 (`docs/features/active/patterns/STATUS.md#step-04-brief-size-check-post-a24-baseline`) to keep
+  Loam `chrome` strictly smaller than the post-A24 baseline at both 96 000 B and 40 000 B budgets:
+  - **Step 5b** (after step 5 `declaredAttributes`, **before** step 6 `usage`): shed `content.patterns[].customize`
+    (piece `patternCustomize`).
+  - **Step 10b** (after step 10 `ruleText`, before step 11 `a11y`): shed `content.patterns` (piece `patternKeep`),
+    keeping component `patterns` links.
+  - **Step 10c** (after step 10b `patternKeep`, before step 11 `a11y`; skipped when `content.components` is empty):
+    shed `content.copies` (piece `copies`).
+  - **Step 13:** `themes`, `gaps`, `rules`, and component `patterns` links (recovered via `components-open`
+    `sections: ["patterns"]`).
+  - **Recovery shape in `omitted[]`:** Section 6.4's single component `reason: "budget"` entry (with
+    `open: { command: "components-open", sections: [...] }`) stays unchanged for component sections/pieces. When Step
+    5b or Step 10b sheds pattern content, each affected pattern emits its own directly callable budget entry:
+    `{ "reason": "budget", "pattern": "<library>/<pattern>", "sections": [], "pieces": ["patternCustomize" | "patternKeep"], "open": { "command": "components-pattern-open", "library": "<library>", "pattern": "<pattern>", "sections": ["customize" | "keep"] } }`
+    (so every `omitted[].open` call is runnable directly with no missing required `pattern` field).
+- **Provenance markers in `source` (`content.copies`, Slice 2, D153):**
+  - One linear forward pass over `source` (no regex over source, bounded by 262 144 B cap) extracts both
+    `data-pattern-copy="<library>/<pattern>/<name> <revision>"` attributes (on any HTML or custom element start tag)
+    and `<!-- pattern-copy: <library>/<pattern>/<name> <revision> -->` comments.
+  - Every parsed identifier (`library`, `pattern`, `copyName`, `digest`) is checked against `PACK_PATTERNS` and
+    `umbel-scan` (separators read as spaces); malformed or flagged markers are dropped (matching A8).
+  - Capped at **128 markers** per call (matching `MAX_TAGS = 128`); if more appear in `source`, the first 128 are
+    reported and `omitted` records `{ "reason": "limit", "copies": <droppedCount> }`.
+  - Placed inside `content.copies` (under `trust: "content"`, D153), in source order, in every `detail` (including
+    `detail: "api"`):
+    `{ library, pattern, implementation, line, revision, currentRevision?, state: "current" | "differs" | "unknown", status?, replacedBy? }`.
+    - `current`: copy exists in pack and `revision === copy.revision`.
+    - `differs`: copy exists in pack and `revision !== copy.revision` (`currentRevision` carries the pack's revision).
+    - `unknown`: library, pattern, or copy name is not in the touched packs.
+  - When any marker has `state: "differs"` or `"unknown"`, the answer carries warning `OUTDATED_COPIES`
+    (`details: { differs, unknown }`).
+  - Every `current` or `differs` copy also adds its `(library, pattern)` to `content.patterns` (unless `detail: "api"`).
+
+#### A31.6 `minimum_basis` and `out-of-context` (Section 10 security invariant)
+
+Applies across `components-brief`, `components-pattern-open`, and `components-pattern-list` so Section 10's security
+rule ("`minimum_basis = "observed"` serves no authored text at all") holds for pattern content:
+
+- **Authored pattern text (`useWhen`, `avoidWhen`, `customize`, and `ungated` `keep` statements):** carry `authored`
+  strength. Whenever `minimum_basis` is stronger than `authored` (`declared`, `observed`, or `verified`), these
+  statements are omitted from `content.patterns` and `content.pattern` and counted in `omitted`
+  `{ "reason": "minimum-basis", "facts": <count> }`.
+- **`verified` `keep` statements:** always kept at every `minimum_basis`.
+- **`out-of-context` declarations (narrow visibility rule):** **never** filtered out by `minimum_basis` and never
+  counted as `verified`. Both on `components-pattern-open`'s `implementations[].keep[]` (`basis: "out-of-context"`,
+  `reason`) and on `components-brief`'s component `patterns[]` object links (`outOfContext: [{ id, reason }]`),
+  the out-of-context boundary stays visible at every `minimum_basis` setting so an untested context is never mistaken
+  for verified or silently hidden. (Its `reason` text stays inside `content`, scanned and flagged by `umbel-scan`.)
+
+#### A31.7 `components-check` outdated-copy warning (Slice 2, extending A30)
+
+In Slice 2, `components-check`'s single linear forward pass over `source` also inspects `<!-- pattern-copy: ... -->`
+comments (before skipping HTML comments) and `data-pattern-copy="..."` attributes on **all** start tags (including
+standard HTML elements such as `<section>`, not only known library tags) when any touched library is format 2:
+
+- **Identifier & scan gate (D153):** Every marker identifier—including `unknown`-state markers from third-party
+  source—must pass `PACK_PATTERNS` (`library`, `pattern`, `copyName`, `digest`) **and** `umbel-scan` (separators read
+  as spaces), identical to A31.5 and A8; any failing or flagged marker is dropped and counted in `checked.skipped`,
+  preserving A30's "no `content` part" security boundary.
+- **Shape, cap, and budget:** When one or more valid markers are found, the answer includes `copies`: array of
+  `{ library, pattern, implementation, line, revision, currentRevision?, state }` (checked identifiers and integers
+  only), capped at **128 entries** and truncated alongside `findings` under the 16 000 B output budget (`truncated: true`).
+- If any copy has `state: "differs"` or `"unknown"`, the answer carries warning `OUTDATED_COPIES`
+  (`details: { differs, unknown }`).
+- Pages with no provenance markers produce answers byte-for-byte identical to A30.
+
+#### A31.8 `render: "text"` quoting (D153)
+
+- Component entries emit `[patterns] select` (or `[patterns] example/select` when qualified) after `[rules]`; for a
+  component with `out-of-context` gates, each affected id and quoted reason follows under `[patterns]`.
+- Shared pattern blocks follow `[rule ...]` blocks as `[pattern <library>/<pattern> <status>]` (with `replaced-by <id>`
+  when deprecated), followed by quoted `> keep <id>: <text>` and `> customize <id>: <text>` lines (flagged items ending
+  with `(flagged: ...)`).
+- Slice 2 copy provenance follows as `[copies]` with one quoted line per marker:
+  `> line <n>: <library>/<pattern>/<name> <state> (<revision>[ -> <currentRevision>])`.
+- All headers use checked identifiers through `clean_header`; all content lines use `quote` with `> ` prefix.
+
+#### A31.9 New failures and warnings
+
+| Code | Kind | From | Details | Suggestion |
+| --- | --- | --- | --- | --- |
+| `PATTERN_NOT_FOUND` | Failure (not retryable) | `components-pattern-open` | `pattern`, `nearest` | Check the name, or call `components-pattern-list` |
+| `PATTERN_AMBIGUOUS` | Failure (not retryable) | `components-pattern-open` | `pattern`, `libraries` | Pass `library` |
+| `OUTDATED_COPIES` | Warning | `components-brief`, `components-check` | `differs`, `unknown` | Call `components-pattern-open` with `sections: ["keep", "source"]` to inspect the current copy revision |
 
 ## What this plugin serves
 
@@ -1362,7 +1589,7 @@ written outside Umbel, by a library's authors and a deployer's export, and serve
 
 | Threat | Handling |
 | --- | --- |
-| A statement, summary, example or long form carries instructions to the agent | Labelled content, inside one part (5.1); scanned and flagged, not blocked (5.6, D67); never in a message, warning or log; the skill says content is documentation. The scan is English-only and evadable (D75), so it is a net, not a guarantee. `minimum_basis = "observed"` serves no authored text at all |
+| A statement, summary, example or long form carries instructions to the agent | Labelled content, inside one part (5.1); scanned and flagged, not blocked (5.6, D67); never in a message, warning or log; the skill says content is documentation. The scan is English-only and evadable (D75), so it is a net, not a guarantee. `minimum_basis = "observed"` serves no authored statements (apart from summaries/long forms and A31.6's scanned `out-of-context` context-limit reasons, kept visible so an out-of-context gate is never misread as verified) |
 | Free text smuggled through an identifier into the trusted part of an answer | Every identifier is checked against the format's pattern when read and scanned with its separators read as spaces; a library with one that fails either is refused (`IDENTIFIER_INVALID`, `PACK_INVALID`); patterns are ASCII and bounded; a test compares them with Specimen's. Residual: words that pass the pattern and the scan can still be shown outside the content part; the scan is a net, not a guarantee (3.2) |
 | Control, bidirectional or hidden characters reorder or hide text | The format refuses controls and bidirectional controls in text; the scan flags zero-width and tag characters (5.6); `render: "text"` quotes every content line and keeps headers to identifiers (6.6) |
 | A hand-edited, half-copied or mid-swap export mixes versions of a record | Every file's digest and the pack digest are checked on every call; a mix is `PACK_INCONSISTENT`, retryable, and nothing is served from it (3.3) |

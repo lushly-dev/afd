@@ -4,7 +4,7 @@ Epic: [#1108](https://github.com/lushly-dev/afd/issues/1108). File new work for 
 
 Read this before the [proposal](design-decisions.proposal.md). It records exactly what is done and
 what is not, so that an agent never has to scan the code to learn what is current. It follows the
-shape of the [Patterns status](../patterns/STATUS.md).
+shape of the [Patterns status](../../active/patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -168,7 +168,7 @@ A coordinator note added after the walk: lists in scenarios are compared whole. 
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../../active/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as drafts. Jobs tightened, eight scenarios written, commands drafted, the three checks run clean. Writing the scenarios added saved captures, a typed refusal for incompatible captures, review answers kept as decisions and a decision named on review items, and cut `decision-open`. Section 2 re-read first-hand |
 | 2026-11-13 | Walk and revision | One fresh reader walked the draft from three seats, with the verdict revise. All four blockers and ten improvements were applied, as the proposal's section 4 records. The jobs grew from eight to ten, the commands from eight to ten and the errors from nine to twelve. Partial-list assertions became dotted paths. The three checks were rerun clean |
 | 2026-11-13 | Review and revision | One independent reader reviewed the three drafts together and ran scenarios. Applied: no step references in `expect`, answers as their own kind, superseding by acceptance writes a choice, default subjects stated, and the coordinator's shared conventions (random decision ids, `specimens/` paths, the hashed fields, `.specimen/` to be ignored, one review system, the job-specimen skip, one host). The three checks were rerun clean, with a scan for references in `expect` |

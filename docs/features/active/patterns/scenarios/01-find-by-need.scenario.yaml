@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented, on the pack format's `example` library: a `select` pattern implemented by
 # `example-select` and a `field` pattern implemented by `example-field`. Both are component-backed
 # so Slice 1 passes without Slice 2 copy serving. Saved copy discovery is covered by Jobs 6 and 10.

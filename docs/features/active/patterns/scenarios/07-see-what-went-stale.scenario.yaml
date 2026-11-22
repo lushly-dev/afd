@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented, on the pack format's `example` library. The saved copy
 # `collection-empty` uses `example-field`. The copy `fruit-picker` uses `example-select` and
 # `example-option`. Since the pack was last built, the manifest's declaration of `example-field`
