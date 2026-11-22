@@ -22,7 +22,7 @@ pub const MAIN: &str = "main";
 /// can set it.
 const DATA_DIRECTORY: &str = "LOAM_DESKTOP_DATA_DIR";
 
-struct SiteState(site::Site);
+struct SiteState(Arc<site::Site>);
 
 fn data_directory<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     std::env::var_os(DATA_DIRECTORY)
@@ -251,20 +251,26 @@ pub fn run() {
                 }
             },
         ))
-        .register_uri_scheme_protocol("loam", |context, request| {
-            let state = context.app_handle().state::<SiteState>();
-            site::serve(&state.0, false, &request)
+        // Async protocol handlers move `canonicalize` + disk reads off the UI thread so WebView2's parallel
+        // module fetches (and Windows real-time file scans) execute concurrently (#1396).
+        .register_asynchronous_uri_scheme_protocol("loam", |context, request, responder| {
+            let site = context.app_handle().state::<SiteState>().0.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(site::serve(&site, false, &request));
+            });
         })
-        .register_uri_scheme_protocol("loam-sandbox", |context, request| {
-            let state = context.app_handle().state::<SiteState>();
-            site::serve(&state.0, true, &request)
+        .register_asynchronous_uri_scheme_protocol("loam-sandbox", |context, request, responder| {
+            let site = context.app_handle().state::<SiteState>().0.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(site::serve(&site, true, &request));
+            });
         })
         .invoke_handler(handler())
         .setup(|app| {
             let handle = app.handle().clone();
             let data = data_directory(&handle);
             let bundled = handle.clone();
-            app.manage(SiteState(site::Site::choose(
+            app.manage(SiteState(Arc::new(site::Site::choose(
                 &data.join("site"),
                 Box::new(move |path| {
                     let key = format!("/{path}");
@@ -274,7 +280,7 @@ pub fn run() {
                         .find(|(name, _)| *name == key)
                         .map(|(_, bytes)| bytes.to_vec())
                 }),
-            )));
+            ))));
             // Read once: nothing in the webview can write it, and no command reaches it (10.3).
             let entries = mounts::read(&data.join("mounts.json"));
             if let Err(code) = &entries {
