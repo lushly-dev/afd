@@ -178,8 +178,43 @@ class TestShellAllowlist:
         assert _matches_shell_allowlist("ruff check .", allowlist)
         assert not _matches_shell_allowlist("curl http://evil", allowlist)
 
-    def test_operator_all_segments_match(self):
-        assert _matches_shell_allowlist("git status && git diff", ["git *"])
+    def test_command_lists_and_pipelines_refused_even_when_every_stage_matches(self):
+        for cmd in [
+            "git status && git diff",
+            "git status || git diff",
+            "git status; git diff",
+            "git log | git show",
+        ]:
+            assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
+
+    def test_quoted_arguments_allowed(self):
+        allowlist = ["git *"]
+        for cmd in [
+            'git commit -m "fix: parse a; b && c | d > e"',
+            "git commit -m 'feat(scope): $(not run) `nor this`'",
+            'git log --grep "a (b)" --format=%H',
+            "git show HEAD~1",
+        ]:
+            assert _matches_shell_allowlist(cmd, allowlist), cmd
+
+    def test_program_name_must_match_exactly(self):
+        for cmd in ["/usr/bin/git status", "gitx status", "GIT_DIR=/x git status", "./git log"]:
+            assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
+
+    def test_unquoted_expansions_refused(self):
+        for cmd in [
+            "git add *.py",
+            "git log ~/x",
+            "git log --output=~/x",
+            "git status \\; whoami",
+            "git status #comment",
+            'git commit -m "$(whoami)"',
+            'git commit -m "`whoami`"',
+            'git commit -m "a\\"; whoami; \\""',
+            "git commit -m ‘a’; whoami",
+            "git commit -m 'unterminated",
+        ]:
+            assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
 
     def test_operator_one_segment_fails(self):
         assert not _matches_shell_allowlist("git status && rm -rf /", ["git *"])
@@ -231,6 +266,44 @@ class TestShellAllowlist:
             "git status\x00whoami",
         ]:
             assert not _matches_shell_allowlist(cmd, ["git *"]), cmd
+
+
+class TestShellRefusalFeedback:
+    """A refused shell request says what refused it and how to recover."""
+
+    @staticmethod
+    def _feedback(command: str) -> str:
+        from botcore_agents.config import AgentPermissionsConfig
+
+        config = AgentPermissionsConfig(allow_shell=True, shell_allowlist=["git *"])
+        result = create_permission_handler(config)(_make_request("shell", command=command), INV_CTX)
+        assert result.kind == "reject", command
+        return result.feedback or ""
+
+    def test_each_metacharacter_is_named(self):
+        cases = {
+            "git status\nrm -rf /": "line break",
+            "git status; rm -rf /": "command separator (;)",
+            "git status && git diff": "(&)",
+            "git log | git show": "pipe",
+            "git status > /tmp/out": "redirection (>)",
+            "git log $(whoami)": "substitution ($)",
+            "git log `whoami`": "command substitution (`)",
+        }
+        for command, reason in cases.items():
+            feedback = self._feedback(command)
+            assert reason in feedback, (command, feedback)
+            assert "one allowlisted program" in feedback, feedback
+
+    def test_unlisted_program_is_named(self):
+        assert "'rm'" in self._feedback("rm -rf /")
+
+    def test_allowed_command_with_quoted_arguments_is_approved(self):
+        from botcore_agents.config import AgentPermissionsConfig
+
+        config = AgentPermissionsConfig(allow_shell=True, shell_allowlist=["git *"])
+        request = _make_request("shell", command='git commit -m "a; b | c"')
+        assert create_permission_handler(config)(request, INV_CTX).kind == "approve-once"
 
 
 # ---------------------------------------------------------------------------

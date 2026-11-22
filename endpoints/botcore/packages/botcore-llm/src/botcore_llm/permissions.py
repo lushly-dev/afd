@@ -2,13 +2,17 @@
 
 Produces a handler compatible with ``SessionConfig.on_permission_request``
 that enforces the :class:`LlmPermissionsConfig` policy.
+
+Botcore never runs a shell command itself: the Copilot runtime runs the approved command
+text in its own shell. The shell allowlist therefore judges that raw text and admits only
+a line every shell reads as one simple command with literal arguments.
 """
 
 from __future__ import annotations
 
 import fnmatch
 import logging
-import re
+import shlex
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -73,14 +77,21 @@ def create_permission_handler(
                 logger.debug("Permission denied: shell (agent=%s)", agent_name)
                 return _denied(kind)
             if shell_allowlist is not None:
-                cmd = getattr(request, "full_command_text", "")
-                if not _matches_shell_allowlist(cmd, shell_allowlist):
+                cmd = getattr(request, "full_command_text", "") or ""
+                refusal = check_shell_command(cmd, shell_allowlist)
+                if refusal is not None:
                     logger.debug(
-                        "Permission denied: shell command %r not in allowlist (agent=%s)",
+                        "Permission denied: shell command %r refused, %s (agent=%s)",
                         cmd,
+                        refusal,
                         agent_name,
                     )
-                    return _denied(kind)
+                    return PermissionDecisionReject(
+                        feedback=(
+                            "Shell command refused by botcore permission policy: "
+                            f"{refusal}. {_SHELL_SUGGESTION}"
+                        )
+                    )
             return _APPROVED
 
         if kind in ("write", "read"):
@@ -125,30 +136,138 @@ def create_permission_handler(
     return handler
 
 
-_FORBIDDEN_SHELL_RE = re.compile(r"[\r\n\0`<>(){}$]|(?<!&)&(?!&)|&{3,}|\|{3,}")
+_SHELL_SUGGESTION = (
+    "Run one allowlisted program with plain arguments, one command per request, and quote "
+    "any argument that holds shell characters"
+)
+
+# Characters with a shell meaning outside quotes: command separators, pipes, redirections,
+# subshells and grouping, expansion, escapes, globs and history.
+_UNQUOTED_FORBIDDEN = {
+    ";": "a command separator (;)",
+    "&": "a command separator or background operator (&)",
+    "|": "a pipe or command separator (|)",
+    ">": "a redirection (>)",
+    "<": "a redirection (<)",
+    "(": "a subshell or substitution (()",
+    ")": "a subshell or substitution ())",
+    "{": "a brace group or expansion ({)",
+    "}": "a brace group or expansion (})",
+    "$": "a variable or command substitution ($)",
+    "`": "a command substitution (`)",
+    "\\": "a backslash escape (\\)",
+    "*": "a glob (*)",
+    "?": "a glob (?)",
+    "[": "a glob ([)",
+    "]": "a glob (])",
+    "!": "history expansion or negation (!)",
+}
+# Inside double quotes a shell still expands these; PowerShell also escapes with a backtick.
+_DOUBLE_QUOTED_FORBIDDEN = {
+    "$": "a variable or command substitution ($) inside double quotes",
+    "`": "a command substitution or escape (`) inside double quotes",
+    "\\": "a backslash escape (\\) inside double quotes",
+}
+# PowerShell reads typographic quotes as quotes and POSIX shells do not, so the two would
+# disagree about what is quoted.
+_TYPOGRAPHIC_QUOTES = frozenset("‘’‚‛“”„‟")
+_LINE_BREAKS = frozenset("\n\r\x0b\x0c\x85  ")
+_EMPTY = "the command is empty"
+
+
+def _shell_refusal(command: str) -> str | None:
+    """Why *command* is not one simple command with literal arguments, or ``None``.
+
+    Scans the raw text the runtime's shell receives with POSIX quoting rules: a character
+    with a shell meaning outside quotes, or an expansion inside double quotes, refuses it.
+    """
+    if not command or not command.strip():
+        return _EMPTY
+    quote: str | None = None
+    word_start = True
+    for index, char in enumerate(command):
+        if char in _LINE_BREAKS:
+            return "a line break"
+        if (ord(char) < 0x20 and char != "\t") or ord(char) == 0x7F:
+            return "a control character"
+        if char in _TYPOGRAPHIC_QUOTES:
+            return "a typographic quote"
+        if quote == "'":
+            if char == "'":
+                quote = None
+            continue
+        if quote == '"':
+            if char == '"':
+                quote = None
+            elif char in _DOUBLE_QUOTED_FORBIDDEN:
+                return _DOUBLE_QUOTED_FORBIDDEN[char]
+            continue
+        if char in ("'", '"'):
+            quote = char
+            word_start = False
+            continue
+        if char in _UNQUOTED_FORBIDDEN:
+            return _UNQUOTED_FORBIDDEN[char]
+        if char in (" ", "\t"):
+            word_start = True
+            continue
+        if word_start and char == "#":
+            return "a comment (#)"
+        if char == "~" and (word_start or command[index - 1] in "=:"):
+            return "a home-directory expansion (~)"
+        word_start = False
+    if quote is not None:
+        return "an unterminated quote"
+    return None
+
+
+def _parse_shell_command(command: str) -> tuple[list[str] | None, str | None]:
+    """Parse *command* into one argv list, or return why it cannot be one."""
+    reason = _shell_refusal(command)
+    if reason is not None:
+        return None, reason
+    try:
+        argv = shlex.split(command, comments=False, posix=True)
+    except ValueError as exc:
+        return None, f"text that does not parse ({exc})"
+    if not argv:
+        return None, _EMPTY
+    return argv, None
+
+
+def _argv_matches(argv: list[str], pattern: str) -> bool:
+    """Match *argv* against one allowlist pattern.
+
+    The pattern's first word must equal the program, ``argv[0]`` (or match it as a glob when
+    the pattern writes one). The whole pattern is then an ``fnmatch`` glob over the argv
+    rejoined with ``shlex.join``, so a quoted argument stays one argument.
+    """
+    words = pattern.split()
+    if not words or not fnmatch.fnmatchcase(argv[0], words[0]):
+        return False
+    return fnmatch.fnmatchcase(shlex.join(argv), " ".join(words))
+
+
+def check_shell_command(command: str, allowlist: list[str]) -> str | None:
+    """Why *allowlist* refuses *command*, or ``None`` when it allows it.
+
+    The command line must be one simple command: no line break, separator (``;``, ``&``,
+    ``&&``, ``||``), pipe, redirection, subshell, substitution, expansion, escape or glob
+    outside quotes, and no expansion inside double quotes. Pipelines and command lists are
+    refused, since an allowlist entry names one program. The argv ``shlex`` parses must then
+    match an allowlist pattern.
+    """
+    argv, reason = _parse_shell_command(command)
+    if argv is None:
+        return reason if reason == _EMPTY else f"the command line contains {reason}"
+    if not any(_argv_matches(argv, pattern) for pattern in allowlist):
+        return f"{argv[0]!r} with these arguments matches no shell_allowlist entry"
+    return None
 
 
 def _matches_shell_allowlist(command: str, allowlist: list[str]) -> bool:
-    """Check if *command* matches the shell allowlist.
-
-    Splits on shell operators (``&&``, ``||``, ``;``, ``|``) and requires
-    every segment to be non-empty and match at least one allowlist pattern via
-    ``fnmatch.fnmatch``.
-
-    Denies empty/whitespace-only commands, operator-only commands (such as
-    ``;`` or ``&&``), and commands containing shell injection, variable
-    expansion, or redirection metacharacters (newlines, NUL, single ``&``,
-    backticks, ``$`` expansion, subshells/braces, process substitution, and
-    redirections).
-    """
-    if not command or not command.strip():
-        return False
-    if _FORBIDDEN_SHELL_RE.search(command):
-        return False
-    segments = [seg.strip() for seg in re.split(r"(?:&&|\|\||[;|])", command)]
-    if not segments or any(not seg for seg in segments):
-        return False
-    return all(any(fnmatch.fnmatch(seg, pat) for pat in allowlist) for seg in segments)
+    """True when *command* is one simple command that *allowlist* allows."""
+    return check_shell_command(command, allowlist) is None
 
 
 def _path_allowed(requested: str, allowed_paths: list[str]) -> bool:
