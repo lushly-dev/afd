@@ -189,7 +189,7 @@ async function workspace(
 
 type Data = Record<string, unknown>;
 
-describe('setting-schema-get (3.9)', () => {
+describe('P4-E1: setting-schema-get (3.9)', () => {
 	it("lists the shell's sections, then each app's, and one key alone", async () => {
 		const { kernel } = await workspace();
 		const all = await kernel.call<{ sections: Array<{ section: string; app?: string }> }>(
@@ -269,7 +269,7 @@ describe('setting-schema-get (3.9)', () => {
 	});
 });
 
-describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
+describe('P4-E1: setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 	it('scopes a value per project: the workspace value every project inherits, and one project its own', async () => {
 		const { kernel, scopes } = await workspace();
 		const at = (where: 'atlas' | 'beacon') => ({ scope: scopes[where] });
@@ -503,7 +503,7 @@ describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 	});
 });
 
-describe('who writes (3.2): the agent interface, the hand-off and the owner', () => {
+describe('P4-E1: who writes (3.2): the agent interface, the hand-off and the owner', () => {
 	it("an agent writes its person's own value, as agent:<id>, and hands off a shared one", async () => {
 		const { kernel, scopes } = await workspace();
 		const input = { section: 'loam.appearance', key: 'theme', value: 'dark', level: 'person' };
@@ -632,7 +632,7 @@ describe('who writes (3.2): the agent interface, the hand-off and the owner', ()
 	});
 });
 
-describe('the settings grant (3.8)', () => {
+describe('P4-E1: the settings grant (3.8)', () => {
 	it("reads the app's own sections through SettingsV1, and nothing else", async () => {
 		const { kernel, scopes } = await workspace();
 		await kernel.call(
@@ -853,7 +853,7 @@ describe('P4-E17: a hosted provider deployment refuses shared writes (section 13
 	});
 });
 
-describe('P4-E15, in part: the settings commands replay', () => {
+describe('P4-E15: the settings commands replay', () => {
 	it('replays a session of writes, resets and refusals with no difference', async () => {
 		const { kernel, journal, scopes } = await workspace();
 		await kernel.call('setting-set', {

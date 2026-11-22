@@ -96,7 +96,7 @@ const dismissInput = z.strictObject({
 	overlayId: text(64),
 	/** `confirm`, `cancel`, or the id of one of the overlay's actions (6.4). */
 	result: z.optional(z.string().check(z.regex(ACTION_ID))),
-	reason: z.optional(z.enum(['timeout', 'user', 'anchor', 'withdrawn'])),
+	reason: z.optional(z.enum(['timeout', 'user', 'anchor', 'withdrawn', 'inbox'])),
 	/** A menu popover's picked item (6.4), with `result: 'confirm'`. */
 	item: z.optional(z.number().check(z.int(), z.minimum(0), z.maximum(POPOVER_MENU_ITEMS - 1))),
 	/** A prompt's answer (6.4), with `result: 'confirm'`. */
@@ -502,7 +502,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			properties: {
 				overlayId: textJson(64),
 				result: { type: 'string', pattern: ACTION_ID.source },
-				reason: { type: 'string', enum: ['timeout', 'user', 'anchor', 'withdrawn'] },
+				reason: { type: 'string', enum: ['timeout', 'user', 'anchor', 'withdrawn', 'inbox'] },
 				item: { type: 'integer', minimum: 0, maximum: POPOVER_MENU_ITEMS - 1 },
 				value: {} as JsonSchema,
 			},
@@ -583,6 +583,14 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				return kernelFailure(
 					'VALIDATION_ERROR',
 					"reason 'withdrawn' is the shell's own, for its question closed with no answer",
+					"Dismiss it with reason 'user', or leave reason out"
+				);
+			}
+			// `inbox` is a sticky toast's "Open inbox" (6.2, 6.7): the person's, from the chrome, and a toast's alone.
+			if (input.reason === 'inbox' && (overlay.kind !== 'toast' || opener.kind !== 'shell')) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					"reason 'inbox' closes a toast the person opened the inbox from, and only the shell says so",
 					"Dismiss it with reason 'user', or leave reason out"
 				);
 			}

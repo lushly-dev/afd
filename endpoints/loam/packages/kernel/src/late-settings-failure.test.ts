@@ -10,7 +10,7 @@ import { defineCommand, success, type ZodCommandDefinition } from '@lushly-dev/a
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createKernel } from './kernel.js';
+import { createKernel, createKernelParts } from './kernel.js';
 import { LIMIT_DEFAULTS } from './limits.js';
 import { createFixedEnvironment } from './testing.js';
 
@@ -28,7 +28,7 @@ const echo = defineCommand({
 	},
 }) as unknown as ZodCommandDefinition;
 
-describe('the late-settings chunk failing to load', () => {
+describe('P4-E10: the late-settings chunk failing to load', () => {
 	beforeEach(() => vi.stubGlobal('reportError', vi.fn()));
 	afterEach(() => vi.unstubAllGlobals());
 
@@ -58,5 +58,25 @@ describe('the late-settings chunk failing to load', () => {
 		expect(second).toMatchObject({ input: {}, unreplayable: true });
 		expect(JSON.stringify(second).length).toBeLessThan(LIMIT_DEFAULTS.journalEntryBytes);
 		await kernel.dispose();
+	});
+
+	it('holds every limit at its default from boot when stage B fails, with nothing to set them', async () => {
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		expect(parts.limits.values()).toEqual(LIMIT_DEFAULTS);
+		expect((await parts.kernel.call('layout-set', { sidebar: { open: false } })).error?.code).toBe(
+			'LATE_COMMANDS_UNAVAILABLE'
+		);
+		// Stage B failed whole, so nothing set the workspace's values: the defaults stay in force for every limit.
+		expect(parts.kernel.lateFailure).toMatchObject({ code: 'LATE_COMMANDS_UNAVAILABLE' });
+		expect(parts.limits.values()).toEqual(LIMIT_DEFAULTS);
+		await parts.kernel.dispose();
 	});
 });

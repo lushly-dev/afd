@@ -87,7 +87,7 @@ const info = (anchor = 'more', surface = 'main') => ({
 	body: 'Counts every report.',
 });
 
-describe('toasts (6.1, 6.4, 6.6)', () => {
+describe('P4-E7: toasts (6.1, 6.4, 6.6)', () => {
 	it("gives the shell's no owner line, an app's its title and an agent's its name, for the person", async () => {
 		const { kernel, probe } = await boot();
 		await kernel.call('toast-show', { message: 'Saved' });
@@ -121,6 +121,33 @@ describe('toasts (6.1, 6.4, 6.6)', () => {
 		}
 	});
 
+	it("closes a toast with 6.2's 'inbox' when the person opens the inbox from it, and only then", async () => {
+		const { kernel, probe } = await boot();
+		await kernel.call('app-open', { instance: 'probe' });
+		const theirs = await probe.call<OverlayRefV1>('toast-show', { message: 'Kept', sticky: true });
+		const closed = probe.waitOverlay(theirs.data?.overlayId as string);
+		// An app's port never says it: the shell's word for the person's gesture.
+		expect(
+			(
+				await probe.call('overlay-dismiss', {
+					overlayId: theirs.data?.overlayId,
+					reason: 'inbox',
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+		// Nor on another kind.
+		const dialog = await kernel.call<OverlayRefV1>('dialog-open', { title: 'Note', body: 'Kept.' });
+		expect(
+			(await kernel.call('overlay-dismiss', { overlayId: dialog.data?.overlayId, reason: 'inbox' }))
+				.error?.code
+		).toBe('VALIDATION_ERROR');
+		expect(
+			(await kernel.call('overlay-dismiss', { overlayId: theirs.data?.overlayId, reason: 'inbox' }))
+				.success
+		).toBe(true);
+		expect(await closed).toMatchObject({ reason: 'inbox' });
+	});
+
 	it('dismisses the oldest of any owner when a person or an app shows a sixth', async () => {
 		const { kernel, probe } = await boot();
 		for (let i = 0; i < TOAST_CAP; i++)
@@ -147,7 +174,7 @@ describe('toasts (6.1, 6.4, 6.6)', () => {
 	});
 });
 
-describe('agent toasts (6.1, F7)', () => {
+describe('P4-E7: agent toasts (6.1, F7)', () => {
 	it('allows five a minute per agent, then RATE_LIMITED with its details, journaled', async () => {
 		const { kernel, journal, advance } = await boot();
 		for (let i = 0; i < AGENT_PUSH_RATE; i++) {
@@ -209,7 +236,7 @@ describe('agent toasts (6.1, F7)', () => {
 	});
 });
 
-describe('popover-open on each path of 6.1', () => {
+describe('P4-E7: popover-open on each path of 6.1', () => {
 	it("opens a person's as the shell's, anchored in the shell's own surface", async () => {
 		const { kernel } = await boot();
 		const opened = await kernel.call<OverlayRefV1>('popover-open', info('bell', 'shell'));
@@ -342,7 +369,7 @@ describe('a menu popover (6.4)', () => {
 	});
 });
 
-describe('popovers: one per invoker, closed on a switch (6.1, 6.2)', () => {
+describe('P4-E7: popovers: one per invoker, closed on a switch (6.1, 6.2)', () => {
 	it('keeps one popover on screen: a new one replaces any other with reason replaced', async () => {
 		const { kernel, probe } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -407,7 +434,7 @@ describe('popovers: one per invoker, closed on a switch (6.1, 6.2)', () => {
 	});
 });
 
-describe("the page's anchors (6.3)", () => {
+describe("P4-E7: the page's anchors (6.3)", () => {
 	it('fails closed in a kernel given no anchors at all', async () => {
 		const { kernel } = await boot({ anchors: null });
 		const refused = await kernel.call('popover-open', info('bell', 'shell'));
@@ -445,7 +472,7 @@ describe("the page's anchors (6.3)", () => {
 		]);
 	});
 
-	it('replays every move: the refusals the page decided come from the record', async () => {
+	it('P4-E15: P4-E7: replays every move: the refusals the page decided come from the record', async () => {
 		const anchors: OverlayAnchorsV1 = { resolve: (_owner, anchor) => anchor.anchor !== 'gone' };
 		const { kernel, journal, advance } = await boot({ anchors });
 		await kernel.call('popover-open', info('gone', 'shell'));
@@ -506,7 +533,7 @@ describe('the push rate and the inbox seam', () => {
 	});
 });
 
-describe("whose an overlay is, by kind (the review's R-d)", () => {
+describe("P4-E7: whose an overlay is, by kind (the review's R-d)", () => {
 	it('never takes an app instance named shell for the shell', () => {
 		const store = createOverlayStore();
 		const app = store.open(
@@ -625,7 +652,7 @@ describe("owner lines (6.6, the review's R-c and 8)", () => {
 	});
 });
 
-describe('a change of person closes every overlay (6.2)', () => {
+describe('P4-E7: a change of person closes every overlay (6.2)', () => {
 	it("in local mode, on a sign-in and a sign-out, with reason person, the shell's sticky toast too", async () => {
 		const { kernel, probe } = await boot();
 		const sticky = await kernel.call<OverlayRefV1>('toast-show', {

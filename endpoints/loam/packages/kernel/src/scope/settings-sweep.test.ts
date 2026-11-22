@@ -6,7 +6,9 @@
  * is 7, the `setting` table also holds stray rows of a section no app declares, and the `autonomy` table holds the
  * workspace's mode and ceiling, a command row and the restricted project's row, beside the person's own cap (step 8);
  * and by experiments (step 9): the workspace has one on, the person another, and an app held out whole is on, whose
- * commands are exempt entirely, as section 19 says; the twins' clocks are levelled after each command;
+ * commands are exempt entirely, as section 19 says; and by the shell's own sections (3.7, section 11): the person's rail
+ * order, a keybinding override and a muted app, and the workspace's raised limits, whose readers `keybinding-list` and
+ * `limit-usage-get` are section 19's exemptions; the twins' clocks are levelled after each command;
  * in the other each declared value
  * is written at its default. The theme differs until the sweep's own `appearance-set`, which sets the same theme in
  * both, and the rest throughout. Every registered command, through a person and through an agent, in both modes, must
@@ -63,6 +65,9 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 	'experiment-check',
 	'experiment-enable',
 	'experiment-disable',
+	// The shell's own sections the twins differ by (3.7, section 11): the person's keys and the workspace's limits.
+	'keybinding-list',
+	'limit-usage-get',
 	'appearance-get',
 	'app-list',
 	'app-get',
@@ -263,6 +268,27 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		{ section: 'prefs.general', key: 'mode', value: set ? 'room' : 'solo', level: 'project' },
 		at
 	);
+	// The shell's own person sections (3.7): the rail's order, keybinding overrides and the notifications' mute, set in
+	// one twin and at their defaults in the other. `toastSticky` stays at its default in both: it lands a toast in the
+	// inbox by design (6.1), which changes what `toast-show` makes, and decides no access.
+	await write({
+		section: 'loam.rail',
+		key: 'order',
+		value: set ? ['prefs', 'probe'] : [],
+		level: 'person',
+	});
+	await write({
+		section: 'loam.keybindings',
+		key: 'overrides',
+		value: set ? [{ command: 'palette-open', keys: 'Mod+Shift+K' }] : [],
+		level: 'person',
+	});
+	await write({
+		section: 'loam.notifications',
+		key: 'muted',
+		value: set ? ['prefs'] : [],
+		level: 'person',
+	});
 	// Step 9's: the person is out of the workspace's experiment in both twins first, so neither is told of it (5.2).
 	const experiment = async (on: boolean, input: Record<string, unknown>) => {
 		const written = await kernel.call(on ? 'experiment-enable' : 'experiment-disable', input);
@@ -287,6 +313,19 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		section: 'loam.documents',
 		key: 'trashDays',
 		value: set ? 7 : 30,
+		level: 'workspace',
+	});
+	// Step 10's limits (section 11), an owner's: raised past what any sweep call reaches, so only usage differs.
+	await write({
+		section: 'loam.limits',
+		key: 'messageBytes',
+		value: set ? 2_097_152 : 1_048_576,
+		level: 'workspace',
+	});
+	await write({
+		section: 'loam.limits',
+		key: 'storeBytes',
+		value: set ? 52_428_800 : 26_214_400,
 		level: 'workspace',
 	});
 	// Step 8's autonomy (P4-E2): the workspace's mode, ceiling and a command row, an owner's; in the other twin the same
@@ -330,6 +369,21 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 				...stamp,
 			});
 		}
+	}
+	// The twins differ by what was written: read back as the person reads it, through the shell's own sections.
+	for (const [section, key, value] of [
+		['loam.rail', 'order', set ? ['prefs', 'probe'] : []],
+		[
+			'loam.keybindings',
+			'overrides',
+			set ? [{ command: 'palette-open', keys: 'Mod+Shift+K' }] : [],
+		],
+		['loam.notifications', 'muted', set ? ['prefs'] : []],
+		['loam.limits', 'messageBytes', set ? 2_097_152 : 1_048_576],
+		['loam.limits', 'storeBytes', set ? 52_428_800 : 26_214_400],
+	] as const) {
+		const read = await kernel.call<{ value: unknown }>('setting-get', { section, key });
+		expect(read.data?.value, `${section}.${key}`).toEqual(value);
 	}
 	return Object.assign(workspace, {
 		ticks: () => tick,

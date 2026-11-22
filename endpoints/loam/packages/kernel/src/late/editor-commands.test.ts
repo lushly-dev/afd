@@ -333,7 +333,7 @@ describe('P2-D5: the editor commands', () => {
 		);
 	});
 
-	it("phase 4's 7.3: only the person's own close opens the close prompt, Save, Discard and Cancel, theirs to answer", async () => {
+	it("P4-E8: P4-E7: phase 4's 7.3: only the person's own close opens the close prompt, Save, Discard and Cancel, theirs to answer", async () => {
 		const workspace = await documents();
 		const { kernel } = workspace;
 		const a = await probe(workspace, 'Alpha');
@@ -382,6 +382,16 @@ describe('P2-D5: the editor commands', () => {
 				})
 			).error?.code
 		).toBe('HUMAN_REQUIRED');
+		// F6: nor may an unrelated app's port, or the document's own, which is not the close's caller.
+		for (const instance of ['dual', 'probe']) {
+			const port = kernel.appPort(instance);
+			expect(
+				(await port.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'cancel' }))
+					.error?.code,
+				instance
+			).toBe('HUMAN_REQUIRED');
+		}
+		expect((await prompts()).map(({ overlayId }) => overlayId)).toEqual([prompt.overlayId]);
 		// The person's Discard is the answer the chrome hears, then closes with discard: true.
 		const answered = await kernel.call<{ result: string }>('overlay-dismiss', {
 			overlayId: prompt.overlayId,

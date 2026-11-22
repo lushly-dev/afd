@@ -812,9 +812,9 @@ export interface OverlayV1 extends OverlayRefV1 {
 }
 
 /**
- * Why an overlay moved (6.2). Toasts and popovers move by `user`, `timeout`, `app-switch`, `cap`, `person`, `replaced`
- * and `anchor` (a popover whose anchor left the page, phase 4's step 3); the rest are the dialogs', prompts' and
- * confirmations' (steps 4 to 6).
+ * Why an overlay moved (6.2). Toasts and popovers move by `user`, `timeout`, `app-switch`, `cap`, `person`, `replaced`,
+ * `inbox` (a sticky toast's Open inbox, the shell's alone) and `anchor` (a popover whose anchor left the page, phase 4's
+ * step 3); the rest are the dialogs', prompts' and confirmations' (steps 4 to 6).
  */
 export type OverlayReasonV1 =
 	| 'user'

@@ -108,7 +108,7 @@ export class OverlaySurfaces {
 		void this.#kernel.call('overlay-dismiss', { overlayId, reason: 'user' });
 	};
 
-	/** A sticky toast's "Open inbox" (6.7): dismissed as the person's, then the inbox opened at its notice. */
+	/** A sticky toast's "Open inbox" (6.7): dismissed as the person's, with 6.2's `inbox`, then the inbox at its notice. */
 	#onInbox = (event: Event) => {
 		const { overlayId, notification } = (
 			event as CustomEvent<{ overlayId: string; notification: string }>
@@ -116,7 +116,7 @@ export class OverlaySurfaces {
 		// Focus leaves the toast first, so its removal sends it nowhere: the inbox takes it, at the notice.
 		(deepActiveElement(this.#shell.ownerDocument) as HTMLElement | null)?.blur();
 		void this.#kernel
-			.call('overlay-dismiss', { overlayId, reason: 'user' })
+			.call('overlay-dismiss', { overlayId, reason: 'inbox' })
 			.then(() => this.#kernel.call('section-open', { section: 'inbox', path: notification }));
 	};
 

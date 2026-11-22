@@ -15,7 +15,7 @@ import {
 
 const visible = { stage: 'visible' as const, digest: 'sha256:new' };
 
-describe('experimentOn (5.2)', () => {
+describe('P4-E5: experimentOn (5.2)', () => {
 	it('lets the stage decide first: graduated on, hidden and removed off, whatever is stored', () => {
 		const stored = { on: true, digest: 'sha256:new' };
 		expect(experimentOn({ ...visible, stage: 'graduated' }, undefined, undefined)).toEqual({
@@ -83,7 +83,7 @@ describe('experimentOn (5.2)', () => {
 	});
 });
 
-describe('enablementChanged, settledAway and overdue', () => {
+describe('P4-E5: enablementChanged, settledAway and overdue', () => {
 	it('flags an enablement made for other changes, never an opt-out', () => {
 		expect(enablementChanged(visible, { on: true, digest: 'sha256:old' }, undefined)).toBe(true);
 		expect(enablementChanged(visible, undefined, { digest: 'sha256:old' })).toBe(true);

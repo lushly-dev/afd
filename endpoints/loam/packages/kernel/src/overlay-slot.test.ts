@@ -95,7 +95,7 @@ const INPUTS = {
 type Opening = keyof typeof INPUTS;
 const KINDS = Object.keys(INPUTS) as Opening[];
 
-describe("6.1's table for dialogs, modals and prompts (P4-E7)", () => {
+describe("P4-E7: 6.1's table for dialogs, modals and prompts", () => {
 	it('opens each as the shell for a person, as the app for the active one, and nothing for anyone else', async () => {
 		const { kernel, probe, sums } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -154,7 +154,7 @@ describe("6.1's table for dialogs, modals and prompts (P4-E7)", () => {
 	});
 });
 
-describe('dialogs (6.1, 6.2)', () => {
+describe('P4-E7: dialogs (6.1, 6.2)', () => {
 	it('gives OVERLAY_LIMIT on a fourth, parked ones counted, per owner', async () => {
 		const { kernel, probe } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -299,6 +299,19 @@ describe('the review of step 4 (R1, 13, 15, D83)', () => {
 		}
 	});
 
+	it("P4-E7: records each move's reason: a parked dialog's 'park', its return's 'restore', then the person's 'user' (6.2)", () => {
+		const overlays = createOverlayStore();
+		const kept = overlays.open(appOwner('probe'), 'dialog', { title: 'Kept' });
+		overlays.closeForSwitch('probe');
+		expect(overlays.list().find((each) => each.overlayId === kept.overlayId)?.state).toBe('parked');
+		overlays.restore('probe');
+		expect(
+			overlays.list().find((each) => each.overlayId === kept.overlayId)?.state
+		).toBeUndefined();
+		overlays.close(kept.overlayId, 'confirm', 'user');
+		expect(overlays.movesOf(kept.overlayId)).toEqual(['park', 'restore', 'user']);
+	});
+
 	it('records the scope an app question was opened in, and closes it, parked or not, in another (D83)', () => {
 		const overlays = createOverlayStore();
 		const atlas = { workspace: 'w', project: 'atlas' };
@@ -327,7 +340,7 @@ describe('the review of step 4 (R1, 13, 15, D83)', () => {
 	});
 });
 
-describe('an element (6.4)', () => {
+describe('P4-E7: an element (6.4)', () => {
 	it("shows a native app's, gives a view OVERLAY_ELEMENT_VIEW, and the shell none", async () => {
 		const { kernel, probe, probev } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -449,7 +462,7 @@ describe('prompts (6.4)', () => {
 	});
 });
 
-describe("6.5's answer rule, and F6's cancels (P4-E7)", () => {
+describe("P4-E7: 6.5's answer rule, and F6's cancels", () => {
 	it("gives the agent's confirm HUMAN_REQUIRED on every kind, and lets it cancel only an app's", async () => {
 		const { kernel, probe } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -776,7 +789,7 @@ describe("6.5's answer rule, and F6's cancels (P4-E7)", () => {
 	});
 });
 
-describe('the global strip (6.1)', () => {
+describe('P4-E7: the global strip (6.1)', () => {
 	it('keeps one per id across a switch, refuses a dismissal, and is the shell’s alone', async () => {
 		const { kernel, probe } = await boot();
 		const first = await kernel.call<{ overlay: OverlayRefV1 }>('overlay-global-set', {
@@ -817,7 +830,7 @@ describe('the global strip (6.1)', () => {
 	});
 });
 
-describe('a change of person and replay (6.2)', () => {
+describe('P4-E7: a change of person and replay (6.2)', () => {
 	it('closes every kind, parked dialogs and the strip included, with person', async () => {
 		const { kernel, probe } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
@@ -838,7 +851,7 @@ describe('a change of person and replay (6.2)', () => {
 		expect(await closed).toMatchObject({ result: 'cancel', reason: 'person' });
 	});
 
-	it('replays every move of a dialog, a prompt and the slot', async () => {
+	it('P4-E15: P4-E7: replays every move of a dialog, a prompt, the slot, a modal with actions and the strip', async () => {
 		const { kernel, journal, probe } = await boot();
 		await kernel.call('app-open', { instance: 'probe' });
 		const dialog = await probe.call<OverlayRefV1>('dialog-open', {
@@ -860,7 +873,21 @@ describe('a change of person and replay (6.2)', () => {
 			value: 'Ada',
 		});
 		await kernel.call('overlay-dismiss', { overlayId: dialog.data?.overlayId, result: 'keep' });
+		// A modal with actions, answered by one, and the global strip set and ended (6.1, 6.4).
+		const modal = await probe.call<OverlayRefV1>('modal-open', {
+			...INPUTS['modal-open'],
+			actions: [
+				{ id: 'later', label: 'Later' },
+				{ id: 'now', label: 'Now', tone: 'primary' },
+			],
+		});
+		expect(modal.success, JSON.stringify(modal.error)).toBe(true);
+		await kernel.call('overlay-dismiss', { overlayId: modal.data?.overlayId, result: 'now' });
+		for (const input of [{ id: 'offline', message: 'Offline' }, { id: 'offline' }])
+			expect((await kernel.call('overlay-global-set', input)).success).toBe(true);
 		await kernel.agent.call('dialog-open', INPUTS['dialog-open']);
+		const commands = (await journal.read()).map(({ command }) => command);
+		expect(commands.filter((name) => name === 'overlay-global-set')).toHaveLength(2);
 		const { report } = await replayKernel(await journal.read(), {
 			deployment: probeDeployment(
 				[entry('probe'), entry('sums'), entry('probev')],
@@ -885,6 +912,7 @@ describe('a change of person and replay (6.2)', () => {
 			'modal-open',
 			'overlay-dismiss',
 			'overlay-list',
+			'overlay-global-set',
 		])
 			expect(names, name).toContain(name);
 	});

@@ -49,7 +49,7 @@ const resolve = (
 	context: Partial<KeybindingContextV1> = {}
 ) => resolveKeybindings(SHELL_KEYBINDINGS_V0, APPS, overrides, at(context), info);
 
-describe('the reserved chords as bindings (8.4, R1, R2)', () => {
+describe('P4-E9: the reserved chords as bindings (8.4, R1, R2)', () => {
 	it('names each by its command, or by its action in the shell domain, and each layout toggle by its part', () => {
 		const { entries } = resolve();
 		const shell = entries.filter((entry) => entry.source === 'shell');
@@ -77,7 +77,7 @@ describe('the reserved chords as bindings (8.4, R1, R2)', () => {
 	});
 });
 
-describe('precedence (8.1)', () => {
+describe('P4-E9: precedence (8.1)', () => {
 	it("puts the reserved chords first, then the active app's, then the active tab owner's; another app's are not in force", () => {
 		const { force, entries } = resolve([], { editor: { owner: 'count', type: 'count-sheet' } });
 		expect(force.map(({ chord }) => chord)).toEqual([
@@ -126,7 +126,7 @@ describe('precedence (8.1)', () => {
 	});
 });
 
-describe('collisions (8.1)', () => {
+describe('P4-E9: collisions (8.1)', () => {
 	it('collides on the same keys, and on a single chord and a sequence that begins on it', () => {
 		expect(keysCollide('Mod+G', 'Mod+G P')).toBe(true);
 		expect(keysCollide('Mod+G P', 'Mod+G')).toBe(true);
@@ -159,7 +159,7 @@ describe('collisions (8.1)', () => {
 	});
 });
 
-describe("a person's overrides (8.3)", () => {
+describe("P4-E9: a person's overrides (8.3)", () => {
 	it('rebinds a reserved chord, naming what it replaced as shadowed, and keeps its action', () => {
 		const { entries, force } = resolve([
 			{ command: 'shell-project-switcher', keys: 'Mod+Shift+O' },

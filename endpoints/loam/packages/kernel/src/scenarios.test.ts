@@ -165,21 +165,36 @@ afterEach(async () => {
 	seeded = undefined;
 });
 
-for (const [phase, directory, runs, fallback] of [
-	['phase 4', PHASE_4, RUNS_4, 'p4-base'],
-	['phase 5', PHASE_5, RUNS, 'p5-base'],
+/**
+ * Phase 4's exit rows the runner's titles claim (its section 19): every phase 4 file is P4-E16's, and P4-E4's row names
+ * the `autonomy-per-command` and `owner-ceiling` cases as its own too. Phase 5's titles claim no row.
+ */
+const P4_ROWS_OF: Readonly<Record<string, string>> = Object.freeze({
+	'autonomy-per-command': 'P4-E4: ',
+	'owner-ceiling': 'P4-E4: ',
+});
+
+for (const [phase, directory, runs, fallback, row] of [
+	['phase 4', PHASE_4, RUNS_4, 'p4-base', 'P4-E16: '],
+	['phase 5', PHASE_5, RUNS, 'p5-base', ''],
 ] as const) {
-	describe(`Loam's runner: ${phase}'s scenarios`, () => {
+	describe(`${row}Loam's runner: ${phase}'s scenarios`, () => {
 		const files = readdirSync(directory).filter((name) => name.endsWith('.scenario.yaml'));
 
-		it('knows every file, so none is left out by accident', () => {
+		it(`${row}knows every file, so none is left out by accident`, () => {
 			expect(files.map((name) => name.replace('.scenario.yaml', '')).sort()).toEqual(
 				Object.keys(runs).sort()
 			);
 		});
 
+		// P4-E16: "no job was skipped": every phase 4 file runs now, so a file set back to a later step fails here.
+		if (row)
+			it(`${row}runs every file, none left for a later step`, () => {
+				expect(Object.entries(runs).filter(([, when]) => when !== 'now')).toEqual([]);
+			});
+
 		for (const name of Object.keys(runs).filter((key) => runs[key] === 'now')) {
-			it(`passes ${name}`, async () => {
+			it(`${row}${row ? (P4_ROWS_OF[name] ?? '') : ''}passes ${name}`, async () => {
 				const { passed, detail } = await runFile(directory, `${name}.scenario.yaml`, fallback);
 				expect(passed, detail).toBe(true);
 			}, 30_000);

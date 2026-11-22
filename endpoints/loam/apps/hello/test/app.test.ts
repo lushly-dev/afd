@@ -35,7 +35,7 @@ describe('hello as a view', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
-	it("drops a message over messageBytes at its broker, journaled, so limit-usage-get replays (phase 4's section 11)", async () => {
+	it("P4-E10: drops a message over messageBytes at its broker, journaled, so limit-usage-get replays (phase 4's section 11)", async () => {
 		const { kernel, port, replay } = await createAppTestKernel({
 			manifest: await readAppManifest(ROOT, VIEW_MANIFEST),
 			definition: () => import('../src/native.js'),

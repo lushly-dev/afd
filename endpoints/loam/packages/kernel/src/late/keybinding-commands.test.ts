@@ -120,7 +120,7 @@ const override = (kernel: LoamKernelV5, value: unknown) =>
 		level: 'person',
 	});
 
-describe('keybinding-list (8.5)', () => {
+describe('P4-E9: keybinding-list (8.5)', () => {
 	it('lists the reserved chords ordered by keys, each with its source, and the active app’s once it is open', async () => {
 		const { kernel } = await workspace();
 		const shell = await list(kernel);

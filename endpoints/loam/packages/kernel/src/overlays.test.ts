@@ -10,7 +10,7 @@ async function boot() {
 	return createTestKernel({ clock: createSteppingClock() });
 }
 
-describe('toast-show and modal-open', () => {
+describe('P4-E7: toast-show and modal-open', () => {
 	it("gives each overlay a counted id and the shell as a person's owner, and refuses an agent's modal", async () => {
 		const { kernel } = await boot();
 		const first = await kernel.call<OverlayRefV1>('toast-show', toast);
@@ -77,7 +77,7 @@ describe('toast-show and modal-open', () => {
 	});
 });
 
-describe('overlay-dismiss', () => {
+describe('P4-E7: overlay-dismiss', () => {
 	it('defaults a toast to dismissed and a modal to cancel, and takes a result and reason', async () => {
 		const { kernel } = await boot();
 		await kernel.call('toast-show', toast);

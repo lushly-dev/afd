@@ -36,7 +36,7 @@ const press = (key: string, code: string, modifiers: Partial<Record<string, bool
 	...modifiers,
 });
 
-describe('the keybinding editor (8.2, 8.3)', () => {
+describe('P4-E9: the keybinding editor (8.2, 8.3)', () => {
 	it('records a chord as Mod, Ctrl, Alt, Shift and Meta, then the key, by key for a letter or digit, else by code', () => {
 		expect(chordOf(press('k', 'KeyK', { ctrlKey: true, shiftKey: true }), false)).toBe(
 			'Mod+Shift+K'

@@ -748,7 +748,7 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	});
 
-	it("phase 4's 7.3: a person's own editor-close asks; Save saves then closes, Discard closes with no second close", async () => {
+	it("P4-E8: phase 4's 7.3: a person's own editor-close asks; Save saves then closes, Discard closes with no second close", async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		const tabName = () => editorView(page).then((view) => view?.[0]?.tabs[0]?.name);

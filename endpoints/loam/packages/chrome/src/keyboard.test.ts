@@ -142,7 +142,7 @@ describe('reserved chords', () => {
 	});
 });
 
-describe('matching a key on any layout (phase 4 specification, 8.2; #877)', () => {
+describe('P4-E9: matching a key on any layout (phase 4 specification, 8.2; #877)', () => {
 	it('reads a Latin letter or digit by key, so a German layout keeps its Z and Y', () => {
 		// QWERTZ: the key in QWERTY's Y place types "z".
 		expect(keyOf({ key: 'z', code: 'KeyY' })).toBe('Z');
@@ -192,7 +192,7 @@ describe('matching a key on any layout (phase 4 specification, 8.2; #877)', () =
 	});
 });
 
-describe('sequences (8.1)', () => {
+describe('P4-E9: sequences (8.1)', () => {
 	const bindings = [
 		{ chord: 'Mod+G P', command: 'hello-project' },
 		{ chord: 'Mod+G L', command: 'hello-list' },

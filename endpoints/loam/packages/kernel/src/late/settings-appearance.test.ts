@@ -268,7 +268,7 @@ describe('P4-E3: local mode (R12)', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
-	it("replays stage B's move as it ran: its entry carries the kernel's `migration` field", async () => {
+	it("P4-E15: P4-E3: replays stage B's move as it ran: its entry carries the kernel's `migration` field", async () => {
 		const store = new MemoryAdapter();
 		await legacy(store, { theme: 'dark', density: 'compact' });
 		const { journal } = await kernelOn(store);
@@ -393,7 +393,7 @@ function failingStore(failing: { get?: string; write?: string }): MemoryAdapter 
 }
 
 describe("the reviews' findings on the person's record", () => {
-	it("B3: two pages on one store keep each other's values, and expected reads the stored record", async () => {
+	it("P4-E3: B3: two pages on one store keep each other's values, and expected reads the stored record", async () => {
 		const store = new MemoryAdapter();
 		const first = await kernelOn(store);
 		const second = await kernelOn(store);
@@ -434,7 +434,7 @@ describe("the reviews' findings on the person's record", () => {
 		).not.toContain('loam.settings');
 	});
 
-	it('I2 and D: a refused move keeps the old record, painted, for the next stage B to move', async () => {
+	it('P4-E3: I2 and D: a refused move keeps the old record, painted, for the next stage B to move', async () => {
 		const store = failingStore({ write: 'loam.settings' });
 		await legacy(store, { theme: 'dark', density: 'compact' });
 		const { kernel, journal } = await kernelOn(store, { boot: true });
@@ -446,7 +446,7 @@ describe("the reviews' findings on the person's record", () => {
 		expect(await appearance(kernel)).toMatchObject({ theme: 'dark', density: 'compact' });
 	});
 
-	it('E: a provider session replays as it ran: dark, signed out painting `.last`, then the next person', async () => {
+	it('P4-E15: P4-E3: E: a provider session replays as it ran: dark, signed out painting `.last`, then the next person', async () => {
 		const store = new MemoryAdapter();
 		const { kernel, journal } = await kernelOn(store, { provider: true });
 		const signIn = (email: string) =>

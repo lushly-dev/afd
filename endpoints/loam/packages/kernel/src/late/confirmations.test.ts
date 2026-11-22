@@ -238,7 +238,91 @@ async function slotPrompt(kernel: LoamKernelV5): Promise<OverlayV1> {
 	throw new Error('No confirmation opened in the slot');
 }
 
-describe('the pending path (R9)', () => {
+/**
+ * P4-E17's "these succeed" (section 13, D125): on a hosted `provider` projection, the inbox and confirmations are the
+ * person's own records, so `notification-*` and the confirmation commands answer as in a local one, signed in.
+ */
+describe('P4-E17: a hosted provider deployment keeps the inbox and confirmations (section 13)', () => {
+	it('pushes, lists, reads, archives and acts on notices, and raises, reads, confirms and withdraws confirmations', async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: {
+				...deployment(),
+				deployment_version: 4,
+				generation: 'hosted',
+				host: { kind: 'hosted', kernel: 'api/kernel' },
+			} as never,
+			ports: ports(),
+			identity: { mode: 'provider', organization: 'acme', path: 'api/auth', methods: ['password'] },
+			empty: true,
+			membership: {
+				mode: 'provider',
+				members: new Map([['mock-user-olu@example.com', 'owner']]),
+				digest: 'd1',
+			},
+		});
+		kernels.push(workspace.kernel);
+		const { kernel, journal } = workspace;
+		expect(
+			(
+				await kernel.call('auth-sign-in', {
+					method: 'credentials',
+					email: 'olu@example.com',
+					password: 'x',
+				})
+			).success
+		).toBe(true);
+		// The fixture is hosted: a shared write is section 13's refusal here.
+		expect(
+			(
+				await kernel.call('setting-set', {
+					section: 'loam.documents',
+					key: 'trashDays',
+					value: 3,
+					level: 'workspace',
+				})
+			).error?.code
+		).toBe('SHARED_RECORD_UNAVAILABLE');
+		const start = (await journal.read()).length;
+		// The inbox: an agent's notice, listed, read and archived by the person.
+		const pushed = await kernel.agent.call<{ notification: NotificationV1 }>('notification-push', {
+			title: 'Done',
+		});
+		expect(pushed.success, JSON.stringify(pushed.error)).toBe(true);
+		const notice = pushed.data?.notification.id as string;
+		const listed = await kernel.call<Listed>('notification-list', {});
+		expect(listed.data?.notifications.map(({ id }) => id)).toContain(notice);
+		expect((await kernel.call('notification-read', { notification: notice })).success).toBe(true);
+		expect((await kernel.call('notification-archive', { notification: notice })).success).toBe(
+			true
+		);
+		// Confirmations: an agent's pending one, read, confirmed in the inbox and run once; another withdrawn.
+		const asked = await kernel.agent.call('keeper-bump');
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		expect(
+			(await kernel.agent.call('confirmation-get', { notification: idOf(asked) })).data
+		).toMatchObject({ state: 'pending' });
+		expect(
+			(await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' })).data
+		).toEqual({ state: 'confirmed' });
+		expect(await count(kernel)).toBe(1);
+		const other = await kernel.agent.call('keeper-set', { value: 2 });
+		expect(other.error?.code).toBe('CONFIRMATION_PENDING');
+		expect(
+			(await kernel.agent.call('confirmation-withdraw', { notification: idOf(other) })).data
+		).toEqual({ state: 'withdrawn' });
+		// None of them is section 13's refusal.
+		const refused = (await journal.read())
+			.slice(start)
+			.filter(
+				(entry) =>
+					(entry.result as { error?: { code?: string } }).error?.code ===
+					'SHARED_RECORD_UNAVAILABLE'
+			);
+		expect(refused).toEqual([]);
+	});
+});
+
+describe('P4-E8: the pending path (R9)', () => {
 	it('returns CONFIRMATION_PENDING at once with its details, and the same on a re-call', async () => {
 		const { kernel } = await boot();
 		const asked = await kernel.agent.call('keeper-bump');
@@ -563,8 +647,8 @@ describe('the pending path (R9)', () => {
 	});
 });
 
-describe('the slot (a person’s gesture, the active app’s port)', () => {
-	it("R7: a person's call waits in the slot, signed out, and runs on their confirm", async () => {
+describe('P4-E8: the slot (a person’s gesture, the active app’s port)', () => {
+	it("P4-E8: P4-E7: R7: a person's call waits in the slot, signed out, and runs on their confirm", async () => {
 		const { kernel } = await boot();
 		const waiting = kernel.call('keeper-bump');
 		const prompt = await slotPrompt(kernel);
@@ -613,7 +697,7 @@ describe('the slot (a person’s gesture, the active app’s port)', () => {
 		expect((await again).success).toBe(true);
 	});
 
-	it("the active app's port asks with the shell's header; its decline holds the port, a person's gesture not", async () => {
+	it("P4-E8: P4-E7: the active app's port asks with the shell's header; its decline holds the port, a person's gesture not", async () => {
 		const { kernel } = await boot();
 		await kernel.call('app-open', { instance: 'keeper' });
 		const keeper = kernel.appPort('keeper');
@@ -654,7 +738,7 @@ describe('the slot (a person’s gesture, the active app’s port)', () => {
 		expect((await mine).data).toEqual({ value: 3 });
 	});
 
-	it("F6: the raising app's cancel of its own confirmation ends it withdrawn, with no window", async () => {
+	it("P4-E8: P4-E7: F6: the raising app's cancel of its own confirmation ends it withdrawn, with no window", async () => {
 		const { kernel } = await boot();
 		await kernel.call('app-open', { instance: 'keeper' });
 		const keeper = kernel.appPort('keeper');
@@ -696,8 +780,8 @@ describe('the slot (a person’s gesture, the active app’s port)', () => {
 	});
 });
 
-describe("palette-run, the palette's input prompt (7.1)", () => {
-	it('R8: human only: HUMAN_REQUIRED from the agent interface, CALL_NOT_GRANTED from a port', async () => {
+describe("P4-E8: palette-run, the palette's input prompt (7.1)", () => {
+	it('P4-E8: P4-E7: R8: human only: HUMAN_REQUIRED from the agent interface, CALL_NOT_GRANTED from a port', async () => {
 		const { kernel } = await boot();
 		expect((await kernel.agent.call('palette-run', { command: 'keeper-set' })).error?.code).toBe(
 			'HUMAN_REQUIRED'
@@ -706,9 +790,14 @@ describe("palette-run, the palette's input prompt (7.1)", () => {
 		expect(
 			(await kernel.appPort('keeper').call('palette-run', { command: 'keeper-set' })).error?.code
 		).toBe('CALL_NOT_GRANTED');
+		// 6.1's row for an inactive app's port: refused the same, and nothing opens.
+		expect(
+			(await kernel.appPort('dual').call('palette-run', { command: 'keeper-set' })).error?.code
+		).toBe('CALL_NOT_GRANTED');
+		expect((await overlays(kernel)).filter((each) => each.kind === 'prompt')).toEqual([]);
 	});
 
-	it('opens a prompt of the input’s fields, refuses a stale one, keeps it open on bad input, and runs it', async () => {
+	it('P4-E8: P4-E7: opens a prompt of the input’s fields, refuses a stale one, keeps it open on bad input, and runs it', async () => {
 		const { kernel } = await boot();
 		const opened = await kernel.call<{ prompt: OverlayRefV1 }>('palette-run', {
 			command: 'dual-put',
@@ -851,8 +940,8 @@ describe("palette-run, the palette's input prompt (7.1)", () => {
 	});
 });
 
-describe('replay (P4-E15)', () => {
-	it('replays a pending confirm, a slot confirm and palette-run the same, running each once', async () => {
+describe('P4-E15: replay', () => {
+	it('replays a pending confirm, a slot confirm, palette-run and a withdrawal the same, running each once', async () => {
 		const { kernel, journal } = await boot();
 		const asked = await kernel.agent.call('keeper-bump');
 		await kernel.call('notification-act', { notification: idOf(asked), answer: 'confirm' });
@@ -886,8 +975,15 @@ describe('replay (P4-E15)', () => {
 		const declined = await kernel.agent.call('keeper-set', { value: 8 });
 		await kernel.call('notification-act', { notification: idOf(declined), answer: 'decline' });
 		await kernel.agent.call('keeper-set', { value: 8 });
+		// A confirmation read and withdrawn by the agent that raised it (7.2).
+		const withdrawn = await kernel.agent.call('keeper-set', { value: 9 });
+		await kernel.agent.call('confirmation-get', { notification: idOf(withdrawn) });
+		expect(
+			(await kernel.agent.call('confirmation-withdraw', { notification: idOf(withdrawn) })).data
+		).toEqual({ state: 'withdrawn' });
 		const live = (await kernel.call('keeper-get')).data;
 		expect(live).toEqual({ count: 2, value: 5 });
+		expect((await journal.read()).map(({ command }) => command)).toContain('confirmation-withdraw');
 		const { report, kernel: replayed } = await replayKernel(await journal.read(), {
 			keep: true,
 			deployment: deployment(),
@@ -3801,5 +3897,53 @@ describe('the fifth round', () => {
 		expect(done.result).toEqual({ success: true });
 		expect(done.unreplayable).toBe(true);
 		expect(done.lossy).toBe(true);
+	});
+});
+
+describe("P4-E7: the active tab owner's port, on 6.1's table", () => {
+	it("opens a toast, a dialog, a modal and a prompt as the app's while it owns the active tab, never palette-run, and only a toast once it does not", async () => {
+		const { kernel } = await createScopedWorkspace({
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		kernels.push(kernel);
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		await kernel.call('document-open', { document: (made.data as { id: string }).id });
+		// No app is opened: probe is the active tab's owner alone.
+		const port = kernel.appPort('probe');
+		// 6.1's last column: `palette-run` is human-only on this path too.
+		expect((await port.call('palette-run', { command: 'probe-content-set' })).error?.code).toBe(
+			'CALL_NOT_GRANTED'
+		);
+		const opened = [];
+		for (const [name, input] of [
+			['toast-show', { message: 'Saved' }],
+			['dialog-open', { title: 'Note', body: 'Kept.' }],
+			['modal-open', { title: 'Sure?', body: 'Really.' }],
+		] as const) {
+			const result = await port.call<OverlayRefV1>(name, input);
+			expect(result.data?.owner, name).toBe('probe');
+			opened.push(result.data as OverlayRefV1);
+		}
+		// The slot holds the modal, so a prompt waits for it: closed, the prompt is probe's too.
+		const modal = opened.at(-1) as OverlayRefV1;
+		await port.call('overlay-dismiss', { overlayId: modal.overlayId, result: 'cancel' });
+		const prompt = await port.call<OverlayRefV1>('prompt-open', { title: 'Name?' });
+		expect(prompt.data?.owner).toBe('probe');
+		// Once the tab closes, probe is an inactive app's port: its toast is still its own, the rest refused.
+		await kernel.call('overlay-dismiss', {
+			overlayId: (prompt.data as OverlayRefV1).overlayId,
+			result: 'cancel',
+		});
+		expect((await kernel.call('editor-close', { tab: 't1' })).success).toBe(true);
+		expect((await port.call<OverlayRefV1>('toast-show', { message: 'Later' })).data?.owner).toBe(
+			'probe'
+		);
+		for (const [name, input] of [
+			['dialog-open', { title: 'Note', body: 'Kept.' }],
+			['modal-open', { title: 'Sure?', body: 'Really.' }],
+			['prompt-open', { title: 'Name?' }],
+		] as const)
+			expect((await port.call(name, input)).error?.code, name).toBe('OVERLAY_OWNER_INACTIVE');
 	});
 });

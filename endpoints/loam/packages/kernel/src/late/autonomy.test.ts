@@ -73,7 +73,7 @@ const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 
 describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
-	it('sets workspace and project rows, resolves through them, and lists them', async () => {
+	it('P4-E4: sets workspace and project rows, resolves through them, and lists them', async () => {
 		const { kernel, projects, scopes } = await workspace();
 		expect(
 			(await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' }))
@@ -128,7 +128,7 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 		).toHaveLength(1);
 	});
 
-	it("resolves the shell's own commands, and every command's default with no row (D156)", async () => {
+	it("P4-E4: resolves the shell's own commands, and every command's default with no row (D156)", async () => {
 		const { kernel } = await workspace();
 		const results = await kernel.call<{ results: Data[] }>('autonomy-get', {
 			commands: [
@@ -146,7 +146,7 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 		]);
 	});
 
-	it('reads up to 50 commands at once, in order, and names the one it cannot find', async () => {
+	it('P4-E4: reads up to 50 commands at once, in order, and names the one it cannot find', async () => {
 		const { kernel } = await workspace();
 		const fifty = Array.from({ length: 50 }, () => ({ command: 'dual-get' }));
 		expect(
@@ -169,7 +169,7 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 		expect(unknown.error?.suggestion).toContain('app-command-list');
 	});
 
-	it("caps a person's own mode, and only lowers it", async () => {
+	it("P4-E4: caps a person's own mode, and only lowers it", async () => {
 		const { kernel } = await workspace();
 		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 		const capped = await kernel.call<Data>('autonomy-set', { level: 'person', cap: 'suggest' });
@@ -206,7 +206,7 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 		).toBe('SETTING_USE_AUTONOMY');
 	});
 
-	it('removes a row with mode null, keeping a ceiling the general row holds alone', async () => {
+	it('P4-E4: removes a row with mode null, keeping a ceiling the general row holds alone', async () => {
 		const { kernel, store } = await workspace();
 		await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask', ceiling: 'act' });
 		const cleared = await kernel.call<Data>('autonomy-set', { level: 'workspace', mode: null });
@@ -259,7 +259,7 @@ describe('autonomy-set and autonomy-get (4.3, 4.4)', () => {
 	});
 });
 
-describe('the bounds (4.2, F8): AUTONOMY_ABOVE_CEILING', () => {
+describe('P4-E4: the bounds (4.2, F8): AUTONOMY_ABOVE_CEILING', () => {
 	it("bounds a project row by the default with no workspace row, then by the workspace's general mode", async () => {
 		const { kernel, projects } = await workspace();
 		const project = (mode: string, extra: Data = {}) =>
@@ -314,7 +314,7 @@ describe('the bounds (4.2, F8): AUTONOMY_ABOVE_CEILING', () => {
 	});
 });
 
-describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
+describe('P4-E4: AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
 	it('refuses a row naming no registered instance or command, and its removal unless that row is held', async () => {
 		const { kernel } = await workspace();
 		for (const input of [
@@ -367,8 +367,8 @@ describe('AUTONOMY_COMMAND_UNKNOWN (4.3, step 4)', () => {
 	});
 });
 
-describe('who sets it (4.3; D154)', () => {
-	it('HUMAN_REQUIRED for an agent, with the hand-off, at every level; reads succeed', async () => {
+describe('P4-E4: who sets it (4.3; D154)', () => {
+	it('P4-E4: P4-E1: HUMAN_REQUIRED for an agent, with the hand-off, at every level; reads succeed', async () => {
 		const { kernel, projects } = await workspace();
 		for (const [input, key, route] of [
 			[{ level: 'workspace', mode: 'act' }, 'workspace/-/*/*', '~/settings/loam.autonomy'],
@@ -549,7 +549,7 @@ describe('who sets it (4.3; D154)', () => {
 	});
 });
 
-describe('restricted projects (4.3, 4.4): byte-identical PROJECT_NOT_FOUND, and rows filtered', () => {
+describe('P4-E4: restricted projects (4.3, 4.4): byte-identical PROJECT_NOT_FOUND, and rows filtered', () => {
 	it('answers a project the caller may not enter as a missing one, and lists none of its rows', async () => {
 		const { kernel, projects, store } = await workspace();
 		// Signed out in `local` mode: Citadel is restricted to someone else.
@@ -602,7 +602,44 @@ describe('restricted projects (4.3, 4.4): byte-identical PROJECT_NOT_FOUND, and 
 	});
 });
 
-describe('section 13: a hosted provider deployment refuses autonomy-set at every level (P4-E17)', () => {
+describe('P4-E4: a restricted project is missing before any owner check (4.3, 4.4)', () => {
+	it('answers a member who is not its creator nor listed with PROJECT_NOT_FOUND, never OWNER_REQUIRED', async () => {
+		const { kernel } = await workspace({ identity: PROVIDER, membership: ACME(), empty: true });
+		await signIn(kernel, 'bea@example.com');
+		const made = await kernel.call<{ id: string }>('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: [BEA] },
+		});
+		const vault = made.data?.id as string;
+		await kernel.call('auth-sign-out');
+		// Cy is a member of the workspace, not an owner, not Vault's creator and not on its list: the owner check
+		// would refuse her too, so only the access decision coming first answers as a missing project.
+		await signIn(kernel, 'cy@example.com');
+		const missing = JSON.stringify((await kernel.call('project-get', { project: vault })).error);
+		expect(JSON.parse(missing)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+		for (const mode of ['ask', 'act'] as const) {
+			const refused = await kernel.call('autonomy-set', { level: 'project', project: vault, mode });
+			expect(JSON.stringify(refused.error), mode).toBe(missing);
+		}
+		// The same project she may enter is OWNER_REQUIRED, so the refusal above is the access decision's.
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		const open = await kernel.call<{ id: string }>('project-create', { name: 'Open' });
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'cy@example.com');
+		expect(
+			(
+				await kernel.call('autonomy-set', {
+					level: 'project',
+					project: open.data?.id as string,
+					mode: 'ask',
+				})
+			).error?.code
+		).toBe('OWNER_REQUIRED');
+	});
+});
+
+describe('P4-E17: section 13: a hosted provider deployment refuses autonomy-set at every level', () => {
 	it('refuses each, journaled, with no table or record changed', async () => {
 		const deployment = {
 			...scopedDeployment(),
@@ -646,7 +683,7 @@ describe('section 13: a hosted provider deployment refuses autonomy-set at every
 	});
 });
 
-describe('orphans (4.2): flagged at the manifest’s apply', () => {
+describe('P4-E4: orphans (4.2): flagged at the manifest’s apply', () => {
 	const DROPPED: ManifestV2 = {
 		...DUAL_MANIFEST,
 		commands: (DUAL_MANIFEST.commands ?? []).filter(({ name }) => name !== 'dual-put'),
@@ -823,7 +860,7 @@ async function mountedKernel(
 	return Object.assign(parts, { journal });
 }
 
-describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
+describe('P4-E4: orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 	const flags = async (kernel: LoamKernelV5) =>
 		Object.fromEntries(
 			((await kernel.call<Listed>('autonomy-list')).data?.rows ?? []).map((row) => [
@@ -899,7 +936,7 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 		).toBe('suggest');
 	});
 
-	it('sends the orphan notice in local mode, and replays the settle that sent it with no difference', async () => {
+	it('P4-E15: P4-E4: sends the orphan notice in local mode, and replays the settle that sent it with no difference', async () => {
 		let tools = ['files-read', 'files-write'];
 		const { kernel, journal } = await mountedKernel(new MemoryAdapter(), () => tools);
 		await kernel.call('autonomy-set', {
@@ -989,7 +1026,7 @@ describe('orphans after a catalog (4.2; step 8 blocker 1, R1, R2)', () => {
 	});
 });
 
-describe('mounted tools (4.2, D156)', () => {
+describe('P4-E4: mounted tools (4.2, D156)', () => {
 	it('resolve ask by default, even a read', async () => {
 		const manifest = {
 			manifest_version: 1,
@@ -1165,7 +1202,7 @@ describe('the store (step 8 blocker 2): one browser, two workspaces', () => {
 	});
 });
 
-describe("D154's team-listed rule (step 8 blocker 3): only a `team` instance makes a project an owner's", () => {
+describe("P4-E4: D154's team-listed rule (step 8 blocker 3): only a `team` instance makes a project an owner's", () => {
 	const listing = (audience: 'team' | 'person') => {
 		const deployment = scopedDeployment();
 		return {

@@ -34,7 +34,7 @@ describe("P2-E7: a mount's context calls through its surface's port (3.6)", () =
 	});
 });
 
-describe("phase 4's 3.8: an app's surfaces hear its own sections change", () => {
+describe("P4-E1: phase 4's 3.8: an app's surfaces hear its own sections change", () => {
 	const manifest = (grants: string[]) =>
 		({
 			plugin: { id: 'greet' },
