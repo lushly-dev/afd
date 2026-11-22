@@ -203,6 +203,15 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	}
 
 	/**
+	 * Whose quota a session `req` creates counts against: with MCP authorization, the verified
+	 * issuer and subject, so one subject with many client IDs shares one `maxSessionsPerOwner`.
+	 */
+	function sessionQuotaKey(req: IncomingMessage): string | undefined {
+		const credentials = auth?.credentialsFor(req);
+		return credentials ? JSON.stringify([credentials.issuer, credentials.subject]) : undefined;
+	}
+
+	/**
 	 * `INSUFFICIENT_SCOPE` when the request's credentials lack a scope these calls need, decided
 	 * after routing and before the confirmation gate (M6); none without MCP authorization.
 	 */
@@ -350,19 +359,24 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
 			if (sessions) {
-				const id = sessions.create(sessionOwner(req));
+				const id = sessions.create(sessionOwner(req), sessionQuotaKey(req));
 				if (id === undefined) {
+					// `-32000` with an AFD `data.code`, never `-32002`: that is MCP's deprecated
+					// SERVER_NOT_INITIALIZED, which servers must not emit.
 					res.setHeader('Retry-After', String(SESSION_RETRY_AFTER_S));
-					json(
-						res,
-						503,
-						jsonRpcError(
-							message.id,
-							JsonRpcErrorCode.SESSION_LIMIT_REACHED,
-							'Too many live MCP sessions',
-							`Retry after ${SESSION_RETRY_AFTER_S} seconds (Retry-After), when idle sessions have expired, or reuse a session you hold by sending its Mcp-Session-Id`
-						)
-					);
+					json(res, 503, {
+						jsonrpc: '2.0',
+						id: message.id,
+						error: {
+							code: JsonRpcErrorCode.SERVER_ERROR,
+							message: 'Too many live MCP sessions',
+							data: {
+								code: 'SESSION_LIMIT_REACHED',
+								suggestion: `Retry after ${SESSION_RETRY_AFTER_S} seconds (Retry-After), when idle sessions have expired, or reuse a session you hold by sending its Mcp-Session-Id`,
+								retryAfter: SESSION_RETRY_AFTER_S,
+							},
+						},
+					});
 					return;
 				}
 				res.setHeader('Mcp-Session-Id', id);

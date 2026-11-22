@@ -602,11 +602,12 @@ through WebCrypto; keys come from a `KeySource` (`jwksKeySource` over a host's J
 `credentials` are frozen and branded for `isVerifiedCredentials` until the request ends;
 `createContext(req, { credentials })` maps them to the actor. An HTTP session (`Mcp-Session-Id`)
 belongs to the credentials' issuer, subject and client that created it (`credentialsBinding`), so
-another caller's use of it is answered as an unknown session's, and only its own owner's
-`initialize` can displace it. One owner holds at most `maxSessionsPerOwner` sessions (default 100),
-and at that quota or the session cap its least recently used session is evicted; an owner with none
-is refused while the store is full (HTTP 503 with `Retry-After`, JSON-RPC `-32002` carrying the
-request's `id`) rather than another's evicted. `packages/server/src/authorization-cases.test.ts`
+another caller's use of it is answered as an unknown session's, and only the same subject's
+`initialize` can displace it. One issuer and subject, across its clients, holds at most
+`maxSessionsPerOwner` sessions (default 100), and at that quota or the session cap its least
+recently used session is evicted; a subject with none is refused while the store is full (HTTP 503
+with `Retry-After`, and JSON-RPC `-32000` carrying the request's `id` and
+`data.code: "SESSION_LIMIT_REACHED"`) rather than another's evicted. `packages/server/src/authorization-cases.test.ts`
 loads the `bearer`, `challenges`, `metadataUrls`, `metadataDocuments`, `audience`, `scopeClaims`,
 `jwtHeaders`, `keys` and `claims` cases; `mcp-auth-verifier.test.ts` holds one test per rule of M3
 with keys generated in the test (RSA, EC P-256 and P-384, Ed25519) by a test authorization server

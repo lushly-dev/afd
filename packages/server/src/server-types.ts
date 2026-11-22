@@ -171,16 +171,20 @@ export interface McpServerOptions {
 	 * Maximum live HTTP sessions when `contexts` are configured (default: 1000). Beyond it, an
 	 * `initialize` evicts the least recently used session of its own owner (with `auth`, the
 	 * verified issuer, subject and client), never another's; an owner with no session to give up
-	 * is refused with HTTP 503, `Retry-After` and JSON-RPC `-32002`. Without `auth` every caller
-	 * is one owner.
+	 * is refused with HTTP 503, `Retry-After` and JSON-RPC `-32000` whose `data.code` is
+	 * `SESSION_LIMIT_REACHED`. Without `auth` every caller is one owner.
 	 */
 	maxSessions?: number;
 
 	/**
-	 * With `auth`: maximum live HTTP sessions of one owner (default: 100, or `maxSessions` when
-	 * smaller; never more than `maxSessions`). At it, the owner's own least recently used session
-	 * is evicted, so one principal cannot fill the store. Without `auth` every caller is one
-	 * owner whose quota is `maxSessions`, and passing this option throws.
+	 * With `auth`: maximum live HTTP sessions of one subject, keyed by the verified issuer and
+	 * subject so its client IDs share one quota (default: 100, or `maxSessions` when smaller;
+	 * never more than `maxSessions`). At it, that subject's least recently used session is
+	 * evicted, so one subject cannot fill the store; up to `maxSessions / maxSessionsPerOwner`
+	 * distinct subjects still can, and a new subject is then refused until sessions expire.
+	 * Sessions exist only with `contexts`: without them the value is still checked but has no
+	 * effect. Without `auth` every caller is one owner whose quota is `maxSessions`, and passing
+	 * this option throws.
 	 */
 	maxSessionsPerOwner?: number;
 

@@ -612,7 +612,7 @@ server's own `error.data.suggestion` is used when it sends one.
 | JSON-RPC -32603 | `INTERNAL_ERROR` | yes |
 | JSON-RPC -32000 (AFD: Host, Origin, Content-Type or size rejected) | `REQUEST_REJECTED` | no |
 | JSON-RPC -32001 (AFD: unknown or expired `Mcp-Session-Id`) | `SESSION_NOT_FOUND` | yes |
-| JSON-RPC -32002 (AFD: session limit reached on `initialize`, HTTP 503 with `Retry-After`) | `SESSION_LIMIT_REACHED` | yes, after `Retry-After` |
+| HTTP 503 with JSON-RPC -32000 and `data.code: "SESSION_LIMIT_REACHED"` (AFD: session store full on `initialize`; `connect()` rejects with a `SessionLimitError`) | `SESSION_LIMIT_REACHED` | yes, after `Retry-After` (`details.retryAfterSeconds`) |
 | Other JSON-RPC codes | `JSON_RPC_ERROR` | no |
 | Other HTTP status | `HTTP_<status>` | 5xx and 429 only |
 | No response within `timeout` | `TIMEOUT` | yes |

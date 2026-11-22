@@ -713,9 +713,13 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 		expect(JSON.parse(refused.text)).toMatchObject({
 			id: 'open-7',
 			error: {
-				code: -32002,
+				code: -32000,
 				message: 'Too many live MCP sessions',
-				data: { suggestion: expect.stringContaining('Retry-After') },
+				data: {
+					code: 'SESSION_LIMIT_REACHED',
+					suggestion: expect.stringContaining('Retry-After'),
+					retryAfter: 60,
+				},
 			},
 		});
 		expect(await live(alice, first)).toBe(200);
@@ -760,6 +764,60 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 		expect(live2).toEqual([404, 404, 404, 404, 200, 200]);
 		const bobs = [await open(bob), await open(bob)];
 		for (const id of bobs) expect(await live(bob, id)).toBe(200);
+	});
+
+	it('counts one subject across its client IDs against one quota, and keeps each session to its client', async () => {
+		const { base } = await serve({
+			contexts: [{ name: 'edit', description: 'Editing' }],
+			maxSessions: 10,
+			maxSessionsPerOwner: 2,
+		});
+		const viaA = `Bearer ${await as.issue()}`;
+		const viaB = `Bearer ${await as.issue({ claims: { client_id: 'agent-2' } })}`;
+		const open = async (authorization: string) =>
+			(
+				await send(`${base}/message`, {
+					body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+					authorization,
+				})
+			).headers['mcp-session-id'] as string;
+		const live = async (authorization: string, session: string) =>
+			(
+				await send(`${base}/rpc`, {
+					body: rpc('afd-context-list'),
+					authorization,
+					headers: { 'Mcp-Session-Id': session },
+				})
+			).status;
+		const a1 = await open(viaA);
+		const a2 = await open(viaA);
+		const b1 = await open(viaB);
+		// The subject's third session, through another client, gave up its oldest one.
+		expect(await live(viaA, a1)).toBe(404);
+		expect(await live(viaA, a2)).toBe(200);
+		expect(await live(viaB, b1)).toBe(200);
+		// The session still belongs to the client that created it.
+		expect(await live(viaB, a2)).toBe(404);
+	});
+
+	it('checks maxSessionsPerOwner with auth even without contexts', () => {
+		const options = {
+			name: 'cfg',
+			version: '1',
+			commands: [whoami],
+			auth: {
+				resource: RESOURCE,
+				authorizationServers: [as.issuer],
+				verifier: verifier(),
+			},
+		};
+		expect(() => createMcpHandler({ ...options, maxSessionsPerOwner: 0 })).toThrow(
+			'maxSessionsPerOwner'
+		);
+		expect(() => createMcpHandler({ ...options, maxSessions: 5, maxSessionsPerOwner: 6 })).toThrow(
+			'maxSessionsPerOwner'
+		);
+		expect(() => createMcpHandler({ ...options, maxSessionsPerOwner: 5 })).not.toThrow();
 	});
 
 	it('refuses maxSessionsPerOwner without auth, where every caller is one owner', () => {

@@ -1195,7 +1195,7 @@ Create an MCP server from commands.
 | `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token, and `scopes`, `requiredScopes`, a `resolver` and `filterToolsByScope` decide each call |
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; at the cap the owner's own least recently used session is evicted, or `initialize` gets 503 (default: 1000) |
-| `maxSessionsPerOwner` | number | No | With `auth`, live HTTP sessions one principal may hold; at it, its own least recently used session is evicted (default: 100, never above `maxSessions`; throws without `auth`) |
+| `maxSessionsPerOwner` | number | No | With `auth`, live HTTP sessions one issuer and subject may hold across its clients; at it, its own least recently used session is evicted (default: 100, never above `maxSessions`; checked but without effect when there are no `contexts`; throws without `auth`) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
 | `clock` | `Clock` | No | `context.clock` for every command, and the clock for HTTP session expiry (default: `systemClock`) |
 | `random` | `RandomSource` | No | `context.random` for every command (default: `systemRandom`) |
@@ -1270,7 +1270,7 @@ The `/sse` and `/message` routes below are the deprecated 2024-11-05 transport. 
 | `-32603` | Internal error (for example a throwing `createContext`); details only in `devMode` | 200 |
 | `-32000` | Transport rejection: Host, Origin, Content-Type or body size | 400, 403, 413 or 415 |
 | `-32001` | Unknown or expired `Mcp-Session-Id` | 404 |
-| `-32002` | `initialize` refused: the session store is full and the caller holds no session; retry after `Retry-After` | 503 |
+| `-32000` with `data.code: "SESSION_LIMIT_REACHED"` | `initialize` refused: the session store is full and the caller holds no session; retry after `Retry-After` (also `data.retryAfter`, in seconds) | 503 |
 
 Command failures are not protocol errors: they stay AFD `CommandResult` failures inside `result`. `/batch` and `/stream` are not JSON-RPC and answer errors with `{ success: false, error: { code, message, suggestion } }`.
 
@@ -1288,8 +1288,8 @@ A session belongs to the owner that created it, and only that owner can use it o
 
 - **Owner.** With `auth`, the owner is the verified credentials' issuer, subject and client. Another principal presenting the session's ID is answered as for an unknown session. Without `auth` the transport carries no identity, so every caller is one owner and the unguessable session ID (a random UUID) is the only binding: anyone holding it can use the session.
 - **Ending a session.** There is no explicit close (`DELETE` is not served). A session ends when it is idle for `sessionIdleTimeoutMs`, when its own owner's `initialize` displaces it at the cap, or when the server stops.
-- **The quota.** With `auth`, one owner holds at most `maxSessionsPerOwner` live sessions (default 100, never more than `maxSessions`). At the quota, its `initialize` evicts its own least recently used session, so one principal cannot fill the store.
-- **The cap.** At `maxSessions` live sessions, `initialize` evicts the least recently used session of the same owner. Only when the store is full and the owner holds no session is it refused: HTTP 503 with a `Retry-After` header, and a JSON-RPC error `-32002` carrying the request's `id`, whose suggestion is to retry after that delay or reuse a session. `@lushly-dev/afd-client` reports it as the retryable `SESSION_LIMIT_REACHED`. Another principal's session is never evicted. Without `auth`, every caller is one owner whose quota is `maxSessions`, so the least recently used session overall is evicted, as before.
+- **The quota.** With `auth`, one issuer and subject holds at most `maxSessionsPerOwner` live sessions (default 100, never more than `maxSessions`), counted across all its client IDs. At the quota, its `initialize` evicts its own least recently used session, so one subject cannot fill the store. Up to `maxSessions / maxSessionsPerOwner` distinct subjects (10 with the defaults) can still fill it between them; a new subject is then refused until sessions expire, so size the two for the subjects you expect. Without `contexts` no session is issued and the quota has no effect.
+- **The cap.** At `maxSessions` live sessions, `initialize` evicts the least recently used session of the same subject. Only when the store is full and the subject holds no session is it refused: HTTP 503 with a `Retry-After` header, and a JSON-RPC error `-32000` carrying the request's `id` and `data: { code: "SESSION_LIMIT_REACHED", suggestion, retryAfter }`, whose suggestion is to retry after that delay or reuse a session. (`-32002` is not used: MCP reserves it as the deprecated `SERVER_NOT_INITIALIZED`.) `@lushly-dev/afd-client`'s `connect()` and calls report it as the retryable `SESSION_LIMIT_REACHED`. Another principal's session is never evicted. Without `auth`, every caller is one owner whose quota is `maxSessions`, so the least recently used session overall is evicted, as before.
 
 ### SSE Connections
 

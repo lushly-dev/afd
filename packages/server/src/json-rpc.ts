@@ -16,8 +16,6 @@ export const JsonRpcErrorCode = {
 	SERVER_ERROR: -32000,
 	/** The `Mcp-Session-Id` is unknown or expired. */
 	SESSION_NOT_FOUND: -32001,
-	/** `initialize` refused: the session store is full and the caller owns no session (503). */
-	SESSION_LIMIT_REACHED: -32002,
 } as const;
 
 export type JsonRpcId = string | number | null;

@@ -40,6 +40,56 @@ export class HttpStatusError extends Error {
 	}
 }
 
+/** The `data.code` an AFD server gives a refused `initialize` when its session store is full. */
+export const SESSION_LIMIT_REACHED = 'SESSION_LIMIT_REACHED';
+
+/**
+ * The server refused `initialize` because its session store is full (HTTP 503 with a JSON-RPC
+ * error whose `data.code` is `SESSION_LIMIT_REACHED`). Nothing ran; retry after `retryAfterSeconds`.
+ */
+export class SessionLimitError extends Error {
+	readonly code = SESSION_LIMIT_REACHED;
+	readonly retryable = true;
+
+	constructor(
+		message: string,
+		readonly suggestion: string,
+		/** The delay the server gave, from `Retry-After` or `data.retryAfter`, in seconds. */
+		readonly retryAfterSeconds: number | undefined
+	) {
+		super(message);
+		this.name = 'SessionLimitError';
+	}
+}
+
+function seconds(value: unknown): number | undefined {
+	const parsed = typeof value === 'string' ? Number(value.trim()) : value;
+	return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0
+		? parsed
+		: undefined;
+}
+
+/**
+ * The `SessionLimitError` an HTTP response stands for: only a 503 whose JSON-RPC error carries
+ * `data.code: 'SESSION_LIMIT_REACHED'`. A bare JSON-RPC code, or that code on another status, is not one.
+ */
+export function sessionLimitError(
+	status: number,
+	retryAfter: string | null | undefined,
+	error: McpError
+): SessionLimitError | undefined {
+	const data = error.data;
+	if (status !== 503 || typeof data !== 'object' || data === null) return undefined;
+	if (!('code' in data) || data.code !== SESSION_LIMIT_REACHED) return undefined;
+	const delay = seconds(retryAfter) ?? seconds('retryAfter' in data ? data.retryAfter : undefined);
+	return new SessionLimitError(
+		error.message || 'The server has too many live MCP sessions',
+		serverSuggestion(data) ??
+			`Retry after ${delay ?? 'the'} seconds the server gave in Retry-After, or reuse a session you hold`,
+		delay
+	);
+}
+
 /** The server answered with a JSON-RPC error object. */
 export class JsonRpcResponseError extends Error {
 	readonly code: number;
@@ -102,12 +152,6 @@ const JSON_RPC_CODES: Record<number, JsonRpcCodeMapping> = {
 		retryable: true,
 		suggestion: 'The MCP session is unknown or expired; reconnect to start a new session',
 	},
-	[-32002]: {
-		code: 'SESSION_LIMIT_REACHED',
-		retryable: true,
-		suggestion:
-			'The server holds as many MCP sessions as it allows; retry after the delay its Retry-After header gives',
-	},
 };
 
 function serverSuggestion(data: unknown): string | undefined {
@@ -138,6 +182,7 @@ export function isOutcomeUnknown(error: unknown): boolean {
 	if (error instanceof JsonRpcResponseError) {
 		return JSON_RPC_CODES[error.code]?.outcomeUnknown === true;
 	}
+	if (error instanceof SessionLimitError) return false;
 	if (error instanceof HttpStatusError) return error.status < 400 || error.status >= 500;
 	return true;
 }
@@ -147,6 +192,17 @@ export function isOutcomeUnknown(error: unknown): boolean {
  */
 export function toCommandError(error: unknown): CommandError {
 	if (error instanceof JsonRpcResponseError) return jsonRpcErrorToCommandError(error);
+	if (error instanceof SessionLimitError) {
+		return {
+			code: error.code,
+			message: error.message,
+			suggestion: error.suggestion,
+			retryable: true,
+			...(error.retryAfterSeconds === undefined
+				? {}
+				: { details: { retryAfterSeconds: error.retryAfterSeconds } }),
+		};
+	}
 	if (error instanceof NotConnectedError) {
 		return {
 			code: 'NOT_CONNECTED',

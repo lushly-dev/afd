@@ -1,6 +1,7 @@
 import type { McpRequest } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { McpClient, SERVER_DEADLINE_MARGIN_MS } from './client.js';
+import { isOutcomeUnknown, SessionLimitError, toCommandError } from './client-errors.js';
 
 type ToolCallHandler = (request: McpRequest, init: RequestInit | undefined) => Promise<unknown>;
 
@@ -234,7 +235,8 @@ describe('McpClient.call() error mapping', () => {
 		[-32603, 200, 'INTERNAL_ERROR', true],
 		[-32000, 403, 'REQUEST_REJECTED', false],
 		[-32001, 404, 'SESSION_NOT_FOUND', true],
-		[-32002, 503, 'SESSION_LIMIT_REACHED', true],
+		[-32002, 503, 'JSON_RPC_ERROR', false],
+		[-32000, 503, 'REQUEST_REJECTED', false],
 		[-32099, 200, 'JSON_RPC_ERROR', false],
 	])('maps JSON-RPC %i (HTTP %i) to %s', async (code, status, expected, retryable) => {
 		mockServer(rpcError(code, 'Server said no', undefined, status));
@@ -254,15 +256,79 @@ describe('McpClient.call() error mapping', () => {
 		expect(Object.getOwnPropertyNames(result.error)).not.toContain('stack');
 	});
 
-	it('tells a caller refused at the session limit to retry after Retry-After, not to fix headers', async () => {
-		mockServer(rpcError(-32002, 'Too many live MCP sessions', undefined, 503));
+	it('reads a session-limit refusal only from HTTP 503 with data.code SESSION_LIMIT_REACHED', async () => {
+		const limit = { code: 'SESSION_LIMIT_REACHED', retryAfter: 60 };
+		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 503));
 		const client = await connect();
 
 		const result = await client.call('item-create', {});
 
-		expect(result.error).toMatchObject({ code: 'SESSION_LIMIT_REACHED', retryable: true });
+		expect(result.error).toMatchObject({
+			code: 'SESSION_LIMIT_REACHED',
+			retryable: true,
+			details: { retryAfterSeconds: 60 },
+		});
 		expect(result.error?.suggestion).toContain('Retry-After');
 		expect(result.error?.suggestion).not.toMatch(/Host|Origin/);
+
+		// The same data.code on another status is the plain JSON-RPC error.
+		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 403));
+		expect((await client.call('item-create', {})).error).toMatchObject({
+			code: 'REQUEST_REJECTED',
+			retryable: false,
+		});
+	});
+
+	it('rejects connect() with a retryable SessionLimitError when initialize is refused', async () => {
+		const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+			if (init?.method === 'GET') return { ok: true };
+			const request = JSON.parse(String(init?.body)) as McpRequest;
+			return {
+				...jsonResponse(
+					{
+						jsonrpc: '2.0',
+						id: request.id,
+						error: {
+							code: -32000,
+							message: 'Too many live MCP sessions',
+							data: {
+								code: 'SESSION_LIMIT_REACHED',
+								suggestion: 'Retry after 30 seconds',
+								retryAfter: 60,
+							},
+						},
+					},
+					503,
+					'Service Unavailable'
+				),
+				headers: new Headers({ 'Retry-After': '30' }),
+			};
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		const client = new McpClient({ url: 'http://localhost/message', transport: 'http' });
+		client.on('error', () => undefined);
+
+		const refused = await client.connect().then(
+			() => undefined,
+			(error: unknown) => error
+		);
+
+		expect(refused).toBeInstanceOf(SessionLimitError);
+		expect(refused).toMatchObject({
+			code: 'SESSION_LIMIT_REACHED',
+			retryable: true,
+			suggestion: 'Retry after 30 seconds',
+			retryAfterSeconds: 30,
+		});
+		expect(toCommandError(refused)).toEqual({
+			code: 'SESSION_LIMIT_REACHED',
+			message: 'Too many live MCP sessions',
+			suggestion: 'Retry after 30 seconds',
+			retryable: true,
+			details: { retryAfterSeconds: 30 },
+		});
+		expect(isOutcomeUnknown(refused)).toBe(false);
+		expect(client.getStatus().state).toBe('error');
 	});
 
 	it("prefers the server's suggestion", async () => {

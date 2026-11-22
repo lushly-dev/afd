@@ -37,6 +37,8 @@ export {
 	JsonRpcResponseError,
 	NotConnectedError,
 	RequestTimeoutError,
+	SESSION_LIMIT_REACHED,
+	SessionLimitError,
 } from './client-errors.js';
 export {
 	type CommandDefinition,

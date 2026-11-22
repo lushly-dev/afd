@@ -117,6 +117,31 @@ describe('createSessionStore', () => {
 		expect(() => createSessionStore({ maxSessionsPerOwner: 0 })).toThrow('maxSessionsPerOwner');
 	});
 
+	it('at the quota evicts the least recently used session, keeping an older one in use', () => {
+		const time = clock();
+		const store = createSessionStore({ maxSessions: 10, maxSessionsPerOwner: 2, now: time.now });
+		const older = created(store.create('alice'));
+		time.advance(1);
+		const newer = created(store.create('alice'));
+		time.advance(1);
+		expect(store.get(older, 'alice')).toBeDefined();
+		const third = created(store.create('alice'));
+		expect(store.get(newer, 'alice')).toBeUndefined();
+		expect(store.get(older, 'alice')).toBeDefined();
+		expect(store.get(third, 'alice')).toBeDefined();
+	});
+
+	it('shares one quota across owners with the same quota key, and keeps each session to its owner', () => {
+		const store = createSessionStore({ maxSessions: 10, maxSessionsPerOwner: 2 });
+		const viaA = created(store.create('alice/a', 'alice'));
+		created(store.create('alice/a', 'alice'));
+		const viaB = created(store.create('alice/b', 'alice'));
+		expect(store.size).toBe(2);
+		expect(store.get(viaA, 'alice/a')).toBeUndefined();
+		expect(store.get(viaB, 'alice/a')).toBeUndefined();
+		expect(store.get(viaB, 'alice/b')).toBeDefined();
+	});
+
 	it('makes room from expired sessions of any owner before refusing', () => {
 		const time = clock();
 		const store = createSessionStore({ maxSessions: 1, idleTimeoutMs: 100, now: time.now });
