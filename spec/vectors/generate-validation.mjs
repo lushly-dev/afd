@@ -23,16 +23,22 @@ function toDefs(schema) {
 }
 
 /**
- * Moves the definitions into `property`, which gets its own `$id` and so starts a schema resource:
- * the shape of a structured-result envelope whose `data` schema has an `$id` (#1474, #1700).
+ * The CommandResult envelope a tool advertises as its `outputSchema` when its `data` schema has its
+ * own `$id`: the definitions stay inside `data`, which starts a schema resource (#1474, #1700).
+ * packages/server/src/validation-vectors.test.ts checks it equals `commandResultOutputSchema`.
  */
-function toEmbeddedResource(property, id) {
+function toResultEnvelope(id) {
 	return (schema) => {
 		const { $defs, ...rest } = toDefs(schema);
-		const inner = rest.properties[property];
 		return {
-			...rest,
-			properties: { ...rest.properties, [property]: { $id: id, ...inner, $defs } },
+			type: 'object',
+			properties: {
+				success: { type: 'boolean' },
+				data: { $id: id, ...rest.properties.data, $defs },
+				error: { type: 'object' },
+				metadata: { type: 'object' },
+			},
+			required: ['success'],
 		};
 	};
 }
@@ -390,12 +396,14 @@ export function validationCases(z) {
 			id: 'ref-embedded-resource',
 			section: 'keywords',
 			description:
-				'A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is an envelope whose data schema has an $id.',
+				'A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is the CommandResult envelope advertised for a data schema with an $id.',
 			zod: z.object({
 				success: z.boolean(),
-				data: z.object({ id: TodoId, related: z.array(TodoId).optional() }),
+				data: z.object({ id: TodoId, related: z.array(TodoId).optional() }).optional(),
+				error: z.record(z.string(), z.unknown()).optional(),
+				metadata: z.record(z.string(), z.unknown()).optional(),
 			}),
-			rewrite: toEmbeddedResource('data', 'https://afd.dev/schemas/todo-result'),
+			rewrite: toResultEnvelope('https://afd.dev/schemas/todo-result'),
 			tests: [
 				test('Valid', { success: true, data: { id: 'a', related: ['b'] } }),
 				test('The referenced constraints apply', {

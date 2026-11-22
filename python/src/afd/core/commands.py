@@ -38,6 +38,7 @@ from afd.core.actor import Actor, with_context_defaults
 from afd.core.approval import ApprovalPolicy, approval_mode
 from afd.core.clock import Clock, RandomSource
 from afd.core.result import CommandResult, execution_failure
+from afd.core.schema_registration import starts_resource
 
 logger = logging.getLogger("afd.core")
 
@@ -618,12 +619,16 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
         return True
     if not isinstance(schema, dict):
         return False
+    # A local `$ref` resolves against the nearest schema resource (spec/validation.md).
+    if starts_resource(schema):
+        root = schema
     ref = schema.get("$ref")
-    if isinstance(ref, str) and ref.startswith("#/") and ref not in seen:
+    if isinstance(ref, str) and (ref == "#" or ref.startswith("#/")):
         target: Any = root
-        for part in ref[2:].split("/"):
+        for part in ref[2:].split("/") if ref != "#" else []:
             target = target.get(part) if isinstance(target, dict) else None
-        if _accepts_null(target, root, seen | {ref}):
+        # Visited by target, since the same reference text names a target in each resource.
+        if id(target) not in seen and _accepts_null(target, root, seen | {id(target)}):
             return True
     kind = schema.get("type")
     if kind == "null" or (isinstance(kind, list) and "null" in kind):
@@ -639,7 +644,7 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
 
 def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = None) -> Any:
     """A copy of a schema whose objects no longer require a property that accepts ``null``."""
-    if root is None:
+    if root is None or starts_resource(node):
         root = node
     if isinstance(node, list):
         return [_optional_nullable_properties(item, root) for item in node]

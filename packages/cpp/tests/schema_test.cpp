@@ -89,6 +89,12 @@ TEST_CASE("a $ref resolves against the nearest schema resource") {
     afd::Json unsupported = two;
     unsupported["$defs"]["X"]["format"] = "date-time";
     CHECK_FALSE(afd::CompiledSchema::compile(unsupported).has_value());
+    // A bare fragment `$id`, a draft-07 anchor, starts no resource.
+    const auto fragment = afd::CompiledSchema::compile(afd::Json::parse(
+        R"({"type":"object","properties":{"inner":{"$id":"#inner","$ref":"#/$defs/X"}},
+            "$defs":{"X":{"type":"string"}}})"));
+    REQUIRE(fragment.has_value());
+    CHECK_FALSE(fragment->validate({{"inner", 1}}).has_value());
     // A reference inside a resource does not reach the root's definitions.
     CHECK_FALSE(afd::CompiledSchema::compile(afd::Json::parse(
                     R"({"type":"object","properties":{"inner":{"$id":"urn:afd:inner","$ref":"#/$defs/X"}},

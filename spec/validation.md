@@ -219,12 +219,13 @@ Those bounds apply like any others.
 ### Annotations
 
 These keywords are accepted and have no effect: `title`, `description`, `examples`, `deprecated`,
-`readOnly`, `writeOnly`, `$comment`, `$schema` and `$id`.
+`readOnly`, `writeOnly`, `$comment` and `$schema`.
 
-A string `$id` also starts a schema resource, as in Draft 2020-12: a `$ref` in that subschema,
-or in the subschema itself, resolves against it, so a structured-result envelope whose `data`
-schema has its own `$id` and `$defs` validates as written. The `$id` value is never resolved as a
-URI, and a `$ref` naming one is not part of the subset.
+`$id` adds no constraint, but a string `$id` starts a schema resource, as in Draft 2020-12: a
+`$ref` in that subschema, or in the subschema itself, resolves against it, so a structured-result
+envelope whose `data` schema has its own `$id` and `$defs` validates as written. A bare fragment
+such as `"#node"`, which draft-07 used as an anchor, starts no resource. The `$id` value is never
+resolved as a URI, and a `$ref` naming one is not part of the subset.
 
 ### Optional keywords
 

@@ -14,7 +14,7 @@ import re
 from datetime import date, datetime, time
 from typing import Any
 
-from afd.core.schema_registration import _reference, pattern_matches
+from afd.core.schema_registration import _reference, pattern_matches, starts_resource
 from afd.core.schema_registration import check_schema as check_schema
 
 MISSING = object()
@@ -138,7 +138,8 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
         refs: frozenset[tuple[int, int]],
     ) -> Any:
         rest = {key: child for key, child in node.items() if key != keyword}
-        sibling_data = walk(rest, current, path, errors, refs)
+        # `node` is already the innermost resource, so the copy is not one of its own.
+        sibling_data = walk_node(rest, current, path, errors, refs)
         # A type-only sibling does not transform data. Object/array siblings
         # combine the values they declare with those of the selected branch.
         if (
@@ -160,7 +161,7 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
         errors: list[dict[str, Any]],
         refs: frozenset[tuple[int, int]] = frozenset(),
     ) -> Any:
-        if not isinstance(node.get("$id"), str):
+        if not starts_resource(node):
             return walk_node(node, current, path, errors, refs)
         resources.append(node)
         try:

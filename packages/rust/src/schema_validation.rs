@@ -123,10 +123,14 @@ fn inspect(schema: &Value, root: &Value, path: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The schema resource `schema` belongs to: itself when it has its own `$id` (Draft 2020-12),
-/// else `root`, the resource around it. A local `$ref` resolves against its resource.
+/// The schema resource `schema` belongs to: itself when it has its own string `$id` (Draft
+/// 2020-12) that is not a bare fragment, which draft-07 used as an anchor; else `root`, the
+/// resource around it. A local `$ref` resolves against its resource.
 fn resource<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
-    if schema.get("$id").is_some_and(Value::is_string) {
+    if schema["$id"]
+        .as_str()
+        .is_some_and(|id| !id.starts_with('#'))
+    {
         schema
     } else {
         root
@@ -657,6 +661,18 @@ mod tests {
         assert_eq!(paths(inner.unwrap_err()), vec![json!("inner.x")]);
         let outer = validate_value(&schema, &json!({"outer": "a"}));
         assert_eq!(paths(outer.unwrap_err()), vec![json!("outer")]);
+    }
+
+    #[test]
+    fn a_fragment_id_starts_no_resource() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"inner": {"$id": "#inner", "$ref": "#/$defs/X"}},
+            "$defs": {"X": {"type": "string"}}
+        });
+        compile(&schema).unwrap();
+        let wrong = validate_value(&schema, &json!({"inner": 1}));
+        assert_eq!(paths(wrong.unwrap_err()), vec![json!("inner")]);
     }
 
     #[test]

@@ -97,11 +97,14 @@ const Json* resolve_pointer(const Json& root, std::string_view ref) {
     }
 }
 
-// The schema resource `schema` belongs to: itself when it has its own `$id` (Draft 2020-12),
-// else `base`, the resource around it. A local `$ref` resolves against its resource.
+// The schema resource `schema` belongs to: itself when it has its own string `$id` (Draft
+// 2020-12) that is not a bare fragment, which draft-07 used as an anchor; else `base`, the
+// resource around it. A local `$ref` resolves against its resource.
 const Json& resource_of(const Json& base, const Json& schema) {
     if (schema.is_object()) {
-        if (const auto id = schema.find("$id"); id != schema.end() && id->is_string()) {
+        if (const auto id = schema.find("$id");
+            id != schema.end() && id->is_string() &&
+            !id->get_ref<const std::string&>().starts_with('#')) {
             return schema;
         }
     }

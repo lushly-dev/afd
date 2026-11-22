@@ -50,6 +50,15 @@ _KEYWORDS = _ANNOTATIONS | {
 _FORMATS = {"email", "uuid", "date-time", "date", "time"}
 
 
+def starts_resource(schema: Any) -> bool:
+    """Whether ``schema`` starts a schema resource: it has its own string ``$id`` (Draft
+    2020-12) that is not a bare fragment, which draft-07 used as an anchor."""
+    if not isinstance(schema, dict):
+        return False
+    value = schema.get("$id")
+    return isinstance(value, str) and not value.startswith("#")
+
+
 def _reference(root: dict[str, Any], ref: str) -> dict[str, Any]:
     if ref == "#":
         return root
@@ -76,7 +85,7 @@ def check_schema(schema: dict[str, Any]) -> None:
             raise ValueError(f"Schema at {path} must be an object")
         # A subschema with its own `$id` starts a schema resource (Draft 2020-12), and a local
         # `$ref` inside it resolves against it.
-        if isinstance(node.get("$id"), str):
+        if starts_resource(node):
             resource = node
         for key, value in node.items():
             here = f"{path}/{key}"

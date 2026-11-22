@@ -2198,7 +2198,7 @@
 		{
 			"id": "ref-embedded-resource",
 			"section": "keywords",
-			"description": "A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is an envelope whose data schema has an $id.",
+			"description": "A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is the CommandResult envelope advertised for a data schema with an $id.",
 			"schema": {
 				"type": "object",
 				"properties": {
@@ -2226,9 +2226,15 @@
 								"minLength": 1
 							}
 						}
+					},
+					"error": {
+						"type": "object"
+					},
+					"metadata": {
+						"type": "object"
 					}
 				},
-				"required": ["success", "data"]
+				"required": ["success"]
 			},
 			"tests": [
 				{
@@ -2262,7 +2268,7 @@
 					"error": {
 						"code": "VALIDATION_ERROR",
 						"message": "Input validation failed",
-						"suggestion": "data.related.0: Too small: expected string to have >=1 characters. Expected fields: success, data",
+						"suggestion": "data.related.0: Too small: expected string to have >=1 characters. Expected fields: success, data, error, metadata",
 						"details": {
 							"errors": [
 								{
@@ -2271,7 +2277,7 @@
 									"code": "too_small"
 								}
 							],
-							"expectedFields": ["success", "data"]
+							"expectedFields": ["success", "data", "error", "metadata"]
 						}
 					}
 				},
@@ -2287,7 +2293,7 @@
 					"error": {
 						"code": "VALIDATION_ERROR",
 						"message": "Input validation failed",
-						"suggestion": "data.id: Invalid input: expected string, received number. Expected fields: success, data",
+						"suggestion": "data.id: Invalid input: expected string, received number. Expected fields: success, data, error, metadata",
 						"details": {
 							"errors": [
 								{
@@ -2297,7 +2303,7 @@
 									"expected": "string"
 								}
 							],
-							"expectedFields": ["success", "data"]
+							"expectedFields": ["success", "data", "error", "metadata"]
 						}
 					}
 				}
