@@ -1,6 +1,9 @@
 # Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
 # The data is invented, on the pack format's `example` library: `example-select` and the
 # deprecated `example-dropdown` both implement `select`, and `example-field` implements `field`.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 
 name: Get what must be kept, once per pattern
 description: >-
@@ -10,47 +13,46 @@ job: brief-with-patterns
 tags: [slice, use]
 
 steps:
-  - description: Two components of two patterns bring both patterns' statements
+  - description: Two components of two patterns bring both patterns' statements and per-component pattern links
     command: components-brief
     input:
       tags: [example-select, example-field]
     expect:
       success: true
       data:
-        content:
-          trust: content
-          components: { length: 2 }
-          patterns: { length: 2 }
+        content.trust: content
+        content.components: { length: 2 }
+        content.components.0.patterns.0.library: example
+        content.components.0.patterns.0.pattern: select
+        content.patterns: { length: 2 }
         unknown: { length: 0 }
 
-  - description: Two components of one pattern bring its statements once
+  - description: Two components of one pattern bring its keep and customize statements once
     command: components-brief
     input:
       tags: [example-select, example-dropdown]
     expect:
       success: true
       data:
-        content:
-          components: { length: 2 }
-          patterns:
-            - library: example
-              pattern: select
-              keep:
-                - id: select.keep.named
-                  text: The control has an accessible name that is not its value.
+        content.components: { length: 2 }
+        content.patterns: { length: 1 }
+        content.patterns.0.library: example
+        content.patterns.0.pattern: select
+        content.patterns.0.keep.0.id: select.keep.named
+        content.patterns.0.keep.0.text: The control has an accessible name that is not its value.
+        content.patterns.0.customize.0.id: select.customize.options
+        content.patterns.0.customize.0.text: { exists: true }
 
-  - description: A statement the caller already holds keeps its id and is not sent again
+  - description: A statement the caller already holds is omitted from pattern text without losing its id
     command: components-brief
     input:
       tags: [example-select]
-      known: [select.keep.named]
+      known: ['example/select.keep.named']
     expect:
       success: true
       data:
-        content:
-          patterns:
-            - pattern: select
-              keep:
-                - id: select.keep.named
-                  text: { notExists: true }
-        omitted: { length: 0 }
+        content.patterns: { length: 1 }
+        content.patterns.0.library: example
+        content.patterns.0.pattern: select
+        content.patterns.0.keep.0.id: select.keep.named
+        content.patterns.0.keep.0.text: { notExists: true }

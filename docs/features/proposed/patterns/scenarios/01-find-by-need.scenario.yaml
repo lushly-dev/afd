@@ -1,6 +1,10 @@
 # Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
-# The data is invented, on the pack format's `example` library: a `select` pattern that
-# `example-select` implements, and an `empty-collection` pattern with one saved copy.
+# The data is invented, on the pack format's `example` library: a `select` pattern implemented by
+# `example-select` and a `field` pattern implemented by `example-field`. Both are component-backed
+# so Slice 1 passes without Slice 2 copy serving. Saved copy discovery is covered by Jobs 6 and 10.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 
 name: Find a pattern by what a region must do
 description: >-
@@ -18,35 +22,36 @@ steps:
     expect:
       success: true
       data:
-        content:
-          trust: content
-          patterns:
-            - library: example
-              pattern: select
-              scope: control
-              implementations:
-                - kind: component
-                  tag: example-select
-                  linkage: instance
+        content.trust: content
+        content.patterns: { length: 1 }
+        content.patterns.0.library: example
+        content.patterns.0.pattern: select
+        content.patterns.0.scope: control
+        content.patterns.0.implementations: { length: 1 }
+        content.patterns.0.implementations.0.library: example
+        content.patterns.0.implementations.0.kind: component
+        content.patterns.0.implementations.0.tag: example-select
+        content.patterns.0.implementations.0.linkage: instance
 
-  - description: A need in words finds a composition and the saved copy to start from
+  - description: A need in words finds a matching pattern and its component implementation
     command: components-pattern-list
     input:
-      contains: no items
+      contains: single line of text
+      scope: control
     expect:
       success: true
       data:
-        content:
-          patterns:
-            - library: example
-              pattern: empty-collection
-              scope: composition
-              implementations:
-                - kind: copy
-                  name: collection-empty
-                  linkage: copy
+        content.patterns: { length: 1 }
+        content.patterns.0.library: example
+        content.patterns.0.pattern: field
+        content.patterns.0.scope: control
+        content.patterns.0.implementations: { length: 1 }
+        content.patterns.0.implementations.0.library: example
+        content.patterns.0.implementations.0.kind: component
+        content.patterns.0.implementations.0.tag: example-field
+        content.patterns.0.implementations.0.linkage: instance
 
-  - description: A need nothing serves is an empty answer, not a failure and not a near miss
+  - description: A need nothing serves is an empty answer with available facets, not a failure
     command: components-pattern-list
     input:
       facets:
@@ -54,5 +59,5 @@ steps:
     expect:
       success: true
       data:
-        content:
-          patterns: { length: 0 }
+        content.patterns: { length: 0 }
+        content.availableFacets.purpose: { includes: choose-one }

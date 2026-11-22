@@ -1,7 +1,12 @@
 # Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
-# The data is invented. The project under test is a second library whose `touch-select` claims
-# the `example` library's `select` pattern. It has a case for the `three-options` setup and
-# none yet for `one-chosen`.
+# The data is invented. The project under test is a second library (`touch`) whose `touch-select`
+# claims the `example` library's `select` pattern via `patternSources` in `specimen.config.json`.
+# Canonical `example/select` keep order across scenarios: 0=named, 1=escape-closes,
+# 2=shows-choice, 3=fits-narrow. `touch-select` has a case for `three-options`
+# (`touch-select-three-options`) and none yet for `one-chosen`.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 #
 # A scenario runs commands. Writing the implementation and its cases happens between them and
 # is not shown.
@@ -14,61 +19,78 @@ job: derive-an-implementation
 tags: [slice, build]
 
 steps:
-  - description: The pattern gives its requirements, its gates and the implementation to port from
+  - description: The pattern gives its requirements, editable bounds, setups, gates and reference implementation
     command: components-pattern-open
     input:
+      library: example
       pattern: select
-      sections: [keep, customize, gates, implementations]
+      sections: [keep, customize, setups, gates, implementations]
     expect:
       success: true
       data:
-        content:
-          trust: content
-          pattern:
-            library: example
-            pattern: select
-            keep:
-              - id: select.keep.named
-                gate: named
-              - id: select.keep.shows-choice
-                gate: shows-choice
-            implementations:
-              - kind: component
-                tag: example-select
-                keep:
-                  - id: select.keep.named
-                    basis: verified
+        content.trust: content
+        content.pattern.library: example
+        content.pattern.pattern: select
+        content.pattern.keep.0.id: select.keep.named
+        content.pattern.keep.0.gate: named
+        content.pattern.keep.2.id: select.keep.shows-choice
+        content.pattern.keep.2.gate: shows-choice
+        content.pattern.customize.0.id: select.customize.options
+        content.pattern.setups.three-options.text: { exists: true }
+        content.pattern.gates.named.setup: three-options
+        content.pattern.implementations.0.library: example
+        content.pattern.implementations.0.kind: component
+        content.pattern.implementations.0.tag: example-select
+        content.pattern.implementations.0.keep.0.id: select.keep.named
+        content.pattern.implementations.0.keep.0.basis: verified
 
-  - description: The new implementation is measured by the same statements, and one has no case yet
+  - description: The new implementation runs the owning library's portable gate unchanged
+    command: specimen-run
+    input:
+      id: touch-select-three-options--gate--named
+      capture: none
+    expect:
+      success: true
+      data:
+        id: touch-select-three-options--gate--named
+        outcome.status: passed
+
+  - description: Coverage measures the new implementation against the external pattern, flagging the missing setup
     command: specimen-coverage
     input:
       component: touch-select
     expect:
       success: true
       data:
-        patterns:
-          obligations: patterns@1
-          complete: false
-          implementations:
-            - pattern: select
-              tag: touch-select
-              keep:
-                - id: select.keep.named
-                  level: verified
-                - id: select.keep.shows-choice
-                  level: missing
+        patterns.obligations: patterns@1
+        patterns.complete: false
+        patterns.implementations.0.library: example
+        patterns.implementations.0.pattern: select
+        patterns.implementations.0.tag: touch-select
+        patterns.implementations.0.keep.0.id: select.keep.named
+        patterns.implementations.0.keep.0.level: verified
+        patterns.implementations.0.keep.2.id: select.keep.shows-choice
+        patterns.implementations.0.keep.2.level: missing
 
-  - description: The missing setup is proposed as a case that fails until someone completes it
+  - description: Packing while a gated setup is missing is refused so untested pattern claims never ship
+    command: specimen-pack
+    input: {}
+    expect:
+      success: false
+      error:
+        code: PATTERN_SETUP_MISSING
+        suggestion: { contains: specimen-suggest }
+
+  - description: The missing setup is proposed as a placeholder case that fails until someone completes it
     command: specimen-suggest
     input:
       component: touch-select
-      gaps: ['pattern:select.keep.shows-choice']
+      gaps: ['pattern:example/select.keep.shows-choice']
     expect:
       success: true
       data:
         component: touch-select
         status: unverified
         entries: { length: 1 }
-        suggestions:
-          - obligation: 'pattern:select.keep.shows-choice'
-            placeholder: true
+        suggestions.0.obligation: 'pattern:example/select.keep.shows-choice'
+        suggestions.0.placeholder: true
