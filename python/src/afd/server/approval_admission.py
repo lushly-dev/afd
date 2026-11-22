@@ -162,6 +162,15 @@ def admit_approval(
     )
 
 
+def mark_listed_gate(context: Any) -> None:
+    """Record that the policy an approval step's ``commands`` list gives the command the call of
+    ``context`` runs gates it, whatever name the step was called with, so a call renamed on its
+    way to the step is still checked at dispatch. A no-op outside the engine."""
+    found = _record(context)
+    if found is not None:
+        found.required = True
+
+
 def admission_required(record: Admission, policy: Any) -> bool:
     """Whether this dispatch needs an admission: the command declares a gating ``policy``, or the
     approval step required approval for this call."""

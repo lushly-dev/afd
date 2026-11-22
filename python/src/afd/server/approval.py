@@ -58,7 +58,7 @@ from afd.core.commands import CommandContext, CommandDefinition, CommandMiddlewa
 from afd.core.errors import ErrorCodes
 from afd.core.journal import _js_number, _js_string
 from afd.core.result import CommandError, CommandResult, failure
-from afd.server.approval_admission import admit_approval, gates, live_command
+from afd.server.approval_admission import admit_approval, gates, live_command, mark_listed_gate
 from afd.server.approval_relay import (
     AcceptedApproval,
     ApprovalQuestion,
@@ -452,6 +452,11 @@ def create_approval_middleware(
         # Whether a policy here may gate this call: the command's own, or the one the `commands`
         # option lists for it.
         listed_gate = gates(getattr(gated.get(command_name), "approval", None))
+        # The command the engine runs, which a middleware before this one may have called it under
+        # another name: its listed gate holds at dispatch either way, and a renamed call is refused.
+        live = live_command(context)
+        if live is not None and gates(getattr(gated.get(live.name), "approval", None)):
+            mark_listed_gate(context)
         may_gate = any(gates(policy) for policy in policies_for(command_name, context))
         # The canonical input this call is decided on, taken before anything here awaits, for a
         # command any of whose policies may hold it.

@@ -680,6 +680,29 @@ async def test_an_input_changed_before_a_second_approval_middleware_is_refused()
     assert handled == []
 
 
+async def test_a_call_renamed_on_its_way_to_the_approval_middleware_keeps_its_list_gate():
+    ran: list[str] = []
+
+    @define_command(name="todo-wipe", description="Wipe todos; its gate is only in the list")
+    async def wipe(input: Any) -> CommandResult[Any]:
+        ran.append("wipe")
+        return success(None)
+
+    approval = create_approval_middleware(
+        secret=SECRET, commands=[_Listed("todo-wipe", "required")]
+    )
+
+    # Asks the middleware about an ungated name, then lets the listed command through.
+    async def rename(name, input, context, next_fn):
+        return await approval("todo-other", input, context, next_fn)
+
+    registry = create_direct_registry([wipe], middleware=[rename])
+    result = await registry.execute("todo-wipe", {})
+    assert result.success is False
+    assert result.error.code == "APPROVAL_UNAVAILABLE"
+    assert ran == []
+
+
 # ─── An input changed while the middleware decides ──────────────────────────
 
 
