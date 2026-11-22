@@ -18,7 +18,7 @@ from botcore.commands.disk.scan import (
     newest_mtime,
 )
 from botcore.commands.disk.settings import MachineSettings, expand
-from botcore.commands.disk.steps import command, doing
+from botcore.commands.disk.steps import command, doing, each
 
 
 def _tool_out(args: list[str], cwd: Path | None) -> str | None:
@@ -227,7 +227,8 @@ def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | 
     if not wildcard:
         return ([base] if exists(base) else []), None
     try:
-        return sorted(Path(e.path) for e in os.scandir(base) if not e.is_symlink()), None
+        found = each("reading", base, os.scandir(base))
+        return sorted(Path(e.path) for e in found if not e.is_symlink()), None
     except OSError:
         return [], None
 

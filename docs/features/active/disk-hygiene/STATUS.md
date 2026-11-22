@@ -36,7 +36,9 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   working at that minute was recorded as waiting, a busy collection could hold the run, and
   a host that called the command kept a thread running after it returned. A waiting step is
   now left after five minutes, a working one is never cut short, and only the scheduler's
-  own process leaves anything behind.
+  own process leaves anything behind. The second pass found that a step left in a read
+  could go on to remove things once the read came back, after the run had reported it as
+  waiting. A step that is left is now told so at its next word and starts nothing more.
 - **Tried on Random with the question still open**, as a scheduled program with shortened
   waits and a reclaim that removes nothing: 20 seconds in, the status named `/Volumes/Dev`
   and what to allow; the collection ran and was shared; the run ended by itself. The first

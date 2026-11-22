@@ -24,6 +24,7 @@ from botcore.commands.skill_usage import claude_code, t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
+    SHARING,
     InvalidMachine,
     Local,
     append_events,
@@ -46,9 +47,6 @@ FULL_EVERY = timedelta(days=7)  # then read everything: a thread moved here can 
 GIT_SECONDS = 30.0
 SKILL_DIRS = (".claude/skills", ".agents/skills", ".codex/skills")
 UNKNOWN_PROJECT = "unknown"
-# What the collection says it is doing while it writes the shared folder: the hourly job
-# reads it to tell a shared folder that does not answer from a collection that did not run
-SHARING = "writing the shared folder"
 _PATHSPECS = tuple(f":(glob){folder}/*/SKILL.md" for folder in SKILL_DIRS)
 _REMOTE = re.compile(r"[:/]([^/:\s]+/[^/\s]+?)(?:\.git)?/?$")
 

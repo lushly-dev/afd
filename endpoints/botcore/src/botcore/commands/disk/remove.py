@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.scan import long_path
-from botcore.commands.disk.steps import doing
+from botcore.commands.disk.steps import doing, each
 
 REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 DIRECTORY = 0x10  # FILE_ATTRIBUTE_DIRECTORY
@@ -106,7 +106,7 @@ def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
     doing("removing", where)
     empty = True
     with os.scandir(dir_fd) as entries:
-        children = list(entries)
+        children = list(each("removing", where, entries))
     if any(child.name == ".git" for child in children):
         out.fail(where, "holds a git checkout; left in place")
         return False
@@ -244,7 +244,8 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             ok = False
             continue
         try:
-            names = os.listdir(current)
+            with os.scandir(current) as entries:
+                names = [entry.name for entry in each("removing", current, entries)]
         except OSError as exc:
             out.fail(current, exc)
             ok = False

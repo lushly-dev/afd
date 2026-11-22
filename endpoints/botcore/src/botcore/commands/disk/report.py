@@ -62,7 +62,7 @@ from botcore.commands.disk.settings import (
     read_repo_disk_config,
     t3_worktree_roots,
 )
-from botcore.commands.disk.steps import doing
+from botcore.commands.disk.steps import doing, each
 from botcore.config import DiskConfig
 
 MIN_GIT_SECONDS = 10.0
@@ -594,7 +594,8 @@ def _orphans(ctx: Context, known: set[str]) -> list[dict]:
 def _children(folder: Path) -> list[Path]:
     doing("reading", folder)
     try:
-        return [Path(e.path) for e in os.scandir(folder) if e.is_dir(follow_symlinks=False)]
+        return [Path(e.path) for e in each("reading", folder, os.scandir(folder))
+                if e.is_dir(follow_symlinks=False)]
     except OSError:
         return []
 

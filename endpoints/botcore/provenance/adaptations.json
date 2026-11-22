@@ -37,7 +37,7 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "9e6f82106ccc4cf755fe5a9b7e4ba6c96dddaff6fb4fe37d732535dc9a631300",
+      "current_import_sha256": "98c8f91104d24ae0b611e1f59fc22284aba5c6d152c04c5a48a8ca8b346a2025",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
@@ -2358,7 +2358,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d2d505a9bf0864a4240dd6da861ed69fe492937df2fb8d6575cd6ace018de9ab",
+      "current_import_sha256": "02a05059a1b6af62f249a66c70ec178e308a2fc8204a688445dedcc9e2212bdc",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2369,7 +2369,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3b9d489360acf1601e8f8ddb2a92437f0fcccfc7b42f42382cfdd516b4e26b5f",
+      "current_import_sha256": "4a1528c062983eaa9a010ece321ce327d3569ef3a9ad5b85c9ad53a294f2e071",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2380,7 +2380,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c5dd38ba36411421c01b5d06fe61760c2bdfb2dab22bb9bde824aab0bf49e248",
+      "current_import_sha256": "f4bd552471cf5797353954dfa2ac99edf20690999a8a58f2c0d5fc881b2f475c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2446,7 +2446,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "15808866e050ec3e0fa081cb6fd61898251f15703e568d0ca62c876db81a8a54",
+      "current_import_sha256": "3d2d5f22c11b669beb8b001b5d59cbfb9987fa569ba8a0eab8595f68e7a7b0aa",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2457,7 +2457,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "108a1b073b998540f75e81c3ee7cdc0af26ccade246dc2c6436e18860e1d0f1f",
+      "current_import_sha256": "ce659a1f49c69aa1d1f9a400f27e69476c922894704cf51e104512d43036dd33",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2468,7 +2468,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6572fdc7b0312934e35fc29108156764e3e292965ba6b7953a9c74e784dcb20e",
+      "current_import_sha256": "baacb8c8a969297e8deec633512112f04005d1ff53425c969c528c71526753e7",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: deep and long-path walks, Windows lock record (lushly-dev/afd#1688, #1689); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); git gc no longer makes every worktree look active (#1814); git gc no longer makes every worktree look active (#1814): review fixes; The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2490,10 +2490,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7464f2e42744643b925be8be28e6214cb2aa137f8e299517786b4b4a04860b6c",
+      "current_import_sha256": "841a335c72bc023afbefad3ae1f14ed49f9d4b06c68056a3f3294d495f445293",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903)"
     },
     {
       "path": "src/botcore/commands/disk/setup.py",
@@ -2501,7 +2501,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8ab03b18b7cb17fafd1b544bc43a4475959903f0b1366bcd8a7a373367d946ec",
+      "current_import_sha256": "646de9d7d269d9271ee9f9877fdecdc534555eb66c0f0fa52a692f87f8c3b074",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2512,7 +2512,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7aa8422fdbea199832590bbac257e93acfdc5b430cc114248f064bc98a7caa6d",
+      "current_import_sha256": "2e4e09791a28cd6c3b182acd70273a87feacd6996cb8ce52357240915c3c834e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2696,7 +2696,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fd309074b1a8a55c4c83cf7d6fd959892c4c565eb67a6c6e9d34986dab3f200b",
+      "current_import_sha256": "43eade0299d640a1d75b5a4841f3b6d8dea452ee7d09c1dd08642b02cbf08038",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -2729,10 +2729,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6d665d7a92886fe2ee6a11f2379924d74b1fa687dcc5627f305e252ed95d1461",
+      "current_import_sha256": "35b379057e67805583e94b112861c76136207c8641bd9617d2f14cd03e6c30f8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903)"
     },
     {
       "path": "src/botcore/commands/skill_usage/t3.py",
@@ -2800,7 +2800,7 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "1e7709b6c7d4d71ec56d5965045e99606db9dee919f2d5396449cb049d334b65",
+      "current_import_sha256": "bffce6a82bce1de29f83660fa16fe27d1fa2e3124946828e0c81988251db614e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -4405,7 +4405,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "39844273e35cd383f65614aba92e5c17607a6279d899d3b818466afe3bdc933e",
+      "current_import_sha256": "a45f896e5a7979e7a44bc2e4feb8e428befdab3f11e51451dd5fe121cf50f0a2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903)"
@@ -6285,7 +6285,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c0180e0194228d32899456727766daf103544fd5b3cf4d88b95d5b32c10c37d2",
+      "current_import_sha256": "bd958d58a22b0ae4e7af790d0d89253e22b8835c7df671018f3bf26229dc56e9",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903)"

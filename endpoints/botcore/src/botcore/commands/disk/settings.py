@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from botcore.commands.disk.git import GitError, git_out
+from botcore.commands.disk.steps import doing
 from botcore.config import DiskConfig
 
 SETTINGS_ENV = "BOTCORE_DISK_SETTINGS"
@@ -234,6 +235,7 @@ def t3_worktree_roots(settings: MachineSettings) -> tuple[list[Path], bool]:
     home = Path.home()
     values = [str(home / ".t3" / "worktrees")]
     read_ok = True
+    doing("reading", path)
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, ValueError):

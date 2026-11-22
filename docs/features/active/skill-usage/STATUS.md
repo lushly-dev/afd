@@ -219,7 +219,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21 (see Findings); Hero to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases and share a folder since 2026-11-21; the Air collects hourly, Random once its owner has allowed the job to read its external volume (see Findings); Hero to come.
 
 - A shared folder the hourly job cannot read (#1903): in this pull request.
 

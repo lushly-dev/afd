@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from botcore.commands.disk.steps import command, doing
+from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskRegenerable
 
 DAY = 86400.0
@@ -464,7 +464,7 @@ def find_candidates(
         folder, prefix, depth = stack.pop()
         doing("reading", folder)
         try:
-            children = list(os.scandir(folder))
+            children = list(each("reading", folder, os.scandir(folder)))
         except OSError:
             complete = False
             continue
@@ -520,7 +520,7 @@ def allocated(path: Path, deadline: float) -> int | None:
             if os.name == "nt" and getattr(info, "st_file_attributes", 0) & 0x400:
                 continue  # a junction
             try:
-                stack.extend(Path(e.path) for e in os.scandir(current))
+                stack.extend(Path(e.path) for e in each("measuring", current, os.scandir(current)))
             except OSError:
                 pass
             continue
@@ -547,7 +547,7 @@ def newest_mtime(path: Path, depth: int = 1) -> float | None:
         for folder in level:
             doing("reading", folder)
             try:
-                entries = list(os.scandir(folder))
+                entries = list(each("reading", folder, os.scandir(folder)))
             except OSError:
                 continue
             for child in entries:

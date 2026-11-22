@@ -374,10 +374,12 @@ when it failed `error` and `failing_since`. `disk_work` is the same for the disk
 the owner's answer or the drive will change it; a disk step that came back failed is a
 warning. So is an installed job with no check on record, or none for three hours.
 
-The status reads what the job wrote first, then gives the machine 20 seconds to answer for
-the scheduler, the volumes and Cargo's settings. When it does not, `problems` says what the
-status was reading, `schedule` is null and `volumes` empty, and the rest is what the job
-last wrote.
+Everything the status reads has 20 seconds in all: the settings and what the job wrote
+first, then the scheduler, the volumes and Cargo's settings as they are now. When the
+machine does not answer, `problems` says what the status was reading, `schedule` is null and
+`volumes` empty, and the rest is what the job last wrote, the idle-worktree warnings
+included. The read is left where it waits, and a status asked again waits for that one.
+When the job's own files do not answer the error is `DISK_STATE_UNANSWERED`.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
@@ -391,20 +393,27 @@ branch still points there, on a recreated branch if it was deleted, else detache
 ## disk_run(force=False, own_process=False)
 What the job runs: checks free space and exits, unless a watched volume is low or the last
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
-low. After the disk work it collects skill usage (`skill_usage_collect`), for at most five
-minutes: a failure, a wrong machine name or a collection that does not come back never fails
-or holds the job. `skill_usage_collect = false` in the machine settings turns it off.
+low. After the disk work it collects skill usage (`skill_usage_collect`). In the scheduler's
+run the collection has five minutes: a failure, a wrong machine name or a collection that
+does not come back never fails or holds the job. `skill_usage_collect = false` in the machine
+settings turns it off.
 
 The scheduler's run (`botcore disk-run`, which passes `own_process=True`) always ends. The
 disk work and the collection are steps that say what they are doing. The disk work is waited
 for while it works, however long, and is never cut short; once it has said nothing for five
-minutes beyond a command's own timeout it is waiting, and the run goes on without it. What
-is left goes with the process. `disk-status` then names what the disk work was doing
-(`disk_work.waiting_on`) as a problem. A disk step that came back failed, or with failures in
-its receipt, is a warning. Errors: `DISK_RUN_STALLED` (the disk work only waits),
-`DISK_RUN_FAILED` (it raised), `DISK_STATE_UNANSWERED` (the job's own settings or state file
-did not answer in 30 seconds). Called with `own_process=False`, from a program that lives
-on, it waits for its steps and leaves nothing running.
+minutes beyond a command's own timeout it is waiting, and the run leaves it. A step that is
+left starts nothing more: it stops at its next word, or when the system lets go of the read
+it waits in, and the next hour's run starts again. `disk-status` then names what the disk
+work was doing (`disk_work.waiting_on`) as a problem. A disk step that came back failed is a
+warning; failures in a reclaim's receipt are the problem the receipt already raises. Errors:
+`DISK_RUN_STALLED` (the disk work only waits), `DISK_RUN_FAILED` (it raised),
+`DISK_STATE_UNANSWERED` (the job's own settings or state file did not answer in 30 seconds,
+or could not be written).
+
+Called with `own_process=False`, from a program that lives on, it waits for its steps however
+long they take and records what they wait for meanwhile. If that call is cancelled or fails,
+its steps are told to stop and given ten seconds; one that the system holds in a read stays
+there until it is let go, and then stops.
 
 On macOS a read that waits is most often the system asking the owner: a scheduled program is
 asked at the screen before it reads an external or network volume, files a cloud drive's app

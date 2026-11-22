@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.settings import expand, load_machine_settings
+from botcore.commands.disk.steps import doing
 from botcore.commands.skill_usage.events import Event
 
 STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
@@ -343,6 +344,10 @@ def _earlier(folder: Path, events: list[Event], sessions: dict[str, dict]) -> bo
     ) <= set(sessions)
 
 
+# What a collection says it is doing while it reads or writes the shared folder: the hourly
+# job reads it to tell a shared folder that does not answer from a collection that did not run
+SHARING = "writing the shared folder"
+
 def publish(directory: Path, shared: Path, machine: str) -> bool:
     """Write this machine's record to its own folder in the shared one. Whether anything
     was written: a file that did not change is left alone, so a sync has nothing to send.
@@ -356,6 +361,9 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     not there, and a new folder in its place would hide that. Nor is another record's
     folder written over: two machines that took one name would each hide the other.
     """
+    # what the hourly job is told when this does not come back names the folder that was
+    # being read: the shared one, or this machine's own
+    doing(SHARING, shared)
     if not shared.is_dir():
         raise SharedUnavailable(f"{shared} is not a folder this machine can see")
     target = shared / machine
@@ -364,9 +372,11 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
             f"{target} is where this machine keeps its own record: name another folder as "
             "the shared one"
         )
+    doing("reading this machine's record in", directory)
     state = load_state(directory)
     events, unreadable = load_events(directory)
     sessions = load_sessions(directory)
+    doing(SHARING, shared)
     theirs = _load_json(target / STATE_FILE).get("record_id")
     if theirs and theirs != state.get("record_id") and not _earlier(target, events, sessions):
         raise SharedUnavailable(

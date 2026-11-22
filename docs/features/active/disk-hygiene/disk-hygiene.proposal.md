@@ -345,13 +345,15 @@ Platform traps the implementation must handle and test:
 - **macOS privacy prompts.** A scheduled program needs the owner's consent to read removable
   and network volumes, files a cloud drive's app manages, and some home folders. macOS asks at
   the screen and holds the read until someone answers. So on macOS every run reads each
-  folder it will need before anything else: the question then comes up in the run setup
-  starts, with the owner present, and not in the first reclaim the schedule runs alone. No
-  scheduled run waits for ever. The disk work is a step: the job waits for it while it says
-  it is working and leaves it once it has said nothing for five minutes; `disk-status` names
-  the folder it waited for and the program to allow; and a denied read reports "no
-  permission". The status itself gives the machine 20 seconds, so it cannot wait at the
-  folder it is asked about.
+  folder it will need once the volumes are checked and before it decides whether to reclaim:
+  the question then comes up in the run setup starts, with the owner present, and not in the
+  first reclaim the schedule runs alone. No scheduled run waits for ever. The disk work is a
+  step: the job waits for it while it says it is working and leaves it once it has said
+  nothing for five minutes. A step that is left starts nothing more, and `disk-status` names
+  the folder it waited for and the program to allow. A read the owner denied is an answer:
+  the hourly check goes on, and the reclaim that needs the folder reports "no permission".
+  The status itself gives everything it reads 20 seconds, so it cannot wait at the folder it
+  is asked about.
 - **Windows deletion.** Paths longer than 260 characters, read-only files (git marks pack files
   read-only) and files held open by another process all make a plain delete fail.
 - **Windows scheduling.** Tasks default to not running on battery and flash a console window;

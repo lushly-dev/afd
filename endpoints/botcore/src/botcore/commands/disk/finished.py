@@ -30,7 +30,7 @@ from pathlib import Path
 
 from botcore.commands.disk.git import GitError, git_out, path_key
 from botcore.commands.disk.scan import compile_pattern
-from botcore.commands.disk.steps import command, doing
+from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskConfig
 
 KEEP_MARK = "botcore-keep until="
@@ -219,7 +219,7 @@ def _inside_rebuildable(
             return f"{rel} is too large to check in time"
         doing("reading", current)
         try:
-            entries = list(os.scandir(current))
+            entries = list(each("reading", current, os.scandir(current)))
         except OSError:
             return f"{here} cannot be read"
         seen += len(entries)
