@@ -114,11 +114,16 @@ function notMember(actor: AccessActorV1): CommandResult<never> {
  * of the workspace. Its refusal is journaled with the scope the call asked for, before any other line.
  */
 export function lineZero(
-	scope: Pick<ScopeRuntime, 'membership' | 'workspace' | 'note'>,
+	scope: Pick<ScopeRuntime, 'membershipOf' | 'workspace' | 'note'>,
 	call: CommandContext & { scope?: { workspace: string; project?: string } },
-	name: string
+	name: string,
+	/** The symbol the server kernel marks its own calls under (9.5): such a call is the kernel's, not a person's. */
+	own?: symbol
 ): CommandResult<never> | undefined {
-	if (!gatedByLineZero(name) || inWorkspace(scope.membership, call.actor)) return undefined;
+	if (own !== undefined && (call as unknown as Record<symbol, unknown>)[own] !== undefined)
+		return undefined;
+	// The call's membership: on the server, its principal's alone, read for this request (9.5).
+	if (!gatedByLineZero(name) || inWorkspace(scope.membershipOf(call), call.actor)) return undefined;
 	call.scope ??= { workspace: scope.workspace.id };
 	scope.note(call.traceId, { scope: call.scope });
 	return notMember(call.actor);

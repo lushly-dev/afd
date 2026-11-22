@@ -6,6 +6,7 @@
 
 import { type AccessActorV1, decideAccess, type MembershipV1 } from './access.js';
 import { createRecordCache, type RecordCache } from './cache.js';
+import { NO_MEMBERS, type PrincipalLookup } from './principal.js';
 import {
 	type AgentMemberV1,
 	PROJECT_TABLE,
@@ -70,6 +71,13 @@ export interface ScopeRuntime {
 	 */
 	allows(actor: AccessActorV1, scope: ScopeV1): boolean;
 	/**
+	 * The membership a decision for `call` reads (phase 3 specification, 9.5): on a principal-gated kernel, the call's
+	 * principal's, found by its actor, else none; in a browser, {@link ScopeRuntime.membership}.
+	 */
+	membershipOf(call: { actor?: unknown }): MembershipV1;
+	/** The agent member a decision for `call` reads (9.5): the principal's connected agent, or the kernel's table's. */
+	agentOf(call: { actor?: unknown }): AgentMemberV1 | undefined;
+	/**
 	 * The membership a browser kernel decides with (phase 3 specification, 3.3 and 7.6): `local` mode's,
 	 * where every actor is a member and an owner, unless the host gave stage A the probe's.
 	 */
@@ -105,7 +113,9 @@ export interface ScopeRuntime {
 
 export function createScopeRuntime(
 	workspace: { id: string; name: string },
-	membership: MembershipV1
+	membership: MembershipV1,
+	/** A principal-gated kernel's lookup (9.5): every decision reads the call's principal, never the kernel's state. */
+	principalOf?: PrincipalLookup
 ): ScopeRuntime {
 	let active: ScopeV1 = { workspace: workspace.id };
 	const projects = createRecordCache<ProjectV1>(PROJECT_TABLE);
@@ -123,14 +133,20 @@ export function createScopeRuntime(
 			active = scope;
 		},
 		project,
+		membershipOf: (call) =>
+			principalOf ? (principalOf(call.actor)?.membership ?? NO_MEMBERS) : runtime.membership,
+		agentOf: (call) =>
+			principalOf
+				? principalOf(call.actor)?.agent
+				: // The table holds only `agt_` ids, and `decideAccess` reads the record only for one.
+					runtime.agents?.get((call.actor as { id?: string } | undefined)?.id as string),
 		allows: (actor, scope) =>
 			decideAccess({
 				actor,
 				scope,
 				project: scope.project === undefined ? undefined : projects.get(scope.project),
-				membership: runtime.membership,
-				// The table holds only `agt_` ids, and `decideAccess` reads the record only for one.
-				agent: runtime.agents?.get(actor?.id as string),
+				membership: runtime.membershipOf({ actor }),
+				agent: runtime.agentOf({ actor }),
 			}).allowed,
 		opensIn(instance, levels, inProject) {
 			if (inProject === undefined) return levels.includes('workspace');

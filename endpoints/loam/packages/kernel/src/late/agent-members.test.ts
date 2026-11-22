@@ -1065,3 +1065,111 @@ describe("P3-E5: step 6's final check", () => {
 		expect((await made.store.list(AGENT_MEMBER_TABLE)).data).toEqual([]);
 	});
 });
+
+describe("P3-E8's kernel half: connected agents, from the provider's table (9.2, 5.3; step 7)", () => {
+	const CONNECTED = 'agt_cccccccccccccccccccc';
+	/** Bea's connected agent, as `loamServerPlugin`'s endpoint answers it. */
+	const beaConnected = (extra: Partial<AgentMemberV1> = {}) => ({
+		id: CONNECTED,
+		workspace: 'personal',
+		kind: 'connected' as const,
+		name: 'Claude Code',
+		sponsor: BEA,
+		installedBy: BEA,
+		client: { id: 'https://claude.example/client.json', host: 'claude.example' },
+		access: { workspace: true, projects: 'sponsor' as const },
+		status: 'active' as const,
+		scopes: ['loam:read', 'loam:write'],
+		createdAt: 10,
+		updatedAt: 10,
+		updatedBy: BEA,
+		...extra,
+	});
+	async function withConnected(extra: Partial<AgentMemberV1> = {}) {
+		const made = await provider();
+		const removeAgent = vi.fn(async () => {});
+		const disconnectAgent = vi.fn(async () => {});
+		Object.assign(made.account, {
+			agents: vi.fn(async () => [beaConnected(extra)]),
+			removeAgent,
+			disconnectAgent,
+		});
+		return { ...made, removeAgent, disconnectAgent };
+	}
+
+	it('P3-E8: `agent-member-list` and `-get` show a connected agent beside the installed ones, filtered for the caller', async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'cy@example.com');
+		const listed = await made.kernel.call<{ agents: AgentMemberRowV1[] }>('agent-member-list');
+		expect(listed.success).toBe(true);
+		const row = listed.data?.agents.find((agent) => agent.id === CONNECTED);
+		expect(row).toMatchObject({
+			kind: 'connected',
+			sponsor: BEA,
+			sponsorName: 'Bea',
+			status: 'active',
+		});
+		expect(row).not.toHaveProperty('scopes');
+		const got = await made.kernel.call<AgentMemberRowV1>('agent-member-get', { agent: CONNECTED });
+		expect(got.data).toMatchObject({ id: CONNECTED, kind: 'connected' });
+		const members = await made.kernel.call<{ agents: AgentMemberRowV1[] }>('member-list');
+		expect(members.data?.agents.map((agent) => agent.id)).toContain(CONNECTED);
+	});
+
+	it("P3-E8: `account-agent-list` holds the person's own alone, and `-disconnect` names only one of them", async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'bea@example.com');
+		const own = await made.kernel.call<{ agents: { agent: string; clientHost: string }[] }>(
+			'account-agent-list'
+		);
+		expect(own.data?.agents).toEqual([
+			expect.objectContaining({ agent: CONNECTED, clientHost: 'claude.example', status: 'active' }),
+		]);
+		expect((await made.kernel.call('account-agent-disconnect', { agent: CONNECTED })).success).toBe(
+			true
+		);
+		expect(made.disconnectAgent).toHaveBeenCalledWith(CONNECTED);
+		await switchTo(made.kernel, 'cy@example.com');
+		expect(
+			(await made.kernel.call<{ agents: unknown[] }>('account-agent-list')).data?.agents
+		).toEqual([]);
+		expect(
+			(await made.kernel.call('account-agent-disconnect', { agent: CONNECTED })).error?.code
+		).toBe('AGENT_MEMBER_NOT_FOUND');
+		expect(made.disconnectAgent).toHaveBeenCalledTimes(1);
+		// A human command: an agent on the person's behalf is refused it.
+		expect(
+			(await made.kernel.agent.call('account-agent-disconnect', { agent: CONNECTED })).error?.code
+		).toBe('HUMAN_REQUIRED');
+	});
+
+	it("P3-E8: an owner's `agent-member-remove` of a connected agent goes to the provider, `forget` with it, recorded", async () => {
+		const made = await withConnected();
+		await signIn(made.kernel, 'olu@example.com');
+		expect((await made.kernel.call('agent-member-remove', { agent: CONNECTED })).success).toBe(
+			true
+		);
+		expect(
+			(await made.kernel.call('agent-member-remove', { agent: CONNECTED, forget: true })).success
+		).toBe(true);
+		expect(made.removeAgent.mock.calls).toEqual([
+			[CONNECTED, false],
+			[CONNECTED, true],
+		]);
+		const entries = (await journalOf(made)).filter(
+			(entry) => entry.command === 'agent-member-remove'
+		);
+		for (const entry of entries) expect(entry.context?.replay).toBe('recorded');
+		// An id neither table holds is no agent member, and the provider is not asked.
+		expect((await made.kernel.call('agent-member-remove', { agent: OTHER })).error?.code).toBe(
+			'AGENT_MEMBER_NOT_FOUND'
+		);
+		expect(made.removeAgent).toHaveBeenCalledTimes(2);
+		// A non-owner: refused before the provider.
+		await switchTo(made.kernel, 'bea@example.com');
+		expect((await made.kernel.call('agent-member-remove', { agent: CONNECTED })).error?.code).toBe(
+			'OWNER_REQUIRED'
+		);
+		expect(made.removeAgent).toHaveBeenCalledTimes(2);
+	});
+});
