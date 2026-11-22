@@ -22,7 +22,7 @@
 | --- | --- |
 | Epic | [#1109](https://github.com/lushly-dev/afd/issues/1109) |
 | Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, a new integration for the `afd` runner, `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and the MCP host this builds on), [Specimens status](../../complete/specimens/STATUS.md) (T11), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and the MCP host this builds on), [Specimens status](../../complete/specimens/STATUS.md) (T11), [Patterns](../patterns/patterns.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md) |
 | Rank among the four | Second. Reviewing at the level of a screen needs screens in real states |
 
 ## 1. Problem

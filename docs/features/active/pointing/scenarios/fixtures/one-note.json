@@ -1,0 +1,31 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "4f2c9a1", "dirty": false },
+	"points": {},
+	"notes": {
+		"note-9v4b7n2k5m1c": {
+			"id": "note-9v4b7n2k5m1c",
+			"state": "open",
+			"orphaned": false,
+			"assignee": "agent",
+			"text": "Export should offer CSV and PDF, not only CSV",
+			"subject": {
+				"specimen": "example-toolbar",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": {
+					"role": "button",
+					"name": "Export",
+					"from": "root/example-toolbar:1/shadow/example-button:2/shadow/button:1"
+				},
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "button", "name": "Export" },
+					"componentPosition": { "tag": "example-button", "index": 2 },
+					"ref": "root/example-toolbar:1/shadow/example-button:2"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		}
+	}
+}

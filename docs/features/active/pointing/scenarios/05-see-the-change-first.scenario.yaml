@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 3).
 # The data is invented, as in scenario 01. The Violet node `example-dark` defines
 # `color.accent.primary`, which Violet's `specimen.get` maps to the `example-button` role
 # `background`, and which the page reads as `--color-accent-primary`. A scenario cannot assert
@@ -66,3 +66,16 @@ steps:
       error:
         code: CHANGE_INVALID
         suggestion: { contains: changes.impact }
+
+  - description: Previewing a correction on a stale point is refused with POINT_STALE
+    command: specimen-impact
+    input:
+      point: pt-2k7m9p4x8c1v
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: color.accent.primary, value: "#1F6FEB" }
+    expect:
+      success: false
+      error:
+        code: POINT_STALE
+        suggestion: { contains: specimen-point }

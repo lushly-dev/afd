@@ -1,0 +1,67 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "a1b2c3d", "dirty": false },
+	"specimens": {
+		"example-toolbar": {
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Toolbar",
+			"checkpoints": ["mount", "menu-open"],
+			"renders": [
+				"example-toolbar[role=toolbar]",
+				"example-toolbar > shadow > input[role=searchbox]",
+				"example-toolbar > shadow > example-button:1 > shadow > button 'Share'",
+				"example-toolbar > shadow > example-button:2 > shadow > button 'Export'"
+			]
+		}
+	},
+	"components": {
+		"example-button": "src/example-button.ts",
+		"example-toolbar": "src/toolbar/toolbar.ts"
+	},
+	"violet": {
+		"nodes": ["example-dark"],
+		"tokens": {
+			"color.accent.primary": {
+				"property": "--color-accent-primary",
+				"readBy": ["Share", "Export", "searchbox focus ring"]
+			},
+			"button.share.background": { "property": "--button-share-background", "readBy": ["Share"] }
+		}
+	},
+	"points": {
+		"pt-2k7m9p4x8c1v": {
+			"id": "pt-2k7m9p4x8c1v",
+			"specimen": "example-toolbar",
+			"context": { "theme": "dark", "viewport": "1280x800" },
+			"element": {
+				"ref": "root/example-toolbar:1/shadow/example-button:1",
+				"tag": "example-button",
+				"text": "Share",
+				"box": { "x": 420, "y": 12, "width": 84, "height": 32 }
+			},
+			"accessible": {
+				"role": "button",
+				"name": "Share",
+				"from": "root/example-toolbar:1/shadow/example-button:1/shadow/button:1"
+			},
+			"identity": {
+				"strongest": "role-name",
+				"roleName": { "role": "button", "name": "Share" },
+				"componentPosition": { "tag": "example-button", "index": 1 },
+				"ref": "root/example-toolbar:1/shadow/example-button:1"
+			},
+			"component": { "tag": "example-button", "module": "src/example-button.ts" },
+			"source": {
+				"specimen": { "module": "src/toolbar/toolbar.specimens.ts", "exportName": "Toolbar" },
+				"component": { "module": "src/example-button.ts" },
+				"revision": "9f0e1d2",
+				"digests": { "src/example-button.ts": "1a0b", "src/toolbar/toolbar.ts": "9a07" }
+			},
+			"pin": { "x": 0.5, "y": 0.5 }
+		}
+	},
+	"files": {
+		"src/example-button.ts": "digest at revision a1b2c3d is 4c1e (differs from pt-2k7m9p4x8c1v's 1a0b)"
+	},
+	"notes": {}
+}

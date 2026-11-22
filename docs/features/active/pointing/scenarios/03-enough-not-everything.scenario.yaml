@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 1).
 # The data is invented. The specimen `example-inbox` renders a list of 40 messages; the person
 # points at the twelfth. The caps are drafts: 8 siblings, 12 children, text cut at 200
 # characters.

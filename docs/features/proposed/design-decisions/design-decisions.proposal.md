@@ -26,7 +26,7 @@
 | --- | --- |
 | Epic | [#1108](https://github.com/lushly-dev/afd/issues/1108) |
 | Units likely touched | `foundations/specimen` (capture sets, comparison, review, the review pages), `integrations/specimen-afd` (the commands), `endpoints/specimen-cli` (and an MCP host for it); later `integrations/violet-afd` and `endpoints/loam` |
-| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
+| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
 | Rank among the four | First. It is where a person's time goes |
 
 ## 1. Problem

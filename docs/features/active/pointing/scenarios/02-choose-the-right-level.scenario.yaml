@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 1).
 # The data is invented, as in scenario 01. The person modifier-clicked "Share", which selects the
 # deepest element: the icon inside the inner `<button>`. The pointer says so (`depth=deepest`), so
 # `specimen-point` does not climb. In the review page, Escape goes one level up; that is page
