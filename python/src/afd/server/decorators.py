@@ -48,6 +48,8 @@ from afd.core.commands import (
     CommandExample,
     CommandParameter,
     ExposeOptions,
+    TaskSupport,
+    validate_task_declaration,
     warn_invalid_command_name,
 )
 from afd.core.result import CommandResult
@@ -94,6 +96,7 @@ class CommandMetadata:
     title: Optional[str] = None
     errors: Optional[List[str]] = None
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
+    task: Optional[TaskSupport] = None
 
 
 def define_command(
@@ -118,6 +121,7 @@ def define_command(
     title: Optional[str] = None,
     errors: Optional[List[str]] = None,
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
+    task: Optional[TaskSupport] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -176,6 +180,12 @@ def define_command(
             f"Command '{name}' has an invalid approval policy: "
             "use 'required', 'not-required' or a function"
         )
+    validate_task_declaration(
+        name,
+        task,
+        confirm_prompt=confirm_prompt,
+        approval=approval,
+    )
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
@@ -213,6 +223,7 @@ def define_command(
             title=title,
             errors=list(errors) if errors is not None else None,
             execution_time=execution_time,
+            task=task,
         )
         
         @wraps(func)
@@ -364,6 +375,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         title=metadata.title,
         errors=metadata.errors,
         execution_time=metadata.execution_time,
+        task=metadata.task,
     )
 
 

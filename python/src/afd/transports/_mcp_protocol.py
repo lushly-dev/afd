@@ -71,6 +71,8 @@ class _HttpBasedTransport:
         self,
         method: str,
         params: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> Any:
         """Build a JSON-RPC request, POST it, and return the ``result`` field.
 
@@ -89,12 +91,13 @@ class _HttpBasedTransport:
         if params is not None:
             payload["params"] = params
 
+        effective_timeout = self._timeout if timeout is None else timeout
         try:
             response = await self._client.post(
                 self._message_url,
                 json=payload,
                 headers={"Content-Type": "application/json", **self._headers},
-                timeout=self._timeout,
+                timeout=effective_timeout,
             )
         except httpx.HTTPError as exc:
             self._state = TransportState.ERROR
@@ -159,15 +162,21 @@ class _HttpBasedTransport:
         self,
         name: str,
         arguments: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> Any:
         """Call a tool via the MCP ``tools/call`` method.
 
         Returns the extracted text content (parsed as JSON when possible).
         """
-        result = await self._send_request("tools/call", {
-            "name": name,
-            "arguments": arguments or {},
-        })
+        result = await self._send_request(
+            "tools/call",
+            {
+                "name": name,
+                "arguments": arguments or {},
+            },
+            timeout=timeout,
+        )
         return self._extract_content(result)
 
     async def list_tools(self) -> List[ToolInfo]:

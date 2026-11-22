@@ -19,6 +19,7 @@ Example:
     >>> result = await transport.call_tool("ping", {})
 """
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -140,6 +141,8 @@ class MockTransport:
         self,
         name: str,
         arguments: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> Any:
         """Call a tool and record the call.
         
@@ -169,7 +172,10 @@ class MockTransport:
         # Check for registered handler
         if name in self._tools:
             handler, _ = self._tools[name]
-            result = await handler(args)
+            if timeout is not None:
+                result = await asyncio.wait_for(handler(args), timeout=timeout)
+            else:
+                result = await handler(args)
             self._calls.append(MockCall(
                 tool_name=name,
                 arguments=args,

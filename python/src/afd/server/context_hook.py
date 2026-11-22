@@ -57,8 +57,11 @@ journal downstream.
   callers separated by the hook cannot replay each other's states and later
   in-place actor mutations do not change the binding.
 
-The hook does not run on ``tools/list``, ``server/discover``, ``initialize`` or
-in-process ``server.execute()``. On MCP 2026-07-28 Streamable HTTP, the SDK also
+The hook also runs on ``tasks/get``, ``tasks/update`` and ``tasks/cancel``
+(with :attr:`ContextHookRequest.tool` set to the MCP method name) before task
+owner lookup. It does not run on ``tools/list``, ``server/discover``,
+``initialize`` or in-process ``server.execute()``. On MCP 2026-07-28 Streamable
+HTTP, the SDK also
 validates ``x-mcp-header`` tool schemas before middleware runs (standard AFD
 commands do not declare ``x-mcp-header``). To reject requests before any SDK
 handling (such as missing bearer tokens on ``tools/list`` or header checks),

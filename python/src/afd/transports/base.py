@@ -54,6 +54,17 @@ class ToolInfo:
     meta: Optional[Dict[str, Any]] = None
 
 
+@dataclass(frozen=True)
+class _TaskSeed:
+    """Internal wrapper for a protocol-level MCP ``CreateTaskResult`` envelope.
+
+    Distinguishes a genuine ``resultType: "task"`` response from an inline tool
+    whose unwrapped JSON output happens to contain a ``resultType`` key.
+    """
+
+    payload: Dict[str, Any]
+
+
 @runtime_checkable
 class Transport(Protocol):
     """Protocol for MCP transport implementations.

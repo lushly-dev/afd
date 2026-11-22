@@ -22,6 +22,7 @@ from afd.transports.base import (
     ToolInfo,
     TransportError,
     TransportState,
+    _TaskSeed,
 )
 from afd.transports._mcp_protocol import _HttpBasedTransport
 
@@ -231,23 +232,39 @@ class SseTransport(_HttpBasedTransport):
         self,
         name: str,
         arguments: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
     ) -> Any:
         """Call a tool through the live MCP session."""
         if self._session is None:
             raise RuntimeError("Transport not connected. Call connect() first.")
 
         session = self._session
+        effective_timeout = self._timeout if timeout is None else timeout
         try:
-            payload = await self._bounded(self._call_tool_payload(session, name, arguments or {}))
+            payload = await self._bounded(
+                self._call_tool_payload(session, name, arguments or {}, timeout=effective_timeout),
+                timeout=effective_timeout,
+            )
+            if isinstance(payload, _TaskSeed):
+                return payload
             return self._extract_content(payload)
         except Exception as exc:
             self._raise_operation_error(exc, session)
 
     async def _call_tool_payload(
-        self, session: Any, name: str, arguments: Dict[str, Any]
+        self,
+        session: Any,
+        name: str,
+        arguments: Dict[str, Any],
+        *,
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Call the tool and return its result as wire-format JSON."""
-        result = await session.call_tool(name, arguments, read_timeout_seconds=float(self._timeout))
+        effective_timeout = self._timeout if timeout is None else timeout
+        result = await session.call_tool(
+            name, arguments, read_timeout_seconds=float(effective_timeout)
+        )
         return result.model_dump(by_alias=True, mode="json", exclude_none=True)
 
     async def list_tools(self) -> List[ToolInfo]:
@@ -271,7 +288,7 @@ class SseTransport(_HttpBasedTransport):
         except Exception as exc:
             self._raise_operation_error(exc, session)
 
-    async def _bounded(self, operation: Any) -> Any:
+    async def _bounded(self, operation: Any, *, timeout: Optional[float] = None) -> Any:
         """Await ``operation`` for at most the transport timeout.
 
         mcp 2.x does not bound a call whose POST never completes: its timeout sends a
@@ -279,13 +296,14 @@ class SseTransport(_HttpBasedTransport):
         and on timeout the transport stops waiting (the task ends with the session)
         and raises ``TimeoutError``, which counts as a lost connection.
         """
+        effective_timeout = self._timeout if timeout is None else timeout
         task = asyncio.ensure_future(operation)
-        done, _ = await asyncio.wait({task}, timeout=self._timeout)
+        done, _ = await asyncio.wait({task}, timeout=effective_timeout)
         if task in done:
             return task.result()
         task.cancel()
         task.add_done_callback(lambda finished: finished.cancelled() or finished.exception())
-        raise asyncio.TimeoutError(f"MCP request timed out after {self._timeout}s")
+        raise asyncio.TimeoutError(f"MCP request timed out after {effective_timeout}s")
 
     def _raise_operation_error(self, exc: Exception, session: Any) -> None:
         """Reconnect only for explicit IO/timeout failures, not SDK validation."""
@@ -293,7 +311,7 @@ class SseTransport(_HttpBasedTransport):
         import httpx
         from mcp import MCPError
         from mcp.types import CONNECTION_CLOSED
-        from afd.transports.base import ToolExecutionError
+        from afd.transports.base import JsonRpcError, ToolExecutionError
 
         try:  # mcp 2.x sends its HTTP requests with httpx2.
             import httpx2
@@ -313,6 +331,8 @@ class SseTransport(_HttpBasedTransport):
         if lost and self._session is session and self._state == TransportState.CONNECTED:
             self._state = TransportState.ERROR
             self._report_error(exc)
+        if isinstance(exc, MCPError) and not lost:
+            raise JsonRpcError(exc.code, exc.message, exc.data) from exc
         if isinstance(exc, TransportError):
             raise exc
         raise TransportError(str(exc), cause=exc) from exc

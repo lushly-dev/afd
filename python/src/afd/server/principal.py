@@ -101,6 +101,15 @@ def credentials_binding(credentials: PrincipalCredentials | Mapping[str, Any] | 
     return _canonical_json(_identity(credentials))
 
 
+def sdk_access_token() -> Any:
+    """The MCP SDK's verified ``AccessToken`` for the current request, or ``None``."""
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+    except ImportError:  # pragma: no cover - optional dependency
+        return None
+    return get_access_token()
+
+
 def sdk_credentials() -> PrincipalCredentials | None:
     """The identity of the access token the MCP SDK verified for the request being served, or
     ``None`` on a transport without one (stdio, or a server without SDK authorization).
@@ -109,11 +118,7 @@ def sdk_credentials() -> PrincipalCredentials | None:
         IncompleteCredentials: A token is present but its issuer (``iss``), subject or client
             id is missing or empty, so the call cannot be bound.
     """
-    try:
-        from mcp.server.auth.middleware.auth_context import get_access_token
-    except ImportError:  # pragma: no cover - optional dependency
-        return None
-    token = get_access_token()
+    token = sdk_access_token()
     if token is None:
         return None
     issuer = (token.claims or {}).get("iss")
@@ -127,5 +132,6 @@ __all__ = [
     "PrincipalCredentials",
     "credentials_binding",
     "principal_binding",
+    "sdk_access_token",
     "sdk_credentials",
 ]
