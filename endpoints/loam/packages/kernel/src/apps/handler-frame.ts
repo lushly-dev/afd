@@ -138,6 +138,9 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 			scope: scopeOf(context),
 			now: () => readClock(context),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
+			...(host.storeOrder && context.traceId !== undefined
+				? { order: host.storeOrder(context.traceId, record.instance) }
+				: {}),
 		});
 	}
 

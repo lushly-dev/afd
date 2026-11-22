@@ -30,6 +30,15 @@ export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFi
 		// specification, 4.4): set by the kernel alone, so a replay compares such an entry by that id and the bound, and
 		// every other entry by its whole input (#859).
 		{ name: 'oversized', meta: 'dev.loam/oversized', schema: z.literal(true), journal: true },
+		// The enforcement gate's decision on an agent's call (phase 5's 6.1; #1936): set by that gate alone, after it clears
+		// any other value, and journaled, so a replay that answers the entry from its record still runs the gates, which
+		// ask, count or suggest again, and answers the handler alone from the record.
+		{
+			name: 'autonomy',
+			meta: 'dev.loam/autonomy',
+			schema: z.literal(['act', 'ask', 'suggest']),
+			journal: true,
+		},
 	]);
 
 /** What the kernel sets for a call. */
@@ -64,4 +73,6 @@ export interface KernelFieldContext extends KernelCallFields {
 	replay?: 'recorded';
 	/** The kernel's input bound refused the call, and the journal keeps its input as its document's id alone. */
 	oversized?: true;
+	/** The enforcement gate's decision on an agent's call (#1936). */
+	autonomy?: 'act' | 'ask' | 'suggest';
 }

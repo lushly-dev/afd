@@ -143,39 +143,45 @@ describe('P2-E13: E9: layout and persistence with apps', () => {
 		await opened.context.close();
 	});
 
-	it('replays a real session, with apps, overlays and switches, with zero differences', async () => {
-		// The default autonomy: the replay starts from none of the harness's rows.
-		const opened = await openShell(browser, site.origin, { agents: 'ask' });
-		const { page } = opened;
-		await runAppsSession(page);
-		const entries = (await page.evaluate(async () => {
-			const shell = document.querySelector('loam-shell') as unknown as {
-				journal: { read(): Promise<unknown[]> };
-			};
-			return shell.journal.read();
-		})) as JournalEntry[];
-		expect(opened.errors).toEqual([]);
-		await opened.context.close();
+	// The agent's second write asks and the person confirms it in the inbox, or runs under the person's `act` row (#1936).
+	it.each(['ask', 'act'] as const)(
+		'replays a real session, with apps, overlays and switches, with zero differences (agents %s)',
+		async (agents) => {
+			const opened = await openShell(browser, site.origin, { agents });
+			const { page } = opened;
+			await runAppsSession(page, agents);
+			const entries = (await page.evaluate(async () => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					journal: { read(): Promise<unknown[]> };
+				};
+				return shell.journal.read();
+			})) as JournalEntry[];
+			expect(opened.errors).toEqual([]);
+			await opened.context.close();
 
-		const manifestOf = async (app: 'hello' | 'tally') =>
-			JSON.parse(await readFile(join(await packApp(app), 'app-manifest.json'), 'utf8')) as unknown;
-		const definitionOf = async (app: 'hello' | 'tally') =>
-			(await import(/* @vite-ignore */ join(APPS, app, 'dist/native.js'))).default;
-		const { report } = await replayKernel(entries, {
-			environment: createFixedEnvironment(),
-			deployment: site.projection,
-			ports: createFixturePorts({
-				'apps/hello/': {
-					manifest: await manifestOf('hello'),
-					definition: await definitionOf('hello'),
-				},
-				'apps/tally/': {
-					manifest: await manifestOf('tally'),
-					definition: await definitionOf('tally'),
-				},
-			}),
-		});
-		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
-		expect(report.entries.length).toBe(entries.length);
-	}, 60_000);
+			const manifestOf = async (app: 'hello' | 'tally') =>
+				JSON.parse(
+					await readFile(join(await packApp(app), 'app-manifest.json'), 'utf8')
+				) as unknown;
+			const definitionOf = async (app: 'hello' | 'tally') =>
+				(await import(/* @vite-ignore */ join(APPS, app, 'dist/native.js'))).default;
+			const { report } = await replayKernel(entries, {
+				environment: createFixedEnvironment(),
+				deployment: site.projection,
+				ports: createFixturePorts({
+					'apps/hello/': {
+						manifest: await manifestOf('hello'),
+						definition: await definitionOf('hello'),
+					},
+					'apps/tally/': {
+						manifest: await manifestOf('tally'),
+						definition: await definitionOf('tally'),
+					},
+				}),
+			});
+			expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+			expect(report.entries.length).toBe(entries.length);
+		},
+		60_000
+	);
 });

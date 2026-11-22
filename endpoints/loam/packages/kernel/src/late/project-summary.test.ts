@@ -339,6 +339,23 @@ describe('P2-E9: (kernel unit) project-summary-get', () => {
 		const summary = recorded.find((entry) => entry.command === 'project-summary-get');
 		expect(report.recorded).toContain(summary?.seq);
 	});
+
+	it("#1936: replays an agent's, its gates run again and its handler answered from the record with its nested calls", async () => {
+		const { kernel, journal } = await workspace();
+		expect((await kernel.agent.call('project-summary-get', { project: 'atlas' })).success).toBe(
+			true
+		);
+		const recorded = await journal.read();
+		const summary = recorded.find((entry) => entry.command === 'project-summary-get');
+		expect(summary?.context?.autonomy).toBe('act');
+		expect(recorded.some((entry) => entry.context?.parent === summary?.traceId)).toBe(true);
+		const { report } = await replayKernel(recorded, {
+			deployment: deployment(),
+			ports: ports(true),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		expect(report.recorded).toContain(summary?.seq);
+	});
 });
 
 describe('P2-E9: (kernel unit) readProjectSummary and readResourceLink', () => {

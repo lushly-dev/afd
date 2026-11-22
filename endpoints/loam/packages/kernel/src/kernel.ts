@@ -39,6 +39,7 @@ import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import type { CopilotTraceV1 } from './copilot/types.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
+import { createJournalOrder } from './journal-order.js';
 import {
 	createJournalProvenance,
 	JOURNAL_WRAPPERS,
@@ -739,6 +740,7 @@ export async function createKernelParts(
 		...tracker,
 		journals: (command) => !UNJOURNALED_COMMANDS.includes(command),
 	};
+	const order = createJournalOrder(provenance.journals, () => internals.replaying === true);
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
 	const journal = createJournalMiddleware(
@@ -754,7 +756,10 @@ export async function createKernelParts(
 				),
 			// What the sink accepted, after the redaction and the bound, for a running wrapper's entry (seventh round, C2;
 			// eighth round, D2).
-			(entry) => tracker.appended(entry)
+			(entry) => {
+				tracker.appended(entry);
+				order.appended(entry.traceId);
+			}
 		),
 		{
 			...kernelJournalOptions(),
@@ -796,12 +801,15 @@ export async function createKernelParts(
 			lateParts?.authGate(held) ??
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
+		// Right inside the journal: a read waits for the app-store writes it saw (#1936); `order.handler` is last.
+		order.turn,
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
 		...(lateParts ? [lateParts.writeThrough] : []),
 		scopeMiddleware,
 		// The copilot's gate, after access (phase 5 specification, 6.1's order), then the confirmations' (phase 4's 7.2,
 		// F9): once `late/` has loaded.
 		...(lateParts ? [lateParts.copilot.gate, lateParts.confirmations.gate] : []),
+		order.handler,
 	];
 	const build = (
 		iface: KernelInterfaceV0,
@@ -895,7 +903,7 @@ export async function createKernelParts(
 				journaled: (name) => !UNJOURNALED_COMMANDS.includes(name),
 				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
 				runNow: (iface, name, input, fields) =>
-					execute(iface, name, input, {}, fields as KernelCallFields),
+					execute(iface, name, input, {}, order.own(fields as KernelCallFields)),
 				// The command a notice's act runs, the journal's private provenance (step 6's sixth round, B7).
 				noteAction: (trace, command) => tracker.noteAction(trace, command),
 				noteReturned: (trace) => tracker.noteReturned(trace),
@@ -1037,6 +1045,8 @@ export async function createKernelParts(
 				owners: () => apps.owners,
 				isMutation: (name) => mutations.get(name) === true,
 				setCommands: setAppCommands,
+				// What each call's store operations tell the journal's order (#1936).
+				storeOrder: (traceId, instance) => order.store(traceId, instance),
 				palette: () => ({
 					commands: registries.palette.listCommands(),
 					rows: summarize(registries.palette),
@@ -1283,9 +1293,12 @@ export async function createKernelParts(
 		let result: CommandResult<T>;
 		// A wrapper is tracked while it runs: its entry, written before `execute` returns, forwards its children's.
 		const wrapping = JOURNAL_WRAPPERS.includes(name) && tracker.begin(traceId);
+		const writes = mutations.get(name) === true || fields === BOOT_FIELDS;
+		order.begin(traceId, writes, fields, own ?? mine);
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} finally {
+			order.end(traceId);
 			traces.delete(traceId);
 			if (wrapping) tracker.end(traceId);
 		}

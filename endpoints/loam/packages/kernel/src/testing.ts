@@ -27,6 +27,7 @@ import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
+import { RECORDED_ANSWER, type RecordedAnswerV1 } from './journal-order.js';
 import {
 	createKernelParts,
 	type KernelParts,
@@ -587,11 +588,27 @@ export async function replayKernel(
 					await parts.resetSession();
 				}
 				const entry = byTrace.get(context.traceId);
-				if (
-					entry &&
+				const fromRecord =
+					entry !== undefined &&
 					(answeredFromRecord(entry) ||
-						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)))
-				) {
+						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)));
+				// An agent's call the enforcement gate decided (#1936): it reached the gates live, so they run again with the
+				// decision its entry journaled, and the handler alone answers from the record, a refusal the page decided in
+				// the handler among them. Never a nested call, the run of a recorded act, or a copilot call, whose trace
+				// the journal does not keep, which the gate's key and suggestion read (a follow-up).
+				const gated =
+					fromRecord &&
+					entry.context?.autonomy !== undefined &&
+					entry.context?.parent === undefined &&
+					entry.context?.origin === undefined &&
+					entry.context?.copilotSession === undefined &&
+					!(entry.traceId !== undefined && recordedOrigins.has(entry.traceId));
+				const answer: RecordedAnswerV1 | undefined = gated
+					? { result: entry.result, answered: false }
+					: undefined;
+				if (answer) {
+					(context as Record<symbol, unknown>)[RECORDED_ANSWER] = answer;
+				} else if (entry && fromRecord) {
 					recorded.push(entry.seq);
 					// A confirmed run answered from its record: the act that ran it may settle its row (step 6's fifth round, 3).
 					const confirmation = entry.context?.confirmation;
@@ -616,6 +633,18 @@ export async function replayKernel(
 						? registries.agent
 						: registries.palette;
 				const result = await registry.execute(name, input, context);
+				if (answer?.answered && entry) {
+					// The handler answered from its record, so its nested calls were never made again: theirs are the record's.
+					recorded.push(entry.seq);
+					if (entry.command === 'app-instance-refresh' && entry.result.success) {
+						const { instance, catalog } = entry.result.data as {
+							instance?: unknown;
+							catalog?: unknown;
+						};
+						if (typeof instance === 'string') parts.applyCatalog(instance, catalog);
+					}
+					return result;
+				}
 				if (context.traceId !== undefined) nested.finish(context.traceId);
 				return result;
 			},

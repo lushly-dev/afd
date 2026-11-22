@@ -1091,10 +1091,11 @@
 			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:94c572e4550f8b416e54629243e6fff9b45403947d2a8ef16d3dbdf8d28e9f6d",
+			"hash": "sha256:dbf328f2b072962b29d22c9dc563709fd268748864856bc0a03bba07eaba9240",
 			"interface": "agent"
 		},
 		"context": {
+			"autonomy": "act",
 			"scope": {
 				"workspace": "personal"
 			}
@@ -1147,10 +1148,11 @@
 			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:e1861fe12670d626b76434487a1107d42ad8036dedc24b335bd342de05120719",
+			"hash": "sha256:ce5dcb25584a0219f4732a48181845f224065b3a60c5596d1286e364cab2fd9a",
 			"interface": "agent"
 		},
 		"context": {
+			"autonomy": "act",
 			"scope": {
 				"workspace": "personal"
 			}
@@ -1481,10 +1483,11 @@
 			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:32abcd6c5f9c1e4865f80233ab6517d59242d6f43c510a75eccb384ea3e6921f",
+			"hash": "sha256:387067549f88b120389a9f3c3815f808981019b77d22ae6e9e50d91cdb383b86",
 			"interface": "agent"
 		},
 		"context": {
+			"autonomy": "act",
 			"scope": {
 				"workspace": "personal"
 			}
@@ -2040,10 +2043,11 @@
 			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:94e72cf268bffe41ed88cf0f49a4ada8b26f66f4dc42c95953ee4ae9b65da144",
+			"hash": "sha256:6975792e84b077e17d491292fdc1865936758850deba20ea9685d01ef1233ddc",
 			"interface": "agent"
 		},
 		"context": {
+			"autonomy": "act",
 			"scope": {
 				"workspace": "personal"
 			}
@@ -2818,10 +2822,11 @@
 			"id": "shell-agent"
 		},
 		"contextDigest": {
-			"hash": "sha256:398c2a4cc367637bae7ee37a842d1d3a0708060b1b4796cba79868e455d42e42",
+			"hash": "sha256:3ac5e3222ec42b516b0436859a5c2f625ea906f8d3b51087d6cd9f4097b6af9f",
 			"interface": "agent"
 		},
 		"context": {
+			"autonomy": "act",
 			"scope": {
 				"workspace": "personal"
 			}

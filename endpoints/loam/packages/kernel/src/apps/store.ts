@@ -9,6 +9,7 @@ import type { Actor } from '@lushly-dev/afd-core';
 import type { AppStoreV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import { LoamKernelError } from '../errors.js';
+import type { StoreOrderV1 } from '../journal-order.js';
 import { jsonBytes, type KernelLimits, LIMIT_DEFAULTS } from '../limits.js';
 import { rowProject, scopeKeyOf, storeRecordId } from '../scope/store-id.js';
 
@@ -48,6 +49,8 @@ export interface AppStoreOptions {
 	readOnly?: boolean;
 	/** The instance's quota (phase 4 specification, section 11); absent, one of its own with the defaults. */
 	quota?: StoreQuota;
+	/** Told of each read and write the call issues, for the journal's order (#1936). */
+	order?: StoreOrderV1;
 }
 
 /** The table of each instance's stored bytes (phase 4 specification, 1 and 11): one row per workspace and instance. */
@@ -115,14 +118,17 @@ export interface StoreQuota {
 	): Promise<void>;
 	/**
 	 * Write `id`'s record, or remove it with `next` undefined, with the instance's count in one batch. A write that would
-	 * take the count past `storeBytes` rejects `QUOTA_EXCEEDED` with `details: { kind: 'store', limit, used }`.
+	 * take the count past `storeBytes` rejects `QUOTA_EXCEEDED` with `details: { kind: 'store', limit, used }`. `issued`
+	 * is told right before the batch is sent, once the quota's own reads are done: a read issued before it cannot have
+	 * seen the write (#1936). It is not told of a write refused, or of a delete of nothing.
 	 */
 	write(
 		instance: string,
 		scope: ScopeV1,
 		id: string,
 		next: AppStoreRecord | undefined,
-		now: number
+		now: number,
+		issued?: () => void
 	): Promise<void>;
 	/**
 	 * Charge `bytes` to `instance` in turn with its writes, `commit` writing whatever the charge pays for with the usage
@@ -215,7 +221,7 @@ export function createStoreQuota(adapter: DataAdapter, limits?: KernelLimits): S
 					)
 				)
 			).then(() => undefined),
-		write: (instance, scope, id, next, now) =>
+		write: (instance, scope, id, next, now, issued) =>
 			serial(instance, async () => {
 				const before = await adapter.get<AppStoreRecord>(table(instance), id);
 				// Refunded only what this workspace was charged for the row (R1).
@@ -229,6 +235,7 @@ export function createStoreQuota(adapter: DataAdapter, limits?: KernelLimits): S
 				if (refused) throw refused;
 				if (!next && !before) return;
 				const path = `/${table(instance)}/${encodeURIComponent(id)}`;
+				issued?.();
 				await batch(
 					[
 						// Every field written whole, `bytes` among them, so a store that merges a PUT into the row it holds keeps
@@ -322,6 +329,7 @@ export function createAppStore(options: AppStoreOptions): AppStoreV1 {
 	};
 	return {
 		async get<T = unknown>(key: string): Promise<T | undefined> {
+			options.order?.read();
 			const record = await adapter.get<AppStoreRecord>(
 				table,
 				storeRecordId(scopeNow(), checked(key))
@@ -345,16 +353,17 @@ export function createAppStore(options: AppStoreOptions): AppStoreV1 {
 				scopeKey: scopeKeyOf(scope),
 			};
 			// A batch's PUT upserts; `update` does so only in the adapter's named tables. The count lands in the same batch.
-			await quota.write(instance, scope, id, record, options.now());
+			await quota.write(instance, scope, id, record, options.now(), options.order?.wrote);
 		},
 		async delete(key) {
 			const scope = scopeNow();
 			const id = storeRecordId(scope, checked(key));
 			writable();
-			await quota.write(instance, scope, id, undefined, options.now());
+			await quota.write(instance, scope, id, undefined, options.now(), options.order?.wrote);
 		},
 		async list(prefix) {
 			const scope = scopeNow();
+			options.order?.read();
 			// A phase 1 row has no `scopeKey`, so workspace level reads the table and drops every `p~` id.
 			const { data } = await adapter.list<AppStoreRecord>(
 				table,

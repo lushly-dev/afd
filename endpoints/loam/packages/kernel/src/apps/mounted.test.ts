@@ -1190,7 +1190,13 @@ describe('7.6: replay with the server stopped', () => {
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 		expect(recordedSeqs).toHaveLength(3);
-		for (const seq of recordedSeqs) expect(report.recorded).toContain(seq);
+		// The agent's call asked (a mounted tool asks by default): the replay's gates ask again, and no handler is answered
+		// from its record (#1936). Every other recorded entry is.
+		const asked = entries.find(({ context }) => context?.autonomy === 'ask');
+		expect(asked?.result.error?.code).toBe('CONFIRMATION_PENDING');
+		for (const seq of recordedSeqs)
+			if (seq === asked?.seq) expect(report.recorded).not.toContain(seq);
+			else expect(report.recorded).toContain(seq);
 	});
 
 	it('replays a failed discovery and a call it refused, as they were', async () => {

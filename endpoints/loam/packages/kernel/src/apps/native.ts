@@ -140,6 +140,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 							readOnly: !host.isMutation(name),
 							now: () => readClock(context),
 							...(context.actor !== undefined ? { actor: context.actor } : {}),
+							...(host.storeOrder ? { order: host.storeOrder(traceId, record.instance) } : {}),
 						}),
 					}
 				: {}),

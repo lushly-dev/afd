@@ -595,6 +595,7 @@ status changes.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-22 | #1936 (R7 on #1915) | Replay parity for agents' writes to apps, due before phase 4's exit; also closes phase 5's row of 2026-11-21, "Replay parity for agents' calls under enforcement" ([record](phases/4-settings/spec.md#replay-parity-for-agents-writes-1936-2026-11-22)) | Done 2026-11-22 on `lush/loam-1936-replay-parity`; closes [#1936](https://github.com/lushly-dev/afd/issues/1936). Three follow-ups are in the record |
 
 ### Follow-ups: phase 5, bus, copilot and mounted servers
 
@@ -713,6 +714,7 @@ new row.
 | 2026-11-19 | Phase 4 step 10, trust review | [#1631](https://github.com/lushly-dev/afd/pull/1631): the fixes for two reviews of `2d8aee91` and the coordinator's R1 to R4: the `setting` rows keyed by workspace (closes #1614), values with no JSON form over every limit, hosted deployments enforcing the defaults alone, refusals' journal growth recorded against #710; the frame gate over every message, documents charged and refunded, the journal bound never over, the rate charged once per call, `QUOTA_EXCEEDED` with its details through native handlers and frames, nested refusals replayed and counted, per-minute refusal buckets, read-side fail-closed tests. Budget rows raised again under D115 |
 | 2026-11-19 | Phase 4 step 7 | `lush/loam-p4-step7-keybindings`, not merged: keybindings (phase 4 specification, step 7): the layout-aware matcher and sequences in first paint, the resolver, overrides and `keybinding-list` in `late-settings`, `Mod+Alt+P`, the manifest's sequences and `when`, the editor's sequences and warnings, `rebind-a-chord` amended by R1 and running, P4-E9 in units and Chromium (`web/test/browser/keybindings.test.ts`). Rulings R1 to R5 recorded; budget rows raised under D115; the architecture's section 5 (`keybinding-list`, `keybinding`) |
 | 2026-11-21 | Phase 4 step 9 | [#1911](https://github.com/lushly-dev/afd/pull/1911): experiments (phase 4 specification, step 9): `ui.experiments` and `requires_experiment`, the four `experiment-*` commands and boot's `experiment-settle`, gates that hold an app out or leave a surface or section absent, R14's deferred unload, `app-get`'s `gates` (A-P1-2), the Experiments list, hello's `hello.inspector-v2`; both jobs run; budget rows raised under D115; P4-E14 amendments in [its record](phases/4-settings/spec.md#step-9-2026-11-21) |
+| 2026-11-22 | #1936, replay parity | `lush/loam-1936-replay-parity`: a read waits for the entries of the writes to an app's store it saw (`journal-order.ts`); the `act` count before the run; the enforcement gate journals its decision, so a recorded command's gates run in a replay; `layout.test.ts`'s second write is the agent's again, asked and under `act`, with zero differences ([record](phases/4-settings/spec.md#replay-parity-for-agents-writes-1936-2026-11-22)) |
 
 ### Sessions: phase 5, bus, copilot and mounted servers
 
