@@ -231,6 +231,17 @@ def held(state: Path, project: str = "garden") -> dict:
     return store.load_state(state)["projects"][project]["skills"]
 
 
+def on_a_volume_away(state: Path, project: str, folder: Path) -> None:
+    """Make a folder the record holds one that was read on a volume of its own, which is not
+    mounted now: where the folder is not there, it may only be away."""
+    saved = store.load_state(state)
+    saved["projects"][project]["storage"][str(folder)] = {
+        "volume": str(folder.parent / "a-volume-that-is-away"),
+        "device": 1,
+    }
+    store.save_state(state, saved)
+
+
 # ── recognising a load ──────────────────────────────────────────────────────
 
 POWERSHELL = "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
@@ -1497,8 +1508,9 @@ def test_an_older_clone_never_takes_a_project_back(
     newest = held(state, "acme/garden")
     assert sorted(newest["held"]) == ["build-beds", "prune-roses"]
 
+    on_a_volume_away(state, "acme/garden", checkout)
     away = checkout.parent / "not-mounted"
-    checkout.rename(away)  # the folder with the newest is not there this time
+    checkout.rename(away)  # the volume with the newest is away this time
     run(skill_usage_collect())
     assert held(state, "acme/garden") == newest  # what it said last still speaks
 
@@ -1518,6 +1530,226 @@ def test_an_older_clone_never_takes_a_project_back(
     git(checkout, "reset", "-q", "--hard", "HEAD~1")  # the folder itself says otherwise now
     run(skill_usage_collect())
     assert sorted(held(state, "acme/garden")["held"]) == ["plant-beds", "prune-roses"]
+
+
+def test_a_folder_that_was_removed_says_nothing_more(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    """Its volume is there and it is not: no report goes on listing what it held."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+    old = checkout.parent / "old" / "garden"
+    subprocess.run(["git", "clone", "-q", str(checkout), str(old)], check=True)
+    git(old, "remote", "set-url", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "mv", ".claude/skills/plant-beds", ".claude/skills/build-beds")
+    git(checkout, "commit", "-q", "-m", "rename", at="2026-04-02T10:00:00+00:00")
+    t3_store.project("p2", old)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    assert sorted(held(state, "acme/garden")["held"]) == ["build-beds", "prune-roses"]
+
+    shutil.rmtree(checkout)
+    run(skill_usage_collect())
+    # the clone that is left speaks for the project, old as it is
+    assert sorted(held(state, "acme/garden")["held"]) == ["plant-beds", "prune-roses"]
+
+    shutil.rmtree(old)
+    run(skill_usage_collect())
+    data = run(skill_usage_report())
+    assert held(state, "acme/garden") == {"at": None, "commit": None, "held": {}, "renames": {}}
+    (row,) = data["skills"]  # its loads are still counted, under the name the skill last had
+    assert (row["skill"], row["sessions"]) == ("build-beds", 2) and "size_bytes" not in row
+    assert data["quiet"] == [] and data["warnings"] == []
+
+
+def test_a_folder_that_may_only_be_away_speaks_for_a_month(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    """Nothing shows it was removed: its volume is away too, or nothing was recorded of what
+    it was on. It keeps speaking from when it was first found missing, and no longer than
+    that: a record must not list for ever what a checkout that is gone held."""
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    on_a_volume_away(state, "garden", checkout)
+    shutil.rmtree(checkout)
+
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    since = datetime.fromisoformat(saved["projects"]["garden"]["missing"][str(checkout)])
+    assert NOW - timedelta(minutes=5) < since < datetime.now(UTC)
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+
+    for days, speaks in ((29, True), (31, False)):
+        saved["projects"]["garden"]["missing"][str(checkout)] = (
+            datetime.now(UTC) - timedelta(days=days)
+        ).isoformat()
+        store.save_state(state, saved)
+        run(skill_usage_collect())
+        assert bool(held(state)["held"]) is speaks, days
+    after = store.load_state(state)["projects"]["garden"]
+    assert (after["accounts"], after["storage"], after["missing"]) == ({}, {}, {})
+
+    # an account an earlier botcore wrote says nothing of what its folder was on: the same
+    del saved["projects"]["garden"]["storage"], saved["projects"]["garden"]["missing"]
+    store.save_state(state, saved)
+    run(skill_usage_collect())
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+    assert str(checkout) in store.load_state(state)["projects"]["garden"]["missing"]
+
+
+def test_a_folder_that_is_back_is_read_again_and_missed_no_more(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    on_a_volume_away(state, "garden", checkout)
+    away = checkout.parent / "not-mounted"
+    checkout.rename(away)
+    run(skill_usage_collect())
+    assert str(checkout) in store.load_state(state)["projects"]["garden"]["missing"]
+
+    away.rename(checkout)
+    (checkout / ".claude" / "skills" / "prune-roses" / "SKILL.md").unlink()
+    run(skill_usage_collect())
+
+    garden = store.load_state(state)["projects"]["garden"]
+    assert garden["missing"] == {} and sorted(held(state)["held"]) == ["plant-beds"]
+    # and what it is kept on is recorded again, as it is now: a volume that is mounted
+    assert os.path.ismount(garden["storage"][str(checkout)]["volume"])
+
+
+@pytest.mark.skipif(os.name == "nt" or os.geteuid() == 0, reason="needs a folder not to be read")
+def test_a_folder_the_user_may_not_look_at_is_not_a_folder_that_is_gone(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    """Whether it is there cannot be told, so nothing is taken from it; and the collection
+    goes on, where an older Python raises from the very question."""
+    vault = checkout.parent / "vault"  # not the folder the record and the store are in
+    orchard = checkout_at(vault / "orchard")
+    t3_store.project("p2", orchard)
+    t3_store.skill_tool(t3_store.thread("main-1", project_id="p2"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    known = held(state, "orchard")
+    t3_store.project("p3", vault / "shed")  # and one the collection has never seen
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p3"), "plant-beds", stamp(0.5))
+    vault.chmod(0o000)
+    try:
+        assert collect.folder_there(orchard) is None
+        assert run(skill_usage_collect())["machine"] == "bench"
+    finally:
+        vault.chmod(0o755)
+
+    projects = store.load_state(state)["projects"]
+    assert held(state, "orchard") == known and projects["orchard"]["missing"] == {}
+    assert projects["shed"]["skills"]["held"] == {}  # named by its folder, and holding nothing
+
+
+def test_a_folder_of_another_system_is_no_place_on_this_one() -> None:
+    """A store copied from another machine names its folders that machine's way. Nothing on
+    this one says they were removed: not the folder the collection happens to run in."""
+    account = {"at": None, "commit": None, "held": {"plant-beds": [200, 12]}, "renames": {}}
+    foreign = ["Z:\\repos\\garden", "\\\\server\\share\\garden"]
+    if os.name == "nt":
+        foreign = ["/Users/someone/garden"]
+    previous = {
+        "garden": {
+            "roots": foreign,
+            "accounts": dict.fromkeys(foreign, account),
+            "missing": dict.fromkeys(foreign, "2020-01-01T00:00:00+00:00"),  # long ago
+        }
+    }
+
+    projects, _ = collect._name_projects(previous, {})
+
+    assert sorted(projects["garden"]["accounts"]) == sorted(foreign)
+    assert projects["garden"]["skills"]["held"] == {"plant-beds": [200, 12]}
+
+
+def test_what_a_folder_is_kept_on_is_its_volume_or_its_cloud_drive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    top = tmp_path.resolve()
+    volume = top / "volume"
+    repo = volume / "repos" / "garden"
+    drive = top / "home" / "Library" / "CloudStorage" / "Drive-someone"
+    synced = drive / "My Drive" / "garden"
+    for folder in (repo, synced):
+        folder.mkdir(parents=True)
+    (top / "home" / "garden").symlink_to(repo)  # a link to a checkout on the volume
+    mounted = {str(volume)}
+    monkeypatch.setattr(collect.os.path, "ismount", lambda path: str(path) in mounted)
+
+    on_volume = {"volume": str(volume), "device": os.stat(volume).st_dev}
+    assert collect.storage_of(repo) == on_volume
+    assert collect.storage_of(top / "home" / "garden") == on_volume  # as its link resolves
+    assert collect.storage_of(synced) == {"folder": str(drive)}
+    assert collect.storage_of(top / "home") is None  # no volume above it is known
+    assert collect.storage_of(top / "not-there") is None
+
+    assert collect.storage_there(on_volume)
+    assert collect.storage_there({"folder": str(drive)})
+    # another disk at the same place is not the volume the folder was on
+    assert not collect.storage_there({**on_volume, "device": on_volume["device"] + 1})
+    assert not collect.storage_there({"volume": str(volume)})
+    mounted.clear()  # the volume is away: its mount point may stay behind, an empty folder
+    assert not collect.storage_there(on_volume)
+    # Windows calls every drive letter a mount point by its name, there or not: the root is
+    # looked at too
+    monkeypatch.setattr(collect.os.path, "ismount", lambda path: True)
+    assert not collect.storage_there({"volume": str(top / "no-such-drive"), "device": 1})
+    assert collect.storage_there(on_volume)
+    shutil.rmtree(drive)  # the drive's app signed out
+    assert not collect.storage_there({"folder": str(drive)})
+    assert not collect.storage_there({}) and not collect.storage_there({"volume": 5})
+    # and of a state changed by hand, only what a collection writes is read
+    odd = {"a": {"volume": "/v", "device": 7}, "b": {"volume": 5, "device": 7}, "c": "x",
+           4: {"folder": "/f"}, "d": {"other": "/x"}, "e": {"folder": "/f"},
+           "f": {"volume": "/v"}, "g": {"volume": "/v", "device": True},
+           "h": {"folder": 5}}  # fmt: skip
+    assert collect._storage(odd) == {"a": {"volume": "/v", "device": 7}, "e": {"folder": "/f"}}
+    assert collect._storage("x") == {}
+
+    assert collect.folder_there(repo) is True
+    assert collect.folder_there(top / "not-there") is False
+    (top / "a-file").write_text("x", "utf-8")
+    assert collect.folder_there(top / "a-file") is False  # a file where the folder was
+    assert collect.folder_there(top / "a-file" / "under") is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a link needs a privilege on Windows")
+def test_a_link_to_a_checkout_on_a_volume_that_is_away_keeps_speaking(
+    state: Path, t3_store: T3Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The link is there, on a disk that is there, and leads nowhere: the checkout was on
+    the volume, and the volume is what is asked after."""
+    volume = (tmp_path / "volume").resolve()
+    repo = checkout_at(volume / "garden")
+    link = tmp_path / "home" / "garden"
+    link.parent.mkdir()
+    link.symlink_to(repo)
+    built = T3Store(tmp_path / "linked.sqlite")
+    built.project("p1", link)
+    built.skill_tool(built.thread("main-1"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real = os.path.ismount
+    mounted = {str(volume)}
+    monkeypatch.setattr(collect.os.path, "ismount", lambda path: str(path) in mounted or real(path))
+    run(skill_usage_collect())
+    garden = store.load_state(state)["projects"]["garden"]
+    assert garden["storage"][str(link)] == {"volume": str(volume), "device": os.stat(volume).st_dev}
+
+    volume.rename(volume.with_name("unmounted"))
+    mounted.clear()
+    run(skill_usage_collect())
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]  # away, not removed
+
+    volume.mkdir()  # the volume is back, and the checkout is not on it
+    mounted.add(str(volume))
+    run(skill_usage_collect())
+    assert held(state)["held"] == {}
 
 
 def test_a_branch_that_has_not_moved_is_not_read_again(
@@ -1592,7 +1824,7 @@ def test_a_folder_inside_a_repository_holds_its_own_skills(tmp_path: Path) -> No
 
 
 def test_a_report_reads_the_record_and_no_checkout(
-    state: Path, t3_store: T3Store, checkout: Path
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
     run(skill_usage_collect())
@@ -1605,7 +1837,8 @@ def test_a_report_reads_the_record_and_no_checkout(
         },
         "renames": {},
     }
-    shutil.rmtree(checkout)
+    on_a_volume_away(state, "garden", checkout)
+    shutil.rmtree(checkout)  # its volume is away
 
     data = run(skill_usage_report())
 

@@ -2795,10 +2795,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2122bd759418ffcf7d6e9616b2157aaa631278ef805a081f7cc723d9d189f3fd",
+      "current_import_sha256": "af46a5d9569c68f82e36cf38c9b457642dda9d69b4f9f295138057a79679475b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123)"
     },
     {
       "path": "src/botcore/commands/skill_usage/events.py",
@@ -6679,10 +6679,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "dcc595a4d19f0ba31a01fc0c094007c7bf03de4deb5e5e3b4ff9f44ef4cd2810",
+      "current_import_sha256": "de7cd5d66685d518d694457f3bb48fecefe83c359612e829d741a768fc7442db",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123)"
     },
     {
       "path": "tests/test_skill_usage_claude_code.py",
@@ -6701,10 +6701,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "dab9f862f992ed4d5c0bfe1c963eb600fefb7ad02438c62b8ab2b87a2521f93d",
+      "current_import_sha256": "a2c95a3797bb265a96f8f7c083f4c451ba0d44b3f366aed07c254dfa9bd9bb9b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904)"
+      "import_reason": "Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a removed folder's account is dropped (lushly-dev/afd#2123)"
     },
     {
       "path": "tests/test_skill_usage_triggers.py",

@@ -265,11 +265,27 @@ machines gave different totals from one record
   lists unmerged work for an hour. An account with no commit is older than any commit, so
   it never takes the place of one
   ([#2051](https://github.com/lushly-dev/afd/issues/2051)).
-- **Each folder's account is kept by folder**, on the machine only. A folder that is not
-  there (a volume not mounted, a checkout removed) still speaks through what it said last,
-  so an older clone that does answer never takes the project back. A folder read again
-  replaces its own account, whatever it now says. A branch that has not moved is not read
-  again; `--rebuild` reads every folder again.
+- **Each folder's account is kept by folder**, on the machine only. A folder whose volume
+  is away still speaks through what it said last, so an older clone that does answer never
+  takes the project back. A folder read again replaces its own account, whatever it now
+  says. A branch that has not moved is not read again; `--rebuild` reads every folder again.
+- **A folder that was removed says nothing more**, so the skills of a checkout that is gone
+  leave `quiet` and lose their sizes
+  ([#2123](https://github.com/lushly-dev/afd/issues/2123)). When a folder is read, the
+  machine records what it is kept on: its volume's mount point and the volume's own
+  number, as its links resolve, or inside a cloud drive's folder
+  (`Library/CloudStorage/<drive>`) that drive's own folder. A folder known not to be there,
+  on storage that is there (the same volume mounted at the same place, its root looked at
+  and not only named, since Windows calls every drive letter a mount point), was removed,
+  and its account is dropped. The number is where a disk is attached, so a volume that
+  comes back under another one is taken as away, which only waits. Where that storage is
+  away too, or nothing was recorded of it (an account an
+  earlier botcore wrote), it may only be away: it keeps speaking for thirty days from when
+  it was first found missing, and no longer. A folder the user may not look at, or one of
+  another system (a copied store's), is never taken as gone.
+- **A project left with no folder holds nothing.** Its loads are still counted, under the
+  names its skills last had. With no list there is no audit bar, so a burst of reads that
+  was left out as an audit counts as use again (see Limits).
 - **The record keeps** the newest of them: each skill's size and listing characters, the
   renames, and the commit with its time. A machine shares that with its record, and only
   what a collection could have written: a commit and a time that are ones, names a skill's

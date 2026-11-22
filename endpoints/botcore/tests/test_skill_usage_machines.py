@@ -25,6 +25,7 @@ from tests.test_skill_usage import (  # noqa: F401 - fixtures
     collected,
     fail,
     git,
+    on_a_volume_away,
     rows,
     run,
     skill_text,
@@ -583,7 +584,8 @@ def test_a_state_changed_by_hand_shares_no_text(machines: Machines) -> None:
     bench = machines.on("bench")
     bench.skill_tool(bench.thread("main"), "plant-beds", stamp(1))
     run(skill_usage_collect())
-    shutil.rmtree(machines.project)  # nothing is read again: what the file says stands
+    on_a_volume_away(machines.record("bench"), "garden", machines.project)
+    shutil.rmtree(machines.project)  # its volume away, nothing is read again: the file stands
     saved = store.load_state(machines.record("bench"))
     garden = saved["projects"]["garden"]
     garden["accounts"][str(machines.project)] = {
