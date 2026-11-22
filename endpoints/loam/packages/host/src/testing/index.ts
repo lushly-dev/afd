@@ -8,7 +8,16 @@ import { childLauncher } from './child-launcher.js';
 import { createDevHost, type DevHost, type StartDevHostOptions } from './dev-host.js';
 
 export { exposedTo, readAcls, restrictAcls } from '../acl.js';
+export { HOSTED_MCP_COMMANDS } from '../mcp.js';
 export type { DevHost, JournalEntry, StartDevHostOptions } from './dev-host.js';
+export { trustingFetch } from './fetch.js';
+export {
+	type AgentTokenOptions,
+	agentToken,
+	type HostSend,
+	registerTestClients,
+	type TestClientV1,
+} from './oauth.js';
 export { type ScannedHost, type ScannedPage, scanSecrets } from './scan.js';
 
 /**

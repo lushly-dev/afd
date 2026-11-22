@@ -4,7 +4,8 @@
  * development profile binds its sockets before its configuration exists (5.1), so the host serves on
  * servers it creates or is handed, rather than through `serve`, which binds as it creates. One process per
  * data directory, one deployment per process. It serves the written shell and, on the sandbox's origin, its
- * `sandbox/`; in a `provider` deployment, the provider at `<base><identity.path>` (3.7, step 3). MCP, the
+ * `sandbox/`; in a `provider` deployment, the provider at `<base><identity.path>` (3.7, step 3), and the server
+ * kernel with AFD's MCP handler at `<base>mcp`, RFC 9728's metadata and A2's root metadata (3.6, step 4). The
  * trust-record transport and the relay come in later steps, and their paths answer 404 until then (3.3).
  */
 
@@ -14,6 +15,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join } from 'node:path';
 import { getRequestListener, type HttpBindings } from '@hono/node-server';
+import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
 import type { MountAccess } from '@lushly-dev/loam-cli/deployment';
 import {
 	readServerConfig,
@@ -25,7 +27,7 @@ import { Hono } from 'hono';
 import { checkHost } from './check.js';
 import { ensureDataDirectory, writeSite } from './data.js';
 import { HostError, type HostFinding } from './errors.js';
-import { authorityOf, gate, type NodeListener } from './gate.js';
+import { authorityOf, gate, type NodeListener, originAllowed } from './gate.js';
 import {
 	commonHeaders,
 	copilotFramePolicy,
@@ -40,10 +42,16 @@ import {
 } from './headers.js';
 import { bindServer, createHostServer, HOST_INTERNALS, type HostInternals } from './internal.js';
 import { acquireDataLock, type DataLock } from './lock.js';
+import type { HostedMcp } from './mcp.js';
 import type { HostProvider } from './provider.js';
 import type { ResolvedSecrets } from './secrets.js';
 import { type SiteAnswer, serveSite, sitePath } from './site.js';
-import { type BoundAddresses, recordAddresses, recordProvider } from './testing-only.js';
+import {
+	type BoundAddresses,
+	recordAddresses,
+	recordHostedMcp,
+	recordProvider,
+} from './testing-only.js';
 
 export interface LoamHostConfig {
 	/** Read by `readServerConfig` (3.2); `createLoamHost` reads it again. */
@@ -91,6 +99,18 @@ function rawPath(incoming: IncomingMessage): string {
 	return end === -1 ? target : target.slice(0, end);
 }
 
+/**
+ * The raw request target's query, with its `?`, or the empty string. A `?` after a `#` is the fragment's, never a
+ * query: a client sends no fragment, and one that does has none of it passed on.
+ */
+export function rawSearch(incoming: Pick<IncomingMessage, 'url'>): string {
+	const target = incoming.url ?? '/';
+	const end = target.indexOf('#');
+	const before = end === -1 ? target : target.slice(0, end);
+	const start = before.indexOf('?');
+	return start === -1 ? '' : before.slice(start);
+}
+
 function text(status: number, body: string, cache = 'no-cache'): Response {
 	return new Response(`${body}\n`, {
 		status,
@@ -99,6 +119,15 @@ function text(status: number, body: string, cache = 'no-cache'): Response {
 }
 
 const notFound = (cache?: string) => text(404, 'Not Found', cache);
+
+/** An answer the host writes on the MCP surface's paths: 3.5's cache rule and the inert policy, as the route's own carry. */
+function mcpAnswer(status: number, body: string, cache: string): Response {
+	const answer = text(status, body, cache);
+	answer.headers.set('content-security-policy', INERT_POLICY);
+	return answer;
+}
+
+const mcpNotFound = (cache = 'no-store') => mcpAnswer(404, 'Not Found', cache);
 
 interface Pages {
 	/** The `<meta>` policy of each shell page, by its path in the site: `index.html`, `404.html`. */
@@ -161,21 +190,58 @@ async function providerAnswer(provider: HostProvider, request: Request): Promise
 	});
 }
 
+/** A2's answer: the provider's metadata, with the inert policy every non-page answer on the shell's origin carries. */
+async function rootMetadataAnswer(provider: HostProvider, request: Request): Promise<Response> {
+	const answer = await provider.metadata(request);
+	const headers = new Headers(answer.headers);
+	headers.set('content-security-policy', INERT_POLICY);
+	// 3.5's "anything else": `no-cache`, never Better Auth's public caching, so a changed issuer is read at once.
+	headers.set('cache-control', 'no-cache');
+	return new Response(answer.body, { status: answer.status, headers });
+}
+
 function shellApp(options: {
 	base: string;
 	site: string;
 	pages: Pages;
 	provider: HostProvider | undefined;
+	mcp: HostedMcp | undefined;
+	/** `origin` of `loam.server.toml`. */
+	origin: string;
 }): Hono<Env> {
-	const { base, pages, provider } = options;
+	const { base, pages, provider, mcp, origin } = options;
 	const providerPrefix = provider ? `${provider.path}/` : undefined;
+	// RFC 8414's path insertion for the issuer `<origin><base><identity.path>` (A2), at the origin's root.
+	const rootMetadata = provider
+		? `/.well-known/oauth-authorization-server${provider.path}`
+		: undefined;
+	const protectedResource: ReadonlySet<string> = new Set(mcp?.metadataPaths ?? []);
 	const site = serveSite(options.site, { fallback: 'index.html' });
 	const app = new Hono<Env>();
 	// Every route is matched on the raw path here, never a normalized one, so a dot segment cannot reach
-	// one; later steps register their own routes before this catch-all (3.4's order).
+	// one; later steps register their own routes before this catch-all (3.4's order). Each of the server's own
+	// routes is matched exactly, so a dot segment, an encoded separator or a case variant is never one of them,
+	// and reaches the site's refusals instead (step 1's obligation, decided for `<base>mcp` and the well-known paths).
 	app.all('*', async (c) => {
 		const path = rawPath(c.env.incoming);
 		const method = c.req.method;
+		// The well-known documents first, most specific (3.4's order), each `GET` only and public.
+		if (mcp && protectedResource.has(path)) {
+			if (method !== 'GET') return mcpNotFound('no-cache');
+			mcp.metadata(c.env.incoming, c.env.outgoing);
+			return RESPONSE_ALREADY_SENT;
+		}
+		if (provider && path === rootMetadata) {
+			if (method !== 'GET') return mcpNotFound('no-cache');
+			// Only the configured origin, as on the MCP route (3.2), whatever AFD or Better Auth would derive.
+			if (!originAllowed(c.env.incoming, origin))
+				return mcpAnswer(
+					403,
+					'Forbidden: this server answers only its configured origin.',
+					'no-cache'
+				);
+			return rootMetadataAnswer(provider, c.req.raw);
+		}
 		if (!path.startsWith(base)) return notFound();
 		// The provider's routes, `GET` and `POST` as Better Auth serves them (3.4, 3.7); nothing else under its path
 		// reaches the site.
@@ -192,9 +258,15 @@ function shellApp(options: {
 					})
 				: notFound('no-store');
 		}
-		// The routes of later steps: in a `local` deployment the shell's routes only (3.3).
-		if (rest === 'mcp' || rest === 'api/kernel/call' || rest.startsWith('mounts/'))
-			return notFound('no-store');
+		// `<base>mcp` (3.6): `POST`, and `GET` and `DELETE` as AFD's handler answers them; nothing reads the body first.
+		if (rest === 'mcp' && mcp && (method === 'POST' || method === 'GET' || method === 'DELETE')) {
+			mcp.route(c.env.incoming, c.env.outgoing, rawSearch(c.env.incoming));
+			return RESPONSE_ALREADY_SENT;
+		}
+		// The routes of later steps, and `<base>mcp` in a `local` deployment: the shell's routes only (3.3). The server
+		// card and the guide below `<base>mcp/` are step 10's.
+		if (rest === 'mcp' || rest.startsWith('mcp/')) return mcpNotFound();
+		if (rest === 'api/kernel/call' || rest.startsWith('mounts/')) return notFound('no-store');
 		const answer = await site({ method, path: rest, accept: c.req.header('accept') });
 		if (answer.status !== 200) return notFound();
 		const relative = answer.fallback ? 'index.html' : answer.path;
@@ -283,6 +355,26 @@ async function stopAll(started: readonly Server[]): Promise<void> {
 	);
 }
 
+/**
+ * Closes what the host opened, in order, each whatever the one before did: the server kernel after its in-flight calls,
+ * then the provider, then the lock, so the lock is never held past a failed close nor released before the store closes.
+ */
+async function releaseAll(
+	mcp: HostedMcp | undefined,
+	provider: HostProvider | undefined,
+	lock: DataLock | undefined
+): Promise<void> {
+	try {
+		await mcp?.close();
+	} finally {
+		try {
+			provider?.close();
+		} finally {
+			lock?.release();
+		}
+	}
+}
+
 function bindHost(listen: string): string {
 	return splitListen(listen).host.replace(/^\[(.*)\]$/, '$1');
 }
@@ -340,6 +432,7 @@ async function construct(
 	let common: Record<string, string>;
 	let tls: ResolvedSecrets['tls'];
 	let provider: HostProvider | undefined;
+	let mcp: HostedMcp | undefined;
 	try {
 		const written = await writeSite({
 			data: server.data,
@@ -380,12 +473,32 @@ async function construct(
 				]);
 			}
 		}
+		if (provider && identity?.mode === 'provider') {
+			// The server kernel and AFD's handler (3.6, step 4): only a `provider` deployment has one, so in a `local` one
+			// `<base>mcp` answers 404 (3.3).
+			const { openHostedMcp } = await import('./mcp.js');
+			mcp = await openHostedMcp({
+				data: server.data,
+				origin: server.origin,
+				basePath: base,
+				site,
+				projection: written.projection,
+				identity,
+				provider,
+				maxBodyBytes: memory.limits.request_body_bytes,
+			});
+		}
 		origin = server.origin;
 		sandboxOrigin = server.sandbox?.origin ?? null;
 		listeners = [
 			{
 				listen: server.listen,
-				apps: new Map([[authorityOf(origin), shellApp({ base, site, pages, provider })]]),
+				apps: new Map([
+					[
+						authorityOf(origin),
+						shellApp({ base, site, pages, provider, mcp, origin: server.origin }),
+					],
+				]),
 			},
 		];
 		if (sandboxOrigin) {
@@ -399,14 +512,13 @@ async function construct(
 		tls = memory.secrets?.tls;
 		if (server.tls && !tls) throw new Error('The TLS certificate and key were not read.');
 	} catch (cause) {
-		provider?.close();
-		if (!internals.lock) lock.release();
+		// The start's own failure is what the caller reads, whatever the release then meets.
+		await releaseAll(mcp, provider, internals.lock ? undefined : lock).catch(() => {});
 		throw cause;
 	}
 	const adopted = internals.servers;
 	if (adopted && Boolean(adopted.sandbox) !== listeners.length > 1) {
-		provider?.close();
-		if (!internals.lock) lock.release();
+		await releaseAll(mcp, provider, internals.lock ? undefined : lock);
 		throw new Error('The sockets handed over do not match the listeners the configuration names.');
 	}
 
@@ -451,11 +563,11 @@ async function construct(
 			if (closed) return;
 			closed = true;
 			await stopAll(servers.splice(0));
-			provider?.close();
-			lock.release();
+			await releaseAll(mcp, provider, lock);
 		},
 	};
 	if (provider) recordProvider(host, provider);
+	if (mcp) recordHostedMcp(host, mcp);
 	recordAddresses(host, (): BoundAddresses | null => {
 		const [shellServer, sandboxServer] = servers;
 		if (!shellServer) return null;

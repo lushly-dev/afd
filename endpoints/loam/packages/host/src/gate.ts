@@ -113,3 +113,14 @@ export function gate(
 		next(incoming, outgoing);
 	};
 }
+
+/**
+ * Whether a request's `Origin`, when it sends one, is the configured origin exactly. AFD's own check also admits the
+ * origin it derives from `Host` and the socket, which behind a TLS proxy is the `http` one; only the configured origin is
+ * the deployment's (3.2: the origin is configured, never derived).
+ */
+export function originAllowed(incoming: IncomingMessage, origin: string): boolean {
+	const one = incoming.headers.origin;
+	const sent = incoming.headersDistinct?.origin ?? (one === undefined ? [] : [one]);
+	return sent.length === 0 || (sent.length === 1 && sent[0] === origin);
+}

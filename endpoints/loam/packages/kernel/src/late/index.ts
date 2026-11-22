@@ -57,6 +57,7 @@ import { createNewParts } from './new-list.js';
 import { createOverlayCommands, openerOf, ownerTitle } from './overlay-commands.js';
 import { isOwner, teamListed } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
+import { PERSON_SESSION } from './person-session.js';
 import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
@@ -173,19 +174,7 @@ export type LateCommandDeps = ShellCommandDeps &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
 
-/**
- * The commands that move a person's active scope, what main shows or the session: a person's or an
- * agent's in process, never a server's, which holds no active scope (phase 2 specification, 3.3).
- */
-export const PERSON_SESSION: readonly string[] = Object.freeze([
-	'scope-set',
-	'section-open',
-	'app-open',
-	'app-close',
-	'app-route-set',
-	'auth-sign-in',
-	'auth-sign-out',
-]);
+export { PERSON_SESSION };
 
 /**
  * A page's own state, which a server's kernel would hold as one record set for every principal (9.5; step 7's

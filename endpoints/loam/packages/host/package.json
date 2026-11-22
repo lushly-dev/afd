@@ -29,16 +29,21 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@better-auth/oauth-provider": "1.7.18",
 		"@hono/node-server": "2.1.6",
+		"@lushly-dev/afd-core": "workspace:*",
 		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/loam-identity": "workspace:*",
+		"@lushly-dev/loam-kernel": "workspace:*",
 		"@lushly-dev/loam-manifest": "workspace:*",
+		"@lushly-dev/local-db": "workspace:*",
 		"better-auth": "1.7.18",
 		"hono": "4.13.17",
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {
+		"@lushly-dev/afd-client": "workspace:*",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.1",
 		"happy-dom": "^21.0.4",
