@@ -161,7 +161,12 @@ impl CommandHandler for AfdHelpHandler {
                 title: if is_full { cmd.title.clone() } else { None },
                 description: cmd.description.clone(),
                 category: if is_full { cmd.category.clone() } else { None },
-                tags: if is_full { cmd.tags.clone() } else { None },
+                // Empty lists are omitted (spec/command-metadata.md, "Reporting rules"; #1480).
+                tags: if is_full {
+                    cmd.tags.clone().filter(|tags| !tags.is_empty())
+                } else {
+                    None
+                },
                 mutation: if is_full { Some(cmd.mutation) } else { None },
                 destructive: if is_full { cmd.destructive } else { None },
                 undoable: if is_full { cmd.undoable } else { None },
@@ -291,6 +296,34 @@ mod tests {
         let output: HelpOutput = serde_json::from_value(data).unwrap();
         assert_eq!(output.total, 3);
         assert!(!output.filtered);
+    }
+
+    #[tokio::test]
+    async fn test_afd_help_full_omits_empty_tags() {
+        // Empty lists are omitted, as afd-detail omits them (#1480).
+        let registry = create_test_registry();
+        let empty = CommandDefinition::new("no-tags", "Declares empty tags", vec![], TestHandler)
+            .with_tags(vec![]);
+        registry.register(empty).unwrap();
+        let handler = AfdHelpHandler::new(registry);
+        let result = handler
+            .execute(serde_json::json!({"format": "full"}), CommandContext::new())
+            .await;
+        let data = result.data.unwrap();
+        let entry = |name: &str| {
+            data["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .unwrap()
+                .clone()
+        };
+        assert!(entry("no-tags").get("tags").is_none());
+        assert_eq!(
+            entry("todo-list")["tags"],
+            serde_json::json!(["todo", "read"])
+        );
     }
 
     #[tokio::test]

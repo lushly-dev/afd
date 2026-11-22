@@ -23,8 +23,18 @@ const adaptations = record('adaptations.json');
 const git = (args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
 
 test("Specimen provenance records are bound by hash and match each unit's release state", () => {
-	for (const entry of Object.values(provenance.records))
+	const { adaptations: changing, ...frozen } = provenance.records;
+	for (const entry of Object.values(frozen))
 		assert.equal(sha(readFileSync(join(root, directory, entry.manifest))), entry.sha256);
+	// Each row's current_import_sha256 still binds the record to its file (below). The digest of
+	// adaptations.json, which changes with every edit, is not committed: its one line made any two
+	// branches that recorded different files conflict (#1610).
+	assert.equal(changing.manifest, 'adaptations.json');
+	assert(
+		!('sha256' in changing),
+		"do not commit adaptations.json's digest (#1610). A merge made by an older pnpm base:sync " +
+			'puts it back: run node scripts/release/provenance.mjs specimen "<reason>", which removes it'
+	);
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
 	const inventory = JSON.parse(readFileSync(join(root, 'scripts/release/inventory.json'), 'utf8'));

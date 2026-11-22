@@ -167,11 +167,11 @@
       "path": "botcore-connectors/src/botcore_connectors/plugin.py",
       "upstream_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
       "staged_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
-      "current_import_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
+      "current_import_sha256": "d8bf45ade73448e8ed7109df02c8db0c80558604c2c71ceea954607b82487086",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/validation.py",
@@ -277,11 +277,11 @@
       "path": "botcore-connectors/tests/test_plugin.py",
       "upstream_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
       "staged_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
-      "current_import_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
+      "current_import_sha256": "d56aeaab01a2cea86b293a3e6caa6cee26fea68d21fe5f08701102bc11e715f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/tests/test_scope.py",
@@ -667,11 +667,11 @@
       "path": "docs/features/complete/per-agent-permissions/per-agent-permissions.plan.md",
       "upstream_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
       "staged_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
-      "current_import_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
+      "current_import_sha256": "8b265b09ab2ee8a47bfd74544f1f217872f78b0580a3813ef4ba8003f27bbd00",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "docs/features/complete/teams-interface/00-overview.plan.md",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "308b079d1d87c848629c74192889d82cab130caf43d991e45b794db0ba7466bb",
+      "current_import_sha256": "130b5b6593e99f40476e1d4156cb0eee72e473b3d74c4a919d6cd72bb2238b1c",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -840,11 +840,11 @@
       "path": "packages/botcore-agents/src/botcore_agents/config.py",
       "upstream_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
       "staged_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
-      "current_import_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
+      "current_import_sha256": "142464c1affbf214b82392ab841ebf512326d950c9de9315d7580880a2c412bc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/models.py",
@@ -938,6 +938,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-agents/tests/test_connector_tool_host.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "10a1c19b19832352f19a0f59a4b4db79ded7a1bb363409d97e17fe4d4e1374f9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+    },
+    {
       "path": "packages/botcore-agents/tests/test_models.py",
       "upstream_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
       "staged_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
@@ -1019,6 +1030,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-llm/README.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "5a4f74758cf6ea876e36c05618208fac13a817ee3c9d0562f6548b72af0c64c0",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
+    },
+    {
       "path": "packages/botcore-llm/pyproject.toml",
       "upstream_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
       "staged_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
@@ -1032,21 +1054,21 @@
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
       "upstream_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
       "staged_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
-      "current_import_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
+      "current_import_sha256": "223985a56d6b48e71bb3e4f3ca5e8e6533fe45dbda960a6631bc242d00b1c773",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
       "upstream_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
       "staged_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
-      "current_import_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
+      "current_import_sha256": "79514106cf549387ef7a3dd040a676121e3093b491ce9de98ef9ef9fd48ce5b1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/chat_stream.py",
@@ -1072,41 +1094,41 @@
       "path": "packages/botcore-llm/src/botcore_llm/commands.py",
       "upstream_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
       "staged_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
-      "current_import_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
+      "current_import_sha256": "562d4f5e632e3049f432bfe35ae1e62c563f4e2dd42e7bf4255c9451d54d71bd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/config.py",
       "upstream_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
       "staged_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
-      "current_import_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
+      "current_import_sha256": "ec935074957aa30d1647af97037a880bcba885f5f4edd0471db274bfee385cb5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/permissions.py",
       "upstream_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
       "staged_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
-      "current_import_sha256": "5fc794ba0ba44e4b03720d1cb558c40faaeef26e87cba2c421d517fae21af2f9",
+      "current_import_sha256": "cf5a57e262520aaed37896f89fefaa759187dda5015e35f8b1e3e20c80488dc7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/session.py",
       "upstream_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
       "staged_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
-      "current_import_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
+      "current_import_sha256": "f1f1661f54fe471899c6b579036fd6bfb16726ff391ad0b2136767b857da4bc1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/tests/__init__.py",
@@ -1132,11 +1154,11 @@
       "path": "packages/botcore-llm/tests/test_bridge.py",
       "upstream_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
       "staged_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
-      "current_import_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
+      "current_import_sha256": "67a29119683c47890bb630eea7dadc0bf2ce5530c2b3c219b4ad7fe9d901e4ee",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_chat_stream.py",
@@ -1162,21 +1184,21 @@
       "path": "packages/botcore-llm/tests/test_commands.py",
       "upstream_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
       "staged_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
-      "current_import_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
+      "current_import_sha256": "29151c98c80c44481811ad78479dd8164dfe290ce18a5a4a4e95cec817234900",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_permissions.py",
       "upstream_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
       "staged_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
-      "current_import_sha256": "2185b111bd39b6e1e06cc0e5d6d8a3b9a063b0728ee06442599ad94f032a96e7",
+      "current_import_sha256": "b9a1a7c59513c09e0a78b7ae24b1b0b6b4162f7ecdbfd395748b0b825a6d53ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/tests/test_plugin.py",
@@ -1368,10 +1390,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9e5474ea5b76de56f8253bdd9a5423dc5b814c8c98d4fb7aaf952a65c123eb57",
+      "current_import_sha256": "7ee363073569425f8979798fd8e914013b43d7838a0f51150e11a587a63865f0",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/events.py",
@@ -1401,10 +1423,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "df12ad36882c3e843a28de6499e9e05acad1603a019960ffbeecd5e7fc310a15",
+      "current_import_sha256": "afbdd813c0b8aee283ce5cb6437ea9149f210f48e6ed529f403b74f9530fdb1a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/fixture_world.py",
@@ -1511,10 +1533,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b2799fad9c48c327d78a168668d54532ef85aec5b75fdf14bef0a27529bb5555",
+      "current_import_sha256": "cb05fc9258f1564e8ba4107edba5ed1ef8476ed3b7a4f88a89a61a59f3722458",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_base.py",
@@ -1588,10 +1610,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "060aa582f316c16976b6cc6cdf8b015563ee987f16b6483cb1caf8727ff13d57",
+      "current_import_sha256": "5028347325051d24013a764842e3063ea370613c8e58379f75dfb149bdd1b674",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_system.py",
@@ -1610,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d0f835eab4a72c22fb9b2570e79fe7abeb02d606fc7cd4363e9297eeb263ec09",
+      "current_import_sha256": "7cc06f1c233b83fbc7e1b08cfc557e22d0ea8ca6f2755a2b18541667bf9edc80",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/records.py",
@@ -1632,10 +1654,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f0495a8695dac01fddaf9cd4ea358e33d49e4b98a5ecf83d431e559ce3aed399",
+      "current_import_sha256": "ff2050eae542ac8f3a34ce01f1eb379763476dd69eb98a79b68ef863a72247be",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/status.py",
@@ -1654,10 +1676,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5d0dd9667551b3004600d80378d762b76ec64960b4a9f437d10de6359e17d3d7",
+      "current_import_sha256": "9f9c1c15b10cb53cc9deeca79f547ea1d00433e615a5c7988e5e36d8ce763419",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_adapter.py",
@@ -1753,10 +1775,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d33dbc04d0235d152485ea348b56f5cbf74c6beff30504dbd56c30f353f5f5b3",
+      "current_import_sha256": "c42993f177782555f9f8804d722cd3b53d20e878800432bdb0afe80c7085706a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Use native path expectations in the factory build-directory tests on Windows"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Use native path expectations in the factory build-directory tests on Windows; The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_git.py",
@@ -1764,10 +1786,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3c0d3e4074ba961d34b49b3204e94309cb98a4a6a396232cb26fe43396a86d9c",
+      "current_import_sha256": "675ef048dc1d61f6f17cd171898858482baf87bdb5d9b9c6f916f64adfb916b8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505)"
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_merge_queue.py",
@@ -1819,10 +1841,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ce5b1c8bf6a7358e51dd49179ab9e209c0437996029f7c32f220d9d0b63ac912",
+      "current_import_sha256": "aebb31f481608171e13d99f6545d57a9da2f88bba861d1b433250da53d396434",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -2050,10 +2072,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d36a97ede973d758baa0156bae618c48d2c107e3c50d8dcd747aff4adafb98de",
+      "current_import_sha256": "cf15313319b9871b813c4f9e387db69c8710d91c0b6e0101d64ed60aef549c4f",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -2810,11 +2832,11 @@
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "5f450b98aadcc9bde25dd2f916b047abf39576009097682e177f6bc704286303",
+      "current_import_sha256": "b7f55fbd1ca22b39b8fbdef21c8ec5c4e239ccc594c7204b657a1b7d7a1fe0bb",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "src/botcore/host_surfaces.py",
@@ -3221,11 +3243,11 @@
       "path": "src/botcore/skills/agent-config/SKILL.md",
       "upstream_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
       "staged_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
-      "current_import_sha256": "eaf2b98f9507b0a52e7a6eb99c78eb416acec16c15fe1d802d6ac193ee34dc3f",
+      "current_import_sha256": "a9b9877d9dce64eb021199f858fd6446e179732365c889d415e2d16e3c19de39",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block"
+      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "src/botcore/skills/agent-config/references/examples.md",

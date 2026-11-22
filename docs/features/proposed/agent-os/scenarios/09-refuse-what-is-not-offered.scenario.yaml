@@ -1,0 +1,123 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is a host whose two seats are taken (fixtures/full.json over fixtures/host.json).
+name: Refuse what the host is not set up for
+description: >-
+  When the host is full, or a caller asks for a repository, image, size or commit it does not
+  have, I want a refusal that names what is offered, so that the lane holds the branch instead of
+  overloading the host and nothing runs on an image nobody pinned.
+job: refuse-what-is-not-offered
+tags: [m1]
+fixture:
+  file: fixtures/full.json
+  base: host.json
+steps:
+  - description: The host says what it offers and that both seats are taken
+    command: host-status
+    expect:
+      success: true
+      data:
+        capacity:
+          machines: { max: 2, active: 2 }
+        repositories:
+          - { name: example-repo }
+        sizes:
+          - { name: small }
+          - { name: standard }
+        policies:
+          - { name: none }
+          - { name: registries }
+  - description: A full host holds the branch, and says the refusal is worth retrying
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache }
+    expect:
+      success: false
+      error:
+        code: HOST_FULL
+        message: machines
+        suggestion: { contains: machine-list }
+  - description: A repository the operator did not configure
+    command: machine-create
+    input: { repository: other-repo, for: fix/cache }
+    expect:
+      success: false
+      error:
+        code: REPOSITORY_NOT_ALLOWED
+        suggestion: { contains: host-status }
+  - description: An image the operator did not pin
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache, image: nightly }
+    expect:
+      success: false
+      error:
+        code: IMAGE_UNKNOWN
+        suggestion: { contains: host-status }
+  - description: A size the host does not have
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache, size: huge }
+    expect:
+      success: false
+      error:
+        code: SIZE_UNKNOWN
+        suggestion: { contains: host-status }
+  - description: A second machine for a branch that has one, asked for in another size
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens, size: small }
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: machine-destroy }
+  - description: Asking again for the machine a branch already has returns it, even on a full host
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: false
+        machine:
+          id: m-02
+  - description: A commit the repository's configured source does not hold
+    command: run-start
+    input:
+      machine: m-01
+      head: ffffffffffffffffffffffffffffffffffffffff
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: HEAD_NOT_FOUND
+        suggestion: { contains: source }
+  - description: A machine that never existed
+    command: run-start
+    input:
+      machine: m-99
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: machine-list }
+  - description: A machine that is gone
+    command: run-start
+    input:
+      machine: m-expired
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: MACHINE_NOT_READY
+        suggestion: { contains: machine-create }

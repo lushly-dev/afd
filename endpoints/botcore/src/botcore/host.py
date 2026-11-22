@@ -152,6 +152,17 @@ class CommandHost:
         self._policies: dict[str, CommandPolicy] = {}
         self.middleware: list[Callable] = []
         self.docs: dict[str, str] = {}
+        #: The plugin instances whose commands this host serves (set by ``build_host``).
+        self.plugins: dict[str, Any] = {}
+
+    async def aclose(self) -> None:
+        """Release what the host's plugins hold open, calling each plugin's ``close()``."""
+        for plugin in self.plugins.values():
+            close = getattr(plugin, "close", None)
+            if callable(close):
+                outcome = close()
+                if inspect.isawaitable(outcome):
+                    await outcome
 
     def register(self, name: str, handler: Callable, policy: CommandPolicy) -> None:
         if name in self._commands or _other_spelling(name) in self._commands:
@@ -477,6 +488,7 @@ def build_host(
             plugin.register(registry)
             _refuse_foreign_policies(plugin_name, registry, *before)
     host = CommandHost(name, context)
+    host.plugins = dict(selected)
     host.docs = build_docs(registry)
     host.middleware = registry.middleware
     explicit = policies or {}

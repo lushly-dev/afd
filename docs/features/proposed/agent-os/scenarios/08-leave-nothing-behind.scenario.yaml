@@ -1,0 +1,104 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture also holds a machine the host destroyed itself when its time ran out. The clock cannot
+# move between steps, so that machine starts already destroyed. That the disk returns to its level is
+# measured in M1's exit.
+name: Destroy a machine and everything it wrote
+description: >-
+  When a validation is over, I want its machine destroyed with everything it wrote, to see that
+  nothing of it remains, and to keep the record of what ran, so that disk space comes back and no
+  later run meets an earlier run's files.
+job: leave-nothing-behind
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: Its validation starts
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: And passes
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: The machine goes, with its checkout and its build output
+    command: machine-destroy
+    input: { id: "${{ steps[0].data.machine.id }}", reason: Validated }
+    expect:
+      success: true
+      data:
+        destroyed: true
+        changed: true
+        freedGb: { gte: 0 }
+        removed:
+          volumes: [work, build]
+  - description: Destroying it again changes nothing
+    command: machine-destroy
+    input: { id: "${{ steps[0].data.machine.id }}" }
+    expect:
+      success: true
+      data:
+        destroyed: true
+        changed: false
+  - description: The host still knows the machine existed, and holds nothing of it
+    command: machine-get
+    input: { id: "${{ steps[0].data.machine.id }}" }
+    expect:
+      success: true
+      data:
+        machine:
+          state: destroyed
+          mounts: { length: 0 }
+  - description: The record of the run outlives the machine
+    command: run-get
+    input: { id: "${{ steps[1].data.run.id }}" }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: No machine is active
+    command: machine-list
+    input: { state: active }
+    expect:
+      success: true
+      data:
+        machines: { length: 0 }
+  - description: A machine nobody destroyed went when its time ran out, and the record says who did it
+    command: machine-get
+    input: { id: m-expired }
+    expect:
+      success: true
+      data:
+        machine:
+          state: destroyed
+          reason: expired
+          destroyedBy: { kind: service, id: reaper }
+  - description: The host counts no machine
+    command: host-status
+    expect:
+      success: true
+      data:
+        capacity:
+          machines: { active: 0 }

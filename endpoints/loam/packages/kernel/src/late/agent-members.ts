@@ -102,6 +102,8 @@ export interface AgentMemberCache extends RecordCache<AgentMemberV1> {
 
 export interface AgentMembersDeps {
 	auth: LoamAuthAdapter;
+	/** A principal-gated kernel's (9.5): the account is read only by the call's person, through `accountFor`. */
+	gated?: boolean;
 	identity?: IdentityV1 | undefined;
 	/** The workspace store: the `agent-member` table. */
 	store: DataAdapter;
@@ -178,7 +180,8 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	/** The person the call is for, from its stamped actor (3.1, step 5's B1). */
 	const personOf = (context: CommandContext) => kit.personOf(context);
 	/** An owner of the workspace (7.1): in `local` mode every actor; in `provider` mode on the membership held. */
-	const ownerOf = (context: CommandContext) => kit.isOwner(scope.membership, personOf(context));
+	const ownerOf = (context: CommandContext) =>
+		kit.isOwner(scope.membershipOf(context), personOf(context));
 
 	/** An installed agent member's record, from the store: a connected one is never in the kernel's table (9.2). */
 	async function recordOf(id: string): Promise<AgentMemberV1 | undefined> {
@@ -193,7 +196,13 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	 */
 	async function roster(context: CommandContext): Promise<Map<string, RosterPerson>> {
 		const people = new Map<string, RosterPerson>();
-		const account = provider ? deps.auth.account : undefined;
+		// On the server, the provider's server API by the call's person (9.2); never `local`'s answer in `provider` mode.
+		const account = accountOf(context);
+		if (provider && !account) {
+			throw Object.assign(new Error('The sign-in provider is not reachable from this kernel'), {
+				code: 'IDENTITY_PROVIDER_UNAVAILABLE',
+			});
+		}
 		if (!account) {
 			const state = deps.auth.getSession();
 			const user = state.status === 'authenticated' ? state.user : undefined;
@@ -282,7 +291,9 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		const person = personOf(context);
 		const listed = agent.access.projects;
 		const seen =
-			listed === 'sponsor' ? listed : listed.filter((id) => mayEnter(scope.membership, person, id));
+			listed === 'sponsor'
+				? listed
+				: listed.filter((id) => mayEnter(scope.membershipOf(context), person, id));
 		const read = people
 			? (() => {
 					const sponsor = people.get(agent.sponsor);
@@ -320,9 +331,49 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		};
 	}
 
-	/** Every agent member, oldest first, filtered for the call's person (8.2); the roster read is heard (8.3). */
+	/** The call's person's account capability (9.2): on the server, the provider's by that person; else the adapter's. */
+	const accountOf = (context: CommandContext) =>
+		provider
+			? deps.auth.accountFor
+				? deps.auth.accountFor(personOf(context))
+				: deps.gated
+					? undefined
+					: deps.auth.account
+			: undefined;
+
+	/** A provider read or write that failed (9.2): its own code where it says one, else an outage, each with its fix. */
+	const providerRefusal = (cause: unknown): CommandResult<never> => {
+		const { code, message } = (cause ?? {}) as { code?: unknown; message?: unknown };
+		if (code === 'OWNER_REQUIRED')
+			return fail('OWNER_REQUIRED', 'Only an owner of the workspace can remove a connected agent');
+		return kit.kernelFailure(
+			'IDENTITY_PROVIDER_UNAVAILABLE',
+			typeof message === 'string' ? message : 'The sign-in provider did not answer',
+			'Try again in a moment; the sign-in provider did not answer',
+			{ retryable: true }
+		);
+	};
+
+	/**
+	 * The workspace's connected agents (9.2), from the provider's own table: in `provider` mode, through the account
+	 * capability; none in `local` mode, or from a provider that keeps none. A failed read fails the call (the caller's
+	 * `try` answers it), never leaving them out silently.
+	 */
+	async function connectedOf(context: CommandContext): Promise<AgentMemberV1[]> {
+		const read = accountOf(context)?.agents;
+		if (!read) return [];
+		return (await read()).map(({ scopes: _scopes, ...agent }) => ({
+			...agent,
+			kind: 'connected' as const,
+		}));
+	}
+
+	/**
+	 * Every agent member, oldest first, installed ones from the kernel's table and connected ones from the provider's,
+	 * filtered for the call's person (8.2); the roster read is heard (8.3).
+	 */
 	async function rowsFor(context: CommandContext): Promise<AgentMemberRowV1[]> {
-		const agents = cache.all();
+		const agents = [...cache.all(), ...(await connectedOf(context))];
 		if (agents.length === 0) return [];
 		const people = await roster(context);
 		heard(people);
@@ -794,9 +845,22 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		async handler(input, context) {
 			const refused = ownerRefusal(context);
 			if (refused) return refused;
-			// A connected agent, not in the kernel's table, is removed at the provider with step 7 (9.2).
 			const before = await recordOf(input.agent);
-			if (!before) return notFound();
+			if (!before) {
+				// A connected agent, not in the kernel's table, is removed at the provider (9.2): kept `suspended: 'owner'`,
+				// or deleted with `forget`. Recorded, so a replay answers it from its entry; no undo.
+				const removeAgent = accountOf(context)?.removeAgent;
+				try {
+					const connected = removeAgent
+						? (await connectedOf(context)).some((agent) => agent.id === input.agent)
+						: false;
+					if (!connected || !removeAgent) return notFound();
+					await removeAgent(input.agent, input.forget === true);
+				} catch (cause) {
+					return providerRefusal(cause);
+				}
+				return kit.success({ removed: true as const });
+			}
 			const undo = await keep(before, context);
 			await store.remove(AGENT_MEMBER_TABLE, before.id);
 			cache.drop(before.id);
@@ -851,8 +915,19 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		input: agentInput,
 		jsonSchema: AGENT_JSON,
 		async handler(input, context) {
-			const record = cache.get(input.agent);
-			if (record?.kind !== 'installed') return notFound();
+			const held = cache.get(input.agent);
+			// An installed one from the kernel's table, else a connected one from the provider's (9.2).
+			const record =
+				held?.kind === 'installed'
+					? held
+					: held === undefined
+						? await connectedOf(context).then(
+								(agents) => agents.find((agent) => agent.id === input.agent),
+								(cause: unknown) => providerRefusal(cause)
+							)
+						: undefined;
+			if (record && 'success' in record) return record;
+			if (!record) return notFound();
 			const people = await roster(context);
 			heard(people);
 			return kit.success(rowFor(record, context, people, ownerOf(context)));
@@ -1020,6 +1095,11 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		] as unknown as ZodCommandDefinition[],
 		/** `member-list`'s agents (7.2): the same rows `agent-member-list` answers. */
 		rowsFor,
+		/** `agent-member-remove` of an id the kernel's table does not hold: a connected agent's, recorded (3.4, 9.2). */
+		recordedCall: (name: string, input: unknown) =>
+			name === 'agent-member-remove' &&
+			typeof (input as { agent?: unknown } | null)?.agent === 'string' &&
+			cache.get((input as { agent: string }).agent) === undefined,
 		/**
 		 * `member-remove`'s suspensions (7.2, 8.3): the agent members `person` sponsors, suspended by the
 		 * `agent-member-settle` that follows the call.

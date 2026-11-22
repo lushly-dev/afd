@@ -1,0 +1,70 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is a host whose journal cannot be written (fixtures/journal-down.json over
+# fixtures/host.json). Writing the held entries once the journal returns happens between commands
+# and needs unit tests.
+name: Keep stopping, and start nothing, when the record cannot be written
+description: >-
+  When the host cannot write its journal, because its disk is full or the file is locked, I want
+  to go on reading and stopping what runs and to be refused anything new, so that I can clear the
+  trouble by hand, a runaway run never outlives a full disk and nothing ever starts that the
+  record does not hold.
+job: keep-stopping-when-the-record-is-down
+tags: [m1]
+fixture:
+  file: fixtures/journal-down.json
+  base: host.json
+steps:
+  - description: The host says its journal cannot be written
+    command: host-status
+    expect:
+      success: true
+      data:
+        journal: { mode: required, writable: false }
+  - description: No machine is made
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: false
+      error:
+        code: JOURNAL_UNAVAILABLE
+        suggestion: { contains: host-status }
+  - description: No run is started
+    command: run-start
+    input:
+      machine: m-01
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: JOURNAL_UNAVAILABLE
+  - description: Reads still answer
+    command: machine-list
+    input: { repository: example-repo }
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: m-01, state: ready }
+  - description: A machine can still be destroyed; stopping is never refused
+    command: machine-destroy
+    input: { id: m-01, reason: The host is out of disk }
+    expect:
+      success: true
+      data:
+        destroyed: true
+  - description: >-
+      The entry for the stop is held, the entries for the reads and refusals are dropped, and the
+      host counts both
+    command: host-status
+    expect:
+      success: true
+      data:
+        journal:
+          writable: false
+          pending: 1
+          dropped: { gte: 1 }

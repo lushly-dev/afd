@@ -559,14 +559,25 @@ export const CEILINGS = Object.freeze({
 	// Approval admission in afd-server (the engine records each call's approval policy and admission and refuses an
 	// unadmitted gated call), measured in one tree against `main` at `2700c62e`: 325,057 to 326,342 (+1,285); set to
 	// 326,800 under D115. Gzip 102,213 to 102,675, within its row.
-	jsMinified: 326_800,
+	// The approval-admission follow-ups, in one tree against `main` at `d6764276`: 326,696 to 326,777 (+81) and gzip
+	// 102,795 to 102,827, within both rows. Their review fixes (an approval step admits only a call it may gate, every
+	// step's admission must match, an input changed while the step decides is refused): 326,961 and gzip 102,905; set
+	// to 327,300 under D115.
+	// Phase 3's step 7 (identity over MCP), measured in one tree against `main` at `0ab76415`: 326,696 to 328,238
+	// (+1,542): the kernel's principal gate hook (the `gate` option, `KERNEL_OWN`, the server's own call marks and the
+	// scope runtime's `membershipOf`/`agentOf`) and the OAuth pages' route in `main.ts`; the gate itself is its own lazy
+	// chunk. Set to 328,800 under D115. Gzip 102,796 to 103,170, within its row. After its review's fixes, 328,317 and
+	// 103,184, within both rows.
+	jsMinified: 328_800,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
 	// afd-server's approval admission with its refusal reasons, against `main` at `2700c62e`: 102,213 to 102,795 gzip
 	// (+582); set to 103,200 under D115.
-	jsGzip: 103_200,
+	// With phase 3's step 7 (`main` at `09f3b0c0`, 103,184) and the approval-admission follow-ups merged: 103,302; set
+	// to 103,700 under D115.
+	jsGzip: 103_700,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -585,7 +596,11 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #1701 and #1704: measured 135,309 against `main` at `e6395319`; set to 136,000.
 	// Approval admission in afd-server, against `main` at `2700c62e`: 135,309 to 136,945 (+1,636); set to 137,400 under
 	// D115.
-	kernelMinified: 137_400,
+	// Its follow-ups (a listed policy's gate, the canonical input decided on, the middleware's `input-not-canonical`
+	// answer), against `main` at `d6764276`: 137,347 to 137,446 (+99); set to 137,800 under D115.
+	// Phase 3's step 7, against `main` at `0ab76415`: 137,347 to 141,140 (+3,793): the principal gate's chunk, the
+	// connected agents in the member reads and `account-agent-*`; set to 141,700 under D115.
+	kernelMinified: 141_700,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -598,17 +613,25 @@ export const CEILINGS = Object.freeze({
 	lateMinified: 118_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
-	lateIdentityMinified: 63_000,
+	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
+	// connected agents in `agent-member-list`, `-get` and `-remove`, the account read by the call's person; set to 65,500.
+	// After its review's fixes, 65,750 (an owner's removal kept, provider failures mapped); set to 66,300.
+	lateIdentityMinified: 66_300,
 	lateCopilotMinified: 13_900,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
 	lateSettingsMinified: 101_500,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
-	authMinified: 72_000,
+	// Phase 3's step 7, against `main` at `0ab76415`: 71,703 to 72,707 (+1,004), the OAuth pages' provider client and the
+	// connected agents' requests; set to 73,200 under D115.
+	authMinified: 73_200,
 	signInMinified: 10_500,
 	accountMenuMinified: 5_400,
-	accountMinified: 28_000,
+	// Phase 3's step 7, against `main` at `0ab76415`: 25,727 to 30,973 (+5,246), the OAuth login and consent pages and the
+	// agents tab; set to 31,500 under D115. After its review's fixes, 31,705 (single sign-on on the login page, `prompt`
+	// honoured, only web addresses followed, an owner's removal shown as such); set to 32,300.
+	accountMinified: 32_300,
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.

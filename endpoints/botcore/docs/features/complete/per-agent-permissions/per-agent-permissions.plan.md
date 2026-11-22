@@ -70,9 +70,11 @@ class AgentPermissionsConfig(LlmPermissionsConfig):
     shell_allowlist: list[str] | None = None
     """If allow_shell is True, restrict to these glob patterns.
 
-    Uses ``fnmatch.fnmatch`` against the full command string.
-    Commands containing shell operators (``&&``, ``||``, ``;``, ``|``)
-    MUST be denied unless every segment matches the allowlist.
+    Each command is approved on its own: a command line holding a shell
+    operator (``&&``, ``||``, ``;``, ``|``), a line break, a redirection or
+    a substitution outside quotes MUST be denied, even when every part would
+    match. The rest is parsed with ``shlex`` and the pattern matched against
+    that argv, the program name exactly (``check_shell_command`` in ``botcore_llm/permissions.py``).
 
     Example: ["git *", "pytest *", "ruff *"]
     None = all shell commands allowed (when allow_shell is True).
@@ -271,22 +273,12 @@ def create_permission_handler(
 
 
 def _matches_shell_allowlist(command: str, allowlist: list[str]) -> bool:
-    """Check if command matches any pattern in the shell allowlist.
+    """Check if command is one simple command a shell allowlist pattern matches.
 
-    Uses ``fnmatch.fnmatch`` against the full command string.
-    Commands containing shell operators are split on operators and
-    every segment must match independently.
+    Superseded sketch: this plan first split command lines on operators and
+    matched each segment. Each command is now approved on its own; see
+    ``check_shell_command`` in ``botcore_llm/permissions.py``.
     """
-    import fnmatch
-    import re
-
-    # Split on shell operators: &&, ||, ;, |
-    segments = re.split(r'\s*(?:&&|\|\||[;|])\s*', command)
-    return all(
-        any(fnmatch.fnmatch(seg.strip(), pat) for pat in allowlist)
-        for seg in segments
-        if seg.strip()
-    )
 
 
 def _path_allowed(requested: str, allowed_paths: list[str]) -> bool:
@@ -341,8 +333,8 @@ registry.register(
 - `AgentConfig` MUST include a `permissions` field defaulting to `AgentPermissionsConfig()`
 - Default permissions MUST deny shell and filesystem (secure by default)
 - Default permissions MUST allow MCP and custom tools (functional by default)
-- `shell_allowlist` MUST use `fnmatch.fnmatch` against the full command string
-- `shell_allowlist` MUST deny commands containing shell operators (`&&`, `||`, `;`, `|`) unless every segment matches the allowlist independently
+- `shell_allowlist` MUST approve each command on its own: a command line containing a shell operator (`&&`, `||`, `;`, `|`), a line break, a redirection, a substitution or a glob outside quotes MUST be denied, even when every part would match
+- `shell_allowlist` MUST parse the command with `shlex` and match each pattern with `fnmatch` against that argv, with the program name (the pattern's first word) matched exactly
 - `filesystem_paths` MUST resolve both configured and requested paths to absolute form via `pathlib.Path.resolve()` before `startswith` comparison
 - Permission handler MUST cover all 6 permission kinds: `shell`, `read`, `write`, `mcp`, `custom-tool`, `url`
 - Permission handler MUST read from session-specific config, not global config
@@ -364,7 +356,7 @@ registry.register(
 | AgentPermissionsConfig inherits LlmPermissionsConfig | `issubclass(AgentPermissionsConfig, LlmPermissionsConfig)` |
 | Agent with allow_shell=False | Shell commands denied |
 | Agent with allow_shell=True + allowlist | Only allowlisted commands pass |
-| Shell allowlist with operators | `git status && rm -rf /` denied because `rm -rf /` doesn't match |
+| Shell allowlist with operators | `git status && git diff` denied: each command is approved on its own, even when every part matches |
 | Agent with allow_filesystem=True + paths | Only prefixed paths allowed (after resolve) |
 | Filesystem path normalization | Relative paths resolved to absolute before comparison |
 | `read` kind gates on allow_filesystem | read denied when allow_filesystem=False |
@@ -391,6 +383,6 @@ registry.register(
 
 | Risk | Mitigation |
 |------|------------|
-| Shell allowlist bypassed via shell metacharacters | Split on operators and match every segment; log all shell invocations |
+| Shell allowlist bypassed via shell metacharacters | Approve one simple command at a time: refuse operators, line breaks, redirections and substitutions outside quotes, and match the parsed argv; log all shell invocations |
 | Filesystem path check bypassed via symlinks | `Path.resolve()` follows symlinks; TOCTOU race remains a known limitation |
 | Permission profile too restrictive for debugging | Dev-mode override (environment variable or CLI flag) |

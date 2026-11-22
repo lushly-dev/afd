@@ -16,7 +16,7 @@ for:
 
 - **1, shrink the one-line cells; the line-limit check.** Merged in [#1605](https://github.com/lushly-dev/afd/pull/1605). Left: nothing.
 
-- **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). [#1610](https://github.com/lushly-dev/afd/issues/1610)'s option 2: Botcore and FAST-AF no longer commit the `adaptations.json` digest, and Botcore's build stamps it into the wheel and sdist, in [#1658](https://github.com/lushly-dev/afd/pull/1658); the owner [decided on 2026-11-20](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7034626046) not to ship provenance records in FAST-AF's npm packages for now. Left: Specimen and Violet, which still commit the digest (Health has no `adaptations.json`).
+- **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). [#1610](https://github.com/lushly-dev/afd/issues/1610)'s option 2: Botcore and FAST-AF no longer commit the `adaptations.json` digest, and Botcore's build stamps it into the wheel and sdist, in [#1658](https://github.com/lushly-dev/afd/pull/1658); the owner [decided on 2026-11-20](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7034626046) not to ship provenance records in FAST-AF's npm packages for now. The owner [decided on 2026-11-22](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7073040838) to do the same for Specimen and Violet, repository-only since neither ships its records, and to keep committing Botcore's mirror, in [#1916](https://github.com/lushly-dev/afd/pull/1916). Health has no `adaptations.json`. Left: nothing.
 
 - **3, Changesets for Python, Botcore and the spec contract.** Merged in
   [#1613](https://github.com/lushly-dev/afd/pull/1613). Left: the first Python or Botcore release
@@ -32,8 +32,8 @@ for:
   factory's lane and gateway enqueue; the live lane was restarted on that code before the queue
   went on. [#1625](https://github.com/lushly-dev/afd/pull/1625): `prepare-pr`'s step 9 enqueues; it is the first pull request to land
   through the queue. Two trials on a throwaway branch are recorded in the plan. `release.yml` makes the commit of a
-  version pull request it opened as that pull request's author ([#1643](https://github.com/lushly-dev/afd/pull/1643), for [#1624](https://github.com/lushly-dev/afd/issues/1624)). Left: a
-  version pull request opened by the release App has not been through the queue.
+  version pull request it opened as that pull request's author ([#1643](https://github.com/lushly-dev/afd/pull/1643), for [#1624](https://github.com/lushly-dev/afd/issues/1624)). The first
+  version pull request opened by the release App, [#1832](https://github.com/lushly-dev/afd/pull/1832), merged through the queue on 2026-11-22 with its credit check passing. Left: nothing.
 
 ## Measure
 

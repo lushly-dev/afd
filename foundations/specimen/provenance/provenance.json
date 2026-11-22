@@ -21,8 +21,7 @@
       "sha256": "a1abb93b7a56d9ffa30ede1442499e22379e242f6be1bf58e4be6b615fb8239d"
     },
     "adaptations": {
-      "manifest": "adaptations.json",
-      "sha256": "b7d8937736e60d82a8ea665370a1c4f47a2fc659b0af6c88445516830859955b"
+      "manifest": "adaptations.json"
     }
   },
   "units": [

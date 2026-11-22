@@ -13,6 +13,7 @@ import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/de
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import type { LoamKernelErrorCode } from '../errors.js';
 import type { AccessActorV1, MemberRoleV1, MembershipV1 } from '../scope/access.js';
+import type { AgentMemberV1 } from '../scope/records.js';
 import type { AgentMemberRowV1 } from './agent-members.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PersonaPresentationV1 } from './persona.js';
@@ -50,6 +51,18 @@ export interface MemberV1 {
 /** An agent member as `member-list` and `agent-member-list` show it, filtered for the caller: never a seat (7.2, 8.2). */
 export type { AgentMemberRowV1 } from './agent-members.js';
 
+/** A connected agent as its person sees it (5.3): never a token, a secret or another person's agent. */
+export interface OwnConnectedAgentV1 {
+	agent: string;
+	name: string;
+	/** The metadata document's host, or empty for a client the deployer registered (9.4). */
+	clientHost: string;
+	scopes: string[];
+	connectedAt: string;
+	status: 'active' | 'suspended';
+	suspended?: AgentMemberV1['suspended'];
+}
+
 /** An invitation as the invitee sees it (5.3). */
 export interface OwnInvitationV1 {
 	id: string;
@@ -81,10 +94,28 @@ export interface LoamAccountAccessV1 {
 		total: number;
 	}>;
 	invitations(): Promise<OwnInvitationV1[]>;
+	/**
+	 * The workspace's connected agents, every person's (9.2), from `loamServerPlugin`'s `connected-agents` endpoint: the
+	 * provider's table is theirs alone. Absent: a provider with none (step 7 adds them).
+	 */
+	agents?(): Promise<ConnectedAgentV1[]>;
+	/** The person's own connected agent disconnected (5.3): its record, consent and refresh tokens gone. */
+	disconnectAgent?(agent: string): Promise<void>;
+	/** An owner's removal of a connected agent (9.2): kept `suspended: 'owner'`, or deleted with `forget`. */
+	removeAgent?(agent: string, forget: boolean): Promise<void>;
 }
 
-/** An adapter with Loam's account capability, as the web host's is in `provider` mode. */
-export type LoamAuthAdapter = AuthAdapter & { account?: LoamAccountAccessV1 };
+/** A connected agent as the provider answers it (9.2): `AgentMemberV1` with `kind: 'connected'`, and its scopes. */
+export type ConnectedAgentV1 = AgentMemberV1 & { kind: 'connected'; scopes: string[] };
+
+/**
+ * An adapter with Loam's account capability, as the web host's is in `provider` mode; or, on the server, with
+ * `accountFor`, the provider's server API for one person, since a token's call has no session (9.2).
+ */
+export type LoamAuthAdapter = AuthAdapter & {
+	account?: LoamAccountAccessV1;
+	accountFor?(person: string): LoamAccountAccessV1;
+};
 
 /**
  * Owner commands (3.4's fourth row): an owner's, others `OWNER_REQUIRED`; never an agent's (`HUMAN_REQUIRED`), never
@@ -109,6 +140,8 @@ export const MEMBER_PROVIDER_COMMANDS: readonly string[] = Object.freeze([
 	'account-invitation-list',
 	'account-invitation-accept',
 	'account-invitation-reject',
+	'account-agent-list',
+	'account-agent-disconnect',
 	'member-list',
 	'member-invite',
 	'member-invitation-list',
@@ -167,7 +200,10 @@ export interface MemberCommandsDeps {
 		personKey(actor: AccessActorV1): string | undefined;
 		isOwner(membership: MembershipV1, person: string | undefined): boolean;
 	};
-	membership(): MembershipV1;
+	/** The membership a decision for the call reads: on the server, its principal's alone (9.5). */
+	membership(context: CommandContext): MembershipV1;
+	/** A principal-gated kernel's (9.5): the account is read only by the call's person, through `accountFor`. */
+	gated?: boolean;
 	/**
 	 * Step 6's agent members (8): `member-list`'s agents, the rows `agent-member-list` answers, and the ones a removed
 	 * person sponsors, suspended by the `agent-member-settle` after `member-remove` (7.2, 8.3). Absent: none.
@@ -249,16 +285,26 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			'A local workspace has no identity provider: its one person is its owner',
 			'Deploy with [identity] mode = "provider" to have members, invitations and an account'
 		);
-	const account = (): LoamAccountAccessV1 | undefined => (provider ? auth.account : undefined);
+	/**
+	 * The account capability for the call's person: a browser's adapter's, by its session; on the server, the provider's
+	 * server API by the token's person, never a session (9.2: "served for the token's person with no session").
+	 */
+	const account = (context: CommandContext): LoamAccountAccessV1 | undefined => {
+		if (!provider) return undefined;
+		// The server reads only by the call's person, never a session-bound capability (9.2, 9.5).
+		if (!auth.accountFor) return deps.gated ? undefined : auth.account;
+		const person = personOf(context);
+		return person === undefined ? undefined : auth.accountFor(person);
+	};
 	const organization = () => (provider ? auth.organization : undefined);
 
 	/** The person the call is for: a human's id, an agent's `onBehalfOf` (3.1). */
 	const personOf = (context: CommandContext) => kit.personKey(context.actor as AccessActorV1);
 	/** The bound organization's id, from the account, once: the binding never moves (2.3). */
 	let bound: string | undefined;
-	const boundId = async (): Promise<string> => {
+	const boundId = async (context: CommandContext): Promise<string> => {
 		if (bound) return bound;
-		const read = await (account() as LoamAccountAccessV1).get();
+		const read = await (account(context) as LoamAccountAccessV1).get();
 		const found = read.organizations.find((held) => held.bound);
 		if (!found)
 			throw Object.assign(new Error('You are not a member of this workspace'), {
@@ -269,13 +315,13 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 	};
 	/** `OWNER_REQUIRED` unless the call's person is an owner, on the membership read again before it (7.1). */
 	const ownerRefusal = (context: CommandContext): CommandResult<never> | undefined =>
-		kit.isOwner(deps.membership(), personOf(context))
+		kit.isOwner(deps.membership(context), personOf(context))
 			? undefined
 			: fail('OWNER_REQUIRED', 'Only an owner of the workspace can do this');
 	/** Whether the call's person holds the provider's `owner` role, which alone grants or removes it (7.1). */
 	const holdsOwnerRole = (context: CommandContext) => {
 		const person = personOf(context);
-		return person !== undefined && deps.membership().members.get(person) === 'owner';
+		return person !== undefined && deps.membership(context).members.get(person) === 'owner';
 	};
 
 	const empty = z.strictObject({});
@@ -285,8 +331,17 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 	const role = z.enum(['owner', 'admin', 'member']);
 	const ROLE_JSON: JsonSchema = { type: 'string', enum: ['owner', 'admin', 'member'] };
 
+	/**
+	 * A `provider` deployment with no account capability for this call, as a server kernel given none: never `local`'s
+	 * answer, which would read the adapter's person (9.5). Thrown, so the caller's refusal answers it as an outage.
+	 */
+	const unreachable = () =>
+		Object.assign(new Error('This kernel cannot read the sign-in provider for this person'), {
+			code: 'IDENTITY_PROVIDER_UNAVAILABLE',
+		});
 	/** The person's account in `local` mode: the one person, an owner of a workspace with no provider. */
 	const localAccount = (context: CommandContext): AccountV1 => {
+		if (provider) throw unreachable();
 		const state = auth.getSession();
 		const user = state.status === 'authenticated' ? state.user : undefined;
 		return {
@@ -311,7 +366,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		return Object.keys(shown).length > 0 ? { presentation: shown } : {};
 	};
 	const readAccount = async (context: CommandContext): Promise<AccountV1> => {
-		const held = account();
+		const held = account(context);
 		if (!held) {
 			const local = localAccount(context);
 			return { ...local, persona: await personaOf(local.id) };
@@ -360,7 +415,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const held = account();
+			const held = account(context);
 			if (!held) return noProvider();
 			try {
 				const before = await readAccount(context);
@@ -384,8 +439,8 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		executionTime: 'fast',
 		input: empty,
 		jsonSchema: EMPTY_JSON,
-		async handler() {
-			const held = account();
+		async handler(_input, context) {
+			const held = account(context);
 			if (!held) return kit.success({ invitations: [] });
 			try {
 				return kit.success({ invitations: await held.invitations() });
@@ -403,8 +458,8 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		additionalProperties: false,
 	};
 	/** One of the person's own pending invitations, or `INVITATION_NOT_FOUND`, the same for any other id. */
-	const ownInvitation = async (invitation: string) => {
-		const found = (await (account() as LoamAccountAccessV1).invitations()).find(
+	const ownInvitation = async (invitation: string, context: CommandContext) => {
+		const found = (await (account(context) as LoamAccountAccessV1).invitations()).find(
 			(held) => held.id === invitation
 		);
 		return found ?? fail('INVITATION_NOT_FOUND', 'You have no pending invitation with this id');
@@ -423,11 +478,11 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		executionTime: 'fast',
 		input: invitationInput,
 		jsonSchema: INVITATION_JSON,
-		async handler(input) {
+		async handler(input, context) {
 			const organizations = organization();
-			if (!account() || !organizations) return noProvider();
+			if (!account(context) || !organizations) return noProvider();
 			try {
-				const found = await ownInvitation(input.invitation);
+				const found = await ownInvitation(input.invitation, context);
 				if ('success' in found) return found;
 				await organizations.acceptInvitation(input.invitation);
 				return kit.success({ organization: found.organization, role: found.role });
@@ -447,11 +502,11 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		executionTime: 'fast',
 		input: invitationInput,
 		jsonSchema: INVITATION_JSON,
-		async handler(input) {
+		async handler(input, context) {
 			const organizations = organization();
-			if (!account() || !organizations) return noProvider();
+			if (!account(context) || !organizations) return noProvider();
 			try {
-				const found = await ownInvitation(input.invitation);
+				const found = await ownInvitation(input.invitation, context);
 				if ('success' in found) return found;
 				await organizations.rejectInvitation(input.invitation);
 				return kit.success({ rejected: true as const });
@@ -485,8 +540,10 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const held = account();
+			const held = account(context);
 			if (!held) {
+				// In `provider` mode with no capability for this person: refused, never the adapter's person (9.5).
+				if (provider) return refusal(unreachable());
 				const me = localAccount(context);
 				return kit.success({
 					people: [
@@ -506,7 +563,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			try {
 				const read = await held.members(input);
 				// The provider shows emails to an owner only; the kernel holds to it on the membership it decided with.
-				const owner = kit.isOwner(deps.membership(), personOf(context));
+				const owner = kit.isOwner(deps.membership(context), personOf(context));
 				return kit.success({
 					people: await Promise.all(
 						read.people.map(async ({ memberId: _memberId, digest: _digest, email, ...person }) => ({
@@ -531,7 +588,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		| CommandResult<never>
 		| { organizations: NonNullable<AuthAdapter['organization']>; held: LoamAccountAccessV1 } => {
 		const organizations = organization();
-		const held = account();
+		const held = account(context);
 		if (!organizations || !held) return noProvider();
 		return ownerRefusal(context) ?? { organizations, held };
 	};
@@ -562,10 +619,13 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 				return fail('OWNER_REQUIRED', 'Only a member with the owner role can invite an owner');
 			}
 			try {
-				const made: OrganizationInvitation = await ready.organizations.invite(await boundId(), {
-					email: input.email.trim().toLowerCase(),
-					role: input.role,
-				});
+				const made: OrganizationInvitation = await ready.organizations.invite(
+					await boundId(context),
+					{
+						email: input.email.trim().toLowerCase(),
+						role: input.role,
+					}
+				);
 				return kit.success(
 					{ invitation: made.id, expiresAt: new Date(made.expiresAt).toISOString() },
 					{ undoCommand: 'member-invitation-cancel', undoArgs: { invitation: made.id } }
@@ -588,7 +648,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			const ready = ownerPreamble(context);
 			if ('success' in ready) return ready;
 			try {
-				const rows = await ready.organizations.listInvitations(await boundId());
+				const rows = await ready.organizations.listInvitations(await boundId(context));
 				return kit.success({
 					invitations: rows
 						.filter((row) => row.status === 'pending')
@@ -619,7 +679,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			const ready = ownerPreamble(context);
 			if ('success' in ready) return ready;
 			try {
-				const organizationId = await boundId();
+				const organizationId = await boundId(context);
 				const rows = await ready.organizations.listInvitations(organizationId);
 				if (!rows.some((row) => row.id === input.invitation && row.status === 'pending')) {
 					return fail(
@@ -678,7 +738,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 				if (target.role === 'owner' && !holdsOwnerRole(context)) {
 					return fail('OWNER_REQUIRED', 'Only a member with the owner role can remove an owner');
 				}
-				await ready.organizations.removeMember(await boundId(), target.memberId);
+				await ready.organizations.removeMember(await boundId(context), target.memberId);
 				// The agent members the person sponsors, suspended by the top-level `agent-member-settle` after this call (8.3).
 				return kit.success({
 					removed: true as const,
@@ -729,7 +789,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 						'Only a member with the owner role can grant or remove owner'
 					);
 				}
-				await ready.organizations.setRole(await boundId(), target.memberId, input.role);
+				await ready.organizations.setRole(await boundId(context), target.memberId, input.role);
 				return kit.success(
 					{ role: input.role, previous: target.role },
 					{ undoCommand: 'member-role-set', undoArgs: { member: input.member, role: target.role } }
@@ -744,6 +804,89 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		},
 	});
 
+	/** A connected agent as its person sees it in the agents tab (5.3). */
+	const agentRow = (agent: ConnectedAgentV1): OwnConnectedAgentV1 => ({
+		agent: agent.id,
+		name: agent.name,
+		clientHost: agent.client?.host ?? '',
+		scopes: agent.scopes,
+		connectedAt: new Date(agent.createdAt).toISOString(),
+		status: agent.status === 'active' ? 'active' : 'suspended',
+		...(agent.suspended ? { suspended: agent.suspended } : {}),
+	});
+	/** The call's person's own connected agents, from the provider's table (9.2). */
+	const ownAgents = async (context: CommandContext): Promise<ConnectedAgentV1[]> => {
+		const read = account(context)?.agents;
+		const person = personOf(context);
+		if (!read || person === undefined) return [];
+		return (await read()).filter((agent) => agent.sponsor === person);
+	};
+
+	const agentList = kit.define<typeof empty, { agents: OwnConnectedAgentV1[] }>({
+		name: 'account-agent-list',
+		description:
+			'List the external agents you connected over MCP: each acts for you, within your access, until you disconnect it',
+		category: 'account',
+		mutation: false,
+		executionTime: 'fast',
+		input: empty,
+		jsonSchema: EMPTY_JSON,
+		async handler(_input, context) {
+			if (!account(context)) return kit.success({ agents: [] });
+			try {
+				return kit.success({ agents: (await ownAgents(context)).map(agentRow) });
+			} catch (cause) {
+				return refusal(cause);
+			}
+		},
+	});
+
+	const agentDisconnectInput = z.strictObject({ agent: id });
+	const agentDisconnect = kit.define<typeof agentDisconnectInput, { disconnected: true }>({
+		name: 'account-agent-disconnect',
+		title: 'Disconnect an agent',
+		description:
+			'Disconnect an external agent you connected: its consent and refresh tokens end now, and its last access token within 10 minutes',
+		category: 'account',
+		mutation: true,
+		destructive: true,
+		executionTime: 'fast',
+		input: agentDisconnectInput,
+		jsonSchema: {
+			type: 'object',
+			properties: { agent: ID_JSON },
+			required: ['agent'],
+			additionalProperties: false,
+		},
+		async handler(input, context) {
+			const held = account(context);
+			if (!held?.disconnectAgent) return noProvider();
+			try {
+				// Only the person's own: any other id answers as a missing one, naming nothing of anyone else's (5.3).
+				const own = (await ownAgents(context)).find((agent) => agent.id === input.agent);
+				if (!own) {
+					return kit.kernelFailure(
+						'AGENT_MEMBER_NOT_FOUND',
+						'You have no connected agent with this id',
+						'List yours with account-agent-list'
+					);
+				}
+				// An owner's removal stands until an owner lifts it (9.2): its sponsor cannot clear it by disconnecting.
+				if (own.status === 'suspended' && own.suspended === 'owner') {
+					return kit.kernelFailure(
+						'AGENT_DISCONNECTED_BY_OWNER',
+						'An owner removed this agent; it stays removed until an owner allows it again',
+						'Ask an owner of the workspace to allow it again'
+					);
+				}
+				await held.disconnectAgent(input.agent);
+				return kit.success({ disconnected: true as const });
+			} catch (cause) {
+				return refusal(cause);
+			}
+		},
+	});
+
 	return {
 		commands: [
 			accountGet,
@@ -751,6 +894,8 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			invitationList,
 			invitationAccept,
 			invitationReject,
+			agentList,
+			agentDisconnect,
 			memberList,
 			memberInvite,
 			pendingList,

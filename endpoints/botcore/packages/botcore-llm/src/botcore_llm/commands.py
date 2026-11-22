@@ -8,24 +8,29 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from afd import CommandResult, error, success
+from copilot import BUILTIN_TOOLS_ISOLATED, ToolSet
 
-from .bridge import bridge_commands
+from .bridge import HostActorRefused, bridge_commands
 from .chat_stream import chat_result, llm_chat_stream
 from .client import CopilotClientManager
-from .config import LlmConfig, LlmPermissionsConfig, get_llm_config
+from .config import DEFAULT_TOOL_PLUGINS, LlmConfig, LlmPermissionsConfig, get_llm_config
 from .permissions import create_permission_handler
 from .session import get_session_registry
+
+if TYPE_CHECKING:
+    from botcore.host import CommandHost
 
 logger = logging.getLogger(__name__)
 
 # Module-level config — set by the plugin at startup, or lazy-default.
 _config: LlmConfig | None = None
 
-# Cached command namespace — avoids re-discovering plugins on every session create.
-_namespace: dict[str, Any] | None = None
+# The host a Python embedder chose for bridged tools; None builds one from config per session.
+_tool_host: CommandHost | None = None
 
 
 def _get_config() -> LlmConfig:
@@ -41,14 +46,104 @@ def set_config(config: LlmConfig) -> None:
     _config = config
 
 
-def _get_namespace() -> dict[str, Any]:
-    """Return the cached botcore command namespace."""
-    global _namespace
-    if _namespace is None:
-        from botcore.server import build_namespace
+def set_tool_host(host: CommandHost | None) -> None:
+    """Serve bridged tools from *host*, or (``None``) from a host built from config.
 
-        _namespace, _ = build_namespace()
-    return _namespace
+    Every bridged tool call enters ``host.execute``, so the host's policies and profile
+    decide what a model may run.
+    """
+    global _tool_host
+    _tool_host = host
+
+
+def _get_tool_host(config: LlmConfig) -> tuple[CommandHost, bool]:
+    """The host bridged tools dispatch through, and whether this session owns it.
+
+    Without one from :func:`set_tool_host` (which its caller owns and closes), builds a
+    managed host over the current workspace with the ``tool_profile`` and ``tool_plugins``
+    the LLM config names; the session owns that host and closes it when destroyed.
+    """
+    if _tool_host is not None:
+        return _tool_host, False
+    from botcore.context import ExecutionContext
+    from botcore.host import build_host
+    from botcore.utils.workspace import find_workspace
+
+    workspace = find_workspace() or Path.cwd()
+    context = ExecutionContext(workspace, profile=config.tool_profile)
+    return build_host("llm", context, plugins=_tool_plugins(config)), True
+
+
+async def _close_owned(host: CommandHost | None, owned: bool) -> None:
+    """Close the plugins of a tool host this session built (their HTTP clients and such)."""
+    if host is None or not owned:
+        return
+    try:
+        await host.aclose()
+    except Exception as exc:
+        logger.warning("Error closing the tool host's plugins: %s", exc)
+
+
+#: Copilot built-in tools that run shell commands; offered only with ``allow_shell``.
+#: No tool that types input into a running process is offered: such input would reach the
+#: process without passing the shell allowlist.
+SHELL_BUILTIN_TOOLS = (
+    "bash",
+    "read_bash",
+    "stop_bash",
+    "list_bash",
+    "powershell",
+    "read_powershell",
+    "stop_powershell",
+)
+#: Copilot built-in tools that read or write files; offered only with ``allow_filesystem``.
+#: ``apply_patch`` is the file-editing tool GPT-family models use.
+FILESYSTEM_BUILTIN_TOOLS = (
+    "view",
+    "create",
+    "edit",
+    "str_replace_editor",
+    "apply_patch",
+    "glob",
+    "grep",
+)
+#: Read-only built-ins offered in every session, besides the SDK's session-local set.
+READ_ONLY_BUILTIN_TOOLS = ("lsp",)
+
+
+def session_tool_allowlist(bridged: list[str], permissions: LlmPermissionsConfig) -> list[str]:
+    """The ``available_tools`` filter of a session: every tool the model may see.
+
+    The bridged tools, the runtime's session-local and read-only built-ins, the shell and file
+    built-ins
+    the permissions allow, and MCP tools only when ``allow_mcp`` names servers in
+    ``mcp_servers`` (the permission handler then admits only those servers). Any other
+    tool the runtime provides is hidden from the model.
+    """
+    tool_set = ToolSet().add_builtin(BUILTIN_TOOLS_ISOLATED).add_builtin(READ_ONLY_BUILTIN_TOOLS)
+    if permissions.allow_shell:
+        tool_set.add_builtin(SHELL_BUILTIN_TOOLS)
+    if permissions.allow_filesystem:
+        tool_set.add_builtin(FILESYSTEM_BUILTIN_TOOLS)
+    if permissions.allow_mcp and getattr(permissions, "mcp_servers", None):
+        tool_set.add_mcp("*")
+    for name in bridged:
+        tool_set.add_custom(name)
+    return tool_set.to_list()
+
+
+def _tool_plugins(config: LlmConfig) -> tuple[str, ...]:
+    """The plugins a tool host selects: ``tool_plugins``, or the installed defaults."""
+    if config.tool_plugins is not None:
+        return tuple(config.tool_plugins)
+    installed = _installed_plugin_names()
+    return tuple(name for name in DEFAULT_TOOL_PLUGINS if name in installed)
+
+
+def _installed_plugin_names() -> set[str]:
+    from importlib.metadata import entry_points
+
+    return {entry_point.name for entry_point in entry_points(group="botcore.plugins")}
 
 
 # ---------------------------------------------------------------------------
@@ -87,20 +182,41 @@ async def llm_session_create(
             suggestion="Check that Copilot CLI is installed and accessible",
         )
 
-    # Bridge requested tools from the botcore command namespace
+    # Bridge requested tools from a managed host, whose policy applies to every tool call
     bridged_tools = []
     tool_names: list[str] = tools or []
+    tool_host: CommandHost | None = None
+    owned_host = False
     if tool_names:
         try:
-            namespace = _get_namespace()
-            bridged_tools = bridge_commands(tool_names, namespace)
+            tool_host, owned_host = _get_tool_host(config)
+        except Exception as exc:
+            return error(
+                "BRIDGE_ERROR",
+                f"Failed to build the host for bridged tools: {exc}",
+                suggestion=(
+                    "Check tool_profile and tool_plugins under [tool.botcore.plugins.llm]: "
+                    "each plugin must be installed and declare host_context_safe"
+                ),
+            )
+        try:
+            bridged_tools = bridge_commands(tool_names, tool_host)
+        except HostActorRefused as exc:
+            await _close_owned(tool_host, owned_host)
+            return error("TOOL_HOST_ACTOR_REFUSED", str(exc), suggestion=exc.suggestion)
         except KeyError as exc:
+            await _close_owned(tool_host, owned_host)
             return error(
                 "UNKNOWN_COMMAND",
-                str(exc),
-                suggestion="Use llm_session_list or check available commands",
+                str(exc.args[0]) if exc.args else str(exc),
+                suggestion=(
+                    "Bridge only commands the tool host serves (see its catalog): admitted "
+                    "core commands and those of plugins named in tool_plugins, or pass a "
+                    "host of your own to botcore_llm.commands.set_tool_host"
+                ),
             )
         except Exception as exc:
+            await _close_owned(tool_host, owned_host)
             return error(
                 "BRIDGE_ERROR",
                 f"Failed to bridge commands: {exc}",
@@ -115,6 +231,8 @@ async def llm_session_create(
         "on_permission_request": permission_handler,
         "model": model,
         "streaming": streaming,
+        # Only these tools reach the model: anything else the runtime provides is hidden.
+        "available_tools": session_tool_allowlist([t.name for t in bridged_tools], perms),
     }
 
     if bridged_tools:
@@ -132,6 +250,7 @@ async def llm_session_create(
     try:
         session = await client.create_session(**session_config)
     except Exception as exc:
+        await _close_owned(tool_host, owned_host)
         return error(
             "SESSION_CREATE_ERROR",
             f"Failed to create session: {exc}",
@@ -147,6 +266,7 @@ async def llm_session_create(
         tools=tool_names,
         config=session_config,
         agent_name=agent_name,
+        tool_host=tool_host if owned_host else None,
     )
 
     return success(
@@ -176,6 +296,7 @@ async def llm_session_destroy(session_id: str) -> CommandResult[dict]:
     except Exception as exc:
         logger.warning("Error destroying session %s: %s", session_id, exc)
 
+    await _close_owned(entry.tool_host, entry.tool_host is not None)
     registry.remove(session_id)
 
     return success(

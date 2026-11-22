@@ -16,6 +16,7 @@ from botcore_factory.world import (
     TAIL_LINES,
     Comment,
     Completed,
+    FoldOutcome,
     HostRecord,
     Issue,
     MergeOutcome,
@@ -415,8 +416,25 @@ class FixtureGit:
         self._slot(path).pop("merging", None)
         self.store.save()
 
+    def fold(self, path: str, base: str) -> FoldOutcome:
+        """``outcomes.fold[branch]``: ``keep`` (the default: the merged head is taken as one
+        commit of its own already), ``folded`` (a new head, ``<head>=1``, with the same tree),
+        ``refuse: why`` or ``fail: ...``."""
+        slot = self._slot(path)
+        result = _outcome(self.store, "fold", slot["branch"], "keep")
+        if result.startswith("fail"):
+            raise WorldError(result.removeprefix("fail").lstrip(": ") or "fold failed")
+        if result.startswith("refuse"):
+            return FoldOutcome(refused=result.removeprefix("refuse").lstrip(": ") or "refused")
+        if result == "folded":
+            slot["tree"] = f"tree-{slot['head']}"
+            slot["head"] = f"{slot['head']}=1"
+            self.store.save()
+        return FoldOutcome(head=slot["head"])
+
     def tree(self, path: str) -> str:
-        return f"tree-{self._slot(path)['head']}"
+        slot = self._slot(path)
+        return slot.get("tree") or f"tree-{slot['head']}"
 
     def diff_names(self, old: str, new: str) -> list[str]:
         """``main.changes[new]``: what changed up to ``new`` (since any ``old``): main's move, or,

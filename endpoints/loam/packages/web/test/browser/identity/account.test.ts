@@ -426,6 +426,8 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 			'Passkeys',
 			'Sessions',
 			'Members',
+			// Step 7's connected agents (5.3).
+			'Agents',
 		]);
 		expect(await axe(page.page)).toEqual([]);
 		await section.getByRole('tab', { name: 'Passkeys' }).click();

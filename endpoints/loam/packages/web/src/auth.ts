@@ -135,6 +135,14 @@ function loamAccount(authBase: string): LoamAccountAccessV1 {
 		},
 		invitations: async () =>
 			((await request('/loam/invitations')) as { invitations: never[] }).invitations,
+		// The workspace's connected agents, and the person's disconnect and an owner's removal (5.3, 9.2; step 7).
+		agents: async () => ((await request('/loam/connected-agents')) as { agents: never[] }).agents,
+		async disconnectAgent(agent) {
+			await request('/loam/connected-agents/disconnect', { agent });
+		},
+		async removeAgent(agent, forget) {
+			await request('/loam/connected-agents/remove', { agent, forget });
+		},
 	};
 }
 
@@ -337,6 +345,63 @@ export function createLinkProvider(authBase: string) {
 		signOut: async () => {
 			await request('/sign-out', {}).catch(() => undefined);
 		},
+	};
+}
+
+/**
+ * What the OAuth login and consent pages ask of the provider (phase 3 specification, 9.4): the client's public name,
+ * the person and the bound organization, a sign-in by passkey or password, and the consent's answer. The login page
+ * resumes at the provider's own `/oauth2/authorize`.
+ */
+export function createOAuthProvider(authBase: string) {
+	const request = requester(authBase);
+	const client = createAuthClient({
+		baseURL: authBase,
+		fetchOptions: { credentials: 'same-origin' },
+		plugins: [passkeyClient()],
+	}) as unknown as BetterAuthClient;
+	return {
+		authorizeUrl: `${authBase}/oauth2/authorize`,
+		client: (clientId: string) =>
+			answer(() =>
+				request(`/oauth2/public-client?${new URLSearchParams({ client_id: clientId })}`)
+			),
+		async whoami() {
+			const read = (await request('/loam/whoami').catch(() => null)) as {
+				membership?: { organization?: { name?: string } } | null;
+			} | null;
+			return {
+				signedIn: read !== null && Object.keys(read).length > 0,
+				organization: read?.membership?.organization?.name ?? null,
+			};
+		},
+		signInWithPasskey: () =>
+			answer(async () => {
+				const signIn = (client as unknown as { signIn?: { passkey?: () => Answer<unknown> } })
+					.signIn;
+				if (!signIn?.passkey || typeof globalThis.PublicKeyCredential !== 'function') {
+					throw refusal('PASSKEY_UNSUPPORTED', 'This browser cannot use a passkey');
+				}
+				await answered(() => (signIn.passkey as () => Answer<unknown>)());
+				return {};
+			}),
+		signInWithPassword: (email: string, password: string) =>
+			answer(() => request('/sign-in/email', { email, password })),
+		signInWithProvider: (provider: string, returnTo: string) =>
+			answer(async () => {
+				const social = (await request('/sign-in/social', {
+					provider,
+					callbackURL: returnTo,
+					errorCallbackURL: returnTo,
+				})) as { url?: string };
+				// Only a web address the provider answered (as the page's own navigation is held to).
+				if (!social.url || !/^https?:$/.test(new URL(social.url, location.href).protocol))
+					throw refusal('SIGN_IN_METHOD_UNAVAILABLE', 'The sign-in could not start');
+				location.assign(social.url);
+				return {};
+			}),
+		consent: (accept: boolean, oauthQuery: string) =>
+			answer(() => request('/oauth2/consent', { accept, oauth_query: oauthQuery })),
 	};
 }
 

@@ -1,0 +1,126 @@
+{
+	"branches": {
+		"main": "1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e"
+	},
+	"repositories": [
+		{
+			"name": "example-repo",
+			"base": "main",
+			"image": "example-image",
+			"checkpointSteps": [
+				{
+					"label": "install",
+					"args": ["pnpm", "install", "--frozen-lockfile"],
+					"timeoutSeconds": 1800,
+					"network": "registries"
+				},
+				{
+					"label": "build",
+					"args": ["pnpm", "verify", "--all"],
+					"timeoutSeconds": 7200,
+					"network": "none"
+				}
+			]
+		}
+	],
+	"heads": {
+		"4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e": {
+			"note": "Passes. Started from a checkpoint, its install step finds everything in place.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 6000,
+					"connections": {
+						"allowed": 0,
+						"refused": []
+					}
+				},
+				{
+					"label": "validate",
+					"code": 0,
+					"durationMs": 150000,
+					"connections": {
+						"allowed": 0,
+						"refused": []
+					}
+				}
+			]
+		},
+		"3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3": {
+			"note": "Passes.",
+			"steps": [
+				{
+					"label": "validate",
+					"code": 0,
+					"durationMs": 150000
+				}
+			]
+		},
+		"1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e": {
+			"note": "The head of main. A run on it passes, except the recorded checkpoint run of m-red.",
+			"steps": [
+				{
+					"label": "validate",
+					"code": 0,
+					"durationMs": 90000
+				}
+			]
+		}
+	},
+	"machines": [
+		{
+			"id": "m-branch",
+			"repository": "example-repo",
+			"for": "fix/tokens",
+			"size": "standard",
+			"state": "ready",
+			"lastRun": {
+				"id": "r-31",
+				"head": "3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3",
+				"state": "passed"
+			}
+		},
+		{
+			"id": "m-red",
+			"repository": "example-repo",
+			"for": "main",
+			"size": "standard",
+			"state": "ready",
+			"lastRun": {
+				"id": "r-32",
+				"head": "1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
+				"state": "failed",
+				"steps": "checkpointSteps"
+			},
+			"note": "The base branch's machine in this fixture. Its one run was the checkpoint steps, and it failed.",
+			"runsTotal": 1
+		}
+	],
+	"checkpointList": [
+		{
+			"id": "c-main",
+			"repository": "example-repo",
+			"head": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+			"digest": "sha256:c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00",
+			"image": {
+				"name": "example-image",
+				"digest": "sha256:9b2d6c4e8f0a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c"
+			},
+			"current": true,
+			"stale": false
+		},
+		{
+			"id": "c-old",
+			"repository": "example-repo",
+			"head": "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+			"digest": "sha256:0ddba11c0ddba11c0ddba11c0ddba11c0ddba11c0ddba11c0ddba11c0ddba11c",
+			"image": {
+				"name": "example-image",
+				"digest": "sha256:1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d"
+			},
+			"current": false,
+			"stale": true
+		}
+	]
+}

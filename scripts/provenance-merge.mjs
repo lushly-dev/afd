@@ -4,12 +4,12 @@
  *
  * Every edit to FAST-AF, Specimen, Violet, Botcore or Health records itself in its unit's
  * `provenance/` directory: a row per file in `adaptations.json`, and in `provenance.json` the
- * sha256 of each manifest. Where a unit commits `adaptations.json`'s sha256 (Specimen, Violet),
- * two branches that edit different files of it both change that hash line, so their merge always
- * conflicts, though nothing they recorded does (lushly-dev/afd#1410). Botcore and FAST-AF no
- * longer commit it (#1610): their branches conflict only where the rows themselves do, which this
- * merges the same way. The factory lane runs this, as the adapter's `regenerate` command, in its
- * validation checkout while the merge of the base is still open:
+ * sha256 of each frozen manifest. Units once committed `adaptations.json`'s sha256 too, so two
+ * branches that edit different files of one both changed that hash line and their merge always
+ * conflicted, though nothing they recorded did (lushly-dev/afd#1410). None commits it now
+ * (#1610): branches conflict only where the rows themselves do, which this merges the same way.
+ * The factory lane runs this, as the adapter's `regenerate` command, in its validation checkout
+ * while the merge of the base is still open:
  *
  *   node scripts/provenance-merge.mjs
  *
@@ -170,7 +170,7 @@ const HASHED = '(recomputed)';
 
 /**
  * The envelope with each manifest hash replaced by `HASHED`, so whether a record carries one
- * merges as a value: Botcore and FAST-AF no longer commit `adaptations.json`'s (#1610), and a
+ * merges as a value: no unit commits `adaptations.json`'s any more (#1610), and a
  * branch from before that merges to the base's choice.
  */
 function withoutHashes(envelope) {

@@ -2,7 +2,8 @@
 
 Each package's tests run in their own pytest process: they all live in a ``tests`` package, so
 one process would import two ``tests.conftest`` modules and stop. The packages import each other
-(botcore-agents uses botcore-llm), so every ``src`` directory is on the path. botcore-llm needs
+(botcore-agents uses botcore-llm, and its connector tests the botcore-connectors plugin), so
+every ``src`` directory, and botcore-connectors', is on the path. botcore-llm needs
 the GitHub Copilot SDK, which the ``packages`` dependency group installs:
 
     uv sync --frozen --extra dev --extra mcp --extra cdp --group packages
@@ -23,6 +24,7 @@ PACKAGES = sorted(path for path in (ROOT / "packages").iterdir() if (path / "tes
 
 def main() -> int:
     sources = [str(package / "src") for package in PACKAGES]
+    sources.append(str(ROOT / "botcore-connectors" / "src"))
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(sources)}
     failed = []
     for package in PACKAGES:
