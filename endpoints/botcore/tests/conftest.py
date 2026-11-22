@@ -24,6 +24,18 @@ def _no_real_skill_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_MACHINE", "bench")
 
 
+@pytest.fixture(autouse=True)
+def _no_real_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test asks this machine's scheduler whether the job is installed: on a development
+    machine it is, and on a build machine it is not. A test that needs one says so."""
+    from botcore.commands.disk import schedule
+
+    monkeypatch.setattr(
+        schedule, "current",
+        lambda: schedule.ScheduleState(platform="test", installed=False, where=None),
+    )
+
+
 @pytest.fixture()
 def tmp_workspace(tmp_path: Path) -> Path:
     """Create a temp workspace with a valid pyproject.toml [tool.botcore] section."""

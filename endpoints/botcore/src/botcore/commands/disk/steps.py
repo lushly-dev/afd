@@ -4,11 +4,12 @@ A read of a folder can wait for ever: for a drive that went away, or for the own
 to a question the operating system put on the screen. macOS asks before a scheduled program
 reads an external volume or the files a cloud drive's app manages, and holds the read until
 someone answers. Nothing in Python ends such a read, so the job never makes one itself. It
-runs each step in a thread and waits as long as it can afford; a thread that only waits holds
+runs each step in a thread and waits for it while it works; a thread that only waits holds
 nothing the job needs, and goes with the process.
 
 A step says what it is doing as it goes (`doing`). That is how the job tells a step that is
-working from one that waits, and how it can say what a step was waiting for.
+working from one that waits, and how it can say what a step was waiting for. Only a process
+that ends with the run may leave a step behind: in one that lives on, the thread would too.
 """
 
 from __future__ import annotations
@@ -62,8 +63,16 @@ class Step:
         self.name = name
         self.outcome: dict[str, Any] = {}
         self._work = work
+        # a thread is given a number another had: what that one said last is not this step's
+        self._since = time.monotonic()
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
+
+    def _said(self) -> tuple[str, str, float, float] | None:
+        said = _NOW.get(self._thread.ident or 0)
+        if said is None or self.done or said[2] < self._since:
+            return None
+        return said
 
     def _run(self) -> None:
         doing("starting")
@@ -85,8 +94,8 @@ class Step:
 
     def now(self) -> tuple[str, str, float] | None:
         """What it is doing, to which path, and for how many seconds. None once it is done."""
-        said = _NOW.get(self._thread.ident or 0)
-        if said is None or self.done:
+        said = self._said()
+        if said is None:
             return None
         what, path, at, _allow = said
         return what, path, time.monotonic() - at
@@ -94,8 +103,8 @@ class Step:
     def quiet(self) -> float:
         """Seconds it has said nothing beyond what its last word allowed; 0 while it is
         within that, and once it is done."""
-        said = _NOW.get(self._thread.ident or 0)
-        if said is None or self.done:
+        said = self._said()
+        if said is None:
             return 0.0
         _what, _path, at, allow = said
         return max(0.0, time.monotonic() - at - allow)
@@ -137,6 +146,6 @@ def consent_hint(path: str, platform: str | None = None) -> str | None:
     program = os.path.realpath(sys.executable)
     return (
         f"macOS asks at the screen before a scheduled program reads {place}: allow "
-        f"{program} there (the question stays up while a run waits), or give it Full Disk "
-        "Access under System Settings, Privacy & Security"
+        f"{program} when it asks. Full Disk Access under System Settings, Privacy & "
+        "Security does it too, for every program that Python runs"
     )

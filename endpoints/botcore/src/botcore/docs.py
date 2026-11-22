@@ -369,7 +369,15 @@ idle-worktree warning from the last reclaim that counted it fully (older than 48
 says when) and Cargo output no `[[aged]]` folder clears, both of which Botcore Factory's
 `lane_status` shows to the foreman as `diskWarnings`; and a skill usage collection that has
 failed for less than a day. `skill_usage` is the job's last collection: `ok`, `ok_at`, and
-when it failed `error` and `failing_since`.
+when it failed `error` and `failing_since`. `disk_work` is the same for the disk work, with
+`waiting_on` (`what`, `path`) when it never came back: that is a problem at once, since only
+the owner's answer or the drive will change it; a disk step that came back failed is a
+warning. So is an installed job with no check on record, or none for three hours.
+
+The status reads what the job wrote first, then gives the machine 20 seconds to answer for
+the scheduler, the volumes and Cargo's settings. When it does not, `problems` says what the
+status was reading, `schedule` is null and `volumes` empty, and the rest is what the job
+last wrote.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
@@ -380,27 +388,31 @@ report lists it. disk_unkeep releases only a botcore keep, never another tool's 
 Recreate a worktree a tier 2 reclaim removed, at the same path and commit: on its branch if the
 branch still points there, on a recreated branch if it was deleted, else detached.
 
-## disk_run(force=False)
-What the job runs: reads each folder the disk work reads, checks free space and exits, unless
-a watched volume is low or the last applied run is a day old; then disk_reclaim(apply=True).
-Notifies once a day while space stays low. After the disk work it collects skill usage
-(`skill_usage_collect`), for at most five minutes: a failure, a wrong machine name or a
-collection that does not come back never fails or holds the job. `skill_usage_collect = false`
-in the machine settings turns it off.
+## disk_run(force=False, own_process=False)
+What the job runs: checks free space and exits, unless a watched volume is low or the last
+applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
+low. After the disk work it collects skill usage (`skill_usage_collect`), for at most five
+minutes: a failure, a wrong machine name or a collection that does not come back never fails
+or holds the job. `skill_usage_collect = false` in the machine settings turns it off.
 
-Every run ends by itself. The disk work and the collection are steps that say what they are
-doing. The collection waits for the disk work only while it works: five minutes without a
-word, beyond a command's own timeout, is waiting. A step that still waits when the run is 50
-minutes old is left behind, and one that works is never cut short. `disk-status` then names
-what the disk work was doing (`disk_work.waiting_on`) as a problem; a disk step that came back
-failed is a warning, and so is a job that has not checked in for three hours. Errors:
-`DISK_RUN_STALLED` (the disk work did not come back), `DISK_RUN_FAILED` (it raised).
+The scheduler's run (`botcore disk-run`, which passes `own_process=True`) always ends. The
+disk work and the collection are steps that say what they are doing. The disk work is waited
+for while it works, however long, and is never cut short; once it has said nothing for five
+minutes beyond a command's own timeout it is waiting, and the run goes on without it. What
+is left goes with the process. `disk-status` then names what the disk work was doing
+(`disk_work.waiting_on`) as a problem. A disk step that came back failed, or with failures in
+its receipt, is a warning. Errors: `DISK_RUN_STALLED` (the disk work only waits),
+`DISK_RUN_FAILED` (it raised), `DISK_STATE_UNANSWERED` (the job's own settings or state file
+did not answer in 30 seconds). Called with `own_process=False`, from a program that lives
+on, it waits for its steps and leaves nothing running.
 
 On macOS a read that waits is most often the system asking the owner: a scheduled program is
 asked at the screen before it reads an external or network volume, files a cloud drive's app
 manages, or Desktop, Documents and Downloads, and the read is held for the answer. Allow the
-program the message names (the Python botcore runs on), or give it Full Disk Access. Each
-run reads its folders first so that the question comes up in the run `disk-setup` starts.
+program the message names when asked. It is the Python botcore runs on, which other tools may
+share, so Full Disk Access for it reaches further than the one question. On macOS each run
+reads the folders the disk work will need before anything else, so that the question comes
+up in the run `disk-setup` starts.
 
 Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
 origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the

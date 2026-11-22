@@ -645,7 +645,8 @@ def disk_run_cmd(ctx: click.Context, force: bool, **_kwargs: Any) -> None:
     """The scheduled job: check free space, and reclaim when due or low."""
     from botcore.commands.disk import disk_run
 
-    result = _run_async(disk_run(force=force))
+    # this process is the run's own: a step that only waits is left behind when it ends
+    result = _run_async(disk_run(force=force, own_process=True))
     _format_result(result, _is_json(ctx))
 
 

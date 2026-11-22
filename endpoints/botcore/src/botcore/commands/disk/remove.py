@@ -112,6 +112,7 @@ def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
         return False
     for child in children:
         here = os.path.join(where, child.name)
+        doing("removing", here)  # every file: a folder of very many is work, not waiting
         try:
             info = child.stat(follow_symlinks=False)
         except FileNotFoundError:
@@ -255,6 +256,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
         stack.append((current, True, identity))
         for name in names:
             child = os.path.join(current, name)
+            doing("removing", child)
             try:
                 child_info = os.lstat(child)
             except OSError:

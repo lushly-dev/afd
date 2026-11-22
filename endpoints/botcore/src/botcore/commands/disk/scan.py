@@ -371,6 +371,7 @@ def last_activity(
             if value is not None:
                 times.append(value)
     for rel in changed:
+        doing("reading", worktree)  # every file: very many changed files are work
         value = _mtime(worktree / rel)
         if value is not None:
             times.append(value)
@@ -468,6 +469,7 @@ def find_candidates(
             complete = False
             continue
         for child in children:
+            doing("reading", folder)
             rel = f"{prefix}{child.name}"
             link = is_link(child)
             folder_like = not link and child.is_dir(follow_symlinks=False)
@@ -507,6 +509,7 @@ def allocated(path: Path, deadline: float) -> int | None:
         if time.monotonic() > deadline:
             return None
         current = stack.pop()
+        doing("measuring", current)
         try:
             info = current.lstat()
         except OSError:
@@ -516,7 +519,6 @@ def allocated(path: Path, deadline: float) -> int | None:
         if stat.S_ISDIR(info.st_mode):
             if os.name == "nt" and getattr(info, "st_file_attributes", 0) & 0x400:
                 continue  # a junction
-            doing("measuring", current)
             try:
                 stack.extend(Path(e.path) for e in os.scandir(current))
             except OSError:
@@ -549,6 +551,7 @@ def newest_mtime(path: Path, depth: int = 1) -> float | None:
             except OSError:
                 continue
             for child in entries:
+                doing("reading", folder)
                 try:
                     times.append(child.stat(follow_symlinks=False).st_mtime)
                     if child.is_dir(follow_symlinks=False):

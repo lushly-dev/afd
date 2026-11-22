@@ -230,6 +230,7 @@ def _inside_rebuildable(
             continue  # a Cargo target: build output only
         for entry in entries:
             child = f"{here}/{entry.name}"
+            doing("reading", current)
             if entry.is_symlink():
                 continue
             if entry.is_dir(follow_symlinks=False):

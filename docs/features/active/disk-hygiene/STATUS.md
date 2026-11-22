@@ -27,9 +27,16 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   worktrees on an external volume. Every reclaim before had been run from a terminal, which
   has its own consent, and the run setup starts only checked free space: a reclaim had just
   been run by hand, so none was due.
-- **What changed.** A run reads every folder it will need first, so the question comes in the
-  run setup starts. The disk work and the collection are steps the job can stop waiting for,
-  and `disk-status` names the folder a step waited for and the program to allow.
+- **What changed.** On macOS a run reads every folder it will need first, so the question
+  comes in the run setup starts. The disk work and the collection are steps: the scheduler's
+  run waits for the disk work while it says it is working, leaves it after five minutes of
+  silence, and `disk-status` names the folder it waited for and the program to allow.
+- **What review changed.** The first design kept a run waiting until it was 50 minutes old,
+  to keep the question on the screen. Both reviewers found what that cost: a reclaim still
+  working at that minute was recorded as waiting, a busy collection could hold the run, and
+  a host that called the command kept a thread running after it returned. A waiting step is
+  now left after five minutes, a working one is never cut short, and only the scheduler's
+  own process leaves anything behind.
 - **Tried on Random with the question still open**, as a scheduled program with shortened
   waits and a reclaim that removes nothing: 20 seconds in, the status named `/Volumes/Dev`
   and what to allow; the collection ran and was shared; the run ended by itself. The first

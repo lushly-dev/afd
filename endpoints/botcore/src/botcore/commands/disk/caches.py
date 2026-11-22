@@ -49,6 +49,7 @@ def _sample_mode(checkout: Path) -> str:
     seen = 0
     doing("reading", store)
     for package_json in store.glob("*/node_modules/*/package.json"):
+        doing("reading", store)
         try:
             links = package_json.stat().st_nlink
         except OSError:
