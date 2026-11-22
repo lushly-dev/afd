@@ -411,9 +411,16 @@ describe('P5-A2: the runtime’s frame on the desktop', () => {
 			SESSION_HELD,
 			'script:hang'
 		);
-		// The turn is running: its model stream is open and held.
+		// The turn is running: its model stream is open and held, and its own start drawn, which comes a round trip after
+		// the request (the provider's first chunk reaching the runtime), on the panel's port: the snapshot waits for it, so
+		// any later event is the window message's.
 		await inPage('return test.sent(args[0], 30000);', sends + 1);
-		const held = await inPage<TurnView>('return test.view(args[0]);', runId);
+		const held = await inPage<TurnView>(
+			'return test.drawn(args[0], args[1], 30000);',
+			runId,
+			'RUN_STARTED'
+		);
+		expect(held.events).toContain('RUN_STARTED');
 		const watched = await watch();
 		const stored = await storedText(desktop.browser);
 		const first = await invoke('mount_open', { instance: 'fixture' });
