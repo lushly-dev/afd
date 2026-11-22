@@ -9,11 +9,13 @@ import { createServer, type IncomingHttpHeaders, request, type Server } from 'no
 import type { AddressInfo } from 'node:net';
 import { type JournalRecord, success } from '@lushly-dev/afd-core';
 import { createMcpHandler, defineCommand } from '@lushly-dev/afd-server';
-import type { ProjectV1, WorkspaceAppV1 } from '@lushly-dev/loam-kernel/mounted';
+import type { LoamKernelErrorCode } from '@lushly-dev/loam-kernel';
+import type { MountFailureCode, ProjectV1, WorkspaceAppV1 } from '@lushly-dev/loam-kernel/mounted';
 import type { ProjectionAppV1 } from '@lushly-dev/loam-manifest';
 import { SERVER_LIMITS_V1, type ServerLimitsV1 } from '@lushly-dev/loam-manifest/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import type { RelayCode } from './refusals.js';
 import { createRelay, drained, type Relay, type RelayOptions } from './route.js';
 
 const ORIGIN = 'https://loam.test';
@@ -968,5 +970,26 @@ describe("P6-E5: the re-check's fixes on the route", () => {
 		const { RELAY_CODES } = await import('./refusals.js');
 		for (const code of Object.keys(RELAY_CODES).filter((code) => code !== 'SERVER_UNAVAILABLE'))
 			expect(MOUNT_FAILURE_CODES.has(code as never), code).toBe(true);
+	});
+
+	it("P6-E5: the kernel's `MountFailureCode` and `LoamKernelErrorCode` hold each relay code, at run time and in the types", async () => {
+		const { MOUNT_FAILURE_CODES } = await import('@lushly-dev/loam-kernel/mounted');
+		const { RELAY_CODES } = await import('./refusals.js');
+		// `LoamKernelErrorCode` is a type alone, with no runtime list: `pnpm check`'s typecheck holds it, and fails here
+		// on any relay code outside it. `MountFailureCode` holds all but the server's own `SERVER_UNAVAILABLE`, which the
+		// browser reads as `MOUNT_UNREACHABLE` (step 6's deviation 3).
+		const kernelHolds: [Exclude<RelayCode, LoamKernelErrorCode>] extends [never] ? true : false =
+			true;
+		const mountHolds: [
+			Exclude<Exclude<RelayCode, 'SERVER_UNAVAILABLE'>, MountFailureCode>,
+		] extends [never]
+			? true
+			: false = true;
+		expect([kernelHolds, mountHolds]).toEqual([true, true]);
+		const codes = Object.keys(RELAY_CODES) as RelayCode[];
+		expect(codes).toContain('SERVER_UNAVAILABLE');
+		expect(codes.filter((code) => !MOUNT_FAILURE_CODES.has(code as MountFailureCode))).toEqual([
+			'SERVER_UNAVAILABLE',
+		]);
 	});
 });

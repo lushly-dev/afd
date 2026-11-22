@@ -8,6 +8,7 @@
  * In every other deployment kind and mode, each command runs its phase 3 handler.
  */
 
+import { readFileSync } from 'node:fs';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
@@ -22,6 +23,7 @@ import { createFixedEnvironment, createSeededRandom, createSteppingClock } from 
 import { replayKernel } from '../testing.js';
 import {
 	canonicalJson,
+	SERVER_COMMANDS,
 	type ServerCallAnswerV1,
 	type ServerCallRequestV1,
 	TRUST_RECORDS_MAX_BYTES,
@@ -54,12 +56,22 @@ const restricted: ProjectV1 = {
 function fakeServer() {
 	const projects: ProjectV1[] = [atlas, restricted];
 	const agents = [
+		// An installed agent as the server's filter (phase 3's 8.2) answers it to Olu: the copy stores it whole.
 		{
 			id: 'agt_aaaaaaaaaaaaaaaaaaaa',
 			kind: 'installed',
-			sponsor: OLU,
-			status: 'active',
 			name: 'A',
+			sponsor: OLU,
+			sponsorName: 'Olu',
+			installedBy: OLU,
+			access: { workspace: true, projects: ['prj_atlas'] },
+			hiddenProjects: 1,
+			guidance: 'Be brief',
+			status: 'active',
+			createdAt: 1,
+			updatedAt: 2,
+			updatedBy: OLU,
+			warnings: [],
 		},
 		{
 			id: 'agt_bbbbbbbbbbbbbbbbbbbb',
@@ -78,12 +90,14 @@ function fakeServer() {
 				(project) => project.access.mode !== 'restricted' || project.access.members.includes(person)
 			),
 			workspaceApps: [],
-			agents: agents as TrustRecordSnapshotV1['agents'],
+			// A copy, so a kernel that changed a stored row in place cannot still match the server's own object.
+			agents: structuredClone(agents) as TrustRecordSnapshotV1['agents'],
 		};
 		return { generation: `g:${canonicalJson(seen).length}:${person}`, ...seen };
 	};
 	return {
 		projects,
+		agents,
 		calls,
 		as(next: string) {
 			person = next;
@@ -121,18 +135,44 @@ async function hostedKernel(
 		port?: boolean;
 		/** Bea a member too, for a case that reads as her. */
 		withBea?: boolean;
+		/** The provider's members as its account capability answers them (phase 3's 9.2), for the sponsor rules. */
+		roster?: boolean;
 	} = {}
 ) {
 	const server = options.server ?? fakeServer();
 	const clock = createSteppingClock();
 	const auth = new MockAuthAdapter({ clock: { now: clock } });
+	if (options.roster) {
+		const people = [
+			{ id: OLU, memberId: 'm-olu', name: 'Olu', image: null, role: 'owner', digest: 'd-olu' },
+			{ id: BEA, memberId: 'm-bea', name: 'Bea', image: null, role: 'member', digest: 'd-bea' },
+		];
+		Object.assign(auth, {
+			account: { members: async () => ({ people: [...people], total: people.length }) },
+		});
+	}
 	await auth.signIn({ method: 'credentials', email: 'olu@example.com', password: 'x' });
 	const store = new MemoryAdapter();
+	// Every write the kernel makes to its store, by table: `create`, `update`, `remove`, and each of a batch's writes.
+	const writes: string[] = [];
+	const recorded = new Proxy(store, {
+		get(target, key) {
+			const value = Reflect.get(target, key, target);
+			if (typeof value !== 'function') return value;
+			return (...args: unknown[]) => {
+				if (key === 'create' || key === 'update' || key === 'remove') writes.push(String(args[0]));
+				if (key === 'batch')
+					for (const op of args[0] as Array<{ method: string; path: string }>)
+						if (op.method !== 'GET') writes.push(op.path.replace(/^\//, '').split('/')[0] ?? '');
+				return value.apply(target, args);
+			};
+		},
+	});
 	const journal = new MemoryJournalSink();
 	const watchers = new Set<() => void>();
 	const identity = options.identity ?? PROVIDER;
 	const parts = await createKernelParts({
-		store,
+		store: recorded,
 		storeKind: 'memory',
 		journal,
 		auth,
@@ -167,12 +207,19 @@ async function hostedKernel(
 	});
 	made.push(parts);
 	// The follow chain settles before the next call: a cheap call waits for it.
-	const settled = () => parts.kernel.call('shell-info-get');
+	// Each wait's own trace, so a comparison can leave out exactly the test's waits and nothing the kernel journaled.
+	const waits = new Set<string>();
+	const settled = async () => {
+		const answer = await parts.kernel.call('shell-info-get');
+		const trace = answer.metadata?.traceId;
+		if (typeof trace === 'string') waits.add(trace);
+		return answer;
+	};
 	const refresh = async () => {
 		for (const watcher of watchers) watcher();
 		await settled();
 	};
-	return { parts, server, store, journal, auth, settled, refresh };
+	return { parts, server, store, journal, auth, settled, refresh, waits, writes };
 }
 
 const entries = (journal: MemoryJournalSink) => journal.read() as Promise<JournalEntry[]>;
@@ -197,7 +244,62 @@ describe('P6-E4: the browser routes the trust-record commands and keeps a copy (
 		expect(await tableIds(store, AGENT_MEMBER_TABLE)).toEqual(['agt_aaaaaaaaaaaaaaaaaaaa']);
 	});
 
-	it('routes a write to the server, writes nothing itself, and settles once the generation differs', async () => {
+	it('P6-E4: runs each settle top-level, for all four reasons, and stores the installed agent as the filtered row, whole', async () => {
+		const { parts, server, store, journal, auth, settled, refresh } = await hostedKernel({
+			withBea: true,
+		});
+		await settled();
+		// What the server's filter answered for Olu, stored as it is: no field added, dropped or changed (6.3).
+		const filtered = server.agents.find((agent) => agent.kind === 'installed');
+		const rows = (await store.list<Record<string, unknown>>(AGENT_MEMBER_TABLE)).data;
+		expect(rows).toStrictEqual([filtered]);
+		// `call`: a routed write whose generation differs; `refresh`: the host's periodic read, the records changed.
+		await parts.kernel.call('project-create', { name: 'Delta' });
+		await settled();
+		server.projects.push({ ...atlas, id: 'prj_gale', slug: 'gale', name: 'Gale' });
+		await refresh();
+		// `session`: a change of person, signing out and then in as Bea.
+		await parts.kernel.call('auth-sign-out');
+		await settled();
+		server.as(BEA);
+		await auth.signIn({ method: 'credentials', email: 'bea@example.com', password: 'x' });
+		await settled();
+		await settled();
+		const all = await entries(journal);
+		const settles = all.filter((entry) => entry.command === 'trust-record-settle');
+		const reasons = settles.map((entry) => (entry.input as { reason: string }).reason);
+		expect([...new Set(reasons)].sort()).toEqual(['boot', 'call', 'refresh', 'session']);
+		for (const settle of settles) {
+			// Top-level: no outer call's trace (the kernel's `dev.loam/parent`), and a trace of its own.
+			expect(settle.context?.parent).toBeUndefined();
+			expect(settle.traceId).toEqual(expect.any(String));
+		}
+		expect(new Set(settles.map((settle) => settle.traceId)).size).toBe(settles.length);
+		// The call's settle follows the call's own entry, as its own run, not inside it.
+		const call = all.find((entry) => entry.command === 'project-create') as JournalEntry;
+		const afterCall = settles[reasons.indexOf('call')] as JournalEntry;
+		expect(afterCall.seq).toBeGreaterThan(call.seq);
+		expect(afterCall.traceId).not.toBe(call.traceId);
+		// Each `session` settle follows the change of person journaled since the settle before it: the sign-out's own
+		// entry, and for Bea's sign-in the `session-settle` that names her (6.3).
+		const changes = settles.flatMap((settle, at) => {
+			if (reasons[at] !== 'session') return [];
+			const since = at === 0 ? 0 : (settles[at - 1] as JournalEntry).seq;
+			return [
+				all
+					.filter((entry) => entry.seq > since && entry.seq < settle.seq)
+					.filter((entry) => ['session-settle', 'auth-sign-out'].includes(entry.command))
+					.map((entry) =>
+						entry.command === 'session-settle'
+							? `session-settle ${(entry.input as { person?: string }).person}`
+							: entry.command
+					),
+			];
+		});
+		expect(changes).toEqual([['auth-sign-out'], [`session-settle ${BEA}`]]);
+	});
+
+	it('P6-E4: P6-E3: routes a write to the server, writes nothing itself, and settles once the generation differs', async () => {
 		const { parts, server, store, journal, settled } = await hostedKernel();
 		await settled();
 		const before = await tableIds(store, 'project');
@@ -528,5 +630,228 @@ describe('P6-E3: nothing is routed in any other deployment (6.1)', () => {
 			expect(server.calls).toEqual([]);
 			expect(parts.registries.boot.hasCommand('trust-record-settle')).toBe(false);
 		}
+	});
+});
+
+/** One server command's run: its outcome, and its result and journal slice, serialized. */
+interface CommandRun {
+	name: string;
+	outcome: string;
+	result: string;
+	journal: string;
+}
+
+/**
+ * Every `SERVER_COMMANDS` name, in phase 3's order, with three agent members of their own: one updated and removed, and
+ * two pending (in `provider` mode, sponsored by Bea), one confirmed and one declined as her. Each command's outcome is
+ * held to `expected` before any comparison, so a run that refused everything cannot compare equal by accident.
+ */
+async function runServerCommands(
+	kernel: Awaited<ReturnType<typeof hostedKernel>>,
+	mode: 'provider' | 'local'
+): Promise<CommandRun[]> {
+	const { parts, journal, auth, settled } = kernel;
+	const runs: CommandRun[] = [];
+	const ids: Record<string, string> = {};
+	const sponsor = mode === 'provider' ? BEA : OLU;
+	const pendingOutcome = mode === 'provider' ? 'ok' : 'AGENT_MEMBER_NOT_PENDING';
+	const steps: Array<[string, () => unknown, string, string?]> = [
+		['project-create', () => ({ name: 'Delta' }), 'ok'],
+		['project-update', () => ({ project: 'delta', name: 'Delta 2' }), 'ok'],
+		['project-archive', () => ({ project: 'delta' }), 'ok'],
+		['project-restore', () => ({ project: 'delta' }), 'ok'],
+		['workspace-app-set', () => ({ instance: 'tasks', enabled: false }), 'ok'],
+		['agent-member-add', () => ({ name: 'Keeper', sponsor: OLU }), 'ok', 'keeper'],
+		['agent-member-update', () => ({ agent: ids.keeper, name: 'Keeper 2' }), 'ok'],
+		['agent-member-remove', () => ({ agent: ids.keeper }), 'ok'],
+		['agent-member-add', () => ({ name: 'Yes', sponsor }), 'ok', 'yes'],
+		['agent-member-add', () => ({ name: 'No', sponsor }), 'ok', 'no'],
+		['agent-member-confirm', () => ({ agent: ids.yes }), pendingOutcome],
+		['agent-member-decline', () => ({ agent: ids.no }), pendingOutcome],
+		['trust-record-snapshot', () => ({}), 'COMMAND_NOT_FOUND'],
+	];
+	expect([...new Set(steps.map(([name]) => name))].sort()).toEqual([...SERVER_COMMANDS].sort());
+	for (const [name, input, expected, keep] of steps) {
+		// The sponsor answers her own agents: Bea signs in before the first of them (phase 3's 8.3).
+		if (name === 'agent-member-confirm' && mode === 'provider') {
+			await auth.signIn({ method: 'credentials', email: 'bea@example.com', password: 'x' });
+			await settled();
+		}
+		const before = (await entries(journal)).length;
+		const result = await parts.kernel.call(name, input());
+		await settled();
+		const slice = (await entries(journal)).slice(before);
+		const outcome = result.success ? 'ok' : String(result.error?.code);
+		expect(outcome, `${name}: ${JSON.stringify(result.error)}`).toBe(expected);
+		if (keep && result.success) ids[keep] = (result.data as { id: string }).id;
+		// Every write is journaled, refused or not; the snapshot is the server's, so the browser has none to journal.
+		const own = slice.filter((entry) => entry.command === name);
+		expect(own.length, name).toBe(name === 'trust-record-snapshot' ? 0 : 1);
+		runs.push({
+			name,
+			outcome,
+			result: JSON.stringify(result),
+			// The test's own waits left out by their trace: every entry the kernel journaled stays.
+			journal: JSON.stringify(
+				slice.filter((entry) => entry.traceId === undefined || !kernel.waits.has(entry.traceId))
+			),
+		});
+	}
+	return runs;
+}
+
+/**
+ * Each mode's runs as the kernel before step 5's routing answered them (`7aacc4987`, step 5's parent on `main`): written
+ * there by this sequence, and byte-identical there in all eight deployments below, which share these two baselines.
+ */
+const PINNED = JSON.parse(
+	readFileSync(new URL('../../test/fixtures/hosted-phase3-pinned.json', import.meta.url), 'utf8')
+) as { provenance: { commit: string }; local: CommandRun[]; provider: CommandRun[] };
+
+const v4 = (kind: string) => ({ ...scopedDeployment(), deployment_version: 4, host: { kind } });
+const LOCAL = { mode: 'local' } as IdentityV1;
+
+describe('P6-E3: in every other deployment kind and mode, each server command runs its phase 3 handler (6.1)', () => {
+	it('P6-E3: matches the pre-routing kernel’s pinned results and journal bytes, in all eight other deployments', async () => {
+		expect(PINNED.provenance.commit).toBe('7aacc4987');
+		const cases: Array<[string, IdentityV1, unknown, boolean]> = [
+			['hosted provider, no transport', PROVIDER, HOSTED(), false],
+			['static provider', PROVIDER, v4('static'), true],
+			['version 3 provider', PROVIDER, { ...scopedDeployment(), deployment_version: 3 }, true],
+			// Refused by the reader (DEPLOYMENT_DESKTOP_PROVIDER); the kernel given one still routes nothing.
+			['desktop provider', PROVIDER, v4('desktop'), true],
+			['hosted, local mode', LOCAL, HOSTED(), true],
+			['static, local mode', LOCAL, v4('static'), true],
+			['desktop, local mode', LOCAL, v4('desktop'), true],
+			['desktop, local mode, no transport', LOCAL, v4('desktop'), false],
+		];
+		for (const [label, identity, deployment, port] of cases) {
+			const mode = identity.mode === 'local' ? 'local' : 'provider';
+			const server = fakeServer();
+			const kernel = await hostedKernel({
+				identity,
+				deployment,
+				port,
+				server,
+				roster: true,
+				withBea: true,
+			});
+			await kernel.settled();
+			const runs = await runServerCommands(kernel, mode);
+			const pinned = PINNED[mode];
+			expect(
+				runs.map((run) => run.name),
+				label
+			).toEqual(pinned.map((run) => run.name));
+			for (const [at, run] of runs.entries()) {
+				expect(run.result, `${label}: ${run.name}'s result`).toBe(pinned[at]?.result);
+				expect(run.journal, `${label}: ${run.name}'s journal`).toBe(pinned[at]?.journal);
+			}
+			expect(server.calls, label).toEqual([]);
+		}
+	});
+
+	it('P6-E3: matches the kernel without the port, result and journal slice, in static, desktop, version 3 and local deployments', async () => {
+		const cases: Array<[string, IdentityV1, unknown]> = [
+			['hosted, local mode', LOCAL, HOSTED()],
+			['static provider', PROVIDER, v4('static')],
+			['version 3 provider', PROVIDER, { ...scopedDeployment(), deployment_version: 3 }],
+			['static, local mode', LOCAL, v4('static')],
+			['desktop, local mode', LOCAL, v4('desktop')],
+			// Refused by the reader (DEPLOYMENT_DESKTOP_PROVIDER); the kernel given one still routes nothing.
+			['desktop provider', PROVIDER, v4('desktop')],
+		];
+		for (const [label, identity, deployment] of cases) {
+			const mode = identity.mode === 'local' ? 'local' : 'provider';
+			const server = fakeServer();
+			const subject = await hostedKernel({
+				identity,
+				deployment,
+				server,
+				roster: true,
+				withBea: true,
+			});
+			const without = await hostedKernel({
+				identity,
+				deployment,
+				port: false,
+				roster: true,
+				withBea: true,
+			});
+			await subject.settled();
+			await without.settled();
+			const got = await runServerCommands(subject, mode);
+			const want = await runServerCommands(without, mode);
+			for (const [at, each] of got.entries()) {
+				expect(each.result, `${label}: ${each.name}'s result`).toBe(want[at]?.result);
+				expect(each.journal, `${label}: ${each.name}'s journal`).toBe(want[at]?.journal);
+			}
+			expect(server.calls, label).toEqual([]);
+			expect(subject.parts.registries.boot.hasCommand('trust-record-settle'), label).toBe(false);
+		}
+	});
+});
+
+describe('P6-E3: in a hosted provider deployment, every routed write is the server’s (6.1)', () => {
+	it('P6-E3: P6-E4: sends each routed write with its input, writes nothing locally after any of them, and reads the snapshot only over the transport', async () => {
+		const { parts, server, settled, writes: stored } = await hostedKernel();
+		await settled();
+		// Boot's own request is the transport's snapshot, with `{}`; the browser registers no such command.
+		expect(server.calls[0]).toMatchObject({ command: 'trust-record-snapshot', input: {} });
+		const COPY = [PROJECT_TABLE, WORKSPACE_APP_TABLE, AGENT_MEMBER_TABLE, 'settings'];
+		// Boot's settle wrote the copy (and its holder record in `settings`); nothing after it may.
+		expect(stored.filter((table) => COPY.includes(table)).length).toBeGreaterThan(0);
+		const agent = 'agt_aaaaaaaaaaaaaaaaaaaa';
+		const writes: Array<[string, unknown]> = [
+			['project-create', { name: 'Delta' }],
+			['project-update', { project: 'atlas', name: 'Atlas 2' }],
+			['project-archive', { project: 'atlas' }],
+			['project-restore', { project: 'atlas' }],
+			['workspace-app-set', { instance: 'tasks', enabled: false }],
+			['agent-member-add', { name: 'X', sponsor: OLU }],
+			['agent-member-update', { agent, name: 'Y' }],
+			['agent-member-confirm', { agent }],
+			['agent-member-decline', { agent }],
+			['agent-member-remove', { agent }],
+		];
+		expect(writes.map(([name]) => name).sort()).toEqual(
+			SERVER_COMMANDS.filter((name) => name !== 'trust-record-snapshot').sort()
+		);
+		// Each answered with the copy's own generation, so no settle follows and the store shows what the calls wrote.
+		const boot = server.calls.length;
+		const generation = (
+			(
+				await server.serverCall({
+					command: 'trust-record-snapshot',
+					input: {},
+					scope: { workspace: 'personal' },
+				})
+			).result.data as TrustRecordSnapshotV1
+		).generation;
+		server.calls.splice(boot);
+		server.answerWith((request) =>
+			request.command === 'trust-record-snapshot'
+				? undefined
+				: { result: { success: true, data: { id: agent } }, generation }
+		);
+		for (const [name, input] of writes) {
+			const at = stored.length;
+			const result = await parts.kernel.call(name, input);
+			expect(result.success, `${name}: ${JSON.stringify(result.error)}`).toBe(true);
+			await settled();
+			// Nothing of this call, or of anything it started, was written locally, in any table (6.1, 6.3).
+			expect(stored.slice(at), name).toEqual([]);
+		}
+		expect(server.calls.slice(boot)).toEqual(
+			writes.map(([command, input]) => ({
+				command,
+				input,
+				scope: { workspace: 'personal' },
+				person: OLU,
+			}))
+		);
+		const snapshot = await parts.kernel.call('trust-record-snapshot', {});
+		expect(snapshot.error?.code).toBe('COMMAND_NOT_FOUND');
+		expect(server.calls.length).toBe(boot + writes.length);
 	});
 });
