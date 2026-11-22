@@ -96,10 +96,12 @@ TEST_CASE("a $ref resolves against the nearest schema resource") {
     REQUIRE(fragment.has_value());
     CHECK_FALSE(fragment->validate({{"inner", 1}}).has_value());
     // A reference inside a resource does not reach the root's definitions.
-    CHECK_FALSE(afd::CompiledSchema::compile(afd::Json::parse(
-                    R"({"type":"object","properties":{"inner":{"$id":"urn:afd:inner","$ref":"#/$defs/X"}},
+    CHECK_FALSE(
+        afd::CompiledSchema::compile(
+            afd::Json::parse(
+                R"({"type":"object","properties":{"inner":{"$id":"urn:afd:inner","$ref":"#/$defs/X"}},
                         "$defs":{"X":{"type":"string"}}})"))
-                    .has_value());
+            .has_value());
 }
 
 TEST_CASE("compile rejects broken and remote references") {
