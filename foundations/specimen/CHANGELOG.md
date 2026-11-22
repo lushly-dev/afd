@@ -10,6 +10,12 @@
   commands over MCP stdio with the CLI's schemas and result envelopes. It has no
   release route and changes no foundation or command API.
 
+## 2.2.0-preview.8
+
+### Patch Changes
+
+- [#1951](https://github.com/lushly-dev/afd/pull/1951) [`2c541a8`](https://github.com/lushly-dev/afd/commit/2c541a80bfd44eae791d8139b0b9d58f4cca2f44) Thanks [@Falkicon](https://github.com/Falkicon)! - Retry component-pack example remount captures once on transient capture failure or settle race (matching the two-pass case retry), use the configured story timeout budget for remount captures, and wait one extra animation frame after `settle()` when remounting example markup so deferred component writes settle consistently on Windows ([#1404](https://github.com/lushly-dev/afd/issues/1404)).
+
 ## 2.2.0-preview.7
 
 ### Patch Changes
