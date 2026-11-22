@@ -109,6 +109,8 @@ def audit(artifacts: Path) -> list[dict]:
                 for script in (
                     "check-test-quarantine.mjs",
                     "check-test-configs.mjs",
+                    "check-test-discovery.mjs",
+                    "discovery-parsers.mjs",
                     "report-test-changes.mjs",
                 ):
                     assert f"botcore/skills/gate-discipline/scripts/{script}" in names

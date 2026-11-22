@@ -192,7 +192,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 |------|----------|--------|
 | pre-commit | Biome lint and fix (staged), portability, file-size, typecheck of the staged files' packages and their dependents | `git commit` |
 | commit-msg | commitlint (conventional commits) | `git commit` |
-| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, test-configs, test-quarantine, boundaries, skills, tooling tests | `git push` |
+| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, test-configs, test-discovery, test-quarantine, boundaries, skills, tooling tests | `git push` |
 | check | All pre-push + build of the affected packages | `pnpm check` |
 
 **Check scripts** (`scripts/`):
@@ -204,11 +204,12 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
 
-The `maintain-gates` skill (Botcore's `gate-discipline`, `.claude/skills/maintain-gates/scripts/`) carries two more checks and a report, shared with every repository that seeds it:
+The `maintain-gates` skill (Botcore's `gate-discipline`, `.claude/skills/maintain-gates/scripts/`) carries three checks and a report, shared with every repository that seeds it:
 
 | Script | What it checks |
 |--------|---------------|
 | `check-test-configs.mjs` | No Vitest or Vite config sets `passWithNoTests`, and no `package.json` script, workflow, `lefthook.yml` or `scripts/affected` module passes `--passWithNoTests`: a runner that finds no test file must fail, not pass. A new package adds its first test with its config |
+| `check-test-discovery.mjs` | Every tracked JS/TS, Python, C++ and Rust test file is claimed by an active test runner reachable from CI, `lefthook.yml` or workspace scripts (or explicitly registered in `scripts/policy/test-discovery.json` with owner, reason and tracking issue), and every active runner matches at least one test file; stale or recovered exemptions fail |
 | `check-test-quarantine.mjs` | No `.only` in any JavaScript or TypeScript test, and each unconditional `.skip`, `.todo` or Playwright `.fixme` registered with an owner, reason and issue in `scripts/policy/test-quarantine.json`; an entry whose test recovered fails. Conditional skips (`skipIf`, `runIf`, Playwright's `test.skip(condition, reason)`) need no entry |
 | `report-test-changes.mjs` | Not a gate: lists the tests, assertions, snapshots and runner configs a branch deleted, skipped, changed or loosened against its merge base with `origin/main`, for the reviewer and the pull request (`prepare-pr`). Always exits 0 |
 
